@@ -1,3 +1,11 @@
+# OALAB Projects – Client Hub
+
+Der aktuelle Projektstand, bekannte technische Aufgaben und alle offenen Produktfragen werden zentral in [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) gepflegt.
+
+> Das Produkt befindet sich derzeit in der Discovery- und Grundgerüstphase. Die nachfolgende Dokumentation beschreibt noch die technische Starter-Basis.
+
+---
+
 <a href="https://demo-nextjs-with-supabase.vercel.app/">
   <img alt="Next.js and Supabase Starter Kit - the fastest way to build apps with Next.js and Supabase" src="https://demo-nextjs-with-supabase.vercel.app/opengraph-image.png">
   <h1 align="center">Next.js and Supabase Starter Kit</h1>
