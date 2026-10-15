@@ -31,7 +31,9 @@ Aktivierung erfordert `ENABLE_PUBLIC_DEMO_LOGIN=true`, den exakten HTTPS-Origin 
 
 Das Cookie autorisiert ausschließlich Fixture-Seiten unter `/dashboard`, keine Supabase-Aufrufe oder anderen geschützten Routen. Echte Backend-Aktionen müssen weiterhin unabhängig gültige Supabase-Claims und RLS prüfen. Vor Einführung persistenter Geschäftsdaten ist diese Grenze erneut zu prüfen. Keine persönlichen Daten in der öffentlichen Demo eingeben. Aufgaben-Häkchen bleiben lokale UI-Zustände, Datei- und Nachrichteninhalte sind Beispiele.
 
-`npm run demo:public:smoke -- --local` prüft den öffentlichen Modus im Produktionsbuild. `npm run demo:public:smoke` prüft die feste Vercel-Adresse. Beide benötigen keine echten Zugangsdaten. Der lokale Produktions-Test besteht für alle vier Identitäten einschließlich Kundentrennung, fremder Projekt-IDs, Abmeldung und Ablehnung durch echte Auth-Routen.
+`npm run demo:public:smoke -- --local` prüft den öffentlichen Modus im Produktionsbuild. `npm run demo:public:smoke` prüft die feste Vercel-Adresse. Beide benötigen keine echten Zugangsdaten. Beide Prüfungen bestehen am 15. Oktober 2026 für alle vier Identitäten einschließlich Kundentrennung, fremder Projekt-IDs, Abmeldung und Ablehnung durch echte Auth-Routen.
+
+Zusätzlich auf der Live-Adresse im Browser geprüft: alle vier Schaltflächen, Admin mit neun Projekten, jeder Kunde mit drei Projekten, Abmeldung und anschließender Kontowechsel. Bei 390 Pixeln Breite sind alle vier Schaltflächen vorhanden; kein horizontaler Überlauf. Der Upload-Trockenlauf schließt `.env.local` und `.demo-accounts.local.json` aus. Ein Scan der versionierten Quellen und Browser-Assets findet keine lokalen Testpasswörter oder administrativen Supabase-Schlüssel.
 
 ### Lokal mit echten Supabase-Testkonten
 
