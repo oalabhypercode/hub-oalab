@@ -4,7 +4,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test tests/auth-redirect.test.mjs tests/demo-access.test.mjs tests/branding.test.mjs tests/demo-login-policy.test.mjs",
+    "demo:plan": "node scripts/seed-demo-accounts.mjs --check",
+    "demo:seed": "node scripts/seed-demo-accounts.mjs",
+    "demo:verify": "node scripts/seed-demo-accounts.mjs --verify",
+    "demo:smoke": "node scripts/verify-demo-workspaces.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.1",

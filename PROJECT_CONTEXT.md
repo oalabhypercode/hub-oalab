@@ -3,8 +3,25 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 13. Oktober 2026
-**Projektphase:** Technisches Grundgerüst / Product Discovery
+**Stand:** 15. Oktober 2026
+**Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
+
+### Markenentscheidung vom 15. Oktober 2026
+
+- Plattformname: **oalab**, Produktbezeichnung: **oalab Client Hub**.
+- Hauptlogo und Iconvariante sind als gelieferte Originaldateien eingebunden.
+- Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
+- Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
+
+### Ergänzung vom 15. Oktober 2026: Login und Testkonten
+
+- `/` zeigt direkt den Login; die separate Landingpage wurde auf Wunsch entfernt.
+- Lokal können alle vier Demo-Konten per Klick angemeldet werden. Die Passwörter bleiben serverseitig in der ignorierten Zugangsdaten-Datei. Im Produktionsmodus ist diese Abkürzung unabhängig von Konfigurationsflags gesperrt.
+- Ein OALAB-Admin und drei OALAB-Customer sind als echte Supabase-Testkonten angelegt.
+- Individuelle Testpasswörter werden ausschließlich lokal und außerhalb von Git gespeichert. Die Rollen werden serverseitig aus administrativ gesetzten Metadaten ausgewertet.
+- Alle vier Anmeldungen, Rollen und Workspace-Zuordnungen sind geprüft. Der Admin sieht neun Projekte, jeder Customer drei Projekte und zwei Beispieldateien; URL-Manipulation gibt keine fremden Kundendaten frei.
+- Die Daten sind versionierte Frontend-Fixtures; persistente Geschäftsdaten und Live-Nachrichten folgen später.
+- Verbindliche Kontenliste, Einrichtung und Bereitstellungsstatus: [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md).
 
 ## 1. Zielbild
 
@@ -12,7 +29,16 @@ Der OALAB Client Hub soll als zentrale Schnittstelle zwischen OALAB und seinen K
 
 ## 2. Aktueller Stand
 
-Das Repository basiert derzeit nahezu unverändert auf dem offiziellen Next.js-/Supabase-Starter-Kit. Eine projektspezifische Client-Hub-Funktionalität ist noch nicht implementiert.
+Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde auf dieser Basis umgesetzt: ein responsives Client-Hub-Frontend, gestaltete Authentifizierungsseiten und eine separate öffentliche Designvorschau. Die echten Kunden- und Projektdaten sind noch nicht angebunden.
+
+### Beschlossene Richtung für Schritt 1
+
+- Layoutreferenz: [Prolab für Framer](https://www.framer.com/marketplace/templates/prolab/) – große Typografie und klare Flächen. Das Branding folgt den oalab-CI-Richtlinien.
+- Plattformname, Logos, Markenverlauf und Inter sind durch den Auftraggeber festgelegt.
+- Das Frontend ist zunächst deutschsprachig und auf die Zusammenarbeit zwischen Kunden und OALAB ausgerichtet.
+- `/preview` zeigt ausschließlich fiktive Beispieldaten und kennzeichnet diese ausdrücklich. Es wird keine echte Anmeldung simuliert.
+- `/dashboard` bleibt durch Supabase Auth geschützt. Die vier Demo-Konten erhalten gezielt zugeordnete Fixtures; normale Konten sehen ohne Datenanbindung leere Zustände.
+- Die bestehende Selbstregistrierung bleibt vorerst erhalten. Einladung und Rollenmodell sind weiterhin offen.
 
 ### Technische Basis
 
@@ -30,41 +56,59 @@ Das Repository basiert derzeit nahezu unverändert auf dem offiziellen Next.js-/
 - Anmeldung und Abmeldung
 - E-Mail-Bestätigung
 - Passwort-Reset
-- Geschützte Beispielroute unter `/protected`
+- Geschützter Workspace unter `/dashboard`; die bisherige Route `/protected` leitet dorthin um
 - Automatische Weiterleitung nicht angemeldeter Benutzer zum Login
-- Light- und Dark-Mode
-- Grundlegende UI-Komponenten wie Buttons, Karten, Eingabefelder, Checkboxen und Dropdowns
+- Responsives Grundlayout mit Navigation, Topbar, Mobilmenü und oalab-Branding
+- Übersicht, Projektindex, Dateien, Nachrichten und Kontoeinstellungen als Frontend-Gerüst
+- Deutsche Authentifizierungsseiten mit Ladezuständen, Passwortsichtbarkeit und Fehlermeldungen
+- Workspace-Suche, Projektfilter, Detaildialoge und Benachrichtigungsdialog in der Designvorschau
+- Sichere interne Weiterleitungen und PKCE-/E-Mail-Bestätigungs-Callbacks
+- Vier echte Demo-Konten mit serververwalteter Admin-/Customer-Zuordnung und getrennten Fixture-Datensichten
+- Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
+- Helles Design als vorläufige Richtung; ein finaler Dark-Mode ist noch nicht gestaltet
 
 ### Noch nicht implementiert
 
-- OALAB-Branding und deutschsprachige Inhalte
-- Client-Hub-Dashboard und Navigation
-- Kunden, Unternehmen, Projekte, Aufgaben und Meilensteine
-- Rollen- und Berechtigungssystem
-- Mandantentrennung zwischen Kunden
-- Dateien, Freigaben und Supabase Storage
-- Kommentare, Nachrichten und Benachrichtigungen
+- Datenanbindung für Kunden, Unternehmen, Projekte, Aufgaben und Meilensteine
+- Persistentes Rollen- und Berechtigungssystem für reale Geschäftsdaten
+- Datenbankseitige Mandantentrennung zwischen Kunden (die Demo-Fixtures sind bereits getrennt)
+- Echte Datei-Uploads, Downloads, Freigaben und Supabase Storage
+- Echte Kommentare, Nachrichten und Benachrichtigungen
 - Angebote, Verträge, Rechnungen oder Zahlungen
 - Kalender, Termine und externe Integrationen
 - Projektspezifisches Datenbankschema, Migrationen und generierte TypeScript-Datenbanktypen
-- Automatisierte Tests und CI/CD
+- Umfassende Integrationstests und CI/CD
 - Dokumentierter Hosting- und Deployment-Prozess
 
 ## 3. Aktuelle Routen
 
 | Route | Status | Zweck |
 | --- | --- | --- |
-| `/` | Öffentlich | Unveränderte Starter-Startseite |
-| `/auth/login` | Öffentlich | Anmeldung |
+| `/` | Öffentlich | Direkter Login; lokal mit vier Demo-Konto-Schaltflächen |
+| `/auth/login` | Öffentlich | Derselbe Login mit regulärem Formular und lokaler Demo-Auswahl |
+| `/auth/demo` | Nur lokale Entwicklung | Same-Origin-POST für die Anmeldung eines festgelegten Demo-Kontos; im Produktionsmodus 404 |
 | `/auth/sign-up` | Öffentlich | Selbstregistrierung |
 | `/auth/sign-up-success` | Öffentlich | Hinweis zur E-Mail-Bestätigung |
 | `/auth/forgot-password` | Öffentlich | Passwort-Reset anfordern |
 | `/auth/update-password` | Auth-Flow | Neues Passwort setzen |
-| `/auth/confirm` | Auth-Callback | E-Mail-Token bestätigen |
+| `/auth/confirm` | Auth-Callback | E-Mail-Token bestätigen; Recovery zum Passwortformular |
+| `/auth/callback` | Auth-Callback | PKCE-Code gegen Session tauschen |
 | `/auth/error` | Öffentlich | Authentifizierungsfehler anzeigen |
-| `/protected` | Geschützt | Generische Beispielseite mit Benutzer-Claims |
+| `/dashboard` | Geschützt | Persönliche Übersicht; zugeordnete Demo-Inhalte oder leerer Zustand |
+| `/dashboard/projects` | Geschützt | Demo-Projekte je Rolle/Workspace; ansonsten Gerüst |
+| `/dashboard/files` | Geschützt | Zugeordnete Beispieldateien ohne echte Downloads |
+| `/dashboard/messages` | Geschützt | Zugeordnete Beispielunterhaltung ohne Versand |
+| `/dashboard/settings` | Geschützt | Kontoinformationen |
+| `/preview` | Öffentlich | Dashboard-Designvorschau mit fiktiven Daten |
+| `/preview/projects` | Öffentlich | Beispielprojekte mit Filtern und Detaildialogen |
+| `/preview/files` | Öffentlich | Beispiel-Dateiliste und Dateiinformationen |
+| `/preview/messages` | Öffentlich | Fiktive, nicht sendende Beispielunterhaltung |
+| `/preview/settings` | Öffentlich | Beispiel-Kontoeinstellungen |
+| `/protected` | Geschützt | Weiterleitung auf `/dashboard` |
 
-Die Root-Route und alle `/auth`-Routen sind öffentlich. Andere Routen werden durch den Supabase-Proxy geschützt und bei fehlender Session zum Login umgeleitet.
+Die Root-Route, `/auth/*` und `/preview/*` sind öffentlich. Andere Routen werden durch den Supabase-Proxy geschützt und bei fehlender Session zum Login umgeleitet. Das Dashboard prüft die Session zusätzlich serverseitig. Fehlende Umgebungsvariablen geben den Workspace nicht frei. Die Vorschau verwendet dieselben UI-Komponenten, aber ausschließlich lokale fiktive Fixtures; sie liest keine Kundendaten.
+
+Für vollständige E-Mail-Flows müssen die eingesetzten Supabase-E-Mail-Templates und Redirect-URLs zum Callback passen: `<origin>/auth/callback?next=/dashboard` und `<origin>/auth/callback?next=/auth/update-password`. Bei Token-Hash-Templates wird `/auth/confirm` verwendet. Echte Passwort-Logins sind mit allen vier Demo-Konten erfolgreich geprüft. Die Projekteinstellungen und die E-Mail-Zustellung sind noch nicht geprüft; die reservierten `.test`-Adressen haben bewusst keine Postfächer.
 
 ## 4. Supabase-Status
 
@@ -74,40 +118,44 @@ Die lokale Umgebung verweist derzeit auf das Supabase-Projekt mit dem Ref:
 tjbslvwvisxjjcxfhbgm
 ```
 
-Konfiguriert sind ausschließlich eine öffentliche Supabase-URL und ein moderner Publishable Key. Es befindet sich kein `service_role`- oder Secret-Key im Repository.
+Lokal sind die öffentliche Supabase-URL, ein moderner Publishable Key und ein serverseitiger Secret Key in der ignorierten `.env.local` konfiguriert. Der Secret Key wird nur für die administrative Kontenbereitstellung verwendet, niemals im Frontend oder in versionierten Dateien. Auch die individuellen Demo-Passwörter sind von Git ausgeschlossen.
 
 Das konfigurierte Projekt ist über die aktuell verbundene Supabase-Integration nicht zugänglich. Dort sind momentan nur diese Projekte sichtbar:
 
 - `service-oalab`
 - `pflegedashboard`
 
-Daher konnten folgende Bereiche noch nicht geprüft werden:
+Über die offizielle Admin API konnten die vier Testkonten mit dem lokalen Secret Key erfolgreich angelegt werden. Authentifizierung und Demo-Zuordnungen sind geprüft. Folgende Bereiche sind weiterhin ungeprüft:
 
 - Datenbanktabellen und Beziehungen
 - Row Level Security (RLS) und Grants
 - Auth-Einstellungen und Redirect-URLs
 - Storage-Buckets und Storage Policies
 - Edge Functions
-- Bestehende Benutzer und Daten
+- Bestehende Geschäftsdaten (Benutzer wurden für die sichere Seed-Zuordnung gelesen; fremde Konten nicht verändert)
 
-Vor der Datenmodellierung muss entschieden werden, welches Supabase-Projekt verwendet wird. Für neue Tabellen müssen sowohl explizite Data-API-Grants als auch passende RLS-Policies vorgesehen werden. Supabase stellt die automatische Data-API-Freigabe bestehender Projekte zum 30. Oktober 2026 um: [Supabase Changelog](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically).
+Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Datenmodellierung sind der dauerhafte Projektzugriff und die Produktionszuordnung zu klären. Für neue Tabellen müssen sowohl explizite Data-API-Grants als auch passende RLS-Policies vorgesehen werden. Supabase stellt die automatische Data-API-Freigabe bestehender Projekte zum 30. Oktober 2026 um: [Supabase Changelog](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically).
 
 ## 5. Technische Qualität und bekannte Aufgaben
 
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
-- Das Quellcode-Linting meldet nur den CommonJS-Import in `tailwind.config.ts`.
-- `npm run lint` scannt irrtümlich auch den generierten `.next`-Ordner und erzeugt dadurch Tausende irrelevante Meldungen.
+- `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
+- `npm run build` läuft erfolgreich durch.
+- `npm test` besteht mit 15 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login und gemeinsames Branding unter Node.js 24.
+- `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
+- `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
+- Alle vier Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Ein lokal gestarteter Produktionsbuild zeigt keine Demo-Auswahl und verweigert Demo-POSTs mit 404. Fremde Formular-Origins werden mit 403 abgewiesen; Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
 - `next` ist aktuell auf Version 16.4.0 installiert, `eslint-config-next` jedoch auf 15.3.1.
 - Zentrale Abhängigkeiten werden teilweise mit `latest` statt mit einer festen Version deklariert.
-- Es existieren noch keine Tests.
+- Browserprüfung: Desktop und Mobilgerät, Navigation, Filter, Suche, Dateidialoge und unangemeldeter Zugriff; echter Admin-Login, neun Projekte, Kundenfilter, Abmeldung und Wechsel zwischen Kundenkonten. An-/Abmeldung verwerfen alte Client-Router-Zustände.
 
 ### Technischer Aufräumbedarf
 
-- [ ] ESLint-Konfiguration um generierte Verzeichnisse ergänzen
+- [x] ESLint-Konfiguration um generierte Verzeichnisse ergänzen
 - [ ] `eslint-config-next` an die installierte Next.js-Version angleichen
 - [ ] Abhängigkeiten reproduzierbar pinnen
-- [ ] Starter-Inhalte und Starter-Deploy-Link entfernen
-- [ ] Projektspezifische Metadaten und Sprache konfigurieren
+- [x] Starter-Startseite und Starter-Deploy-Link aus dem Produkt entfernen
+- [x] Projektspezifische Metadaten und Sprache konfigurieren
 - [ ] Teststrategie und CI-Pipeline festlegen
 
 ## 6. Offene Produktfragen
@@ -179,7 +227,7 @@ Vor der Datenmodellierung muss entschieden werden, welches Supabase-Projekt verw
 
 ### Design und Inhalte
 
-- [ ] Gibt es ein OALAB-Logo, Brand Guide, Farben und Schriften?
+- [x] Hauptlogo, Icon, Farbverlauf und Inter sind festgelegt; siehe `CI_GUIDELINES.md`.
 - [ ] Welche Referenzseiten oder visuellen Stile passen zum gewünschten Auftritt?
 - [ ] Soll die Anwendung nur auf Deutsch oder mehrsprachig sein?
 - [ ] Welche Tonalität soll die Benutzeroberfläche haben?

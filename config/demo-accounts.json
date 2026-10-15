@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "projectRef": "tjbslvwvisxjjcxfhbgm",
+  "accounts": [
+    {
+      "email": "admin@demo.oalab.test",
+      "name": "Alex Weber",
+      "role": "oalab_admin",
+      "workspace": null,
+      "company": "OALAB Demo-Administration"
+    },
+    {
+      "email": "nordlicht@demo.oalab.test",
+      "name": "Jana Sommer",
+      "role": "oalab_customer",
+      "workspace": "nordlicht",
+      "company": "Nordlicht Studio"
+    },
+    {
+      "email": "formfeld@demo.oalab.test",
+      "name": "Ben Fischer",
+      "role": "oalab_customer",
+      "workspace": "formfeld",
+      "company": "Form & Feld"
+    },
+    {
+      "email": "horizont@demo.oalab.test",
+      "name": "Mira Hansen",
+      "role": "oalab_customer",
+      "workspace": "horizont",
+      "company": "Studio Horizont"
+    }
+  ]
+}

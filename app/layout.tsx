@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
+import "./brand.css";
+import "./hub.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -9,12 +11,14 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Next.js and Supabase Starter Kit",
-  description: "The fastest way to build apps with Next.js and Supabase",
+  title: { default: "oalab — Dein Client Hub", template: "%s · oalab" },
+  description: "Dein Ort für gute Zusammenarbeit. Projekte, nächste Schritte und gemeinsame Ergebnisse im oalab Client Hub.",
+  applicationName: "oalab Client Hub",
+  icons: { icon: "/brand/oalab-icon.png", shortcut: "/brand/oalab-icon.png", apple: "/brand/oalab-icon.png" },
 };
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   display: "swap",
   subsets: ["latin"],
 });
@@ -25,12 +29,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.className} antialiased`}>
+    <html lang="de" className={inter.variable} suppressHydrationWarning>
+      <body className="font-sans antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          forcedTheme="light"
           disableTransitionOnChange
         >
           {children}

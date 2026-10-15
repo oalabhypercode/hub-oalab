@@ -1,0 +1,26 @@
+/* oalab CI: shared by authentication, preview and workspace. */
+:root {
+  --oalab-bordeaux: #7e004b;
+  --oalab-red: #8f1d21;
+  --oalab-orange: #f37222;
+  --oalab-accent: var(--oalab-bordeaux);
+  --oalab-gradient: linear-gradient(160deg, var(--oalab-bordeaux) 0%, var(--oalab-red) 48%, var(--oalab-orange) 100%);
+  --oalab-gradient-action: linear-gradient(120deg, var(--oalab-bordeaux), var(--oalab-red));
+  --oalab-ink: #252027;
+  --oalab-muted: #6f626b;
+  --oalab-paper: #faf8f7;
+  --oalab-line: #e9e2e5;
+  --oalab-soft: #f7edf2;
+  --oalab-on-brand: #ffffff;
+  --background: 20 23% 97%;
+  --foreground: 283 10% 14%;
+  --primary: 324 100% 25%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 330 38% 95%;
+  --accent-foreground: 324 100% 25%;
+  --border: 334 14% 90%;
+  --ring: 324 100% 25%;
+}
+
+html, body { font-family: var(--font-inter), Arial, sans-serif; }
+button, input, textarea, select { font-family: inherit; }

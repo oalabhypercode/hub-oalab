@@ -1,32 +1,6 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import Link from "next/link";
+import { ArrowRight, Mail } from "lucide-react";
 
 export default function Page() {
-  return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">
-                Thank you for signing up!
-              </CardTitle>
-              <CardDescription>Check your email to confirm</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                You&apos;ve successfully signed up. Please check your email to
-                confirm your account before signing in.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="auth-form"><span className="auth-success-icon"><Mail size={26} /></span><span className="eyebrow">DER ERSTE SCHRITT IST GEMACHT.</span><h2>Fast<br />mittendrin.</h2><p>Bitte bestätige deine E-Mail-Adresse über den Link in deinem Postfach. Anschließend kannst du dich anmelden. Dein Projektteam richtet deinen Workspace für dich ein.</p><Link className="button-primary full-width" href="/auth/login">Zur Anmeldung <ArrowRight size={17} /></Link></div>;
 }
