@@ -14,7 +14,7 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   if (!validSection) notFound();
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
-  return <HubView section={validSection} email={identity.email} demoData={demoData} />;
+  return <HubView section={validSection} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {

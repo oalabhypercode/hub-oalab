@@ -1,0 +1,13 @@
+# Never upload local credentials, including those used only by development tools.
+.env*
+!.env.example
+.demo-accounts.local.json
+.git
+node_modules
+.next
+*.tsbuildinfo
+next-env.d.ts
+*.pem
+.codex
+.agents
+.aws

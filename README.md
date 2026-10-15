@@ -6,7 +6,7 @@ Projektstand, Entscheidungen und offene Produktfragen werden in [PROJECT_CONTEXT
 
 Logo-Einsatz, Markenfarben und Typografie sind in [CI_GUIDELINES.md](./CI_GUIDELINES.md) festgelegt. Die zentralen Markentokens stehen in `app/brand.css`.
 
-Die [Startseite](http://localhost:3000) zeigt direkt den Login; eine separate Landingpage gibt es nicht. Im lokalen Entwicklungsmodus stehen vier anklickbare Demo-Konten für die Anmeldung ohne manuelle Zugangsdaten bereit. Einrichtung und Status stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md).
+Die [Online-Version](https://oalab-client-hub.vercel.app/) zeigt direkt den Login; eine separate Landingpage gibt es nicht. Die vier Demo-Ansichten sind auf ausdrücklichen Wunsch öffentlich per Klick zugänglich: OALAB Admin, Nordlicht Studio, Form & Feld und Studio Horizont. Sie verwenden nur Fixtures und keine echten Supabase-Sitzungen. Lokal bestehen zusätzlich vier echte Supabase-Testkonten. Einrichtung und Status stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md).
 
 ## Aktueller Umfang
 
@@ -14,7 +14,7 @@ Schritt 1 umfasst das responsive Frontend mit Navigation und Dashboard sowie die
 
 - **Designvorschau:** [/preview](http://localhost:3000/preview) – ausdrücklich gekennzeichnete fiktive Projekte, Dateien und Nachrichten.
 - **Anmelden:** [/auth/login](http://localhost:3000/auth/login) – bestehende Supabase-Authentifizierung im neuen Design.
-- **Echter Workspace:** [/dashboard](http://localhost:3000/dashboard) – nur nach Anmeldung. Vier eingerichtete Testkonten erhalten rollenabhängige Dummy-Inhalte; normale Konten sehen ohne Datenanbindung leere Zustände.
+- **Workspace:** [/dashboard](http://localhost:3000/dashboard) – nach regulärer Anmeldung oder mit einer separat signierten öffentlichen Demo-Identität. Demo-Identitäten erhalten ausschließlich rollenabhängige Fixtures; normale Konten sehen ohne Datenanbindung leere Zustände.
 
 Die Navigation führt zu Übersicht, Projekten, Dateien, Nachrichten und Einstellungen. In der Vorschau und den Demo-Workspaces lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Der Demo-Admin sieht alle drei Kunden; Customer nur ihren eigenen Workspace. Persistente Rollenverwaltung, Uploads, Downloads, Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
 
@@ -37,7 +37,27 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<SUPABASE_PUBLISHABLE_KEY>
 npm run dev
 ```
 
-Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite zeigt denselben Login wie `/auth/login`. Sind die vier Testkonten eingerichtet und ihre lokalen Zugangsdaten vorhanden, öffnet ein Klick auf ein Demo-Konto den zugehörigen Workspace. Die Demo-Auswahl ist ausschließlich auf lokalen Entwicklungsservern aktiv; `ENABLE_DEMO_LOGIN=false` deaktiviert sie zusätzlich. Im Produktionsbuild sind Auswahl und Demo-Endpunkt immer gesperrt. Die Designvorschau ist auch ohne Supabase-Konfiguration erreichbar.
+Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite zeigt denselben Login wie `/auth/login`. Sind die vier Testkonten eingerichtet und ihre lokalen Zugangsdaten vorhanden, öffnet ein Klick auf ein Demo-Konto den zugehörigen Workspace. Diese echte Konto-Abkürzung ist ausschließlich auf lokalen Entwicklungsservern aktiv; `ENABLE_DEMO_LOGIN=false` deaktiviert sie zusätzlich. Die davon getrennte öffentliche Fixture-Demo wird nur mit den folgenden expliziten Produktionseinstellungen aktiviert. Die Designvorschau ist auch ohne Supabase-Konfiguration erreichbar.
+
+## Vercel und öffentliche Demo
+
+Bestehendes Projekt: `oalabs-projects/oalab-client-hub`, Produktions-URL: [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/), Git-Branch: `main`.
+
+In Vercel sind ausschließlich für **Production** konfiguriert:
+
+| Variable | Typ | Zweck |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Config | Vorhandene URL für reguläre Authentifizierung |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Config | Vorhandener öffentlicher Supabase-Schlüssel |
+| `ENABLE_PUBLIC_DEMO_LOGIN` | Config | `true` aktiviert die öffentliche Fixture-Demo |
+| `PUBLIC_DEMO_ORIGIN` | Config | `https://oalab-client-hub.vercel.app` als einziger erlaubter HTTPS-Origin |
+| `OALAB_DEMO_SESSION_SECRET` | Secret | Zufällig erzeugter, serverseitiger Signaturschlüssel, mindestens 32 Zeichen |
+
+Der Secret-Wert wird direkt in Vercel verwaltet, nicht in Git. Für die Online-Demo werden weder der administrative Supabase-Key noch echte Testpasswörter benötigt. `.vercelignore` und das Next.js-Tracing schließen die lokalen Zugangsdaten vom Deployment aus. Preview-Domains sind nicht automatisch freigegeben.
+
+Nach Änderungen auf `main` deployen; bei manuellem CLI-Deployment zunächst mit `vercel link --project oalab-client-hub --scope oalabs-projects` das bestehende Projekt auswählen, anschließend `vercel deploy --prod --scope oalabs-projects`. Keine lokalen Secret-Dateien hochladen und keine fremden Projektvariablen überschreiben. Änderungen an Umgebungsvariablen benötigen ein neues Deployment.
+
+Sicherheitsgrenze: Das `__Host-oalab-demo`-Cookie gewährt für zwölf Stunden nur Zugriff auf die vier Fixture-Ansichten. Es ist kein Supabase-JWT. Echte Datenzugriffe und spätere Schreib-Endpunkte müssen unabhängig davon gültige Supabase-Claims sowie passende RLS-Policies prüfen. Vor der Anbindung echter Geschäftsdaten diese Trennung erneut prüfen. Abschalten: `ENABLE_PUBLIC_DEMO_LOGIN=false` setzen und neu deployen; Schlüsselwechsel invalidiert alle bisherigen Demo-Cookies.
 
 ## Prüfungen
 
@@ -46,13 +66,17 @@ npm run lint
 npx tsc --noEmit
 npm test
 npm run build
+# Öffentliche Demo im lokalen Produktionsbuild prüfen (Port 3001)
+npm run demo:public:smoke -- --local
+# Dieselben Prüfungen gegen die öffentliche Vercel-Adresse
+npm run demo:public:smoke
 ```
 
-Die Tests prüfen sichere Auth-Weiterleitungen, die vier Seed-Konten und die Auswertung administrativ gesetzter Demo-Rollen. Die Anmeldung mit allen vier echten Testkonten ist geprüft. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die tatsächlichen Dashboard-Datensichten und den Zugriffsschutz. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 20 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding und die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 
-Das Dashboard prüft die Session im Proxy und erneut auf dem Server. Die öffentliche Vorschau verwendet keine echten Kundendaten.
+Der reguläre Workspace prüft die Supabase-Session im Proxy und erneut auf dem Server. Öffentliche Demo-Identitäten sind separat signiert, ausdrücklich markiert und auf Fixture-Seiten begrenzt; sie dürfen niemals echte Datenoperationen autorisieren. Ein erfolgreicher regulärer Passwort-Login beendet eine zuvor ausgewählte öffentliche Demo-Identität. Vorschau und öffentliche Demo enthalten keine echten Kundendaten.
 
 Für PKCE-E-Mail-Flows müssen in Supabase die passenden Redirect-URLs erlaubt sein:
 

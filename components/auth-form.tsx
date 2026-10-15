@@ -50,6 +50,9 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
+        // A real login must supersede a previously selected public fixture identity.
+        const demoExit = await fetch("/auth/demo/logout", { method: "POST" });
+        if (!demoExit.ok && ![403, 404].includes(demoExit.status)) throw new Error("Could not leave public demo");
         const next = new URLSearchParams(window.location.search).get("next");
         // Discard any client router cache and UI state from a previous account.
         window.location.replace(safeAuthRedirect(next));

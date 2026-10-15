@@ -2,14 +2,19 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
 import { parseDemoAccess } from "@/lib/demo-access";
+import { getPublicDemoIdentity } from "@/lib/public-demo-session";
+import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 
 // Request-scoped memoization; identity is never cached across users.
 export const getWorkspaceIdentity = cache(async () => {
   // Auth SDK expiry checks must run for a real request, not during prerendering.
   await connection();
+  const demoIdentity = getPublicDemoIdentity((await cookies()).get(PUBLIC_DEMO_COOKIE)?.value, await headers());
+  if (demoIdentity) return demoIdentity;
   if (!hasEnvVars) redirect("/auth/login");
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
@@ -20,5 +25,6 @@ export const getWorkspaceIdentity = cache(async () => {
     email: typeof data.claims.email === "string" ? data.claims.email : "",
     name: typeof metadata?.full_name === "string" ? metadata.full_name : "",
     demoAccess: parseDemoAccess(data.claims.app_metadata),
+    publicDemo: false as const,
   };
 });

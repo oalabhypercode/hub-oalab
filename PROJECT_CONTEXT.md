@@ -16,7 +16,9 @@
 ### Ergänzung vom 15. Oktober 2026: Login und Testkonten
 
 - `/` zeigt direkt den Login; die separate Landingpage wurde auf Wunsch entfernt.
-- Lokal können alle vier Demo-Konten per Klick angemeldet werden. Die Passwörter bleiben serverseitig in der ignorierten Zugangsdaten-Datei. Im Produktionsmodus ist diese Abkürzung unabhängig von Konfigurationsflags gesperrt.
+- Lokal können alle vier echten Demo-Konten per Klick angemeldet werden. Die Passwörter bleiben serverseitig in der ignorierten Zugangsdaten-Datei; dieser Passwort-Zweig ist im Produktionsmodus gesperrt.
+- Online-Version auf `main`: [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/). Auf ausdrücklichen Wunsch sind die vier Fixture-Ansichten öffentlich für alle Besucher ohne Demo-Code auswählbar.
+- Die öffentliche Demo ist von echten Supabase-Sitzungen getrennt: signiertes, zwölf Stunden gültiges HttpOnly-/Secure-Cookie, vier feste Identitäten, exakter HTTPS-Origin. Der Signaturschlüssel liegt ausschließlich als privates Vercel-Secret vor. Keine echten Passwörter oder administrativen Supabase-Keys werden dafür hochgeladen.
 - Ein OALAB-Admin und drei OALAB-Customer sind als echte Supabase-Testkonten angelegt.
 - Individuelle Testpasswörter werden ausschließlich lokal und außerhalb von Git gespeichert. Die Rollen werden serverseitig aus administrativ gesetzten Metadaten ausgewertet.
 - Alle vier Anmeldungen, Rollen und Workspace-Zuordnungen sind geprüft. Der Admin sieht neun Projekte, jeder Customer drei Projekte und zwei Beispieldateien; URL-Manipulation gibt keine fremden Kundendaten frei.
@@ -37,7 +39,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Plattformname, Logos, Markenverlauf und Inter sind durch den Auftraggeber festgelegt.
 - Das Frontend ist zunächst deutschsprachig und auf die Zusammenarbeit zwischen Kunden und OALAB ausgerichtet.
 - `/preview` zeigt ausschließlich fiktive Beispieldaten und kennzeichnet diese ausdrücklich. Es wird keine echte Anmeldung simuliert.
-- `/dashboard` bleibt durch Supabase Auth geschützt. Die vier Demo-Konten erhalten gezielt zugeordnete Fixtures; normale Konten sehen ohne Datenanbindung leere Zustände.
+- `/dashboard` prüft entweder echte Supabase-Claims oder eine ausdrücklich markierte öffentliche Fixture-Identität. Die vier Demo-Identitäten erhalten gezielt zugeordnete Fixtures; normale Konten sehen ohne Datenanbindung leere Zustände. Öffentliche Fixture-Identitäten dürfen niemals echte Geschäftsdaten oder Schreibaktionen autorisieren.
 - Die bestehende Selbstregistrierung bleibt vorerst erhalten. Einladung und Rollenmodell sind weiterhin offen.
 
 ### Technische Basis
@@ -78,15 +80,15 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Kalender, Termine und externe Integrationen
 - Projektspezifisches Datenbankschema, Migrationen und generierte TypeScript-Datenbanktypen
 - Umfassende Integrationstests und CI/CD
-- Dokumentierter Hosting- und Deployment-Prozess
 
 ## 3. Aktuelle Routen
 
 | Route | Status | Zweck |
 | --- | --- | --- |
-| `/` | Öffentlich | Direkter Login; lokal mit vier Demo-Konto-Schaltflächen |
-| `/auth/login` | Öffentlich | Derselbe Login mit regulärem Formular und lokaler Demo-Auswahl |
-| `/auth/demo` | Nur lokale Entwicklung | Same-Origin-POST für die Anmeldung eines festgelegten Demo-Kontos; im Produktionsmodus 404 |
+| `/` | Öffentlich | Direkter Login mit vier explizit freigegebenen Online-Fixture-Ansichten; lokal echte Testkonten |
+| `/auth/login` | Öffentlich | Derselbe Login mit regulärem Formular und passender Demo-Auswahl |
+| `/auth/demo` | Same-Origin-POST | Online: feste Fixture-Identität; lokal: regulärer Testkonto-Login. Ohne passende Freigabe 404 |
+| `/auth/demo/logout` | Same-Origin-POST | Öffentliche Demo-Identität abmelden, ohne Supabase-Session auszugeben |
 | `/auth/sign-up` | Öffentlich | Selbstregistrierung |
 | `/auth/sign-up-success` | Öffentlich | Hinweis zur E-Mail-Bestätigung |
 | `/auth/forgot-password` | Öffentlich | Passwort-Reset anfordern |
@@ -106,7 +108,9 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/preview/settings` | Öffentlich | Beispiel-Kontoeinstellungen |
 | `/protected` | Geschützt | Weiterleitung auf `/dashboard` |
 
-Die Root-Route, `/auth/*` und `/preview/*` sind öffentlich. Andere Routen werden durch den Supabase-Proxy geschützt und bei fehlender Session zum Login umgeleitet. Das Dashboard prüft die Session zusätzlich serverseitig. Fehlende Umgebungsvariablen geben den Workspace nicht frei. Die Vorschau verwendet dieselben UI-Komponenten, aber ausschließlich lokale fiktive Fixtures; sie liest keine Kundendaten.
+Die Root-Route, `/auth/*` und `/preview/*` sind öffentlich. Das Dashboard prüft die Identität im Proxy und zusätzlich serverseitig. Nur `/dashboard` und seine Unterseiten akzeptieren bei expliziter Freigabe die separat signierte öffentliche Fixture-Identität; andere geschützte Routen verlangen weiterhin gültige Supabase-Claims. Ohne echte Session oder gültige Demo-Identität wird zum Login umgeleitet. Vorschau und öffentliche Demo lesen keine echten Kundendaten. Vor der Anbindung echter Daten müssen neue APIs und Datenzugriffe unabhängig von der Fixture-Identität echte Authentifizierung sowie RLS prüfen.
+
+Deployment und Abschalten der Demo sind in [README.md](./README.md#vercel-und-öffentliche-demo) dokumentiert. Bestehendes Vercel-Projekt: `oalabs-projects/oalab-client-hub`. Production enthält öffentliche Supabase-Konfiguration sowie `ENABLE_PUBLIC_DEMO_LOGIN`, `PUBLIC_DEMO_ORIGIN` und das private `OALAB_DEMO_SESSION_SECRET`. Lokale Secret-Dateien bleiben vom Upload und Git ausgeschlossen.
 
 Für vollständige E-Mail-Flows müssen die eingesetzten Supabase-E-Mail-Templates und Redirect-URLs zum Callback passen: `<origin>/auth/callback?next=/dashboard` und `<origin>/auth/callback?next=/auth/update-password`. Bei Token-Hash-Templates wird `/auth/confirm` verwendet. Echte Passwort-Logins sind mit allen vier Demo-Konten erfolgreich geprüft. Die Projekteinstellungen und die E-Mail-Zustellung sind noch nicht geprüft; die reservierten `.test`-Adressen haben bewusst keine Postfächer.
 
@@ -141,10 +145,10 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` besteht mit 15 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login und gemeinsames Branding unter Node.js 24.
+- `npm test` besteht mit 20 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding und die öffentliche Signatur-/Origin-Policy unter Node.js 24.
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
-- Alle vier Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Ein lokal gestarteter Produktionsbuild zeigt keine Demo-Auswahl und verweigert Demo-POSTs mit 404. Fremde Formular-Origins werden mit 403 abgewiesen; Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
+- Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
 - `next` ist aktuell auf Version 16.4.0 installiert, `eslint-config-next` jedoch auf 15.3.1.
 - Zentrale Abhängigkeiten werden teilweise mit `latest` statt mit einer festen Version deklariert.
 - Browserprüfung: Desktop und Mobilgerät, Navigation, Filter, Suche, Dateidialoge und unangemeldeter Zugriff; echter Admin-Login, neun Projekte, Kundenfilter, Abmeldung und Wechsel zwischen Kundenkonten. An-/Abmeldung verwerfen alte Client-Router-Zustände.
@@ -235,8 +239,8 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 
 ### Betrieb und Datenschutz
 
-- [ ] Welche Domain soll verwendet werden?
-- [ ] Wo soll die Anwendung gehostet werden?
+- [x] Aktuelle Test-/Main-Adresse: `https://oalab-client-hub.vercel.app/`; eine eigene finale Domain ist noch offen.
+- [x] Bestehendes Vercel-Projekt `oalabs-projects/oalab-client-hub`, Produktion aus `main`; Details in README.
 - [ ] Welche Anforderungen gelten für DSGVO, Aufbewahrung und Löschung?
 - [ ] Werden Audit-Logs, Backups oder Datenexporte benötigt?
 - [ ] Wer erhält Zugriff auf Produktion, Supabase und Deployment?

@@ -16,7 +16,7 @@ const navigation = [
   { section: "messages", icon: MessageSquare },
 ] as const;
 
-export function HubShell({ children, preview = false, email = "", demoData }: { children: React.ReactNode; preview?: boolean; email?: string; demoData?: HubDemoData }) {
+export function HubShell({ children, preview = false, email = "", demoData, publicDemo = false }: { children: React.ReactNode; preview?: boolean; email?: string; demoData?: HubDemoData; publicDemo?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -68,8 +68,13 @@ export function HubShell({ children, preview = false, email = "", demoData }: { 
     setSigningOut(true);
     setLogoutError("");
     try {
-      const { error } = await createClient().auth.signOut();
-      if (error) throw error;
+      if (publicDemo) {
+        const response = await fetch("/auth/demo/logout", { method: "POST" });
+        if (!response.ok) throw new Error("Demo logout failed");
+      } else {
+        const { error } = await createClient().auth.signOut();
+        if (error) throw error;
+      }
       // Cross the auth boundary with a fresh document, not preserved Activity state.
       window.location.replace("/auth/login");
     } catch {
@@ -110,7 +115,7 @@ export function HubShell({ children, preview = false, email = "", demoData }: { 
           </div>
         </header>
         {preview && <div className="preview-notice"><span><i /> Designvorschau <span className="preview-notice-detail">— alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zum Login <ArrowUpRight size={13} /></Link></div>}
-        {demoData && <div className="preview-notice"><span><i /> {accountLabel}<span className="preview-notice-detail"> — gepflegte fiktive Inhalte für Frontend-Tests.</span></span><span>Echter Login</span></div>}
+        {demoData && <div className="preview-notice"><span><i /> {accountLabel}<span className="preview-notice-detail"> — gepflegte fiktive Inhalte für Frontend-Tests.</span></span><span>{publicDemo ? "Öffentliche Demo" : "Echter Login"}</span></div>}
         <main className="hub-content" id="main-content">{children}</main>
         <footer className="hub-footer"><span>Ein guter Ort für gute Zusammenarbeit.</span><span>oalab Client Hub <span className="footer-dot">●</span> {preview ? "Designvorschau" : demoData ? "Test-Workspace" : "Dein Workspace"}</span></footer>
       </div>

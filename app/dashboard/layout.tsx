@@ -7,7 +7,7 @@ import { getDemoData } from "@/lib/demo-data";
 async function AuthenticatedWorkspace({ children }: { children: React.ReactNode }) {
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
-  return <HubShell key={identity.userId} email={identity.email} demoData={demoData}>{children}</HubShell>;
+  return <HubShell key={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo}>{children}</HubShell>;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

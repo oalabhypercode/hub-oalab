@@ -21,26 +21,40 @@ Die Adressen gehören zur reservierten Test-Domain `.test`. Der administrative S
 
 ## Demo per Klick starten
 
+### Öffentlich auf Vercel
+
+Unter [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/) sind die vier Testansichten auf ausdrücklichen Wunsch **für alle Besucher ohne Demo-Code** freigegeben. Ein Klick auf OALAB Admin, Nordlicht Studio, Form & Feld oder Studio Horizont öffnet den passenden Fixture-Workspace. Zum Wechseln abmelden und ein anderes Testkonto auswählen. Regulärer Login bleibt separat möglich.
+
+Diese öffentlichen Testidentitäten verwenden dieselben fiktiven Anzeigenamen und Inhalte, sind aber **keine Anmeldung bei den echten Supabase-Testkonten**. Es werden keine Passwörter und keine Supabase-Auth-Tokens ausgegeben. Der Server setzt ausschließlich ein signiertes `__Host-oalab-demo`-Cookie mit `HttpOnly`, `Secure`, `SameSite=Lax`, Pfad `/` und zwölf Stunden Laufzeit. Die Identität ist als `public-demo:<konto-id>` markiert. Nur die vier festen IDs sind erlaubt; unbekannte IDs, manipulierte oder abgelaufene Signaturen werden abgewiesen.
+
+Aktivierung erfordert `ENABLE_PUBLIC_DEMO_LOGIN=true`, den exakten HTTPS-Origin in `PUBLIC_DEMO_ORIGIN` und einen privaten `OALAB_DEMO_SESSION_SECRET` mit mindestens 32 Zeichen. Die Werte sind nur in der Vercel-Produktionsumgebung hinterlegt; der Schlüssel ist vom Typ Secret. Host, weitergeleiteter Host und Formular-Origin werden geprüft. Es gibt keine automatische Freigabe weiterer Vercel-Preview-Domains. Ohne diese Konfiguration ist die öffentliche Auswahl deaktiviert.
+
+Das Cookie autorisiert ausschließlich Fixture-Seiten unter `/dashboard`, keine Supabase-Aufrufe oder anderen geschützten Routen. Echte Backend-Aktionen müssen weiterhin unabhängig gültige Supabase-Claims und RLS prüfen. Vor Einführung persistenter Geschäftsdaten ist diese Grenze erneut zu prüfen. Keine persönlichen Daten in der öffentlichen Demo eingeben. Aufgaben-Häkchen bleiben lokale UI-Zustände, Datei- und Nachrichteninhalte sind Beispiele.
+
+`npm run demo:public:smoke -- --local` prüft den öffentlichen Modus im Produktionsbuild. `npm run demo:public:smoke` prüft die feste Vercel-Adresse. Beide benötigen keine echten Zugangsdaten. Der lokale Produktions-Test besteht für alle vier Identitäten einschließlich Kundentrennung, fremder Projekt-IDs, Abmeldung und Ablehnung durch echte Auth-Routen.
+
+### Lokal mit echten Supabase-Testkonten
+
 `/` und `/auth/login` zeigen direkt die Anmeldung. Auf einem lokalen Entwicklungsserver mit `npm run dev` stehen vier Schaltflächen bereit: OALAB Admin, Nordlicht Studio, Form & Feld und Studio Horizont. Ein Klick meldet das jeweilige echte Testkonto an und öffnet `/dashboard`. Zum Wechseln abmelden und das nächste Konto auswählen. Das reguläre E-Mail-/Passwortformular bleibt verfügbar.
 
 Voraussetzung ist die vom Seed erzeugte `.demo-accounts.local.json` für das konfigurierte Projekt. Die Datei bleibt serverseitig; das Formular überträgt ausschließlich die feste Konto-ID, niemals das Passwort. Die Anmeldung verwendet die normale Supabase-Passwortprüfung und kontrolliert zusätzlich Benutzer-ID, E-Mail sowie die vertrauenswürdige Demo-Rolle und den zugehörigen Workspace.
 
-Die Abkürzung ist ausschließlich bei `NODE_ENV=development` und einem Loopback-Host (`localhost`, `127.0.0.1` oder `::1`) verfügbar. Extern weitergeleitete Hosts sowie fremde oder fehlende Formular-Origins werden abgewiesen. `ENABLE_DEMO_LOGIN=false` deaktiviert die Funktion lokal. Im Produktionsbuild ist der POST-Endpunkt `/auth/demo` immer mit 404 gesperrt, auch mit `ENABLE_DEMO_LOGIN=true`. Die lokale Zugangsdaten-Datei ist zusätzlich vom Next.js-Deployment-Tracing ausgeschlossen.
+Die echte Konto-Abkürzung ist ausschließlich bei `NODE_ENV=development` und einem Loopback-Host (`localhost`, `127.0.0.1` oder `::1`) verfügbar. Extern weitergeleitete Hosts sowie fremde oder fehlende Formular-Origins werden abgewiesen. `ENABLE_DEMO_LOGIN=false` deaktiviert die Funktion lokal. Im Produktionsbuild kann dieser lokale Passwort-Zweig nie aktiviert werden; nur der oben beschriebene, separate öffentliche Fixture-Modus ist optional möglich. Die lokale Zugangsdaten-Datei ist zusätzlich vom Next.js-Deployment-Tracing und Vercel-Upload ausgeschlossen.
 
 Alle vier Schaltflächen, die anschließenden Datensichten und der Kontowechsel sind im Browser geprüft. Diese Abkürzung ist keine Anmeldung für echte Kunden und darf nicht als öffentliche Demo-Freigabe eingesetzt werden.
 
-Zusätzlich geprüft: Der lokal gestartete Produktionsbuild zeigt weder auf `/` noch auf `/auth/login` die Demo-Auswahl, und der Demo-POST liefert 404. Fremde und fehlende Origins werden lokal mit 403 abgewiesen; unbekannte Konto-IDs erzeugen keine Demo-Session. Keine Testpasswörter befinden sich im ausgelieferten HTML oder in den Browser-Assets; die lokale Zugangsdaten-Datei ist in keinem Server-Deployment-Trace enthalten.
+Zusätzlich geprüft: Ohne öffentliche Demo-Konfiguration zeigt ein Produktionsbuild keine Auswahl; der Demo-POST liefert 404. Im explizit aktivierten öffentlichen Modus werden stattdessen die getrennten Fixture-Identitäten ausgegeben. Fremde und fehlende Origins werden mit 403 abgewiesen; unbekannte Konto-IDs erzeugen keine Demo-Session. Keine Testpasswörter befinden sich im ausgelieferten HTML oder in den Browser-Assets; die lokale Zugangsdaten-Datei ist in keinem Server-Deployment-Trace enthalten.
 
 ## Rollen und Daten
 
-- Die Rollen werden ausschließlich in serververwalteten `app_metadata` gesetzt: `app_role`, `demo_account` und `demo_workspace`.
+- Bei echten Supabase-Testkonten werden die Rollen ausschließlich in serververwalteten `app_metadata` gesetzt: `app_role`, `demo_account` und `demo_workspace`. Die öffentliche Demo verwendet stattdessen feste, signierte Fixture-Identitäten aus der versionierten Kontenliste und gewährt keine echten Kontoberechtigungen.
 - Der Admin verwendet den expliziten Scope `demo_workspace: "all"`, Customer jeweils ihren Workspace-Schlüssel. Supabase entfernt mit `null` belegte Metadaten; ein fehlender Scope gewährt daher keine Demo-Rechte.
 - Der Server wertet diese Daten erst nach erfolgreicher Prüfung der Supabase-Claims aus. Ein frei editierbares Anzeigenamen-Feld gewährt keine Berechtigungen.
 - Der Demo-Admin erhält die Beispieldaten aller drei Demo-Kunden und einen Kundenfilter im Projektindex.
 - Jeder Demo-Customer erhält nur die Daten des ihm zugeordneten Workspaces.
 - Je Kunde sind drei Projekte, zwei Beispieldateien, zwei nächste Schritte und eine Beispielunterhaltung vorbereitet.
 - Die Dummy-Inhalte werden versioniert in `lib/demo-data.ts` und `config/demo-accounts.json` gepflegt. Sie enthalten keine echten Kundendaten.
-- Diese Stufe dient Frontend- und Rollen-Tests mit echter Anmeldung. Aufgaben-Häkchen sind lokale UI-Zustände; Beispieldateien werden nicht heruntergeladen und Beispielnachrichten nicht gesendet. Persistente Projekte, Uploads und Live-Kommunikation benötigen anschließend das Datenbankmodell.
+- Diese Stufe dient Frontend- und Rollenansicht-Tests; echte Auth-Tests sind nur mit den tatsächlichen Supabase-Konten möglich. Aufgaben-Häkchen sind lokale UI-Zustände; Beispieldateien werden nicht heruntergeladen und Beispielnachrichten nicht gesendet. Persistente Projekte, Uploads und Live-Kommunikation benötigen anschließend das Datenbankmodell.
 
 ## Einrichtung
 

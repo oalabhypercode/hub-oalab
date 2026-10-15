@@ -4,11 +4,11 @@ import { useState } from "react";
 import { ArrowUpRight, Building2, Loader2, ShieldCheck } from "lucide-react";
 import type { DemoLoginOption } from "@/lib/demo-login-policy";
 
-export function DemoAccountPicker({ accounts }: { accounts: DemoLoginOption[] }) {
+export function DemoAccountPicker({ accounts, publicDemo = false }: { accounts: DemoLoginOption[]; publicDemo?: boolean }) {
   const [pending, setPending] = useState<string | null>(null);
   return (
     <section className="demo-login-panel" aria-labelledby="demo-login-title">
-      <div className="demo-login-heading"><h3 id="demo-login-title">Direkt in die Demo</h3><span>Nur lokal</span></div>
+      <div className="demo-login-heading"><h3 id="demo-login-title">Direkt in die Demo</h3><span>{publicDemo ? "Öffentliche Demo" : "Nur lokal"}</span></div>
       <p>Wähle ein Testkonto. Wir melden dich direkt an.</p>
       <div className="demo-login-grid">
         {accounts.map((account) => {
@@ -26,7 +26,7 @@ export function DemoAccountPicker({ accounts }: { accounts: DemoLoginOption[] })
           );
         })}
       </div>
-      <span className="demo-login-note" role="status">{pending ? "Dein Demo-Workspace wird geöffnet …" : "Echter Login · ausschließlich fiktive Kundendaten"}</span>
+      <span className="demo-login-note" role="status">{pending ? "Dein Demo-Workspace wird geöffnet …" : publicDemo ? "Nur Beispieldaten · getrennt von echten Konten · keine persönlichen Daten eingeben" : "Echter Login · ausschließlich fiktive Kundendaten"}</span>
       <div className="demo-login-divider"><span />ODER MIT DEINEM KONTO<span /></div>
     </section>
   );

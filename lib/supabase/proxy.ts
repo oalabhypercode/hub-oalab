@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
+import { getPublicDemoIdentity } from "@/lib/public-demo-session";
+import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -10,6 +12,9 @@ export async function updateSession(request: NextRequest) {
 
   // The preview is an isolated, public UI with fictional fixtures only.
   if (isPreview) return supabaseResponse;
+
+  // Public demo cookies grant access to fixture pages only, never Supabase data APIs.
+  if ((pathname === "/dashboard" || pathname.startsWith("/dashboard/")) && getPublicDemoIdentity(request.cookies.get(PUBLIC_DEMO_COOKIE)?.value, request.headers)) return supabaseResponse;
 
   function loginRedirect() {
     const url = request.nextUrl.clone();

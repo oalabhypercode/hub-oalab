@@ -30,9 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*.local
-.env
+# Environment values remain private; only placeholders are versioned.
+.env*
+!.env.example
 .demo-accounts.local.json
 
 # vercel

@@ -3,10 +3,26 @@ import { getDemoLoginCredentials } from "@/lib/demo-login";
 import { isDemoLoginAllowed, isSameOriginDemoPost } from "@/lib/demo-login-policy";
 import { parseDemoAccess } from "@/lib/demo-access";
 import { createClient } from "@/lib/supabase/server";
+import { publicDemoOptions, publicDemoSettings } from "@/lib/public-demo-session";
+import { configuredPublicDemoOrigin, createPublicDemoToken, isPublicDemoHost, isPublicDemoPost, PUBLIC_DEMO_COOKIE, PUBLIC_DEMO_MAX_AGE, type PublicDemoAccountId } from "@/lib/public-demo-policy";
 
 const privateHeaders = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
 
 export async function POST(request: NextRequest) {
+  const publicSettings = publicDemoSettings();
+  if (isPublicDemoHost(request.headers, publicSettings)) {
+    if (!isPublicDemoPost(request, publicSettings)) return new NextResponse(null, { status: 403, headers: privateHeaders });
+    if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/x-www-form-urlencoded") return new NextResponse(null, { status: 415, headers: privateHeaders });
+    try {
+      const form = await request.formData();
+      const id = form.get("account");
+      const account = publicDemoOptions().find((item) => item.id === id);
+      if (!account || form.getAll("account").length !== 1) return new NextResponse(null, { status: 400, headers: privateHeaders });
+      const response = NextResponse.redirect(new URL("/dashboard", configuredPublicDemoOrigin(publicSettings)!), { status: 303, headers: privateHeaders });
+      response.cookies.set(PUBLIC_DEMO_COOKIE, createPublicDemoToken(account.id as PublicDemoAccountId, publicSettings.secret!), { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: PUBLIC_DEMO_MAX_AGE });
+      return response;
+    } catch { return new NextResponse(null, { status: 400, headers: privateHeaders }); }
+  }
   if (!isDemoLoginAllowed(request.headers, process.env.NODE_ENV, process.env.ENABLE_DEMO_LOGIN)) {
     return new NextResponse(null, { status: 404, headers: privateHeaders });
   }
