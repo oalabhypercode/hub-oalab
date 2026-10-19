@@ -1,17 +1,27 @@
-import Link from "next/link";
-import { ArrowUpRight, LockKeyhole } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
+import { BackgroundLayer } from "@/components/hub/background-layer";
 import { BrandLogo, Wordmark } from "@/components/hub/wordmark";
 
+/** Authentication frame: the hub's selectable background with the form on one matte glass card. */
 export function AuthFrame({ children }: { children: React.ReactNode }) {
   return (
     <main className="auth-page">
-      <section className="auth-visual" aria-label="Willkommen bei oalab">
-        <div className="auth-visual-top"><Wordmark href="/" light /><span className="tiny-label">DEIN CLIENT HUB.</span></div>
-        <div className="auth-editorial"><span className="eyebrow">GUTE IDEEN BRAUCHEN EIN WIR.</span><h1>Zusammen.<br />Weiter.</h1><p>Ein Ort für deine Projekte.<br />Und alles, was wir gemeinsam bewegen.</p></div>
-        <div className="auth-sculpture" aria-hidden="true"><BrandLogo /></div>
-        <div className="auth-visual-bottom"><span>Von der ersten Idee.<br />Bis zum guten Gefühl.</span><span className="auth-big-arrow" aria-hidden="true">↗</span></div>
-      </section>
-      <section className="auth-form-side"><header className="auth-form-header"><Link className="text-action" href="/preview">Ein erster Einblick <ArrowUpRight size={16} /></Link></header><div className="auth-form-container">{children}</div><footer className="auth-form-footer"><span>oalab Client Hub</span><span><LockKeyhole size={12} />Dein geschützter Workspace</span></footer></section>
+      <BackgroundLayer />
+      <header className="auth-topbar"><Wordmark href="/" /></header>
+      <div className="auth-layout">
+        <section className="auth-intro" aria-label="Willkommen bei oalab">
+          <div className="auth-intro-text">
+            <p className="auth-intro-caption">Gute Ideen brauchen ein Wir.</p>
+            <h1 className="t-large-title">Zusammen.<br />Weiter.</h1>
+            <p className="t-body auth-intro-body">Ein Ort für deine Projekte. Und alles, was wir gemeinsam bewegen.</p>
+          </div>
+          <p className="auth-intro-note">Von der ersten Idee. Bis zum guten Gefühl.</p>
+          {/* Original logo as a faint watermark, only made translucent (never recoloured). */}
+          <div className="auth-sculpture" aria-hidden="true"><BrandLogo preload /></div>
+        </section>
+        <section className="glass glass-float auth-card">{children}</section>
+      </div>
+      <footer className="auth-footer"><span>oalab Client Hub</span><span><LockKeyhole size={13} aria-hidden="true" />Dein geschützter Workspace</span></footer>
     </main>
   );
 }
