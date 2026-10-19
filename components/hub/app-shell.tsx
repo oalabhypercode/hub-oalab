@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, Menu, MessageSquare, Search } from "lucide-react";
+import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageSquare, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { categories } from "@/lib/categories";
 import { hubHref, metricHref, previewFiles, previewProjects, sectionLabels, type HubDemoData, type HubSection } from "@/lib/hub-data";
@@ -14,19 +14,17 @@ import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
 import { CategoryIcon, GlassButton } from "./glass";
 import { Modal } from "./modal";
+import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type ShellContextValue, type ShellPanel } from "./shell-context";
 
 export function AppShell({ children, preview = false, email = "", demoData, publicDemo = false }: { children: React.ReactNode; preview?: boolean; email?: string; demoData?: HubDemoData; publicDemo?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [panel, setPanel] = useState<ShellPanel | null>(null);
   const [query, setQuery] = useState("");
   const [read, setRead] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
-  const menuTrigger = useRef<HTMLButtonElement>(null);
-  const sidebar = useRef<HTMLElement>(null);
   const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
   const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
   const name = preview ? "Jana Sommer" : demoData?.name || email.split("@")[0] || "Dein Konto";
@@ -37,23 +35,6 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   const initials = preview ? "JS" : name.slice(0, 2).toUpperCase();
   const company = preview ? "Nordlicht Studio" : demoData?.company || "Dein Workspace";
   const counts = { projects: projects.length, files: files.length, messages: hasDemo ? 1 : 0 };
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const trigger = menuTrigger.current;
-    sidebar.current?.querySelector<HTMLElement>("a, button")?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-      document.body.style.overflow = previousOverflow;
-      trigger?.focus();
-    };
-  }, [menuOpen]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -99,15 +80,17 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
         <BackgroundLayer />
         <div className="hub-app">
           <a className="skip-link" href="#main-content">Zum Inhalt springen</a>
-          {menuOpen && <button className="sidebar-backdrop" onClick={() => setMenuOpen(false)} aria-label="Navigation schließen" />}
-          <GlassSidebar ref={sidebar} open={menuOpen} onNavigate={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)} onSearch={() => { setPanel("search"); setMenuOpen(false); }} preview={preview} section={section} counts={counts} name={name} company={company} accountLabel={accountLabel} initials={initials} />
-          <div className="hub-main" inert={menuOpen ? true : undefined}>
-            <button ref={menuTrigger} className="glass glass-float glass-button sidebar-toggle" onClick={() => setMenuOpen(true)} aria-label="Navigation öffnen" aria-expanded={menuOpen}><Menu size={20} aria-hidden="true" /></button>
-            {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zum Login <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
-            {demoData && <div className="hub-notice glass"><span><i aria-hidden="true" /> {accountLabel}<span className="hub-notice-detail"> – gepflegte fiktive Inhalte für Frontend-Tests.</span></span><span>{publicDemo ? "Öffentliche Demo" : "Echter Login"}</span></div>}
+          <GlassSidebar onSearch={() => setPanel("search")} preview={preview} section={section} counts={counts} name={name} company={company} accountLabel={accountLabel} initials={initials} />
+          <div className="hub-main">
+            <div className="hub-topbar">
+              {/* Below 1024 px the sidebar (and its logo) is hidden, so the brand sits in the top row. */}
+              <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-name" aria-hidden="true">oalab</span></Link>
+              {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zum Login <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
+              {demoData && <div className="hub-notice glass"><span><i aria-hidden="true" /> {accountLabel}<span className="hub-notice-detail"> – gepflegte fiktive Inhalte für Frontend-Tests.</span></span><span>{publicDemo ? "Öffentliche Demo" : "Echter Login"}</span></div>}
+            </div>
             <main className="hub-content" id="main-content">{children}</main>
           </div>
-          <GlassTabBar preview={preview} section={section} onNavigate={() => setMenuOpen(false)} />
+          <GlassTabBar preview={preview} section={section} />
         </div>
         {panel === "search" && (
           <Modal title="Wonach suchst du?" onClose={closeSearch}>

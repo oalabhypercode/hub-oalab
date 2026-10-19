@@ -1,18 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutGrid, Loader2, LogOut, Search, Sparkles, X } from "lucide-react";
+import { Loader2, LogOut, Search } from "lucide-react";
 import { categories, categoryOrder } from "@/lib/categories";
 import { hubHref, type HubSection } from "@/lib/hub-data";
 import { useHubShell } from "./shell-context";
 import { CategoryIcon, Chevron } from "./glass";
+import { mainNavigation } from "./navigation";
 import { BrandLogo } from "./wordmark";
 
 type SidebarProps = {
-  ref: React.Ref<HTMLElement>;
-  open: boolean;
-  onNavigate: () => void;
-  onClose: () => void;
   onSearch: () => void;
   preview: boolean;
   section: HubSection;
@@ -23,29 +20,22 @@ type SidebarProps = {
   initials: string;
 };
 
-const mainNavigation = [
-  { section: "overview", label: "Übersicht", icon: LayoutGrid },
-  { section: "insights", label: "Insights", icon: Sparkles },
-] as const;
-
-/** Floating glass sidebar (desktop), slide-in overlay on tablets. */
-export function GlassSidebar({ ref, open, onNavigate, onClose, onSearch, preview, section, counts, name, company, accountLabel, initials }: SidebarProps) {
+/** Floating glass sidebar from 1024 px; below that the tab bar takes over its entries. */
+export function GlassSidebar({ onSearch, preview, section, counts, name, company, accountLabel, initials }: SidebarProps) {
   const { signOut, signingOut, logoutError } = useHubShell();
   const item = (target: HubSection) => ({
     href: hubHref(preview, target),
-    onClick: onNavigate,
     className: `sidebar-item${section === target ? " is-active" : ""}`,
     "aria-current": section === target ? ("page" as const) : undefined,
   });
 
   return (
-    <aside ref={ref} className={`glass glass-sidebar${open ? " is-open" : ""}`} aria-label="Hauptnavigation">
+    <aside className="glass glass-sidebar" aria-label="Hauptnavigation">
       <div className="sidebar-brand">
-        <Link href={hubHref(preview)} className="sidebar-brand-link" onClick={onNavigate} aria-label="oalab Client Hub – Übersicht">
-          <span className="sidebar-logo"><BrandLogo /></span>
+        <Link href={hubHref(preview)} className="sidebar-brand-link" aria-label="oalab Client Hub – Übersicht">
+          <span className="brand-tile"><BrandLogo /></span>
           <span><strong>Client Hub</strong><span>oalab</span></span>
         </Link>
-        <button className="sidebar-close" onClick={onClose} aria-label="Navigation schließen"><X size={20} aria-hidden="true" /></button>
       </div>
       <button className="sidebar-search" onClick={onSearch}><Search size={16} aria-hidden="true" /><span>Suchen</span><kbd>⌘K</kbd></button>
       <nav className="sidebar-nav" aria-label="Bereiche">
