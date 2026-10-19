@@ -34,11 +34,11 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   const accountLabel = preview ? "Designvorschau" : demoData ? (demoData.role === "oalab_admin" ? "OALAB Admin · Demo" : "OALAB Customer · Demo") : "Angemeldet";
   const words = name.trim().split(/\s+/).filter(Boolean);
   const initials = preview ? previewAccount.initials : (words.length > 1 ? words[0][0] + words[words.length - 1][0] : name.slice(0, 2)).toUpperCase();
-  const company = preview ? previewAccount.company : demoData?.company || "Dein Workspace";
   const account: HubAccount = {
     name,
     company: preview ? previewAccount.company : demoData?.company ?? null,
     customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null,
+    servicePackages: preview ? previewAccount.servicePackages : demoData?.servicePackages ?? [],
     admin: demoData?.role === "oalab_admin",
     customers: new Set(projects.map((project) => project.company).filter(Boolean)).size,
   };
@@ -88,7 +88,7 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
         <BackgroundLayer />
         <div className="hub-app">
           <a className="skip-link" href="#main-content">Zum Inhalt springen</a>
-          <GlassSidebar onSearch={() => setPanel("search")} preview={preview} section={section} counts={counts} name={name} company={company} accountLabel={accountLabel} initials={initials} />
+          <GlassSidebar onSearch={() => setPanel("search")} preview={preview} section={section} counts={counts} name={name} accountLabel={accountLabel} initials={initials} />
           <div className="hub-main">
             <div className="hub-topbar">
               {/* Below 1024 px the sidebar (and its logo) is hidden, so the brand sits in the top row. */}

@@ -1,3 +1,5 @@
+import type { ServicePackageId } from "./service-packages";
+
 export const hubSections = ["projects", "files", "messages", "settings", "insights", "discover"] as const;
 export type HubSection = "overview" | (typeof hubSections)[number];
 
@@ -42,13 +44,15 @@ export type HubDemoData = {
   company: string;
   /** Fictional fixture value; null for the OALAB admin, who represents no customer. */
   customerNumber: string | null;
+  /** Active service packages (fictional fixtures); empty for the OALAB admin. */
+  servicePackages: ServicePackageId[];
   role: "oalab_admin" | "oalab_customer";
   projects: Project[];
   files: HubFile[];
 };
 
 /** Account shown in the explicitly labelled /preview routes (fictional). */
-export const previewAccount = { name: "Jana Sommer", initials: "JS", company: "Nordlicht Studio", customerNumber: "KD-24017", email: "jana@example.com" };
+export const previewAccount = { name: "Jana Sommer", initials: "JS", company: "Nordlicht Studio", customerNumber: "KD-24017", servicePackages: ["website-extra"] as ServicePackageId[], email: "jana@example.com" };
 
 // Fictional content is used exclusively by the explicitly labelled /preview routes.
 export const previewProjects: Project[] = [

@@ -7,7 +7,7 @@ import { categories } from "@/lib/categories";
 import { hubHref, type HubSection } from "@/lib/hub-data";
 import { metricOrder, type MetricId } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
-import { HighlightCard, InsightsCard, MetricCard, MetricCardStatic, WelcomeCard } from "../cards";
+import { HighlightCard, InsightsCard, MetricCard, MetricCardStatic, ServiceCard, WelcomeCard } from "../cards";
 import { CategoryIcon, GlassCard, SectionHeader, SectionLink } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
@@ -22,7 +22,7 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
   return (
     <>
       <LargeTitleHeader title="Übersicht" date={model.dateLine} actions={<HeaderActions />} />
-      <div className="section-first"><WelcomeCard account={account} initials={initials} /></div>
+      <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} /><ServiceCard account={account} /></div>
       {populated ? <>
         {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { ArrowUpRight, Package, Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
 import type { Highlight, Insight, MetricSnapshot } from "@/lib/hub-metrics";
+import { SERVICE_PLATFORM_URL, servicePackages } from "@/lib/service-packages";
 import { ComparisonBars, MiniChart, WeekBars } from "./charts";
 import type { HubAccount } from "./shell-context";
 import { CategoryIcon, Chevron } from "./glass";
@@ -19,6 +20,28 @@ export function WelcomeCard({ account, initials }: { account: HubAccount; initia
         <div><dt>{account.admin ? "Betreute Kunden" : "Kundennummer"}</dt><dd className="numeric">{account.admin ? account.customers : account.customerNumber ?? "–"}</dd></div>
       </dl>
       {!account.company && <p className="t-footnote t-secondary">Dein Projektteam ordnet deinen Zugang einem Unternehmen zu. Danach siehst du hier auch deine Kundennummer.</p>}
+    </section>
+  );
+}
+
+/** Active service package(s) next to the welcome card, with the way to the service platform. */
+export function ServiceCard({ account }: { account: HubAccount }) {
+  const packages = account.servicePackages.map((id) => servicePackages[id].name);
+  const title = account.admin ? "Serviceplattform" : packages.length > 1 ? "Aktive Servicepakete" : "Aktives Servicepaket";
+  return (
+    <section className="glass glass-card-feature service-card" aria-labelledby="service-title">
+      <div className="card-head">
+        <Package size={17} color="var(--accent)" strokeWidth={2.2} aria-hidden="true" />
+        <h2 className="card-head-title service-title" id="service-title">{title}</h2>
+      </div>
+      {account.admin
+        ? <p className="t-subheadline t-secondary">Servicepakete und Anfragen deiner Kunden verwaltest du auf der Serviceplattform.</p>
+        : packages.length
+          ? <ul className="service-packages">{packages.map((name) => <li key={name}><span className="service-package-name">{name}</span><span className="service-status">Aktiv</span></li>)}</ul>
+          : <p className="service-package-name service-pending">Wird zugeordnet</p>}
+      <a className="service-cta" href={SERVICE_PLATFORM_URL} target="_blank" rel="noopener noreferrer">
+        Ab zur Serviceplattform <ArrowUpRight size={18} aria-hidden="true" /><span className="visually-hidden"> (öffnet in neuem Tab)</span>
+      </a>
     </section>
   );
 }

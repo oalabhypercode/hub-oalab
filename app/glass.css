@@ -170,16 +170,25 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .sidebar-item.is-active { background: var(--selected-pill); box-shadow: var(--selected-pill-shadow); color: var(--accent-text); font-weight: 600; }
 .sidebar-accent-icon { color: var(--accent); }
 .sidebar-count { margin-left: auto; font-size: 15px; color: var(--label-secondary); font-variant-numeric: tabular-nums; }
-.sidebar-profile { margin-top: auto; display: flex; align-items: center; gap: 4px; padding-top: 10px; border-top: 1px solid var(--separator); }
-.sidebar-profile-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 8px; border-radius: 14px; color: var(--label-body); }
+.sidebar-profile { position: relative; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--separator); }
+.sidebar-profile-link { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px; border-radius: 14px; color: var(--label-body); transition: background 200ms ease; }
 .sidebar-profile-link:hover { background: rgba(255, 255, 255, 0.45); }
 .sidebar-profile-link.is-active { background: var(--selected-pill); box-shadow: var(--selected-pill-shadow); }
-.sidebar-profile-text { flex: 1; min-width: 0; }
+.sidebar-profile-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .sidebar-profile-text strong, .sidebar-profile-text span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-profile-text strong { font-size: 15px; line-height: 20px; font-weight: 600; }
-.sidebar-profile-text span { font-size: 12px; line-height: 16px; color: var(--label-secondary); }
-.sidebar-logout { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--label-secondary); flex: 0 0 auto; }
-.sidebar-logout:hover { background: rgba(255, 255, 255, 0.45); }
+/* Room on the name line for the two icon buttons (2 × 36 px + gap). */
+.sidebar-profile-text strong { font-size: 15px; line-height: 20px; font-weight: 600; padding-right: 80px; }
+.sidebar-profile-text .sidebar-package { font-size: 12px; line-height: 16px; color: var(--accent-text); font-weight: 600; }
+/* Icon buttons centred on the name line: 8 px padding + half of the 20 px line = 18 px, minus half a 36 px button. */
+.sidebar-profile-actions { position: absolute; top: 10px; right: 4px; display: flex; gap: 4px; }
+.sidebar-profile:not(.has-package) .sidebar-profile-actions { top: calc(10px + 8px); }
+.sidebar-icon-button { position: relative; isolation: isolate; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--label-secondary); transition: color 200ms ease, transform var(--duration) var(--ease-spring); }
+.sidebar-icon-button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 50%; background: rgba(255, 255, 255, 0.7); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); opacity: 0; transform: scale(0.5); transition: opacity 200ms ease, transform 300ms var(--ease-spring); }
+.sidebar-icon-button:hover, .sidebar-icon-button:focus-visible { color: var(--accent-text); }
+.sidebar-icon-button:hover::before, .sidebar-icon-button:focus-visible::before { opacity: 1; transform: scale(1); }
+.sidebar-icon-button:active { transform: scale(0.92); }
+.sidebar-settings-button svg { transition: transform 400ms var(--ease-spring); }
+.sidebar-settings-button:hover svg { transform: rotate(60deg); }
 .glass-sidebar .form-error { margin: 0 4px; }
 .hub-app .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--oalab-gradient-action); color: #ffffff; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tab-bar-wrap, .scroll-edge, .mobile-avatar { display: none; }
@@ -291,6 +300,19 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .welcome-facts > div + div { border-left: 1px solid var(--separator); }
 .welcome-facts dt { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .welcome-facts dd { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
+
+/* Service package card next to the welcome card */
+.welcome-row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(312px, 2fr); gap: var(--grid-gap); align-items: stretch; }
+.service-card { display: flex; flex-direction: column; gap: 12px; }
+.service-title { color: var(--accent-text); }
+.service-packages { display: flex; flex-direction: column; gap: 8px; }
+.service-packages li { display: flex; align-items: center; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap; }
+.service-package-name { font-size: 20px; line-height: 25px; font-weight: 700; color: var(--label); }
+.service-pending { color: var(--label-secondary); }
+.service-status { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: rgba(52, 199, 89, 0.18); color: #124e20; font-size: 13px; font-weight: 600; }
+.service-cta { margin-top: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 16px; white-space: nowrap; border-radius: 999px; background: var(--accent-text); color: #ffffff; font-size: 17px; font-weight: 600; text-align: center; box-shadow: 0 6px 16px rgba(126, 0, 75, 0.28); transition: transform var(--duration) var(--ease-spring), background 200ms ease; }
+.service-cta:hover { background: #69003e; }
+.service-cta:active { transform: scale(0.98); }
 
 /* Insights */
 .insights-card { display: block; }
@@ -499,6 +521,7 @@ a.list-row:hover, button.list-row:hover, .project-card:hover, .file-row:hover { 
 .file-details dd { color: var(--label); text-align: right; }
 
 @media (max-width: 767px) {
+  .welcome-row { grid-template-columns: 1fr; }
   .insights-headline { font-size: 20px; line-height: 25px; }
   .insights-figures dd { font-size: 20px; }
   .insights-figures > div { padding: 0 8px; }
@@ -512,5 +535,5 @@ a.list-row:hover, button.list-row:hover, .project-card:hover, .file-row:hover { 
 
 @media (prefers-reduced-motion: reduce) {
   :root { transition: none; }
-  .pressable:active, .glass-button:active { transform: none; }
+  .pressable:active, .glass-button:active, .service-cta:active, .sidebar-icon-button:active, .sidebar-settings-button:hover svg { transform: none; }
 }

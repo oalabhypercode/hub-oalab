@@ -2,11 +2,13 @@ import "server-only";
 import blueprint from "@/config/demo-accounts.json";
 import { previewProjects, type HubDemoData, type Project } from "./hub-data";
 import type { DemoAccess } from "./demo-access";
+import type { ServicePackageId } from "./service-packages";
 
-const workspaceContent = {
+const workspaceContent: Record<"nordlicht" | "formfeld" | "horizont", { company: string; customerNumber: string; servicePackages: ServicePackageId[]; brand: string; titles: string[]; progress: number[] }> = {
   nordlicht: {
     company: "Nordlicht Studio",
     customerNumber: "KD-24017",
+    servicePackages: ["website-extra"],
     brand: "NORDLICHT",
     titles: ["Ein neuer digitaler Auftritt.", "Eine Marke. Ein Gefühl.", "Bereit für den ersten Eindruck."],
     progress: [68, 40, 100],
@@ -14,6 +16,7 @@ const workspaceContent = {
   formfeld: {
     company: "Form & Feld",
     customerNumber: "KD-24023",
+    servicePackages: ["website-lite"],
     brand: "FORM & FELD",
     titles: ["Raum für eine neue Website.", "Identität mit Ecken und Kanten.", "Ein guter Start für Social."],
     progress: [32, 75, 100],
@@ -21,6 +24,7 @@ const workspaceContent = {
   horizont: {
     company: "Studio Horizont",
     customerNumber: "KD-24031",
+    servicePackages: ["website-max"],
     brand: "HORIZONT",
     titles: ["Neue Perspektiven. Digital.", "Ein klarer Blick nach vorn.", "Deine Geschichte wird sichtbar."],
     progress: [85, 55, 100],
@@ -51,6 +55,7 @@ export function getDemoData(access: DemoAccess, displayName: string): HubDemoDat
     name: displayName || account?.name || "Dein Testkonto",
     company: access.role === "oalab_admin" ? "OALAB Administration" : workspaceContent[access.workspace].company,
     customerNumber: access.role === "oalab_admin" ? null : workspaceContent[access.workspace].customerNumber,
+    servicePackages: access.role === "oalab_admin" ? [] : workspaceContent[access.workspace].servicePackages,
     role: access.role,
     projects,
     files,

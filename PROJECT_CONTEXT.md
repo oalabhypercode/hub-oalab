@@ -17,6 +17,7 @@
 - Die Insights sind regelbasiert aus den vorhandenen Daten erzeugt und können später durch eine KI-Zusammenfassung ersetzt werden.
 - Darstellung (Preset, eigene Farbe, Deckkraft 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“) und Favoriten werden im Browser gespeichert, Favoriten pro Nutzer. Für Nutzereinstellungen gibt es noch keinen Speicher im Backend. Ein Inline-Script setzt die Darstellung vor dem ersten Paint.
 - Die Übersicht begrüßt mit Namen und zeigt Unternehmen und Kundennummer (Admins: Organisation und Zahl der betreuten Kunden). Kundennummern existieren bisher nur als fiktive Demo-Werte (`KD-24017`, `KD-24023`, `KD-24031`); echte Konten zeigen „Noch nicht zugeordnet“.
+- Rechts neben der Begrüßung stehen das aktive Servicepaket und der Button „Ab zur Serviceplattform“ (https://service.oalab.de, neuer Tab). Jeder Kunde hat mindestens ein Paket: Oalab-Website & Mail, Oalab-Website lite, Oalab-Website extra oder Oalab-Website Max (zentral in `lib/service-packages.ts`). Die Demo-Zuordnungen sind fiktiv.
 - Kontrast: Alle Texte auf Glas erreichen mindestens 4,5:1 bei 70 % Deckkraft über jedem Hintergrund, auch über Schwarz. Dafür sind die Kategorie-Textfarben gegenüber der Vorlage abgedunkelt. `tests/appearance.test.mjs` prüft das.
 
 ### Markenentscheidung vom 15. Oktober 2026
@@ -212,6 +213,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 
 - [ ] Welche Daten werden zu einem Kundenunternehmen gespeichert?
 - [ ] Aus welchem System stammt die Kundennummer, und welches Format hat sie?
+- [ ] Woher kommen die aktiven Servicepakete eines Kunden (Serviceplattform, Buchhaltung, Supabase)?
 - [ ] Welche Felder benötigt ein Projekt?
 - [ ] Welche Projektstatus und Statusübergänge gibt es?
 - [ ] Wie werden Fortschritt, Priorität, Budget und Zeitplan dargestellt?
