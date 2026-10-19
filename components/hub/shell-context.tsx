@@ -4,9 +4,13 @@ import { createContext, useContext } from "react";
 
 export type ShellPanel = "search" | "notifications" | "help";
 
+/** Who is signed in and whom they represent; company and number are null until assigned. */
+export type HubAccount = { name: string; company: string | null; customerNumber: string | null; admin: boolean; customers: number };
+
 export type ShellContextValue = {
   preview: boolean;
   initials: string;
+  account: HubAccount;
   openPanel: (panel: ShellPanel) => void;
   unread: boolean;
   signOut: () => void;

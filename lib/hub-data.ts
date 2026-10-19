@@ -40,10 +40,15 @@ export type Project = {
 export type HubDemoData = {
   name: string;
   company: string;
+  /** Fictional fixture value; null for the OALAB admin, who represents no customer. */
+  customerNumber: string | null;
   role: "oalab_admin" | "oalab_customer";
   projects: Project[];
   files: HubFile[];
 };
+
+/** Account shown in the explicitly labelled /preview routes (fictional). */
+export const previewAccount = { name: "Jana Sommer", initials: "JS", company: "Nordlicht Studio", customerNumber: "KD-24017", email: "jana@example.com" };
 
 // Fictional content is used exclusively by the explicitly labelled /preview routes.
 export const previewProjects: Project[] = [

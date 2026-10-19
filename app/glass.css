@@ -277,6 +277,21 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .card-head-title { font-size: 15px; line-height: 20px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-head-time { margin-left: auto; padding-left: 8px; font-size: 15px; line-height: 20px; color: var(--label-secondary); white-space: nowrap; }
 
+/* Welcome card: name, company and customer number at the top of the overview */
+.stack-gap { margin-top: var(--grid-gap); }
+.welcome-card { display: flex; flex-direction: column; gap: 14px; }
+.welcome-head { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.hub-app .welcome-avatar { width: 56px; height: 56px; font-size: 20px; }
+.welcome-title { display: flex; flex-direction: column; min-width: 0; }
+.welcome-greeting { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label-secondary); }
+.welcome-name { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; color: var(--label); overflow-wrap: anywhere; }
+.welcome-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding-top: 14px; border-top: 1px solid var(--separator); }
+.welcome-facts > div { display: flex; flex-direction: column; min-width: 0; padding: 0 12px; }
+.welcome-facts > div:first-child { padding-left: 0; }
+.welcome-facts > div + div { border-left: 1px solid var(--separator); }
+.welcome-facts dt { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.welcome-facts dd { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
+
 /* Insights */
 .insights-card { display: block; }
 .insights-headline { margin-top: 10px; font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; color: var(--label); }

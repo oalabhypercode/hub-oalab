@@ -7,21 +7,24 @@ import { categories } from "@/lib/categories";
 import { hubHref, type HubSection } from "@/lib/hub-data";
 import { metricOrder, type MetricId } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
-import { HighlightCard, InsightsCard, MetricCard, MetricCardStatic } from "../cards";
+import { HighlightCard, InsightsCard, MetricCard, MetricCardStatic, WelcomeCard } from "../cards";
 import { CategoryIcon, GlassCard, SectionHeader, SectionLink } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
+import { useHubShell } from "../shell-context";
 import type { ScreenProps } from "./types";
 
 export function OverviewScreen({ model, preview, populated, favorites, toggleStep }: ScreenProps) {
+  const { account, initials } = useHubShell();
   const [editing, setEditing] = useState(false);
   const available = metricOrder.filter((id) => !favorites.isFavorite(id));
 
   return (
     <>
       <LargeTitleHeader title="Übersicht" date={model.dateLine} actions={<HeaderActions />} />
+      <div className="section-first"><WelcomeCard account={account} initials={initials} /></div>
       {populated ? <>
-        {model.insight && <div className="section-first"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
+        {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
 
         <SectionHeader title="Favoriten" id="favorites-title" action={<button type="button" className="section-header-action" onClick={() => setEditing((value) => !value)} aria-pressed={editing}>{editing ? "Fertig" : "Bearbeiten"}</button>} />
         {favorites.favorites.length ? (

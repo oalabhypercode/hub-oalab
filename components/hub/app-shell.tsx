@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageSquare, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { categories } from "@/lib/categories";
-import { hubHref, metricHref, previewFiles, previewProjects, sectionLabels, type HubDemoData, type HubSection } from "@/lib/hub-data";
+import { hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabels, type HubDemoData, type HubSection } from "@/lib/hub-data";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { AppearanceProvider } from "./appearance-provider";
 import { BackgroundLayer } from "./background-layer";
@@ -15,7 +15,7 @@ import { GlassTabBar } from "./glass-tab-bar";
 import { CategoryIcon, GlassButton } from "./glass";
 import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
-import { ShellContext, useHubShell, type ShellContextValue, type ShellPanel } from "./shell-context";
+import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 
 export function AppShell({ children, preview = false, email = "", demoData, publicDemo = false }: { children: React.ReactNode; preview?: boolean; email?: string; demoData?: HubDemoData; publicDemo?: boolean }) {
   const pathname = usePathname();
@@ -27,13 +27,21 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   const [logoutError, setLogoutError] = useState("");
   const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
   const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
-  const name = preview ? "Jana Sommer" : demoData?.name || email.split("@")[0] || "Dein Konto";
+  const name = preview ? previewAccount.name : demoData?.name || email.split("@")[0] || "Dein Konto";
   const projects = preview ? previewProjects : demoData?.projects || [];
   const files = preview ? previewFiles : demoData?.files || [];
   const hasDemo = preview || Boolean(demoData);
   const accountLabel = preview ? "Designvorschau" : demoData ? (demoData.role === "oalab_admin" ? "OALAB Admin · Demo" : "OALAB Customer · Demo") : "Angemeldet";
-  const initials = preview ? "JS" : name.slice(0, 2).toUpperCase();
-  const company = preview ? "Nordlicht Studio" : demoData?.company || "Dein Workspace";
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const initials = preview ? previewAccount.initials : (words.length > 1 ? words[0][0] + words[words.length - 1][0] : name.slice(0, 2)).toUpperCase();
+  const company = preview ? previewAccount.company : demoData?.company || "Dein Workspace";
+  const account: HubAccount = {
+    name,
+    company: preview ? previewAccount.company : demoData?.company ?? null,
+    customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null,
+    admin: demoData?.role === "oalab_admin",
+    customers: new Set(projects.map((project) => project.company).filter(Boolean)).size,
+  };
   const counts = { projects: projects.length, files: files.length, messages: hasDemo ? 1 : 0 };
 
   useEffect(() => {
@@ -72,7 +80,7 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => sectionLabels[key].toLowerCase().includes(term));
   const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = hasDemo ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
-  const shell: ShellContextValue = { preview, initials, openPanel: setPanel, unread: hasDemo && !read, signOut, signingOut, logoutError };
+  const shell: ShellContextValue = { preview, initials, account, openPanel: setPanel, unread: hasDemo && !read, signOut, signingOut, logoutError };
 
   return (
     <AppearanceProvider>

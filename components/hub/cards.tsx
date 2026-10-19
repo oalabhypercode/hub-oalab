@@ -3,7 +3,25 @@ import { Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
 import type { Highlight, Insight, MetricSnapshot } from "@/lib/hub-metrics";
 import { ComparisonBars, MiniChart, WeekBars } from "./charts";
+import type { HubAccount } from "./shell-context";
 import { CategoryIcon, Chevron } from "./glass";
+
+/** Greets the signed-in person and shows whom they represent (company, customer number). */
+export function WelcomeCard({ account, initials }: { account: HubAccount; initials: string }) {
+  return (
+    <section className="glass glass-card-feature welcome-card" aria-labelledby="welcome-title">
+      <div className="welcome-head">
+        <span className="avatar welcome-avatar" aria-hidden="true">{initials}</span>
+        <h2 className="welcome-title" id="welcome-title"><span className="welcome-greeting">Willkommen zurück,</span> <span className="welcome-name">{account.name}</span></h2>
+      </div>
+      <dl className="welcome-facts">
+        <div><dt>{account.admin ? "Organisation" : "Unternehmen"}</dt><dd>{account.company ?? "Noch nicht zugeordnet"}</dd></div>
+        <div><dt>{account.admin ? "Betreute Kunden" : "Kundennummer"}</dt><dd className="numeric">{account.admin ? account.customers : account.customerNumber ?? "–"}</dd></div>
+      </dl>
+      {!account.company && <p className="t-footnote t-secondary">Dein Projektteam ordnet deinen Zugang einem Unternehmen zu. Danach siehst du hier auch deine Kundennummer.</p>}
+    </section>
+  );
+}
 
 /** Rule-based summary of the workspace (replaceable by an AI summary later). */
 export function InsightsCard({ insight, href }: { insight: Insight; href?: string }) {

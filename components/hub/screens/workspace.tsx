@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
-import { appearanceHref, demoConversation, hubHref } from "@/lib/hub-data";
+import { appearanceHref, demoConversation, hubHref, previewAccount } from "@/lib/hub-data";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
 import { MetricCard } from "../cards";
@@ -150,7 +150,7 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
         <GlassCard className="settings-card">
           <h2 className="t-headline">Dein Konto</h2>
           <label className="settings-label" htmlFor="account-email">E-Mail-Adresse</label>
-          <input id="account-email" className="account-input" readOnly value={preview ? "jana@example.com" : email} />
+          <input id="account-email" className="account-input" readOnly value={preview ? previewAccount.email : email} />
           <p className="t-footnote t-secondary">{preview ? "Fiktives Beispielkonto für die Designvorschau." : publicDemo ? "Fiktive Testidentität. Diese Adresse gehört zu keinem persönlichen Konto." : "Die E-Mail-Adresse deines angemeldeten Kontos."}</p>
           {!publicDemo && <Link className="text-link" href="/auth/forgot-password">Passwort zurücksetzen</Link>}
         </GlassCard>

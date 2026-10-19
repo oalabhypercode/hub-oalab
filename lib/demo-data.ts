@@ -6,18 +6,21 @@ import type { DemoAccess } from "./demo-access";
 const workspaceContent = {
   nordlicht: {
     company: "Nordlicht Studio",
+    customerNumber: "KD-24017",
     brand: "NORDLICHT",
     titles: ["Ein neuer digitaler Auftritt.", "Eine Marke. Ein Gefühl.", "Bereit für den ersten Eindruck."],
     progress: [68, 40, 100],
   },
   formfeld: {
     company: "Form & Feld",
+    customerNumber: "KD-24023",
     brand: "FORM & FELD",
     titles: ["Raum für eine neue Website.", "Identität mit Ecken und Kanten.", "Ein guter Start für Social."],
     progress: [32, 75, 100],
   },
   horizont: {
     company: "Studio Horizont",
+    customerNumber: "KD-24031",
     brand: "HORIZONT",
     titles: ["Neue Perspektiven. Digital.", "Ein klarer Blick nach vorn.", "Deine Geschichte wird sichtbar."],
     progress: [85, 55, 100],
@@ -47,6 +50,7 @@ export function getDemoData(access: DemoAccess, displayName: string): HubDemoDat
   return {
     name: displayName || account?.name || "Dein Testkonto",
     company: access.role === "oalab_admin" ? "OALAB Administration" : workspaceContent[access.workspace].company,
+    customerNumber: access.role === "oalab_admin" ? null : workspaceContent[access.workspace].customerNumber,
     role: access.role,
     projects,
     files,
