@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { appearanceInlineScript } from "@/lib/appearance";
 import "./globals.css";
 import "./brand.css";
 import "./hub.css";
+import "./glass.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -30,6 +32,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de" className={inter.variable} suppressHydrationWarning>
+      <head>
+        {/* Applies the stored hub appearance before the first paint (no flash on reload). */}
+        <script dangerouslySetInnerHTML={{ __html: appearanceInlineScript() }} />
+      </head>
       <body className="font-sans antialiased">
         <ThemeProvider
           attribute="class"

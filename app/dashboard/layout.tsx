@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { HubShell } from "@/components/hub/hub-shell";
+import { AppShell } from "@/components/hub/app-shell";
 import { HubLoading } from "@/components/hub/loading";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
 import { getDemoData } from "@/lib/demo-data";
@@ -7,7 +7,7 @@ import { getDemoData } from "@/lib/demo-data";
 async function AuthenticatedWorkspace({ children }: { children: React.ReactNode }) {
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
-  return <HubShell key={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo}>{children}</HubShell>;
+  return <AppShell key={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo}>{children}</AppShell>;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

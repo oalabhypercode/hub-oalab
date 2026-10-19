@@ -13,8 +13,8 @@ export function Modal({ title, children, onClose }: { title: string; children: R
   }, []);
 
   return (
-    <dialog ref={ref} className="hub-modal" aria-labelledby="modal-title" onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="modal-heading"><h2 id="modal-title">{title}</h2><button className="icon-button" aria-label="Schließen" onClick={onClose}><X size={20} /></button></div>
+    <dialog ref={ref} className="hub-modal glass" aria-labelledby="modal-title" onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-heading"><h2 id="modal-title">{title}</h2><button className="modal-close" aria-label="Schließen" onClick={onClose}><X size={20} aria-hidden="true" /></button></div>
       {children}
     </dialog>
   );

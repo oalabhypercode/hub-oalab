@@ -3,8 +3,20 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 15. Oktober 2026
+**Stand:** 19. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
+
+### Designentscheidung vom 19. Oktober 2026: Client Hub im Liquid-Glass-Stil
+
+- Das Frontend des Hubs folgt der Struktur von Apple Health (Übersicht mit Insights, Favoriten, Highlights und Listen; Detailseiten mit Zeitraum-Umschalter T/W/M/6M/J; farbcodierte Kategorien) in der Designsprache Liquid Glass. Übernommen wird nur die Designsprache, keine Apple-Markenelemente.
+- Unter allen Inhalten liegt ein kräftiger, wählbarer Hintergrund. Karten, Listen, Sidebar, Tab-Bar und Buttons sind mattes Glas (Standard 80 % Deckkraft, 24 px Unschärfe).
+- **Inter bleibt** die Schrift. Große Kennzahlen nutzen `ui-rounded` (SF Pro Rounded auf Apple-Geräten, sonst Inter).
+- **Standard-Hintergrund ist das Preset „oalab“** (Bordeaux, Rot und Orange, für weiße Schrift abgedunkelt). Ozean, Aubergine, Smaragd, Glut, Graphit und eine eigene Farbe sind wählbar. Links, aktive Navigation und Fokus bleiben Bordeaux.
+- Kategorien: Projekte (Orange), Dateien (Indigo), Nachrichten (Blau). Rechnungen, Analytics, Hosting und Termine entfallen, bis es diese Module gibt.
+- Die Beispieldaten (Vorschau und vier Demo-Identitäten) enthalten einen ausdrücklich fiktiven, datierten Verlauf: Projektstart, Zieltermine, Meilensteine, Dateidaten. Referenztag ist der 15. Oktober 2026 (`DEMO_AS_OF`). Echte Konten sehen weiterhin leere Zustände.
+- Die Insights sind regelbasiert aus den vorhandenen Daten erzeugt und können später durch eine KI-Zusammenfassung ersetzt werden.
+- Darstellung (Preset, eigene Farbe, Deckkraft 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“) und Favoriten werden im Browser gespeichert, Favoriten pro Nutzer. Für Nutzereinstellungen gibt es noch keinen Speicher im Backend. Ein Inline-Script setzt die Darstellung vor dem ersten Paint.
+- Kontrast: Alle Texte auf Glas erreichen mindestens 4,5:1 bei 70 % Deckkraft über jedem Hintergrund, auch über Schwarz. Dafür sind die Kategorie-Textfarben gegenüber der Vorlage abgedunkelt. `tests/appearance.test.mjs` prüft das.
 
 ### Markenentscheidung vom 15. Oktober 2026
 
@@ -67,7 +79,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Sichere interne Weiterleitungen und PKCE-/E-Mail-Bestätigungs-Callbacks
 - Vier echte Demo-Konten mit serververwalteter Admin-/Customer-Zuordnung und getrennten Fixture-Datensichten
 - Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
-- Helles Design als vorläufige Richtung; ein finaler Dark-Mode ist noch nicht gestaltet
+- Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten behalten ihr bisheriges Design
 
 ### Noch nicht implementiert
 
@@ -100,12 +112,17 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/projects` | Geschützt | Demo-Projekte je Rolle/Workspace; ansonsten Gerüst |
 | `/dashboard/files` | Geschützt | Zugeordnete Beispieldateien ohne echte Downloads |
 | `/dashboard/messages` | Geschützt | Zugeordnete Beispielunterhaltung ohne Versand |
-| `/dashboard/settings` | Geschützt | Kontoinformationen |
+| `/dashboard/insights` | Geschützt | Insights und alle Highlights |
+| `/dashboard/discover` | Geschützt | Entdecken: Kategorien, Kennzahlen und Konto durchsuchen |
+| `/dashboard/metrics/<kennzahl>` | Geschützt | Detailseite einer Kennzahl mit Zeitraum-Umschalter |
+| `/dashboard/settings` | Geschützt | Profil und Kontoinformationen |
+| `/dashboard/settings/appearance` | Geschützt | Darstellung: Hintergrund, Glas, Transparenz |
 | `/preview` | Öffentlich | Dashboard-Designvorschau mit fiktiven Daten |
 | `/preview/projects` | Öffentlich | Beispielprojekte mit Filtern und Detaildialogen |
 | `/preview/files` | Öffentlich | Beispiel-Dateiliste und Dateiinformationen |
 | `/preview/messages` | Öffentlich | Fiktive, nicht sendende Beispielunterhaltung |
-| `/preview/settings` | Öffentlich | Beispiel-Kontoeinstellungen |
+| `/preview/settings` | Öffentlich | Beispiel-Profil |
+| `/preview/insights`, `/preview/discover`, `/preview/metrics/<kennzahl>`, `/preview/settings/appearance` | Öffentlich | Dieselben neuen Ansichten mit Beispieldaten |
 | `/protected` | Geschützt | Weiterleitung auf `/dashboard` |
 
 Die Root-Route, `/auth/*` und `/preview/*` sind öffentlich. Das Dashboard prüft die Identität im Proxy und zusätzlich serverseitig. Nur `/dashboard` und seine Unterseiten akzeptieren bei expliziter Freigabe die separat signierte öffentliche Fixture-Identität; andere geschützte Routen verlangen weiterhin gültige Supabase-Claims. Ohne echte Session oder gültige Demo-Identität wird zum Login umgeleitet. Vorschau und öffentliche Demo lesen keine echten Kundendaten. Vor der Anbindung echter Daten müssen neue APIs und Datenzugriffe unabhängig von der Fixture-Identität echte Authentifizierung sowie RLS prüfen.
@@ -145,7 +162,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` besteht mit 20 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding und die öffentliche Signatur-/Origin-Policy unter Node.js 24.
+- `npm test` besteht mit 25 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy sowie Kontrast und Darstellungslogik des Hubs unter Node.js 24.
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.

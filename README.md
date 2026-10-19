@@ -16,7 +16,7 @@ Schritt 1 umfasst das responsive Frontend mit Navigation und Dashboard sowie die
 - **Anmelden:** [/auth/login](http://localhost:3000/auth/login) – bestehende Supabase-Authentifizierung im neuen Design.
 - **Workspace:** [/dashboard](http://localhost:3000/dashboard) – nach regulärer Anmeldung oder mit einer separat signierten öffentlichen Demo-Identität. Demo-Identitäten erhalten ausschließlich rollenabhängige Fixtures; normale Konten sehen ohne Datenanbindung leere Zustände.
 
-Die Navigation führt zu Übersicht, Projekten, Dateien, Nachrichten und Einstellungen. In der Vorschau und den Demo-Workspaces lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Der Demo-Admin sieht alle drei Kunden; Customer nur ihren eigenen Workspace. Persistente Rollenverwaltung, Uploads, Downloads, Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
+Der Hub ist im Liquid-Glass-Stil gestaltet (Struktur nach Apple Health): Übersicht mit Insights, Favoriten, Highlights und Listen, Detailseiten je Kennzahl mit Zeitraum-Umschalter, Entdecken sowie die Kategorien Projekte, Dateien und Nachrichten. Hintergrund und Glas lassen sich unter Profil › Darstellung einstellen. Auf dem Desktop navigiert eine Glas-Sidebar, auf dem Smartphone eine schwebende Tab-Bar. In der Vorschau und den Demo-Workspaces lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Der Demo-Admin sieht alle drei Kunden; Customer nur ihren eigenen Workspace. Persistente Rollenverwaltung, Uploads, Downloads, Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
 
 ## Lokal starten
 
@@ -72,7 +72,7 @@ npm run demo:public:smoke -- --local
 npm run demo:public:smoke
 ```
 
-Die 20 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding und die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 25 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen sowie Textkontrast und Darstellungslogik des Hubs. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 
@@ -87,6 +87,6 @@ Bei Token-Hash-E-Mail-Templates wird `/auth/confirm` genutzt. Recovery-Links fü
 
 ## Technische Basis
 
-Next.js 16.4, React 19, TypeScript, Tailwind CSS und Supabase SSR. Die zentralen CI-Tokens stehen in `app/brand.css`, die Oberflächenstile in `app/hub.css` und fiktive Vorschauinhalte in `lib/hub-data.ts`.
+Next.js 16.4, React 19, TypeScript, Tailwind CSS und Supabase SSR. Die zentralen CI-Tokens stehen in `app/brand.css`, die Hub-Oberfläche in `app/glass.css`, Login- und Basisstile in `app/hub.css`. Hintergrund-Presets und Glas-Grenzwerte liegen in `lib/appearance.ts`, Kategorien in `lib/categories.ts`, Kennzahlen, Insights und Highlights in `lib/hub-metrics.ts` und fiktive Inhalte in `lib/hub-data.ts`.
 
 Keine Secret Keys, Passwörter oder personenbezogenen Kundendaten ins Repository einchecken.

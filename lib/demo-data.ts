@@ -40,8 +40,8 @@ export function getDemoData(access: DemoAccess, displayName: string): HubDemoDat
     brand: workspace.brand,
   })));
   const files = workspaces.flatMap(([, workspace]) => [
-    { name: `${workspace.company} – Brand Direction.pdf`, project: `${workspace.company} / Brand Identity`, type: "PDF", size: "4,2 MB", date: "14. Okt. 2026" },
-    { name: `${workspace.company} – Projektbriefing.pdf`, project: `${workspace.company} / Website`, type: "PDF", size: "1,1 MB", date: "08. Okt. 2026" },
+    { name: `${workspace.company} – Brand Direction.pdf`, project: `${workspace.company} / Brand Identity`, type: "PDF", size: "4,2 MB", date: "14. Okt. 2026", sharedAt: "2026-10-14T09:30" },
+    { name: `${workspace.company} – Projektbriefing.pdf`, project: `${workspace.company} / Website`, type: "PDF", size: "1,1 MB", date: "08. Okt. 2026", sharedAt: "2026-10-08T11:00" },
   ]);
   const account = blueprint.accounts.find((item) => item.role === access.role && item.workspace === access.workspace);
   return {

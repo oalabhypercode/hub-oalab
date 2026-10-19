@@ -1,18 +1,19 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { HubView } from "@/components/hub/hub-view";
-import { HubLoading } from "@/components/hub/loading";
-import { hubSections } from "@/lib/hub-data";
+import { HubContentLoading } from "@/components/hub/loading";
+import { DEMO_AS_OF, hubSections } from "@/lib/hub-data";
+import { parseHubSection } from "@/lib/hub-routes";
 
 export function generateStaticParams() { return hubSections.map((section) => ({ section })); }
 
 async function PreviewSection({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
-  const validSection = hubSections.find((item) => item === section);
+  const validSection = parseHubSection(section);
   if (!validSection) notFound();
-  return <HubView section={validSection} preview />;
+  return <HubView section={validSection} preview userKey="preview" asOf={DEMO_AS_OF} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {
-  return <Suspense fallback={<HubLoading />}><PreviewSection {...props} /></Suspense>;
+  return <Suspense fallback={<HubContentLoading />}><PreviewSection {...props} /></Suspense>;
 }

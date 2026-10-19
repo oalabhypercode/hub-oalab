@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { HubShell } from "@/components/hub/hub-shell";
+import { AppShell } from "@/components/hub/app-shell";
 
 export const metadata: Metadata = { title: "Designvorschau", robots: { index: false, follow: false } };
 
 export default function PreviewLayout({ children }: { children: React.ReactNode }) {
-  return <HubShell preview>{children}</HubShell>;
+  return <AppShell preview>{children}</AppShell>;
 }
