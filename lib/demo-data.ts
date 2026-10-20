@@ -1,8 +1,8 @@
 import "server-only";
 import blueprint from "@/config/demo-accounts.json";
-import { previewProjects, type HubDemoData, type Project } from "./hub-data";
+import { previewProjects, sampleFileFixtures, type HubDemoData, type Project } from "./hub-data";
 import type { DemoAccess } from "./demo-access";
-import type { ServicePackageId } from "./service-packages";
+import { servicePackages, type ServicePackageId } from "./service-packages";
 
 const workspaceContent: Record<"nordlicht" | "formfeld" | "horizont", { company: string; customerNumber: string; servicePackages: ServicePackageId[]; brand: string; titles: string[]; progress: number[] }> = {
   nordlicht: {
@@ -46,10 +46,7 @@ export function getDemoData(access: DemoAccess, displayName: string): HubDemoDat
     company: workspace.company,
     brand: workspace.brand,
   })));
-  const files = workspaces.flatMap(([, workspace]) => [
-    { name: `${workspace.company} – Brand Direction.pdf`, project: `${workspace.company} / Brand Identity`, type: "PDF", size: "4,2 MB", date: "14. Okt. 2026", sharedAt: "2026-10-14T09:30" },
-    { name: `${workspace.company} – Projektbriefing.pdf`, project: `${workspace.company} / Website`, type: "PDF", size: "1,1 MB", date: "08. Okt. 2026", sharedAt: "2026-10-08T11:00" },
-  ]);
+  const files = workspaces.flatMap(([slug, workspace]) => sampleFileFixtures(slug, workspace.company, workspace.customerNumber, servicePackages[workspace.servicePackages[0]].name));
   const account = blueprint.accounts.find((item) => item.role === access.role && item.workspace === access.workspace);
   return {
     name: displayName || account?.name || "Dein Testkonto",

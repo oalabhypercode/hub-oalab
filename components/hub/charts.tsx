@@ -74,7 +74,7 @@ export function BarChart({ series, category, label }: { series: MetricSeries; ca
     <div className="bar-chart" role="group" aria-label={`${label}: ${series.caption.toLowerCase()} ${series.value} ${series.unit}, ${series.rangeLabel}`} onMouseLeave={() => setActive(null)}>
       <div className="bar-chart-plot">
         <div className="bar-chart-grid" aria-hidden="true">
-          {[1, 0.5, 0].map((ratio) => <span key={ratio} className={ratio === 0 ? "is-baseline" : ""} style={{ bottom: `${ratio * 100}%` }}><span>{formatNumber(top * ratio)}</span></span>)}
+          {[1, 0.5, 0].map((ratio) => <span key={ratio} className={ratio === 0 ? "is-baseline" : ""} style={{ bottom: `${ratio * 100}%` }}><span>{(series.formatAxis ?? formatNumber)(top * ratio)}</span></span>)}
         </div>
         <div className="bar-chart-bars">
           {series.buckets.map((bucket, index) => (

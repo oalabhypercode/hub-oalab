@@ -8,7 +8,9 @@ import { request as httpRequest } from "node:http";
 
 // Public fixture tests never read the local credential file or Supabase secret.
 const local = process.argv.includes("--local");
-const base = new URL(local ? "http://127.0.0.1:3001" : "https://oalab-client-hub.vercel.app");
+// SMOKE_PORT lets the local run avoid a port another app already uses.
+const port = /^\d{2,5}$/.test(process.env.SMOKE_PORT ?? "") ? process.env.SMOKE_PORT : "3001";
+const base = new URL(local ? `http://127.0.0.1:${port}` : "https://oalab-client-hub.vercel.app");
 const origin = local ? "https://demo.oalab.test" : base.origin;
 const blueprint = JSON.parse(await readFile(new URL("../config/demo-accounts.json", import.meta.url), "utf8"));
 let server;
@@ -54,7 +56,7 @@ try {
     const next = fileURLToPath(new URL("../node_modules/next/dist/bin/next", import.meta.url));
     const build = spawnSync(process.execPath, [next, "build"], { env, stdio: "inherit" });
     assert.equal(build.status, 0, "Public-demo production build failed.");
-    server = spawn(process.execPath, [next, "start", "--port", "3001", "--hostname", "127.0.0.1"], { env, stdio: ["ignore", "pipe", "pipe"] });
+    server = spawn(process.execPath, [next, "start", "--port", port, "--hostname", "127.0.0.1"], { env, stdio: ["ignore", "pipe", "pipe"] });
     let ready = false;
     for (let attempt = 0; attempt < 100; attempt++) {
       if (server.exitCode !== null) throw new Error("Local test server exited before startup.");

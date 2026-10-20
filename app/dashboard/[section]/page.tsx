@@ -6,6 +6,7 @@ import { DEMO_AS_OF, hubSections } from "@/lib/hub-data";
 import { parseHubSection, todayIso } from "@/lib/hub-routes";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
 import { getDemoData } from "@/lib/demo-data";
+import { loadFilesForIdentity } from "@/lib/hub-files/server";
 
 export function generateStaticParams() { return hubSections.map((section) => ({ section })); }
 
@@ -15,7 +16,8 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   if (!validSection) notFound();
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
-  return <HubView section={validSection} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} />;
+  const filesState = await loadFilesForIdentity(identity);
+  return <HubView section={validSection} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {

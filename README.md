@@ -59,6 +59,23 @@ Nach Änderungen auf `main` deployen; bei manuellem CLI-Deployment zunächst mit
 
 Sicherheitsgrenze: Das `__Host-oalab-demo`-Cookie gewährt für zwölf Stunden nur Zugriff auf die vier Fixture-Ansichten. Es ist kein Supabase-JWT. Echte Datenzugriffe und spätere Schreib-Endpunkte müssen unabhängig davon gültige Supabase-Claims sowie passende RLS-Policies prüfen. Vor der Anbindung echter Geschäftsdaten diese Trennung erneut prüfen. Abschalten: `ENABLE_PUBLIC_DEMO_LOGIN=false` setzen und neu deployen; Schlüsselwechsel invalidiert alle bisherigen Demo-Cookies.
 
+## Dateiablage einrichten
+
+Die Dateiablage liegt im Supabase-Projekt `tjbslvwvisxjjcxfhbgm`. Für die Migration selbst in `.env.local` eintragen (niemals einchecken):
+
+```env
+SUPABASE_ACCESS_TOKEN=<persönlicher Supabase Access Token>
+SUPABASE_DB_PASSWORD=<Datenbank-Passwort des Projekts>
+```
+
+```sh
+npm run db:check   # zeigt, welche Migrationen angewendet würden
+npm run db:push    # wendet supabase/migrations an
+npm run files:seed # Demo-Kunden, Mitgliedschaften und Beispieldateien (benötigt SUPABASE_SECRET_KEY)
+```
+
+Die Skripte lesen die Werte aus `.env.local` und geben sie nicht aus.
+
 ## Prüfungen
 
 ```sh
@@ -66,13 +83,13 @@ npm run lint
 npx tsc --noEmit
 npm test
 npm run build
-# Öffentliche Demo im lokalen Produktionsbuild prüfen (Port 3001)
+# Öffentliche Demo im lokalen Produktionsbuild prüfen (Port 3001, abweichend mit SMOKE_PORT)
 npm run demo:public:smoke -- --local
 # Dieselben Prüfungen gegen die öffentliche Vercel-Adresse
 npm run demo:public:smoke
 ```
 
-Die 25 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen sowie Textkontrast und Darstellungslogik des Hubs. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 30 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs sowie Upload-Regeln, RLS-Migration und Musterdateien der Dateiablage. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 

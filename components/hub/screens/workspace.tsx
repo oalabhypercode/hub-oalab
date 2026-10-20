@@ -17,11 +17,11 @@ import { useHubShell } from "../shell-context";
 import { EmptyState } from "./overview";
 import type { ScreenProps } from "./types";
 
-function CategoryTitle({ category }: { category: CategoryId }) {
+export function CategoryTitle({ category }: { category: CategoryId }) {
   return <span className="title-icon"><CategoryIcon category={category} size={24} /></span>;
 }
 
-function CategoryMetrics({ model, category }: Pick<ScreenProps, "model"> & { category: CategoryId }) {
+export function CategoryMetrics({ model, category }: Pick<ScreenProps, "model"> & { category: CategoryId }) {
   const metrics = metricOrder.filter((id) => metricMeta[id].category === category);
   return <div className="metric-grid section-first">{metrics.map((id) => <MetricCard key={id} metric={model.metrics[id]} />)}</div>;
 }
@@ -92,29 +92,6 @@ export function ProjectsScreen({ model, preview, populated, projects, admin }: S
           </ul>
         ) : <GlassCard><p className="t-subheadline t-secondary">Keine Projekte für diesen Filter.</p></GlassCard>}
       </> : <EmptyState section="projects" />}
-    </>
-  );
-}
-
-export function FilesScreen({ model, populated, files, openFile }: ScreenProps) {
-  return (
-    <>
-      <LargeTitleHeader title="Dateien" icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
-      {populated ? <>
-        <CategoryMetrics model={model} category="files" />
-        <SectionHeader title="Alle Dateien" />
-        <ul className="glass inset-list" aria-label="Dateien">
-          {files.map((item) => (
-            <li key={item.name} className="list-item has-icon">
-              <button type="button" className="file-row" onClick={() => openFile(item)}>
-                <span className="file-icon" aria-hidden="true" style={{ color: categories.files.fill }}><FileText size={24} strokeWidth={1.9} /><small>{item.type}</small></span>
-                <span className="list-row-text"><span className="list-row-title">{item.name}</span><span className="list-row-subtitle">{item.project} · {item.size}</span></span>
-                <span className="list-row-trailing file-date">{item.date}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </> : <EmptyState section="files" />}
     </>
   );
 }

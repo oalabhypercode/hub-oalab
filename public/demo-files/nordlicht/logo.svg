@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160">
+  <rect width="480" height="160" rx="24" fill="#1C1C1E"/>
+  <circle cx="80" cy="80" r="44" fill="#FF9500"/>
+  <text x="80" y="96" font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="700" text-anchor="middle" fill="#1C1C1E">N</text>
+  <text x="148" y="90" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#FFFFFF">Nordlicht Studio</text>
+  <text x="148" y="122" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#A1A1A6">Beispiel-Logo (fiktiv)</text>
+</svg>

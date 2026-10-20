@@ -3,7 +3,7 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 19. Oktober 2026
+**Stand:** 20. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
 ### Designentscheidung vom 19. Oktober 2026: Client Hub im Liquid-Glass-Stil
@@ -29,6 +29,16 @@
 - Hauptlogo und Iconvariante sind als gelieferte Originaldateien eingebunden.
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
+
+### Ergänzung vom 20. Oktober 2026: Dateiaustausch
+
+- Admins laden unter „Dateien“ Dateien mit Titel, Kategorie und Beschreibung hoch und ordnen sie einem oder mehreren Kunden per Kundennummer zu. Ohne Zuordnung liegt eine Datei in der Ablage und kann später zugeordnet werden.
+- Kunden sehen ihre zugeordneten Dateien in einer Tabelle mit eigenen Spalten für Datei, Kategorie, Beschreibung, Format/Größe und Bereitstellungsdatum, dazu ein Detaildialog mit allen Angaben. Der Download liefert exakt die hochgeladene Fassung mit Originalnamen; eine beim Upload berechnete SHA-256-Prüfsumme belegt das.
+- Kategorien (zentral in `lib/hub-files/catalog.ts` und der Migration): Vertrag, Angebot, Rechnung, Logo & Marke, Design, Website & Inhalte, Dokumentation, Sonstiges. Bis 50 MB pro Datei, keine ausführbaren Dateien.
+- Technik: Supabase-Projekt `tjbslvwvisxjjcxfhbgm`, Migration `supabase/migrations/20261020120000_hub_files.sql` mit den Tabellen `hub_customers`, `hub_customer_members`, `hub_files`, `hub_file_assignments`, Row Level Security, expliziten Data-API-Grants und dem privaten Bucket `hub-files`. Uploads gehen direkt vom Browser über eine serverseitig nur für Admins ausgestellte, signierte Upload-URL zu Supabase; Downloads über 60 Sekunden gültige signierte Links. In Produktion wird kein Admin-Schlüssel benötigt.
+- Admin-Rechte kommen ausschließlich aus `app_metadata.app_role = oalab_admin`. Öffentliche Demo-Identitäten (signiertes Cookie) erreichen keine echten Dateien; sie und `/preview` zeigen fiktive Musterdateien („Servicevertrag“, „Logo-Datei“) aus `public/demo-files`.
+- `npm run files:seed` legt die drei Demo-Kunden mit Kundennummer an, verknüpft die Demo-Logins und lädt je einen fiktiven Servicevertrag (PDF) und eine Logo-Datei (SVG) hoch.
+- Live-Nachrichten werden zurückgestellt: Nachrichten aus dem Hub sollen später über den bevorzugten Kanal des Kunden zugestellt werden, z. B. WhatsApp. Angebote, Verträge und Rechnungen laufen vorerst nur als Dateien mit passender Kategorie.
 
 ### Ergänzung vom 15. Oktober 2026: Login und Testkonten
 
@@ -91,8 +101,8 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Datenanbindung für Kunden, Unternehmen, Projekte, Aufgaben und Meilensteine
 - Persistentes Rollen- und Berechtigungssystem für reale Geschäftsdaten
 - Datenbankseitige Mandantentrennung zwischen Kunden (die Demo-Fixtures sind bereits getrennt)
-- Echte Datei-Uploads, Downloads, Freigaben und Supabase Storage
-- Echte Kommentare, Nachrichten und Benachrichtigungen
+- Löschen und Versionieren von Dateien sowie das Anlegen neuer Kunden im Hub (Kunden entstehen bisher per Seed)
+- Echte Kommentare, Nachrichten und Benachrichtigungen; Nachrichten sollen später über den bevorzugten Kanal des Kunden (z. B. WhatsApp) laufen
 - Angebote, Verträge, Rechnungen oder Zahlungen
 - Kalender, Termine und externe Integrationen
 - Projektspezifisches Datenbankschema, Migrationen und generierte TypeScript-Datenbanktypen
@@ -153,7 +163,7 @@ Das konfigurierte Projekt ist über die aktuell verbundene Supabase-Integration 
 
 Über die offizielle Admin API konnten die vier Testkonten mit dem lokalen Secret Key erfolgreich angelegt werden. Authentifizierung und Demo-Zuordnungen sind geprüft. Folgende Bereiche sind weiterhin ungeprüft:
 
-- Datenbanktabellen und Beziehungen
+- Datenbanktabellen und Beziehungen (die Dateiablage-Migration liegt bereit und wird mit `npm run db:push` angewendet)
 - Row Level Security (RLS) und Grants
 - Auth-Einstellungen und Redirect-URLs
 - Storage-Buckets und Storage Policies
@@ -167,7 +177,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` besteht mit 25 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy sowie Kontrast und Darstellungslogik des Hubs unter Node.js 24.
+- `npm test` besteht mit 30 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs unter Node.js 24.
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
@@ -227,6 +237,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 ### Kommunikation und Aktivitäten
 
 - [ ] Werden projektbezogene Kommentare oder vollständige Chats benötigt?
+- [ ] Über welche Kanäle (z. B. WhatsApp, E-Mail) sollen Nachrichten zugestellt werden, und wo wählt der Kunde seinen bevorzugten Kanal?
 - [ ] Müssen Benutzer erwähnt werden können?
 - [ ] Welche Aktivitäten sollen in einem Verlauf protokolliert werden?
 - [ ] Welche Ereignisse lösen E-Mail- oder In-App-Benachrichtigungen aus?
@@ -236,7 +247,8 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 
 - [ ] Welche Dateitypen und maximalen Größen sind erlaubt?
 - [ ] Werden Ordner, Kategorien, Tags oder Versionen benötigt?
-- [ ] Dürfen Kunden Dateien hochladen und löschen?
+- [ ] Dürfen Kunden Dateien hochladen und löschen? (Bisher laden nur Admins hoch, Kunden laden herunter.)
+- [ ] Sollen Admins Dateien löschen oder neue Fassungen einer Datei hochladen können?
 - [ ] Benötigen Dateien Freigabe- oder Abnahmeprozesse?
 - [ ] Müssen Downloads und Änderungen revisionssicher protokolliert werden?
 

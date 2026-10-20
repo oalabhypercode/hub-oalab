@@ -3,7 +3,9 @@
  * Rule-based on purpose: the insight texts can later be replaced by an AI summary.
  * Pure functions with UTC date math so server and client render identical output.
  */
-import { demoConversation, demoNextSteps, metricHref, type HubFile, type NextStep, type Project } from "./hub-data";
+import { demoConversation, demoNextSteps, metricHref, type NextStep, type Project } from "./hub-data";
+import { formatBytes } from "./hub-files/catalog";
+import type { HubStoredFile } from "./hub-files/types";
 import type { CategoryId } from "./categories";
 
 export type MetricId = "active-projects" | "average-progress" | "milestones" | "feedback" | "open-steps" | "shared-files" | "file-volume" | "messages";
@@ -43,7 +45,7 @@ export type ActivityItem = { id: string; title: string; detail: string; category
 export type ProjectRow = { id: string; title: string; subtitle: string; progress: number; href: string };
 
 export type SeriesBucket = { label: string; showLabel: boolean; value: number | null; tooltip: string };
-export type MetricSeries = { caption: string; value: string; unit: string; rangeLabel: string; buckets: SeriesBucket[]; max: number; empty: boolean };
+export type MetricSeries = { caption: string; value: string; unit: string; rangeLabel: string; buckets: SeriesBucket[]; max: number; empty: boolean; formatAxis?: (value: number) => string };
 
 type HubEvent = { at: number; kind: "milestone" | "feedback" | "file" | "message"; title: string; category: CategoryId; project?: Project };
 
@@ -51,7 +53,7 @@ export type HubModelInput = {
   preview: boolean;
   asOf: string;
   projects: Project[];
-  files: HubFile[];
+  files: HubStoredFile[];
   populated: boolean;
   admin: boolean;
   completedSteps: string[];
@@ -72,7 +74,8 @@ const integer = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
 const decimal = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 
 /** ISO date or local datetime without zone, interpreted as UTC wall time. */
-export const toTime = (iso: string) => Date.parse(iso.length <= 10 ? `${iso}T00:00:00Z` : `${iso}:00Z`);
+/** Fixture dates without zone are UTC wall time; full ISO timestamps (e.g. from Supabase) keep their zone. */
+export const toTime = (iso: string) => Date.parse(iso.length <= 10 ? `${iso}T00:00:00Z` : /Tdd:dd$/.test(iso) ? `${iso}:00Z` : iso);
 const startOfDay = (time: number) => Math.floor(time / DAY) * DAY;
 const startOfWeek = (time: number) => startOfDay(time) - ((new Date(startOfDay(time)).getUTCDay() + 6) % 7) * DAY;
 const startOfMonth = (time: number) => { const date = new Date(time); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1); };
@@ -83,7 +86,6 @@ export const formatDayMonth = (time: number) => dayMonth.format(time);
 export const formatFullDate = (iso: string) => fullDate.format(toTime(iso));
 export const formatNumber = (value: number) => (Number.isInteger(value) ? integer : decimal).format(value);
 const plural = (count: number, one: string, many: string) => (count === 1 ? one : many);
-const fileSizeMb = (size: string) => Number.parseFloat(size.replace(",", ".")) * (/kb/i.test(size) ? 1 / 1024 : /gb/i.test(size) ? 1024 : 1);
 
 /** Progress of a project at a given time, interpolated linearly between start and today (or completion). */
 function progressAt(project: Project, time: number, asOfEnd: number) {
@@ -110,6 +112,8 @@ type MetricDefinition = {
   /** Event metrics: which events count. */
   events?: (event: HubEvent) => boolean;
   format?: (value: number) => string;
+  /** Axis labels for the detail chart when raw values need a unit (e.g. bytes). */
+  axis?: (value: number) => string;
 };
 
 /** Name and category of every metric; the single source for cards, search and navigation. */
@@ -136,7 +140,7 @@ export function buildHubModel(input: HubModelInput) {
 
   const events: HubEvent[] = populated ? [
     ...projects.flatMap((project) => project.milestones.map((item) => ({ at: toTime(item.at), kind: item.kind, title: item.title, category: "projects" as const, project }))),
-    ...files.map((file) => ({ at: toTime(file.sharedAt), kind: "file" as const, title: file.name, category: "files" as const })),
+    ...files.map((file) => ({ at: toTime(file.createdAt), kind: "file" as const, title: file.title, category: "files" as const })),
     { at: toTime(demoConversation.sentAt), kind: "message" as const, title: demoConversation.topic, category: "messages" as const },
   ].filter((event) => event.at <= asOfEnd).sort((a, b) => b.at - a.at) : [];
 
@@ -181,10 +185,11 @@ export function buildHubModel(input: HubModelInput) {
       events: (event) => event.kind === "file",
     },
     "file-volume": {
-      ...metricMeta["file-volume"], kind: "state", unit: () => "MB",
+      ...metricMeta["file-volume"], kind: "state", unit: (value) => formatBytes(value).split(" ")[1],
       about: "Die Gesamtgröße aller geteilten Dateien in deinem Workspace.",
-      stateAt: (time) => files.filter((file) => toTime(file.sharedAt) <= time).reduce((sum, file) => sum + fileSizeMb(file.size), 0),
-      format: (value) => decimal.format(value),
+      stateAt: (time) => files.filter((file) => toTime(file.createdAt) <= time).reduce((sum, file) => sum + file.sizeBytes, 0),
+      format: (value) => formatBytes(value).split(" ")[0],
+      axis: (value) => formatBytes(value),
     },
     messages: {
       ...metricMeta.messages, kind: "event", unit: (value) => plural(value, "Nachricht", "Nachrichten"),
@@ -367,6 +372,7 @@ export function buildHubModel(input: HubModelInput) {
       buckets: buckets.map((bucket, index) => ({ label: bucket.label, showLabel: bucket.showLabel, value: values[index], tooltip: values[index] === null ? `${bucket.tooltip}: keine Daten` : `${bucket.tooltip}: ${format(id, Math.round(values[index]! * 10) / 10)} ${definition.unit(values[index]!)}` })),
       max: Math.max(1, ...known),
       empty: !populated || known.length === 0,
+      formatAxis: definition.axis,
     };
   }
 

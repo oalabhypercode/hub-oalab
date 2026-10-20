@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Check, FileText, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
-import { hubHref, previewFiles, previewProjects, type HubDemoData, type HubFile, type HubSection, type Project } from "@/lib/hub-data";
+import { hubHref, previewFiles, previewProjects, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
+import type { HubFilesState } from "@/lib/hub-files/types";
 import { buildHubModel, isMetricId } from "@/lib/hub-metrics";
 import { useFavorites } from "@/lib/use-favorites";
 import { Modal } from "./modal";
@@ -13,7 +14,8 @@ import { ProjectStatus } from "./project-status";
 import { AppearanceScreen } from "./screens/appearance";
 import { MetricDetailScreen } from "./screens/metric-detail";
 import { InsightsScreen, OverviewScreen } from "./screens/overview";
-import { DiscoverScreen, FilesScreen, MessagesScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
+import { FilesScreen } from "./screens/files";
+import { DiscoverScreen, MessagesScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
 import type { ScreenProps } from "./screens/types";
 
 type HubViewProps = {
@@ -25,27 +27,35 @@ type HubViewProps = {
   publicDemo?: boolean;
   userKey: string;
   asOf: string;
+  /** Real files from Supabase for signed-in users; absent for the preview and public demo identities. */
+  filesState?: HubFilesState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [file, setFile] = useState<HubFile | null>(null);
   const projects = useMemo(() => preview ? previewProjects : demoData?.projects || [], [preview, demoData]);
-  const files = useMemo(() => preview ? previewFiles : demoData?.files || [], [preview, demoData]);
+  const fixtureFiles = useMemo(() => preview ? previewFiles : demoData?.files || [], [preview, demoData]);
   const populated = preview || Boolean(demoData);
   const admin = demoData?.role === "oalab_admin";
+  const liveFiles = filesState?.source === "supabase" && !filesState.error;
+  const files = liveFiles ? filesState.files : fixtureFiles;
+  const fileState: HubFilesState = useMemo(() => filesState ?? {
+    source: "fixtures",
+    files: fixtureFiles,
+    customers: Array.from(new Map(fixtureFiles.flatMap((file) => file.customers).map((customer) => [customer.id, customer])).values()),
+    canManage: false,
+  }, [filesState, fixtureFiles]);
   const favorites = useFavorites(userKey);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
 
   const screen: ScreenProps = {
-    model, preview, populated, projects, files, favorites, admin,
+    model, preview, populated, projects, files, fileState, favorites, admin,
     firstName: demoData?.name.split(" ")[0] || (preview ? "Jana" : ""),
     company: demoData?.company,
     toggleStep: (id) => setCompletedSteps((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id]),
-    openFile: setFile,
   };
 
   return (
@@ -60,15 +70,6 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "messages" ? <MessagesScreen {...screen} />
         : <ProfileScreen {...screen} email={email} publicDemo={publicDemo} />}
       {selectedProject && <ProjectModal project={selectedProject} preview={preview} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
-      {file && (
-        <Modal title="Dateiinformationen" onClose={() => setFile(null)}>
-          <div className="modal-file-icon" style={{ color: categories.files.fill }}><FileText size={34} strokeWidth={1.8} aria-hidden="true" /></div>
-          <h3 className="project-modal-title">{file.name}</h3>
-          <dl className="file-details"><div><dt>Projekt</dt><dd>{file.project}</dd></div><div><dt>Dateigröße</dt><dd>{file.size}</dd></div><div><dt>Geändert</dt><dd>{file.date}</dd></div></dl>
-          <p className="help-note">Beispieldatei für Frontend-Tests. Echte Uploads, Vorschauen und Downloads werden mit der Dateianbindung ergänzt.</p>
-          <button className="sheet-button sheet-button-primary" onClick={() => setFile(null)}>Verstanden <Check size={17} aria-hidden="true" /></button>
-        </Modal>
-      )}
     </>
   );
 }
