@@ -30,6 +30,15 @@
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
 
+### Vorgabe vom 20. Oktober 2026: User-Management für Admins (geplant)
+
+- Admins bekommen einen eigenen Bereich zur Verwaltung der Kundenkonten, aufgebaut als Tabelle wie die Referenz „All Employees“: Kopfzeile mit Gesamtzahl, Filter, Sortieren, Spaltenauswahl und Suche; je Zeile die Aktionen Ansehen, Bearbeiten, Löschen. Der Referenz-Screenshot liegt im Team-Doc „oalab Client Hub – To-dos fürs Team“.
+- Spalten: **Kunden-Nr.** (statt Worker ID, mit Kopier-Button) · **Kunde** (Name, darunter die registrierte E-Mail; statt Member) · **Unternehmen** (statt Role) · **Status** (statt Worker Type) · **Letzter Login** (Zeitstempel).
+- Status mit Farbe: „Aktivierungslink versenden“ (orange), „Aktiv“ (grün), „Deaktiviert“ (rot).
+- Funktionen: neue Konten durch den Admin anlegen (Name, E-Mail, Unternehmen, Kunden-Nr.), Aktivierungslink (erneut) versenden, Passwort-Neuvergabe auslösen (Reset-Link an die registrierte E-Mail), Konto deaktivieren und wieder aktivieren, letzten Login anzeigen, Löschen nur mit Bestätigung.
+- Technik: Supabase Auth Admin API (Einladung, Reset-Link, Sperren, `last_sign_in_at`) nur serverseitig mit Secret Key oder über eine Edge Function; aufbauend auf `hub_customers` und `hub_customer_members`.
+- Offen: Löschen endgültig oder nur deaktivieren? Mehrere Logins pro Kunde?
+
 ### Ergänzung vom 20. Oktober 2026: Dateiaustausch
 
 - Admins laden unter „Dateien“ Dateien mit Titel, Kategorie und Beschreibung hoch und ordnen sie einem oder mehreren Kunden per Kundennummer zu. Ohne Zuordnung liegt eine Datei in der Ablage und kann später zugeordnet werden.
@@ -101,7 +110,8 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Datenanbindung für Kunden, Unternehmen, Projekte, Aufgaben und Meilensteine
 - Persistentes Rollen- und Berechtigungssystem für reale Geschäftsdaten
 - Datenbankseitige Mandantentrennung zwischen Kunden (die Demo-Fixtures sind bereits getrennt)
-- Löschen und Versionieren von Dateien sowie das Anlegen neuer Kunden im Hub (Kunden entstehen bisher per Seed)
+- Löschen und Versionieren von Dateien
+- User-Management für Admins (Konten anlegen, Aktivierungslink, Passwort-Neuvergabe, Deaktivieren, letzter Login; Vorgabe siehe oben). Kunden und Logins entstehen bisher nur per Seed
 - Echte Kommentare, Nachrichten und Benachrichtigungen; Nachrichten sollen später über den bevorzugten Kanal des Kunden (z. B. WhatsApp) laufen
 - Angebote, Verträge, Rechnungen oder Zahlungen
 - Kalender, Termine und externe Integrationen
