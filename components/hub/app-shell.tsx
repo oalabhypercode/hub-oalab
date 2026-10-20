@@ -31,7 +31,8 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   const projects = preview ? previewProjects : demoData?.projects || [];
   const files = preview ? previewFiles : demoData?.files || [];
   const hasDemo = preview || Boolean(demoData);
-  const accountLabel = preview ? "Designvorschau" : demoData ? (demoData.role === "oalab_admin" ? "OALAB Admin · Demo" : "OALAB Customer · Demo") : "Angemeldet";
+  // Demo accounts carry no banner; the role and the kind of demo stay visible in the logout tooltip.
+  const accountLabel = preview ? "Designvorschau" : demoData ? `${demoData.role === "oalab_admin" ? "OALAB Admin" : "OALAB Customer"} · ${publicDemo ? "Öffentliche Demo" : "Demo"}` : "Angemeldet";
   const words = name.trim().split(/\s+/).filter(Boolean);
   const initials = preview ? previewAccount.initials : (words.length > 1 ? words[0][0] + words[words.length - 1][0] : name.slice(0, 2)).toUpperCase();
   const account: HubAccount = {
@@ -94,7 +95,6 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
               {/* Below 1024 px the sidebar (and its logo) is hidden, so the brand sits in the top row. */}
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-name" aria-hidden="true">oalab</span></Link>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zum Login <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
-              {demoData && <div className="hub-notice glass"><span><i aria-hidden="true" /> {accountLabel}<span className="hub-notice-detail"> – gepflegte fiktive Inhalte für Frontend-Tests.</span></span><span>{publicDemo ? "Öffentliche Demo" : "Echter Login"}</span></div>}
             </div>
             <main className="hub-content" id="main-content">{children}</main>
           </div>

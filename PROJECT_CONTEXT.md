@@ -20,6 +20,7 @@
 - Rechts neben der Begrüßung stehen das aktive Servicepaket und der Button „Ab zur Serviceplattform“ (https://service.oalab.de, neuer Tab). Jeder Kunde hat mindestens ein Paket: Oalab-Website & Mail, Oalab-Website lite, Oalab-Website extra oder Oalab-Website Max (zentral in `lib/service-packages.ts`). Die Demo-Zuordnungen sind fiktiv.
 - Login, Registrierung, Passwortseiten, Auth-Fehler und 404 stehen ebenfalls im Glas-Stil auf dem wählbaren Hintergrund; das Formular liegt auf einer Glaskarte. Das Original-Logo erscheint nur transparent als Wasserzeichen links (auf dem Smartphone klein oben rechts), nie umgefärbt.
 - Auf der Login-Seite stehen die Demo-Konten in einem Dropdown „Testkonto wählen“; ein Klick auf ein Konto meldet direkt an. Die Links „Ein erster Einblick“ und „Dashboard-Vorschau entdecken“ entfallen, weil die Demo-Konten den Einblick bereits bieten. `/preview` bleibt per direkter Adresse erreichbar.
+- Das Dashboard der Demo-Konten (Kunden und Admin) zeigt keinen Demo-Banner mehr. Rolle und Art der Demo stehen im Tooltip des Abmelde-Buttons, das Profil nennt die öffentliche Demo weiterhin ausdrücklich. Nur `/preview` behält den Hinweis „Designvorschau“.
 - Kontrast: Alle Texte auf Glas erreichen mindestens 4,5:1 bei 70 % Deckkraft über jedem Hintergrund, auch über Schwarz. Dafür sind die Kategorie-Textfarben gegenüber der Vorlage abgedunkelt. `tests/appearance.test.mjs` prüft das.
 
 ### Markenentscheidung vom 15. Oktober 2026
