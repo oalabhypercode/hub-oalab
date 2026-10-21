@@ -60,7 +60,7 @@ export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
 
 const filters = ["Alle Projekte", "Aktiv", "Abgeschlossen"] as const;
 
-export function ProjectsScreen({ model, preview, populated, projects, admin }: ScreenProps) {
+export function ProjectsScreen({ preview, populated, projects, admin }: ScreenProps) {
   const [filter, setFilter] = useState<(typeof filters)[number]>("Alle Projekte");
   const [companyFilter, setCompanyFilter] = useState("Alle Kunden");
   const matches = (item: (typeof filters)[number], status: string) => item === "Alle Projekte" || (item === "Aktiv" ? status !== "Abgeschlossen" : status === "Abgeschlossen");
@@ -69,7 +69,6 @@ export function ProjectsScreen({ model, preview, populated, projects, admin }: S
     <>
       <LargeTitleHeader title="Projekte" icon={<CategoryTitle category="projects" />} actions={<HeaderActions />} />
       {populated ? <>
-        <CategoryMetrics model={model} category="projects" />
         <SectionHeader title="Alle Projekte" />
         <div className="list-toolbar">
           <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => ({ id: item, label: `${item === "Alle Projekte" ? "Alle" : item} ${projects.filter((project) => matches(item, project.status)).length}`, name: `${item}: ${projects.filter((project) => matches(item, project.status)).length}` }))} />
