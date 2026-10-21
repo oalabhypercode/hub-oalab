@@ -36,7 +36,7 @@ test("text colours on glass keep 4.5:1 at 70 % opacity over any background", asy
     "accent-text (bordeaux)": brand.match(/--oalab-bordeaux: (#[0-9a-f]{6})/i)[1],
   };
   const categories = [...(await source("lib/categories.ts")).matchAll(/name: "([^"]+)"[^\n]*text: "(#[0-9A-Fa-f]{6})"/g)];
-  assert.equal(categories.length, 3, "every category defines a text colour");
+  assert.equal(categories.length, 4, "every category defines a text colour");
   for (const [, name, hex] of categories) tokens[`category ${name}`] = hex;
   for (const [name, hex] of Object.entries(tokens)) {
     assert.ok(contrast(rgb(hex), worstGlass) >= 4.5, `${name} ${hex}: ${contrast(rgb(hex), worstGlass).toFixed(2)}:1`);

@@ -270,7 +270,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 }
 @media (max-width: 400px) {
   .tab-bar-wrap { left: 12px; right: 12px; gap: 8px; }
-  .tab { padding: 0 2px; }
+  /* Six entries since the calendar: every label still fits at 390 px. */
+  .tab { padding: 0 1px; }
 }
 
 /* ---------- Content ---------- */
@@ -610,6 +611,132 @@ a.list-row:hover, button.list-row:hover, .project-card:hover { background: rgba(
   .cell-format small { margin-left: 4px; }
   .file-table tr.file-row > .cell-category { flex-basis: auto; }
   .file-table tr.file-row::after { content: ""; order: 2; flex-basis: 100%; height: 0; }
+}
+
+/* Calendar: month grid with the occupancy of every working day, day timeline, requests and appointments */
+.calendar-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin: 20px 0 14px; }
+.calendar-month-nav { display: inline-flex; align-items: center; gap: 2px; height: 44px; padding: 0 4px; border-radius: 999px; }
+.calendar-month-nav button { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--accent-text); }
+.calendar-month-nav button:hover:not(:disabled) { background: var(--fill-tertiary); }
+.calendar-month-nav button:disabled { opacity: 0.35; cursor: default; }
+.calendar-month-title { min-width: 148px; text-align: center; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); }
+.calendar-primary { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--accent-text); color: #ffffff; font-size: 17px; font-weight: 600; box-shadow: 0 6px 16px rgba(126, 0, 75, 0.28); transition: transform var(--duration) var(--ease-spring), background 200ms ease; }
+.calendar-primary:hover { background: #69003e; }
+.calendar-primary:active { transform: scale(0.98); }
+.calendar-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 16px; border-radius: 16px; color: #124e20; font-size: 15px; line-height: 20px; font-weight: 600; }
+.calendar-notice svg { flex: 0 0 auto; }
+.calendar-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: var(--grid-gap); align-items: start; }
+.calendar-month-card { padding: 12px; }
+.calendar-weekdays, .calendar-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calendar-weekdays { padding: 2px 0 6px; text-align: center; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
+.calendar-week + .calendar-week { margin-top: 4px; }
+.calendar-cell { min-width: 0; min-height: 88px; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 6px; border-radius: 12px; text-align: left; color: var(--label-body); transition: background 150ms ease, box-shadow 150ms ease; }
+.calendar-cell:hover:not(:disabled) { background: rgba(255, 255, 255, 0.45); }
+.calendar-cell[aria-pressed="true"] { background: var(--selected-pill); box-shadow: inset 0 0 0 2px var(--accent-text); }
+.calendar-cell.is-closed { background: rgba(118, 118, 128, 0.07); }
+.calendar-cell.is-closed[aria-pressed="true"] { background: var(--selected-pill); }
+.calendar-cell.is-outside { opacity: 0.45; }
+.calendar-cell:disabled { opacity: 0.25; cursor: default; }
+.calendar-day-number { align-self: flex-start; min-width: 26px; height: 26px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--label); }
+.calendar-cell.is-past .calendar-day-number { color: var(--label-secondary); font-weight: 500; }
+.calendar-cell[aria-current="date"] .calendar-day-number { background: #ff3b30; color: #ffffff; }
+.occupancy-track { display: block; height: 4px; border-radius: 2px; overflow: hidden; background: var(--fill-tertiary); }
+.occupancy-track > span { display: block; height: 100%; border-radius: 2px; }
+.occupancy-some > span { background: #34c759; }
+.occupancy-busy > span { background: #ff9500; }
+.occupancy-full > span { background: #ff3b30; }
+.occupancy-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 4px 2px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.occupancy-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.occupancy-swatch { width: 18px; height: 6px; border-radius: 3px; background: var(--fill-tertiary); }
+.occupancy-swatch.occupancy-some { background: #34c759; }
+.occupancy-swatch.occupancy-busy { background: #ff9500; }
+.occupancy-swatch.occupancy-full { background: #ff3b30; }
+.calendar-cell-items { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.calendar-chip { display: block; padding: 1px 5px; border-radius: 6px; font-size: 11px; line-height: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-chip-confirmed { color: #800f0b; background: rgba(255, 59, 48, 0.14); }
+.calendar-chip-requested { color: #7f2100; background: rgba(255, 149, 0, 0.16); box-shadow: inset 0 0 0 1px rgba(127, 33, 0, 0.35); }
+.calendar-more { font-size: 11px; line-height: 15px; font-weight: 600; color: var(--label-secondary); padding-left: 5px; }
+.calendar-dots { display: none; gap: 3px; }
+.calendar-dot { width: 6px; height: 6px; border-radius: 50%; box-shadow: none; }
+.calendar-dot.calendar-chip-confirmed { background: #ff3b30; }
+.calendar-dot.calendar-chip-requested { background: #ff9500; }
+
+.calendar-day-card { display: flex; flex-direction: column; gap: 14px; }
+.calendar-day-head h2 { color: var(--label); }
+.timeline { position: relative; margin-top: 8px; }
+.timeline-hour { position: absolute; left: 0; right: 0; border-top: 1px solid var(--separator); }
+.timeline-hour span { position: absolute; left: 0; top: -9px; padding-right: 6px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.timeline-lanes { position: absolute; top: 0; bottom: 0; left: 52px; right: 0; }
+.timeline-off { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, rgba(118, 118, 128, 0.1) 0 6px, transparent 6px 12px); }
+.timeline-closed { display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+.timeline-closed span { padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.75); font-size: 13px; font-weight: 600; color: var(--label-secondary); }
+.timeline-busy { position: absolute; left: 0; right: 0; padding: 3px 8px; border-radius: 8px; background: rgba(60, 60, 67, 0.14); overflow: hidden; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-secondary); }
+.timeline-block { position: absolute; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; padding: 3px 8px; border-radius: 8px; overflow: hidden; text-align: left; transition: transform var(--duration) var(--ease-spring); }
+.timeline-block strong, .timeline-block span { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.timeline-block strong { font-size: 13px; line-height: 17px; font-weight: 600; }
+.timeline-block span { font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.timeline-block:active { transform: scale(0.98); }
+.timeline-block-confirmed { background: #ffe0de; box-shadow: inset 3px 0 0 #ff3b30; }
+.timeline-block-confirmed strong { color: #800f0b; }
+.timeline-block-requested { background: #fff0d9; box-shadow: inset 0 0 0 1.5px rgba(127, 33, 0, 0.45); }
+.timeline-block-requested strong { color: #7f2100; }
+.timeline-now { position: absolute; left: -4px; right: 0; border-top: 2px solid #ff3b30; pointer-events: none; }
+.timeline-now::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: #ff3b30; }
+.free-slots h3 { margin-bottom: 6px; font-weight: 600; color: var(--label-secondary); }
+.free-slots ul { display: flex; flex-wrap: wrap; gap: 8px; }
+.free-slot { min-height: 36px; padding: 0 12px; border-radius: 999px; background: rgba(52, 199, 89, 0.18); color: #124e20; font-size: 15px; font-weight: 600; transition: background 150ms ease; }
+.free-slot:hover { background: rgba(52, 199, 89, 0.3); }
+.calendar-day-create { margin-top: 2px; }
+
+.appointment-list .list-item + .list-item::before { left: 74px; }
+.appointment-item { display: flex; align-items: center; gap: 6px; padding-right: 12px; }
+.appointment-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; min-height: 68px; padding: 10px 8px 10px 16px; text-align: left; color: var(--label-body); transition: background 200ms ease; }
+.appointment-open:hover { background: rgba(255, 255, 255, 0.4); }
+.appointment-date { flex: 0 0 44px; display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.appointment-date strong { font-size: 22px; line-height: 24px; font-weight: 700; color: #800f0b; }
+.appointment-date small { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-secondary); }
+.appointment-status { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
+.appointment-status > i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.appointment-status-requested { color: #7f2100; background: rgba(255, 149, 0, 0.22); }
+.appointment-status-confirmed { color: #124e20; background: rgba(52, 199, 89, 0.18); }
+.appointment-status-declined { color: #8a092d; background: rgba(255, 45, 85, 0.14); }
+.appointment-status-cancelled { color: var(--label-secondary); background: var(--fill-tertiary); }
+.teams-join { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; background: #4b53bc; color: #ffffff; font-size: 15px; font-weight: 600; white-space: nowrap; transition: background 150ms ease, transform var(--duration) var(--ease-spring); }
+a.teams-join:hover { background: #3d4399; }
+a.teams-join:active { transform: scale(0.97); }
+.teams-join.is-compact { min-height: 36px; padding: 0 12px; font-size: 13px; flex: 0 0 auto; }
+.teams-join.is-sample { background: var(--fill-tertiary); color: var(--label-secondary); cursor: default; }
+.teams-join small { font-size: 12px; font-weight: 500; }
+.appointment-detail-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 2px 0 4px; font-size: 15px; line-height: 20px; color: var(--label-body); }
+.appointment-note { margin: -6px 0 14px; }
+.appointment-close { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.appointment-time-fields { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.field-hint { font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.appointment-conflict { padding: 10px 12px; border-radius: 12px; background: rgba(255, 149, 0, 0.16); color: #7f2100; font-size: 15px; line-height: 20px; }
+.appointment-no-slots { display: block; padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); color: var(--label-secondary); font-size: 15px; line-height: 20px; }
+.sheet-button-danger { background: #b3261e; color: #ffffff; }
+.sheet-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.hub-modal .form-error { margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 59, 48, 0.1); color: #b3261e; font-size: 15px; line-height: 20px; }
+
+@media (max-width: 900px) {
+  .calendar-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .calendar-toolbar { gap: 8px; }
+  .calendar-primary { width: 100%; margin-left: 0; order: 3; }
+  .calendar-month-title { min-width: 128px; }
+  .calendar-month-card { padding: 8px; }
+  .calendar-weekdays, .calendar-week { gap: 2px; }
+  .calendar-cell { min-height: 54px; padding: 4px; gap: 3px; border-radius: 10px; }
+  .calendar-day-number { font-size: 14px; min-width: 24px; height: 24px; }
+  .calendar-chip, .calendar-more { display: none; }
+  .calendar-dots { display: flex; }
+  .appointment-time-fields { grid-template-columns: 1fr 1fr; }
+  .appointment-time-fields > :first-child { grid-column: 1 / -1; }
+  .appointment-open { gap: 10px; padding-left: 12px; }
+  .appointment-list .list-item + .list-item::before { left: 66px; }
+  .teams-join.is-compact { width: 36px; padding: 0; }
+  .teams-join.is-compact .teams-join-label { display: none; }
 }
 
 /* Project and file dialogs */

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Loader2, LogOut, Search, Settings } from "lucide-react";
-import { categories, categoryOrder } from "@/lib/categories";
+import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
 import { hubHref, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { useHubShell } from "./shell-context";
@@ -14,7 +14,8 @@ type SidebarProps = {
   onSearch: () => void;
   preview: boolean;
   section: HubSection;
-  counts: Record<"projects" | "files" | "messages", number>;
+  /** Categories without a count (the calendar) show none. */
+  counts: Partial<Record<CategoryId, number>>;
   name: string;
   accountLabel: string;
   initials: string;
@@ -45,7 +46,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         ))}
         <span className="sidebar-caption">Kategorien</span>
         {categoryOrder.map((id) => (
-          <Link key={id} {...item(categories[id].section)}><CategoryIcon category={id} size={19} /><span>{categories[id].name}</span><span className="sidebar-count">{counts[id]}</span></Link>
+          <Link key={id} {...item(categories[id].section)}><CategoryIcon category={id} size={19} /><span>{categories[id].name}</span>{counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>
         ))}
       </nav>
       <div className={`sidebar-profile${activePackages ? " has-package" : ""}`}>

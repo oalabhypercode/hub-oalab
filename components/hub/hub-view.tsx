@@ -5,13 +5,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
-import { hubHref, previewFiles, previewProjects, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
+import { hubHref, previewAccount, previewFiles, previewProjects, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubFilesState } from "@/lib/hub-files/types";
+import { calendarFixtures } from "@/lib/hub-calendar/fixtures";
+import type { HubCalendarState } from "@/lib/hub-calendar/types";
 import { buildHubModel, isMetricId } from "@/lib/hub-metrics";
 import { useFavorites } from "@/lib/use-favorites";
 import { Modal } from "./modal";
 import { ProjectStatus } from "./project-status";
 import { AppearanceScreen } from "./screens/appearance";
+import { CalendarScreen } from "./screens/calendar";
 import { MetricDetailScreen } from "./screens/metric-detail";
 import { InsightsScreen, OverviewScreen } from "./screens/overview";
 import { FilesScreen } from "./screens/files";
@@ -29,9 +32,11 @@ type HubViewProps = {
   asOf: string;
   /** Real files from Supabase for signed-in users; absent for the preview and public demo identities. */
   filesState?: HubFilesState;
+  /** Real calendar from Supabase on the calendar page; absent for the preview and public demo identities. */
+  calendarState?: HubCalendarState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -47,12 +52,13 @@ export function HubView({ section = "overview", detail, preview = false, email =
     customers: Array.from(new Map(fixtureFiles.flatMap((file) => file.customers).map((customer) => [customer.id, customer])).values()),
     canManage: false,
   }, [filesState, fixtureFiles]);
+  const calendar = useMemo(() => calendarState ?? calendarFixtures({ admin, customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null }), [calendarState, admin, preview, demoData]);
   const favorites = useFavorites(userKey);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
 
   const screen: ScreenProps = {
-    model, preview, populated, projects, files, fileState, favorites, admin,
+    model, preview, populated, projects, files, fileState, calendar, favorites, admin,
     firstName: demoData?.name.split(" ")[0] || (preview ? "Jana" : ""),
     company: demoData?.company,
     toggleStep: (id) => setCompletedSteps((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id]),
@@ -68,6 +74,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "projects" ? <ProjectsScreen {...screen} />
         : section === "files" ? <FilesScreen {...screen} />
         : section === "messages" ? <MessagesScreen {...screen} />
+        : section === "calendar" ? <CalendarScreen {...screen} />
         : <ProfileScreen {...screen} email={email} publicDemo={publicDemo} />}
       {selectedProject && <ProjectModal project={selectedProject} preview={preview} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
     </>

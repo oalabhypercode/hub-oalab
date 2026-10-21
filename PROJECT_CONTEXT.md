@@ -3,7 +3,7 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 20. Oktober 2026
+**Stand:** 22. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
 ### Designentscheidung vom 19. Oktober 2026: Client Hub im Liquid-Glass-Stil
@@ -12,7 +12,7 @@
 - Unter allen Inhalten liegt ein kräftiger, wählbarer Hintergrund. Karten, Listen, Sidebar, Tab-Bar und Buttons sind mattes Glas (Standard 80 % Deckkraft, 24 px Unschärfe).
 - **Inter bleibt** die Schrift. Große Kennzahlen nutzen `ui-rounded` (SF Pro Rounded auf Apple-Geräten, sonst Inter).
 - **Standard-Hintergrund ist das Preset „oalab“** (Bordeaux, Rot und Orange, für weiße Schrift abgedunkelt). Ozean, Aubergine, Smaragd, Glut, Graphit und eine eigene Farbe sind wählbar. Links, aktive Navigation und Fokus bleiben Bordeaux.
-- Kategorien: Projekte (Orange), Dateien (Indigo), Nachrichten (Blau). Rechnungen, Analytics, Hosting und Termine entfallen, bis es diese Module gibt.
+- Kategorien: Projekte (Orange), Dateien (Indigo), Nachrichten (Blau), seit 22. Oktober 2026 Kalender (Rot). Rechnungen, Analytics und Hosting entfallen, bis es diese Module gibt.
 - Die Beispieldaten (Vorschau und vier Demo-Identitäten) enthalten einen ausdrücklich fiktiven, datierten Verlauf: Projektstart, Zieltermine, Meilensteine, Dateidaten. Referenztag ist der 15. Oktober 2026 (`DEMO_AS_OF`). Echte Konten sehen weiterhin leere Zustände.
 - Die Insights sind regelbasiert aus den vorhandenen Daten erzeugt und können später durch eine KI-Zusammenfassung ersetzt werden.
 - Darstellung (Preset, eigene Farbe, Deckkraft 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“) und Favoriten werden im Browser gespeichert, Favoriten pro Nutzer. Für Nutzereinstellungen gibt es noch keinen Speicher im Backend. Ein Inline-Script setzt die Darstellung vor dem ersten Paint.
@@ -29,6 +29,23 @@
 - Hauptlogo und Iconvariante sind als gelieferte Originaldateien eingebunden.
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
+
+### Vorgabe vom 22. Oktober 2026: Kalender und Reiter „Projekte“
+
+- Der Reiter „Projekte“ zeigt oben keine Kennzahl-Kacheln mehr, nur noch Filter und Projektliste. Die Kennzahlen bleiben über Favoriten und die Detailseiten erreichbar; die Kacheln stehen im Backlog (unten).
+- Neuer Reiter **Kalender** für Admins und Kunden, in Sidebar und Tab-Bar (`/dashboard/calendar`, `/preview/calendar`).
+- Admins legen Termine an, optional für einen Kunden, und hinterlegen einen Microsoft-Teams-Link. Der Link wird von Hand aus Teams oder Outlook eingefügt; akzeptiert werden nur Teams-Domains. Termine lassen sich bearbeiten, absagen (mit Hinweis an den Kunden) und löschen. Überschneidungen zeigt das Formular an, blockiert sie aber nicht.
+- Kundenanfragen stehen beim Admin unter „Offene Anfragen“. Er nimmt sie an (Zeit anpassbar, Teams-Link eintragen) oder lehnt sie mit Begründung ab.
+- Kunden sehen pro Tag, wie stark der OALAB-Kalender belegt ist (frei, gut verfügbar, stark belegt, ausgebucht). In der Tagesansicht erscheinen fremde Termine nur als anonyme „Belegt“-Blöcke, ohne Titel oder Kunde.
+- Kunden fragen Termine in freien Zeiträumen an: 30 bis 90 Minuten, Mo–Fr 9–17 Uhr (Europe/Berlin), höchstens fünf offene Anfragen. Sie sehen den Status, können offene Anfragen zurückziehen und treten bestätigten Terminen über „Teams-Meeting beitreten“ bei.
+- Technik: Migration `supabase/migrations/20261022120000_hub_calendar.sql`, am 22. Oktober 2026 auf `tjbslvwvisxjjcxfhbgm` angewendet. Tabelle `hub_appointments` mit RLS: Admins dürfen alles; Kunden lesen ihre Termine und legen nur Anfragen ohne Teams-Link an. `hub_calendar_busy()` liefert Angemeldeten nur die Zeitblöcke bestätigter Termine, `hub_withdraw_appointment_request()` zieht eine eigene offene Anfrage zurück. Data-API-Grants sind explizit gesetzt.
+- Arbeitszeit, Zeitzone samt Sommerzeitwechsel, freie Slots und Teams-Links regelt `lib/hub-calendar/rules.ts`; `tests/hub-calendar.test.mjs` prüft das. Vorschau und öffentliche Demo zeigen fiktive Termine (`lib/hub-calendar/fixtures.ts`); Änderungen dort bleiben im Browserfenster.
+- Lokal mit echten Demo-Logins geprüft: Nordlicht fragt an, der Admin bestätigt mit Teams-Link, Nordlicht sieht den Termin samt Link; der Termin von Form & Feld erscheint bei Nordlicht nur als „Belegt“. Drei Testtermine vom 23. Oktober 2026 („Testtermin: …“, „Testanfrage …“) liegen noch in der Datenbank.
+- Offen: E-Mail-Benachrichtigung bei neuer Anfrage und bei Bestätigung, Teams-Meetings automatisch über Microsoft Graph, konfigurierbare Zeiten und Feiertage, Erinnerungen vor dem Termin.
+
+### Backlog
+
+- Kennzahl-Kacheln im Reiter „Projekte“ (aktive Projekte, Fortschritt, Meilensteine, Feedback): am 22. Oktober 2026 auf Wunsch entfernt. Offen ist, ob sie zurückkommen oder einen anderen Platz bekommen.
 
 ### Vorgabe vom 20. Oktober 2026: User-Management für Admins (geplant)
 
@@ -103,6 +120,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Sichere interne Weiterleitungen und PKCE-/E-Mail-Bestätigungs-Callbacks
 - Vier echte Demo-Konten mit serververwalteter Admin-/Customer-Zuordnung und getrennten Fixture-Datensichten
 - Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
+- Kalender für Admins und Kunden: Auslastung, Terminanfragen, Bestätigung mit Microsoft-Teams-Link (Supabase mit RLS)
 - Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten im selben Glas-Stil mit Demo-Konten im Dropdown
 
 ### Noch nicht implementiert
@@ -114,7 +132,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - User-Management für Admins (Konten anlegen, Aktivierungslink, Passwort-Neuvergabe, Deaktivieren, letzter Login; Vorgabe siehe oben). Kunden und Logins entstehen bisher nur per Seed
 - Echte Kommentare, Nachrichten und Benachrichtigungen; Nachrichten sollen später über den bevorzugten Kanal des Kunden (z. B. WhatsApp) laufen
 - Angebote, Verträge, Rechnungen oder Zahlungen
-- Kalender, Termine und externe Integrationen
+- Kalender-Integrationen (Outlook, automatisch erzeugte Teams-Meetings) und Benachrichtigungen zu Terminen
 - Projektspezifisches Datenbankschema, Migrationen und generierte TypeScript-Datenbanktypen
 - Umfassende Integrationstests und CI/CD
 
@@ -137,6 +155,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/projects` | Geschützt | Demo-Projekte je Rolle/Workspace; ansonsten Gerüst |
 | `/dashboard/files` | Geschützt | Zugeordnete Beispieldateien ohne echte Downloads |
 | `/dashboard/messages` | Geschützt | Zugeordnete Beispielunterhaltung ohne Versand |
+| `/dashboard/calendar` | Geschützt | Kalender: Admins planen Termine mit Teams-Link und beantworten Anfragen; Kunden sehen die Auslastung und fragen Termine an |
 | `/dashboard/insights` | Geschützt | Insights und alle Highlights |
 | `/dashboard/discover` | Geschützt | Entdecken: Kategorien, Kennzahlen und Konto durchsuchen |
 | `/dashboard/metrics/<kennzahl>` | Geschützt | Detailseite einer Kennzahl mit Zeitraum-Umschalter |
@@ -146,6 +165,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/preview/projects` | Öffentlich | Beispielprojekte mit Filtern und Detaildialogen |
 | `/preview/files` | Öffentlich | Beispiel-Dateiliste und Dateiinformationen |
 | `/preview/messages` | Öffentlich | Fiktive, nicht sendende Beispielunterhaltung |
+| `/preview/calendar` | Öffentlich | Kalender mit fiktiven Terminen; Anfragen bleiben im Browser |
 | `/preview/settings` | Öffentlich | Beispiel-Profil |
 | `/preview/insights`, `/preview/discover`, `/preview/metrics/<kennzahl>`, `/preview/settings/appearance` | Öffentlich | Dieselben neuen Ansichten mit Beispieldaten |
 | `/protected` | Geschützt | Weiterleitung auf `/dashboard` |
@@ -173,7 +193,7 @@ Das konfigurierte Projekt ist über die aktuell verbundene Supabase-Integration 
 
 Über die offizielle Admin API konnten die vier Testkonten mit dem lokalen Secret Key erfolgreich angelegt werden. Authentifizierung und Demo-Zuordnungen sind geprüft. Folgende Bereiche sind weiterhin ungeprüft:
 
-- Datenbanktabellen und Beziehungen (die Dateiablage-Migration liegt bereit und wird mit `npm run db:push` angewendet)
+- Datenbanktabellen und Beziehungen außerhalb von Dateiablage und Kalender (beide Migrationen sind angewendet; `npm run db:check` zeigt ausstehende)
 - Row Level Security (RLS) und Grants
 - Auth-Einstellungen und Redirect-URLs
 - Storage-Buckets und Storage Policies
@@ -187,7 +207,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` besteht mit 30 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs unter Node.js 24.
+- `npm test` umfasst 37 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links) und die RLS-Migration des Kalenders unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
@@ -204,6 +224,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - [x] Starter-Startseite und Starter-Deploy-Link aus dem Produkt entfernen
 - [x] Projektspezifische Metadaten und Sprache konfigurieren
 - [ ] Teststrategie und CI-Pipeline festlegen
+- [ ] `.gitattributes` mit `public/demo-files/** -text` ergänzen, damit Windows-Checkouts die Musterdateien nicht verändern
 
 ## 6. Offene Produktfragen
 
@@ -271,8 +292,10 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 
 ### Termine und Integrationen
 
-- [ ] Benötigt das Portal Termine, Meetings oder Deadlines?
 - [ ] Sollen Google Calendar, Outlook oder andere Kalender angebunden werden?
+- [ ] Sollen Teams-Meetings automatisch erzeugt werden (Microsoft Graph), statt Links von Hand einzufügen?
+- [ ] Welche Zeiten sind buchbar (bisher Mo–Fr 9–17 Uhr)? Gelten Feiertage oder Puffer zwischen Terminen?
+- [ ] Wer wird über neue Anfragen benachrichtigt, und erhalten Kunden eine Bestätigung per E-Mail?
 - [ ] Welche weiteren Systeme müssen integriert werden, beispielsweise E-Mail, Slack, Teams, Notion, Drive oder ein CRM?
 - [ ] Existieren bereits Daten, die importiert oder regelmäßig synchronisiert werden müssen?
 

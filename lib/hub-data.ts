@@ -1,7 +1,7 @@
 import type { HubStoredFile } from "./hub-files/types";
 import type { ServicePackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "messages", "settings", "insights", "discover"] as const;
+export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover"] as const;
 export type HubSection = "overview" | (typeof hubSections)[number];
 
 export const sectionLabels: Record<HubSection, string> = {
@@ -9,6 +9,7 @@ export const sectionLabels: Record<HubSection, string> = {
   projects: "Projekte",
   files: "Dateien",
   messages: "Nachrichten",
+  calendar: "Kalender",
   settings: "Profil",
   insights: "Insights",
   discover: "Entdecken",

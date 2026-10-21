@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { categories } from "@/lib/categories";
+import { categories, type CategoryId } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
 import type { MetricId, RangeId } from "@/lib/hub-metrics";
 import { HighlightCard } from "../cards";
@@ -22,7 +22,7 @@ const ranges: { id: RangeId; label: string; name: string }[] = [
   { id: "J", label: "J", name: "Jahr" },
 ];
 
-const primaryAction = { projects: "Projekte öffnen", files: "Dateien öffnen", messages: "Zum Gespräch" } as const;
+const primaryAction: Record<CategoryId, string> = { projects: "Projekte öffnen", files: "Dateien öffnen", messages: "Zum Gespräch", calendar: "Kalender öffnen" };
 
 export function MetricDetailScreen({ model, preview, populated, favorites, metricId }: ScreenProps & { metricId: MetricId }) {
   const [range, setRange] = useState<RangeId>("W");
