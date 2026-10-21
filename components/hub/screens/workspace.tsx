@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
-import { appearanceHref, demoConversation, hubHref, previewAccount } from "@/lib/hub-data";
+import { appearanceHref, currentMilestone, demoConversation, hubHref, previewAccount } from "@/lib/hub-data";
+import { formatFileDate } from "@/lib/hub-files/catalog";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
 import { MetricCard } from "../cards";
@@ -60,7 +61,7 @@ export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
 
 const filters = ["Alle Projekte", "Aktiv", "Abgeschlossen"] as const;
 
-export function ProjectsScreen({ preview, populated, projects, admin }: ScreenProps) {
+export function ProjectsScreen({ preview, populated, projects, admin, asOf }: ScreenProps) {
   const [filter, setFilter] = useState<(typeof filters)[number]>("Alle Projekte");
   const [companyFilter, setCompanyFilter] = useState("Alle Kunden");
   const matches = (item: (typeof filters)[number], status: string) => item === "Alle Projekte" || (item === "Aktiv" ? status !== "Abgeschlossen" : status === "Abgeschlossen");
@@ -75,20 +76,42 @@ export function ProjectsScreen({ preview, populated, projects, admin }: ScreenPr
           {admin && <label className="glass customer-filter"><span>Kunde</span><select aria-label="Kunden filtern" value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)}><option>Alle Kunden</option>{Array.from(new Set(projects.map((project) => project.company))).map((company) => <option key={company}>{company}</option>)}</select></label>}
         </div>
         {shown.length ? (
-          <ul className="glass inset-list" aria-label="Projekte">
-            {shown.map((project) => (
-              <li key={project.id} className="list-item">
-                <Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">
-                  <span className="list-row-text">
-                    <span className="project-card-meta"><span>{project.company ? `${project.company} / ${project.category}` : project.category}</span><ProjectStatus value={project.status} /></span>
-                    <span className="list-row-title">{project.name}</span>
-                    <span className="list-row-subtitle">Ziel: {project.date}</span>
-                  </span>
-                  <span className="list-row-trailing"><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div className="glass file-table-card">
+            <table className="project-table">
+              <caption className="visually-hidden">Projekte mit Bereich, aktuellem Meilenstein, Status und Fortschritt</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Bereich</th>
+                  <th scope="col">Titel</th>
+                  <th scope="col">Meilensteinbeschreibung</th>
+                  <th scope="col">Aktueller Status</th>
+                  <th scope="col">Fortschritt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((project) => {
+                  const milestone = currentMilestone(project, asOf);
+                  return (
+                    <tr key={project.id} className="project-row">
+                      <td className="cell-area">{project.category}</td>
+                      <td className="cell-project">
+                        <Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">{project.name}</Link>
+                        {admin && project.company && <small>{project.company}</small>}
+                      </td>
+                      <td className="cell-milestone">
+                        {milestone ? <><strong>{milestone.title}</strong><span>{milestone.description}</span><small>{formatFileDate(milestone.at)}</small></> : <span>Noch kein Meilenstein</span>}
+                      </td>
+                      <td className="cell-status"><ProjectStatus value={project.status} /></td>
+                      <td className="cell-progress">
+                        <span className="progress-line"><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>
+                        <small>Ziel: {project.date}</small>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : <GlassCard><p className="t-subheadline t-secondary">Keine Projekte für diesen Filter.</p></GlassCard>}
       </> : <EmptyState section="projects" />}
     </>

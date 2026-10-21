@@ -32,7 +32,9 @@
 
 ### Vorgabe vom 22. Oktober 2026: Kalender und Reiter „Projekte“
 
-- Der Reiter „Projekte“ zeigt oben keine Kennzahl-Kacheln mehr, nur noch Filter und Projektliste. Die Kennzahlen bleiben über Favoriten und die Detailseiten erreichbar; die Kacheln stehen im Backlog (unten).
+- Der Reiter „Projekte“ zeigt oben keine Kennzahl-Kacheln mehr. Die Kennzahlen bleiben über Favoriten und die Detailseiten erreichbar; die Kacheln stehen im Backlog (unten).
+- Unter den Filtern steht eine Tabelle mit den Spalten **Bereich** (z. B. Website & Digital, Brand Identity), **Titel** (bei Admins darunter der Kunde), **Meilensteinbeschreibung**, **Aktueller Status** und **Fortschritt** (Balken, Prozent, Zieltermin). Die ganze Zeile öffnet den Projektdialog; auf dem Smartphone wird jede Zeile zur Karte.
+- Die Meilensteinbeschreibung zeigt den aktuellen Meilenstein, also den zuletzt erreichten (`currentMilestone` in `lib/hub-data.ts`): Titel, Kurzbeschreibung und Datum. Beschreibungen gibt es bisher nur in den fiktiven Beispieldaten.
 - Neuer Reiter **Kalender** für Admins und Kunden, in Sidebar und Tab-Bar (`/dashboard/calendar`, `/preview/calendar`).
 - Admins legen Termine an, optional für einen Kunden, und hinterlegen einen Microsoft-Teams-Link. Der Link wird von Hand aus Teams oder Outlook eingefügt; akzeptiert werden nur Teams-Domains. Termine lassen sich bearbeiten, absagen (mit Hinweis an den Kunden) und löschen. Überschneidungen zeigt das Formular an, blockiert sie aber nicht.
 - Kundenanfragen stehen beim Admin unter „Offene Anfragen“. Er nimmt sie an (Zeit anpassbar, Teams-Link eintragen) oder lehnt sie mit Begründung ab.

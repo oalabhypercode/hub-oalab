@@ -18,7 +18,8 @@ export const sectionLabels: Record<HubSection, string> = {
 /** Fictional reference day of all fixtures; dates in the demo history are relative to it. */
 export const DEMO_AS_OF = "2026-10-15";
 
-export type Milestone = { title: string; at: string; kind: "milestone" | "feedback" };
+/** `description` says what the milestone delivers; the projects table shows it for the current milestone. */
+export type Milestone = { title: string; description: string; at: string; kind: "milestone" | "feedback" };
 
 export type NextStep = { id: string; title: string; category: string; date: string; dueOn: string; projectIndex: number };
 
@@ -68,10 +69,10 @@ export const previewProjects: Project[] = [
     startedOn: "2026-06-01",
     dueOn: "2026-10-30",
     milestones: [
-      { title: "Kickoff", at: "2026-06-03T10:00", kind: "milestone" },
-      { title: "Zielbild & Briefing", at: "2026-07-02T14:00", kind: "milestone" },
-      { title: "Designsystem", at: "2026-08-26T15:30", kind: "milestone" },
-      { title: "Konzept & Struktur", at: "2026-10-13T11:30", kind: "milestone" },
+      { title: "Kickoff", description: "Ziele, Zielgruppen und Zeitplan gemeinsam festgelegt.", at: "2026-06-03T10:00", kind: "milestone" },
+      { title: "Zielbild & Briefing", description: "Inhalte, Funktionen und Tonalität der Website abgestimmt.", at: "2026-07-02T14:00", kind: "milestone" },
+      { title: "Designsystem", description: "Farben, Typografie und Komponenten für alle Seiten definiert.", at: "2026-08-26T15:30", kind: "milestone" },
+      { title: "Konzept & Struktur", description: "Seitenstruktur und Navigation stehen. Als Nächstes folgen die Seitenentwürfe.", at: "2026-10-13T11:30", kind: "milestone" },
     ],
   },
   {
@@ -86,9 +87,9 @@ export const previewProjects: Project[] = [
     startedOn: "2026-08-17",
     dueOn: "2026-10-23",
     milestones: [
-      { title: "Kickoff", at: "2026-08-19T10:00", kind: "milestone" },
-      { title: "Moodboard", at: "2026-09-10T16:00", kind: "milestone" },
-      { title: "Erste Designrichtung", at: "2026-10-14T09:30", kind: "feedback" },
+      { title: "Kickoff", description: "Markenkern, Werte und Wettbewerb besprochen.", at: "2026-08-19T10:00", kind: "milestone" },
+      { title: "Moodboard", description: "Bildwelt und Stilrichtung als Moodboard festgehalten.", at: "2026-09-10T16:00", kind: "milestone" },
+      { title: "Erste Designrichtung", description: "Die erste Designrichtung ist fertig und wartet auf dein Feedback.", at: "2026-10-14T09:30", kind: "feedback" },
     ],
   },
   {
@@ -103,10 +104,10 @@ export const previewProjects: Project[] = [
     startedOn: "2026-05-04",
     dueOn: "2026-10-09",
     milestones: [
-      { title: "Kickoff", at: "2026-05-06T09:30", kind: "milestone" },
-      { title: "Content-Plan", at: "2026-06-15T13:00", kind: "milestone" },
-      { title: "Kampagnen-Assets", at: "2026-08-20T11:00", kind: "milestone" },
-      { title: "Launch", at: "2026-10-09T10:00", kind: "milestone" },
+      { title: "Kickoff", description: "Kanäle, Zielgruppen und Tonalität für Social Media festgelegt.", at: "2026-05-06T09:30", kind: "milestone" },
+      { title: "Content-Plan", description: "Redaktionsplan für die ersten drei Monate erstellt.", at: "2026-06-15T13:00", kind: "milestone" },
+      { title: "Kampagnen-Assets", description: "Vorlagen, Bilder und Texte für den Start produziert.", at: "2026-08-20T11:00", kind: "milestone" },
+      { title: "Launch", description: "Der Auftritt ist live. Das Projekt ist abgeschlossen.", at: "2026-10-09T10:00", kind: "milestone" },
     ],
   },
 ];
@@ -147,6 +148,11 @@ export const demoNextSteps: NextStep[] = [
 
 /** The single example conversation shown on the messages page. */
 export const demoConversation = { title: "Brand Identity", person: "Lena Schneider", initials: "LS", topic: "Neue Designrichtung", sentAt: "2026-10-14T09:40" };
+
+/** The milestone a project stands at on `asOf`: the latest one reached, or the first one ahead if none is reached yet. */
+export function currentMilestone(project: Project, asOf: string): Milestone | undefined {
+  return project.milestones.filter((item) => item.at.slice(0, 10) <= asOf).at(-1) ?? project.milestones[0];
+}
 
 export function hubHref(preview: boolean, section: HubSection = "overview") {
   const base = preview ? "/preview" : "/dashboard";

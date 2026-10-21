@@ -8,6 +8,8 @@ export type ScreenProps = {
   model: HubModel;
   preview: boolean;
   populated: boolean;
+  /** Reference day: the fixtures' DEMO_AS_OF or today for real accounts. */
+  asOf: string;
   admin: boolean;
   projects: Project[];
   files: HubStoredFile[];

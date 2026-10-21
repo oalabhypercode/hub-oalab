@@ -58,7 +58,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
 
   const screen: ScreenProps = {
-    model, preview, populated, projects, files, fileState, calendar, favorites, admin,
+    model, preview, populated, asOf, projects, files, fileState, calendar, favorites, admin,
     firstName: demoData?.name.split(" ")[0] || (preview ? "Jana" : ""),
     company: demoData?.company,
     toggleStep: (id) => setCompletedSteps((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id]),
