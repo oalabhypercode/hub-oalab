@@ -16,7 +16,7 @@ Schritt 1 umfasst das responsive Frontend mit Navigation und Dashboard sowie die
 - **Anmelden:** [/auth/login](http://localhost:3000/auth/login) – bestehende Supabase-Authentifizierung im neuen Design.
 - **Workspace:** [/dashboard](http://localhost:3000/dashboard) – nach regulärer Anmeldung oder mit einer separat signierten öffentlichen Demo-Identität. Demo-Identitäten erhalten ausschließlich rollenabhängige Fixtures; normale Konten sehen ohne Datenanbindung leere Zustände.
 
-Der Hub ist im Liquid-Glass-Stil gestaltet (Struktur nach Apple Health): Übersicht mit Insights, Favoriten, Highlights und Listen, Detailseiten je Kennzahl mit Zeitraum-Umschalter, Entdecken sowie die Kategorien Projekte, Dateien und Nachrichten. Hintergrund und Glas lassen sich unter Profil › Darstellung einstellen. Ab 1024 px navigiert eine Glas-Sidebar; auf Tablet und Smartphone stehen dieselben Einträge in einer schwebenden Tab-Bar am unteren Rand, daneben ein Such-Button für „Entdecken“. In der Vorschau und den Demo-Workspaces lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Der Demo-Admin sieht alle drei Kunden; Customer nur ihren eigenen Workspace. Persistente Rollenverwaltung, Uploads, Downloads, Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
+Der Hub ist im Liquid-Glass-Stil gestaltet (Struktur nach Apple Health): Übersicht mit Insights, Favoriten, Highlights und Listen, Detailseiten je Kennzahl mit Zeitraum-Umschalter, Entdecken sowie die Kategorien Projekte, Dateien, Nachrichten und Kalender. Die Sprechblase „Assistent & Hilfe“ oben rechts öffnet einen KI-Assistenten (Claude), der Fragen zu den Funktionen beantwortet. Hintergrund und Glas lassen sich unter Profil › Darstellung einstellen. Ab 1024 px navigiert eine Glas-Sidebar; auf Tablet und Smartphone stehen dieselben Einträge in einer schwebenden Tab-Bar am unteren Rand, daneben ein Such-Button für „Entdecken“. In der Vorschau und den Demo-Workspaces lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Der Demo-Admin sieht alle drei Kunden; Customer nur ihren eigenen Workspace. Persistente Rollenverwaltung, Uploads, Downloads, Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
 
 ## Lokal starten
 
@@ -76,6 +76,25 @@ npm run files:seed # Demo-Kunden, Mitgliedschaften und Beispieldateien (benötig
 
 Die Skripte lesen die Werte aus `.env.local` und geben sie nicht aus.
 
+## KI-Assistent (Claude)
+
+Der Chat hinter „Assistent & Hilfe“ beantwortet Fragen zu den Funktionen des Hubs mit **Claude Opus 5.5** über das offizielle SDK `@anthropic-ai/sdk`. Grundlage ist die Wissensbasis in `lib/hub-assistant/knowledge.ts`; sie muss bei jeder Funktionsänderung mitgezogen werden (`tests/hub-assistant.test.mjs` prüft Bereiche, Dateikategorien und Terminstatus). Die Route `app/api/assistant/route.ts` antwortet nur angemeldeten Supabase-Nutzern, liest die Rolle (Admin oder Kunde) aus dem Token und schickt nur den Gesprächsverlauf an Anthropic, keine Kundendaten. Vorschau und öffentliche Demo senden keine Fragen.
+
+Schlüssel in `.env.local` eintragen (niemals einchecken) und für den Livebetrieb als Secret in Vercel (Production) anlegen:
+
+```env
+ANTHROPIC_API_KEY=<API-Schlüssel aus der Claude Console>
+```
+
+Ohne Schlüssel zeigt der Chat „Der Assistent ist noch nicht eingerichtet“.
+
+**Claude Code im Repo:** Der Projektbefehl `/hub-hilfe` (`.claude/commands/hub-hilfe.md`) beantwortet dieselben Fragen im Terminal anhand der Wissensbasis und des Codes, nur lesend. Voraussetzung ist ein angemeldetes Claude Code (`claude`, dann `/login`).
+
+```sh
+claude "/hub-hilfe Wie nehme ich eine Terminanfrage an?"
+claude -p "/hub-hilfe Wo finden Kunden ihre Dateien?"
+```
+
 ## Prüfungen
 
 ```sh
@@ -89,7 +108,7 @@ npm run demo:public:smoke -- --local
 npm run demo:public:smoke
 ```
 
-Die 30 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs sowie Upload-Regeln, RLS-Migration und Musterdateien der Dateiablage. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 42 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, RLS-Migration und Musterdateien der Dateiablage, die Kalenderregeln samt Migration sowie Gesprächsregeln und Wissensbasis des KI-Assistenten. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 

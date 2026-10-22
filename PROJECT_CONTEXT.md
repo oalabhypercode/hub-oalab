@@ -45,6 +45,18 @@
 - Lokal mit echten Demo-Logins geprüft: Nordlicht fragt an, der Admin bestätigt mit Teams-Link, Nordlicht sieht den Termin samt Link; der Termin von Form & Feld erscheint bei Nordlicht nur als „Belegt“. Drei Testtermine vom 23. Oktober 2026 („Testtermin: …“, „Testanfrage …“) liegen noch in der Datenbank.
 - Offen: E-Mail-Benachrichtigung bei neuer Anfrage und bei Bestätigung, Teams-Meetings automatisch über Microsoft Graph, konfigurierbare Zeiten und Feiertage, Erinnerungen vor dem Termin.
 
+### Vorgabe vom 22. Oktober 2026: KI-Assistent und Claude-Code-Befehl
+
+- Die Sprechblase oben rechts heißt jetzt „Assistent & Hilfe“. Sie öffnet für Kunden und Admins einen Chat, der Fragen zu den Funktionen der Plattform beantwortet. Er zeigt Vorschlagsfragen je Rolle, streamt die Antworten, kann neu gestartet werden und behält den Verlauf beim Seitenwechsel.
+- Modell: **Claude Opus 5.5** (`claude-opus-5-5`) über `@anthropic-ai/sdk` 1.1.0. Aufwand `low` für schnelle, kurze Antworten. Lehnt das Modell eine Anfrage ab, übernimmt automatisch ein Ersatzmodell (`fallbacks: "default"`).
+- Grundlage ist allein die Wissensbasis `lib/hub-assistant/knowledge.ts`. Der Assistent sieht keine Projekte, Dateien oder Termine und ändert nichts. Für Geplantes sagt er, dass es das noch nicht gibt.
+- `app/api/assistant/route.ts` antwortet nur echten Supabase-Logins; die Rolle kommt aus dem Token. Der Verlauf ist auf 20 Nachrichten und 1000 Zeichen pro Frage begrenzt. Vorschau und öffentliche Demo senden keine Fragen an Claude.
+- Der Chat weist aus, dass eine KI antwortet (Transparenzpflicht seit 02.08.2026), und bittet, keine persönlichen Daten einzugeben.
+- CLI-Schnittstelle: Projektbefehl `/hub-hilfe` für Claude Code (`.claude/commands/hub-hilfe.md`). Er liest dieselbe Wissensbasis und bei Bedarf den Code, nur lesend.
+- Einrichtung: `ANTHROPIC_API_KEY` in `.env.local` und als Secret in Vercel (Production). Ohne Schlüssel meldet der Chat „noch nicht eingerichtet“.
+- Stand der Prüfung: Login-Schutz, Fehlermeldung ohne Schlüssel, Vorschau-Hinweis sowie Darstellung gestreamter Antworten (mit simulierter Antwort) sind im Browser geprüft. Echte Antworten von Claude und der Befehl `/hub-hilfe` sind noch nicht getestet, weil hier weder ein API-Schlüssel noch eine Claude-Code-Anmeldung vorlag.
+- Offen: Nutzungslimit pro Nutzer gegen Kosten und Missbrauch, Mengengerüst und Kosten beobachten, Wissensbasis bei jeder Änderung pflegen.
+
 ### Backlog
 
 - Kennzahl-Kacheln im Reiter „Projekte“ (aktive Projekte, Fortschritt, Meilensteine, Feedback): am 22. Oktober 2026 auf Wunsch entfernt. Offen ist, ob sie zurückkommen oder einen anderen Platz bekommen.
@@ -122,6 +134,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Sichere interne Weiterleitungen und PKCE-/E-Mail-Bestätigungs-Callbacks
 - Vier echte Demo-Konten mit serververwalteter Admin-/Customer-Zuordnung und getrennten Fixture-Datensichten
 - Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
+- KI-Assistent (Claude) für Admins und Kunden hinter „Assistent & Hilfe“ sowie Claude-Code-Befehl `/hub-hilfe`
 - Kalender für Admins und Kunden: Auslastung, Terminanfragen, Bestätigung mit Microsoft-Teams-Link (Supabase mit RLS)
 - Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten im selben Glas-Stil mit Demo-Konten im Dropdown
 
@@ -163,6 +176,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/metrics/<kennzahl>` | Geschützt | Detailseite einer Kennzahl mit Zeitraum-Umschalter |
 | `/dashboard/settings` | Geschützt | Profil und Kontoinformationen |
 | `/dashboard/settings/appearance` | Geschützt | Darstellung: Hintergrund, Glas, Transparenz |
+| `/api/assistant` | Geschützt (POST) | KI-Assistent: streamt Antworten von Claude zu Funktionen des Hubs |
 | `/preview` | Öffentlich | Dashboard-Designvorschau mit fiktiven Daten; vom Login nicht mehr verlinkt |
 | `/preview/projects` | Öffentlich | Beispielprojekte mit Filtern und Detaildialogen |
 | `/preview/files` | Öffentlich | Beispiel-Dateiliste und Dateiinformationen |
@@ -314,6 +328,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - [x] Aktuelle Test-/Main-Adresse: `https://oalab-client-hub.vercel.app/`; eine eigene finale Domain ist noch offen.
 - [x] Bestehendes Vercel-Projekt `oalabs-projects/oalab-client-hub`, Produktion aus `main`; Details in README.
 - [ ] Welche Anforderungen gelten für DSGVO, Aufbewahrung und Löschung?
+- [ ] KI-Assistent: Ist ein Auftragsverarbeitungsvertrag (DPA) mit Anthropic geschlossen? Wie ist der Datentransfer in die USA abgesichert? Die Datenschutzerklärung braucht einen Abschnitt zum Assistenten (Anbieter, Zweck, Rechtsgrundlage, Speicherdauer).
 - [ ] Werden Audit-Logs, Backups oder Datenexporte benötigt?
 - [ ] Wer erhält Zugriff auf Produktion, Supabase und Deployment?
 - [ ] Welche Umgebungen werden benötigt: lokal, Staging und Produktion?

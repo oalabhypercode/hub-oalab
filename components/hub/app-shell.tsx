@@ -5,10 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageSquare, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import type { AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { categories } from "@/lib/categories";
 import { hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabels, type HubDemoData, type HubSection } from "@/lib/hub-data";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { AppearanceProvider } from "./appearance-provider";
+import { AssistantPanel } from "./assistant-panel";
 import { BackgroundLayer } from "./background-layer";
 import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
@@ -25,6 +27,7 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   const [read, setRead] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const [assistantTurns, setAssistantTurns] = useState<AssistantTurn[]>([]);
   const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
   const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
   const name = preview ? previewAccount.name : demoData?.name || email.split("@")[0] || "Dein Konto";
@@ -119,13 +122,7 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
             </> : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
           </Modal>
         )}
-        {panel === "help" && (
-          <Modal title="Gemeinsam kommen wir weiter." onClose={() => setPanel(null)}>
-            <p className="modal-description">Fragen zu deinem Projekt, einer Datei oder dem nächsten Schritt? Dein OALAB-Projektteam ist deine erste Anlaufstelle.</p>
-            <p className="help-note">{preview ? "Diese Vorschau zeigt das neue Design. Persönliche Ansprechpartner und Kontaktmöglichkeiten ergänzen wir, sobald dein Workspace eingerichtet ist." : "Deine persönlichen Ansprechpartner werden hier angezeigt, sobald dein Workspace mit einem Projekt verbunden ist."}</p>
-            <button className="sheet-button sheet-button-primary" onClick={() => setPanel(null)}>Alles klar <Check size={17} aria-hidden="true" /></button>
-          </Modal>
-        )}
+        {panel === "help" && <AssistantPanel turns={assistantTurns} setTurns={setAssistantTurns} admin={account.admin} available={!preview && !publicDemo} onClose={() => setPanel(null)} />}
       </ShellContext.Provider>
     </AppearanceProvider>
   );
@@ -136,6 +133,6 @@ export function HeaderActions() {
   const { openPanel, unread } = useHubShell();
   return <>
     <GlassButton icon={Bell} label="Benachrichtigungen" badge={unread} onClick={() => openPanel("notifications")} />
-    <GlassButton icon={MessageSquare} label="Hilfe & Kontakt" onClick={() => openPanel("help")} />
+    <GlassButton icon={MessageSquare} label="Assistent & Hilfe" onClick={() => openPanel("help")} />
   </>;
 }

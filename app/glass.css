@@ -230,7 +230,6 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .text-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: 17px; font-weight: 500; color: var(--accent-text); }
 .sheet-button { width: 100%; min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; background: var(--fill-tertiary); color: var(--accent-text); font-size: 17px; font-weight: 600; }
 .sheet-button-primary { background: var(--accent-text); color: #ffffff; }
-.hub-modal .help-note { margin: 0 0 20px; padding: 14px 16px; border-radius: 14px; background: var(--fill-tertiary); font-size: 15px; line-height: 20px; color: var(--label-body); }
 .hub-modal .modal-empty { text-align: center; padding: 20px 0 28px; color: var(--label-secondary); }
 .hub-modal .modal-empty svg { margin: 0 auto 14px; }
 .hub-modal .modal-empty h3 { font-size: 20px; font-weight: 700; color: var(--label); }
@@ -637,6 +636,42 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
   .project-table .cell-status { order: 2; }
   .project-table .cell-milestone, .project-table .cell-progress { order: 3; flex-basis: 100%; }
   .project-table .progress-line .list-progress { flex: 1; width: auto; }
+}
+
+/* Assistant chat behind "Assistent & Hilfe": messages scroll, the input stays at the bottom */
+.hub-modal.assistant-modal { width: min(560px, calc(100% - 32px)); height: min(680px, calc(100dvh - 48px)); padding-bottom: 14px; overflow: hidden; }
+.hub-modal.assistant-modal[open] { display: flex; flex-direction: column; }
+.assistant-messages { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin: 0 -8px; padding: 4px 8px 12px; overscroll-behavior: contain; }
+.assistant-intro, .assistant-turn-assistant { display: flex; align-items: flex-start; gap: 10px; }
+.assistant-intro p { padding-top: 4px; font-size: 15px; line-height: 21px; color: var(--label-secondary); }
+.assistant-avatar { flex: 0 0 32px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--oalab-gradient-action); color: #ffffff; }
+.assistant-note { padding: 12px 14px; border-radius: 14px; background: var(--fill-tertiary); font-size: 15px; line-height: 20px; color: var(--label-body); }
+.assistant-suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 42px; }
+.assistant-suggestions button { min-height: 36px; padding: 6px 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.7); box-shadow: inset 0 0 0 1px rgba(126, 0, 75, 0.25); color: var(--accent-text); font-size: 14px; line-height: 18px; font-weight: 600; text-align: left; transition: background 150ms ease; }
+.assistant-suggestions button:hover { background: #ffffff; }
+.assistant-turn-user { display: flex; justify-content: flex-end; }
+.assistant-bubble { max-width: 85%; padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 21px; overflow-wrap: anywhere; }
+.assistant-turn-user .assistant-bubble { border-bottom-right-radius: 6px; background: var(--accent-text); color: #ffffff; white-space: pre-wrap; }
+.assistant-turn-assistant .assistant-bubble { border-top-left-radius: 6px; background: rgba(255, 255, 255, 0.78); color: var(--label-body); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
+.assistant-bubble p + p, .assistant-bubble p + ul, .assistant-bubble p + ol, .assistant-bubble ul + p, .assistant-bubble ol + p { margin-top: 8px; }
+.assistant-bubble ul, .assistant-bubble ol { padding-left: 20px; }
+.assistant-bubble ul { list-style: disc; }
+.assistant-bubble ol { list-style: decimal; }
+.assistant-bubble li + li { margin-top: 4px; }
+.assistant-bubble strong { font-weight: 600; color: var(--label); }
+.assistant-typing { display: inline-flex; align-items: center; gap: 8px; color: var(--label-secondary); }
+.assistant-modal .form-error { margin-bottom: 0; }
+.assistant-input { display: flex; align-items: flex-end; gap: 8px; padding: 6px 6px 6px 14px; border-radius: 22px; background: rgba(255, 255, 255, 0.82); box-shadow: inset 0 0 0 1px var(--separator); }
+.assistant-input:focus-within { box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px var(--accent-text); }
+.assistant-input textarea { flex: 1; min-width: 0; max-height: 120px; padding: 7px 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--label); font: inherit; font-size: 16px; line-height: 22px; }
+.assistant-input textarea::placeholder { color: var(--label-secondary); }
+.assistant-send { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--accent-text); color: #ffffff; }
+.assistant-send:disabled { opacity: 0.4; cursor: default; }
+.assistant-footer { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.assistant-footer button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-weight: 600; color: var(--accent-text); }
+@media (max-width: 767px) {
+  .hub-modal.assistant-modal { height: calc(100dvh - 32px); }
+  .assistant-suggestions { padding-left: 0; }
 }
 
 /* Calendar: month grid with the occupancy of every working day, day timeline, requests and appointments */
