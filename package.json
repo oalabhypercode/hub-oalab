@@ -5,7 +5,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --test tests/auth-redirect.test.mjs tests/demo-access.test.mjs tests/branding.test.mjs tests/demo-login-policy.test.mjs tests/public-demo-policy.test.mjs tests/appearance.test.mjs tests/hub-files.test.mjs tests/hub-calendar.test.mjs tests/hub-assistant.test.mjs tests/hub-whatsapp.test.mjs",
+    "test": "node --test tests/auth-redirect.test.mjs tests/demo-access.test.mjs tests/branding.test.mjs tests/demo-login-policy.test.mjs tests/public-demo-policy.test.mjs tests/appearance.test.mjs tests/hub-files.test.mjs tests/hub-calendar.test.mjs tests/hub-assistant.test.mjs tests/hub-whatsapp.test.mjs tests/table-tools.test.mjs",
     "demo:plan": "node scripts/seed-demo-accounts.mjs --check",
     "demo:seed": "node scripts/seed-demo-accounts.mjs",
     "demo:verify": "node scripts/seed-demo-accounts.mjs --verify",

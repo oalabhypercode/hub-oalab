@@ -49,6 +49,17 @@
 - Lokal mit echten Demo-Logins geprüft: Nordlicht fragt an, der Admin bestätigt mit Teams-Link, Nordlicht sieht den Termin samt Link; der Termin von Form & Feld erscheint bei Nordlicht nur als „Belegt“. Drei Testtermine vom 23. Oktober 2026 („Testtermin: …“, „Testanfrage …“) liegen noch in der Datenbank.
 - Offen: E-Mail-Benachrichtigung bei neuer Anfrage und bei Bestätigung, Teams-Meetings automatisch über Microsoft Graph, konfigurierbare Zeiten und Feiertage, Erinnerungen vor dem Termin.
 
+### Vorgabe vom 22. Oktober 2026: Suche, Filter und Sortierung in allen Tabellen; Zeilen als Blobs
+
+- Jede Tabelle der Plattform (derzeit Projekte und Dateien) hat oben eine Leiste: Stichwortsuche und „Sortieren“ in der ersten Reihe, die Filter darunter. Auf dem Smartphone stehen die Filter paarweise nebeneinander.
+- Suche: Groß-/Kleinschreibung und Umlaute zählen nicht („gefuhl“ findet „Gefühl“), mehrere Wörter müssen alle vorkommen, auch verteilt auf verschiedene Spalten.
+- Sortieren: per Klick auf eine Spaltenüberschrift (zweiter Klick dreht die Richtung, Pfeil zeigt sie, `aria-sort` für Screenreader) oder über das Feld „Sortieren“ mit Richtungspfeil. Beides nutzt denselben Zustand, das Feld ist auf dem Smartphone der einzige Weg.
+- Projekte: Suche über Titel, Bereich, Meilenstein, Status und Terminierung (Admins auch Kunde). Filter Alle/Aktiv/Abgeschlossen (die Zahlen gelten für Suche und übrige Filter), Bereich, beim Admin Kunde. Sortierung nach Terminierung (Standard, früheste zuerst), Titel, Bereich, Status („Dein Feedback“ zuerst), Fortschritt, beim Admin Kunde. Abgeschlossene Projekte bleiben bei jeder Sortierung unten (Entscheidung vom 22. Oktober 2026).
+- Dateien: Suche zusätzlich über Kategorie und (Admins) Kunde. Neuer Filter Format. Sortierung nach Bereitgestellt (Standard, neueste zuerst), Titel, Kategorie, Format, Größe.
+- Leere Treffer zeigen „Suche und Filter zurücksetzen“. Bei Dateien bleibt der Kundenfilter dabei stehen, weil er auch die Ordner bestimmt.
+- Zeilen sind eigene Glas-Blobs mit abgerundeten Ecken und 4 px Abstand (Smartphone 6 px), statt durch Trennlinien in einer gemeinsamen Karte zu liegen. Die Zellen tragen den Hintergrund (`border-spacing`), damit die Tabellen echte Tabellen bleiben; ein gemeinsamer `drop-shadow` liegt unter allen Blobs.
+- Technik: Regeln in `lib/table-tools.ts` (`matchesSearch`, `sortRows`, `nextSort`), Bausteine in `components/hub/table-tools.tsx` (`FilterSelect`, `SortControl`, `SortHeader`), Tests in `tests/table-tools.test.mjs`.
+
 ### Vorgabe vom 22. Oktober 2026: Ordner, Mehrfach-Upload und ZIP-Download
 
 - Admins laden bis zu 20 Dateien auf einmal hoch, per Auswahl oder Hineinziehen (je bis 50 MB).
@@ -275,7 +286,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` umfasst 53 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links), die RLS-Migration des Kalenders, die Projekt-Terminierungen sowie KI-Assistent und WhatsApp-Anbindung unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
+- `npm test` umfasst 58 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links), die RLS-Migration des Kalenders, die Projekt-Terminierungen, Suche und Sortierung der Tabellen sowie KI-Assistent und WhatsApp-Anbindung unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.

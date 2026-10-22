@@ -1,15 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Download, Folder, FolderPlus, Inbox, Loader2, Pencil, Search, Trash2, Users, X } from "lucide-react";
+import { Check, Download, Folder, FolderPlus, Inbox, Loader2, Pencil, Trash2, Users, X } from "lucide-react";
 import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDate, formatFileDateTime, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
+import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { CategoryMetrics, CategoryTitle } from "./workspace";
 import { HeaderActions } from "../app-shell";
+import { SearchField } from "../controls";
 import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { Modal } from "../modal";
+import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { EmptyState } from "./overview";
 import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
 import { useFilesStore } from "./files-store";
@@ -138,6 +141,22 @@ function DeleteFolderDialog({ folder, count, onDelete, onClose }: { folder: HubF
 
 type FolderDialog = { kind: "create" } | { kind: "rename" | "delete"; folder: HubFolder };
 
+type FileSortKey = "date" | "title" | "category" | "format" | "size";
+const fileSorts: Record<FileSortKey, SortOption<FileSortKey>> = {
+  date: { id: "date", label: "Bereitgestellt", firstDir: "desc", dirLabels: { asc: "älteste zuerst", desc: "neueste zuerst" } },
+  title: { id: "title", label: "Titel", dirLabels: alphabetical },
+  category: { id: "category", label: "Kategorie", dirLabels: alphabetical },
+  format: { id: "format", label: "Format", dirLabels: alphabetical },
+  size: { id: "size", label: "Größe", firstDir: "desc", dirLabels: { asc: "kleinste zuerst", desc: "größte zuerst" } },
+};
+const fileSortValue: Record<FileSortKey, (file: HubStoredFile) => SortValue> = {
+  date: (file) => file.createdAt,
+  title: (file) => file.title,
+  category: (file) => fileCategories[file.category],
+  format: (file) => fileFormat(file.fileName),
+  size: (file) => file.sizeBytes,
+};
+
 export function FilesScreen({ model, populated, fileState }: ScreenProps) {
   const store = useFilesStore(fileState);
   const { files, folders } = store;
@@ -145,6 +164,8 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
   const [category, setCategory] = useState<string>(ALL);
   const [customer, setCustomer] = useState<string>(ALL);
   const [query, setQuery] = useState("");
+  const [format, setFormat] = useState<string>(ALL);
+  const [sort, setSort] = useState<SortState<FileSortKey>>({ key: "date", dir: "desc" });
   const [folderChoice, setFolderChoice] = useState<{ scope: string | null; folder: string }>({ scope: null, folder: ALL });
   const [selected, setSelected] = useState<string[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -159,12 +180,16 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
   const folder = folderChoice.scope === scope && (folderChoice.folder === ALL || folderChoice.folder === NO_FOLDER || scopeFolders.some((item) => item.id === folderChoice.folder)) ? folderChoice.folder : ALL;
   const activeFolder = scopeFolders.find((item) => item.id === folder);
   const inFolder = (file: HubStoredFile, folderId: string) => !scope || folderId === ALL || (folderId === NO_FOLDER ? !file.folderIds[scope] : file.folderIds[scope] === folderId);
-  const term = query.trim().toLowerCase();
-  const shown = files.filter((file) =>
+  const shown = sortRows(files.filter((file) =>
     (category === ALL || file.category === category)
+    && (format === ALL || fileFormat(file.fileName) === format)
     && (customer === ALL || (customer === UNASSIGNED ? !file.customers.length : file.customers.some((item) => item.id === customer)))
-    && (!term || `${file.title} ${file.fileName} ${file.description}`.toLowerCase().includes(term))
-    && inFolder(file, folder));
+    && matchesSearch(query, [file.title, file.fileName, file.description, fileCategories[file.category], ...(showCustomers ? file.customers.flatMap((item) => [item.company, item.customerNumber]) : [])])
+    && inFolder(file, folder)), fileSortValue[sort.key], sort.dir, { tieBreak: (file) => file.title });
+  const usedFormats = Array.from(new Set(files.map((file) => fileFormat(file.fileName)))).sort();
+  // The customer filter also picks the folders, so the reset leaves it alone.
+  const narrowed = files.length > 0 && (query.trim() !== "" || category !== ALL || format !== ALL);
+  const resetFilters = () => { setQuery(""); setCategory(ALL); setFormat(ALL); };
   const scopeFiles = scope ? files.filter((file) => file.customers.some((item) => item.id === scope)) : [];
   const countIn = (folderId: string) => scopeFiles.filter((file) => inFolder(file, folderId)).length;
   const selection = shown.filter((file) => selected.includes(file.id));
@@ -212,10 +237,16 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
 
       {!fileState.error && <>
         <SectionHeader title={canManage ? "Alle Dateien" : "Deine Dateien"} />
-        <div className="list-toolbar file-toolbar">
-          <label className="search-input glass glass-float"><Search size={16} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titel, Dateiname oder Beschreibung" aria-label="Dateien durchsuchen" /></label>
-          <label className="glass customer-filter"><span>Kategorie</span><select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Nach Kategorie filtern"><option value={ALL}>Alle</option>{usedCategories.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}</select></label>
-          {showCustomers && <label className="glass customer-filter"><span>Kunde</span><select value={customer} onChange={(event) => setCustomer(event.target.value)} aria-label="Nach Kunde filtern"><option value={ALL}>Alle</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.customerNumber} · {item.company}</option>)}{canManage && <option value={UNASSIGNED}>Ablage (ohne Zuordnung)</option>}</select></label>}
+        <div className="table-toolbar">
+          <div className="table-toolbar-row">
+            <SearchField glass value={query} onChange={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen" />
+            <SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} />
+          </div>
+          <div className="table-toolbar-row">
+            <FilterSelect label="Kategorie" name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id] }))]} />
+            <FilterSelect label="Format" name="Nach Format filtern" value={format} onChange={setFormat} options={[{ value: ALL, label: "Alle" }, ...usedFormats.map((item) => ({ value: item, label: item }))]} />
+            {showCustomers && <FilterSelect label="Kunde" name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle" }, ...customers.map((item) => ({ value: item.id, label: `${item.customerNumber} · ${item.company}` })), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)" }] : [])]} />}
+          </div>
         </div>
 
         {canOrganize ? (
@@ -254,17 +285,17 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
         {error && <p className="form-error" role="alert">{error}</p>}
 
         {shown.length ? (
-          <div className="glass file-table-card">
+          <div className="table-blobs">
             <table className="file-table">
               <caption className="visually-hidden">{canManage ? "Alle Dateien mit Kategorie, Format, Datum und Kunden" : "Deine Dateien mit Kategorie, Format und Datum"}</caption>
               <thead>
                 <tr>
                   <th scope="col" className="cell-select"><input type="checkbox" checked={selection.length === shown.length} onChange={toggleAll} aria-label="Alle angezeigten Dateien auswählen" /></th>
-                  <th scope="col">Datei</th>
-                  <th scope="col">Kategorie</th>
+                  <SortHeader option={fileSorts.title} label="Datei" sort={sort} onChange={setSort} />
+                  <SortHeader option={fileSorts.category} sort={sort} onChange={setSort} />
                   <th scope="col" className="col-description">Beschreibung</th>
-                  <th scope="col">Format</th>
-                  <th scope="col">Bereitgestellt</th>
+                  <SortHeader option={fileSorts.format} sort={sort} onChange={setSort} />
+                  <SortHeader option={fileSorts.date} sort={sort} onChange={setSort} />
                   {showCustomers && <th scope="col">Kunden</th>}
                   <th scope="col"><span className="visually-hidden">Download</span></th>
                 </tr>
@@ -292,7 +323,10 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
             </table>
           </div>
         ) : (
-          <GlassCard><p className="t-subheadline t-secondary">{activeFolder ? `Der Ordner „${activeFolder.name}“ ist noch leer. Wähle in „Alle Dateien“ Dateien aus und verschiebe sie hierher.` : files.length ? "Keine Dateien für diese Auswahl." : canManage ? "Noch keine Dateien hochgeladen." : "Für dich sind noch keine Dateien freigegeben."}</p></GlassCard>
+          <GlassCard className="table-empty">
+            <p className="t-subheadline t-secondary">{narrowed ? (query.trim() ? `Keine Dateien zu „${query.trim()}“.` : "Keine Dateien für diese Auswahl.") : activeFolder ? `Der Ordner „${activeFolder.name}“ ist noch leer. Wähle in „Alle Dateien“ Dateien aus und verschiebe sie hierher.` : files.length ? "Keine Dateien für diese Auswahl." : canManage ? "Noch keine Dateien hochgeladen." : "Für dich sind noch keine Dateien freigegeben."}</p>
+            {narrowed && <button type="button" className="table-reset" onClick={resetFilters}>Suche und Filter zurücksetzen</button>}
+          </GlassCard>
         )}
       </>}
 

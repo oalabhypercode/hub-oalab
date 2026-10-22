@@ -4,9 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
-import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount } from "@/lib/hub-data";
+import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, type Project } from "@/lib/hub-data";
 import { formatFileDate } from "@/lib/hub-files/catalog";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
+import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
 import { MetricCard } from "../cards";
 import { SearchField, SegmentedControl } from "../controls";
@@ -15,6 +16,7 @@ import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { ProjectStatus } from "../project-status";
 import { useHubShell } from "../shell-context";
+import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { WhatsAppCard } from "../whatsapp-card";
 import { EmptyState } from "./overview";
 import type { ScreenProps } from "./types";
@@ -61,38 +63,82 @@ export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
 }
 
 const filters = ["Alle Projekte", "Aktiv", "Abgeschlossen"] as const;
+const ALL = "all";
+
+type ProjectSortKey = "deadline" | "title" | "area" | "status" | "progress" | "customer";
+const projectSorts: Record<ProjectSortKey, SortOption<ProjectSortKey>> = {
+  deadline: { id: "deadline", label: "Terminierung", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
+  title: { id: "title", label: "Titel", dirLabels: alphabetical },
+  area: { id: "area", label: "Bereich", dirLabels: alphabetical },
+  status: { id: "status", label: "Status" },
+  progress: { id: "progress", label: "Fortschritt", firstDir: "desc", dirLabels: { asc: "niedrigster zuerst", desc: "höchster zuerst" } },
+  customer: { id: "customer", label: "Kunde", dirLabels: alphabetical },
+};
+// "Dein Feedback" first: that is where the customer has to act.
+const statusRank: Record<Project["status"], number> = { "Dein Feedback": 0, "In Umsetzung": 1, Abgeschlossen: 2 };
+const projectSortValue: Record<ProjectSortKey, (project: Project) => SortValue> = {
+  deadline: (project) => project.dueOn,
+  title: (project) => project.name,
+  area: (project) => project.category,
+  status: (project) => statusRank[project.status],
+  progress: (project) => project.progress,
+  customer: (project) => project.company ?? "",
+};
 
 export function ProjectsScreen({ preview, populated, projects, admin, asOf }: ScreenProps) {
   const [filter, setFilter] = useState<(typeof filters)[number]>("Alle Projekte");
-  const [companyFilter, setCompanyFilter] = useState("Alle Kunden");
+  const [companyFilter, setCompanyFilter] = useState(ALL);
+  const [areaFilter, setAreaFilter] = useState(ALL);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortState<ProjectSortKey>>({ key: "deadline", dir: "asc" });
   const matches = (item: (typeof filters)[number], status: string) => item === "Alle Projekte" || (item === "Aktiv" ? status !== "Abgeschlossen" : status === "Abgeschlossen");
-  // Running projects first, completed ones at the end; otherwise the order stays as it is.
-  const shown = projects.filter((project) => matches(filter, project.status) && (companyFilter === "Alle Kunden" || project.company === companyFilter))
-    .sort((a, b) => Number(a.status === "Abgeschlossen") - Number(b.status === "Abgeschlossen"));
+  const areas = Array.from(new Set(projects.map((project) => project.category))).sort();
+  const companies = Array.from(new Set(projects.flatMap((project) => project.company ? [project.company] : []))).sort();
+  // Search, area and customer narrow the list; the status filter counts within that result.
+  const found = projects.filter((project) => {
+    const milestone = currentMilestone(project, asOf);
+    return (areaFilter === ALL || project.category === areaFilter) && (companyFilter === ALL || project.company === companyFilter)
+      && matchesSearch(query, [project.category, project.name, admin ? project.company : null, milestone?.title, milestone?.description, project.status, formatDeadline(project.dueOn)]);
+  });
+  // Completed projects stay at the end whatever the sort, so running and completed work stay apart.
+  const shown = sortRows(found.filter((project) => matches(filter, project.status)), projectSortValue[sort.key], sort.dir, {
+    group: (project) => Number(project.status === "Abgeschlossen"),
+    tieBreak: (project) => project.name,
+  });
+  const sortOptions = Object.values(projectSorts).filter((option) => admin || option.id !== "customer");
+  const narrowed = query.trim() !== "" || areaFilter !== ALL || companyFilter !== ALL || filter !== "Alle Projekte";
+  const reset = () => { setQuery(""); setAreaFilter(ALL); setCompanyFilter(ALL); setFilter("Alle Projekte"); };
   return (
     <>
       <LargeTitleHeader title="Projekte" icon={<CategoryTitle category="projects" />} actions={<HeaderActions />} />
       {populated ? <>
         <SectionHeader title="Alle Projekte" />
-        <div className="list-toolbar">
-          <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
-            const count = projects.filter((project) => matches(item, project.status)).length;
-            return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
-          })} />
-          {admin && <label className="glass customer-filter"><span>Kunde</span><select aria-label="Kunden filtern" value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)}><option>Alle Kunden</option>{Array.from(new Set(projects.map((project) => project.company))).map((company) => <option key={company}>{company}</option>)}</select></label>}
+        <div className="table-toolbar">
+          <div className="table-toolbar-row">
+            <SearchField glass value={query} onChange={setQuery} placeholder="Titel, Bereich, Meilenstein, Status …" label="Projekte durchsuchen" />
+            <SortControl options={sortOptions} sort={sort} onChange={setSort} />
+          </div>
+          <div className="table-toolbar-row">
+            <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
+              const count = found.filter((project) => matches(item, project.status)).length;
+              return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
+            })} />
+            <FilterSelect label="Bereich" name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle" }, ...areas.map((area) => ({ value: area, label: area }))]} />
+            {admin && <FilterSelect label="Kunde" name="Kunden filtern" value={companyFilter} onChange={setCompanyFilter} options={[{ value: ALL, label: "Alle" }, ...companies.map((company) => ({ value: company, label: company }))]} />}
+          </div>
         </div>
         {shown.length ? (
-          <div className="glass file-table-card">
+          <div className="table-blobs">
             <table className="project-table">
               <caption className="visually-hidden">Projekte mit Bereich, aktuellem Meilenstein, Status, Terminierung und Fortschritt</caption>
               <thead>
                 <tr>
-                  <th scope="col">Bereich</th>
-                  <th scope="col">Titel</th>
+                  <SortHeader option={projectSorts.area} sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.title} sort={sort} onChange={setSort} />
                   <th scope="col">Meilensteinbeschreibung</th>
-                  <th scope="col">Aktueller Status</th>
-                  <th scope="col">Terminierung</th>
-                  <th scope="col">Fortschritt</th>
+                  <SortHeader option={projectSorts.status} label="Aktueller Status" sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.deadline} sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.progress} sort={sort} onChange={setSort} />
                 </tr>
               </thead>
               <tbody>
@@ -126,7 +172,12 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
               </tbody>
             </table>
           </div>
-        ) : <GlassCard><p className="t-subheadline t-secondary">Keine Projekte für diesen Filter.</p></GlassCard>}
+        ) : (
+          <GlassCard className="table-empty">
+            <p className="t-subheadline t-secondary">{query.trim() ? `Keine Projekte zu „${query.trim()}“.` : "Keine Projekte für diesen Filter."}</p>
+            {narrowed && <button type="button" className="table-reset" onClick={reset}>Suche und Filter zurücksetzen</button>}
+          </GlassCard>
+        )}
       </> : <EmptyState section="projects" />}
     </>
   );

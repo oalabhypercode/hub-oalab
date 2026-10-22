@@ -411,7 +411,10 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .project-card::after { content: ""; position: absolute; inset: 0; }
 .project-row:hover .project-card { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
 .project-card:focus-visible { outline: none; box-shadow: none; }
-.project-row:has(.project-card:focus-visible) { box-shadow: inset 0 0 0 3px var(--accent-text); }
+/* Keyboard focus rings the whole blob: top and bottom on every cell, the sides on the first and last one. */
+.project-row:has(.project-card:focus-visible) td { box-shadow: inset 0 3px 0 var(--accent-text), inset 0 -3px 0 var(--accent-text); }
+.project-row:has(.project-card:focus-visible) td:first-child { box-shadow: inset 3px 0 0 var(--accent-text), inset 0 3px 0 var(--accent-text), inset 0 -3px 0 var(--accent-text); }
+.project-row:has(.project-card:focus-visible) td:last-child { box-shadow: inset -3px 0 0 var(--accent-text), inset 0 3px 0 var(--accent-text), inset 0 -3px 0 var(--accent-text); }
 .cell-project small, .cell-milestone small, .cell-progress small { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .cell-milestone strong { display: block; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label-body); }
 .cell-milestone span { display: block; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
@@ -425,8 +428,8 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .cell-deadline small { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .cell-deadline small.is-overdue { color: #b3261e; font-weight: 600; }
 /* Completed projects are greyed out to set them apart from running ones; the progress cell keeps its full colour. */
-.project-table tbody tr.project-row.is-done { background: rgba(118, 118, 128, 0.14); }
-.project-table tbody tr.project-row.is-done:hover { background: rgba(118, 118, 128, 0.2); }
+.project-table tbody tr.project-row.is-done td { background-image: linear-gradient(rgba(118, 118, 128, 0.14), rgba(118, 118, 128, 0.14)); }
+.project-table tbody tr.project-row.is-done:hover td { background-image: linear-gradient(rgba(118, 118, 128, 0.2), rgba(118, 118, 128, 0.2)); }
 .project-row.is-done .project-card, .project-row.is-done .cell-milestone strong, .project-row.is-done .deadline-link { color: var(--label-secondary); font-weight: 500; }
 .project-row.is-done .deadline-link svg { color: var(--label-secondary); }
 .project-status { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
@@ -434,8 +437,6 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .status-active { color: #124e20; background: rgba(52, 199, 89, 0.18); }
 .status-feedback { color: #7f2100; background: rgba(255, 149, 0, 0.22); }
 .status-done { color: var(--label-secondary); background: var(--fill-tertiary); }
-.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.list-toolbar .segmented-control { flex: 1 1 320px; max-width: 480px; }
 .customer-filter { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 6px 0 14px; border-radius: 999px; font-size: 15px; color: var(--label-secondary); }
 .customer-filter select { height: 34px; max-width: 180px; padding: 0 8px; border: 0; border-radius: 999px; background: var(--fill-tertiary); color: var(--label); font: inherit; }
 
@@ -532,17 +533,38 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .color-input::-webkit-color-swatch { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 50%; }
 .color-input::-moz-color-swatch { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 50%; }
 
-/* Files: table with its own category column, upload card and customer assignment */
-.file-toolbar .search-input { flex: 1 1 260px; height: 44px; }
-.file-demo-note { display: flex; align-items: center; gap: 10px; }
-.file-table-card { border-radius: var(--radius-card); overflow: hidden; }
-.file-table, .project-table { width: 100%; border-collapse: collapse; text-align: left; color: var(--label-body); }
-.file-table th, .project-table th { padding: 12px 14px 10px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); border-bottom: 1px solid var(--separator); white-space: nowrap; }
-.file-table th:first-child, .file-table td:first-child, .project-table th:first-child, .project-table td:first-child { padding-left: 20px; }
-.file-table td, .project-table td { padding: 12px 14px; vertical-align: middle; font-size: 15px; line-height: 20px; border-top: 1px solid var(--separator); }
-.file-table tbody tr:first-child td, .project-table tbody tr:first-child td { border-top: 0; }
-.file-table tbody tr, .project-table tbody tr { transition: background 150ms ease; }
-.file-table tbody tr:hover, .project-table tbody tr:hover { background: rgba(255, 255, 255, 0.4); }
+/* Table toolbar (projects, files): search and sorting on top, the filters below. */
+.table-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.table-toolbar-row { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
+.table-toolbar .search-input { flex: 1 1 260px; height: 44px; }
+.table-toolbar .segmented-control { flex: 1 1 320px; max-width: 480px; }
+.sort-control label { display: inline-flex; align-items: center; gap: 8px; }
+.sort-direction { flex: 0 0 auto; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; border-radius: 50%; background: var(--fill-tertiary); color: var(--accent-text); }
+.sort-direction:hover { background: rgba(118, 118, 128, 0.26); }
+/* Sortable column headers: faint arrows until the column sorts, then the accent arrow shows the direction. */
+.sort-header { display: inline-flex; align-items: center; gap: 4px; margin: -4px -6px; padding: 4px 6px; border-radius: 6px; font: inherit; color: inherit; white-space: nowrap; }
+.sort-header svg { opacity: 0.45; transition: opacity 150ms ease; }
+.sort-header:hover { color: var(--label); background: var(--fill-tertiary); }
+.sort-header:hover svg { opacity: 0.8; }
+.sort-header.is-active { color: var(--label); }
+.sort-header.is-active svg { opacity: 1; color: var(--accent-text); }
+.table-empty { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.table-reset { margin: -6px -10px; padding: 6px 10px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--accent-text); }
+.table-reset:hover { background: var(--fill-tertiary); }
+
+/* Tables: every row is its own glass blob with rounded corners, with 4 px of background between the rows (6 px on phones).
+   The cells carry the background so the rows stay real table rows; one drop shadow follows all blobs. */
+.table-blobs { --row-bg: rgba(255, 255, 255, var(--glass-alpha)); --row-bg-hover: rgba(255, 255, 255, min(1, calc(var(--glass-alpha) + 0.14))); --row-radius: 14px; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.08)); }
+:root[data-reduce-transparency="true"] .table-blobs { --row-bg: #ffffff; --row-bg-hover: #ffffff; }
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-reduce-transparency]) .table-blobs { --row-bg: #ffffff; --row-bg-hover: #ffffff; }
+}
+.file-table, .project-table { width: 100%; margin: -4px 0; border-collapse: separate; border-spacing: 0 4px; text-align: left; color: var(--label-body); }
+.file-table th, .project-table th { padding: 9px 14px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); white-space: nowrap; background: var(--row-bg); }
+.file-table td, .project-table td { padding: 12px 14px; vertical-align: middle; font-size: 15px; line-height: 20px; background-color: var(--row-bg); transition: background-color 150ms ease; }
+.file-table th:first-child, .file-table td:first-child, .project-table th:first-child, .project-table td:first-child { padding-left: 20px; border-radius: var(--row-radius) 0 0 var(--row-radius); }
+.file-table th:last-child, .file-table td:last-child, .project-table th:last-child, .project-table td:last-child { border-radius: 0 var(--row-radius) var(--row-radius) 0; }
+.file-table tbody tr:hover td, .project-table tbody tr:hover td { background-color: var(--row-bg-hover); }
 .cell-file { min-width: 220px; }
 .cell-file > svg { vertical-align: middle; margin-right: 10px; }
 .file-open { display: inline-flex; flex-direction: column; align-items: flex-start; max-width: calc(100% - 40px); vertical-align: middle; text-align: left; border-radius: 8px; }
@@ -644,7 +666,7 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .selection-clear:hover { background: var(--fill-tertiary); }
 .file-table .cell-select { width: 44px; padding-right: 0; }
 .cell-select input { width: 18px; height: 18px; accent-color: var(--accent-text); cursor: pointer; vertical-align: middle; }
-.file-table tbody tr.is-selected { background: rgba(126, 0, 75, 0.06); }
+.file-table tbody tr.is-selected td { background-image: linear-gradient(rgba(126, 0, 75, 0.07), rgba(126, 0, 75, 0.07)); }
 .file-folder { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--accent-text); }
 
 .file-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; min-width: 0; }
@@ -667,10 +689,24 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 @media (max-width: 767px) {
   .upload-fields { grid-template-columns: 1fr; }
   .selection-clear { margin-left: 0; }
+  /* Filters share a line two by two; sorting takes the full width under the search. */
+  .table-toolbar-row .customer-filter { flex: 1 1 150px; min-width: 0; }
+  .table-toolbar-row .customer-filter select { flex: 1; min-width: 0; max-width: none; }
+  .table-toolbar .sort-control label { flex: 1; min-width: 0; }
+  /* The row itself is the blob here; its cells drop their own background, corners and focus ring. */
+  .file-table, .project-table { margin: 0; }
+  .file-table tbody td, .project-table tbody td, .file-table tbody tr:hover td, .project-table tbody tr:hover td,
+  .project-table tbody tr.project-row.is-done td, .file-table tbody tr.is-selected td,
+  .project-row:has(.project-card:focus-visible) td, .project-row:has(.project-card:focus-visible) td:first-child, .project-row:has(.project-card:focus-visible) td:last-child { background: none; border-radius: 0; box-shadow: none; }
+  .file-table tbody tr, .project-table tbody tr { margin-top: 6px; border-radius: 16px; background-color: var(--row-bg); transition: background-color 150ms ease; }
+  .file-table tbody tr:first-child, .project-table tbody tr:first-child { margin-top: 0; }
+  .file-table tbody tr:hover, .project-table tbody tr:hover { background-color: var(--row-bg-hover); }
+  .project-table tbody tr.project-row.is-done { background-image: linear-gradient(rgba(118, 118, 128, 0.14), rgba(118, 118, 128, 0.14)); }
+  .file-table tbody tr.is-selected { background-image: linear-gradient(rgba(126, 0, 75, 0.07), rgba(126, 0, 75, 0.07)); }
+  .project-row:has(.project-card:focus-visible) { box-shadow: inset 0 0 0 3px var(--accent-text); }
   .file-table thead { display: none; }
   .file-table, .file-table tbody { display: block; }
-  .file-table tr.file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 12px 16px; border-top: 1px solid var(--separator); }
-  .file-table tbody tr.file-row:first-child { border-top: 0; }
+  .file-table tr.file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 12px 16px; }
   .file-table td { display: block; padding: 0; border: 0; }
   .file-table td:first-child { padding-left: 0; }
   .file-table .cell-file { order: 1; flex: 1 1 0; min-width: 0; display: flex; align-items: center; }
@@ -688,8 +724,7 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
   /* Projects: title and status on top, milestone and progress below. */
   .project-table thead { display: none; }
   .project-table, .project-table tbody { display: block; }
-  .project-table tr.project-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding: 14px 16px; border-top: 1px solid var(--separator); }
-  .project-table tbody tr.project-row:first-child { border-top: 0; }
+  .project-table tr.project-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding: 14px 16px; }
   .project-table td { display: block; padding: 0; border: 0; }
   .project-table td:first-child { padding-left: 0; }
   .project-table .cell-area { order: 0; flex-basis: 100%; margin-bottom: -6px; }

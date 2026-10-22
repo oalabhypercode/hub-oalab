@@ -45,12 +45,16 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Abgeschlossene Projekte stehen am Ende der Tabelle und sind ausgegraut; ihr Fortschrittsbalken (100 %) bleibt farbig.
 - Ein Klick auf das Datum unter „Terminierung“ öffnet den Kalender an diesem Tag.
 - „Dein Feedback“ heißt: OALAB wartet auf eine Rückmeldung des Kunden, z. B. zu einer Designrichtung.
-- Filter: Alle, Aktiv und Abgeschlossen; Admins filtern zusätzlich nach Kunde.
+- Suche über der Tabelle: Stichworte zu Titel, Bereich, Meilenstein, Status oder Terminierung (Admins auch Kunde). Groß-/Kleinschreibung und Umlaute spielen keine Rolle; bei mehreren Wörtern müssen alle passen.
+- Filter: Alle, Aktiv und Abgeschlossen (mit Anzahl), dazu „Bereich“; Admins filtern zusätzlich nach Kunde. „Suche und Filter zurücksetzen“ erscheint, wenn nichts passt.
+- Sortieren: über „Sortieren“ (Terminierung, Titel, Bereich, Status, Fortschritt, bei Admins Kunde; der Pfeil daneben kehrt die Reihenfolge um) oder per Klick auf eine Spaltenüberschrift, ein zweiter Klick dreht die Richtung. Standard ist die Terminierung, früheste zuerst. Abgeschlossene Projekte bleiben bei jeder Sortierung unten.
 - Ein Klick auf eine Zeile öffnet die Projektdetails mit Beschreibung, Fortschritt und dem Button „Zum Gespräch“.
 - Projekte sind derzeit Beispieldaten der Demo-Konten. Echte Projektdaten folgen; Projekte anlegen oder bearbeiten ist noch nicht möglich.
 
 ## Dateien
-- Tabelle mit Datei, Kategorie, Beschreibung, Format und Größe sowie Bereitstellungsdatum. Suche nach Titel, Dateiname oder Beschreibung und Filter nach Kategorie.
+- Tabelle mit Datei, Kategorie, Beschreibung, Format und Größe sowie Bereitstellungsdatum.
+- Suche nach Titel, Dateiname, Beschreibung oder Kategorie (Admins auch Kunde oder Kundennummer). Filter nach Kategorie und Format (z. B. PDF, SVG); Admins filtern zusätzlich nach Kunde.
+- Sortieren: über „Sortieren“ (Bereitgestellt, Titel, Kategorie, Format, Größe; der Pfeil kehrt die Reihenfolge um) oder per Klick auf eine Spaltenüberschrift. Standard: neueste zuerst.
 - Kategorien: Vertrag, Angebot, Rechnung, Logo & Marke, Design, Website & Inhalte, Dokumentation, Sonstiges.
 - Das Download-Symbol lädt genau die hochgeladene Fassung mit Originalnamen; der Download-Link gilt 60 Sekunden. Ein Klick auf den Titel zeigt alle Details samt Ordner und SHA-256-Prüfsumme.
 - Mehrere Dateien herunterladen: die Häkchen vor den Dateien setzen (das Häkchen im Tabellenkopf wählt alle angezeigten) und „Als ZIP herunterladen“ wählen. Der Browser packt die Dateien zu einer ZIP-Datei, bis 500 MB auf einmal.
