@@ -4,8 +4,8 @@ import { useRef } from "react";
 import { Search } from "lucide-react";
 import type { BackgroundPreset } from "@/lib/appearance";
 
-/** Capsule segmented control; arrow keys move the selection. */
-export function SegmentedControl<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string; name: string }[]; value: T; onChange: (value: T) => void; label: string }) {
+/** Capsule segmented control; arrow keys move the selection. An optional count sits in its own badge next to the label. */
+export function SegmentedControl<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string; name: string; count?: number }[]; value: T; onChange: (value: T) => void; label: string }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   function onKeyDown(event: React.KeyboardEvent, index: number) {
     const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -16,7 +16,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
     refs.current[next]?.focus();
   }
   return (
-    <div className="segmented-control" role="group" aria-label={label}>
+    <div className={`segmented-control${options.some((option) => option.count !== undefined) ? " has-counts" : ""}`} role="group" aria-label={label}>
       {options.map((option, index) => (
         <button
           key={option.id}
@@ -28,7 +28,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
           tabIndex={value === option.id ? 0 : -1}
           onClick={() => onChange(option.id)}
           onKeyDown={(event) => onKeyDown(event, index)}
-        >{option.label}</button>
+        ><span className="segment-label">{option.label}</span>{option.count !== undefined && <span className="segment-count numeric" aria-hidden="true">{option.count}</span>}</button>
       ))}
     </div>
   );

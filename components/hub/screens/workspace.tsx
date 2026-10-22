@@ -73,7 +73,10 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
       {populated ? <>
         <SectionHeader title="Alle Projekte" />
         <div className="list-toolbar">
-          <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => ({ id: item, label: `${item === "Alle Projekte" ? "Alle" : item} ${projects.filter((project) => matches(item, project.status)).length}`, name: `${item}: ${projects.filter((project) => matches(item, project.status)).length}` }))} />
+          <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
+            const count = projects.filter((project) => matches(item, project.status)).length;
+            return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
+          })} />
           {admin && <label className="glass customer-filter"><span>Kunde</span><select aria-label="Kunden filtern" value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)}><option>Alle Kunden</option>{Array.from(new Set(projects.map((project) => project.company))).map((company) => <option key={company}>{company}</option>)}</select></label>}
         </div>
         {shown.length ? (

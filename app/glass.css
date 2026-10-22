@@ -474,7 +474,13 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 
 /* Controls */
 .segmented-control { display: flex; width: 100%; height: 36px; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); border: 1px solid rgba(255, 255, 255, 0.3); }
-.segment { flex: 1; min-width: 0; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--on-bg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background 250ms var(--ease-spring), color 250ms ease; position: relative; }
+.segment { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 8px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--on-bg); white-space: nowrap; transition: background 250ms var(--ease-spring), color 250ms ease; position: relative; }
+.segment-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* With counts the segments share the width by content, so long labels like "Abgeschlossen" stay whole on phones. */
+.segmented-control.has-counts .segment { flex: 1 1 auto; }
+/* The count stands apart from the label: its own badge, lighter on the glass, tinted in the selected segment. */
+.segment-count { flex: 0 0 auto; min-width: 22px; height: 20px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(255, 255, 255, 0.24); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28); font-size: 12px; font-weight: 700; line-height: 1; }
+.segment[aria-pressed="true"] .segment-count { background: var(--accent-text); box-shadow: none; color: #ffffff; }
 .segment::after { content: ""; position: absolute; inset: -4px 0; }
 .segment[aria-pressed="true"] { background: #ffffff; color: #000000; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
 .switch { position: relative; width: 51px; height: 31px; flex: 0 0 51px; border-radius: 999px; background: rgba(120, 120, 128, 0.32); transition: background 250ms ease; }
