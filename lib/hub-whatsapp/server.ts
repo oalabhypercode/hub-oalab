@@ -59,6 +59,13 @@ async function roleOf(db: SupabaseClient, userId: string) {
   return (data.user?.app_metadata as Record<string, unknown> | undefined)?.app_role === "oalab_admin" ? "admin" : "customer";
 }
 
+/** Only approved, active logins get answers; before the user management migration every linked login counts. */
+async function isActiveLogin(db: SupabaseClient, userId: string) {
+  const { data, error } = await db.from("hub_profiles").select("status").eq("user_id", userId).maybeSingle<{ status: string }>();
+  if (error) return error.code === "42P01" || error.code === "PGRST205";
+  return data?.status === "active";
+}
+
 /** Answers one incoming message. Runs after the webhook has already confirmed the delivery to Meta. */
 export async function handleIncoming(config: WhatsAppConfig, message: IncomingMessage) {
   const db = createClient(config.supabaseUrl, config.secretKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
@@ -91,6 +98,7 @@ export async function handleIncoming(config: WhatsAppConfig, message: IncomingMe
   if (code) return reply(await linkNumber(db, message.from, code) ? replies.linked : replies.invalidCode);
   if (!link) return reply(replies.notLinked);
   if (message.text && isTeamRequest(message.text)) return reply(replies.team(config.supportContact));
+  if (!(await isActiveLogin(db, link.user_id))) return reply(replies.inactive);
   if (!message.text) return reply(replies.textOnly);
   if (!assistantConfigured()) return reply(replies.unavailable);
 

@@ -50,6 +50,30 @@
 - Lokal mit echten Demo-Logins geprüft: Nordlicht fragt an, der Admin bestätigt mit Teams-Link, Nordlicht sieht den Termin samt Link; der Termin von Form & Feld erscheint bei Nordlicht nur als „Belegt“. Drei Testtermine vom 23. Oktober 2026 („Testtermin: …“, „Testanfrage …“) liegen noch in der Datenbank.
 - Offen: E-Mail-Benachrichtigung bei neuer Anfrage und bei Bestätigung, Teams-Meetings automatisch über Microsoft Graph, konfigurierbare Zeiten und Feiertage, Erinnerungen vor dem Termin.
 
+### Vorgabe vom 22. Oktober 2026: User Management, Registrierung mit Freigabe, Kunden-Spalte, Asset Management
+
+- **Projekte (Admin):** Die erste Spalte ist „Kunde“; unter dem Titel steht nur noch der Titel. Kunden sehen die Spalte nicht.
+- **Asset Management:** Für Admins heißt „Dateien“ überall „Asset Management“ (Sidebar, Tab-Bar, Suche, Seitentitel, Karten, Kennzahlen; `sectionLabel`/`categoryLabel`). Kunden sehen weiter „Dateien“, die Route bleibt `/dashboard/files`.
+- **User Management** (`/dashboard/users`, nur echte Admin-Sitzungen; Sidebar „Verwaltung“ mit Zähler offener Registrierungen, auf dem Smartphone über Entdecken). Setzt die Vorgabe vom 20. Oktober 2026 (unten) um.
+  - Offene Registrierungen als Karten mit allen Angaben, Dialog „Prüfen“: Rolle (Kunde/Admin), bestehender Kunde (Vorschlag über Kundennummer oder Firmennamen) oder neuer Kunde mit nächster freier Kundennummer und Servicepaketen. „Freigeben“ bietet danach eine Nachricht an die Person zum Kopieren oder Mailen.
+  - Ablehnen mit Begründung, die die Person auf `/auth/pending` sieht. Abgelehnte Registrierungen bleiben gespeichert (Entscheidung vom 22. Oktober 2026) und lassen sich später freigeben oder löschen.
+  - Benutzer-Tabelle (Kunden-Nr. mit Kopieren, Name + E-Mail, Unternehmen, Rolle, farbiger Status, letzter Login) und Kunden-Tabelle (Kunden-Nr., Unternehmen, Servicepakete, Logins, Ort), beide mit Suche, erweiterter Suche und Sortierung.
+  - Benutzer anlegen: Login mit Rolle und Kunde; der Admin erhält einen einmaligen Aktivierungslink zum Kopieren oder „Per E-Mail senden“ (Entscheidung vom 22. Oktober 2026: kein Supabase-Mailversand). Der Link ist ein Supabase-Recovery-Link über `/auth/confirm` → `/auth/update-password`.
+  - Bearbeiten: Person, Rolle, Kunde, Passwort-Link, deaktivieren/reaktivieren, endgültig löschen nach Eingabe der E-Mail-Adresse (Entscheidung: Deaktivieren als Standard, Löschen mit Bestätigung). Verlauf je Konto und Kunde.
+  - Status: Wartet auf Freigabe, Aktivierung offen (aktiv, aber noch nie angemeldet), Aktiv, Deaktiviert, Abgelehnt.
+- **Registrierung:** Pflicht sind Vorname, Nachname, Unternehmen, Telefon, E-Mail, Passwort; optional Position, Website, Kundennummer, Nachricht. Datenschutzhinweis am Formular (Art. 6 Abs. 1 lit. b DSGVO, keine Einwilligungs-Checkbox). Prüfung im Browser und in der Datenbank (`lib/hub-users/rules.ts`, Trigger kürzt und bereinigt).
+- **Zugang:** Nur Logins mit aktivem Profil kommen in den Hub (`getWorkspaceIdentity`); alle anderen sehen `/auth/pending` mit ihrem Stand. KI-Assistent, WhatsApp-Antworten, WhatsApp-Verknüpfung und Kalender-Auslastung verlangen ebenfalls ein aktives Konto.
+- **Kundensicht:** Echte Logins sehen Name, Unternehmen, Kundennummer und Servicepakete aus der Datenbank in Sidebar und Übersicht; das Profil zeigt „Deine Angaben“ inklusive Anschrift und Kontakt (pflegt das oalab-Team).
+- **Rechtstexte:** Impressum- und Datenschutz-Links stehen auf Login, Registrierung, 404 und im Profil, sobald `NEXT_PUBLIC_IMPRINT_URL` und `NEXT_PUBLIC_PRIVACY_URL` gesetzt sind (nur https). Die Adressen liefert der Nutzer nach.
+- **Technik:** Migration `20261022190000_hub_user_management.sql` (am 22. Oktober 2026 auf `tjbslvwvisxjjcxfhbgm` angewendet):
+  - `hub_profiles` (Person, Registrierungsangaben, Status, Entscheidung), Trigger `hub_handle_new_user` auf `auth.users`, Bestandskonten mit Rolle als aktiv übernommen.
+  - `hub_customers` um Servicepakete, Kontakt und Anschrift erweitert; `hub_admin_events` als Protokoll ohne personenbezogene Texte.
+  - `hub_is_active()` und `is_hub_admin()` lesen Status und Rolle aus der Datenbank (nicht aus dem Token): Rollenwechsel und Sperren wirken sofort. Die Leseregel der Mitgliedschaften verlangt ein aktives Profil, damit sperrt ein deaktiviertes Konto sofort alle Kundendaten.
+  - Browser lesen Profile und Protokoll nur; geschrieben wird ausschließlich serverseitig. Jede Aktion in `lib/hub-users/actions.ts` prüft zuerst per `is_hub_admin()` mit der Sitzung des Aufrufers und nutzt erst dann den Secret Key (`lib/supabase/admin.ts`). Schutz: kein Selbst-Sperren/-Herabstufen, letzter aktiver Admin bleibt, Demo-Konten schreibgeschützt.
+- Lokal Ende-zu-Ende geprüft: Registrierung (über die Admin-API simuliert, ohne Mailversand) → Freigabe mit neuem Kunden → Login als Kunde mit Unternehmensdaten → RLS-Prüfung mit dem Token des Kunden (nur eigener Kunde, keine Schreibrechte, keine Rollenanmaßung) → Deaktivieren (altes Token sieht sofort nichts mehr, neuer Login „user_banned“) → Reaktivieren → Konto anlegen mit Aktivierungslink → Passwort setzen → Löschen. Testkonten, Testkunde und Test-Protokolleinträge sind wieder entfernt.
+- **Voraussetzungen für den Livebetrieb:** `SUPABASE_SECRET_KEY` als Secret in Vercel (Production); in Supabase „Confirm email“ an, „Email OTP expiration“ 24 Stunden, eigener SMTP-Versand für Bestätigungs-E-Mails an echte Adressen. Derzeit ist der einzige Admin das Demo-Konto; ein echter Admin-Login (z. B. info@oalab.de) wird im User Management angelegt.
+- Offen: E-Mail-Benachrichtigung an das Team bei neuen Registrierungen und an Kunden bei Freigabe; Löschfrist für abgelehnte Registrierungen festlegen (Datenschutzerklärung); Kunden löschen; Kunden ändern ihre Kontaktdaten selbst.
+
 ### Vorgabe vom 22. Oktober 2026: Suche, Filter und Sortierung in allen Tabellen; Zeilen als Blobs
 
 - Jede Tabelle der Plattform (derzeit Projekte und Dateien) zeigt oben zunächst nur das Suchfeld. Der Knopf „Erweiterte Suche“ rechts im Feld (auf schmalen Smartphones nur das Regler-Symbol) klappt darunter ein Glas-Panel auf; eine Zahl am Knopf zeigt aktive Filter auch im eingeklappten Zustand (Vorgabe vom 22. Oktober 2026, ersetzt die offene Leiste mit „Sortieren“ oben rechts).
@@ -208,7 +232,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Persistentes Rollen- und Berechtigungssystem für reale Geschäftsdaten
 - Datenbankseitige Mandantentrennung zwischen Kunden (die Demo-Fixtures sind bereits getrennt)
 - Löschen und Versionieren von Dateien
-- User-Management für Admins (Konten anlegen, Aktivierungslink, Passwort-Neuvergabe, Deaktivieren, letzter Login; Vorgabe siehe oben). Kunden und Logins entstehen bisher nur per Seed
+- E-Mail-Benachrichtigungen rund um Registrierung und Freigabe (das User Management selbst ist seit dem 22. Oktober 2026 umgesetzt, siehe oben)
 - Echte Kommentare, Nachrichten und Benachrichtigungen; Nachrichten sollen später über den bevorzugten Kanal des Kunden (z. B. WhatsApp) laufen
 - Angebote, Verträge, Rechnungen oder Zahlungen
 - Kalender-Integrationen (Outlook, automatisch erzeugte Teams-Meetings) und Benachrichtigungen zu Terminen
@@ -223,7 +247,8 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/auth/login` | Öffentlich | Derselbe Login mit regulärem Formular und Demo-Konten im Dropdown |
 | `/auth/demo` | Same-Origin-POST | Online: feste Fixture-Identität; lokal: regulärer Testkonto-Login. Ohne passende Freigabe 404 |
 | `/auth/demo/logout` | Same-Origin-POST | Öffentliche Demo-Identität abmelden, ohne Supabase-Session auszugeben |
-| `/auth/sign-up` | Öffentlich | Selbstregistrierung |
+| `/auth/sign-up` | Öffentlich | Registrierung mit Firmenangaben; Zugang erst nach Freigabe im User Management |
+| `/auth/pending` | Mit Login | Stand einer Registrierung: wartet, abgelehnt (mit Hinweis) oder deaktiviert; aktive Konten werden zum Hub weitergeleitet |
 | `/auth/sign-up-success` | Öffentlich | Hinweis zur E-Mail-Bestätigung |
 | `/auth/forgot-password` | Öffentlich | Passwort-Reset anfordern |
 | `/auth/update-password` | Auth-Flow | Neues Passwort setzen |
@@ -235,6 +260,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/files` | Geschützt | Zugeordnete Beispieldateien ohne echte Downloads |
 | `/dashboard/messages` | Geschützt | Zugeordnete Beispielunterhaltung ohne Versand |
 | `/dashboard/calendar` | Geschützt | Kalender: Admins planen Termine mit Teams-Link und beantworten Anfragen; Kunden sehen die Auslastung und fragen Termine an |
+| `/dashboard/users` | Nur Admins | User Management: Registrierungen freigeben, Logins und Kunden anlegen, bearbeiten, sperren und löschen |
 | `/dashboard/insights` | Geschützt | Insights und alle Highlights |
 | `/dashboard/discover` | Geschützt | Entdecken: Kategorien, Kennzahlen und Konto durchsuchen |
 | `/dashboard/metrics/<kennzahl>` | Geschützt | Detailseite einer Kennzahl mit Zeitraum-Umschalter |
@@ -288,7 +314,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` umfasst 59 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links), die RLS-Migration des Kalenders, die Projekt-Terminierungen, Suche und Sortierung der Tabellen sowie KI-Assistent und WhatsApp-Anbindung unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
+- `npm test` umfasst 69 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links), die RLS-Migration des Kalenders, die Projekt-Terminierungen, Suche und Sortierung der Tabellen, das User Management (Eingaberegeln, Migration, Admin-Prüfungen) sowie KI-Assistent und WhatsApp-Anbindung unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.

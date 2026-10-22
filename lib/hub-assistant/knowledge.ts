@@ -15,16 +15,18 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 
 ## Rollen
 - Kunde: gehört zu einem Kundenunternehmen mit Kundennummer (z. B. KD-24017) und sieht nur die eigenen Inhalte.
-- Admin (OALAB-Team): sieht alle Kunden, lädt Dateien hoch, ordnet sie Kunden zu, plant Termine und beantwortet Terminanfragen. Funktionen mit „(nur Admin)“ stehen Kunden nicht zur Verfügung.
+- Admin (OALAB-Team): sieht alle Kunden, lädt Dateien hoch, ordnet sie Kunden zu, plant Termine, beantwortet Terminanfragen und verwaltet im User Management Konten und Kunden. Funktionen mit „(nur Admin)“ stehen Kunden nicht zur Verfügung.
 
 ## Anmeldung und Konto
 - Anmeldung mit E-Mail-Adresse und Passwort auf der Startseite. „Passwort vergessen?“ schickt einen Link zum Zurücksetzen per E-Mail.
-- Neues Konto über „Jetzt registrieren“, danach die E-Mail-Adresse bestätigen. Einladungen durch OALAB sind geplant.
+- Registrieren: „Jetzt registrieren“ auf der Login-Seite. Pflichtangaben sind Vorname, Nachname, Unternehmen, Telefon, E-Mail-Adresse und Passwort; unter „Weitere Angaben“ lassen sich Website, eine vorhandene Kundennummer und eine Nachricht ans oalab-Team ergänzen. Danach die E-Mail-Adresse über den Link im Postfach bestätigen.
+- Freigabe: Nach der Registrierung prüft das oalab-Team die Angaben und schaltet den Zugang frei. Bis dahin zeigt die Anmeldung „Wir prüfen deine Angaben“ statt des Hubs. Wird eine Registrierung nicht freigegeben oder ein Zugang deaktiviert, steht das ebenfalls dort; dann hilft das oalab-Team weiter.
+- Von OALAB angelegte Konten: Das oalab-Team schickt einen persönlichen Aktivierungslink. Damit legt man sein Passwort fest und ist angemeldet. Der Link gilt nur einmal und begrenzte Zeit; ein abgelaufener Link lässt sich vom Team neu erzeugen.
 - Abmelden: Pfeil-Symbol neben dem Namen unten in der Sidebar oder „Abmelden“ im Profil.
-- Profil: Name unten in der Sidebar oder das Zahnrad daneben anklicken (auf dem Smartphone die Initialen oben rechts). Dort stehen die E-Mail-Adresse, „Passwort zurücksetzen“, „WhatsApp verbinden“, die Darstellung und „Assistent & Hilfe“.
+- Profil: Name unten in der Sidebar oder das Zahnrad daneben anklicken (auf dem Smartphone die Initialen oben rechts). Dort stehen „Deine Angaben“ (Name, Position, Telefon, Unternehmen, Kundennummer, Servicepakete, Anschrift und Kontakt, gepflegt vom oalab-Team), die E-Mail-Adresse, „Passwort zurücksetzen“, „WhatsApp verbinden“, die Darstellung und „Assistent & Hilfe“. Änderungen an den Angaben übernimmt das oalab-Team.
 
 ## Navigation
-- Ab 1024 Pixel Breite steht links die Sidebar: Suchen, Übersicht, Insights und die Kategorien Projekte, Dateien, Nachrichten und Kalender. Unten stehen Name, aktives Servicepaket, Zahnrad (Profil & Darstellung) und Abmelden.
+- Ab 1024 Pixel Breite steht links die Sidebar: Suchen, Übersicht, Insights und die Kategorien Projekte, Dateien, Nachrichten und Kalender. Admins sehen die Dateien als „Asset Management“ und darunter unter „Verwaltung“ das User Management (mit der Zahl offener Registrierungen). Unten stehen Name, aktives Servicepaket, Zahnrad (Profil & Darstellung) und Abmelden.
 - Auf Smartphone und Tablet steht unten eine Tab-Leiste mit denselben Bereichen und einer Lupe für „Entdecken“.
 - Suche: „Suchen“ in der Sidebar oder Strg+K (Mac: ⌘K). Sie findet Seiten, Kennzahlen und Projekte.
 - Oben rechts auf jeder Seite: die Glocke (Benachrichtigungen) und die Sprechblase „Assistent & Hilfe“ (dieser Assistent).
@@ -38,10 +40,10 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 
 ## Insights und Entdecken
 - Insights: die Zusammenfassung und alle Highlights.
-- Entdecken (Lupe in der Tab-Leiste): Kategorien und Kennzahlen durchsuchen, dazu Links zu Darstellung, Profil und Hilfe.
+- Entdecken (Lupe in der Tab-Leiste): Kategorien und Kennzahlen durchsuchen, dazu Links zu Darstellung, Profil und Hilfe. Admins finden dort auf dem Smartphone auch „Verwaltung“ → User Management.
 
 ## Projekte
-- Tabelle mit den Spalten Bereich (z. B. Website & Digital, Brand Identity, Social & Content), Titel, Meilensteinbeschreibung (der zuletzt erreichte Meilenstein), Aktueller Status (In Umsetzung, Dein Feedback, Abgeschlossen), Startzeitpunkt (Projektbeginn), Nächster Termin (Zieltermin des Projekts mit Hinweis wie „in 8 Tagen“ oder „überfällig“) und Fortschritt (Prozent mit Balken).
+- Tabelle mit den Spalten (bei Admins zuerst Kunde) Bereich (z. B. Website & Digital, Brand Identity, Social & Content), Titel, Meilensteinbeschreibung (der zuletzt erreichte Meilenstein), Aktueller Status (In Umsetzung, Dein Feedback, Abgeschlossen), Startzeitpunkt (Projektbeginn), Nächster Termin (Zieltermin des Projekts mit Hinweis wie „in 8 Tagen“ oder „überfällig“) und Fortschritt (Prozent mit Balken).
 - Abgeschlossene Projekte stehen am Ende der Tabelle und sind ausgegraut; ihr Fortschrittsbalken (100 %) bleibt farbig.
 - Ein Klick auf das Datum unter „Nächster Termin“ öffnet den Kalender an diesem Tag.
 - „Dein Feedback“ heißt: OALAB wartet auf eine Rückmeldung des Kunden, z. B. zu einer Designrichtung.
@@ -53,6 +55,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Projekte sind derzeit Beispieldaten der Demo-Konten. Echte Projektdaten folgen; Projekte anlegen oder bearbeiten ist noch nicht möglich.
 
 ## Dateien
+- Für Admins heißt der Bereich „Asset Management“, für Kunden „Dateien“; es ist derselbe Dateiaustausch.
 - Tabelle mit Datei, Kategorie, Beschreibung, Format und Größe sowie Bereitstellungsdatum.
 - Suche nach Titel, Dateiname, Beschreibung oder Kategorie (Admins auch Kunde oder Kundennummer). Die Filter stecken in der „Erweiterten Suche“ (Knopf rechts im Suchfeld), alle in einer Leiste: Kategorie und Format (z. B. PDF, SVG); Admins filtern zusätzlich nach Kunde.
 - Sortieren: per Klick auf eine Spaltenüberschrift oder in der erweiterten Suche über „Sortieren“ (Bereitgestellt, Titel, Kategorie, Format, Größe; der Pfeil kehrt die Reihenfolge um). Standard: neueste zuerst.
@@ -66,6 +69,16 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Hochladen (nur Admin): im Bereich „Dateien hochladen“ bis zu 20 Dateien auf einmal wählen oder hineinziehen (je bis 50 MB, keine ausführbaren Dateien oder Skripte). Den Titel jeder Datei kann man in der Liste anpassen. Kategorie, Beschreibung, Kunden und Ordner gelten für alle. Ein Ordner lässt sich wählen, wenn genau ein Kunde zugeordnet ist. Ohne Zuordnung liegen die Dateien in der „Ablage“.
 - Zuordnung ändern (nur Admin): Datei öffnen und „Zuordnung ändern“ wählen. Der Filter „Kunde“ zeigt auch die Ablage.
 - Kunden können keine Dateien hochladen. Dateien löschen und neue Fassungen hochladen sind geplant.
+
+## User Management (nur Admin)
+- In der Sidebar unter „Verwaltung“ (auf dem Smartphone über Entdecken). Oben stehen die offenen Registrierungen, darunter die Tabellen „Benutzer“ und „Kunden“, beide mit Suche, erweiterter Suche (Filter, Sortierung) und Sortierung per Spaltenüberschrift.
+- Registrierung freigeben: Bei der Registrierung „Prüfen“ wählen. Der Dialog zeigt alle Angaben (Name, Position, Unternehmen, E-Mail mit Bestätigungsstand, Telefon, Website, angegebene Kundennummer, Nachricht). Dann die Rolle wählen (Kunde oder Admin) und den Kunden: einem bestehenden Kunden zuordnen (passende Kunden werden über Kundennummer oder Firmennamen vorgeschlagen) oder einen neuen Kunden mit der nächsten freien Kundennummer und Servicepaketen anlegen. „Freigeben“ schaltet den Zugang sofort frei und bietet eine Nachricht an die Person zum Kopieren oder Mailen.
+- Registrierung ablehnen: „Ablehnen“ mit optionaler Begründung, die die Person nach dem Login sieht. Abgelehnte Registrierungen bleiben gespeichert und lassen sich später mit „Doch freigeben“ freischalten oder löschen.
+- Benutzer anlegen: „Benutzer anlegen“ mit Vorname, Nachname, E-Mail-Adresse, optional Telefon und Position, Rolle und Kunde (bestehend oder neu). Danach erscheint ein Aktivierungslink zum Kopieren oder „Per E-Mail senden“; damit setzt die Person ihr Passwort. Bis dahin steht sie auf „Aktivierung offen“.
+- Benutzer bearbeiten (Stift-Symbol oder Name): Name, Telefon, Position, Rolle und Kunde ändern, einen neuen Aktivierungs- oder Passwort-Link erzeugen, das Konto deaktivieren (sperrt Anmeldung und Datenzugriff sofort) und wieder aktivieren oder nach Eingabe der E-Mail-Adresse endgültig löschen. Der Verlauf zeigt, wer wann was geändert hat.
+- Status: Wartet auf Freigabe, Aktivierung offen, Aktiv, Deaktiviert, Abgelehnt.
+- Schutzregeln: Das eigene Konto lässt sich nicht deaktivieren, löschen oder in der Rolle ändern, der letzte aktive Admin bleibt immer erhalten, und die Demo-Konten sind schreibgeschützt.
+- Kunden: „Kunde anlegen“ oder einen Kunden öffnen. Unternehmen, Kundennummer, Servicepakete, Kontakt-E-Mail, Telefon, Website und Anschrift pflegen; die zugeordneten Logins stehen darunter. Diese Angaben sehen die Kunden nach dem Login in ihrem Profil, Unternehmen, Kundennummer und Servicepaket auch auf der Übersicht.
 
 ## Nachrichten
 - Zeigt derzeit eine Beispielunterhaltung. Echte Nachrichten sind geplant und sollen später auch über den bevorzugten Kanal des Kunden (z. B. WhatsApp oder E-Mail) ankommen. Bis dahin laufen Fragen ans Team über die bekannten Kontaktwege.
@@ -105,7 +118,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Die Designvorschau unter /preview zeigt ausschließlich fiktive Inhalte.
 
 ## Noch nicht verfügbar (geplant)
-- Echte Projektdaten und Projektverwaltung, Live-Nachrichten, E-Mail-Benachrichtigungen, Konten verwalten durch Admins (anlegen, Aktivierungslink, deaktivieren), Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Uploads durch Kunden, Unterordner, Anbindung an Outlook-Kalender.
+- Echte Projektdaten und Projektverwaltung, Live-Nachrichten, E-Mail-Benachrichtigungen (auch bei neuen Registrierungen und Freigaben), Kundendaten selbst bearbeiten, Kunden löschen, Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Uploads durch Kunden, Unterordner, Anbindung an Outlook-Kalender.
 `;
 
 const rules = `Du bist der Assistent im oalab Client Hub. Du erklärst, wie die Plattform funktioniert und wo man etwas findet.

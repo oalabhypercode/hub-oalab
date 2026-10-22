@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Building2, Check, Download, FileType, Folder, FolderPlus, Inbox, Loader2, Pencil, Tag, Trash2, Users, X } from "lucide-react";
+import { categoryLabel } from "@/lib/categories";
 import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDate, formatFileDateTime, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
@@ -156,7 +157,8 @@ const fileSortValue: Record<FileSortKey, (file: HubStoredFile) => SortValue> = {
   size: (file) => file.sizeBytes,
 };
 
-export function FilesScreen({ model, populated, fileState }: ScreenProps) {
+export function FilesScreen({ model, populated, fileState, admin }: ScreenProps) {
+  const title = categoryLabel("files", admin);
   const store = useFilesStore(fileState);
   const { files, folders } = store;
   const { customers, canManage, source } = fileState;
@@ -222,12 +224,12 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
   }
 
   if (source === "fixtures" && !populated) {
-    return <><LargeTitleHeader title="Dateien" icon={<CategoryTitle category="files" />} actions={<HeaderActions />} /><EmptyState section="files" /></>;
+    return <><LargeTitleHeader title={title} icon={<CategoryTitle category="files" />} actions={<HeaderActions />} /><EmptyState section="files" /></>;
   }
 
   return (
     <>
-      <LargeTitleHeader title="Dateien" icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
+      <LargeTitleHeader title={title} icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
       {files.length > 0 && <CategoryMetrics model={model} category="files" />}
       {fileState.error && <GlassCard className="section-first"><p className="t-headline">Dateien nicht verfügbar</p><p className="t-subheadline t-secondary">{fileState.error}</p></GlassCard>}
 

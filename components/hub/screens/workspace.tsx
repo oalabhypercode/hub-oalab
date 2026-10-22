@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Building2, CalendarDays, FileText, Layers, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
-import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
-import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, type Project } from "@/lib/hub-data";
+import { ArrowUpRight, Building2, CalendarDays, FileText, Layers, LogOut, MessageSquare, Palette, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
+import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
+import { servicePackages } from "@/lib/service-packages";
+import { LegalLinks } from "@/components/legal-links";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
@@ -29,11 +31,11 @@ export function CategoryMetrics({ model, category }: Pick<ScreenProps, "model"> 
   return <div className="metric-grid section-first">{metrics.map((id) => <MetricCard key={id} metric={model.metrics[id]} />)}</div>;
 }
 
-export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
-  const { openPanel } = useHubShell();
+export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps) {
+  const { openPanel, manageUsers } = useHubShell();
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
-  const shownCategories = categoryOrder.filter((id) => categories[id].name.toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
+  const shownCategories = categoryOrder.filter((id) => categoryLabel(id, admin).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
   const shownMetrics = term && populated ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   return (
     <>
@@ -48,9 +50,16 @@ export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
       <SectionHeader title="Kategorien" />
       {shownCategories.length ? (
         <InsetGroupedList label="Kategorien" className="list-icons">
-          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categories[id].name} />)}
+          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin)} />)}
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}
+      {/* The tab bar has no room for it, so phones reach the user management from here. */}
+      {manageUsers && <>
+        <SectionHeader title="Verwaltung" />
+        <InsetGroupedList label="Verwaltung" className="list-icons">
+          <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Logins und Kunden" />
+        </InsetGroupedList>
+      </>}
       <SectionHeader title="Konto" />
       <InsetGroupedList label="Konto" className="list-icons">
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" />
@@ -127,13 +136,15 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
         {shown.length ? (
           <div className="table-blobs">
             <table className="project-table">
-              <caption className="visually-hidden">Projekte mit Bereich, aktuellem Meilenstein, Status, Startzeitpunkt, nächstem Termin und Fortschritt</caption>
+              <caption className="visually-hidden">{admin ? "Projekte mit Kunde, " : "Projekte mit "}Bereich, aktuellem Meilenstein, Status, Startzeitpunkt, nächstem Termin und Fortschritt</caption>
               <thead>
                 <tr>
+                  {/* Admins see every customer's projects, so the customer leads the row. */}
+                  {admin && <SortHeader option={projectSorts.customer} sort={sort} onChange={setSort} />}
                   <SortHeader option={projectSorts.area} sort={sort} onChange={setSort} />
                   <SortHeader option={projectSorts.title} sort={sort} onChange={setSort} />
                   {/* Soft hyphens let the long headers break on narrower screens. */}
-                  <th scope="col">Meilenstein&shy;beschreibung</th>
+                  <th scope="col" className="col-milestone">Meilenstein&shy;beschreibung</th>
                   <SortHeader option={projectSorts.status} label="Aktueller Status" sort={sort} onChange={setSort} />
                   <SortHeader option={projectSorts.start} label={"Start­zeitpunkt"} sort={sort} onChange={setSort} />
                   <SortHeader option={projectSorts.deadline} sort={sort} onChange={setSort} />
@@ -147,10 +158,10 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
                   const hint = deadlineHint(project.dueOn, done, asOf);
                   return (
                     <tr key={project.id} className={`project-row${done ? " is-done" : ""}`}>
+                      {admin && <td className="cell-customer">{project.company ?? "–"}</td>}
                       <td className="cell-area">{project.category}</td>
                       <td className="cell-project">
                         <Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">{project.name}</Link>
-                        {admin && project.company && <small>{project.company}</small>}
                       </td>
                       <td className="cell-milestone">
                         {milestone ? <><strong>{milestone.title}</strong><span>{milestone.description}</span></> : <span>Noch kein Meilenstein</span>}
@@ -205,12 +216,39 @@ export function MessagesScreen({ model, preview, populated, firstName, admin, co
   );
 }
 
+/** What the user management keeps about this login and its customer, read-only for the customer. */
+function AccountDetailsCard() {
+  const { account } = useHubShell();
+  const details = account.customerDetails;
+  // The country alone (the default "Deutschland") is no address yet.
+  const address = details && (details.street || details.city) ? [details.street, [details.postalCode, details.city].filter(Boolean).join(" "), details.country].filter(Boolean).join(", ") : "";
+  const rows = [
+    ["Name", account.name],
+    ["Position", account.person?.position],
+    ["Telefon", account.person?.phone],
+    ["Unternehmen", account.company],
+    ["Kundennummer", account.customerNumber],
+    ["Servicepakete", account.servicePackages.map((id) => servicePackages[id].name).join(", ")],
+    ["Anschrift", address],
+    ["Kontakt", [details?.contactEmail, details?.phone].filter(Boolean).join(" · ")],
+    ["Website", details?.website.replace(/^https?:\/\//, "")],
+  ].filter((row): row is [string, string] => Boolean(row[1]));
+  return (
+    <GlassCard className="settings-card">
+      <h2 className="t-headline settings-card-title"><Building2 size={20} color="var(--accent-text)" aria-hidden="true" />Deine Angaben</h2>
+      <dl className="account-details">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd className={label === "Kundennummer" ? "numeric" : undefined}>{value}</dd></div>)}</dl>
+      <p className="t-footnote t-secondary">Diese Angaben pflegt dein oalab-Team. Wenn sich etwas ändert, gib ihm einfach Bescheid.</p>
+    </GlassCard>
+  );
+}
+
 export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { email: string; publicDemo: boolean }) {
-  const { openPanel, signOut, signingOut } = useHubShell();
+  const { openPanel, signOut, signingOut, account } = useHubShell();
   return (
     <>
       <LargeTitleHeader title="Profil" actions={<HeaderActions />} />
       <div className="settings-grid section-first">
+        {(account.person || account.company) && !account.admin && <AccountDetailsCard />}
         <GlassCard className="settings-card">
           <h2 className="t-headline">Dein Konto</h2>
           <label className="settings-label" htmlFor="account-email">E-Mail-Adresse</label>
@@ -220,7 +258,7 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
         </GlassCard>
         <GlassCard className="settings-card">
           <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--switch-on)" aria-hidden="true" />{preview ? "Du siehst die Vorschau." : publicDemo ? "Du testest die öffentliche Demo." : "Dein Zugang ist geschützt."}</h2>
-          <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : "Dein Workspace ist nur nach Anmeldung erreichbar. Projektzuordnungen und Berechtigungen ergänzen wir im nächsten Schritt."}</p>
+          <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : account.admin ? "Dein Workspace ist nur nach Anmeldung erreichbar. Als Admin verwaltest du Konten und Kunden im User Management." : "Dein Workspace ist nur nach Anmeldung erreichbar und zeigt ausschließlich die Daten deines Unternehmens."}</p>
           {preview && <Link className="text-link" href="/auth/login">Zum Login</Link>}
         </GlassCard>
         {!preview && !publicDemo && <WhatsAppCard />}
@@ -231,6 +269,7 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
         <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
         <ListRow compact onClick={signOut} icon={<LogOut size={24} color="var(--system-gray)" aria-hidden="true" />} title={preview ? "Vorschau verlassen" : signingOut ? "Wird abgemeldet …" : "Abmelden"} chevron={false} />
       </InsetGroupedList>
+      <LegalLinks className="legal-links hub-legal-links" />
     </>
   );
 }

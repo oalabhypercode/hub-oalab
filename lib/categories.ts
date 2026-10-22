@@ -1,5 +1,5 @@
 import { CalendarDays, FolderOpen, Files, MessageSquare, type LucideIcon } from "lucide-react";
-import type { HubSection } from "./hub-data";
+import { adminSectionLabels, type HubSection } from "./hub-data";
 
 export type CategoryId = "projects" | "files" | "messages" | "calendar";
 
@@ -24,3 +24,6 @@ export const categories: Record<CategoryId, Category> = {
 };
 
 export const categoryOrder: CategoryId[] = ["projects", "files", "messages", "calendar"];
+
+/** The category's name as this person sees it: admins call the files their "Asset Management". */
+export const categoryLabel = (id: CategoryId, admin: boolean) => (admin && adminSectionLabels[categories[id].section]) || categories[id].name;

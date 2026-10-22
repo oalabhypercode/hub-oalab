@@ -1,7 +1,9 @@
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
 import type { ServicePackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover"] as const;
+export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover", "users"] as const;
+/** Sections only admins may open. */
+export const adminSections: readonly HubSection[] = ["users"];
 export type HubSection = "overview" | (typeof hubSections)[number];
 
 export const sectionLabels: Record<HubSection, string> = {
@@ -13,7 +15,13 @@ export const sectionLabels: Record<HubSection, string> = {
   settings: "Profil",
   insights: "Insights",
   discover: "Entdecken",
+  users: "User Management",
 };
+
+/** Admins see some sections under their own names: for them the file exchange is the "Asset Management". */
+export const adminSectionLabels: Partial<Record<HubSection, string>> = { files: "Asset Management" };
+
+export const sectionLabel = (section: HubSection, admin: boolean) => (admin && adminSectionLabels[section]) || sectionLabels[section];
 
 /** Fictional reference day of all fixtures; dates in the demo history are relative to it. */
 export const DEMO_AS_OF = "2026-10-15";

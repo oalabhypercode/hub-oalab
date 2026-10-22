@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { categories, type CategoryId } from "@/lib/categories";
+import { categories, categoryLabel, type CategoryId } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
 import type { MetricId, RangeId } from "@/lib/hub-metrics";
 import { HighlightCard } from "../cards";
@@ -24,10 +24,13 @@ const ranges: { id: RangeId; label: string; name: string }[] = [
 
 const primaryAction: Record<CategoryId, string> = { projects: "Projekte öffnen", files: "Dateien öffnen", messages: "Zum Gespräch", calendar: "Kalender öffnen" };
 
-export function MetricDetailScreen({ model, preview, populated, favorites, metricId }: ScreenProps & { metricId: MetricId }) {
+export function MetricDetailScreen({ model, preview, populated, favorites, metricId, admin }: ScreenProps & { metricId: MetricId }) {
   const [range, setRange] = useState<RangeId>("W");
   const metric = model.metrics[metricId];
   const category = categories[metric.category];
+  // Admins reach the files as their "Asset Management".
+  const label = categoryLabel(metric.category, admin);
+  const renamed = label !== category.name;
   const series = model.series(metricId, range);
   const comparison = model.weekComparison(metricId);
   const favorite = favorites.isFavorite(metricId);
@@ -40,7 +43,7 @@ export function MetricDetailScreen({ model, preview, populated, favorites, metri
         icon={<span className="title-icon"><CategoryIcon category={metric.category} size={24} /></span>}
         leading={<>
           <Link href={hubHref(preview)} className="on-bg-link"><ChevronLeft size={22} strokeWidth={2.5} aria-hidden="true" />Übersicht</Link>
-          <GlassLinkButton href={hubHref(preview, category.section)}>{primaryAction[metric.category]}</GlassLinkButton>
+          <GlassLinkButton href={hubHref(preview, category.section)}>{renamed ? `${label} öffnen` : primaryAction[metric.category]}</GlassLinkButton>
         </>}
       />
 
@@ -57,7 +60,7 @@ export function MetricDetailScreen({ model, preview, populated, favorites, metri
 
       {comparison && <>
         <SectionHeader title="Highlights" />
-        <div className="highlight-grid"><HighlightCard highlight={comparison} /></div>
+        <div className="highlight-grid"><HighlightCard highlight={comparison} label={label} /></div>
       </>}
 
       <SectionHeader title={`Über ${metric.name}`} />
@@ -66,7 +69,7 @@ export function MetricDetailScreen({ model, preview, populated, favorites, metri
       <SectionHeader title="Optionen" />
       <InsetGroupedList label="Optionen">
         <li className="list-item"><div className="list-row"><label htmlFor={switchId} className="list-row-text"><span className="list-row-title">Zu Favoriten hinzufügen</span></label><Switch id={switchId} checked={favorite} onChange={() => favorites.toggle(metricId)} label="Zu Favoriten hinzufügen" /></div></li>
-        <ListRow href={hubHref(preview, category.section)} title={`Alle ${category.name} anzeigen`} />
+        <ListRow href={hubHref(preview, category.section)} title={renamed ? `${label} öffnen` : `Alle ${category.name} anzeigen`} />
       </InsetGroupedList>
     </>
   );

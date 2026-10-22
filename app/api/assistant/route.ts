@@ -21,6 +21,12 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return failure(401, "Der Assistent ist nur mit echtem Login verfügbar.");
+  // Only approved logins may ask (each question costs money). Before the user management migration the
+  // function is missing; then the earlier rule (any signed-in login) still applies.
+  const { data: active, error: activeError } = await supabase.rpc("hub_is_active");
+  const missing = activeError?.code === "PGRST202" || activeError?.code === "42883";
+  if (activeError && !missing) return failure(503, "Der Assistent ist gerade nicht erreichbar. Bitte versuche es später erneut.");
+  if (!activeError && active !== true) return failure(403, "Der Assistent steht dir zur Verfügung, sobald dein Zugang freigegeben ist.");
   if (!assistantConfigured()) return failure(503, "Der Assistent ist noch nicht eingerichtet. Es fehlt der API-Schlüssel (ANTHROPIC_API_KEY).");
 
   const body = await request.json().catch(() => null);

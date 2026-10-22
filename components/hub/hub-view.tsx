@@ -19,7 +19,10 @@ import { MetricDetailScreen } from "./screens/metric-detail";
 import { InsightsScreen, OverviewScreen } from "./screens/overview";
 import { FilesScreen } from "./screens/files";
 import { DiscoverScreen, MessagesScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
+import { UserManagementScreen } from "./screens/users";
 import type { ScreenProps } from "./screens/types";
+import type { HubRole } from "@/lib/hub-users/rules";
+import type { UserManagementState } from "@/lib/hub-users/types";
 
 type HubViewProps = {
   section?: HubSection;
@@ -34,16 +37,20 @@ type HubViewProps = {
   filesState?: HubFilesState;
   /** Real calendar from Supabase on the calendar page; absent for the preview and public demo identities. */
   calendarState?: HubCalendarState;
+  /** Role of a real login from the user management; demo logins take theirs from the demo data. */
+  role?: HubRole | null;
+  /** Logins and customers on the admin's user management page. */
+  userManagement?: UserManagementState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const projects = useMemo(() => preview ? previewProjects : demoData?.projects || [], [preview, demoData]);
   const fixtureFiles = useMemo(() => preview ? previewFiles : demoData?.files || [], [preview, demoData]);
   const populated = preview || Boolean(demoData);
-  const admin = demoData?.role === "oalab_admin";
+  const admin = demoData ? demoData.role === "oalab_admin" : role === "oalab_admin";
   const liveFiles = filesState?.source === "supabase" && !filesState.error;
   const files = liveFiles ? filesState.files : fixtureFiles;
   const fileState: HubFilesState = useMemo(() => {
@@ -74,6 +81,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "files" ? <FilesScreen {...screen} />
         : section === "messages" ? <MessagesScreen {...screen} />
         : section === "calendar" ? <CalendarScreen {...screen} />
+        : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : <ProfileScreen {...screen} email={email} publicDemo={publicDemo} />}
       {selectedProject && <ProjectModal project={selectedProject} preview={preview} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
     </>

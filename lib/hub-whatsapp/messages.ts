@@ -88,6 +88,7 @@ export const replies = {
   invalidCode: "Dieser Code ist ungültig oder abgelaufen. Erzeuge im Client Hub unter Profil → „WhatsApp verbinden“ einen neuen Code (er gilt 15 Minuten).",
   notLinked: "Hallo! Ich bin der KI-Assistent des oalab Client Hub. Diese Nummer ist noch nicht verbunden. Melde dich im Client Hub an, öffne Profil → „WhatsApp verbinden“ und sende den angezeigten Code hierher.",
   textOnly: "Ich kann bisher nur Textnachrichten beantworten. Schreib mir deine Frage gern als Text.",
+  inactive: "Dein Zugang zum oalab Client Hub ist gerade nicht aktiv, deshalb kann ich hier keine Fragen beantworten. Mit „TEAM“ erreichst du dein oalab-Team.",
   limit: `Für heute sind die ${DAILY_QUESTION_LIMIT} Fragen über WhatsApp aufgebraucht. Morgen geht es weiter; im Client Hub hilft dir der Assistent jederzeit über „Assistent & Hilfe“.`,
   unavailable: "Der Assistent ist gerade nicht erreichbar. Bitte versuche es später noch einmal oder schreib „TEAM“ für den direkten Kontakt.",
   team: (contact: string) => `Gern verbinde ich dich mit einem Menschen: Schreib dem OALAB-Team an ${contact}. Wir melden uns so schnell wie möglich.`,
