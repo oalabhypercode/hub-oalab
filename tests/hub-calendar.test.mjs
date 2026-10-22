@@ -5,6 +5,7 @@ import {
   addMonths, appointmentStatusIds, calendarWindow, checkRequestSlot, cleanTeamsUrl, dayOf, freeIntervals, isTeamsUrl,
   monthWeeks, occupancy, slotStarts, teamsHosts, timeOf, wallTimeToUtc,
 } from "../lib/hub-calendar/rules.ts";
+import { deadlineHint, formatDeadline } from "../lib/hub-data.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const at = (day, time) => wallTimeToUtc(day, time);
@@ -104,4 +105,25 @@ test("the calendar migration matches the code and guards the table with RLS", as
   assert.match(busy, /security definer\s+set search_path = ''/);
   assert.doesNotMatch(busy.split("as $$")[1], /title|customer_id|teams_url|description/);
   assert.match(sql, /revoke execute on function public\.hub_calendar_busy\(timestamptz, timestamptz\), public\.hub_withdraw_appointment_request\(uuid\) from public, anon/);
+});
+
+test("project deadlines read as dates and as distance to today", () => {
+  assert.equal(formatDeadline("2026-10-30"), "30. Okt. 2026");
+  assert.equal(deadlineHint("2026-10-30", false, "2026-10-15"), "in 15 Tagen");
+  assert.equal(deadlineHint("2026-10-16", false, "2026-10-15"), "morgen");
+  assert.equal(deadlineHint("2026-10-15", false, "2026-10-15"), "heute");
+  assert.equal(deadlineHint("2026-10-14", false, "2026-10-15"), "1 Tag überfällig");
+  assert.equal(deadlineHint("2026-10-09", false, "2026-10-15"), "6 Tage überfällig");
+  // Across the DST switch the day count stays whole.
+  assert.equal(deadlineHint("2026-10-26", false, "2026-10-24"), "in 2 Tagen");
+  assert.equal(deadlineHint("2026-10-09", true, "2026-10-15"), "abgeschlossen");
+});
+
+test("project deadlines appear in the calendar and link back from the projects table", async () => {
+  const calendar = await source("components/hub/screens/calendar.tsx");
+  assert.match(calendar, /projects\s*\.map\(\(project\): ProjectGoal =>/);
+  assert.match(calendar, /day: project\.dueOn/);
+  assert.match(calendar, /useSearchParams\(\)\.get\("day"\)/);
+  const workspace = await source("components/hub/screens/workspace.tsx");
+  assert.match(workspace, /hubHref\(preview, "calendar"\)\}\?day=\$\{project\.dueOn\}/);
 });

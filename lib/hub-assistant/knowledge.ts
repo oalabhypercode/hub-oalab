@@ -41,7 +41,9 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Entdecken (Lupe in der Tab-Leiste): Kategorien und Kennzahlen durchsuchen, dazu Links zu Darstellung, Profil und Hilfe.
 
 ## Projekte
-- Tabelle mit den Spalten Bereich (z. B. Website & Digital, Brand Identity, Social & Content), Titel, Meilensteinbeschreibung (der zuletzt erreichte Meilenstein mit Datum), Aktueller Status (In Umsetzung, Dein Feedback, Abgeschlossen) und Fortschritt (Prozent und Zieltermin).
+- Tabelle mit den Spalten Bereich (z. B. Website & Digital, Brand Identity, Social & Content), Titel, Meilensteinbeschreibung (der zuletzt erreichte Meilenstein mit Datum), Aktueller Status (In Umsetzung, Dein Feedback, Abgeschlossen), Terminierung (Zieltermin des Projekts mit Hinweis wie „in 8 Tagen“ oder „überfällig“) und Fortschritt (Prozent mit Balken).
+- Abgeschlossene Projekte stehen am Ende der Tabelle und sind ausgegraut; ihr Fortschrittsbalken (100 %) bleibt farbig.
+- Ein Klick auf das Datum unter „Terminierung“ öffnet den Kalender an diesem Tag.
 - „Dein Feedback“ heißt: OALAB wartet auf eine Rückmeldung des Kunden, z. B. zu einer Designrichtung.
 - Filter: Alle, Aktiv und Abgeschlossen; Admins filtern zusätzlich nach Kunde.
 - Ein Klick auf eine Zeile öffnet die Projektdetails mit Beschreibung, Fortschritt und dem Button „Zum Gespräch“.
@@ -68,6 +70,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Ein Tag im Raster öffnet die Tagesansicht mit einer Zeitleiste von 9 bis 17 Uhr.
 - Termine sind montags bis freitags von 9 bis 17 Uhr (deutsche Zeit) buchbar.
 - Kunden sehen die Termine anderer Kunden nur anonym als „Belegt“, ohne Titel oder Namen.
+- Projektziele: Die Terminierungen der Projekte stehen als ganztägige Einträge „Ziel · …“ im Kalender (orange markiert, abgeschlossene grau). Kunden sehen die Ziele ihrer eigenen Projekte, Admins die Ziele aller Kunden mit Firmennamen. Unter „Projekt-Terminierungen“ stehen alle Ziele des Zeitraums als Liste; ein Klick öffnet das Projekt.
 - Termin anfragen (Kunde): „Termin anfragen“ oder einen Zeitraum unter „Frei für deine Anfrage“ anklicken. Dann Datum, Dauer (30 Min., 45 Min., 1 Std. oder 1,5 Std.), eine freie Uhrzeit, ein Thema und optional eine Nachricht angeben und „Anfrage senden“ wählen. Höchstens fünf Anfragen dürfen gleichzeitig offen sein.
 - Status eines Termins: Angefragt, Bestätigt, Abgelehnt, Abgesagt. Eine offene Anfrage lässt sich in ihren Details mit „Anfrage zurückziehen“ zurücknehmen.
 - Bestätigte Termine zeigen „Teams-Meeting beitreten“, sobald OALAB einen Microsoft-Teams-Link hinterlegt hat.

@@ -158,6 +158,21 @@ export const demoNextSteps: NextStep[] = [
 /** The single example conversation shown on the messages page. */
 export const demoConversation = { title: "Brand Identity", person: "Lena Schneider", initials: "LS", topic: "Neue Designrichtung", sentAt: "2026-10-14T09:40" };
 
+const deadlineDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric" });
+
+/** A project's target date ("Terminierung"), e.g. "30. Okt. 2026". */
+export const formatDeadline = (day: string) => deadlineDate.format(Date.parse(`${day}T00:00:00Z`));
+
+/** How a target date relates to `asOf`: "in 15 Tagen", "heute", "3 Tage überfällig"; completed projects are "abgeschlossen". */
+export function deadlineHint(dueOn: string, done: boolean, asOf: string) {
+  if (done) return "abgeschlossen";
+  const days = Math.round((Date.parse(`${dueOn}T00:00:00Z`) - Date.parse(`${asOf}T00:00:00Z`)) / 86_400_000);
+  if (days === 0) return "heute";
+  if (days === 1) return "morgen";
+  if (days > 1) return `in ${days} Tagen`;
+  return days === -1 ? "1 Tag überfällig" : `${-days} Tage überfällig`;
+}
+
 /** The milestone a project stands at on `asOf`: the latest one reached, or the first one ahead if none is reached yet. */
 export function currentMilestone(project: Project, asOf: string): Milestone | undefined {
   return project.milestones.filter((item) => item.at.slice(0, 10) <= asOf).at(-1) ?? project.milestones[0];

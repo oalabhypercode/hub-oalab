@@ -401,10 +401,10 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .step-link { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 10px 16px 10px 4px; }
 .step-item.is-done .list-row-title { text-decoration: line-through; color: var(--label-secondary); }
 
-/* Projects table: area, title, current milestone, status, progress. The title link's class project-card is used by the smoke tests
-   and stretches over the whole row. */
+/* Projects table: area, title, current milestone, status, deadline, progress. The title link's class project-card is used by the
+   smoke tests and stretches over the whole row. */
 .project-row { position: relative; }
-.project-table th:nth-child(3) { width: 36%; }
+.project-table th:nth-child(3) { width: 32%; }
 .cell-area { white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
 .cell-project { min-width: 170px; }
 .project-card { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
@@ -415,9 +415,20 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .cell-project small, .cell-milestone small, .cell-progress small { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .cell-milestone strong { display: block; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label-body); }
 .cell-milestone span { display: block; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
-.cell-status, .cell-progress { white-space: nowrap; }
+.cell-status, .cell-progress, .cell-deadline { white-space: nowrap; }
 .progress-line { display: flex; align-items: center; gap: 10px; }
 .progress-line .list-progress { width: 72px; }
+/* The deadline links to its day in the calendar; it sits above the row link. */
+.deadline-link { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 5px; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); border-radius: 6px; }
+.deadline-link svg { color: var(--accent-text); flex: 0 0 auto; }
+.deadline-link:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.cell-deadline small { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.cell-deadline small.is-overdue { color: #b3261e; font-weight: 600; }
+/* Completed projects are greyed out to set them apart from running ones; the progress cell keeps its full colour. */
+.project-table tbody tr.project-row.is-done { background: rgba(118, 118, 128, 0.14); }
+.project-table tbody tr.project-row.is-done:hover { background: rgba(118, 118, 128, 0.2); }
+.project-row.is-done .project-card, .project-row.is-done .cell-milestone strong, .project-row.is-done .deadline-link { color: var(--label-secondary); font-weight: 500; }
+.project-row.is-done .deadline-link svg { color: var(--label-secondary); }
 .project-status { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .project-status > i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-active { color: #124e20; background: rgba(52, 199, 89, 0.18); }
@@ -684,7 +695,9 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
   .project-table .cell-area { order: 0; flex-basis: 100%; margin-bottom: -6px; }
   .project-table .cell-project { order: 1; flex: 1 1 0; min-width: 0; }
   .project-table .cell-status { order: 2; }
-  .project-table .cell-milestone, .project-table .cell-progress { order: 3; flex-basis: 100%; }
+  .project-table .cell-milestone, .project-table .cell-deadline, .project-table .cell-progress { order: 3; flex-basis: 100%; }
+  .project-table .cell-deadline { display: flex; align-items: center; gap: 8px; }
+  .project-table .cell-deadline small { margin-top: 0; }
   .project-table .progress-line .list-progress { flex: 1; width: auto; }
 }
 
@@ -779,6 +792,26 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .calendar-dot { width: 6px; height: 6px; border-radius: 50%; box-shadow: none; }
 .calendar-dot.calendar-chip-confirmed { background: #ff3b30; }
 .calendar-dot.calendar-chip-requested { background: #ff9500; }
+/* Project deadlines: all-day "Ziel" entries in the project colour with a solid edge; diamonds in the phone grid. */
+.calendar-chip-goal { color: #7f2100; background: rgba(255, 149, 0, 0.12); box-shadow: inset 3px 0 0 #ff9500; padding-left: 7px; }
+.calendar-chip-goal.is-done { color: var(--label-secondary); background: var(--fill-tertiary); box-shadow: inset 3px 0 0 rgba(60, 60, 67, 0.35); }
+.calendar-dot.calendar-chip-goal { border-radius: 1px; transform: rotate(45deg); background: #c25e00; }
+.calendar-dot.calendar-chip-goal.is-done { background: rgba(60, 60, 67, 0.45); }
+.legend-goal { width: 18px; height: 10px; border-radius: 3px; background: rgba(255, 149, 0, 0.18); box-shadow: inset 3px 0 0 #ff9500; }
+.day-goals { display: flex; flex-direction: column; gap: 6px; }
+.day-goal { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(255, 149, 0, 0.12); box-shadow: inset 3px 0 0 #ff9500; color: #7f2100; transition: background 150ms ease; }
+.day-goal:hover { background: rgba(255, 149, 0, 0.2); }
+.day-goal svg { flex: 0 0 auto; margin-top: 2px; }
+.day-goal strong, .day-goal small { display: block; }
+.day-goal strong { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
+.day-goal small { font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.day-goal.is-done { background: var(--fill-tertiary); box-shadow: inset 3px 0 0 rgba(60, 60, 67, 0.35); color: var(--label-secondary); }
+.day-goal.is-done strong { color: var(--label-secondary); font-weight: 500; }
+.goal-list .appointment-date strong { color: #7f2100; }
+.goal-list .is-done .appointment-date strong, .goal-list .is-done .list-row-title { color: var(--label-secondary); }
+.goal-list .is-done { background: rgba(118, 118, 128, 0.1); }
+.goal-hint { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--label-secondary); white-space: nowrap; }
+.goal-hint.is-overdue { color: #b3261e; }
 
 .calendar-day-card { display: flex; flex-direction: column; gap: 14px; }
 .calendar-day-head h2 { color: var(--label); }

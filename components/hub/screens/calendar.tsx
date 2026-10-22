@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Flag, Inbox } from "lucide-react";
 import {
   addDays, addMonths, calendarWindow, clockOf, dayOf, formatDayLong, formatDayShort, formatHours, formatMonth, formatTimeRange,
-  freeIntervals, isWorkday, mergeIntervals, monthOf, monthWeeks, occupancy, occupancyLabels, slotStarts, timeOf, wallTimeToUtc, WORKDAY,
+  freeIntervals, isDay, isWorkday, mergeIntervals, monthOf, monthWeeks, occupancy, occupancyLabels, slotStarts, timeOf, wallTimeToUtc, WORKDAY,
   type OccupancyLevel,
 } from "@/lib/hub-calendar/rules";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
+import { deadlineHint, hubHref } from "@/lib/hub-data";
 import { HeaderActions } from "../app-shell";
 import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
@@ -27,6 +30,9 @@ type Dialog =
   | { kind: "form"; id?: string; day: string; start?: string; accept?: boolean }
   | { kind: "request"; day: string; start?: string };
 
+/** A project's target date ("Terminierung") as an all-day entry; it never counts as booked time. */
+type ProjectGoal = { id: string; day: string; title: string; company?: string; category: string; done: boolean };
+
 const clockMinutes = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
 const byStart = (a: HubAppointment, b: HubAppointment) => a.start - b.start;
 
@@ -37,12 +43,26 @@ function firstWorkday(from: string, today: string) {
   return day;
 }
 
-export function CalendarScreen({ calendar }: ScreenProps) {
+export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProps) {
   const store = useCalendarStore(calendar);
   const { canManage, appointments, busy, now, today } = store;
   const range = useMemo(() => calendarWindow(today), [today]);
-  const [month, setMonth] = useState(() => monthOf(today));
-  const [selected, setSelected] = useState(today);
+  // The projects page links a deadline to its day: /calendar?day=2026-10-30.
+  const requested = useSearchParams().get("day");
+  const startDay = isDay(requested) && monthOf(requested) >= range.firstMonth && monthOf(requested) <= range.lastMonth ? requested : today;
+  const [month, setMonth] = useState(() => monthOf(startDay));
+  const [selected, setSelected] = useState(startDay);
+
+  // Project deadlines of every project this login sees: customers their own, admins those of all customers.
+  const goals = useMemo(() => projects
+    .map((project): ProjectGoal => ({ id: project.id, day: project.dueOn, title: project.name, company: project.company, category: project.category, done: project.status === "Abgeschlossen" }))
+    .sort((a, b) => Number(a.done) - Number(b.done) || a.day.localeCompare(b.day)), [projects]);
+  const goalsByDay = useMemo(() => {
+    const days = new Map<string, ProjectGoal[]>();
+    for (const goal of goals) days.set(goal.day, [...(days.get(goal.day) ?? []), goal]);
+    return days;
+  }, [goals]);
+  const projectHref = (id: string) => `${hubHref(preview, "projects")}?project=${id}`;
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState("");
 
@@ -97,15 +117,18 @@ export function CalendarScreen({ calendar }: ScreenProps) {
 
       <div className="calendar-layout">
         <GlassCard className="calendar-month-card">
-          <MonthGrid month={month} range={range} today={today} selected={selected} busy={busy} byDay={byDay} canManage={canManage} onSelect={select} />
-          <ul className="occupancy-legend" aria-label="Auslastung">
+          <MonthGrid month={month} range={range} today={today} selected={selected} busy={busy} byDay={byDay} goalsByDay={goalsByDay} canManage={canManage} onSelect={select} />
+          <ul className="occupancy-legend" aria-label="Legende">
             {legendLevels.map((level) => <li key={level}><span className={`occupancy-swatch occupancy-${level}`} aria-hidden="true" />{occupancyLabels[level]}</li>)}
+            {goals.length > 0 && <li><span className="legend-goal" aria-hidden="true" />Projektziel</li>}
           </ul>
         </GlassCard>
         <DayPanel
           day={selected}
           store={store}
           items={byDay.get(selected) ?? []}
+          goals={goalsByDay.get(selected) ?? []}
+          projectHref={projectHref}
           onOpen={(id) => open({ kind: "detail", id })}
           onCreate={() => create(selected)}
           onRequest={canRequest ? (start) => open({ kind: "request", day: selected, start }) : undefined}
@@ -120,6 +143,27 @@ export function CalendarScreen({ calendar }: ScreenProps) {
       <SectionHeader title={canManage ? "Nächste Termine" : "Deine Termine"} />
       {upcoming.length ? <AppointmentList label={canManage ? "Nächste Termine" : "Deine Termine und Anfragen"} items={upcoming} showCustomer={canManage} onOpen={(id) => open({ kind: "detail", id })} />
         : <GlassCard><p className="t-subheadline t-secondary">{canManage ? "Keine anstehenden Termine." : "Du hast noch keine Termine. Frag einfach einen freien Zeitraum an."}</p></GlassCard>}
+      {goals.length > 0 && <>
+        <SectionHeader title="Projekt-Terminierungen" />
+        <ul className="glass inset-list appointment-list goal-list" aria-label="Projekt-Terminierungen">
+          {goals.map((goal) => {
+            // Same reference day as the projects table, so both pages name the same distance (demo accounts: the fixtures' day).
+            const hint = deadlineHint(goal.day, goal.done, asOf);
+            return (
+              <li key={goal.id} className={`list-item appointment-item${goal.done ? " is-done" : ""}`}>
+                <Link href={projectHref(goal.id)} className="appointment-open">
+                  <span className="appointment-date" aria-hidden="true"><strong className="numeric">{Number(goal.day.slice(8))}</strong><small>{monthShort.format(Date.parse(`${goal.day}T00:00:00Z`))}</small></span>
+                  <span className="list-row-text">
+                    <span className="list-row-title">{goal.title}</span>
+                    <span className="list-row-subtitle">{formatDayShort(goal.day)} · {canManage && goal.company ? `${goal.company} · ` : ""}{goal.category}</span>
+                  </span>
+                  <span className={`goal-hint${hint.endsWith("überfällig") ? " is-overdue" : ""}`}>{hint}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </>}
 
       {dialog?.kind === "detail" && dialogAppointment && (
         <AppointmentDetailDialog key={dialogAppointment.id} appointment={dialogAppointment} store={store} onClose={() => setDialog(null)} onEdit={(accept) => open({ kind: "form", id: dialogAppointment.id, day: dayOf(dialogAppointment.start), accept })} />
@@ -137,12 +181,16 @@ type GridProps = {
   selected: string;
   busy: CalendarStore["busy"];
   byDay: Map<string, HubAppointment[]>;
+  goalsByDay: Map<string, ProjectGoal[]>;
   canManage: boolean;
   onSelect: (day: string) => void;
 };
 
-/** Month grid: every working day shows how much of it is booked; admins see their appointments, customers only their own. */
-function MonthGrid({ month, range, today, selected, busy, byDay, canManage, onSelect }: GridProps) {
+/**
+ * Month grid: every working day shows how much of it is booked; admins see their appointments, customers only their own.
+ * Project deadlines come first as all-day "Ziel" entries.
+ */
+function MonthGrid({ month, range, today, selected, busy, byDay, goalsByDay, canManage, onSelect }: GridProps) {
   return (
     <div className="calendar-grid">
       <div className="calendar-weekdays" aria-hidden="true">{weekdays.map((name) => <span key={name}>{name}</span>)}</div>
@@ -150,10 +198,21 @@ function MonthGrid({ month, range, today, selected, busy, byDay, canManage, onSe
         <div key={week[0]} className="calendar-week">
           {week.map((day) => {
             const items = byDay.get(day) ?? [];
+            const goals = goalsByDay.get(day) ?? [];
             const load = occupancy(day, busy);
             const outside = monthOf(day) !== month;
             const className = `calendar-cell${outside ? " is-outside" : ""}${day < today ? " is-past" : ""}${load.level === "closed" ? " is-closed" : ""}`;
-            const count = items.length ? `, ${items.length} ${canManage ? (items.length === 1 ? "Termin" : "Termine") : (items.length === 1 ? "eigener Termin" : "eigene Termine")}` : "";
+            const count = (items.length ? `, ${items.length} ${canManage ? (items.length === 1 ? "Termin" : "Termine") : (items.length === 1 ? "eigener Termin" : "eigene Termine")}` : "")
+              + (goals.length ? `, ${goals.length === 1 ? "1 Projektziel" : `${goals.length} Projektziele`}` : "");
+            const chips = [
+              ...goals.map((goal) => ({ id: goal.id, className: `calendar-chip calendar-chip-goal${goal.done ? " is-done" : ""}`, content: <>Ziel · {canManage && goal.company ? goal.company : goal.title}</> })),
+              ...items.map((item) => ({ id: item.id, className: `calendar-chip calendar-chip-${item.status}`, content: <><span className="numeric">{timeOf(item.start)}</span> {canManage && item.customer ? item.customer.company : item.title}</> })),
+            ];
+            // Phone grid: one diamond stands for all goals of the day, so appointments keep their dots.
+            const dots = [
+              ...(goals.length ? [{ id: "goals", className: `calendar-chip-goal${goals.every((goal) => goal.done) ? " is-done" : ""}` }] : []),
+              ...items.map((item) => ({ id: item.id, className: `calendar-chip-${item.status}` })),
+            ].slice(0, 3);
             return (
               <button
                 key={day}
@@ -167,11 +226,11 @@ function MonthGrid({ month, range, today, selected, busy, byDay, canManage, onSe
               >
                 <span className="calendar-day-number numeric">{Number(day.slice(8))}</span>
                 {load.level !== "closed" && <span className={`occupancy-track occupancy-${load.level}`} aria-hidden="true"><span style={{ width: `${Math.round(load.ratio * 100)}%` }} /></span>}
-                {items.length > 0 && (
+                {chips.length > 0 && (
                   <span className="calendar-cell-items" aria-hidden="true">
-                    {items.slice(0, 2).map((item) => <span key={item.id} className={`calendar-chip calendar-chip-${item.status}`}><span className="numeric">{timeOf(item.start)}</span> {canManage && item.customer ? item.customer.company : item.title}</span>)}
-                    {items.length > 2 && <span className="calendar-more">+{items.length - 2}</span>}
-                    <span className="calendar-dots">{items.slice(0, 3).map((item) => <i key={item.id} className={`calendar-dot calendar-chip-${item.status}`} />)}</span>
+                    {chips.slice(0, 2).map((chip) => <span key={chip.id} className={chip.className}>{chip.content}</span>)}
+                    {chips.length > 2 && <span className="calendar-more">+{chips.length - 2}</span>}
+                    <span className="calendar-dots">{dots.map((dot) => <i key={dot.id} className={`calendar-dot ${dot.className}`} />)}</span>
                   </span>
                 )}
               </button>
@@ -183,10 +242,19 @@ function MonthGrid({ month, range, today, selected, busy, byDay, canManage, onSe
   );
 }
 
-type DayPanelProps = { day: string; store: CalendarStore; items: HubAppointment[]; onOpen: (id: string) => void; onCreate: () => void; onRequest?: (start: string) => void };
+type DayPanelProps = {
+  day: string;
+  store: CalendarStore;
+  items: HubAppointment[];
+  goals: ProjectGoal[];
+  projectHref: (id: string) => string;
+  onOpen: (id: string) => void;
+  onCreate: () => void;
+  onRequest?: (start: string) => void;
+};
 
-/** The selected day: occupancy, a timeline of booked times and, for customers, the free times to request. */
-function DayPanel({ day, store, items, onOpen, onCreate, onRequest }: DayPanelProps) {
+/** The selected day: its project deadlines, occupancy, a timeline of booked times and, for customers, the free times to request. */
+function DayPanel({ day, store, items, goals, projectHref, onOpen, onCreate, onRequest }: DayPanelProps) {
   const load = occupancy(day, store.busy);
   const starts = onRequest ? slotStarts(day, store.blocked, 30, store.now) : [];
   // One button per free interval that fits at least half an hour; it opens the request at the first possible start.
@@ -201,6 +269,18 @@ function DayPanel({ day, store, items, onOpen, onCreate, onRequest }: DayPanelPr
         <h2 className="t-headline" id="calendar-day-title">{formatDayLong(day)}</h2>
         <p className="t-subheadline t-secondary">{load.level === "closed" ? "Kein Termintag" : `${formatHours(load.bookedMinutes)} von ${formatHours(load.totalMinutes)} belegt · ${occupancyLabels[load.level]}`}</p>
       </div>
+      {goals.length > 0 && (
+        <ul className="day-goals" aria-label="Projektziele an diesem Tag">
+          {goals.map((goal) => (
+            <li key={goal.id}>
+              <Link href={projectHref(goal.id)} className={`day-goal${goal.done ? " is-done" : ""}`}>
+                <Flag size={16} aria-hidden="true" />
+                <span><strong>{goal.title}</strong><small>Projektziel · {store.canManage && goal.company ? `${goal.company} · ` : ""}{goal.category}{goal.done ? " · abgeschlossen" : ""}</small></span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
       <DayTimeline day={day} store={store} items={items} onOpen={onOpen} />
       {onRequest && load.level !== "closed" && (
         free.length ? (

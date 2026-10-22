@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowUpRight, CalendarDays, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
-import { appearanceHref, currentMilestone, demoConversation, hubHref, previewAccount } from "@/lib/hub-data";
+import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount } from "@/lib/hub-data";
 import { formatFileDate } from "@/lib/hub-files/catalog";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
@@ -66,7 +66,9 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
   const [filter, setFilter] = useState<(typeof filters)[number]>("Alle Projekte");
   const [companyFilter, setCompanyFilter] = useState("Alle Kunden");
   const matches = (item: (typeof filters)[number], status: string) => item === "Alle Projekte" || (item === "Aktiv" ? status !== "Abgeschlossen" : status === "Abgeschlossen");
-  const shown = projects.filter((project) => matches(filter, project.status) && (companyFilter === "Alle Kunden" || project.company === companyFilter));
+  // Running projects first, completed ones at the end; otherwise the order stays as it is.
+  const shown = projects.filter((project) => matches(filter, project.status) && (companyFilter === "Alle Kunden" || project.company === companyFilter))
+    .sort((a, b) => Number(a.status === "Abgeschlossen") - Number(b.status === "Abgeschlossen"));
   return (
     <>
       <LargeTitleHeader title="Projekte" icon={<CategoryTitle category="projects" />} actions={<HeaderActions />} />
@@ -82,21 +84,24 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
         {shown.length ? (
           <div className="glass file-table-card">
             <table className="project-table">
-              <caption className="visually-hidden">Projekte mit Bereich, aktuellem Meilenstein, Status und Fortschritt</caption>
+              <caption className="visually-hidden">Projekte mit Bereich, aktuellem Meilenstein, Status, Terminierung und Fortschritt</caption>
               <thead>
                 <tr>
                   <th scope="col">Bereich</th>
                   <th scope="col">Titel</th>
                   <th scope="col">Meilensteinbeschreibung</th>
                   <th scope="col">Aktueller Status</th>
+                  <th scope="col">Terminierung</th>
                   <th scope="col">Fortschritt</th>
                 </tr>
               </thead>
               <tbody>
                 {shown.map((project) => {
                   const milestone = currentMilestone(project, asOf);
+                  const done = project.status === "Abgeschlossen";
+                  const hint = deadlineHint(project.dueOn, done, asOf);
                   return (
-                    <tr key={project.id} className="project-row">
+                    <tr key={project.id} className={`project-row${done ? " is-done" : ""}`}>
                       <td className="cell-area">{project.category}</td>
                       <td className="cell-project">
                         <Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">{project.name}</Link>
@@ -106,9 +111,14 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
                         {milestone ? <><strong>{milestone.title}</strong><span>{milestone.description}</span><small>{formatFileDate(milestone.at)}</small></> : <span>Noch kein Meilenstein</span>}
                       </td>
                       <td className="cell-status"><ProjectStatus value={project.status} /></td>
+                      <td className="cell-deadline">
+                        <Link className="deadline-link" href={`${hubHref(preview, "calendar")}?day=${project.dueOn}`} title="Im Kalender anzeigen" aria-label={`Terminierung ${formatDeadline(project.dueOn)} im Kalender anzeigen`}>
+                          <CalendarDays size={15} aria-hidden="true" /><span className="numeric">{formatDeadline(project.dueOn)}</span>
+                        </Link>
+                        <small className={hint.endsWith("überfällig") ? "is-overdue" : undefined}>{hint}</small>
+                      </td>
                       <td className="cell-progress">
                         <span className="progress-line"><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>
-                        <small>Ziel: {project.date}</small>
                       </td>
                     </tr>
                   );
