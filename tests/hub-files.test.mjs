@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
-import { checkUpload, fileCategoryIds, fileFormat, formatBytes, MAX_FILE_BYTES, storageSafeName } from "../lib/hub-files/catalog.ts";
+import { checkUpload, cleanFolderName, fileCategoryIds, fileFormat, formatBytes, MAX_FILE_BYTES, MAX_FOLDER_NAME, storageSafeName, zipEntryNames } from "../lib/hub-files/catalog.ts";
 import { sampleCustomers, sampleFiles } from "../scripts/lib/sample-files.mjs";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -57,4 +57,26 @@ test("example PDFs are well-formed and fixture sizes match the static samples", 
     assert.deepEqual(await readFile(new URL(`../public/demo-files/${customer.slug}/servicevertrag.pdf`, import.meta.url)), contract.bytes);
     assert.deepEqual(await readFile(new URL(`../public/demo-files/${customer.slug}/logo.svg`, import.meta.url)), logo.bytes);
   }
+});
+
+test("folder names are trimmed, limited and free of path separators", () => {
+  assert.deepEqual(cleanFolderName("  Verträge   2026 "), { ok: true, name: "Verträge 2026" });
+  assert.equal(cleanFolderName("   ").ok, false);
+  assert.equal(cleanFolderName("a".repeat(MAX_FOLDER_NAME + 1)).ok, false);
+  assert.equal(cleanFolderName("Logos/alt").ok, false);
+  assert.equal(cleanFolderName("Logos\\alt").ok, false);
+});
+
+test("ZIP entries get unique names without path separators", () => {
+  assert.deepEqual(zipEntryNames(["Logo.svg", "logo.svg", "Logo.svg", "Vertrag", "Vertrag", "../geheim.pdf"]), ["Logo.svg", "logo (2).svg", "Logo (3).svg", "Vertrag", "Vertrag (2)", "..-geheim.pdf"]);
+});
+
+test("folders belong to one customer, are guarded by RLS and customers may only change the folder of an assignment", async () => {
+  const sql = await source("supabase/migrations/20261022170000_hub_folders.sql");
+  assert.match(sql, /alter table public\.hub_folders enable row level security/);
+  assert.match(sql, /foreign key \(folder_id, customer_id\) references public\.hub_folders \(id, customer_id\) on delete set null \(folder_id\)/);
+  assert.match(sql, /revoke update on public\.hub_file_assignments from authenticated;\s+grant update \(folder_id\) on public\.hub_file_assignments to authenticated;/);
+  assert.match(sql, /revoke all on public\.hub_folders from anon/);
+  const hubData = await source("lib/hub-data.ts");
+  assert.match(hubData, /sampleFolders/);
 });

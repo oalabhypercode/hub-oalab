@@ -76,6 +76,12 @@ npm run files:seed # Demo-Kunden, Mitgliedschaften und Beispieldateien (benötig
 
 Die Skripte lesen die Werte aus `.env.local` und geben sie nicht aus.
 
+In der Dateiablage gilt:
+
+- **Hochladen:** Admins laden bis zu 20 Dateien auf einmal hoch.
+- **Herunterladen:** Mehrere markierte Dateien lädt man als ZIP herunter. Der Browser baut die ZIP-Datei selbst (`lib/hub-files/zip.ts`, Bibliothek `fflate`, bis 500 MB).
+- **Ordner:** Ordner sind kundenbezogen und haben eine Ebene (`supabase/migrations/20261022170000_hub_folders.sql`). Kunden legen sie für ihr Unternehmen an, Admins für jeden Kunden. Kunden dürfen per Spaltenrecht nur den Ordner ihrer Zuordnungen ändern.
+
 ## KI-Assistent (Claude)
 
 Der Chat hinter „Assistent & Hilfe“ beantwortet Fragen zu den Funktionen des Hubs mit **Claude Opus 5.5** über das offizielle SDK `@anthropic-ai/sdk`. Grundlage ist die Wissensbasis in `lib/hub-assistant/knowledge.ts`; sie muss bei jeder Funktionsänderung mitgezogen werden (`tests/hub-assistant.test.mjs` prüft Bereiche, Dateikategorien und Terminstatus). Die Route `app/api/assistant/route.ts` antwortet nur angemeldeten Supabase-Nutzern, liest die Rolle (Admin oder Kunde) aus dem Token und schickt nur den Gesprächsverlauf an Anthropic, keine Kundendaten. Vorschau und öffentliche Demo senden keine Fragen.
@@ -138,7 +144,7 @@ npm run demo:public:smoke -- --local
 npm run demo:public:smoke
 ```
 
-Die 48 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, RLS-Migration und Musterdateien der Dateiablage, die Kalenderregeln samt Migration sowie Gesprächsregeln und Wissensbasis des KI-Assistenten und die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 51 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration sowie Gesprächsregeln und Wissensbasis des KI-Assistenten und die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 

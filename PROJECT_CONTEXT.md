@@ -45,6 +45,29 @@
 - Lokal mit echten Demo-Logins geprüft: Nordlicht fragt an, der Admin bestätigt mit Teams-Link, Nordlicht sieht den Termin samt Link; der Termin von Form & Feld erscheint bei Nordlicht nur als „Belegt“. Drei Testtermine vom 23. Oktober 2026 („Testtermin: …“, „Testanfrage …“) liegen noch in der Datenbank.
 - Offen: E-Mail-Benachrichtigung bei neuer Anfrage und bei Bestätigung, Teams-Meetings automatisch über Microsoft Graph, konfigurierbare Zeiten und Feiertage, Erinnerungen vor dem Termin.
 
+### Vorgabe vom 22. Oktober 2026: Ordner, Mehrfach-Upload und ZIP-Download
+
+- Admins laden bis zu 20 Dateien auf einmal hoch, per Auswahl oder Hineinziehen (je bis 50 MB).
+    - Den Titel jeder Datei kann man in der Liste anpassen; jede Datei zeigt ihren eigenen Fortschritt.
+    - Kategorie, Beschreibung, Kunden und Ordner gelten für alle Dateien des Uploads. Ein Ordner lässt sich wählen, wenn genau ein Kunde zugeordnet ist.
+- Kunden laden weiterhin nicht selbst hoch (Entscheidung vom 22. Oktober 2026).
+- Mehrere Dateien herunterladen: Häkchen setzen, dann „Als ZIP herunterladen“.
+    - Der Browser holt jede Datei über ihren eigenen 60-Sekunden-Link und baut die ZIP-Datei selbst. So greifen keine Größengrenzen von Vercel.
+    - Bis 500 MB auf einmal; doppelte Dateinamen werden nummeriert, Umlaute bleiben erhalten.
+- Ordner gibt es pro Kunde, mit einer Ebene ohne Unterordner. Über der Tabelle stehen „Alle Dateien“, die Ordner, „Ohne Ordner“ und „Neuer Ordner“.
+    - Kunden legen Ordner für ihr Unternehmen an; Admins wählen dafür im Filter „Kunde“ den Kunden.
+    - Ordner lassen sich umbenennen und löschen. Beim Löschen landen die Dateien in „Ohne Ordner“; es wird keine Datei gelöscht.
+    - „Verschieben nach …“ sortiert markierte Dateien ein.
+- Technik: Migration `supabase/migrations/20261022170000_hub_folders.sql`, am 22. Oktober 2026 angewendet.
+    - Tabelle `hub_folders` mit RLS: Admins dürfen alles, Mitglieder des Kunden verwalten dessen Ordner.
+    - Neue Spalte `hub_file_assignments.folder_id`: Der Ordner gilt pro Kundenzuordnung. Ein zusammengesetzter Fremdschlüssel stellt sicher, dass eine Datei nur in einem Ordner desselben Kunden liegt.
+    - Kunden dürfen per Spaltenrecht nur `folder_id` ändern.
+- Vorschau und öffentliche Demo zeigen die Beispielordner „Briefings“ und „Verträge“. Änderungen dort bleiben im Browserfenster.
+- Lokal mit echten Logins geprüft:
+    - Nordlicht: Ordner anlegen, umbenennen und löschen (auch mit Inhalt), Verschieben, ZIP mit beiden Dateien byte-genau.
+    - Admin: zwei Dateien auf einmal hochgeladen, Nordlicht zugeordnet und in dessen Ordner „Verträge“ abgelegt. Die Testdateien sind wieder gelöscht.
+    - Der Ordner „Verträge“ mit dem Servicevertrag von Nordlicht bleibt zur Ansicht bestehen.
+
 ### Vorgabe vom 22. Oktober 2026: KI-Assistent und Claude-Code-Befehl
 
 - Die Sprechblase oben rechts heißt jetzt „Assistent & Hilfe“. Sie öffnet für Kunden und Admins einen Chat, der Fragen zu den Funktionen der Plattform beantwortet. Er zeigt Vorschlagsfragen je Rolle, streamt die Antworten, kann neu gestartet werden und behält den Verlauf beim Seitenwechsel.
@@ -158,6 +181,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
 - KI-Assistent (Claude) für Admins und Kunden hinter „Assistent & Hilfe“ sowie Claude-Code-Befehl `/hub-hilfe`
 - WhatsApp-Anbindung des Assistenten über die WhatsApp Cloud API, Verknüpfen der Nummer per Code im Profil
+- Dateiablage mit Ordnern pro Kunde, Mehrfach-Upload für Admins und ZIP-Download mehrerer Dateien
 - Kalender für Admins und Kunden: Auslastung, Terminanfragen, Bestätigung mit Microsoft-Teams-Link (Supabase mit RLS)
 - Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten im selben Glas-Stil mit Demo-Konten im Dropdown
 
@@ -317,8 +341,8 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 ### Dateien und Freigaben
 
 - [ ] Welche Dateitypen und maximalen Größen sind erlaubt?
-- [ ] Werden Ordner, Kategorien, Tags oder Versionen benötigt?
-- [ ] Dürfen Kunden Dateien hochladen und löschen? (Bisher laden nur Admins hoch, Kunden laden herunter.)
+- [x] Ordner: eine Ebene pro Kunde, von Kunden und Admins anlegbar (Entscheidung vom 22. Oktober 2026). Offen bleiben Tags, Versionen und Unterordner.
+- [x] Kunden laden vorerst nicht selbst hoch; nur Admins (Entscheidung vom 22. Oktober 2026). Ob Kunden später hochladen oder löschen dürfen, bleibt offen.
 - [ ] Sollen Admins Dateien löschen oder neue Fassungen einer Datei hochladen können?
 - [ ] Benötigen Dateien Freigabe- oder Abnahmeprozesse?
 - [ ] Müssen Downloads und Änderungen revisionssicher protokolliert werden?

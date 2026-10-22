@@ -1,4 +1,4 @@
-import type { HubStoredFile } from "./hub-files/types";
+import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
 import type { ServicePackageId } from "./service-packages";
 
 export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover"] as const;
@@ -127,15 +127,24 @@ export function sampleFileFixtures(slug: keyof typeof sampleFileSizes, company: 
       id: `${slug}-servicevertrag`, title: "Servicevertrag", fileName: `Servicevertrag ${company}.pdf`, category: "contract",
       description: `Fiktiver Beispielvertrag zum Servicepaket ${servicePackage}: Laufzeit, Leistungen und Konditionen.`,
       mimeType: "application/pdf", sizeBytes: sampleFileSizes[slug].contract, sha256: null, createdAt: "2026-10-01T10:00", customers,
+      folderIds: { [customerNumber]: `${customerNumber}-vertraege` },
       sampleHref: `/demo-files/${slug}/servicevertrag.pdf`,
     },
     {
       id: `${slug}-logo`, title: "Logo-Datei", fileName: `Logo ${company}.svg`, category: "brand",
       description: "Fiktives Beispiel-Logo als Vektordatei (SVG) für Website, Social Media und Druck.",
-      mimeType: "image/svg+xml", sizeBytes: sampleFileSizes[slug].logo, sha256: null, createdAt: "2026-10-14T09:30", customers,
+      mimeType: "image/svg+xml", sizeBytes: sampleFileSizes[slug].logo, sha256: null, createdAt: "2026-10-14T09:30", customers, folderIds: {},
       sampleHref: `/demo-files/${slug}/logo.svg`,
     },
   ];
+}
+
+/** Example folders of the demo customers: "Verträge" holds the sample contract, "Briefings" is still empty. */
+export function sampleFolders(customers: HubFileCustomer[]): HubFolder[] {
+  return customers.flatMap((customer) => [
+    { id: `${customer.id}-briefings`, customerId: customer.id, name: "Briefings" },
+    { id: `${customer.id}-vertraege`, customerId: customer.id, name: "Verträge" },
+  ]);
 }
 
 export const previewFiles: HubStoredFile[] = sampleFileFixtures("nordlicht", "Nordlicht Studio", "KD-24017", "Oalab-Website extra");

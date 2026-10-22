@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
-import { hubHref, previewAccount, previewFiles, previewProjects, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
+import { hubHref, previewAccount, previewFiles, previewProjects, sampleFolders, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubFilesState } from "@/lib/hub-files/types";
 import { calendarFixtures } from "@/lib/hub-calendar/fixtures";
 import type { HubCalendarState } from "@/lib/hub-calendar/types";
@@ -46,11 +46,10 @@ export function HubView({ section = "overview", detail, preview = false, email =
   const admin = demoData?.role === "oalab_admin";
   const liveFiles = filesState?.source === "supabase" && !filesState.error;
   const files = liveFiles ? filesState.files : fixtureFiles;
-  const fileState: HubFilesState = useMemo(() => filesState ?? {
-    source: "fixtures",
-    files: fixtureFiles,
-    customers: Array.from(new Map(fixtureFiles.flatMap((file) => file.customers).map((customer) => [customer.id, customer])).values()),
-    canManage: false,
+  const fileState: HubFilesState = useMemo(() => {
+    if (filesState) return filesState;
+    const customers = Array.from(new Map(fixtureFiles.flatMap((file) => file.customers).map((customer) => [customer.id, customer])).values());
+    return { source: "fixtures", files: fixtureFiles, customers, folders: sampleFolders(customers), canManage: false };
   }, [filesState, fixtureFiles]);
   const calendar = useMemo(() => calendarState ?? calendarFixtures({ admin, customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null }), [calendarState, admin, preview, demoData]);
   const favorites = useFavorites(userKey);

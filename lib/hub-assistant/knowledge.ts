@@ -50,10 +50,15 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 ## Dateien
 - Tabelle mit Datei, Kategorie, Beschreibung, Format und Größe sowie Bereitstellungsdatum. Suche nach Titel, Dateiname oder Beschreibung und Filter nach Kategorie.
 - Kategorien: Vertrag, Angebot, Rechnung, Logo & Marke, Design, Website & Inhalte, Dokumentation, Sonstiges.
-- Das Download-Symbol lädt genau die hochgeladene Fassung mit Originalnamen; der Download-Link gilt 60 Sekunden. Ein Klick auf den Titel zeigt alle Details samt SHA-256-Prüfsumme.
-- Hochladen (nur Admin): im Bereich „Hochladen“ eine Datei wählen oder hineinziehen (bis 50 MB, keine ausführbaren Dateien oder Skripte), Titel, Kategorie und Beschreibung angeben und Kunden zuordnen (mehrere möglich, Suche nach Kundennummer oder Firma). Ohne Zuordnung liegt die Datei in der „Ablage“.
+- Das Download-Symbol lädt genau die hochgeladene Fassung mit Originalnamen; der Download-Link gilt 60 Sekunden. Ein Klick auf den Titel zeigt alle Details samt Ordner und SHA-256-Prüfsumme.
+- Mehrere Dateien herunterladen: die Häkchen vor den Dateien setzen (das Häkchen im Tabellenkopf wählt alle angezeigten) und „Als ZIP herunterladen“ wählen. Der Browser packt die Dateien zu einer ZIP-Datei, bis 500 MB auf einmal.
+- Ordner: Jeder Kunde hat eigene Ordner, eine Ebene ohne Unterordner. Über der Tabelle stehen „Alle Dateien“, die Ordner und „Ohne Ordner“.
+- Ordner anlegen: „Neuer Ordner“. Kunden legen Ordner für ihr eigenes Unternehmen an; Admins wählen dafür zuerst im Filter „Kunde“ den Kunden.
+- Ordner umbenennen oder löschen: den Ordner öffnen und „Umbenennen“ oder „Löschen“ wählen. Beim Löschen landen die Dateien in „Ohne Ordner“; es wird keine Datei gelöscht.
+- Dateien einsortieren: Häkchen setzen und „Verschieben nach …“ wählen.
+- Hochladen (nur Admin): im Bereich „Dateien hochladen“ bis zu 20 Dateien auf einmal wählen oder hineinziehen (je bis 50 MB, keine ausführbaren Dateien oder Skripte). Den Titel jeder Datei kann man in der Liste anpassen. Kategorie, Beschreibung, Kunden und Ordner gelten für alle. Ein Ordner lässt sich wählen, wenn genau ein Kunde zugeordnet ist. Ohne Zuordnung liegen die Dateien in der „Ablage“.
 - Zuordnung ändern (nur Admin): Datei öffnen und „Zuordnung ändern“ wählen. Der Filter „Kunde“ zeigt auch die Ablage.
-- Kunden können noch keine Dateien hochladen. Löschen und neue Fassungen einer Datei sind geplant.
+- Kunden können keine Dateien hochladen. Dateien löschen und neue Fassungen hochladen sind geplant.
 
 ## Nachrichten
 - Zeigt derzeit eine Beispielunterhaltung. Echte Nachrichten sind geplant und sollen später auch über den bevorzugten Kanal des Kunden (z. B. WhatsApp oder E-Mail) ankommen. Bis dahin laufen Fragen ans Team über die bekannten Kontaktwege.
@@ -92,7 +97,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Die Designvorschau unter /preview zeigt ausschließlich fiktive Inhalte.
 
 ## Noch nicht verfügbar (geplant)
-- Echte Projektdaten und Projektverwaltung, Live-Nachrichten, E-Mail-Benachrichtigungen, Konten verwalten durch Admins (anlegen, Aktivierungslink, deaktivieren), Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Anbindung an Outlook-Kalender.
+- Echte Projektdaten und Projektverwaltung, Live-Nachrichten, E-Mail-Benachrichtigungen, Konten verwalten durch Admins (anlegen, Aktivierungslink, deaktivieren), Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Uploads durch Kunden, Unterordner, Anbindung an Outlook-Kalender.
 `;
 
 const rules = `Du bist der Assistent im oalab Client Hub. Du erklärst, wie die Plattform funktioniert und wo man etwas findet.
