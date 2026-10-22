@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
-import type { OutgoingMail } from "./resend";
+import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
 import { accessApprovedMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
 
@@ -12,11 +12,10 @@ import { accessApprovedMail, passwordLinkMail, registrationReceivedMail, registr
 export type NotificationKind = "registration.team" | "registration.received" | "registration.approved" | "registration.rejected" | "user.activation" | "user.password";
 
 const mailOf = (to: string[], content: MailContent, extra: Partial<OutgoingMail> = {}): OutgoingMail => ({ to, ...content, ...extra });
-const tag = (kind: NotificationKind) => [{ name: "kind", value: kind.replace(".", "_") }];
 
 /** Sends a mail and records the outcome. */
 async function sendTracked(db: SupabaseClient, kind: NotificationKind, userId: string, mail: OutgoingMail): Promise<MailStatus> {
-  const result = await sendMail({ ...mail, tags: tag(kind) });
+  const result = await sendMail({ ...mail, kind });
   await db.from("hub_notifications").insert({ kind, user_id: userId, status: result.status, provider_id: result.id ?? null, error: result.error ?? "" });
   return result.status;
 }
@@ -28,7 +27,7 @@ async function sendTracked(db: SupabaseClient, kind: NotificationKind, userId: s
 async function sendOnce(db: SupabaseClient, kind: NotificationKind, userId: string, mail: OutgoingMail): Promise<MailStatus | "already"> {
   const claim = await db.from("hub_notifications").insert({ kind, user_id: userId }).select("id").single<{ id: number }>();
   if (claim.error) return claim.error.code === "23505" ? "already" : "failed";
-  const result = await sendMail({ ...mail, tags: tag(kind), idempotencyKey: `${kind}:${userId}` });
+  const result = await sendMail({ ...mail, kind });
   await db.from("hub_notifications").update({ status: result.status, provider_id: result.id ?? null, error: result.error ?? "" }).eq("id", claim.data.id);
   return result.status;
 }

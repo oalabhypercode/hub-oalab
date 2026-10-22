@@ -114,7 +114,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <button type="button" className="calendar-primary users-primary" onClick={() => open({ kind: "user" })}><UserPlus size={18} aria-hidden="true" />Benutzer anlegen</button>
       </div>
       {notice && <p className="calendar-notice glass" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
-      {!state.mailConfigured && <GlassCard className="file-demo-note"><MailX size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Der Mailversand ist noch nicht eingerichtet (RESEND_API_KEY fehlt). Benachrichtigungen werden nur protokolliert; Links und Nachrichten gibst du bis dahin selbst weiter.</p></GlassCard>}
+      {!state.mailConfigured && <GlassCard className="file-demo-note"><MailX size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Der Mailversand ist noch nicht eingerichtet (SMTP-Zugang fehlt). Benachrichtigungen werden nur protokolliert; Links und Nachrichten gibst du bis dahin selbst weiter.</p></GlassCard>}
 
       <SectionHeader title={pending.length ? `Offene Registrierungen (${pending.length})` : "Offene Registrierungen"} />
       {pending.length ? (

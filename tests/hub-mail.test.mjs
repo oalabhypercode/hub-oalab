@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { safeAuthRedirect } from "../lib/auth-redirect.ts";
-import { readResendResponse, resendRequest } from "../lib/hub-mail/resend.ts";
+import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport } from "../lib/hub-mail/smtp.ts";
 import {
   accessApprovedMail, cleanSubject, escapeHtml, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
 } from "../lib/hub-mail/templates.ts";
@@ -80,31 +80,39 @@ test("activation and password links go out as a button with a copyable fallback"
   assert.doesNotMatch(passwordLinkMail({ firstName: "Ben", link: "javascript:alert(1)", activation: true }).html, /javascript:/);
 });
 
-test("the Resend request carries key, sender, reply address, tags and idempotency key, and nothing else", () => {
-  const { url, init } = resendRequest("re_test", "oalab Client Hub <hub@oalab.de>", {
-    to: Array.from({ length: 60 }, (_, index) => `p${index}@example.com`), subject: "Hallo", html: "<p>Hallo</p>", text: "Hallo",
-    replyTo: "info@oalab.de", tags: [{ name: "kind", value: "registration.team" }], idempotencyKey: "registration.team:abc",
-  });
-  assert.equal(url, "https://api.resend.com/emails");
-  assert.equal(init.method, "POST");
-  assert.deepEqual(init.headers, { Authorization: "Bearer re_test", "Content-Type": "application/json", "Idempotency-Key": "registration.team:abc" });
-  const body = JSON.parse(init.body);
-  assert.deepEqual(Object.keys(body).sort(), ["from", "html", "reply_to", "subject", "tags", "text", "to"]);
-  assert.equal(body.from, "oalab Client Hub <hub@oalab.de>");
-  assert.equal(body.to.length, 50);
-  assert.deepEqual(body.tags, [{ name: "kind", value: "registration_team" }]);
-  const plain = resendRequest("re_test", "hub@oalab.de", { to: ["a@example.com"], subject: "s", html: "h", text: "t" });
-  assert.deepEqual(Object.keys(JSON.parse(plain.init.body)).sort(), ["from", "html", "subject", "text", "to"]);
-  assert.equal("Idempotency-Key" in plain.init.headers, false);
+test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {
+  const env = { SMTP_HOST: " mxe989.netcup.net ", SMTP_USER: "hub@oalab.de", SMTP_PASSWORD: "geheim" };
+  assert.deepEqual(readSmtpSettings(env), { host: "mxe989.netcup.net", port: 465, secure: true, user: "hub@oalab.de", password: "geheim" });
+  assert.equal(readSmtpSettings({ ...env, SMTP_PORT: "587" }).secure, false);
+  for (const broken of [{ SMTP_HOST: "" }, { SMTP_HOST: "localhost" }, { SMTP_HOST: "mx.netcup.net/x" }, { SMTP_USER: " " }, { SMTP_PASSWORD: "" }, { SMTP_PORT: "25" }]) {
+    assert.equal(readSmtpSettings({ ...env, ...broken }), null, JSON.stringify(broken));
+  }
+  // 465 speaks TLS from the first byte; 587 must upgrade with STARTTLS before the login, or it fails.
+  assert.equal(smtpTransport(readSmtpSettings(env)).requireTLS, false);
+  const starttls = smtpTransport(readSmtpSettings({ ...env, SMTP_PORT: "587" }));
+  assert.equal(starttls.requireTLS, true);
+  assert.ok(starttls.connectionTimeout <= 10_000 && starttls.socketTimeout <= 20_000);
 });
 
-test("Resend answers become a short status without addresses", () => {
-  assert.deepEqual(readResendResponse(200, { id: "4ef9a417" }), { ok: true, id: "4ef9a417" });
-  assert.deepEqual(readResendResponse(403, { name: "validation_error", message: "The oalab.de domain is not verified.", statusCode: 403 }), { ok: false, error: "validation_error: The oalab.de domain is not verified." });
-  assert.deepEqual(readResendResponse(422, { name: "validation_error", message: "Invalid `to` field: jana@nordlicht.example" }), { ok: false, error: "validation_error: Invalid `to` field: [Adresse]" });
-  assert.deepEqual(readResendResponse(502, null), { ok: false, error: "http_502" });
-  assert.equal(readResendResponse(200, {}).ok, false);
-  assert.equal(readResendResponse(422, { name: "x", message: "y".repeat(500) }).error.length, 300);
+test("the SMTP message carries sender, reply address and kind, and at most 50 recipients", () => {
+  const message = smtpMessage("oalab Client Hub <hub@oalab.de>", {
+    to: Array.from({ length: 60 }, (_, index) => `p${index}@example.com`), subject: "Hallo", html: "<p>Hallo</p>", text: "Hallo", replyTo: "info@oalab.de", kind: "registration.team",
+  });
+  assert.deepEqual(Object.keys(message).sort(), ["from", "headers", "html", "replyTo", "subject", "text", "to"]);
+  assert.equal(message.from, "oalab Client Hub <hub@oalab.de>");
+  assert.equal(message.to.length, 50);
+  assert.deepEqual(message.headers, { "X-Hub-Mail": "registration.team" });
+  assert.equal(smtpMessage("hub@oalab.de", { to: ["a@example.com"], subject: "s", html: "h", text: "t", kind: "a\r\nBcc: x" }).headers["X-Hub-Mail"], "a__Bcc__x");
+  assert.deepEqual(Object.keys(smtpMessage("hub@oalab.de", { to: ["a@example.com"], subject: "s", html: "h", text: "t" })).sort(), ["from", "html", "subject", "text", "to"]);
+});
+
+test("server answers become a short status without addresses", () => {
+  assert.deepEqual(readSmtpResult({ messageId: "<abc@oalab.de>", accepted: ["info@oalab.de"], rejected: [] }), { ok: true, id: "<abc@oalab.de>" });
+  assert.deepEqual(readSmtpResult({ accepted: [], rejected: ["x@example.com"] }), { ok: false, error: "Empfänger abgelehnt (1)" });
+  assert.equal(smtpError({ code: "EAUTH", responseCode: 535, response: "535 5.7.8 Error: authentication failed for hub@oalab.de" }), "EAUTH 535: 535 5.7.8 Error: authentication failed for [Adresse]");
+  assert.equal(smtpError(Object.assign(new Error("Connection timeout"), { code: "ETIMEDOUT" })), "ETIMEDOUT: Connection timeout");
+  assert.equal(smtpError(null), "SMTP");
+  assert.equal(smtpError({ message: "y".repeat(500) }).length, 300);
 });
 
 test("the notification log keeps no addresses or contents, sends registration mails once and is read by admins only", async () => {
@@ -126,12 +134,14 @@ test("the notification log keeps no addresses or contents, sends registration ma
 test("mails go out from the server only, after the waiting page and from the admin actions", async () => {
   for (const path of ["lib/hub-mail/send.ts", "lib/hub-mail/notify.ts", "lib/site-origin.ts"]) assert.match(await source(path), /^import "server-only";/, path);
   const send = await source("lib/hub-mail/send.ts");
-  assert.match(send, /process\.env\.RESEND_API_KEY/);
-  assert.doesNotMatch(send, /NEXT_PUBLIC_[A-Z_]*(RESEND|MAIL)/);
-  // The key, subjects (they carry names), addresses and contents never reach the logs.
+  assert.match(send, /^import "server-only";\nimport nodemailer from "nodemailer";/);
+  assert.match(send, /readSmtpSettings\(process\.env\)/);
+  assert.doesNotMatch(send, /NEXT_PUBLIC_[A-Z_]*(SMTP|MAIL)/);
+  assert.match(await source("package.json"), /"nodemailer": "\d+\.\d+\.\d+"/);
+  // The password, subjects (they carry names), addresses and contents never reach the logs.
   const logs = [...send.matchAll(/console\.(?:info|warn|error|log)\(([^;]+)\);/g)].map((match) => match[1]);
   assert.ok(logs.length >= 3);
-  for (const line of logs) assert.doesNotMatch(line, /apiKey|mail\.(subject|html|text)|mail\.to\b(?!\.length)/, line);
+  for (const line of logs) assert.doesNotMatch(line, /password|settings\.smtp|mail\.(subject|html|text)|mail\.to\b(?!\.length)/, line);
 
   const pending = await source("app/auth/pending/page.tsx");
   // Request data is read during the render; `after` only gets plain values.
@@ -141,7 +151,7 @@ test("mails go out from the server only, after the waiting page and from the adm
   assert.match(notify, /if \(!user\?\.email \|\| !user\.email_confirmed_at\) return;/);
   assert.match(notify, /if \(!profile \|\| profile\.status !== "pending"\) return;/);
   assert.match(notify, /if \(claim\.error\) return claim\.error\.code === "23505" \? "already" : "failed";\s+const result = await sendMail/);
-  assert.match(notify, /idempotencyKey: `\$\{kind\}:\$\{userId\}`/);
+  assert.match(notify, /const result = await sendMail\(\{ \.\.\.mail, kind \}\);/);
 
   const actions = await source("lib/hub-users/actions.ts");
   // The approval mail follows the active status, so its login link works when it arrives.

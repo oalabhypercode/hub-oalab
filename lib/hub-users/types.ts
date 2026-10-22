@@ -63,7 +63,7 @@ export type UserManagementState = {
   /** Admin actions and sent mails, newest first. */
   events: ManagedEvent[];
   nextCustomerNumber: string;
-  /** False while RESEND_API_KEY is missing: mails are only logged (test mode). */
+  /** False while the SMTP access is missing: mails are only logged (test mode). */
   mailConfigured: boolean;
   error?: string;
 };

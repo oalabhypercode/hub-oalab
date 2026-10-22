@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Ban, Check, Copy, KeyRound, Loader2, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, setHubUserActive, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
-import type { MailStatus } from "@/lib/hub-mail/resend";
+import type { MailStatus } from "@/lib/hub-mail/smtp";
 import { displayStatusLabels, roleLabels, servicePackageIds, suggestCustomer, type HubRole } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedEvent, ManagedUser } from "@/lib/hub-users/types";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";

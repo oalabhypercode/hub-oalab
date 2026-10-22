@@ -97,7 +97,7 @@ Für den Livebetrieb braucht Vercel (Production) zusätzlich `SUPABASE_SECRET_KE
 
 ## E-Mails
 
-Der Hub verschickt seine E-Mails selbst über [Resend](https://resend.com) (`lib/hub-mail/`, REST-API ohne zusätzliches Paket). Absender ist `oalab Client Hub <hub@oalab.de>`, Antworten gehen an `info@oalab.de`.
+Der Hub verschickt seine E-Mails selbst per SMTP über das Netcup-Postfach `hub@oalab.de` (`lib/hub-mail/`, Paket `nodemailer`). Absender ist `oalab Client Hub <hub@oalab.de>`, Antworten gehen an `info@oalab.de`.
 
 | E-Mail | an | ausgelöst durch |
 | --- | --- | --- |
@@ -107,20 +107,22 @@ Der Hub verschickt seine E-Mails selbst über [Resend](https://resend.com) (`lib
 | Registrierung nicht freigegeben, mit Begründung | Person | „Ablehnen“ |
 | Aktivierungs- oder Passwort-Link | Person | Häkchen beim Anlegen oder „Link per E-Mail senden“ |
 
-- Team-Mail und Eingangsbestätigung gehen pro Login genau einmal raus: Der Server reserviert vor dem Versand eine Zeile in `hub_notifications` (eindeutiger Index), Resend bekommt zusätzlich einen Idempotency-Key. Ein fehlgeschlagener Versand wird beim nächsten Aufruf der Warteseite wiederholt.
-- `hub_notifications` (Migration `supabase/migrations/20261022210000_hub_notifications.sql`) speichert nur Art, Login, Ergebnis und Resend-ID, keine Adressen, Betreffzeilen oder Inhalte. Admins sehen die Einträge im Verlauf des Benutzers. Server-Logs nennen nur die Art der Mail.
-- Ohne `RESEND_API_KEY` läuft der Hub im Testmodus: Die Mails werden gebaut, aber nicht verschickt und als „nicht verschickt“ vermerkt. Das User Management zeigt dann einen Hinweis.
+- Team-Mail und Eingangsbestätigung gehen pro Login genau einmal raus: Der Server reserviert vor dem Versand eine Zeile in `hub_notifications` (eindeutiger Index). Ein fehlgeschlagener Versand wird beim nächsten Aufruf der Warteseite wiederholt.
+- `hub_notifications` (Migration `supabase/migrations/20261022210000_hub_notifications.sql`) speichert nur Art, Login, Ergebnis und Message-ID, keine Adressen, Betreffzeilen oder Inhalte. Admins sehen die Einträge im Verlauf des Benutzers. Server-Logs nennen nur die Art der Mail; jede Mail trägt sie auch im Kopf `X-Hub-Mail` (für Postfach-Filter).
+- Ohne SMTP-Zugang (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`) läuft der Hub im Testmodus: Die Mails werden gebaut, aber nicht verschickt und als „nicht verschickt“ vermerkt. Das User Management zeigt dann einen Hinweis.
 - Die Bestätigungs- und Passwort-Mails von Supabase selbst nutzen die deutschen Vorlagen in `supabase/templates/` (eingetragen in `supabase/config.toml`).
 
-Einrichtung für den Livebetrieb (Schlüssel nur in Resend, Vercel und Supabase eintragen, nie ins Repository):
+Einrichtung für den Livebetrieb (das Passwort nur bei Netcup, in Vercel, in Supabase und in `.env.local` eintragen, nie ins Repository):
 
-1. In Resend die Domain `oalab.de` hinzufügen (Region `eu-west-1`, Irland) und die Einträge aus dem Reiter „Records“ beim DNS-Anbieter eintragen: DKIM (`resend._domainkey`) und die Einträge der Subdomain `send` (bei neuen Domains CNAME), dazu einen DMARC-Eintrag, falls noch keiner existiert. Die MX-Einträge des Postfachs `info@oalab.de` bleiben unverändert.
-2. In Resend einen API-Key mit „Sending access“ für `oalab.de` anlegen und in Vercel (Production) als Secret `RESEND_API_KEY` eintragen. Optional sind `MAIL_FROM`, `MAIL_REPLY_TO`, `HUB_TEAM_EMAIL` (mehrere Adressen mit Komma) und `NEXT_PUBLIC_SITE_URL` für die Links in den Mails, siehe `.env.example`.
-3. In Supabase unter Authentication → Emails → SMTP Settings „Custom SMTP“ einschalten: Host `smtp.resend.com`, Port `465`, Benutzer `resend`, Passwort ein eigener Resend-API-Key, Absender `hub@oalab.de` mit dem Namen `oalab Client Hub`. Ohne eigenen SMTP schickt Supabase nur wenige Mails pro Stunde und nur an Mitglieder des Supabase-Teams.
+1. Im Netcup-Kundenbereich das Postfach `hub@oalab.de` mit eigenem, starkem Passwort anlegen. Der SMTP-Server steht in den E-Mail-Einstellungen; für oalab.de ist es derzeit `mxe989.netcup.net`, Port `465` (SSL/TLS).
+2. In Vercel (Production) `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` (`hub@oalab.de`) und `SMTP_PASSWORD` (als „Sensitive“) eintragen, für lokale Tests dieselben Werte in `.env.local`. Der Absender `MAIL_FROM` muss das Postfach selbst oder ein Alias davon sein. Optional sind `MAIL_REPLY_TO`, `HUB_TEAM_EMAIL` (mehrere Adressen mit Komma) und `NEXT_PUBLIC_SITE_URL` für die Links in den Mails, siehe `.env.example`.
+3. In Supabase unter Authentication → Emails → SMTP Settings „Custom SMTP“ einschalten: Host und Port wie oben, Benutzer `hub@oalab.de` mit dessen Passwort, Absender `hub@oalab.de` mit dem Namen `oalab Client Hub`. Ohne eigenen SMTP schickt Supabase nur wenige Mails pro Stunde und nur an Mitglieder des Supabase-Teams.
 4. In Supabase unter Authentication → Emails → Templates den Inhalt von `supabase/templates/confirmation.html` bei „Confirm signup“ und von `recovery.html` bei „Reset password“ einfügen, Betreff wie in `supabase/config.toml`. Die Links laufen per Token-Hash über `/auth/confirm` und funktionieren deshalb auch auf einem anderen Gerät. Unter Authentication → URL Configuration muss die „Site URL“ die Live-Adresse des Hubs sein, ohne Schrägstrich am Ende.
 5. Danach „Confirm email“ einschalten und „Email OTP expiration“ auf 24 Stunden setzen (siehe [User Management](#user-management)).
 
-Resend verarbeitet Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag. Die Region legt nur fest, von wo verschickt wird; die Kontodaten liegen in den USA. Dafür braucht es einen Auftragsverarbeitungsvertrag (Resend DPA) und einen Absatz in der Datenschutzerklärung, der auch die Übermittlung in die USA nennt.
+6. DNS: Der SPF-Eintrag von oalab.de schließt Netcup bereits ein (`include:_spf.webhosting.systems`). Damit die Mails nicht im Spam landen, sind DKIM für oalab.de (falls der Netcup-Tarif es anbietet) und ein DMARC-Eintrag `_dmarc` empfehlenswert; bisher gibt es keinen, für den Anfang reicht `v=DMARC1; p=none;`.
+
+Die Mails laufen über den Mailserver von Netcup in Deutschland. Netcup verarbeitet dabei Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag; dafür braucht es den Auftragsverarbeitungsvertrag mit Netcup und einen Absatz in der Datenschutzerklärung.
 
 ## KI-Assistent (Claude)
 
@@ -184,7 +186,7 @@ npm run demo:public:smoke -- --local
 npm run demo:public:smoke
 ```
 
-Die 78 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration und Projekt-Terminierungen, Suche und Sortierung der Tabellen, Eingaberegeln, Migration und Admin-Prüfungen des User Managements sowie Gesprächsregeln und Wissensbasis des KI-Assistenten, die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS) und die E-Mails (Vorlagen und Maskierung, Resend-Aufruf, Versandprotokoll, Supabase-Vorlagen). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 79 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration und Projekt-Terminierungen, Suche und Sortierung der Tabellen, Eingaberegeln, Migration und Admin-Prüfungen des User Managements sowie Gesprächsregeln und Wissensbasis des KI-Assistenten, die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS) und die E-Mails (Vorlagen und Maskierung, SMTP-Zugang und -Nachricht, Versandprotokoll, Supabase-Vorlagen). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 
