@@ -8,11 +8,10 @@ import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/
 import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { CategoryMetrics, CategoryTitle } from "./workspace";
 import { HeaderActions } from "../app-shell";
-import { SearchField } from "../controls";
 import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { Modal } from "../modal";
-import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
+import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
 import { EmptyState } from "./overview";
 import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
 import { useFilesStore } from "./files-store";
@@ -237,17 +236,14 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
 
       {!fileState.error && <>
         <SectionHeader title={canManage ? "Alle Dateien" : "Deine Dateien"} />
-        <div className="table-toolbar">
-          <div className="table-toolbar-row">
-            <SearchField glass value={query} onChange={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen" />
-            <SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} />
-          </div>
-          <div className="table-toolbar-row">
+        <TableSearch value={query} onChange={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen" activeFilters={[category !== ALL, format !== ALL, customer !== ALL].filter(Boolean).length}>
+          <div className="table-search-row">
             <FilterSelect label="Kategorie" name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id] }))]} />
             <FilterSelect label="Format" name="Nach Format filtern" value={format} onChange={setFormat} options={[{ value: ALL, label: "Alle" }, ...usedFormats.map((item) => ({ value: item, label: item }))]} />
             {showCustomers && <FilterSelect label="Kunde" name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle" }, ...customers.map((item) => ({ value: item.id, label: `${item.customerNumber} · ${item.company}` })), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)" }] : [])]} />}
+            <SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} />
           </div>
-        </div>
+        </TableSearch>
 
         {canOrganize ? (
           <div className="folder-bar" role="group" aria-label="Ordner">
@@ -256,7 +252,7 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
             <button type="button" className="folder-chip" aria-pressed={folder === NO_FOLDER} onClick={() => chooseFolder(NO_FOLDER)}>Ohne Ordner <span className="numeric">{countIn(NO_FOLDER)}</span></button>
             <button type="button" className="folder-add" onClick={() => setDialog({ kind: "create" })}><FolderPlus size={16} aria-hidden="true" />Neuer Ordner</button>
           </div>
-        ) : showCustomers && customer !== UNASSIGNED && <p className="t-footnote folder-hint">Wähle oben einen Kunden, um seine Ordner zu sehen und Dateien einzusortieren.</p>}
+        ) : showCustomers && customer !== UNASSIGNED && <p className="t-footnote folder-hint">Wähle in der erweiterten Suche einen Kunden, um seine Ordner zu sehen und Dateien einzusortieren.</p>}
         {activeFolder && (
           <div className="folder-actions">
             <span><Folder size={16} aria-hidden="true" />{activeFolder.name}</span>

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowUpRight, CalendarDays, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, type Project } from "@/lib/hub-data";
-import { formatFileDate } from "@/lib/hub-files/catalog";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
@@ -16,7 +15,7 @@ import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { ProjectStatus } from "../project-status";
 import { useHubShell } from "../shell-context";
-import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
+import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
 import { WhatsAppCard } from "../whatsapp-card";
 import { EmptyState } from "./overview";
 import type { ScreenProps } from "./types";
@@ -65,9 +64,10 @@ export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
 const filters = ["Alle Projekte", "Aktiv", "Abgeschlossen"] as const;
 const ALL = "all";
 
-type ProjectSortKey = "deadline" | "title" | "area" | "status" | "progress" | "customer";
+type ProjectSortKey = "deadline" | "start" | "title" | "area" | "status" | "progress" | "customer";
 const projectSorts: Record<ProjectSortKey, SortOption<ProjectSortKey>> = {
-  deadline: { id: "deadline", label: "Terminierung", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
+  deadline: { id: "deadline", label: "Nächster Termin", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
+  start: { id: "start", label: "Startzeitpunkt", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
   title: { id: "title", label: "Titel", dirLabels: alphabetical },
   area: { id: "area", label: "Bereich", dirLabels: alphabetical },
   status: { id: "status", label: "Status" },
@@ -78,6 +78,7 @@ const projectSorts: Record<ProjectSortKey, SortOption<ProjectSortKey>> = {
 const statusRank: Record<Project["status"], number> = { "Dein Feedback": 0, "In Umsetzung": 1, Abgeschlossen: 2 };
 const projectSortValue: Record<ProjectSortKey, (project: Project) => SortValue> = {
   deadline: (project) => project.dueOn,
+  start: (project) => project.startedOn,
   title: (project) => project.name,
   area: (project) => project.category,
   status: (project) => statusRank[project.status],
@@ -98,7 +99,7 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
   const found = projects.filter((project) => {
     const milestone = currentMilestone(project, asOf);
     return (areaFilter === ALL || project.category === areaFilter) && (companyFilter === ALL || project.company === companyFilter)
-      && matchesSearch(query, [project.category, project.name, admin ? project.company : null, milestone?.title, milestone?.description, project.status, formatDeadline(project.dueOn)]);
+      && matchesSearch(query, [project.category, project.name, admin ? project.company : null, milestone?.title, milestone?.description, project.status, formatDeadline(project.startedOn), formatDeadline(project.dueOn)]);
   });
   // Completed projects stay at the end whatever the sort, so running and completed work stay apart.
   const shown = sortRows(found.filter((project) => matches(filter, project.status)), projectSortValue[sort.key], sort.dir, {
@@ -106,37 +107,37 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
     tieBreak: (project) => project.name,
   });
   const sortOptions = Object.values(projectSorts).filter((option) => admin || option.id !== "customer");
-  const narrowed = query.trim() !== "" || areaFilter !== ALL || companyFilter !== ALL || filter !== "Alle Projekte";
+  const activeFilters = [filter !== "Alle Projekte", areaFilter !== ALL, companyFilter !== ALL].filter(Boolean).length;
+  const narrowed = query.trim() !== "" || activeFilters > 0;
   const reset = () => { setQuery(""); setAreaFilter(ALL); setCompanyFilter(ALL); setFilter("Alle Projekte"); };
   return (
     <>
       <LargeTitleHeader title="Projekte" icon={<CategoryTitle category="projects" />} actions={<HeaderActions />} />
       {populated ? <>
         <SectionHeader title="Alle Projekte" />
-        <div className="table-toolbar">
-          <div className="table-toolbar-row">
-            <SearchField glass value={query} onChange={setQuery} placeholder="Titel, Bereich, Meilenstein, Status …" label="Projekte durchsuchen" />
-            <SortControl options={sortOptions} sort={sort} onChange={setSort} />
-          </div>
-          <div className="table-toolbar-row">
-            <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
-              const count = found.filter((project) => matches(item, project.status)).length;
-              return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
-            })} />
+        <TableSearch value={query} onChange={setQuery} placeholder="Titel, Bereich, Meilenstein, Status …" label="Projekte durchsuchen" activeFilters={activeFilters}>
+          <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
+            const count = found.filter((project) => matches(item, project.status)).length;
+            return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
+          })} />
+          <div className="table-search-row">
             <FilterSelect label="Bereich" name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle" }, ...areas.map((area) => ({ value: area, label: area }))]} />
             {admin && <FilterSelect label="Kunde" name="Kunden filtern" value={companyFilter} onChange={setCompanyFilter} options={[{ value: ALL, label: "Alle" }, ...companies.map((company) => ({ value: company, label: company }))]} />}
+            <SortControl options={sortOptions} sort={sort} onChange={setSort} />
           </div>
-        </div>
+        </TableSearch>
         {shown.length ? (
           <div className="table-blobs">
             <table className="project-table">
-              <caption className="visually-hidden">Projekte mit Bereich, aktuellem Meilenstein, Status, Terminierung und Fortschritt</caption>
+              <caption className="visually-hidden">Projekte mit Bereich, aktuellem Meilenstein, Status, Startzeitpunkt, nächstem Termin und Fortschritt</caption>
               <thead>
                 <tr>
                   <SortHeader option={projectSorts.area} sort={sort} onChange={setSort} />
                   <SortHeader option={projectSorts.title} sort={sort} onChange={setSort} />
-                  <th scope="col">Meilensteinbeschreibung</th>
+                  {/* Soft hyphens let the long headers break on narrower screens. */}
+                  <th scope="col">Meilenstein&shy;beschreibung</th>
                   <SortHeader option={projectSorts.status} label="Aktueller Status" sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.start} label={"Start­zeitpunkt"} sort={sort} onChange={setSort} />
                   <SortHeader option={projectSorts.deadline} sort={sort} onChange={setSort} />
                   <SortHeader option={projectSorts.progress} sort={sort} onChange={setSort} />
                 </tr>
@@ -154,11 +155,12 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
                         {admin && project.company && <small>{project.company}</small>}
                       </td>
                       <td className="cell-milestone">
-                        {milestone ? <><strong>{milestone.title}</strong><span>{milestone.description}</span><small>{formatFileDate(milestone.at)}</small></> : <span>Noch kein Meilenstein</span>}
+                        {milestone ? <><strong>{milestone.title}</strong><span>{milestone.description}</span></> : <span>Noch kein Meilenstein</span>}
                       </td>
                       <td className="cell-status"><ProjectStatus value={project.status} /></td>
+                      <td className="cell-start"><span className="cell-start-label">Start </span><span className="numeric">{formatDeadline(project.startedOn)}</span></td>
                       <td className="cell-deadline">
-                        <Link className="deadline-link" href={`${hubHref(preview, "calendar")}?day=${project.dueOn}`} title="Im Kalender anzeigen" aria-label={`Terminierung ${formatDeadline(project.dueOn)} im Kalender anzeigen`}>
+                        <Link className="deadline-link" href={`${hubHref(preview, "calendar")}?day=${project.dueOn}`} title="Im Kalender anzeigen" aria-label={`Nächster Termin ${formatDeadline(project.dueOn)} im Kalender anzeigen`}>
                           <CalendarDays size={15} aria-hidden="true" /><span className="numeric">{formatDeadline(project.dueOn)}</span>
                         </Link>
                         <small className={hint.endsWith("überfällig") ? "is-overdue" : undefined}>{hint}</small>

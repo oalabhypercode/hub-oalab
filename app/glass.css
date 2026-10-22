@@ -404,8 +404,8 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 /* Projects table: area, title, current milestone, status, deadline, progress. The title link's class project-card is used by the
    smoke tests and stretches over the whole row. */
 .project-row { position: relative; }
-.project-table th:nth-child(3) { width: 32%; }
-.cell-area { white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
+.project-table th:nth-child(3) { width: 26%; }
+.cell-area { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
 .cell-project { min-width: 170px; }
 .project-card { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
 .project-card::after { content: ""; position: absolute; inset: 0; }
@@ -418,7 +418,11 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .cell-project small, .cell-milestone small, .cell-progress small { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .cell-milestone strong { display: block; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label-body); }
 .cell-milestone span { display: block; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
-.cell-status, .cell-progress, .cell-deadline { white-space: nowrap; }
+.cell-status, .cell-progress, .cell-deadline, .cell-start { white-space: nowrap; }
+/* Project start; "Start" only shows on phones, where the column headers are hidden. */
+.cell-start { color: var(--label-body); }
+.cell-start-label { display: none; }
+.project-row.is-done .cell-start { color: var(--label-secondary); }
 .progress-line { display: flex; align-items: center; gap: 10px; }
 .progress-line .list-progress { width: 72px; }
 /* The deadline links to its day in the calendar; it sits above the row link. */
@@ -534,10 +538,31 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .color-input::-moz-color-swatch { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 50%; }
 
 /* Table toolbar (projects, files): search and sorting on top, the filters below. */
-.table-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
-.table-toolbar-row { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
-.table-toolbar .search-input { flex: 1 1 260px; height: 44px; }
-.table-toolbar .segmented-control { flex: 1 1 320px; max-width: 480px; }
+.table-toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.table-search { height: 48px; padding: 0 5px 0 14px; }
+.table-search-toggle { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border-radius: 9px; background: var(--fill-tertiary); color: var(--accent-text); font-size: 14px; font-weight: 600; white-space: nowrap; transition: background 150ms ease, color 150ms ease; }
+.table-search-toggle:hover { background: rgba(118, 118, 128, 0.26); }
+.table-search-toggle[aria-expanded="true"] { background: var(--accent-text); color: #ffffff; }
+.table-search-chevron { transition: transform 200ms var(--ease-spring); }
+.table-search-toggle[aria-expanded="true"] .table-search-chevron { transform: rotate(180deg); }
+/* Active filters stay visible on the closed toggle. */
+.table-search-badge { min-width: 20px; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: #ffffff; font-size: 12px; font-weight: 700; line-height: 1; }
+.table-search-toggle[aria-expanded="true"] .table-search-badge { background: #ffffff; color: var(--accent-text); }
+.table-search-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 18px; }
+.table-search-panel[hidden] { display: none; }
+.table-search-row { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+/* Inside the light panel the controls sit on grey fills instead of glass (no glass in glass). */
+.table-search-panel .customer-filter { height: 40px; background: var(--fill-tertiary); }
+.table-search-panel .customer-filter select { background: rgba(255, 255, 255, 0.8); }
+.table-search-panel .sort-control { margin-left: auto; }
+.table-search-panel .segmented-control { max-width: 480px; background: var(--fill-tertiary); border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.table-search-panel .segment { color: var(--label-body); }
+.table-search-panel .segment-count { background: rgba(118, 118, 128, 0.18); box-shadow: none; }
+/* Narrow phones: the toggle keeps icon, badge and arrow, so the search field keeps its room. */
+@media (max-width: 480px) {
+  .table-search-toggle { padding: 0 10px; }
+  .table-search-toggle-text { display: none; }
+}
 .sort-control label { display: inline-flex; align-items: center; gap: 8px; }
 .sort-direction { flex: 0 0 auto; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; border-radius: 50%; background: var(--fill-tertiary); color: var(--accent-text); }
 .sort-direction:hover { background: rgba(118, 118, 128, 0.26); }
@@ -565,6 +590,12 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .file-table th:first-child, .file-table td:first-child, .project-table th:first-child, .project-table td:first-child { padding-left: 20px; border-radius: var(--row-radius) 0 0 var(--row-radius); }
 .file-table th:last-child, .file-table td:last-child, .project-table th:last-child, .project-table td:last-child { border-radius: 0 var(--row-radius) var(--row-radius) 0; }
 .file-table tbody tr:hover td, .project-table tbody tr:hover td { background-color: var(--row-bg-hover); }
+/* Seven project columns: tighter cells and wrapping headers; where they still do not fit, the table scrolls sideways in its own box. */
+.table-blobs { overflow-x: auto; overflow-y: hidden; }
+.project-table th, .project-table td { padding-left: 8px; padding-right: 8px; }
+.project-table th:first-child, .project-table td:first-child { padding-left: 16px; }
+.project-table th, .project-table .sort-header { white-space: normal; text-align: left; }
+.project-table .cell-project, .project-table .cell-milestone { min-width: 130px; }
 .cell-file { min-width: 220px; }
 .cell-file > svg { vertical-align: middle; margin-right: 10px; }
 .file-open { display: inline-flex; flex-direction: column; align-items: flex-start; max-width: calc(100% - 40px); vertical-align: middle; text-align: left; border-radius: 8px; }
@@ -690,9 +721,11 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
   .upload-fields { grid-template-columns: 1fr; }
   .selection-clear { margin-left: 0; }
   /* Filters share a line two by two; sorting takes the full width under the search. */
-  .table-toolbar-row .customer-filter { flex: 1 1 150px; min-width: 0; }
-  .table-toolbar-row .customer-filter select { flex: 1; min-width: 0; max-width: none; }
-  .table-toolbar .sort-control label { flex: 1; min-width: 0; }
+  .table-search-row .customer-filter { flex: 1 1 150px; min-width: 0; }
+  .table-search-row .customer-filter select { flex: 1; min-width: 0; max-width: none; }
+  .table-search-panel .sort-control { flex-basis: 100%; margin-left: 0; }
+  .table-search-panel .sort-control label { flex: 1; min-width: 0; }
+  .table-search-panel .segmented-control { max-width: none; }
   /* The row itself is the blob here; its cells drop their own background, corners and focus ring. */
   .file-table, .project-table { margin: 0; }
   .file-table tbody td, .project-table tbody td, .file-table tbody tr:hover td, .project-table tbody tr:hover td,
@@ -730,7 +763,9 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
   .project-table .cell-area { order: 0; flex-basis: 100%; margin-bottom: -6px; }
   .project-table .cell-project { order: 1; flex: 1 1 0; min-width: 0; }
   .project-table .cell-status { order: 2; }
-  .project-table .cell-milestone, .project-table .cell-deadline, .project-table .cell-progress { order: 3; flex-basis: 100%; }
+  .project-table .cell-milestone, .project-table .cell-start, .project-table .cell-deadline, .project-table .cell-progress { order: 3; flex-basis: 100%; }
+  .project-table .cell-start { margin-bottom: -4px; font-size: 13px; color: var(--label-secondary); }
+  .cell-start-label { display: inline; }
   .project-table .cell-deadline { display: flex; align-items: center; gap: 8px; }
   .project-table .cell-deadline small { margin-top: 0; }
   .project-table .progress-line .list-progress { flex: 1; width: auto; }

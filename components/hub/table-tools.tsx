@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { useId, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { nextSort, type SortDir, type SortState } from "@/lib/table-tools";
 
 /** One way to sort a table; `firstDir` is the direction a first click starts with (dates and sizes: newest/largest first). */
@@ -9,10 +10,35 @@ export type SortOption<K extends string> = { id: K; label: string; firstDir?: So
 export const alphabetical: Record<SortDir, string> = { asc: "A–Z", desc: "Z–A" };
 const plainDirections: Record<SortDir, string> = { asc: "aufsteigend", desc: "absteigend" };
 
+/**
+ * Table search: at first only the search field; "Erweiterte Suche" folds the filters and sorting (children) out below it.
+ * The badge counts active filters, so they stay visible while the panel is closed.
+ */
+export function TableSearch({ value, onChange, placeholder, label, activeFilters, children }: { value: string; onChange: (value: string) => void; placeholder: string; label: string; activeFilters: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const toggleLabel = `Erweiterte Suche${activeFilters ? ` (${activeFilters} Filter aktiv)` : ""}`;
+  return (
+    <div className="table-toolbar">
+      <div className="search-input glass glass-float table-search">
+        <Search size={17} aria-hidden="true" />
+        <input type="search" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={label} />
+        <button type="button" className="table-search-toggle" aria-expanded={open} aria-controls={panelId} aria-label={toggleLabel} title={toggleLabel} onClick={() => setOpen((current) => !current)}>
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          <span className="table-search-toggle-text">Erweiterte Suche</span>
+          {activeFilters > 0 && <span className="table-search-badge numeric" aria-hidden="true">{activeFilters}</span>}
+          <ChevronDown size={15} className="table-search-chevron" aria-hidden="true" />
+        </button>
+      </div>
+      <div id={panelId} className="glass table-search-panel" hidden={!open}>{children}</div>
+    </div>
+  );
+}
+
 /** Filter capsule with a native select, so keyboard, screen readers and phones get their usual picker. */
 export function FilterSelect({ label, name, value, onChange, options }: { label: string; name: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
   return (
-    <label className="glass customer-filter">
+    <label className="customer-filter">
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={name}>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -21,12 +47,12 @@ export function FilterSelect({ label, name, value, onChange, options }: { label:
   );
 }
 
-/** "Sortieren" in the toolbar: what to sort by and the direction. Phones have no column headers, so this is their only way. */
+/** "Sortieren" in the extended search: what to sort by and the direction. Phones have no column headers, so this is their only way. */
 export function SortControl<K extends string>({ options, sort, onChange }: { options: SortOption<K>[]; sort: SortState<K>; onChange: (sort: SortState<K>) => void }) {
   const current = options.find((option) => option.id === sort.key);
   const direction = (current?.dirLabels ?? plainDirections)[sort.dir];
   return (
-    <div className="glass customer-filter sort-control">
+    <div className="customer-filter sort-control">
       <label>
         <span>Sortieren</span>
         <select value={sort.key} aria-label="Sortieren nach" onChange={(event) => {

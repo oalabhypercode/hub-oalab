@@ -41,25 +41,26 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Entdecken (Lupe in der Tab-Leiste): Kategorien und Kennzahlen durchsuchen, dazu Links zu Darstellung, Profil und Hilfe.
 
 ## Projekte
-- Tabelle mit den Spalten Bereich (z. B. Website & Digital, Brand Identity, Social & Content), Titel, Meilensteinbeschreibung (der zuletzt erreichte Meilenstein mit Datum), Aktueller Status (In Umsetzung, Dein Feedback, Abgeschlossen), Terminierung (Zieltermin des Projekts mit Hinweis wie „in 8 Tagen“ oder „überfällig“) und Fortschritt (Prozent mit Balken).
+- Tabelle mit den Spalten Bereich (z. B. Website & Digital, Brand Identity, Social & Content), Titel, Meilensteinbeschreibung (der zuletzt erreichte Meilenstein), Aktueller Status (In Umsetzung, Dein Feedback, Abgeschlossen), Startzeitpunkt (Projektbeginn), Nächster Termin (Zieltermin des Projekts mit Hinweis wie „in 8 Tagen“ oder „überfällig“) und Fortschritt (Prozent mit Balken).
 - Abgeschlossene Projekte stehen am Ende der Tabelle und sind ausgegraut; ihr Fortschrittsbalken (100 %) bleibt farbig.
-- Ein Klick auf das Datum unter „Terminierung“ öffnet den Kalender an diesem Tag.
+- Ein Klick auf das Datum unter „Nächster Termin“ öffnet den Kalender an diesem Tag.
 - „Dein Feedback“ heißt: OALAB wartet auf eine Rückmeldung des Kunden, z. B. zu einer Designrichtung.
-- Suche über der Tabelle: Stichworte zu Titel, Bereich, Meilenstein, Status oder Terminierung (Admins auch Kunde). Groß-/Kleinschreibung und Umlaute spielen keine Rolle; bei mehreren Wörtern müssen alle passen.
-- Filter: Alle, Aktiv und Abgeschlossen (mit Anzahl), dazu „Bereich“; Admins filtern zusätzlich nach Kunde. „Suche und Filter zurücksetzen“ erscheint, wenn nichts passt.
-- Sortieren: über „Sortieren“ (Terminierung, Titel, Bereich, Status, Fortschritt, bei Admins Kunde; der Pfeil daneben kehrt die Reihenfolge um) oder per Klick auf eine Spaltenüberschrift, ein zweiter Klick dreht die Richtung. Standard ist die Terminierung, früheste zuerst. Abgeschlossene Projekte bleiben bei jeder Sortierung unten.
+- Suche über der Tabelle: Stichworte zu Titel, Bereich, Meilenstein, Status oder Datum (Admins auch Kunde). Groß-/Kleinschreibung und Umlaute spielen keine Rolle; bei mehreren Wörtern müssen alle passen.
+- Erweiterte Suche: der Knopf „Erweiterte Suche“ rechts im Suchfeld (auf dem Smartphone nur das Regler-Symbol) klappt darunter die Filter und die Sortierung auf. Eine Zahl am Knopf zeigt, wie viele Filter gerade aktiv sind.
+- Filter in der erweiterten Suche: Alle, Aktiv und Abgeschlossen (mit Anzahl), dazu „Bereich“; Admins filtern zusätzlich nach Kunde. „Suche und Filter zurücksetzen“ erscheint, wenn nichts passt.
+- Sortieren: per Klick auf eine Spaltenüberschrift (ein zweiter Klick dreht die Richtung) oder in der erweiterten Suche über „Sortieren“ (Nächster Termin, Startzeitpunkt, Titel, Bereich, Status, Fortschritt, bei Admins Kunde; der Pfeil kehrt die Reihenfolge um). Standard ist der nächste Termin, früheste zuerst. Abgeschlossene Projekte bleiben bei jeder Sortierung unten.
 - Ein Klick auf eine Zeile öffnet die Projektdetails mit Beschreibung, Fortschritt und dem Button „Zum Gespräch“.
 - Projekte sind derzeit Beispieldaten der Demo-Konten. Echte Projektdaten folgen; Projekte anlegen oder bearbeiten ist noch nicht möglich.
 
 ## Dateien
 - Tabelle mit Datei, Kategorie, Beschreibung, Format und Größe sowie Bereitstellungsdatum.
-- Suche nach Titel, Dateiname, Beschreibung oder Kategorie (Admins auch Kunde oder Kundennummer). Filter nach Kategorie und Format (z. B. PDF, SVG); Admins filtern zusätzlich nach Kunde.
-- Sortieren: über „Sortieren“ (Bereitgestellt, Titel, Kategorie, Format, Größe; der Pfeil kehrt die Reihenfolge um) oder per Klick auf eine Spaltenüberschrift. Standard: neueste zuerst.
+- Suche nach Titel, Dateiname, Beschreibung oder Kategorie (Admins auch Kunde oder Kundennummer). Die Filter stecken in der „Erweiterten Suche“ (Knopf rechts im Suchfeld): Kategorie und Format (z. B. PDF, SVG); Admins filtern zusätzlich nach Kunde.
+- Sortieren: per Klick auf eine Spaltenüberschrift oder in der erweiterten Suche über „Sortieren“ (Bereitgestellt, Titel, Kategorie, Format, Größe; der Pfeil kehrt die Reihenfolge um). Standard: neueste zuerst.
 - Kategorien: Vertrag, Angebot, Rechnung, Logo & Marke, Design, Website & Inhalte, Dokumentation, Sonstiges.
 - Das Download-Symbol lädt genau die hochgeladene Fassung mit Originalnamen; der Download-Link gilt 60 Sekunden. Ein Klick auf den Titel zeigt alle Details samt Ordner und SHA-256-Prüfsumme.
 - Mehrere Dateien herunterladen: die Häkchen vor den Dateien setzen (das Häkchen im Tabellenkopf wählt alle angezeigten) und „Als ZIP herunterladen“ wählen. Der Browser packt die Dateien zu einer ZIP-Datei, bis 500 MB auf einmal.
 - Ordner: Jeder Kunde hat eigene Ordner, eine Ebene ohne Unterordner. Über der Tabelle stehen „Alle Dateien“, die Ordner und „Ohne Ordner“.
-- Ordner anlegen: „Neuer Ordner“. Kunden legen Ordner für ihr eigenes Unternehmen an; Admins wählen dafür zuerst im Filter „Kunde“ den Kunden.
+- Ordner anlegen: „Neuer Ordner“. Kunden legen Ordner für ihr eigenes Unternehmen an; Admins wählen dafür zuerst in der erweiterten Suche im Filter „Kunde“ den Kunden.
 - Ordner umbenennen oder löschen: den Ordner öffnen und „Umbenennen“ oder „Löschen“ wählen. Beim Löschen landen die Dateien in „Ohne Ordner“; es wird keine Datei gelöscht.
 - Dateien einsortieren: Häkchen setzen und „Verschieben nach …“ wählen.
 - Hochladen (nur Admin): im Bereich „Dateien hochladen“ bis zu 20 Dateien auf einmal wählen oder hineinziehen (je bis 50 MB, keine ausführbaren Dateien oder Skripte). Den Titel jeder Datei kann man in der Liste anpassen. Kategorie, Beschreibung, Kunden und Ordner gelten für alle. Ein Ordner lässt sich wählen, wenn genau ein Kunde zugeordnet ist. Ohne Zuordnung liegen die Dateien in der „Ablage“.
