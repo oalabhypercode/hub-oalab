@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowDown, ArrowDownWideNarrow, ArrowUp, ArrowUpDown, ChevronDown, Search, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { nextSort, type SortDir, type SortState } from "@/lib/table-tools";
 
 /** One way to sort a table; `firstDir` is the direction a first click starts with (dates and sizes: newest/largest first). */
@@ -11,8 +11,8 @@ export const alphabetical: Record<SortDir, string> = { asc: "A–Z", desc: "Z–
 const plainDirections: Record<SortDir, string> = { asc: "aufsteigend", desc: "absteigend" };
 
 /**
- * Table search: at first only the search field; "Erweiterte Suche" folds the filters and sorting (children) out below it.
- * The badge counts active filters, so they stay visible while the panel is closed.
+ * Table search: at first only the search field; "Erweiterte Suche" folds the filters and sorting (children) out below it,
+ * side by side in one bar. The badge counts active filters, so they stay visible while the panel is closed.
  */
 export function TableSearch({ value, onChange, placeholder, label, activeFilters, children }: { value: string; onChange: (value: string) => void; placeholder: string; label: string; activeFilters: number; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -30,16 +30,19 @@ export function TableSearch({ value, onChange, placeholder, label, activeFilters
           <ChevronDown size={15} className="table-search-chevron" aria-hidden="true" />
         </button>
       </div>
-      <div id={panelId} className="glass table-search-panel" hidden={!open}>{children}</div>
+      <div id={panelId} className="glass table-search-panel" hidden={!open}><div className="table-search-bar">{children}</div></div>
     </div>
   );
 }
 
-/** Filter capsule with a native select, so keyboard, screen readers and phones get their usual picker. */
-export function FilterSelect({ label, name, value, onChange, options }: { label: string; name: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
+/**
+ * Filter capsule with a native select, so keyboard, screen readers and phones get their usual picker.
+ * An icon stands in for the label to keep the bar on one line; the first option names the filter ("Alle Bereiche").
+ */
+export function FilterSelect({ icon: Icon, name, value, onChange, options }: { icon: LucideIcon; name: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
   return (
-    <label className="customer-filter">
-      <span>{label}</span>
+    <label className="customer-filter" title={name}>
+      <Icon size={16} aria-hidden="true" />
       <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={name}>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -47,14 +50,14 @@ export function FilterSelect({ label, name, value, onChange, options }: { label:
   );
 }
 
-/** "Sortieren" in the extended search: what to sort by and the direction. Phones have no column headers, so this is their only way. */
+/** Sorting in the extended search: what to sort by and the direction. Phones have no column headers, so this is their only way. */
 export function SortControl<K extends string>({ options, sort, onChange }: { options: SortOption<K>[]; sort: SortState<K>; onChange: (sort: SortState<K>) => void }) {
   const current = options.find((option) => option.id === sort.key);
   const direction = (current?.dirLabels ?? plainDirections)[sort.dir];
   return (
     <div className="customer-filter sort-control">
-      <label>
-        <span>Sortieren</span>
+      <label title="Sortieren nach">
+        <ArrowDownWideNarrow size={16} aria-hidden="true" />
         <select value={sort.key} aria-label="Sortieren nach" onChange={(event) => {
           const option = options.find((item) => item.id === event.target.value);
           if (option) onChange({ key: option.id, dir: option.firstDir ?? "asc" });

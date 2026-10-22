@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowUpRight, Building2, CalendarDays, FileText, Layers, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, type Project } from "@/lib/hub-data";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
@@ -120,11 +120,9 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
             const count = found.filter((project) => matches(item, project.status)).length;
             return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
           })} />
-          <div className="table-search-row">
-            <FilterSelect label="Bereich" name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle" }, ...areas.map((area) => ({ value: area, label: area }))]} />
-            {admin && <FilterSelect label="Kunde" name="Kunden filtern" value={companyFilter} onChange={setCompanyFilter} options={[{ value: ALL, label: "Alle" }, ...companies.map((company) => ({ value: company, label: company }))]} />}
-            <SortControl options={sortOptions} sort={sort} onChange={setSort} />
-          </div>
+          <FilterSelect icon={Layers} name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle Bereiche" }, ...areas.map((area) => ({ value: area, label: area }))]} />
+          {admin && <FilterSelect icon={Building2} name="Kunden filtern" value={companyFilter} onChange={setCompanyFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...companies.map((company) => ({ value: company, label: company }))]} />}
+          <SortControl options={sortOptions} sort={sort} onChange={setSort} />
         </TableSearch>
         {shown.length ? (
           <div className="table-blobs">

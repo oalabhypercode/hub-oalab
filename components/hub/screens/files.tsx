@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Download, Folder, FolderPlus, Inbox, Loader2, Pencil, Trash2, Users, X } from "lucide-react";
+import { Building2, Check, Download, FileType, Folder, FolderPlus, Inbox, Loader2, Pencil, Tag, Trash2, Users, X } from "lucide-react";
 import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDate, formatFileDateTime, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
@@ -237,12 +237,10 @@ export function FilesScreen({ model, populated, fileState }: ScreenProps) {
       {!fileState.error && <>
         <SectionHeader title={canManage ? "Alle Dateien" : "Deine Dateien"} />
         <TableSearch value={query} onChange={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen" activeFilters={[category !== ALL, format !== ALL, customer !== ALL].filter(Boolean).length}>
-          <div className="table-search-row">
-            <FilterSelect label="Kategorie" name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id] }))]} />
-            <FilterSelect label="Format" name="Nach Format filtern" value={format} onChange={setFormat} options={[{ value: ALL, label: "Alle" }, ...usedFormats.map((item) => ({ value: item, label: item }))]} />
-            {showCustomers && <FilterSelect label="Kunde" name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle" }, ...customers.map((item) => ({ value: item.id, label: `${item.customerNumber} · ${item.company}` })), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)" }] : [])]} />}
-            <SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} />
-          </div>
+          <FilterSelect icon={Tag} name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle Kategorien" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id] }))]} />
+          <FilterSelect icon={FileType} name="Nach Format filtern" value={format} onChange={setFormat} options={[{ value: ALL, label: "Alle Formate" }, ...usedFormats.map((item) => ({ value: item, label: item }))]} />
+          {showCustomers && <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((item) => ({ value: item.id, label: `${item.customerNumber} · ${item.company}` })), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)" }] : [])]} />}
+          <SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} />
         </TableSearch>
 
         {canOrganize ? (

@@ -548,14 +548,18 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 /* Active filters stay visible on the closed toggle. */
 .table-search-badge { min-width: 20px; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: #ffffff; font-size: 12px; font-weight: 700; line-height: 1; }
 .table-search-toggle[aria-expanded="true"] .table-search-badge { background: #ffffff; color: var(--accent-text); }
-.table-search-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 18px; }
+.table-search-panel { padding: 8px; border-radius: 18px; }
 .table-search-panel[hidden] { display: none; }
-.table-search-row { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+/* One bar: status, filters and sorting side by side at one height. Where it does not fit, it scrolls sideways instead of
+   wrapping; the inner padding keeps focus rings clear of the scroll edge. */
+.table-search-bar { display: flex; align-items: center; gap: 6px; margin: -4px; padding: 4px; overflow-x: auto; scrollbar-width: thin; }
+.table-search-bar > * { flex: 0 0 auto; }
 /* Inside the light panel the controls sit on grey fills instead of glass (no glass in glass). */
-.table-search-panel .customer-filter { height: 40px; background: var(--fill-tertiary); }
-.table-search-panel .customer-filter select { background: rgba(255, 255, 255, 0.8); }
-.table-search-panel .sort-control { margin-left: auto; }
-.table-search-panel .segmented-control { max-width: 480px; background: var(--fill-tertiary); border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.table-search-panel .customer-filter { height: 38px; gap: 6px; padding: 0 4px 0 10px; background: var(--fill-tertiary); color: var(--label-secondary); }
+.table-search-panel .customer-filter select { height: 30px; max-width: none; padding: 0 6px; background: rgba(255, 255, 255, 0.8); font-size: 14px; }
+.table-search-panel .sort-control label { gap: 6px; }
+.table-search-panel .sort-direction { width: 30px; height: 30px; margin-left: 0; }
+.table-search-panel .segmented-control { width: auto; height: 38px; background: var(--fill-tertiary); border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .table-search-panel .segment { color: var(--label-body); }
 .table-search-panel .segment-count { background: rgba(118, 118, 128, 0.18); box-shadow: none; }
 /* Narrow phones: the toggle keeps icon, badge and arrow, so the search field keeps its room. */
@@ -721,11 +725,9 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
   .upload-fields { grid-template-columns: 1fr; }
   .selection-clear { margin-left: 0; }
   /* Filters share a line two by two; sorting takes the full width under the search. */
-  .table-search-row .customer-filter { flex: 1 1 150px; min-width: 0; }
-  .table-search-row .customer-filter select { flex: 1; min-width: 0; max-width: none; }
-  .table-search-panel .sort-control { flex-basis: 100%; margin-left: 0; }
-  .table-search-panel .sort-control label { flex: 1; min-width: 0; }
-  .table-search-panel .segmented-control { max-width: none; }
+  /* The bar is wider than a phone: it fades out on the right to show that it can be swiped. */
+  .table-search-bar { padding-right: 32px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); scrollbar-width: none; }
+  .table-search-bar::-webkit-scrollbar { display: none; }
   /* The row itself is the blob here; its cells drop their own background, corners and focus ring. */
   .file-table, .project-table { margin: 0; }
   .file-table tbody td, .project-table tbody td, .file-table tbody tr:hover td, .project-table tbody tr:hover td,

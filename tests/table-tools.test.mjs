@@ -60,9 +60,13 @@ test("both tables offer search with filters and sorting folded into the extended
   }
   const tools = await source("components/hub/table-tools.tsx");
   assert.match(tools, /aria-expanded=\{open\}/);
-  assert.match(tools, /hidden=\{!open\}/);
+  assert.match(tools, /hidden=\{!open\}><div className="table-search-bar">\{children\}<\/div>/);
   const css = await source("app/glass.css");
   assert.match(css, /border-spacing: 0 4px/);
+  // Status, filters and sorting share one bar that scrolls sideways instead of wrapping into a second line.
+  const bar = css.match(/\.table-search-bar \{[^}]+\}/)[0];
+  assert.match(bar, /overflow-x: auto/);
+  assert.doesNotMatch(bar, /flex-wrap: wrap/);
 });
 
 test("the projects table shows the project start and the next date in their own columns", async () => {
