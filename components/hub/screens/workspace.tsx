@@ -15,6 +15,7 @@ import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { ProjectStatus } from "../project-status";
 import { useHubShell } from "../shell-context";
+import { WhatsAppCard } from "../whatsapp-card";
 import { EmptyState } from "./overview";
 import type { ScreenProps } from "./types";
 
@@ -158,6 +159,7 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
           <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : "Dein Workspace ist nur nach Anmeldung erreichbar. Projektzuordnungen und Berechtigungen ergänzen wir im nächsten Schritt."}</p>
           {preview && <Link className="text-link" href="/auth/login">Zum Login</Link>}
         </GlassCard>
+        {!preview && !publicDemo && <WhatsAppCard />}
       </div>
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">

@@ -57,6 +57,28 @@
 - Stand der Prüfung: Login-Schutz, Fehlermeldung ohne Schlüssel, Vorschau-Hinweis sowie Darstellung gestreamter Antworten (mit simulierter Antwort) sind im Browser geprüft. Echte Antworten von Claude und der Befehl `/hub-hilfe` sind noch nicht getestet, weil hier weder ein API-Schlüssel noch eine Claude-Code-Anmeldung vorlag.
 - Offen: Nutzungslimit pro Nutzer gegen Kosten und Missbrauch, Mengengerüst und Kosten beobachten, Wissensbasis bei jeder Änderung pflegen.
 
+### Vorgabe vom 22. Oktober 2026: WhatsApp-Anbindung des Assistenten
+
+- Der KI-Assistent ist auch per WhatsApp erreichbar. Die Anbindung läuft über die offizielle WhatsApp Cloud API von Meta, direkt und ohne Zwischenanbieter.
+- Zugang haben nur verbundene Nummern. Im Profil erzeugt „WhatsApp verbinden“ einen sechsstelligen Code, gültig 15 Minuten. Die Nachricht „VERBINDEN 123456“ an die oalab-Nummer verknüpft die Nummer mit dem Login; „Trennen“ hebt das wieder auf.
+- Der Assistent antwortet über WhatsApp passend zur Rolle (Kunde oder Admin), kürzer und mit WhatsApp-Formatierung.
+- Unbekannte Nummern erhalten höchstens drei Antworten am Tag, mit einer Anleitung zum Verbinden. Verbundene Nummern haben 30 Fragen am Tag.
+- „TEAM“ nennt den Kontakt info@oalab.de, änderbar über `WHATSAPP_SUPPORT_CONTACT`. Meta verlangt diesen Weg zu einem Menschen für Bots.
+- Technik: Migration `supabase/migrations/20261022150000_hub_whatsapp.sql`, am 22. Oktober 2026 angewendet. Sie legt drei Tabellen an:
+    - `hub_whatsapp_links`: Nutzer lesen und löschen nur die eigene Verknüpfung.
+    - `hub_whatsapp_link_codes`: Codes entstehen nur über `hub_create_whatsapp_link_code()`.
+    - `hub_whatsapp_messages`: Verlauf und Schutz vor doppelt zugestellten Nachrichten; nur der Webhook greift darauf zu.
+- Der Webhook `/api/whatsapp` ist öffentlich, verarbeitet aber nur Lieferungen mit gültiger Meta-Signatur. Er bestätigt sofort und antwortet im Hintergrund (`after()`). Der Gesprächsverlauf wird nach 48 Stunden gelöscht.
+- Der Webhook braucht `SUPABASE_SECRET_KEY` in Vercel. Er arbeitet damit nur mit den WhatsApp-Tabellen und liest die Rolle der verknüpften Person.
+- Lokal geprüft mit Platzhalterwerten, die danach wieder entfernt wurden:
+    - Webhook-Verifizierung; falsches Token und unsignierte Lieferungen werden abgelehnt.
+    - Code erzeugen, Verknüpfen per signierter Testnachricht, eine doppelte Lieferung wird ignoriert, „TEAM“, Frage und unbekannte Nummer, Trennen.
+    - Das Senden an WhatsApp selbst ist ungetestet, weil hier kein Meta-Zugang vorliegt.
+- Offen:
+    - Meta-App, Nummer und Token einrichten; Zahlungsmethode hinterlegen (ab der 1.001. Antwort im Monat kostenpflichtig).
+    - Der Datenschutz muss ergänzt werden: Nachrichten und Nummern laufen über Meta.
+    - Eine Nummer gleichzeitig in der WhatsApp-Business-App und der API zu nutzen, war laut einem Anbieter in der EU zuletzt nicht freigeschaltet.
+
 ### Backlog
 
 - Kennzahl-Kacheln im Reiter „Projekte“ (aktive Projekte, Fortschritt, Meilensteine, Feedback): am 22. Oktober 2026 auf Wunsch entfernt. Offen ist, ob sie zurückkommen oder einen anderen Platz bekommen.
@@ -135,6 +157,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Vier echte Demo-Konten mit serververwalteter Admin-/Customer-Zuordnung und getrennten Fixture-Datensichten
 - Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
 - KI-Assistent (Claude) für Admins und Kunden hinter „Assistent & Hilfe“ sowie Claude-Code-Befehl `/hub-hilfe`
+- WhatsApp-Anbindung des Assistenten über die WhatsApp Cloud API, Verknüpfen der Nummer per Code im Profil
 - Kalender für Admins und Kunden: Auslastung, Terminanfragen, Bestätigung mit Microsoft-Teams-Link (Supabase mit RLS)
 - Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten im selben Glas-Stil mit Demo-Konten im Dropdown
 
@@ -176,6 +199,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/metrics/<kennzahl>` | Geschützt | Detailseite einer Kennzahl mit Zeitraum-Umschalter |
 | `/dashboard/settings` | Geschützt | Profil und Kontoinformationen |
 | `/dashboard/settings/appearance` | Geschützt | Darstellung: Hintergrund, Glas, Transparenz |
+| `/api/whatsapp` | Öffentlich, nur mit Meta-Signatur | Webhook der WhatsApp Cloud API: Verifizierung (GET) und eingehende Nachrichten (POST) |
 | `/api/assistant` | Geschützt (POST) | KI-Assistent: streamt Antworten von Claude zu Funktionen des Hubs |
 | `/preview` | Öffentlich | Dashboard-Designvorschau mit fiktiven Daten; vom Login nicht mehr verlinkt |
 | `/preview/projects` | Öffentlich | Beispielprojekte mit Filtern und Detaildialogen |
@@ -328,6 +352,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - [x] Aktuelle Test-/Main-Adresse: `https://oalab-client-hub.vercel.app/`; eine eigene finale Domain ist noch offen.
 - [x] Bestehendes Vercel-Projekt `oalabs-projects/oalab-client-hub`, Produktion aus `main`; Details in README.
 - [ ] Welche Anforderungen gelten für DSGVO, Aufbewahrung und Löschung?
+- [ ] WhatsApp: Datenschutzerklärung um die WhatsApp-Anbindung ergänzen (Meta als Dienstleister, gespeicherte Nummer, Verlauf 48 Stunden) und die Meta-Bedingungen zur Datenverarbeitung prüfen.
 - [ ] KI-Assistent: Ist ein Auftragsverarbeitungsvertrag (DPA) mit Anthropic geschlossen? Wie ist der Datentransfer in die USA abgesichert? Die Datenschutzerklärung braucht einen Abschnitt zum Assistenten (Anbieter, Zweck, Rechtsgrundlage, Speicherdauer).
 - [ ] Werden Audit-Logs, Backups oder Datenexporte benötigt?
 - [ ] Wer erhält Zugriff auf Produktion, Supabase und Deployment?

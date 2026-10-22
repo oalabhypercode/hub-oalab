@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { cleanConversation } from "@/lib/hub-assistant/conversation";
-import { ASSISTANT_MODEL, assistantSystem } from "@/lib/hub-assistant/knowledge";
+import { assistantConfigured, assistantRequest, REFUSAL_TEXT } from "@/lib/hub-assistant/claude";
 
 // The hub assistant: answers questions about the platform's functions with Claude.
 // Only signed-in Supabase users reach it (public demo and preview never do); only the conversation
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return failure(401, "Der Assistent ist nur mit echtem Login verfügbar.");
-  if (!process.env.ANTHROPIC_API_KEY) return failure(503, "Der Assistent ist noch nicht eingerichtet. Es fehlt der API-Schlüssel (ANTHROPIC_API_KEY).");
+  if (!assistantConfigured()) return failure(503, "Der Assistent ist noch nicht eingerichtet. Es fehlt der API-Schlüssel (ANTHROPIC_API_KEY).");
 
   const body = await request.json().catch(() => null);
   const conversation = cleanConversation((body as { messages?: unknown } | null)?.messages);
@@ -29,16 +29,7 @@ export async function POST(request: Request) {
   // The role comes from the verified token, never from the browser.
   const admin = (data.claims.app_metadata as Record<string, unknown> | undefined)?.app_role === "oalab_admin";
 
-  const stream = new Anthropic().beta.messages.stream({
-    model: ASSISTANT_MODEL,
-    max_tokens: 16000,
-    // Short help answers: low effort keeps them quick; a refused request is retried on a fallback model.
-    output_config: { effort: "low" },
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: assistantSystem(admin ? "admin" : "customer"),
-    messages: conversation.turns,
-  }, { signal: request.signal });
+  const stream = new Anthropic().beta.messages.stream(assistantRequest(conversation.turns, admin ? "admin" : "customer", "web"), { signal: request.signal });
 
   // Wait for the first event so connection and key problems still become a proper error status.
   const events = stream[Symbol.asyncIterator]();
@@ -61,7 +52,7 @@ export async function POST(request: Request) {
           if (chunk) controller.enqueue(encoder.encode(chunk));
         }
         const message = await stream.finalMessage();
-        if (message.stop_reason === "refusal") controller.enqueue(encoder.encode("Dazu kann ich leider nichts sagen. Frag mich gern etwas zu den Funktionen des Client Hub."));
+        if (message.stop_reason === "refusal") controller.enqueue(encoder.encode(REFUSAL_TEXT));
         if (message.stop_reason === "max_tokens") controller.enqueue(encoder.encode(" …"));
       } catch {
         if (!request.signal.aborted) controller.enqueue(encoder.encode("\n\nDie Antwort wurde unterbrochen. Bitte versuche es erneut."));

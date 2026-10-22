@@ -95,6 +95,36 @@ claude "/hub-hilfe Wie nehme ich eine Terminanfrage an?"
 claude -p "/hub-hilfe Wo finden Kunden ihre Dateien?"
 ```
 
+## WhatsApp-Anbindung
+
+Kunden und Admins können dem KI-Assistenten auch per WhatsApp schreiben. Die Anbindung läuft über die offizielle **WhatsApp Cloud API** von Meta (Graph API v26.0), ohne Zwischenanbieter.
+
+- **Verbinden:** Nur verbundene Nummern bekommen KI-Antworten. Im Profil unter „WhatsApp verbinden“ erzeugt man einen Code (gültig 15 Minuten) und sendet „VERBINDEN 123456“ an die oalab-Nummer.
+- **Ablauf:** Der Webhook `app/api/whatsapp/route.ts` prüft die Signatur jeder Lieferung, bestätigt sofort und antwortet dann im Hintergrund mit derselben Wissensbasis wie der Chat.
+- **Grenzen:** 30 Fragen pro Nummer und Tag; „TEAM“ nennt den Kontakt (`WHATSAPP_SUPPORT_CONTACT`, Standard info@oalab.de). Der Verlauf wird nach 48 Stunden gelöscht.
+
+**Kosten:** Pro Nummer und Monat sind 1.000 Antworten bei Meta frei. Danach berechnet Meta jede Antwort; dafür muss im Meta-Konto eine Zahlungsmethode hinterlegt sein, sonst werden weitere Antworten nicht zugestellt. Dazu kommen die Kosten für Claude.
+
+**Einrichtung bei Meta:**
+
+1. Auf developers.facebook.com eine App vom Typ „Business“ anlegen und das Produkt **WhatsApp** hinzufügen. Für Tests stellt Meta eine Testnummer bereit; für den Betrieb eine eigene Nummer hinzufügen, die nicht in der normalen WhatsApp-App registriert ist.
+2. Im Business Manager einen Systembenutzer mit der Berechtigung `whatsapp_business_messaging` anlegen und einen dauerhaften Token erzeugen.
+3. Unter WhatsApp → Konfiguration den Webhook eintragen: Rückruf-URL `https://oalab-client-hub.vercel.app/api/whatsapp`, Verifizierungstoken = `WHATSAPP_VERIFY_TOKEN`. Danach das Feld **messages** abonnieren.
+4. Die Werte in Vercel (Production) eintragen und neu deployen:
+
+| Variable | Typ | Zweck |
+| --- | --- | --- |
+| `WHATSAPP_ACCESS_TOKEN` | Secret | Dauerhafter Token des Systembenutzers |
+| `WHATSAPP_PHONE_NUMBER_ID` | Config | Telefonnummer-ID aus WhatsApp → API-Setup |
+| `WHATSAPP_APP_SECRET` | Secret | App-Geheimcode (App-Einstellungen → Allgemein), prüft die Signatur |
+| `WHATSAPP_VERIFY_TOKEN` | Secret | Selbst gewählte Zeichenkette, gleich wie im Webhook-Formular |
+| `WHATSAPP_BUSINESS_NUMBER` | Config | Die WhatsApp-Nummer international ohne „+“, für den Link im Profil |
+| `WHATSAPP_SUPPORT_CONTACT` | Config | Optional, Kontakt für „TEAM“ (Standard info@oalab.de) |
+| `SUPABASE_SECRET_KEY` | Secret | Der Webhook läuft ohne Login und schreibt nur in die WhatsApp-Tabellen |
+| `ANTHROPIC_API_KEY` | Secret | Antworten von Claude |
+
+Lokal erreicht Meta `localhost` nicht. Zum Testen echter Nachrichten braucht es eine öffentliche URL, z. B. ein Vercel-Preview-Deployment oder einen Tunnel. `tests/hub-whatsapp.test.mjs` prüft Signatur, Nachrichtenauswertung, Codes und Verlauf ohne Meta.
+
 ## Prüfungen
 
 ```sh
@@ -108,7 +138,7 @@ npm run demo:public:smoke -- --local
 npm run demo:public:smoke
 ```
 
-Die 42 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, RLS-Migration und Musterdateien der Dateiablage, die Kalenderregeln samt Migration sowie Gesprächsregeln und Wissensbasis des KI-Assistenten. `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 48 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, RLS-Migration und Musterdateien der Dateiablage, die Kalenderregeln samt Migration sowie Gesprächsregeln und Wissensbasis des KI-Assistenten und die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 

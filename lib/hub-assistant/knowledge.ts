@@ -7,6 +7,7 @@
 export const ASSISTANT_MODEL = "claude-opus-5-5";
 
 export type AssistantRole = "admin" | "customer";
+export type AssistantChannel = "web" | "whatsapp";
 
 export const HUB_KNOWLEDGE = `# oalab Client Hub – Funktionen
 
@@ -20,7 +21,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Anmeldung mit E-Mail-Adresse und Passwort auf der Startseite. „Passwort vergessen?“ schickt einen Link zum Zurücksetzen per E-Mail.
 - Neues Konto über „Jetzt registrieren“, danach die E-Mail-Adresse bestätigen. Einladungen durch OALAB sind geplant.
 - Abmelden: Pfeil-Symbol neben dem Namen unten in der Sidebar oder „Abmelden“ im Profil.
-- Profil: Name unten in der Sidebar oder das Zahnrad daneben anklicken (auf dem Smartphone die Initialen oben rechts). Dort stehen die E-Mail-Adresse, „Passwort zurücksetzen“, die Darstellung und „Assistent & Hilfe“.
+- Profil: Name unten in der Sidebar oder das Zahnrad daneben anklicken (auf dem Smartphone die Initialen oben rechts). Dort stehen die E-Mail-Adresse, „Passwort zurücksetzen“, „WhatsApp verbinden“, die Darstellung und „Assistent & Hilfe“.
 
 ## Navigation
 - Ab 1024 Pixel Breite steht links die Sidebar: Suchen, Übersicht, Insights und die Kategorien Projekte, Dateien, Nachrichten und Kalender. Unten stehen Name, aktives Servicepaket, Zahnrad (Profil & Darstellung) und Abmelden.
@@ -78,6 +79,14 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 ## Benachrichtigungen
 - Die Glocke oben rechts zeigt Hinweise; in den Demo-Konten sind es Beispiele. Echte Benachrichtigungen folgen.
 
+## WhatsApp
+- Der Assistent ist auch per WhatsApp erreichbar, aber nur für verbundene Nummern.
+- Verbinden: Profil → „WhatsApp verbinden“ → „Code erzeugen“. Dann die Nachricht „VERBINDEN“ mit dem sechsstelligen Code an die WhatsApp-Nummer von oalab senden; der Button „In WhatsApp öffnen“ füllt sie vor. Der Code gilt 15 Minuten.
+- „Trennen“ im Profil hebt die Verbindung wieder auf.
+- Wer „TEAM“ schreibt, erfährt, wie er das OALAB-Team direkt erreicht.
+- Pro Nummer sind 30 Fragen am Tag möglich. Der WhatsApp-Verlauf wird nach zwei Tagen gelöscht.
+- In der Vorschau und der öffentlichen Demo lässt sich WhatsApp nicht verbinden.
+
 ## Demo und Vorschau
 - Demo-Konten (ein Admin und die Beispielkunden Nordlicht Studio, Form & Feld und Studio Horizont) zeigen fiktive Beispieldaten.
 - Die Designvorschau unter /preview zeigt ausschließlich fiktive Inhalte.
@@ -104,10 +113,15 @@ const roleNotes: Record<AssistantRole, string> = {
   customer: "Der Nutzer ist Kunde. Funktionen mit „(nur Admin)“ kann er nicht nutzen; erkläre bei Bedarf, dass das OALAB-Team sie übernimmt.",
 };
 
-/** System prompt: the stable rules and knowledge first (cached, shared by both roles), then the role. */
-export function assistantSystem(role: AssistantRole) {
+const channelNotes: Record<AssistantChannel, string> = {
+  web: "Der Nutzer schreibt im Chat des Client Hub.",
+  whatsapp: "Der Nutzer schreibt über WhatsApp. Antworte besonders knapp (höchstens etwa 700 Zeichen). Kannst du nicht weiterhelfen, weise darauf hin, dass „TEAM“ den direkten Kontakt zum OALAB-Team zeigt.",
+};
+
+/** System prompt: the stable rules and knowledge first (cached, shared by every role and channel), then role and channel. */
+export function assistantSystem(role: AssistantRole, channel: AssistantChannel = "web") {
   return [
     { type: "text" as const, text: rules, cache_control: { type: "ephemeral" as const } },
-    { type: "text" as const, text: roleNotes[role] },
+    { type: "text" as const, text: `${roleNotes[role]} ${channelNotes[channel]}` },
   ];
 }

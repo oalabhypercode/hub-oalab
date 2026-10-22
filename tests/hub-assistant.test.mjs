@@ -51,7 +51,7 @@ test("the assistant uses Claude Opus 5.5, caches the shared prompt and knows the
 test("the route requires a login before calling Claude and the CLI command reads the same knowledge", async () => {
   const route = await source("app/api/assistant/route.ts");
   assert.ok(route.indexOf("getClaims()") < route.indexOf("new Anthropic()"), "auth check comes first");
-  assert.match(route, /fallbacks: "default"/);
+  assert.match(await source("lib/hub-assistant/claude.ts"), /fallbacks: "default"/);
   const command = await source(".claude/commands/hub-hilfe.md");
   assert.match(command, /lib\/hub-assistant\/knowledge\.ts/);
   assert.match(command, /allowed-tools: Read, Grep, Glob/);
