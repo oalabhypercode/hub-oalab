@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, Building2, Check, Copy, Globe, Hash, Inbox, Mail, MessageSquareText, Pencil, Phone, ShieldCheck, UserCog, UserPlus } from "lucide-react";
+import { Activity, Building2, Check, Copy, Globe, Hash, Inbox, Mail, MailX, MessageSquareText, Pencil, Phone, ShieldCheck, UserCog, UserPlus } from "lucide-react";
 import { displayStatusLabels, roleLabels, suggestCustomer, type DisplayStatus } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
 import { formatFileDate, formatFileDateTime } from "@/lib/hub-files/catalog";
@@ -114,6 +114,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <button type="button" className="calendar-primary users-primary" onClick={() => open({ kind: "user" })}><UserPlus size={18} aria-hidden="true" />Benutzer anlegen</button>
       </div>
       {notice && <p className="calendar-notice glass" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
+      {!state.mailConfigured && <GlassCard className="file-demo-note"><MailX size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Der Mailversand ist noch nicht eingerichtet (RESEND_API_KEY fehlt). Benachrichtigungen werden nur protokolliert; Links und Nachrichten gibst du bis dahin selbst weiter.</p></GlassCard>}
 
       <SectionHeader title={pending.length ? `Offene Registrierungen (${pending.length})` : "Offene Registrierungen"} />
       {pending.length ? (
@@ -228,7 +229,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       ) : <GlassCard><p className="t-subheadline t-secondary">{customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."}</p></GlassCard>}
 
       {reviewUser && <ReviewDialog key={reviewUser.id} user={reviewUser} customers={customers} nextNumber={state.nextCustomerNumber} onClose={() => setDialog(null)} onNotice={setNotice} />}
-      {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserDialog key={dialog.userId ?? "new"} user={editUser} customers={customers} nextNumber={state.nextCustomerNumber} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onClose={() => setDialog(null)} onNotice={setNotice} onReview={(userId) => setDialog({ kind: "review", userId })} />}
+      {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserDialog key={dialog.userId ?? "new"} user={editUser} customers={customers} nextNumber={state.nextCustomerNumber} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onClose={() => setDialog(null)} onNotice={setNotice} onReview={(userId) => setDialog({ kind: "review", userId })} />}
       {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerDialog key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
     </>
   );

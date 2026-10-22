@@ -86,14 +86,41 @@ In der Dateiablage gilt:
 
 Admins verwalten unter „Verwaltung → User Management“ (`/dashboard/users`) Registrierungen, Logins und Kunden. Grundlage ist die Migration `supabase/migrations/20261022190000_hub_user_management.sql`.
 
-- **Registrierung mit Freigabe:** „Jetzt registrieren“ fragt Vorname, Nachname, Unternehmen, Telefon, E-Mail und Passwort ab, optional Position, Website, Kundennummer und Nachricht. Ein Datenbank-Trigger legt dazu ein Profil „wartet auf Freigabe“ an. Bis zur Freigabe führt jede Anmeldung auf `/auth/pending`; KI-Assistent, WhatsApp und Kalender-Auslastung bleiben gesperrt.
-- **Freigeben:** Rolle wählen und den Login einem bestehenden Kunden zuordnen oder einen neuen Kunden mit der nächsten freien Kundennummer und Servicepaketen anlegen. Ablehnen geht mit einer Begründung, die die Person sieht; abgelehnte Registrierungen bleiben gespeichert.
-- **Konten anlegen:** Der Admin legt Login, Rolle und Kunde an und erhält einen einmaligen Aktivierungslink (Supabase-Recovery-Link über `/auth/confirm`), den er selbst weitergibt. Es wird keine E-Mail verschickt.
-- **Bearbeiten, Sperren, Löschen:** Rolle und Kunde ändern, Passwort-Link erzeugen, deaktivieren (Supabase-Sperre plus inaktives Profil, wirkt sofort auf alle Daten) und reaktivieren, endgültig löschen nach erneuter Eingabe der E-Mail-Adresse.
+- **Registrierung mit Freigabe:** „Jetzt registrieren“ fragt Vorname, Nachname, Unternehmen, Telefon, E-Mail und Passwort ab, optional Position, Website, Kundennummer und Nachricht. Ein Datenbank-Trigger legt dazu ein Profil „wartet auf Freigabe“ an. Bis zur Freigabe führt jede Anmeldung auf `/auth/pending`; KI-Assistent, WhatsApp und Kalender-Auslastung bleiben gesperrt. Sobald die Person ihre E-Mail-Adresse bestätigt hat, bekommt das oalab-Team eine E-Mail mit allen Angaben und die Person eine Eingangsbestätigung (siehe [E-Mails](#e-mails)).
+- **Freigeben:** Rolle wählen und den Login einem bestehenden Kunden zuordnen oder einen neuen Kunden mit der nächsten freien Kundennummer und Servicepaketen anlegen. Die Person bekommt danach eine E-Mail mit dem Login-Link. Ablehnen geht mit einer Begründung, die die Person per E-Mail bekommt und nach dem Login sieht; abgelehnte Registrierungen bleiben gespeichert.
+- **Konten anlegen:** Der Admin legt Login, Rolle und Kunde an und erhält einen einmaligen Aktivierungslink (Supabase-Recovery-Link über `/auth/confirm`). Mit dem Häkchen „Aktivierungslink per E-Mail an die Person senden“ verschickt der Hub den Link selbst; angezeigt wird er zusätzlich zum Kopieren.
+- **Bearbeiten, Sperren, Löschen:** Rolle und Kunde ändern, Passwort-Link erzeugen (zum Kopieren oder per E-Mail an die Person), deaktivieren (Supabase-Sperre plus inaktives Profil, wirkt sofort auf alle Daten) und reaktivieren, endgültig löschen nach erneuter Eingabe der E-Mail-Adresse.
 - **Kunden:** Unternehmen, Kundennummer, Servicepakete, Kontakt und Anschrift. Kunden sehen diese Angaben nach dem Login in Sidebar, Übersicht und Profil.
 - **Sicherheit:** Jede Aktion (`lib/hub-users/actions.ts`) prüft zuerst mit der Sitzung des Aufrufers, ob die Datenbank ihn als aktiven Admin führt (`is_hub_admin()` liest Rolle und Status aus der Datenbank, nicht aus dem Token). Erst dann arbeitet der Server mit dem Secret Key (`lib/supabase/admin.ts`, nur serverseitig). Browser dürfen Profile und Protokoll nur lesen. Schutzregeln: kein Selbst-Sperren oder -Herabstufen, der letzte aktive Admin bleibt erhalten, Demo-Konten sind schreibgeschützt. Jede Aktion steht im Protokoll `hub_admin_events`, ohne Namen, Adressen oder Links.
 
-Für den Livebetrieb braucht Vercel (Production) zusätzlich `SUPABASE_SECRET_KEY` als Secret. In Supabase sollten „Confirm email“ aktiv und die Gültigkeit der E-Mail-Links („Email OTP expiration“) auf 24 Stunden gesetzt sein, damit weitergegebene Aktivierungslinks nicht nach einer Stunde verfallen. Bestätigungs-E-Mails an echte Adressen brauchen einen eigenen SMTP-Versand in Supabase.
+Für den Livebetrieb braucht Vercel (Production) zusätzlich `SUPABASE_SECRET_KEY` als Secret. In Supabase sollten „Confirm email“ aktiv und die Gültigkeit der E-Mail-Links („Email OTP expiration“) auf 24 Stunden gesetzt sein, damit weitergegebene Aktivierungslinks nicht nach einer Stunde verfallen. Bestätigungs- und Passwort-E-Mails an echte Adressen brauchen einen eigenen SMTP-Versand in Supabase (siehe [E-Mails](#e-mails)).
+
+## E-Mails
+
+Der Hub verschickt seine E-Mails selbst über [Resend](https://resend.com) (`lib/hub-mail/`, REST-API ohne zusätzliches Paket). Absender ist `oalab Client Hub <hub@oalab.de>`, Antworten gehen an `info@oalab.de`.
+
+| E-Mail | an | ausgelöst durch |
+| --- | --- | --- |
+| Neue Registrierung mit allen Angaben und Button ins User Management; Antworten gehen an die Person | oalab-Team (`HUB_TEAM_EMAIL`) | Die Person hat ihre E-Mail-Adresse bestätigt und sieht zum ersten Mal `/auth/pending` |
+| Eingangsbestätigung | Person | wie oben |
+| Zugang freigeschaltet, mit Login-Link | Person | „Freigeben“ |
+| Registrierung nicht freigegeben, mit Begründung | Person | „Ablehnen“ |
+| Aktivierungs- oder Passwort-Link | Person | Häkchen beim Anlegen oder „Link per E-Mail senden“ |
+
+- Team-Mail und Eingangsbestätigung gehen pro Login genau einmal raus: Der Server reserviert vor dem Versand eine Zeile in `hub_notifications` (eindeutiger Index), Resend bekommt zusätzlich einen Idempotency-Key. Ein fehlgeschlagener Versand wird beim nächsten Aufruf der Warteseite wiederholt.
+- `hub_notifications` (Migration `supabase/migrations/20261022210000_hub_notifications.sql`) speichert nur Art, Login, Ergebnis und Resend-ID, keine Adressen, Betreffzeilen oder Inhalte. Admins sehen die Einträge im Verlauf des Benutzers. Server-Logs nennen nur die Art der Mail.
+- Ohne `RESEND_API_KEY` läuft der Hub im Testmodus: Die Mails werden gebaut, aber nicht verschickt und als „nicht verschickt“ vermerkt. Das User Management zeigt dann einen Hinweis.
+- Die Bestätigungs- und Passwort-Mails von Supabase selbst nutzen die deutschen Vorlagen in `supabase/templates/` (eingetragen in `supabase/config.toml`).
+
+Einrichtung für den Livebetrieb (Schlüssel nur in Resend, Vercel und Supabase eintragen, nie ins Repository):
+
+1. In Resend die Domain `oalab.de` hinzufügen (Region `eu-west-1`, Irland) und die Einträge aus dem Reiter „Records“ beim DNS-Anbieter eintragen: DKIM (`resend._domainkey`) und die Einträge der Subdomain `send` (bei neuen Domains CNAME), dazu einen DMARC-Eintrag, falls noch keiner existiert. Die MX-Einträge des Postfachs `info@oalab.de` bleiben unverändert.
+2. In Resend einen API-Key mit „Sending access“ für `oalab.de` anlegen und in Vercel (Production) als Secret `RESEND_API_KEY` eintragen. Optional sind `MAIL_FROM`, `MAIL_REPLY_TO`, `HUB_TEAM_EMAIL` (mehrere Adressen mit Komma) und `NEXT_PUBLIC_SITE_URL` für die Links in den Mails, siehe `.env.example`.
+3. In Supabase unter Authentication → Emails → SMTP Settings „Custom SMTP“ einschalten: Host `smtp.resend.com`, Port `465`, Benutzer `resend`, Passwort ein eigener Resend-API-Key, Absender `hub@oalab.de` mit dem Namen `oalab Client Hub`. Ohne eigenen SMTP schickt Supabase nur wenige Mails pro Stunde und nur an Mitglieder des Supabase-Teams.
+4. In Supabase unter Authentication → Emails → Templates den Inhalt von `supabase/templates/confirmation.html` bei „Confirm signup“ und von `recovery.html` bei „Reset password“ einfügen, Betreff wie in `supabase/config.toml`. Die Links laufen per Token-Hash über `/auth/confirm` und funktionieren deshalb auch auf einem anderen Gerät. Unter Authentication → URL Configuration muss die „Site URL“ die Live-Adresse des Hubs sein, ohne Schrägstrich am Ende.
+5. Danach „Confirm email“ einschalten und „Email OTP expiration“ auf 24 Stunden setzen (siehe [User Management](#user-management)).
+
+Resend verarbeitet Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag. Die Region legt nur fest, von wo verschickt wird; die Kontodaten liegen in den USA. Dafür braucht es einen Auftragsverarbeitungsvertrag (Resend DPA) und einen Absatz in der Datenschutzerklärung, der auch die Übermittlung in die USA nennt.
 
 ## KI-Assistent (Claude)
 
@@ -157,7 +184,7 @@ npm run demo:public:smoke -- --local
 npm run demo:public:smoke
 ```
 
-Die 69 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration und Projekt-Terminierungen, Suche und Sortierung der Tabellen, Eingaberegeln, Migration und Admin-Prüfungen des User Managements sowie Gesprächsregeln und Wissensbasis des KI-Assistenten und die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die 78 Unit-Tests prüfen Auth-Weiterleitungen, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration und Projekt-Terminierungen, Suche und Sortierung der Tabellen, Eingaberegeln, Migration und Admin-Prüfungen des User Managements sowie Gesprächsregeln und Wissensbasis des KI-Assistenten, die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS) und die E-Mails (Vorlagen und Maskierung, Resend-Aufruf, Versandprotokoll, Supabase-Vorlagen). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 
@@ -168,7 +195,7 @@ Für PKCE-E-Mail-Flows müssen in Supabase die passenden Redirect-URLs erlaubt s
 - `<origin>/auth/callback?next=/dashboard`
 - `<origin>/auth/callback?next=/auth/update-password`
 
-Bei Token-Hash-E-Mail-Templates wird `/auth/confirm` genutzt. Recovery-Links führen standardmäßig zum Formular für ein neues Passwort. Den aktuellen Projektzugang und offene Auth-Entscheidungen beschreibt [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md).
+Die eigenen Vorlagen in `supabase/templates/` sind Token-Hash-Templates und nutzen `/auth/confirm`. Recovery-Links führen standardmäßig zum Formular für ein neues Passwort. Den aktuellen Projektzugang und offene Auth-Entscheidungen beschreibt [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md).
 
 ## Technische Basis
 

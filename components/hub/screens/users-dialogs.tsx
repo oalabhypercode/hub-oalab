@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Ban, Check, Copy, KeyRound, Loader2, Mail, RotateCcw, Save, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Ban, Check, Copy, KeyRound, Loader2, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, setHubUserActive, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
+import type { MailStatus } from "@/lib/hub-mail/resend";
 import { displayStatusLabels, roleLabels, servicePackageIds, suggestCustomer, type HubRole } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedEvent, ManagedUser } from "@/lib/hub-users/types";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
@@ -10,6 +11,13 @@ import { servicePackages, type ServicePackageId } from "@/lib/service-packages";
 import { Modal } from "../modal";
 
 export const fullName = (user: Pick<ManagedUser, "firstName" | "lastName" | "email">) => `${user.firstName} ${user.lastName}`.trim() || user.email;
+
+/** One sentence for a mail that did not go out (or "" when it did). */
+export function mailStatusText(status: MailStatus | null) {
+  if (status === "skipped") return "Keine E-Mail verschickt: Der Mailversand ist noch nicht eingerichtet.";
+  if (status === "failed") return "Die E-Mail konnte nicht verschickt werden.";
+  return "";
+}
 
 async function copyText(text: string) {
   try {
@@ -151,7 +159,7 @@ function LinkPanel({ link, activation, user }: { link: string; activation: boole
       <input className="link-panel-input" readOnly value={link} aria-label={activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} onFocus={(event) => event.currentTarget.select()} />
       <div className="file-assign-actions">
         <button type="button" className="sheet-button" onClick={async () => setCopied(await copyText(link))}>{copied ? <Check size={18} aria-hidden="true" /> : <Copy size={18} aria-hidden="true" />}{copied ? "Kopiert" : "Link kopieren"}</button>
-        <a className="sheet-button sheet-button-primary" href={`mailto:${encodeURIComponent(user.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}><Mail size={18} aria-hidden="true" />Per E-Mail senden</a>
+        <a className="sheet-button sheet-button-primary" href={`mailto:${encodeURIComponent(user.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}><Mail size={18} aria-hidden="true" />Im Mailprogramm öffnen</a>
       </div>
       <p className="field-hint">Der Link meldet die Person an und lässt sie ein Passwort setzen. Schicke ihn nur an ihre eigene Adresse. Er gilt einmal und läuft ab (Einstellung in Supabase); bei Bedarf erzeugst du hier einen neuen.</p>
     </div>
@@ -185,7 +193,7 @@ export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }:
   });
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
-  const [approved, setApproved] = useState<string | null>(null);
+  const [approved, setApproved] = useState<{ customerNumber: string | null; mail: MailStatus } | null>(null);
   const [copied, setCopied] = useState(false);
   const { busy, error, run } = useAction();
   const name = fullName(user);
@@ -193,15 +201,23 @@ export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }:
   const message = `Hallo ${user.firstName},\n\ndein Zugang zum oalab Client Hub ist freigeschaltet. Du kannst dich ab sofort mit deiner E-Mail-Adresse ${user.email} und deinem Passwort anmelden:\n\n${loginUrl}\n\nViele Grüße\nDein oalab-Team`;
 
   if (approved !== null) {
+    const handOver = <>
+      <textarea className="message-preview" readOnly value={message} rows={8} aria-label="Nachricht an die Person" />
+      <div className="file-assign-actions">
+        <button type="button" className="sheet-button" onClick={async () => setCopied(await copyText(message))}>{copied ? <Check size={18} aria-hidden="true" /> : <Copy size={18} aria-hidden="true" />}{copied ? "Kopiert" : "Nachricht kopieren"}</button>
+        <a className="sheet-button sheet-button-primary" href={`mailto:${encodeURIComponent(user.email)}?subject=${encodeURIComponent("Dein Zugang zum oalab Client Hub ist freigeschaltet")}&body=${encodeURIComponent(message)}`}><Mail size={18} aria-hidden="true" />Im Mailprogramm öffnen</a>
+      </div>
+    </>;
     return (
       <Modal title="Registrierung freigegeben" onClose={onClose} className="users-modal">
-        <p className="dialog-success"><ShieldCheck size={20} aria-hidden="true" />{name} hat jetzt Zugang{approved ? ` als Kunde ${approved}` : ""}.</p>
-        <p className="modal-description">Die Person hat bei der Registrierung selbst ein Passwort gesetzt und kann sich sofort anmelden. Gib ihr kurz Bescheid:</p>
-        <textarea className="message-preview" readOnly value={message} rows={8} aria-label="Nachricht an die Person" />
-        <div className="file-assign-actions">
-          <button type="button" className="sheet-button" onClick={async () => setCopied(await copyText(message))}>{copied ? <Check size={18} aria-hidden="true" /> : <Copy size={18} aria-hidden="true" />}{copied ? "Kopiert" : "Nachricht kopieren"}</button>
-          <a className="sheet-button sheet-button-primary" href={`mailto:${encodeURIComponent(user.email)}?subject=${encodeURIComponent("Dein Zugang zum oalab Client Hub ist freigeschaltet")}&body=${encodeURIComponent(message)}`}><Mail size={18} aria-hidden="true" />Per E-Mail senden</a>
-        </div>
+        <p className="dialog-success"><ShieldCheck size={20} aria-hidden="true" />{name} hat jetzt Zugang{approved.customerNumber ? ` als Kunde ${approved.customerNumber}` : ""}.</p>
+        {approved.mail === "sent" ? <>
+          <p className="mail-status is-sent"><MailCheck size={18} aria-hidden="true" />Wir haben {user.firstName || name} per E-Mail informiert, mit Link zum Login.</p>
+          <details className="history"><summary>Nachricht trotzdem selbst schicken</summary>{handOver}</details>
+        </> : <>
+          <p className={`mail-status${approved.mail === "failed" ? " is-failed" : ""}`}><MailX size={18} aria-hidden="true" />{mailStatusText(approved.mail)} Gib der Person kurz selbst Bescheid; sie hat bei der Registrierung ihr Passwort gesetzt und kann sich sofort anmelden.</p>
+          {handOver}
+        </>}
       </Modal>
     );
   }
@@ -224,13 +240,13 @@ export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }:
 
       {rejecting ? (
         <div className="decision">
-          <label className="upload-field"><span>Begründung für die Person (optional, sie sieht den Text nach dem Login)</span>
+          <label className="upload-field"><span>Begründung für die Person (optional; sie bekommt den Text per E-Mail und sieht ihn nach dem Login)</span>
             <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} disabled={busy !== null} placeholder="z. B. Wir konnten dein Unternehmen keinem Projekt zuordnen." />
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="file-assign-actions">
             <button type="button" className="sheet-button" onClick={() => setRejecting(false)} disabled={busy !== null}>Zurück</button>
-            <button type="button" className="sheet-button sheet-button-danger" disabled={busy !== null} onClick={() => run("reject", () => rejectRegistration({ userId: user.id, note }), () => { onNotice(`Registrierung von ${name} abgelehnt.`); onClose(); })}>{busy === "reject" ? <Spinner /> : <X size={18} aria-hidden="true" />}Ablehnen</button>
+            <button type="button" className="sheet-button sheet-button-danger" disabled={busy !== null} onClick={() => run("reject", () => rejectRegistration({ userId: user.id, note }), (data) => { onNotice(`Registrierung von ${name} abgelehnt. ${data.mail === "sent" ? "Die Person wurde per E-Mail informiert." : mailStatusText(data.mail)}`); onClose(); })}>{busy === "reject" ? <Spinner /> : <X size={18} aria-hidden="true" />}Ablehnen</button>
           </div>
         </div>
       ) : (
@@ -240,7 +256,7 @@ export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }:
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="file-assign-actions">
             {user.status === "pending" && <button type="button" className="sheet-button" onClick={() => setRejecting(true)} disabled={busy !== null}><X size={18} aria-hidden="true" />Ablehnen</button>}
-            <button type="button" className="sheet-button sheet-button-primary" disabled={busy !== null} onClick={() => run("approve", () => approveRegistration({ userId: user.id, role, customer: choicePayload(role, choice) }), (data) => { setApproved(data.customerNumber ?? ""); onNotice(`${name} ist freigegeben.`); })}>{busy === "approve" ? <Spinner /> : <Check size={18} aria-hidden="true" />}Freigeben</button>
+            <button type="button" className="sheet-button sheet-button-primary" disabled={busy !== null} onClick={() => run("approve", () => approveRegistration({ userId: user.id, role, customer: choicePayload(role, choice) }), (data) => { setApproved(data); onNotice(`${name} ist freigegeben.`); })}>{busy === "approve" ? <Spinner /> : <Check size={18} aria-hidden="true" />}Freigeben</button>
           </div>
         </div>
       )}
@@ -251,8 +267,8 @@ export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }:
 // Logins ------------------------------------------------------------------------------------------------------------
 
 /** Creates a login (with activation link) or edits one: person data, role, customer, link, status and deletion. */
-export function UserDialog({ user, customers, nextNumber, events, onClose, onNotice, onReview }: {
-  user?: ManagedUser; customers: ManagedCustomer[]; nextNumber: string; events: ManagedEvent[]; onClose: () => void; onNotice: (message: string) => void; onReview: (userId: string) => void;
+export function UserDialog({ user, customers, nextNumber, events, mailConfigured, onClose, onNotice, onReview }: {
+  user?: ManagedUser; customers: ManagedCustomer[]; nextNumber: string; events: ManagedEvent[]; mailConfigured: boolean; onClose: () => void; onNotice: (message: string) => void; onReview: (userId: string) => void;
 }) {
   const [person, setPerson] = useState({ email: user?.email ?? "", firstName: user?.firstName ?? "", lastName: user?.lastName ?? "", phone: user?.phone ?? "", position: user?.position ?? "" });
   const [role, setRole] = useState<HubRole>(user?.role ?? "oalab_customer");
@@ -261,7 +277,9 @@ export function UserDialog({ user, customers, nextNumber, events, onClose, onNot
     customerId: user?.customerIds[0] ?? customers[0]?.id ?? "",
     draft: emptyDraft(nextNumber, { company: user?.companyName ?? "" }),
   });
-  const [link, setLink] = useState<{ link: string; activation: boolean } | null>(null);
+  // New logins get their activation link by mail unless the admin unticks it (or mail is not set up).
+  const [mailLink, setMailLink] = useState(mailConfigured);
+  const [link, setLink] = useState<{ link: string | null; activation: boolean; mail: MailStatus | null } | null>(null);
   const [confirming, setConfirming] = useState<"deactivate" | "delete" | null>(null);
   const [confirmEmail, setConfirmEmail] = useState("");
   const { busy, error, run } = useAction();
@@ -269,11 +287,17 @@ export function UserDialog({ user, customers, nextNumber, events, onClose, onNot
   const locked = Boolean(user?.demo);
   const disabled = busy !== null || locked;
 
-  if (!user && link) {
+  if (!user && link?.link) {
     return (
       <Modal title="Konto angelegt" onClose={onClose} className="users-modal">
         <p className="dialog-success"><ShieldCheck size={20} aria-hidden="true" />{`${person.firstName} ${person.lastName}`.trim()} hat jetzt ein Konto als {roleLabels[role]}.</p>
-        <LinkPanel link={link.link} activation user={person} />
+        {link.mail === "sent" ? <>
+          <p className="mail-status is-sent"><MailCheck size={18} aria-hidden="true" />Der Aktivierungslink ist per E-Mail an {person.email} unterwegs.</p>
+          <details className="history"><summary>Link trotzdem anzeigen</summary><LinkPanel link={link.link} activation user={person} /></details>
+        </> : <>
+          {link.mail && <p className={`mail-status${link.mail === "failed" ? " is-failed" : ""}`}><MailX size={18} aria-hidden="true" />{mailStatusText(link.mail)} Gib den Link bitte selbst weiter.</p>}
+          <LinkPanel link={link.link} activation user={person} />
+        </>}
       </Modal>
     );
   }
@@ -289,7 +313,7 @@ export function UserDialog({ user, customers, nextNumber, events, onClose, onNot
 
   const save = () => user
     ? run("save", () => updateHubUser({ userId: user.id, ...person, role, customer: choicePayload(role, choice) }), () => { onNotice(`Änderungen an ${fullName({ ...user, ...person })} gespeichert.`); onClose(); })
-    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choice) }), (data) => { setLink({ link: data.link, activation: true }); onNotice(`Konto für ${person.firstName} ${person.lastName} angelegt.`); });
+    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choice), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Konto für ${person.firstName} ${person.lastName} angelegt.`); });
 
   return (
     <Modal title={user ? fullName(user) : "Benutzer anlegen"} onClose={onClose} className="users-modal">
@@ -305,14 +329,23 @@ export function UserDialog({ user, customers, nextNumber, events, onClose, onNot
         </div>
         <RoleAndCustomer role={role} onRole={setRole} choice={choice} onChoice={setChoice} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} />
         {user?.self && <p className="field-hint">Deine eigene Rolle kannst du nicht ändern.</p>}
-        {!user && <p className="field-hint">Nach dem Anlegen bekommst du einen Aktivierungslink. Damit setzt die Person ihr Passwort; vorher kann sie sich nicht anmelden.</p>}
+        {!user && <>
+          <label className="check-row"><input type="checkbox" checked={mailConfigured && mailLink} onChange={(event) => setMailLink(event.target.checked)} disabled={disabled || !mailConfigured} />Aktivierungslink per E-Mail an die Person senden</label>
+          <p className="field-hint">{mailConfigured ? "Mit dem Link setzt die Person ihr Passwort; vorher kann sie sich nicht anmelden. Den Link bekommst du in jedem Fall auch angezeigt." : "Der Mailversand ist noch nicht eingerichtet. Nach dem Anlegen bekommst du den Aktivierungslink zum Weitergeben angezeigt."}</p>
+        </>}
         {error && !confirming && <p className="form-error" role="alert">{error}</p>}
         {!locked && <button type="submit" className="sheet-button sheet-button-primary" disabled={disabled}>{busy === "save" ? <Spinner /> : user ? <Save size={18} aria-hidden="true" /> : <UserPlus size={18} aria-hidden="true" />}{user ? "Änderungen speichern" : "Konto anlegen"}</button>}
       </form>
 
       {user && !locked && <>
-        {user.status === "active" && (link ? <LinkPanel link={link.link} activation={link.activation} user={user} /> : (
-          <button type="button" className="sheet-button user-link-button" disabled={busy !== null} onClick={() => run("link", () => createPasswordLink({ userId: user.id }), setLink)}>{busy === "link" ? <Spinner /> : <KeyRound size={18} aria-hidden="true" />}{user.lastSignInAt ? "Link zum Passwort-Zurücksetzen erzeugen" : "Aktivierungslink erzeugen"}</button>
+        {user.status === "active" && (link?.link ? <LinkPanel link={link.link} activation={link.activation} user={user} /> : (
+          <div className="user-link-actions">
+            {link?.mail && <p className={`mail-status${link.mail === "sent" ? " is-sent" : link.mail === "failed" ? " is-failed" : ""}`}>{link.mail === "sent" ? <MailCheck size={18} aria-hidden="true" /> : <MailX size={18} aria-hidden="true" />}{link.mail === "sent" ? `${link.activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} an ${user.email} geschickt.` : mailStatusText(link.mail)}</p>}
+            <div className="file-assign-actions">
+              <button type="button" className="sheet-button" disabled={busy !== null} onClick={() => run("link", () => createPasswordLink({ userId: user.id, deliver: "copy" }), setLink)}>{busy === "link" ? <Spinner /> : <KeyRound size={18} aria-hidden="true" />}{user.lastSignInAt ? "Passwort-Link erzeugen" : "Aktivierungslink erzeugen"}</button>
+              {mailConfigured && <button type="button" className="sheet-button" disabled={busy !== null} onClick={() => run("mail", () => createPasswordLink({ userId: user.id, deliver: "mail" }), setLink)}>{busy === "mail" ? <Spinner /> : <Send size={18} aria-hidden="true" />}Link per E-Mail senden</button>}
+            </div>
+          </div>
         ))}
         {!user.self && (
           <div className="danger-zone">

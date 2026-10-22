@@ -685,6 +685,16 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .link-panel { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; padding: 14px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--separator); }
 .link-panel-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--label); }
 .user-link-button { margin-top: 14px; }
+.user-link-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+/* Outcome of a mail: sent (green), not set up (orange), failed (red). */
+.mail-status { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 149, 0, 0.16); color: #7f2100; font-size: 14px; line-height: 19px; }
+.mail-status svg { flex: 0 0 auto; margin-top: 1px; }
+.mail-status.is-sent { background: rgba(52, 199, 89, 0.16); color: #124e20; }
+.mail-status.is-failed { background: rgba(255, 59, 48, 0.14); color: #8a1c14; }
+.user-link-actions .mail-status { margin: 0; }
+.check-row { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 15px; color: var(--label-body); cursor: pointer; }
+.check-row input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--accent-text); }
+.check-row:has(input:disabled) { cursor: default; opacity: 0.6; }
 .danger-zone { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--separator); }
 .sheet-button.danger-text { color: #b3261e; }
 .history, .member-list { margin-top: 16px; }

@@ -1,9 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { connection } from "next/server";
+import { after, connection } from "next/server";
 import { Ban, Hourglass, ShieldX } from "lucide-react";
+import { notifyConfirmedRegistration } from "@/lib/hub-mail/notify";
 import { getHubAccount } from "@/lib/hub-users/server";
+import { siteOrigin } from "@/lib/site-origin";
 import { PendingSignOut } from "./sign-out";
 
 export const metadata: Metadata = { title: "Zugang wird geprüft" };
@@ -34,6 +37,13 @@ async function PendingState() {
   const account = await getHubAccount();
   if (!account) redirect("/auth/login");
   if (account.status === "active" || account.status === "unknown") redirect("/dashboard");
+  if (account.status === "pending") {
+    // Every confirmed registration passes through here: the team and the person get their mails, each once.
+    // Request data is read now; `after` runs once the page is sent and must not touch cookies or headers.
+    const origin = siteOrigin(await headers());
+    const userId = account.userId;
+    after(() => notifyConfirmedRegistration(userId, origin));
+  }
   const state = states[account.status];
   const Icon = state.icon;
   return (

@@ -60,13 +60,18 @@ export type ManagedEvent = {
 export type UserManagementState = {
   users: ManagedUser[];
   customers: ManagedCustomer[];
+  /** Admin actions and sent mails, newest first. */
   events: ManagedEvent[];
   nextCustomerNumber: string;
+  /** False while RESEND_API_KEY is missing: mails are only logged (test mode). */
+  mailConfigured: boolean;
   error?: string;
 };
 
 /** The signed-in login's own account for the hub shell: who they are and whom they represent. */
 export type HubAccountData = {
+  userId: string;
+  email: string;
   /** "unknown" while the user management migration is not applied yet. */
   status: AccountStatus | "unknown";
   role: HubRole | null;

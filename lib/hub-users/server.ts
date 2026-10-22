@@ -4,6 +4,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ServicePackageId } from "@/lib/service-packages";
+import { mailSettings } from "@/lib/hub-mail/send";
 import { displayStatus, isAccountStatus, isHubRole, nextCustomerNumber, servicePackageIds, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
 
@@ -95,7 +96,18 @@ export async function listAllUsers(db: SupabaseClient) {
   }
 }
 
-const emptyState: UserManagementState = { users: [], customers: [], events: [], nextCustomerNumber: nextCustomerNumber([]) };
+const emptyState: UserManagementState = { users: [], customers: [], events: [], nextCustomerNumber: nextCustomerNumber([]), mailConfigured: false };
+
+type NotificationRow = { id: number; created_at: string; kind: string; user_id: string | null; status: string };
+const mailKinds: Record<string, string> = {
+  "registration.team": "Team-Benachrichtigung zur Registrierung",
+  "registration.received": "Eingangsbestätigung",
+  "registration.approved": "Freigabe mit Login-Link",
+  "registration.rejected": "Ablehnung",
+  "user.activation": "Aktivierungslink",
+  "user.password": "Passwort-Link",
+};
+const mailOutcome: Record<string, string> = { sent: "gesendet", skipped: "nicht gesendet (Mailversand nicht eingerichtet)", failed: "fehlgeschlagen", sending: "wird gesendet" };
 
 /** Everything the admin page shows. Only for active admins; the merge happens here, the browser gets plain data. */
 export async function loadUserManagement(): Promise<UserManagementState> {
@@ -105,12 +117,14 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Konten verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
       db.from("hub_customer_members").select("customer_id, user_id").returns<{ customer_id: string; user_id: string }[]>(),
       db.from("hub_admin_events").select("id, created_at, actor_id, target_user_id, target_customer_id, action, summary").order("created_at", { ascending: false }).limit(300).returns<EventRow[]>(),
+      // Optional until its migration is applied: without the table the history simply shows no mails.
+      db.from("hub_notifications").select("id, created_at, kind, user_id, status").order("created_at", { ascending: false }).limit(300).returns<NotificationRow[]>(),
     ]);
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
@@ -160,16 +174,29 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         createdAt: row.created_at,
         memberIds: memberships.filter((member) => member.customer_id === row.id).map((member) => member.user_id),
       })),
-      events: (events.data ?? []).map((row): ManagedEvent => ({
-        id: row.id,
-        at: row.created_at,
-        actorName: nameOf(row.actor_id),
-        action: row.action,
-        summary: row.summary,
-        targetUserId: row.target_user_id,
-        targetCustomerId: row.target_customer_id,
-      })),
+      events: [
+        ...(events.data ?? []).map((row): ManagedEvent => ({
+          id: row.id,
+          at: row.created_at,
+          actorName: nameOf(row.actor_id),
+          action: row.action,
+          summary: row.summary,
+          targetUserId: row.target_user_id,
+          targetCustomerId: row.target_customer_id,
+        })),
+        // Mails get negative ids so they never collide with admin events in React keys.
+        ...(notifications.data ?? []).map((row): ManagedEvent => ({
+          id: -row.id,
+          at: row.created_at,
+          actorName: "Client Hub",
+          action: `mail.${row.kind}`,
+          summary: `E-Mail: ${mailKinds[row.kind] ?? row.kind} ${mailOutcome[row.status] ?? row.status}`,
+          targetUserId: row.user_id,
+          targetCustomerId: null,
+        })),
+      ].sort((a, b) => b.at.localeCompare(a.at)),
       nextCustomerNumber: nextCustomerNumber(customerRows.map((row) => row.customer_number)),
+      mailConfigured: mailSettings().configured,
     };
   } catch {
     return { ...emptyState, error: "Die Konten konnten gerade nicht geladen werden. Bitte versuche es erneut." };
@@ -196,7 +223,11 @@ export const getHubAccount = cache(async (): Promise<HubAccountData | null> => {
     supabase.from("hub_profiles").select("first_name, last_name, phone, position, status, decision_note").eq("user_id", data.claims.sub).maybeSingle<Pick<ProfileRow, "first_name" | "last_name" | "phone" | "position" | "status" | "decision_note">>(),
     supabase.from("hub_customer_members").select(`customer:hub_customers(${CUSTOMER_COLUMNS})`).eq("user_id", data.claims.sub).returns<{ customer: CustomerRow | null }[]>(),
   ]);
-  const base = { role: isHubRole(role) ? role : null, firstName: "", lastName: "", phone: "", position: "", decisionNote: "", customers: [] };
+  const base = {
+    userId: data.claims.sub,
+    email: typeof data.claims.email === "string" ? data.claims.email : "",
+    role: isHubRole(role) ? role : null, firstName: "", lastName: "", phone: "", position: "", decisionNote: "", customers: [],
+  };
   if (isMissingUserTables(profile.error) || isMissingUserTables(memberships.error)) return { ...base, status: "unknown" };
   // Without a readable profile the login counts as waiting: access is granted only by an active profile.
   if (profile.error || !profile.data) return { ...base, status: "pending" };

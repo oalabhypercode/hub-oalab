@@ -4,6 +4,9 @@ import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { siteOrigin } from "@/lib/site-origin";
+import { mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import type { MailStatus } from "@/lib/hub-mail/send";
 import { cleanEmail, cleanText, isHubRole, readCustomer, readPerson, roleLabels, type CustomerInput, type HubRole } from "./rules";
 import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
@@ -91,20 +94,25 @@ const customerRow = (input: CustomerInput) => ({
  * Resolves the customer a login is assigned to: an existing one, a new one (created here) or none (admins).
  * `created` tells the caller which customer to remove again if a later step fails.
  */
-async function resolveCustomer(ctx: Context, role: HubRole, value: unknown): Promise<ActionResult<{ customerId: string | null; customerNumber: string | null; created: boolean }>> {
+async function resolveCustomer(ctx: Context, role: HubRole, value: unknown): Promise<ActionResult<{ customerId: string | null; customerNumber: string | null; company: string | null; created: boolean }>> {
   const choice = readChoice(value);
-  if (role === "oalab_admin") return { ok: true, data: { customerId: null, customerNumber: null, created: false } };
+  if (role === "oalab_admin") return { ok: true, data: { customerId: null, customerNumber: null, company: null, created: false } };
   if (!choice || choice.mode === "none") return failed("Bitte einen Kunden auswählen oder neu anlegen.");
   if (choice.mode === "existing") {
-    const { data } = await ctx.db.from("hub_customers").select("id, customer_number").eq("id", choice.customerId).maybeSingle<{ id: string; customer_number: string }>();
-    return data ? { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, created: false } } : failed("Dieser Kunde existiert nicht mehr.");
+    const { data } = await ctx.db.from("hub_customers").select("id, customer_number, company").eq("id", choice.customerId).maybeSingle<{ id: string; customer_number: string; company: string }>();
+    return data ? { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, created: false } } : failed("Dieser Kunde existiert nicht mehr.");
   }
   const input = readCustomer(choice.customer);
   if (!input.ok) return input;
-  const { data, error } = await ctx.db.from("hub_customers").insert(customerRow(input.value)).select("id, customer_number").single<{ id: string; customer_number: string }>();
+  const { data, error } = await ctx.db.from("hub_customers").insert(customerRow(input.value)).select("id, customer_number, company").single<{ id: string; customer_number: string; company: string }>();
   if (error) return failed(error.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht angelegt werden.");
   await log(ctx, "customer.created", "Kunde angelegt", { customerId: data.id });
-  return { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, created: true } };
+  return { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, created: true } };
+}
+
+async function firstNameOf(ctx: Context, userId: string) {
+  const { data } = await ctx.db.from("hub_profiles").select("first_name").eq("user_id", userId).maybeSingle<{ first_name: string }>();
+  return data?.first_name ?? "";
 }
 
 /** One customer per login: replaces the memberships (admins see every customer and need none). */
@@ -124,21 +132,12 @@ async function setRole(ctx: Context, user: User, role: HubRole | null) {
   return !error;
 }
 
-/** The address of this hub for activation links: an explicit site URL, otherwise the request's own origin. */
-async function siteOrigin() {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configured && /^https?:\/\/[^/\s]+$/i.test(configured.replace(/\/$/, ""))) return configured.replace(/\/$/, "");
-  const list = await headers();
-  const host = list.get("x-forwarded-host") ?? list.get("host") ?? "";
-  if (!/^[a-z0-9.-]+(:\d+)?$/i.test(host)) return null;
-  const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
-  const proto = list.get("x-forwarded-proto") === "http" || local ? "http" : "https";
-  return `${proto}://${host}`;
-}
+/** The address of this hub for activation links and mails: an explicit site URL, otherwise the request's own origin. */
+const requestOrigin = async () => siteOrigin(await headers());
 
-/** A one-time link that lets the login set a (new) password and signs it in. It goes to the admin only, never to the log. */
+/** A one-time link that lets the login set a (new) password and signs it in. It goes to the admin or the login's own mailbox, never to the log. */
 async function passwordLink(ctx: Context, email: string) {
-  const origin = await siteOrigin();
+  const origin = await requestOrigin();
   if (!origin) return null;
   const { data, error } = await ctx.db.auth.admin.generateLink({ type: "recovery", email });
   const token = data?.properties?.hashed_token;
@@ -148,8 +147,8 @@ async function passwordLink(ctx: Context, email: string) {
 
 // Registrations ------------------------------------------------------------------------------------------------------
 
-/** Approves a waiting (or earlier rejected) registration: role, customer and finally the active status. */
-export async function approveRegistration(input: { userId: string; role: string; customer: unknown }): Promise<ActionResult<{ customerNumber: string | null }>> {
+/** Approves a waiting (or earlier rejected) registration: role, customer and finally the active status; then mails the person. */
+export async function approveRegistration(input: { userId: string; role: string; customer: unknown }): Promise<ActionResult<{ customerNumber: string | null; mail: MailStatus }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
@@ -170,12 +169,13 @@ export async function approveRegistration(input: { userId: string; role: string;
     return failed("Die Freigabe ist nicht vollständig gelungen. Bitte versuche es erneut.");
   }
   await log(ctx, "registration.approved", `Registrierung freigegeben als ${roleLabels[role]}`, { userId: user.id, customerId: customer.data.customerId });
+  const mail = await mailApproval(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), origin: await requestOrigin(), company: customer.data.company, customerNumber: customer.data.customerNumber });
   refresh();
-  return { ok: true, data: { customerNumber: customer.data.customerNumber } };
+  return { ok: true, data: { customerNumber: customer.data.customerNumber, mail } };
 }
 
-/** Rejects a registration. The login stays (as decided), but never reaches the hub; the note is shown to the person. */
-export async function rejectRegistration(input: { userId: string; note: string }): Promise<ActionResult<null>> {
+/** Rejects a registration. The login stays (as decided), but never reaches the hub; the note is shown to the person and mailed. */
+export async function rejectRegistration(input: { userId: string; note: string }): Promise<ActionResult<{ mail: MailStatus }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
@@ -188,14 +188,15 @@ export async function rejectRegistration(input: { userId: string; note: string }
   await setRole(ctx, user, null);
   await assignCustomer(ctx, user.id, null);
   await log(ctx, "registration.rejected", note ? "Registrierung abgelehnt (mit Begründung)" : "Registrierung abgelehnt", { userId: user.id });
+  const mail = await mailRejection(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), note });
   refresh();
-  return { ok: true, data: null };
+  return { ok: true, data: { mail } };
 }
 
 // Logins -------------------------------------------------------------------------------------------------------------
 
-/** Creates a login with role and customer; returns the activation link the admin passes on. */
-export async function createHubUser(input: { email: string; firstName: string; lastName: string; phone: string; position: string; role: string; customer: unknown }): Promise<ActionResult<{ userId: string; link: string }>> {
+/** Creates a login with role and customer; returns the activation link and, if asked for, mails it to the login. */
+export async function createHubUser(input: { email: string; firstName: string; lastName: string; phone: string; position: string; role: string; customer: unknown; mailLink?: boolean }): Promise<ActionResult<{ userId: string; link: string; mail: MailStatus | null }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const email = cleanEmail(input?.email);
@@ -235,12 +236,16 @@ export async function createHubUser(input: { email: string; firstName: string; l
     return failed("Das Konto konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
   }
   await log(ctx, "user.created", `Konto angelegt als ${roleLabels[role]}`, { userId: user.id, customerId: customer.data.customerId });
+  const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true }) : null;
   refresh();
-  return { ok: true, data: { userId: user.id, link } };
+  return { ok: true, data: { userId: user.id, link, mail } };
 }
 
-/** A fresh link to set the password: the activation for new logins, a reset for everyone else. Older links expire. */
-export async function createPasswordLink(input: { userId: string }): Promise<ActionResult<{ link: string; activation: boolean }>> {
+/**
+ * A fresh link to set the password: the activation for new logins, a reset for everyone else. Older links expire.
+ * "copy" hands the link to the admin; "mail" sends it to the login's own address and keeps it from the admin.
+ */
+export async function createPasswordLink(input: { userId: string; deliver?: "copy" | "mail" }): Promise<ActionResult<{ link: string | null; activation: boolean; mail: MailStatus | null }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
@@ -250,8 +255,12 @@ export async function createPasswordLink(input: { userId: string }): Promise<Act
   const link = await passwordLink(ctx, user.email);
   if (!link) return failed("Der Link konnte nicht erzeugt werden.");
   const activation = !user.last_sign_in_at;
-  await log(ctx, activation ? "user.activation_link" : "user.password_link", activation ? "Aktivierungslink erzeugt" : "Link zum Passwort-Zurücksetzen erzeugt", { userId: user.id });
-  return { ok: true, data: { link, activation } };
+  const byMail = input?.deliver === "mail";
+  await log(ctx, activation ? "user.activation_link" : "user.password_link", `${activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} erzeugt${byMail ? " und per E-Mail verschickt" : ""}`, { userId: user.id });
+  if (!byMail) return { ok: true, data: { link, activation, mail: null } };
+  const mail = await mailPasswordLink(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), link, activation });
+  refresh();
+  return { ok: true, data: { link: null, activation, mail } };
 }
 
 /** Person data, role and customer of an existing login. */
