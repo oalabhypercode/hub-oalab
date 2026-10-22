@@ -6,7 +6,6 @@ import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
 import { hubHref, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { useHubShell } from "./shell-context";
-import { CategoryIcon } from "./glass";
 import { mainNavigation } from "./navigation";
 import { BrandLogo } from "./wordmark";
 
@@ -45,9 +44,11 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           <Link key={target} {...item(target)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{label}</span></Link>
         ))}
         <span className="sidebar-caption">Kategorien</span>
-        {categoryOrder.map((id) => (
-          <Link key={id} {...item(categories[id].section)}><CategoryIcon category={id} size={19} /><span>{categories[id].name}</span>{counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>
-        ))}
+        {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
+        {categoryOrder.map((id) => {
+          const Icon = categories[id].icon;
+          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categories[id].name}</span>{counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+        })}
       </nav>
       <div className={`sidebar-profile${activePackages ? " has-package" : ""}`}>
         <Link {...item("settings")} className={`sidebar-profile-link${section === "settings" ? " is-active" : ""}`}>
