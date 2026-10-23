@@ -351,14 +351,15 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
 - Öffentliche Demo am 15. Oktober 2026 auf der Vercel-Hauptadresse bereitgestellt. `npm run demo:public:smoke` besteht live für alle vier Identitäten. Alle vier Zugänge und der Kontowechsel sind zusätzlich im Live-Browser geprüft; mobile Auswahl bei 390 Pixeln ohne horizontalen Überlauf. Änderungen und Betriebsanleitung sind auf `main` versioniert, die privaten Werte ausschließlich in Vercel beziehungsweise lokal.
-- `next` ist aktuell auf Version 16.4.0 installiert, `eslint-config-next` jedoch auf 15.3.1.
-- Zentrale Abhängigkeiten werden teilweise mit `latest` statt mit einer festen Version deklariert.
+- `next` und `eslint-config-next` sind fest auf Version 16.4.2 gepinnt (Sicherheitsupdate für GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr und GHSA-p3m5-59mp-jv5r). `eslint.config.mjs` nutzt die native Flat Config von `eslint-config-next` (`core-web-vitals` und `typescript`) einschließlich der Regeln aus `eslint-plugin-react-hooks` 7.
+- `npm audit` meldet noch 3 mittlere Funde, alle über Tailwind CSS 3: `postcss-selector-parser` (GHSA-rj75-hqrm-r3gf) sowie darüber `postcss-nested` und `tailwindcss`. `npm audit --omit=dev` ist ohne Befund. Beheben lässt sich das nur mit Tailwind CSS 4. Das `braces`-Advisory GHSA-vfj7-8cjw-p6xm, auf das die übrigen hohen Funde zurückgingen, hat GitHub am 23. Oktober 2026 zurückgezogen.
+- `@supabase/ssr` und `@supabase/supabase-js` werden weiterhin mit `latest` statt mit einer festen Version deklariert.
 - Browserprüfung: Desktop und Mobilgerät, Navigation, Filter, Suche, Dateidialoge und unangemeldeter Zugriff; echter Admin-Login, neun Projekte, Kundenfilter, Abmeldung und Wechsel zwischen Kundenkonten. An-/Abmeldung verwerfen alte Client-Router-Zustände.
 
 ### Technischer Aufräumbedarf
 
 - [x] ESLint-Konfiguration um generierte Verzeichnisse ergänzen
-- [ ] `eslint-config-next` an die installierte Next.js-Version angleichen
+- [x] `eslint-config-next` an die installierte Next.js-Version angleichen
 - [ ] Abhängigkeiten reproduzierbar pinnen
 - [x] Starter-Startseite und Starter-Deploy-Link aus dem Produkt entfernen
 - [x] Projektspezifische Metadaten und Sprache konfigurieren
