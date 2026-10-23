@@ -41,7 +41,7 @@ Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite ze
 
 ## Vercel und öffentliche Demo
 
-Bestehendes Projekt: `oalabs-projects/oalab-client-hub`, Produktions-URL: [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/), Git-Branch: `main`.
+Bestehendes Projekt: `oalabs-projects/oalab-client-hub`, Hauptdomain: [hub.oalab.de](https://hub.oalab.de/) (zeigt auf Vercel), weiterhin erreichbar unter [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/), Git-Branch: `main`. Supabase nutzt `https://hub.oalab.de` als Site URL; `NEXT_PUBLIC_SITE_URL` in Vercel sollte ebenfalls darauf zeigen.
 
 In Vercel sind ausschließlich für **Production** konfiguriert:
 
