@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, FileText, LogOut, MessageSquare, Palette, ShieldCheck, UserRound } from "lucide-react";
-import { categories, categoryOrder, type CategoryId } from "@/lib/categories";
-import { appearanceHref, demoConversation, hubHref, previewAccount } from "@/lib/hub-data";
+import { ArrowUpRight, Building2, CalendarDays, FileText, Layers, LogOut, MessageSquare, Palette, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
+import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
+import { servicePackages } from "@/lib/service-packages";
+import { LegalLinks } from "@/components/legal-links";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
+import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
 import { MetricCard } from "../cards";
 import { SearchField, SegmentedControl } from "../controls";
@@ -14,6 +17,8 @@ import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { ProjectStatus } from "../project-status";
 import { useHubShell } from "../shell-context";
+import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
+import { WhatsAppCard } from "../whatsapp-card";
 import { EmptyState } from "./overview";
 import type { ScreenProps } from "./types";
 
@@ -26,11 +31,11 @@ export function CategoryMetrics({ model, category }: Pick<ScreenProps, "model"> 
   return <div className="metric-grid section-first">{metrics.map((id) => <MetricCard key={id} metric={model.metrics[id]} />)}</div>;
 }
 
-export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
-  const { openPanel } = useHubShell();
+export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps) {
+  const { openPanel, manageUsers } = useHubShell();
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
-  const shownCategories = categoryOrder.filter((id) => categories[id].name.toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
+  const shownCategories = categoryOrder.filter((id) => categoryLabel(id, admin).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
   const shownMetrics = term && populated ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   return (
     <>
@@ -45,52 +50,145 @@ export function DiscoverScreen({ model, preview, populated }: ScreenProps) {
       <SectionHeader title="Kategorien" />
       {shownCategories.length ? (
         <InsetGroupedList label="Kategorien" className="list-icons">
-          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categories[id].name} />)}
+          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin)} />)}
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}
+      {/* The tab bar has no room for it, so phones reach the user management from here. */}
+      {manageUsers && <>
+        <SectionHeader title="Verwaltung" />
+        <InsetGroupedList label="Verwaltung" className="list-icons">
+          <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Logins und Kunden" />
+        </InsetGroupedList>
+      </>}
       <SectionHeader title="Konto" />
       <InsetGroupedList label="Konto" className="list-icons">
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" />
         <ListRow compact href={hubHref(preview, "settings")} icon={<UserRound size={24} color="var(--system-gray)" aria-hidden="true" />} title="Profil & Zugang" />
-        <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Hilfe & Kontakt" />
+        <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
       </InsetGroupedList>
     </>
   );
 }
 
 const filters = ["Alle Projekte", "Aktiv", "Abgeschlossen"] as const;
+const ALL = "all";
 
-export function ProjectsScreen({ model, preview, populated, projects, admin }: ScreenProps) {
+type ProjectSortKey = "deadline" | "start" | "title" | "area" | "status" | "progress" | "customer";
+const projectSorts: Record<ProjectSortKey, SortOption<ProjectSortKey>> = {
+  deadline: { id: "deadline", label: "Nächster Termin", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
+  start: { id: "start", label: "Startzeitpunkt", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
+  title: { id: "title", label: "Titel", dirLabels: alphabetical },
+  area: { id: "area", label: "Bereich", dirLabels: alphabetical },
+  status: { id: "status", label: "Status" },
+  progress: { id: "progress", label: "Fortschritt", firstDir: "desc", dirLabels: { asc: "niedrigster zuerst", desc: "höchster zuerst" } },
+  customer: { id: "customer", label: "Kunde", dirLabels: alphabetical },
+};
+// "Dein Feedback" first: that is where the customer has to act.
+const statusRank: Record<Project["status"], number> = { "Dein Feedback": 0, "In Umsetzung": 1, Abgeschlossen: 2 };
+const projectSortValue: Record<ProjectSortKey, (project: Project) => SortValue> = {
+  deadline: (project) => project.dueOn,
+  start: (project) => project.startedOn,
+  title: (project) => project.name,
+  area: (project) => project.category,
+  status: (project) => statusRank[project.status],
+  progress: (project) => project.progress,
+  customer: (project) => project.company ?? "",
+};
+
+export function ProjectsScreen({ preview, populated, projects, admin, asOf }: ScreenProps) {
   const [filter, setFilter] = useState<(typeof filters)[number]>("Alle Projekte");
-  const [companyFilter, setCompanyFilter] = useState("Alle Kunden");
+  const [companyFilter, setCompanyFilter] = useState(ALL);
+  const [areaFilter, setAreaFilter] = useState(ALL);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortState<ProjectSortKey>>({ key: "deadline", dir: "asc" });
   const matches = (item: (typeof filters)[number], status: string) => item === "Alle Projekte" || (item === "Aktiv" ? status !== "Abgeschlossen" : status === "Abgeschlossen");
-  const shown = projects.filter((project) => matches(filter, project.status) && (companyFilter === "Alle Kunden" || project.company === companyFilter));
+  const areas = Array.from(new Set(projects.map((project) => project.category))).sort();
+  const companies = Array.from(new Set(projects.flatMap((project) => project.company ? [project.company] : []))).sort();
+  // Search, area and customer narrow the list; the status filter counts within that result.
+  const found = projects.filter((project) => {
+    const milestone = currentMilestone(project, asOf);
+    return (areaFilter === ALL || project.category === areaFilter) && (companyFilter === ALL || project.company === companyFilter)
+      && matchesSearch(query, [project.category, project.name, admin ? project.company : null, milestone?.title, milestone?.description, project.status, formatDeadline(project.startedOn), formatDeadline(project.dueOn)]);
+  });
+  // Completed projects stay at the end whatever the sort, so running and completed work stay apart.
+  const shown = sortRows(found.filter((project) => matches(filter, project.status)), projectSortValue[sort.key], sort.dir, {
+    group: (project) => Number(project.status === "Abgeschlossen"),
+    tieBreak: (project) => project.name,
+  });
+  const sortOptions = Object.values(projectSorts).filter((option) => admin || option.id !== "customer");
+  const activeFilters = [filter !== "Alle Projekte", areaFilter !== ALL, companyFilter !== ALL].filter(Boolean).length;
+  const narrowed = query.trim() !== "" || activeFilters > 0;
+  const reset = () => { setQuery(""); setAreaFilter(ALL); setCompanyFilter(ALL); setFilter("Alle Projekte"); };
   return (
     <>
       <LargeTitleHeader title="Projekte" icon={<CategoryTitle category="projects" />} actions={<HeaderActions />} />
       {populated ? <>
-        <CategoryMetrics model={model} category="projects" />
         <SectionHeader title="Alle Projekte" />
-        <div className="list-toolbar">
-          <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => ({ id: item, label: `${item === "Alle Projekte" ? "Alle" : item} ${projects.filter((project) => matches(item, project.status)).length}`, name: `${item}: ${projects.filter((project) => matches(item, project.status)).length}` }))} />
-          {admin && <label className="glass customer-filter"><span>Kunde</span><select aria-label="Kunden filtern" value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)}><option>Alle Kunden</option>{Array.from(new Set(projects.map((project) => project.company))).map((company) => <option key={company}>{company}</option>)}</select></label>}
-        </div>
+        <TableSearch value={query} onChange={setQuery} placeholder="Titel, Bereich, Meilenstein, Status …" label="Projekte durchsuchen" activeFilters={activeFilters}>
+          <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
+            const count = found.filter((project) => matches(item, project.status)).length;
+            return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
+          })} />
+          <FilterSelect icon={Layers} name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle Bereiche" }, ...areas.map((area) => ({ value: area, label: area }))]} />
+          {admin && <FilterSelect icon={Building2} name="Kunden filtern" value={companyFilter} onChange={setCompanyFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...companies.map((company) => ({ value: company, label: company }))]} />}
+          <SortControl options={sortOptions} sort={sort} onChange={setSort} />
+        </TableSearch>
         {shown.length ? (
-          <ul className="glass inset-list" aria-label="Projekte">
-            {shown.map((project) => (
-              <li key={project.id} className="list-item">
-                <Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">
-                  <span className="list-row-text">
-                    <span className="project-card-meta"><span>{project.company ? `${project.company} / ${project.category}` : project.category}</span><ProjectStatus value={project.status} /></span>
-                    <span className="list-row-title">{project.name}</span>
-                    <span className="list-row-subtitle">Ziel: {project.date}</span>
-                  </span>
-                  <span className="list-row-trailing"><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : <GlassCard><p className="t-subheadline t-secondary">Keine Projekte für diesen Filter.</p></GlassCard>}
+          <div className="table-blobs">
+            <table className="project-table">
+              <caption className="visually-hidden">{admin ? "Projekte mit Kunde, " : "Projekte mit "}Bereich, aktuellem Meilenstein, Status, Startzeitpunkt, nächstem Termin und Fortschritt</caption>
+              <thead>
+                <tr>
+                  {/* Admins see every customer's projects, so the customer leads the row. */}
+                  {admin && <SortHeader option={projectSorts.customer} sort={sort} onChange={setSort} />}
+                  <SortHeader option={projectSorts.area} sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.title} sort={sort} onChange={setSort} />
+                  {/* Soft hyphens let the long headers break on narrower screens. */}
+                  <th scope="col" className="col-milestone">Meilenstein&shy;beschreibung</th>
+                  <SortHeader option={projectSorts.status} label="Aktueller Status" sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.start} label={"Start­zeitpunkt"} sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.deadline} sort={sort} onChange={setSort} />
+                  <SortHeader option={projectSorts.progress} sort={sort} onChange={setSort} />
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((project) => {
+                  const milestone = currentMilestone(project, asOf);
+                  const done = project.status === "Abgeschlossen";
+                  const hint = deadlineHint(project.dueOn, done, asOf);
+                  return (
+                    <tr key={project.id} className={`project-row${done ? " is-done" : ""}`}>
+                      {admin && <td className="cell-customer">{project.company ?? "–"}</td>}
+                      <td className="cell-area">{project.category}</td>
+                      <td className="cell-project">
+                        <Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">{project.name}</Link>
+                      </td>
+                      <td className="cell-milestone">
+                        {milestone ? <><strong>{milestone.title}</strong><span>{milestone.description}</span></> : <span>Noch kein Meilenstein</span>}
+                      </td>
+                      <td className="cell-status"><ProjectStatus value={project.status} /></td>
+                      <td className="cell-start"><span className="cell-start-label">Start </span><span className="numeric">{formatDeadline(project.startedOn)}</span></td>
+                      <td className="cell-deadline">
+                        <Link className="deadline-link" href={`${hubHref(preview, "calendar")}?day=${project.dueOn}`} title="Im Kalender anzeigen" aria-label={`Nächster Termin ${formatDeadline(project.dueOn)} im Kalender anzeigen`}>
+                          <CalendarDays size={15} aria-hidden="true" /><span className="numeric">{formatDeadline(project.dueOn)}</span>
+                        </Link>
+                        <small className={hint.endsWith("überfällig") ? "is-overdue" : undefined}>{hint}</small>
+                      </td>
+                      <td className="cell-progress">
+                        <span className="progress-line"><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <GlassCard className="table-empty">
+            <p className="t-subheadline t-secondary">{query.trim() ? `Keine Projekte zu „${query.trim()}“.` : "Keine Projekte für diesen Filter."}</p>
+            {narrowed && <button type="button" className="table-reset" onClick={reset}>Suche und Filter zurücksetzen</button>}
+          </GlassCard>
+        )}
       </> : <EmptyState section="projects" />}
     </>
   );
@@ -118,12 +216,39 @@ export function MessagesScreen({ model, preview, populated, firstName, admin, co
   );
 }
 
+/** What the user management keeps about this login and its customer, read-only for the customer. */
+function AccountDetailsCard() {
+  const { account } = useHubShell();
+  const details = account.customerDetails;
+  // The country alone (the default "Deutschland") is no address yet.
+  const address = details && (details.street || details.city) ? [details.street, [details.postalCode, details.city].filter(Boolean).join(" "), details.country].filter(Boolean).join(", ") : "";
+  const rows = [
+    ["Name", account.name],
+    ["Position", account.person?.position],
+    ["Telefon", account.person?.phone],
+    ["Unternehmen", account.company],
+    ["Kundennummer", account.customerNumber],
+    ["Servicepakete", account.servicePackages.map((id) => servicePackages[id].name).join(", ")],
+    ["Anschrift", address],
+    ["Kontakt", [details?.contactEmail, details?.phone].filter(Boolean).join(" · ")],
+    ["Website", details?.website.replace(/^https?:\/\//, "")],
+  ].filter((row): row is [string, string] => Boolean(row[1]));
+  return (
+    <GlassCard className="settings-card">
+      <h2 className="t-headline settings-card-title"><Building2 size={20} color="var(--accent-text)" aria-hidden="true" />Deine Angaben</h2>
+      <dl className="account-details">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd className={label === "Kundennummer" ? "numeric" : undefined}>{value}</dd></div>)}</dl>
+      <p className="t-footnote t-secondary">Diese Angaben pflegt dein oalab-Team. Wenn sich etwas ändert, gib ihm einfach Bescheid.</p>
+    </GlassCard>
+  );
+}
+
 export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { email: string; publicDemo: boolean }) {
-  const { openPanel, signOut, signingOut } = useHubShell();
+  const { openPanel, signOut, signingOut, account } = useHubShell();
   return (
     <>
       <LargeTitleHeader title="Profil" actions={<HeaderActions />} />
       <div className="settings-grid section-first">
+        {(account.person || account.company) && !account.admin && <AccountDetailsCard />}
         <GlassCard className="settings-card">
           <h2 className="t-headline">Dein Konto</h2>
           <label className="settings-label" htmlFor="account-email">E-Mail-Adresse</label>
@@ -133,16 +258,18 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
         </GlassCard>
         <GlassCard className="settings-card">
           <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--switch-on)" aria-hidden="true" />{preview ? "Du siehst die Vorschau." : publicDemo ? "Du testest die öffentliche Demo." : "Dein Zugang ist geschützt."}</h2>
-          <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : "Dein Workspace ist nur nach Anmeldung erreichbar. Projektzuordnungen und Berechtigungen ergänzen wir im nächsten Schritt."}</p>
+          <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : account.admin ? "Dein Workspace ist nur nach Anmeldung erreichbar. Als Admin verwaltest du Konten und Kunden im User Management." : "Dein Workspace ist nur nach Anmeldung erreichbar und zeigt ausschließlich die Daten deines Unternehmens."}</p>
           {preview && <Link className="text-link" href="/auth/login">Zum Login</Link>}
         </GlassCard>
+        {!preview && !publicDemo && <WhatsAppCard />}
       </div>
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">
-        <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" subtitle="Hintergrund, Glas und Transparenz" />
-        <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Hilfe & Kontakt" />
+        <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" subtitle="Hintergrund, Glas, Transparenz und Bewegung" />
+        <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
         <ListRow compact onClick={signOut} icon={<LogOut size={24} color="var(--system-gray)" aria-hidden="true" />} title={preview ? "Vorschau verlassen" : signingOut ? "Wird abgemeldet …" : "Abmelden"} chevron={false} />
       </InsetGroupedList>
+      <LegalLinks className="legal-links hub-legal-links" />
     </>
   );
 }

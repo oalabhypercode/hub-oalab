@@ -1,11 +1,14 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { PageWaterfall } from "@/components/page-waterfall";
 import { appearanceInlineScript } from "@/lib/appearance";
 import "./globals.css";
 import "./brand.css";
 import "./hub.css";
 import "./glass.css";
+import "./motion.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -42,6 +45,8 @@ export default function RootLayout({
           forcedTheme="light"
           disableTransitionOnChange
         >
+          {/* usePathname may suspend while prerendering; the controller renders nothing anyway. */}
+          <Suspense fallback={null}><PageWaterfall /></Suspense>
           {children}
         </ThemeProvider>
       </body>

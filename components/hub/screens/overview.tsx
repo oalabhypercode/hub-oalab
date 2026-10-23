@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Check, CircleMinus, CirclePlus } from "lucide-react";
-import { categories } from "@/lib/categories";
+import { categories, categoryLabel } from "@/lib/categories";
 import { hubHref, type HubSection } from "@/lib/hub-data";
 import { metricOrder, type MetricId } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
@@ -14,7 +14,7 @@ import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { useHubShell } from "../shell-context";
 import type { ScreenProps } from "./types";
 
-export function OverviewScreen({ model, preview, populated, favorites, toggleStep }: ScreenProps) {
+export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin }: ScreenProps) {
   const { account, initials } = useHubShell();
   const [editing, setEditing] = useState(false);
   const available = metricOrder.filter((id) => !favorites.isFavorite(id));
@@ -44,13 +44,13 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
         )}
         {editing && available.length > 0 && (
           <InsetGroupedList label="Weitere Kennzahlen" className="favorites-add">
-            {available.map((id: MetricId) => <ListRow key={id} compact onClick={() => favorites.toggle(id)} icon={<CirclePlus size={22} color="var(--switch-on)" aria-hidden="true" />} title={model.metrics[id].name} subtitle={categories[model.metrics[id].category].name} chevron={false} />)}
+            {available.map((id: MetricId) => <ListRow key={id} compact onClick={() => favorites.toggle(id)} icon={<CirclePlus size={22} color="var(--switch-on)" aria-hidden="true" />} title={model.metrics[id].name} subtitle={categoryLabel(model.metrics[id].category, admin)} chevron={false} />)}
           </InsetGroupedList>
         )}
 
         {model.highlights.length > 0 && <>
           <SectionHeader title="Highlights" action={<SectionLink href={hubHref(preview, "insights")}>Alle anzeigen</SectionLink>} />
-          <div className="highlight-grid">{model.highlights.slice(0, 2).map((highlight) => <HighlightCard key={highlight.id} highlight={highlight} href={model.metrics[highlight.metric].href} />)}</div>
+          <div className="highlight-grid">{model.highlights.slice(0, 2).map((highlight) => <HighlightCard key={highlight.id} highlight={highlight} href={model.metrics[highlight.metric].href} label={categoryLabel(highlight.category, admin)} />)}</div>
         </>}
 
         {model.steps.length > 0 && <>
@@ -83,14 +83,14 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
   );
 }
 
-export function InsightsScreen({ model, preview, populated }: ScreenProps) {
+export function InsightsScreen({ model, preview, populated, admin }: ScreenProps) {
   return (
     <>
       <LargeTitleHeader title="Insights" date={model.dateLine} actions={<HeaderActions />} />
       {populated && model.insight ? <>
         <div className="section-first"><InsightsCard insight={model.insight} /></div>
         <SectionHeader title="Highlights" />
-        <div className="highlight-grid">{model.highlights.map((highlight) => <HighlightCard key={highlight.id} highlight={highlight} href={model.metrics[highlight.metric].href} />)}</div>
+        <div className="highlight-grid">{model.highlights.map((highlight) => <HighlightCard key={highlight.id} highlight={highlight} href={model.metrics[highlight.metric].href} label={categoryLabel(highlight.category, admin)} />)}</div>
       </> : <EmptyState section="insights" preview={preview} />}
     </>
   );

@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, LogOut, Search, Settings } from "lucide-react";
-import { categories, categoryOrder } from "@/lib/categories";
-import { hubHref, type HubSection } from "@/lib/hub-data";
+import { Loader2, LogOut, Search, Settings, UserCog } from "lucide-react";
+import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
+import { hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { useHubShell } from "./shell-context";
-import { CategoryIcon } from "./glass";
 import { mainNavigation } from "./navigation";
 import { BrandLogo } from "./wordmark";
 
@@ -14,15 +13,18 @@ type SidebarProps = {
   onSearch: () => void;
   preview: boolean;
   section: HubSection;
-  counts: Record<"projects" | "files" | "messages", number>;
+  /** Categories without a count (the calendar) show none. */
+  counts: Partial<Record<CategoryId, number>>;
   name: string;
   accountLabel: string;
   initials: string;
+  /** Admins: registrations waiting for approval. */
+  pendingRegistrations: number;
 };
 
 /** Floating glass sidebar from 1024 px; below that the tab bar takes over its entries. */
-export function GlassSidebar({ onSearch, preview, section, counts, name, accountLabel, initials }: SidebarProps) {
-  const { signOut, signingOut, logoutError, account } = useHubShell();
+export function GlassSidebar({ onSearch, preview, section, counts, name, accountLabel, initials, pendingRegistrations }: SidebarProps) {
+  const { signOut, signingOut, logoutError, account, manageUsers } = useHubShell();
   const activePackages = account.servicePackages.map((id) => servicePackages[id].name).join(", ");
   const item = (target: HubSection) => ({
     href: hubHref(preview, target),
@@ -44,9 +46,18 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           <Link key={target} {...item(target)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{label}</span></Link>
         ))}
         <span className="sidebar-caption">Kategorien</span>
-        {categoryOrder.map((id) => (
-          <Link key={id} {...item(categories[id].section)}><CategoryIcon category={id} size={19} /><span>{categories[id].name}</span><span className="sidebar-count">{counts[id]}</span></Link>
-        ))}
+        {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
+        {categoryOrder.map((id) => {
+          const Icon = categories[id].icon;
+          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin)}</span>{counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+        })}
+        {manageUsers && <>
+          <span className="sidebar-caption">Verwaltung</span>
+          <Link {...item("users")}>
+            <UserCog size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels.users}</span>
+            {pendingRegistrations > 0 && <span className="sidebar-count sidebar-count-alert" title={`${pendingRegistrations} offene Registrierung${pendingRegistrations === 1 ? "" : "en"}`}><span className="visually-hidden">Offene Registrierungen: </span>{pendingRegistrations}</span>}
+          </Link>
+        </>}
       </nav>
       <div className={`sidebar-profile${activePackages ? " has-package" : ""}`}>
         <Link {...item("settings")} className={`sidebar-profile-link${section === "settings" ? " is-active" : ""}`}>

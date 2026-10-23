@@ -3,7 +3,7 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 20. Oktober 2026
+**Stand:** 22. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
 ### Designentscheidung vom 19. Oktober 2026: Client Hub im Liquid-Glass-Stil
@@ -12,10 +12,10 @@
 - Unter allen Inhalten liegt ein kräftiger, wählbarer Hintergrund. Karten, Listen, Sidebar, Tab-Bar und Buttons sind mattes Glas (Standard 80 % Deckkraft, 24 px Unschärfe).
 - **Inter bleibt** die Schrift. Große Kennzahlen nutzen `ui-rounded` (SF Pro Rounded auf Apple-Geräten, sonst Inter).
 - **Standard-Hintergrund ist das Preset „oalab“** (Bordeaux, Rot und Orange, für weiße Schrift abgedunkelt). Ozean, Aubergine, Smaragd, Glut, Graphit und eine eigene Farbe sind wählbar. Links, aktive Navigation und Fokus bleiben Bordeaux.
-- Kategorien: Projekte (Orange), Dateien (Indigo), Nachrichten (Blau). Rechnungen, Analytics, Hosting und Termine entfallen, bis es diese Module gibt.
+- Kategorien: Projekte (Orange), Dateien (Indigo), Nachrichten (Blau), seit 22. Oktober 2026 Kalender (Rot). Rechnungen, Analytics und Hosting entfallen, bis es diese Module gibt.
 - Die Beispieldaten (Vorschau und vier Demo-Identitäten) enthalten einen ausdrücklich fiktiven, datierten Verlauf: Projektstart, Zieltermine, Meilensteine, Dateidaten. Referenztag ist der 15. Oktober 2026 (`DEMO_AS_OF`). Echte Konten sehen weiterhin leere Zustände.
 - Die Insights sind regelbasiert aus den vorhandenen Daten erzeugt und können später durch eine KI-Zusammenfassung ersetzt werden.
-- Darstellung (Preset, eigene Farbe, Deckkraft 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“) und Favoriten werden im Browser gespeichert, Favoriten pro Nutzer. Für Nutzereinstellungen gibt es noch keinen Speicher im Backend. Ein Inline-Script setzt die Darstellung vor dem ersten Paint.
+- Darstellung (Preset, eigene Farbe, Deckkraft 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“, seit 22. Oktober 2026 „Bewegung reduzieren“) und Favoriten werden im Browser gespeichert, Favoriten pro Nutzer. Für Nutzereinstellungen gibt es noch keinen Speicher im Backend. Ein Inline-Script setzt die Darstellung vor dem ersten Paint.
 - Die Übersicht begrüßt mit Namen und zeigt Unternehmen und Kundennummer (Admins: Organisation und Zahl der betreuten Kunden). Kundennummern existieren bisher nur als fiktive Demo-Werte (`KD-24017`, `KD-24023`, `KD-24031`); echte Konten zeigen „Noch nicht zugeordnet“.
 - Rechts neben der Begrüßung stehen das aktive Servicepaket und der Button „Ab zur Serviceplattform“ (https://service.oalab.de, neuer Tab). Jeder Kunde hat mindestens ein Paket: Oalab-Website & Mail, Oalab-Website lite, Oalab-Website extra oder Oalab-Website Max (zentral in `lib/service-packages.ts`). Die Demo-Zuordnungen sind fiktiv.
 - Login, Registrierung, Passwortseiten, Auth-Fehler und 404 stehen ebenfalls im Glas-Stil auf dem wählbaren Hintergrund; das Formular liegt auf einer Glaskarte. Das Original-Logo erscheint nur transparent als Wasserzeichen links (auf dem Smartphone klein oben rechts), nie umgefärbt.
@@ -29,6 +29,155 @@
 - Hauptlogo und Iconvariante sind als gelieferte Originaldateien eingebunden.
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
+
+### Vorgabe vom 22. Oktober 2026: Kalender und Reiter „Projekte“
+
+- Der Reiter „Projekte“ zeigt oben keine Kennzahl-Kacheln mehr. Die Kennzahlen bleiben über Favoriten und die Detailseiten erreichbar; die Kacheln stehen im Backlog (unten).
+- Unter dem Suchfeld steht eine Tabelle mit den Spalten **Bereich** (z. B. Website & Digital, Brand Identity), **Titel** (bei Admins darunter der Kunde), **Meilensteinbeschreibung** (Titel und Text des aktuellen Meilensteins, seit dem 22. Oktober 2026 ohne Datum), **Aktueller Status**, **Startzeitpunkt** (Projektbeginn, `startedOn`), **Nächster Termin** (bis zum 22. Oktober 2026 „Terminierung“) und **Fortschritt** (Balken und Prozent). Die ganze Zeile öffnet den Projektdialog; auf dem Smartphone wird jede Zeile zur Karte, dort steht vor dem Startdatum „Start“.
+- Sieben Spalten: Zellen sind enger, lange Überschriften brechen per weichem Trennstrich um. Ab 1280 px passt die Tabelle; darunter (1024–1279 px) scrollt sie seitlich in ihrem eigenen Bereich, die Seite bleibt fest.
+- Die Filter zeigen ihre Anzahl als eigene Zähl-Badges („Alle 9“, „Aktiv 6“, „Abgeschlossen 3“).
+- Abgeschlossene Projekte stehen am Ende und sind ausgegraut (graue Zeile, Titel und Texte in Sekundärfarbe). Der Fortschrittsbalken behält bewusst Farbe und Gewicht, damit 100 % sichtbar bleibt.
+- **Nächster Termin** ist der Zieltermin des Projekts (`dueOn`) mit Hinweis „in 8 Tagen“, „heute“, „3 Tage überfällig“ (rot) oder „abgeschlossen“ (`deadlineHint` in `lib/hub-data.ts`). Das Datum verlinkt auf den Kalender an diesem Tag (`/dashboard/calendar?day=JJJJ-MM-TT`).
+- Die Terminierungen erscheinen im **Kalender** als ganztägige Projektziele „Ziel · …“ (orange, abgeschlossene grau), in der Tagesansicht und in der Liste „Projekt-Terminierungen“. Kunden sehen die Ziele ihrer eigenen Projekte, Admins die aller Kunden mit Firmennamen; die Quelle sind dieselben Projektdaten wie im Reiter „Projekte“, es gibt keine eigene Tabelle. Projektziele zählen nicht als belegte Zeit. Tabelle und Kalender rechnen mit demselben Stichtag (bei Demo-Konten der 15. Oktober 2026 der Beispieldaten).
+- Die Meilensteinbeschreibung zeigt den aktuellen Meilenstein, also den zuletzt erreichten (`currentMilestone` in `lib/hub-data.ts`): Titel, Kurzbeschreibung und Datum. Beschreibungen gibt es bisher nur in den fiktiven Beispieldaten.
+- Neuer Reiter **Kalender** für Admins und Kunden, in Sidebar und Tab-Bar (`/dashboard/calendar`, `/preview/calendar`).
+- Admins legen Termine an, optional für einen Kunden, und hinterlegen einen Microsoft-Teams-Link. Der Link wird von Hand aus Teams oder Outlook eingefügt; akzeptiert werden nur Teams-Domains. Termine lassen sich bearbeiten, absagen (mit Hinweis an den Kunden) und löschen. Überschneidungen zeigt das Formular an, blockiert sie aber nicht.
+- Kundenanfragen stehen beim Admin unter „Offene Anfragen“. Er nimmt sie an (Zeit anpassbar, Teams-Link eintragen) oder lehnt sie mit Begründung ab.
+- Kunden sehen pro Tag, wie stark der OALAB-Kalender belegt ist (frei, gut verfügbar, stark belegt, ausgebucht). In der Tagesansicht erscheinen fremde Termine nur als anonyme „Belegt“-Blöcke, ohne Titel oder Kunde.
+- Kunden fragen Termine in freien Zeiträumen an: 30 bis 90 Minuten, Mo–Fr 9–17 Uhr (Europe/Berlin), höchstens fünf offene Anfragen. Sie sehen den Status, können offene Anfragen zurückziehen und treten bestätigten Terminen über „Teams-Meeting beitreten“ bei.
+- Technik: Migration `supabase/migrations/20261022120000_hub_calendar.sql`, am 22. Oktober 2026 auf `tjbslvwvisxjjcxfhbgm` angewendet. Tabelle `hub_appointments` mit RLS: Admins dürfen alles; Kunden lesen ihre Termine und legen nur Anfragen ohne Teams-Link an. `hub_calendar_busy()` liefert Angemeldeten nur die Zeitblöcke bestätigter Termine, `hub_withdraw_appointment_request()` zieht eine eigene offene Anfrage zurück. Data-API-Grants sind explizit gesetzt.
+- Arbeitszeit, Zeitzone samt Sommerzeitwechsel, freie Slots und Teams-Links regelt `lib/hub-calendar/rules.ts`; `tests/hub-calendar.test.mjs` prüft das. Vorschau und öffentliche Demo zeigen fiktive Termine (`lib/hub-calendar/fixtures.ts`); Änderungen dort bleiben im Browserfenster.
+- Lokal mit echten Demo-Logins geprüft: Nordlicht fragt an, der Admin bestätigt mit Teams-Link, Nordlicht sieht den Termin samt Link; der Termin von Form & Feld erscheint bei Nordlicht nur als „Belegt“. Drei Testtermine vom 23. Oktober 2026 („Testtermin: …“, „Testanfrage …“) liegen noch in der Datenbank.
+- Offen: E-Mail-Benachrichtigung bei neuer Anfrage und bei Bestätigung, Teams-Meetings automatisch über Microsoft Graph, konfigurierbare Zeiten und Feiertage, Erinnerungen vor dem Termin.
+
+### Vorgabe vom 22. Oktober 2026: User Management, Registrierung mit Freigabe, Kunden-Spalte, Asset Management
+
+- **Projekte (Admin):** Die erste Spalte ist „Kunde“; unter dem Titel steht nur noch der Titel. Kunden sehen die Spalte nicht.
+- **Asset Management:** Für Admins heißt „Dateien“ überall „Asset Management“ (Sidebar, Tab-Bar, Suche, Seitentitel, Karten, Kennzahlen; `sectionLabel`/`categoryLabel`). Kunden sehen weiter „Dateien“, die Route bleibt `/dashboard/files`.
+- **User Management** (`/dashboard/users`, nur echte Admin-Sitzungen; Sidebar „Verwaltung“ mit Zähler offener Registrierungen, auf dem Smartphone über Entdecken). Setzt die Vorgabe vom 20. Oktober 2026 (unten) um.
+  - Offene Registrierungen als Karten mit allen Angaben, Dialog „Prüfen“: Rolle (Kunde/Admin), bestehender Kunde (Vorschlag über Kundennummer oder Firmennamen) oder neuer Kunde mit nächster freier Kundennummer und Servicepaketen. „Freigeben“ schickt der Person eine E-Mail mit dem Login-Link; die Nachricht steht zusätzlich zum Kopieren oder fürs eigene Mailprogramm bereit.
+  - Ablehnen mit Begründung, die die Person per E-Mail bekommt und auf `/auth/pending` sieht. Abgelehnte Registrierungen bleiben gespeichert (Entscheidung vom 22. Oktober 2026) und lassen sich später freigeben oder löschen.
+  - Benutzer-Tabelle (Kunden-Nr. mit Kopieren, Name + E-Mail, Unternehmen, Rolle, farbiger Status, letzter Login) und Kunden-Tabelle (Kunden-Nr., Unternehmen, Servicepakete, Logins, Ort), beide mit Suche, erweiterter Suche und Sortierung.
+  - Benutzer anlegen: Login mit Rolle und Kunde; der Admin erhält einen einmaligen Aktivierungslink zum Kopieren oder „Im Mailprogramm öffnen“; auf Wunsch verschickt ihn der Hub selbst (siehe E-Mail-Benachrichtigungen unten). Der Link ist ein Supabase-Recovery-Link über `/auth/confirm` → `/auth/update-password`.
+  - Bearbeiten: Person, Rolle, Kunde, Passwort-Link (kopieren oder per E-Mail), deaktivieren/reaktivieren, endgültig löschen nach Eingabe der E-Mail-Adresse (Entscheidung: Deaktivieren als Standard, Löschen mit Bestätigung). Verlauf je Konto und Kunde.
+  - Status: Wartet auf Freigabe, Aktivierung offen (aktiv, aber noch nie angemeldet), Aktiv, Deaktiviert, Abgelehnt.
+- **Registrierung:** Pflicht sind Vorname, Nachname, Unternehmen, Telefon, E-Mail, Passwort; optional Position, Website, Kundennummer, Nachricht. Datenschutzhinweis am Formular (Art. 6 Abs. 1 lit. b DSGVO, keine Einwilligungs-Checkbox). Prüfung im Browser und in der Datenbank (`lib/hub-users/rules.ts`, Trigger kürzt und bereinigt).
+- **Zugang:** Nur Logins mit aktivem Profil kommen in den Hub (`getWorkspaceIdentity`); alle anderen sehen `/auth/pending` mit ihrem Stand. KI-Assistent, WhatsApp-Antworten, WhatsApp-Verknüpfung und Kalender-Auslastung verlangen ebenfalls ein aktives Konto.
+- **Kundensicht:** Echte Logins sehen Name, Unternehmen, Kundennummer und Servicepakete aus der Datenbank in Sidebar und Übersicht; das Profil zeigt „Deine Angaben“ inklusive Anschrift und Kontakt (pflegt das oalab-Team).
+- **Rechtstexte:** Impressum- und Datenschutz-Links stehen auf Login, Registrierung, 404 und im Profil, sobald `NEXT_PUBLIC_IMPRINT_URL` und `NEXT_PUBLIC_PRIVACY_URL` gesetzt sind (nur https). Die Adressen liefert der Nutzer nach.
+- **Technik:** Migration `20261022190000_hub_user_management.sql` (am 22. Oktober 2026 auf `tjbslvwvisxjjcxfhbgm` angewendet):
+  - `hub_profiles` (Person, Registrierungsangaben, Status, Entscheidung), Trigger `hub_handle_new_user` auf `auth.users`, Bestandskonten mit Rolle als aktiv übernommen.
+  - `hub_customers` um Servicepakete, Kontakt und Anschrift erweitert; `hub_admin_events` als Protokoll ohne personenbezogene Texte.
+  - `hub_is_active()` und `is_hub_admin()` lesen Status und Rolle aus der Datenbank (nicht aus dem Token): Rollenwechsel und Sperren wirken sofort. Die Leseregel der Mitgliedschaften verlangt ein aktives Profil, damit sperrt ein deaktiviertes Konto sofort alle Kundendaten.
+  - Browser lesen Profile und Protokoll nur; geschrieben wird ausschließlich serverseitig. Jede Aktion in `lib/hub-users/actions.ts` prüft zuerst per `is_hub_admin()` mit der Sitzung des Aufrufers und nutzt erst dann den Secret Key (`lib/supabase/admin.ts`). Schutz: kein Selbst-Sperren/-Herabstufen, letzter aktiver Admin bleibt, Demo-Konten schreibgeschützt.
+- Lokal Ende-zu-Ende geprüft: Registrierung (über die Admin-API simuliert, ohne Mailversand) → Freigabe mit neuem Kunden → Login als Kunde mit Unternehmensdaten → RLS-Prüfung mit dem Token des Kunden (nur eigener Kunde, keine Schreibrechte, keine Rollenanmaßung) → Deaktivieren (altes Token sieht sofort nichts mehr, neuer Login „user_banned“) → Reaktivieren → Konto anlegen mit Aktivierungslink → Passwort setzen → Löschen. Testkonten, Testkunde und Test-Protokolleinträge sind wieder entfernt.
+- **Voraussetzungen für den Livebetrieb:** `SUPABASE_SECRET_KEY` als Secret in Vercel (Production); in Supabase „Confirm email“ an, „Email OTP expiration“ 24 Stunden, eigener SMTP-Versand über das Netcup-Postfach `hub@oalab.de` für Bestätigungs- und Passwort-E-Mails an echte Adressen. Derzeit ist der einzige Admin das Demo-Konto; ein echter Admin-Login (z. B. info@oalab.de) wird im User Management angelegt.
+- Offen: Löschfrist für abgelehnte Registrierungen festlegen (Datenschutzerklärung); Kunden löschen; Kunden ändern ihre Kontaktdaten selbst.
+
+### Vorgabe vom 22. Oktober 2026: E-Mail-Benachrichtigungen bei Registrierung und Freigabe
+
+- **Entscheidungen vom 22. Oktober 2026:** Versand per **SMTP über das Netcup-Postfach `hub@oalab.de`** (Paket `nodemailer`, fest auf eine Version gepinnt). Zuerst war Resend geplant und gebaut; noch am selben Tag ersetzt, weil die Mails von oalab.de ohnehin bei Netcup liegen: kein weiterer Anbieter, keine neuen DNS-Einträge, keine Übermittlung in die USA. Absender `oalab Client Hub <hub@oalab.de>`, Antworten an `info@oalab.de`, Team-Empfänger `info@oalab.de`. Dazu gewünscht: Aktivierungslink per Mail, Eingangsbestätigung, Mail bei Ablehnung, Supabase-Vorlagen im oalab-Design.
+- **Mails** (`lib/hub-mail/`):
+  - an das Team: neue Registrierung mit allen Angaben und Button „Im User Management prüfen“; Reply-To ist die Person.
+  - an die Person: Eingangsbestätigung, Freigabe mit Login-Link (mit Unternehmen und Kundennummer), Ablehnung mit Begründung, Aktivierungs- oder Passwort-Link.
+  - Jede Mail hat eine HTML- und eine Textfassung im oalab-Look (Verlaufsbalken, weiße Karte, Bordeaux-Button, Link zum Kopieren, Impressum und Datenschutz, sobald die Adressen gesetzt sind). Eingaben werden maskiert, Links müssen http(s) sein, Betreffzeilen bleiben einzeilig.
+- **Auslöser:** Team-Mail und Eingangsbestätigung gehen erst nach der Bestätigung der E-Mail-Adresse raus, wenn die Person zum ersten Mal `/auth/pending` sieht (`after()` nach dem Rendern), jeweils genau einmal pro Login. Freigabe, Ablehnung und Links verschicken die Server Actions des User Managements; die Dialoge zeigen, ob die Mail rausging, und bieten sonst Text und Link zum selbst Weitergeben an.
+- **Einmaligkeit und Protokoll:** `hub_notifications` (Migration `20261022210000_hub_notifications.sql`, am 22. Oktober 2026 auf `tjbslvwvisxjjcxfhbgm` angewendet) speichert Art, Login, Ergebnis und Message-ID, keine Adressen, Betreffzeilen oder Inhalte. Ein eindeutiger Index auf Art und Login reserviert die beiden Registrierungs-Mails vor dem Versand; ein fehlgeschlagener Versand gibt die Reservierung frei. Admins lesen die Einträge (RLS über `is_hub_admin()`) im Verlauf des Benutzers; geschrieben wird nur serverseitig.
+- **Testmodus:** Ohne SMTP-Zugang (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`) werden die Mails gebaut, aber nicht verschickt und als „nicht verschickt“ protokolliert. Das User Management zeigt einen Hinweis, das Häkchen beim Anlegen ist gesperrt und „Link per E-Mail senden“ ausgeblendet. Server-Logs nennen nur die Art der Mail; Fehlermeldungen des Mailservers verlieren E-Mail-Adressen. Jede Mail trägt ihre Art im Kopf `X-Hub-Mail`.
+- **Supabase-Vorlagen:** `supabase/templates/confirmation.html` („Confirm signup“) und `recovery.html` („Reset password“) auf Deutsch mit Token-Hash-Links über `/auth/confirm`, die auf jedem Gerät funktionieren. Eingetragen in `supabase/config.toml`; im gehosteten Projekt werden sie im Dashboard eingefügt. Der Mailto-Knopf im Link-Feld heißt jetzt „Im Mailprogramm öffnen“, damit er nicht mit „Link per E-Mail senden“ verwechselt wird.
+- **Datenschutz:** Die Mails laufen über den Mailserver von Netcup in Deutschland; Netcup verarbeitet Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag. Nötig sind der Auftragsverarbeitungsvertrag mit Netcup und ein Absatz in der Datenschutzerklärung (Empfänger, Zweck).
+- **Voraussetzungen für den Livebetrieb** (richtet der Nutzer selbst ein, Anleitung im README unter „E-Mails“): Postfach `hub@oalab.de` bei Netcup anlegen; `SMTP_HOST` (für oalab.de derzeit `mxe989.netcup.net`), `SMTP_PORT` 465, `SMTP_USER` und `SMTP_PASSWORD` in Vercel (Production) und lokal in `.env.local`; in Supabase eigenen SMTP mit demselben Postfach, Vorlagen einfügen, „Site URL“ auf die Live-Adresse, „Confirm email“ an. Empfohlen: DKIM für oalab.de und ein DMARC-Eintrag (bisher keiner; SPF schließt Netcup schon ein).
+- Lokal Ende-zu-Ende im Testmodus geprüft: bestätigte Testregistrierung → drei gleichzeitige erste Aufrufe der Warteseite ergeben genau eine Team-Mail und eine Eingangsbestätigung, Neuladen keine weiteren → Ablehnen mit Begründung im User Management → „Doch freigeben“ mit bestehendem Kunden → Passwort-Link zum Kopieren. Jeder Schritt steht mit „nicht gesendet“ im Verlauf, die Dialoge bieten Text und Link zum selbst Weitergeben, die Server-Logs nennen nur die Art der Mail. Testkonto, Einträge und Protokoll sind wieder entfernt.
+- Echte Zustellung am 23. Oktober 2026 geprüft: Anmeldung als `hub@oalab.de` bei `mxe989.netcup.net:465` klappt, eine Testmail (Team-Benachrichtigung mit erfundenen Daten) kam bei info@oalab.de an. Der lokale Hub erkennt den SMTP-Zugang (kein Hinweis mehr, Häkchen „Aktivierungslink per E-Mail“ aktiv).
+- Supabase am 23. Oktober 2026 eingerichtet und per Management-API geprüft: Site URL `https://hub.oalab.de` (die Hauptdomain zeigt auf Vercel), Redirect URLs für `hub.oalab.de`, `oalab-client-hub.vercel.app` und `localhost:3000/3002` (jeweils `/auth/callback**`, live auch `/auth/confirm**`), Custom SMTP über `hub@oalab.de` (30 Mails pro Stunde), deutsche Vorlagen und Betreffzeilen aus `supabase/templates/`, Links 24 Stunden gültig, „Confirm email“ an.
+- Offen: SMTP-Werte und `NEXT_PUBLIC_SITE_URL=https://hub.oalab.de` in Vercel (Production) prüfen; `PUBLIC_DEMO_ORIGIN` erlaubt die öffentliche Demo bisher nur auf `oalab-client-hub.vercel.app`; DKIM und DMARC für oalab.de; Benachrichtigungen zu Terminen, Dateien und Nachrichten.
+
+### Vorgabe vom 22. Oktober 2026: Suche, Filter und Sortierung in allen Tabellen; Zeilen als Blobs
+
+- Jede Tabelle der Plattform (derzeit Projekte und Dateien) zeigt oben zunächst nur das Suchfeld. Der Knopf „Erweiterte Suche“ rechts im Feld (auf schmalen Smartphones nur das Regler-Symbol) klappt darunter ein Glas-Panel auf; eine Zahl am Knopf zeigt aktive Filter auch im eingeklappten Zustand (Vorgabe vom 22. Oktober 2026, ersetzt die offene Leiste mit „Sortieren“ oben rechts).
+- Im Panel stehen Status (Alle/Aktiv/Abgeschlossen), Filter und Sortierung in **einer** Leiste (Vorgabe vom 22. Oktober 2026, statt zwei Reihen). Damit sie bei 1280 px passt, tragen die Auswahlfelder Symbole statt Textlabels, die erste Option benennt den Filter („Alle Bereiche“, „Alle Kunden“, „Alle Kategorien“, „Alle Formate“); Name und Tooltip bleiben für Screenreader und Maus. Passt die Leiste nicht, scrollt sie seitlich statt umzubrechen; auf dem Smartphone blendet sie rechts aus, als Hinweis zum Wischen.
+- Suche: Groß-/Kleinschreibung und Umlaute zählen nicht („gefuhl“ findet „Gefühl“), mehrere Wörter müssen alle vorkommen, auch verteilt auf verschiedene Spalten.
+- Sortieren: per Klick auf eine Spaltenüberschrift (zweiter Klick dreht die Richtung, Pfeil zeigt sie, `aria-sort` für Screenreader) oder in der erweiterten Suche über „Sortieren“ mit Richtungspfeil. Beides nutzt denselben Zustand, das Feld ist auf dem Smartphone der einzige Weg.
+- Projekte: Suche über Titel, Bereich, Meilenstein, Status, Startzeitpunkt und nächsten Termin (Admins auch Kunde). Filter Alle/Aktiv/Abgeschlossen (die Zahlen gelten für Suche und übrige Filter), Bereich, beim Admin Kunde. Sortierung nach nächstem Termin (Standard, früheste zuerst), Startzeitpunkt, Titel, Bereich, Status („Dein Feedback“ zuerst), Fortschritt, beim Admin Kunde. Abgeschlossene Projekte bleiben bei jeder Sortierung unten (Entscheidung vom 22. Oktober 2026).
+- Dateien: Suche zusätzlich über Kategorie und (Admins) Kunde. Neuer Filter Format. Sortierung nach Bereitgestellt (Standard, neueste zuerst), Titel, Kategorie, Format, Größe.
+- Leere Treffer zeigen „Suche und Filter zurücksetzen“. Bei Dateien bleibt der Kundenfilter dabei stehen, weil er auch die Ordner bestimmt.
+- Zeilen sind eigene Glas-Blobs mit abgerundeten Ecken und 4 px Abstand (Smartphone 6 px), statt durch Trennlinien in einer gemeinsamen Karte zu liegen. Die Zellen tragen den Hintergrund (`border-spacing`), damit die Tabellen echte Tabellen bleiben; ein gemeinsamer `drop-shadow` liegt unter allen Blobs.
+- Technik: Regeln in `lib/table-tools.ts` (`matchesSearch`, `sortRows`, `nextSort`), Bausteine in `components/hub/table-tools.tsx` (`TableSearch`, `FilterSelect`, `SortControl`, `SortHeader`), Tests in `tests/table-tools.test.mjs`.
+
+### Vorgabe vom 22. Oktober 2026: Ordner, Mehrfach-Upload und ZIP-Download
+
+- Admins laden bis zu 20 Dateien auf einmal hoch, per Auswahl oder Hineinziehen (je bis 50 MB).
+    - Den Titel jeder Datei kann man in der Liste anpassen; jede Datei zeigt ihren eigenen Fortschritt.
+    - Kategorie, Beschreibung, Kunden und Ordner gelten für alle Dateien des Uploads. Ein Ordner lässt sich wählen, wenn genau ein Kunde zugeordnet ist.
+- Kunden laden weiterhin nicht selbst hoch (Entscheidung vom 22. Oktober 2026).
+- Mehrere Dateien herunterladen: Häkchen setzen, dann „Als ZIP herunterladen“.
+    - Der Browser holt jede Datei über ihren eigenen 60-Sekunden-Link und baut die ZIP-Datei selbst. So greifen keine Größengrenzen von Vercel.
+    - Bis 500 MB auf einmal; doppelte Dateinamen werden nummeriert, Umlaute bleiben erhalten.
+- Ordner gibt es pro Kunde, mit einer Ebene ohne Unterordner. Über der Tabelle stehen „Alle Dateien“, die Ordner, „Ohne Ordner“ und „Neuer Ordner“.
+    - Kunden legen Ordner für ihr Unternehmen an; Admins wählen dafür im Filter „Kunde“ den Kunden.
+    - Ordner lassen sich umbenennen und löschen. Beim Löschen landen die Dateien in „Ohne Ordner“; es wird keine Datei gelöscht.
+    - „Verschieben nach …“ sortiert markierte Dateien ein.
+- Technik: Migration `supabase/migrations/20261022170000_hub_folders.sql`, am 22. Oktober 2026 angewendet.
+    - Tabelle `hub_folders` mit RLS: Admins dürfen alles, Mitglieder des Kunden verwalten dessen Ordner.
+    - Neue Spalte `hub_file_assignments.folder_id`: Der Ordner gilt pro Kundenzuordnung. Ein zusammengesetzter Fremdschlüssel stellt sicher, dass eine Datei nur in einem Ordner desselben Kunden liegt.
+    - Kunden dürfen per Spaltenrecht nur `folder_id` ändern.
+- Vorschau und öffentliche Demo zeigen die Beispielordner „Briefings“ und „Verträge“. Änderungen dort bleiben im Browserfenster.
+- Lokal mit echten Logins geprüft:
+    - Nordlicht: Ordner anlegen, umbenennen und löschen (auch mit Inhalt), Verschieben, ZIP mit beiden Dateien byte-genau.
+    - Admin: zwei Dateien auf einmal hochgeladen, Nordlicht zugeordnet und in dessen Ordner „Verträge“ abgelegt. Die Testdateien sind wieder gelöscht.
+    - Der Ordner „Verträge“ mit dem Servicevertrag von Nordlicht bleibt zur Ansicht bestehen.
+
+### Vorgabe vom 22. Oktober 2026: KI-Assistent und Claude-Code-Befehl
+
+- Die Sprechblase oben rechts heißt jetzt „Assistent & Hilfe“. Sie öffnet für Kunden und Admins einen Chat, der Fragen zu den Funktionen der Plattform beantwortet. Er zeigt Vorschlagsfragen je Rolle, streamt die Antworten, kann neu gestartet werden und behält den Verlauf beim Seitenwechsel.
+- Modell: **Claude Opus 5.5** (`claude-opus-5-5`) über `@anthropic-ai/sdk` 1.1.0. Aufwand `low` für schnelle, kurze Antworten. Lehnt das Modell eine Anfrage ab, übernimmt automatisch ein Ersatzmodell (`fallbacks: "default"`).
+- Grundlage ist allein die Wissensbasis `lib/hub-assistant/knowledge.ts`. Der Assistent sieht keine Projekte, Dateien oder Termine und ändert nichts. Für Geplantes sagt er, dass es das noch nicht gibt.
+- `app/api/assistant/route.ts` antwortet nur echten Supabase-Logins; die Rolle kommt aus dem Token. Der Verlauf ist auf 20 Nachrichten und 1000 Zeichen pro Frage begrenzt. Vorschau und öffentliche Demo senden keine Fragen an Claude.
+- Der Chat weist aus, dass eine KI antwortet (Transparenzpflicht seit 02.08.2026), und bittet, keine persönlichen Daten einzugeben.
+- CLI-Schnittstelle: Projektbefehl `/hub-hilfe` für Claude Code (`.claude/commands/hub-hilfe.md`). Er liest dieselbe Wissensbasis und bei Bedarf den Code, nur lesend.
+- Einrichtung: `ANTHROPIC_API_KEY` in `.env.local` und als Secret in Vercel (Production). Ohne Schlüssel meldet der Chat „noch nicht eingerichtet“.
+- Stand der Prüfung: Login-Schutz, Fehlermeldung ohne Schlüssel, Vorschau-Hinweis sowie Darstellung gestreamter Antworten (mit simulierter Antwort) sind im Browser geprüft. Echte Antworten von Claude und der Befehl `/hub-hilfe` sind noch nicht getestet, weil hier weder ein API-Schlüssel noch eine Claude-Code-Anmeldung vorlag.
+- Offen: Nutzungslimit pro Nutzer gegen Kosten und Missbrauch, Mengengerüst und Kosten beobachten, Wissensbasis bei jeder Änderung pflegen.
+
+### Vorgabe vom 22. Oktober 2026: WhatsApp-Anbindung des Assistenten
+
+- Der KI-Assistent ist auch per WhatsApp erreichbar. Die Anbindung läuft über die offizielle WhatsApp Cloud API von Meta, direkt und ohne Zwischenanbieter.
+- Zugang haben nur verbundene Nummern. Im Profil erzeugt „WhatsApp verbinden“ einen sechsstelligen Code, gültig 15 Minuten. Die Nachricht „VERBINDEN 123456“ an die oalab-Nummer verknüpft die Nummer mit dem Login; „Trennen“ hebt das wieder auf.
+- Der Assistent antwortet über WhatsApp passend zur Rolle (Kunde oder Admin), kürzer und mit WhatsApp-Formatierung.
+- Unbekannte Nummern erhalten höchstens drei Antworten am Tag, mit einer Anleitung zum Verbinden. Verbundene Nummern haben 30 Fragen am Tag.
+- „TEAM“ nennt den Kontakt info@oalab.de, änderbar über `WHATSAPP_SUPPORT_CONTACT`. Meta verlangt diesen Weg zu einem Menschen für Bots.
+- Technik: Migration `supabase/migrations/20261022150000_hub_whatsapp.sql`, am 22. Oktober 2026 angewendet. Sie legt drei Tabellen an:
+    - `hub_whatsapp_links`: Nutzer lesen und löschen nur die eigene Verknüpfung.
+    - `hub_whatsapp_link_codes`: Codes entstehen nur über `hub_create_whatsapp_link_code()`.
+    - `hub_whatsapp_messages`: Verlauf und Schutz vor doppelt zugestellten Nachrichten; nur der Webhook greift darauf zu.
+- Der Webhook `/api/whatsapp` ist öffentlich, verarbeitet aber nur Lieferungen mit gültiger Meta-Signatur. Er bestätigt sofort und antwortet im Hintergrund (`after()`). Der Gesprächsverlauf wird nach 48 Stunden gelöscht.
+- Der Webhook braucht `SUPABASE_SECRET_KEY` in Vercel. Er arbeitet damit nur mit den WhatsApp-Tabellen und liest die Rolle der verknüpften Person.
+- Lokal geprüft mit Platzhalterwerten, die danach wieder entfernt wurden:
+    - Webhook-Verifizierung; falsches Token und unsignierte Lieferungen werden abgelehnt.
+    - Code erzeugen, Verknüpfen per signierter Testnachricht, eine doppelte Lieferung wird ignoriert, „TEAM“, Frage und unbekannte Nummer, Trennen.
+    - Das Senden an WhatsApp selbst ist ungetestet, weil hier kein Meta-Zugang vorliegt.
+- Offen:
+    - Meta-App, Nummer und Token einrichten; Zahlungsmethode hinterlegen (ab der 1.001. Antwort im Monat kostenpflichtig).
+    - Der Datenschutz muss ergänzt werden: Nachrichten und Nummern laufen über Meta.
+    - Eine Nummer gleichzeitig in der WhatsApp-Business-App und der API zu nutzen, war laut einem Anbieter in der EU zuletzt nicht freigeschaltet.
+
+### Vorgabe vom 22. Oktober 2026: Einblend-Animation und „Bewegung reduzieren“
+
+- Auf jeder Seite blenden die Inhalte als Wasserfall von oben nach unten ein: Block für Block aus einer Unschärfe, leicht von oben, im Abstand von 70 ms (Kacheln in einem Raster in kürzeren Schritten).
+    - Hub: Titel, Karten, Listen und Tabellen in `.hub-content`, bei jedem Seitenwechsel neu.
+    - Login, Registrierung, Passwortseiten und 404: der Inhalt der Glaskarte; beim ersten Aufruf auch der Begrüßungstext links.
+    - Hintergrund, Sidebar, Tab-Bar, Logo-Zeile, die Glaskarte selbst, Dialoge und Ladeskelette erscheinen sofort.
+- Entscheidung: Das HTML wird immer direkt angezeigt. Die Animation ist reines CSS auf dem Server-HTML (`app/motion.css`) und wartet nie auf JavaScript.
+    - `components/page-waterfall.tsx` markiert die Seite nach dem Einblenden als fertig. So erscheinen später eingeblendete Elemente (Favoriten bearbeiten, Upload-Listen, Fehlermeldungen) ohne Animation.
+    - Glaskarten blenden selbst ein, nicht ihr Rahmen-Element: Unschärfe und Deckkraft auf einem Vorfahren würden den Glaseffekt während der Animation abschneiden.
+- Profil › Darstellung hat den Schalter **„Bewegung reduzieren“**. Er schaltet die Einblend-Animation und alle übrigen Übergänge und Animationen ab, wie die Systemeinstellung.
+    - Vorgabe ist die Systemeinstellung „Bewegung reduzieren“; eine eigene Wahl im Hub hat Vorrang.
+    - Gespeichert im Browser wie die übrige Darstellung. Das Inline-Script setzt `data-reduce-motion` vor dem ersten Paint, dadurch blitzt keine Animation auf.
+- Im Browser geprüft (Vorschau, Login, Passwort vergessen, 404): Reihenfolge der Kaskade, Seitenwechsel, keine Animation beim Bearbeiten der Favoriten, Schalter an und aus.
+
+### Backlog
+
+- Kennzahl-Kacheln im Reiter „Projekte“ (aktive Projekte, Fortschritt, Meilensteine, Feedback): am 22. Oktober 2026 auf Wunsch entfernt. Offen ist, ob sie zurückkommen oder einen anderen Platz bekommen.
 
 ### Vorgabe vom 20. Oktober 2026: User-Management für Admins (geplant)
 
@@ -103,6 +252,10 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Sichere interne Weiterleitungen und PKCE-/E-Mail-Bestätigungs-Callbacks
 - Vier echte Demo-Konten mit serververwalteter Admin-/Customer-Zuordnung und getrennten Fixture-Datensichten
 - Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
+- KI-Assistent (Claude) für Admins und Kunden hinter „Assistent & Hilfe“ sowie Claude-Code-Befehl `/hub-hilfe`
+- WhatsApp-Anbindung des Assistenten über die WhatsApp Cloud API, Verknüpfen der Nummer per Code im Profil
+- Dateiablage mit Ordnern pro Kunde, Mehrfach-Upload für Admins und ZIP-Download mehrerer Dateien
+- Kalender für Admins und Kunden: Auslastung, Terminanfragen, Bestätigung mit Microsoft-Teams-Link (Supabase mit RLS)
 - Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten im selben Glas-Stil mit Demo-Konten im Dropdown
 
 ### Noch nicht implementiert
@@ -111,10 +264,10 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Persistentes Rollen- und Berechtigungssystem für reale Geschäftsdaten
 - Datenbankseitige Mandantentrennung zwischen Kunden (die Demo-Fixtures sind bereits getrennt)
 - Löschen und Versionieren von Dateien
-- User-Management für Admins (Konten anlegen, Aktivierungslink, Passwort-Neuvergabe, Deaktivieren, letzter Login; Vorgabe siehe oben). Kunden und Logins entstehen bisher nur per Seed
+- E-Mail-Benachrichtigungen zu Projekten, Dateien, Terminen und Nachrichten (Registrierung, Freigabe, Ablehnung und Aktivierungslinks sind seit dem 22. Oktober 2026 angebunden, siehe oben)
 - Echte Kommentare, Nachrichten und Benachrichtigungen; Nachrichten sollen später über den bevorzugten Kanal des Kunden (z. B. WhatsApp) laufen
 - Angebote, Verträge, Rechnungen oder Zahlungen
-- Kalender, Termine und externe Integrationen
+- Kalender-Integrationen (Outlook, automatisch erzeugte Teams-Meetings) und Benachrichtigungen zu Terminen
 - Projektspezifisches Datenbankschema, Migrationen und generierte TypeScript-Datenbanktypen
 - Umfassende Integrationstests und CI/CD
 
@@ -126,7 +279,8 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/auth/login` | Öffentlich | Derselbe Login mit regulärem Formular und Demo-Konten im Dropdown |
 | `/auth/demo` | Same-Origin-POST | Online: feste Fixture-Identität; lokal: regulärer Testkonto-Login. Ohne passende Freigabe 404 |
 | `/auth/demo/logout` | Same-Origin-POST | Öffentliche Demo-Identität abmelden, ohne Supabase-Session auszugeben |
-| `/auth/sign-up` | Öffentlich | Selbstregistrierung |
+| `/auth/sign-up` | Öffentlich | Registrierung mit Firmenangaben; Zugang erst nach Freigabe im User Management |
+| `/auth/pending` | Mit Login | Stand einer Registrierung: wartet, abgelehnt (mit Hinweis) oder deaktiviert; aktive Konten werden zum Hub weitergeleitet |
 | `/auth/sign-up-success` | Öffentlich | Hinweis zur E-Mail-Bestätigung |
 | `/auth/forgot-password` | Öffentlich | Passwort-Reset anfordern |
 | `/auth/update-password` | Auth-Flow | Neues Passwort setzen |
@@ -137,15 +291,20 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/projects` | Geschützt | Demo-Projekte je Rolle/Workspace; ansonsten Gerüst |
 | `/dashboard/files` | Geschützt | Zugeordnete Beispieldateien ohne echte Downloads |
 | `/dashboard/messages` | Geschützt | Zugeordnete Beispielunterhaltung ohne Versand |
+| `/dashboard/calendar` | Geschützt | Kalender: Admins planen Termine mit Teams-Link und beantworten Anfragen; Kunden sehen die Auslastung und fragen Termine an |
+| `/dashboard/users` | Nur Admins | User Management: Registrierungen freigeben, Logins und Kunden anlegen, bearbeiten, sperren und löschen |
 | `/dashboard/insights` | Geschützt | Insights und alle Highlights |
 | `/dashboard/discover` | Geschützt | Entdecken: Kategorien, Kennzahlen und Konto durchsuchen |
 | `/dashboard/metrics/<kennzahl>` | Geschützt | Detailseite einer Kennzahl mit Zeitraum-Umschalter |
 | `/dashboard/settings` | Geschützt | Profil und Kontoinformationen |
 | `/dashboard/settings/appearance` | Geschützt | Darstellung: Hintergrund, Glas, Transparenz |
+| `/api/whatsapp` | Öffentlich, nur mit Meta-Signatur | Webhook der WhatsApp Cloud API: Verifizierung (GET) und eingehende Nachrichten (POST) |
+| `/api/assistant` | Geschützt (POST) | KI-Assistent: streamt Antworten von Claude zu Funktionen des Hubs |
 | `/preview` | Öffentlich | Dashboard-Designvorschau mit fiktiven Daten; vom Login nicht mehr verlinkt |
 | `/preview/projects` | Öffentlich | Beispielprojekte mit Filtern und Detaildialogen |
 | `/preview/files` | Öffentlich | Beispiel-Dateiliste und Dateiinformationen |
 | `/preview/messages` | Öffentlich | Fiktive, nicht sendende Beispielunterhaltung |
+| `/preview/calendar` | Öffentlich | Kalender mit fiktiven Terminen; Anfragen bleiben im Browser |
 | `/preview/settings` | Öffentlich | Beispiel-Profil |
 | `/preview/insights`, `/preview/discover`, `/preview/metrics/<kennzahl>`, `/preview/settings/appearance` | Öffentlich | Dieselben neuen Ansichten mit Beispieldaten |
 | `/protected` | Geschützt | Weiterleitung auf `/dashboard` |
@@ -154,7 +313,7 @@ Die Root-Route, `/auth/*` und `/preview/*` sind öffentlich. Das Dashboard prüf
 
 Deployment und Abschalten der Demo sind in [README.md](./README.md#vercel-und-öffentliche-demo) dokumentiert. Bestehendes Vercel-Projekt: `oalabs-projects/oalab-client-hub`. Production enthält öffentliche Supabase-Konfiguration sowie `ENABLE_PUBLIC_DEMO_LOGIN`, `PUBLIC_DEMO_ORIGIN` und das private `OALAB_DEMO_SESSION_SECRET`. Lokale Secret-Dateien bleiben vom Upload und Git ausgeschlossen.
 
-Für vollständige E-Mail-Flows müssen die eingesetzten Supabase-E-Mail-Templates und Redirect-URLs zum Callback passen: `<origin>/auth/callback?next=/dashboard` und `<origin>/auth/callback?next=/auth/update-password`. Bei Token-Hash-Templates wird `/auth/confirm` verwendet. Echte Passwort-Logins sind mit allen vier Demo-Konten erfolgreich geprüft. Die Projekteinstellungen und die E-Mail-Zustellung sind noch nicht geprüft; die reservierten `.test`-Adressen haben bewusst keine Postfächer.
+Für vollständige E-Mail-Flows müssen die eingesetzten Supabase-E-Mail-Templates und Redirect-URLs zum Callback passen: `<origin>/auth/callback?next=/dashboard` und `<origin>/auth/callback?next=/auth/update-password`. Die eigenen Vorlagen in `supabase/templates/` sind Token-Hash-Templates und verwenden `/auth/confirm`. Echte Passwort-Logins sind mit allen vier Demo-Konten erfolgreich geprüft. Die Projekteinstellungen und die E-Mail-Zustellung sind noch nicht geprüft; die reservierten `.test`-Adressen haben bewusst keine Postfächer.
 
 ## 4. Supabase-Status
 
@@ -173,7 +332,7 @@ Das konfigurierte Projekt ist über die aktuell verbundene Supabase-Integration 
 
 Über die offizielle Admin API konnten die vier Testkonten mit dem lokalen Secret Key erfolgreich angelegt werden. Authentifizierung und Demo-Zuordnungen sind geprüft. Folgende Bereiche sind weiterhin ungeprüft:
 
-- Datenbanktabellen und Beziehungen (die Dateiablage-Migration liegt bereit und wird mit `npm run db:push` angewendet)
+- Datenbanktabellen und Beziehungen außerhalb von Dateiablage und Kalender (beide Migrationen sind angewendet; `npm run db:check` zeigt ausstehende)
 - Row Level Security (RLS) und Grants
 - Auth-Einstellungen und Redirect-URLs
 - Storage-Buckets und Storage Policies
@@ -187,7 +346,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` besteht mit 30 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs unter Node.js 24.
+- `npm test` umfasst 81 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links), die RLS-Migration des Kalenders, die Projekt-Terminierungen, Suche und Sortierung der Tabellen, das User Management (Eingaberegeln, Migration, Admin-Prüfungen), die E-Mail-Benachrichtigungen (Vorlagen, SMTP-Zugang und -Nachricht, Versandprotokoll, Supabase-Vorlagen) sowie KI-Assistent und WhatsApp-Anbindung unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
@@ -205,6 +364,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - [x] Starter-Startseite und Starter-Deploy-Link aus dem Produkt entfernen
 - [x] Projektspezifische Metadaten und Sprache konfigurieren
 - [ ] Teststrategie und CI-Pipeline festlegen
+- [ ] `.gitattributes` mit `public/demo-files/** -text` ergänzen, damit Windows-Checkouts die Musterdateien nicht verändern
 
 ## 6. Offene Produktfragen
 
@@ -257,8 +417,8 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 ### Dateien und Freigaben
 
 - [ ] Welche Dateitypen und maximalen Größen sind erlaubt?
-- [ ] Werden Ordner, Kategorien, Tags oder Versionen benötigt?
-- [ ] Dürfen Kunden Dateien hochladen und löschen? (Bisher laden nur Admins hoch, Kunden laden herunter.)
+- [x] Ordner: eine Ebene pro Kunde, von Kunden und Admins anlegbar (Entscheidung vom 22. Oktober 2026). Offen bleiben Tags, Versionen und Unterordner.
+- [x] Kunden laden vorerst nicht selbst hoch; nur Admins (Entscheidung vom 22. Oktober 2026). Ob Kunden später hochladen oder löschen dürfen, bleibt offen.
 - [ ] Sollen Admins Dateien löschen oder neue Fassungen einer Datei hochladen können?
 - [ ] Benötigen Dateien Freigabe- oder Abnahmeprozesse?
 - [ ] Müssen Downloads und Änderungen revisionssicher protokolliert werden?
@@ -272,8 +432,10 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 
 ### Termine und Integrationen
 
-- [ ] Benötigt das Portal Termine, Meetings oder Deadlines?
 - [ ] Sollen Google Calendar, Outlook oder andere Kalender angebunden werden?
+- [ ] Sollen Teams-Meetings automatisch erzeugt werden (Microsoft Graph), statt Links von Hand einzufügen?
+- [ ] Welche Zeiten sind buchbar (bisher Mo–Fr 9–17 Uhr)? Gelten Feiertage oder Puffer zwischen Terminen?
+- [ ] Wer wird über neue Anfragen benachrichtigt, und erhalten Kunden eine Bestätigung per E-Mail?
 - [ ] Welche weiteren Systeme müssen integriert werden, beispielsweise E-Mail, Slack, Teams, Notion, Drive oder ein CRM?
 - [ ] Existieren bereits Daten, die importiert oder regelmäßig synchronisiert werden müssen?
 
@@ -290,6 +452,8 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - [x] Aktuelle Test-/Main-Adresse: `https://oalab-client-hub.vercel.app/`; eine eigene finale Domain ist noch offen.
 - [x] Bestehendes Vercel-Projekt `oalabs-projects/oalab-client-hub`, Produktion aus `main`; Details in README.
 - [ ] Welche Anforderungen gelten für DSGVO, Aufbewahrung und Löschung?
+- [ ] WhatsApp: Datenschutzerklärung um die WhatsApp-Anbindung ergänzen (Meta als Dienstleister, gespeicherte Nummer, Verlauf 48 Stunden) und die Meta-Bedingungen zur Datenverarbeitung prüfen.
+- [ ] KI-Assistent: Ist ein Auftragsverarbeitungsvertrag (DPA) mit Anthropic geschlossen? Wie ist der Datentransfer in die USA abgesichert? Die Datenschutzerklärung braucht einen Abschnitt zum Assistenten (Anbieter, Zweck, Rechtsgrundlage, Speicherdauer).
 - [ ] Werden Audit-Logs, Backups oder Datenexporte benötigt?
 - [ ] Wer erhält Zugriff auf Produktion, Supabase und Deployment?
 - [ ] Welche Umgebungen werden benötigt: lokal, Staging und Produktion?

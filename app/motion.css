@@ -1,0 +1,69 @@
+/* Motion: the waterfall fade-in on every page and "Bewegung reduzieren" (Profil › Darstellung).
+   The pre-paint script in lib/appearance.ts sets data-reduce-motion on <html> from the stored choice,
+   which defaults to the system setting. The media queries only cover pages where the script did not run. */
+
+:root { --waterfall: waterfall-in; --waterfall-stagger: 70ms; }
+:root[data-reduce-motion="true"] { --waterfall: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduce-motion]) { --waterfall: none; }
+}
+
+/* Waterfall: page content fades in block by block from top to bottom, out of a blur and slightly from above.
+   Pure CSS on the server HTML, so nothing waits for JavaScript. Background, sidebar, tab bar, the auth frame,
+   dialogs and loading skeletons appear at once. Wrappers around glass cascade their children instead: filter and
+   opacity on an ancestor would cut the cards' backdrop blur off from the background while they fade in.
+   components/page-waterfall.tsx marks <html> as settled after the cascade, so elements that appear later on the
+   same page (edit modes, upload lists) show up without it; the next navigation arms it again. The auth intro only
+   joins the first page load, because the auth layout keeps it across its pages. */
+@keyframes waterfall-in {
+  from { opacity: 0; filter: blur(12px); translate: 0 -16px; }
+}
+
+:root:not([data-waterfall="settled"]) :is(
+  .hub-content > :not(.compact-nav, dialog, [role="status"]):not(:has(.glass, .segmented-control, .folder-chip)),
+  .hub-content > :not([role="status"]):has(.glass, .segmented-control, .folder-chip) > :not(dialog),
+  .auth-form > *
+),
+:root:not([data-waterfall]) .auth-intro-text > * {
+  /* Longhands: in the shorthand a substituted "none" would be read as the fill mode. */
+  animation-name: var(--waterfall);
+  animation-duration: 640ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: backwards;
+  animation-delay: calc((var(--wf-base, 0) + var(--wf-step, 0) + var(--wf-sub, 0) * 0.4) * var(--waterfall-stagger));
+}
+
+/* Position in the cascade: one step per block (capped so long pages don't keep the bottom waiting),
+   cards inside a wrapper follow each other in smaller steps. */
+:is(.hub-content, .auth-form, .auth-intro-text) > :nth-child(2 of :not(.compact-nav, template)) { --wf-step: 1; }
+:is(.hub-content, .auth-form, .auth-intro-text) > :nth-child(3 of :not(.compact-nav, template)) { --wf-step: 2; }
+:is(.hub-content, .auth-form, .auth-intro-text) > :nth-child(4 of :not(.compact-nav, template)) { --wf-step: 3; }
+:is(.hub-content, .auth-form, .auth-intro-text) > :nth-child(5 of :not(.compact-nav, template)) { --wf-step: 4; }
+:is(.hub-content, .auth-form, .auth-intro-text) > :nth-child(6 of :not(.compact-nav, template)) { --wf-step: 5; }
+:is(.hub-content, .auth-form, .auth-intro-text) > :nth-child(7 of :not(.compact-nav, template)) { --wf-step: 6; }
+:is(.hub-content, .auth-form, .auth-intro-text) > :nth-child(n + 8 of :not(.compact-nav, template)) { --wf-step: 7; }
+.hub-content > * > :nth-child(2) { --wf-sub: 1; }
+.hub-content > * > :nth-child(3) { --wf-sub: 2; }
+.hub-content > * > :nth-child(4) { --wf-sub: 3; }
+.hub-content > * > :nth-child(n + 5) { --wf-sub: 4; }
+/* The card starts with the intro's heading; on narrow screens, where it sits below the intro, after it. */
+.auth-form { --wf-base: 1; }
+@media (max-width: 1023px) {
+  :root:not([data-waterfall]) .auth-intro ~ .auth-card .auth-form { --wf-base: 3; }
+}
+
+/* "Bewegung reduzieren": animations and transitions finish at once, buttons no longer move when pressed. */
+:root[data-reduce-motion="true"],
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+:root[data-reduce-motion="true"] :is(.pressable, .glass-button, .service-cta, .sidebar-icon-button, .button-secondary, .button-primary:not(:disabled)):active,
+:root[data-reduce-motion="true"] .sidebar-settings-button:hover svg { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduce-motion]),
+  :root:not([data-reduce-motion]) *,
+  :root:not([data-reduce-motion]) *::before,
+  :root:not([data-reduce-motion]) *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  :root:not([data-reduce-motion]) :is(.pressable, .glass-button, .service-cta, .sidebar-icon-button, .button-secondary, .button-primary:not(:disabled)):active,
+  :root:not([data-reduce-motion]) .sidebar-settings-button:hover svg { transform: none; }
+}

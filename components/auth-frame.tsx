@@ -1,6 +1,7 @@
 import { LockKeyhole } from "lucide-react";
 import { BackgroundLayer } from "@/components/hub/background-layer";
 import { BrandLogo, Wordmark } from "@/components/hub/wordmark";
+import { LegalLinks } from "@/components/legal-links";
 
 /** Authentication frame: the hub's selectable background with the form on one matte glass card. */
 export function AuthFrame({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,7 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
         </section>
         <section className="glass glass-float auth-card">{children}</section>
       </div>
-      <footer className="auth-footer"><span>oalab Client Hub</span><span><LockKeyhole size={13} aria-hidden="true" />Dein geschützter Workspace</span></footer>
+      <footer className="auth-footer"><span>oalab Client Hub</span><LegalLinks className="legal-links auth-legal-links" /><span><LockKeyhole size={13} aria-hidden="true" />Dein geschützter Workspace</span></footer>
     </main>
   );
 }

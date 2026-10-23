@@ -95,12 +95,13 @@ export function MetricCardStatic({ metric, children }: { metric: MetricSnapshot;
   return <div className="glass glass-card metric-card is-editing">{children}<div className="metric-card-static"><MetricCardContent metric={metric} /></div></div>;
 }
 
-export function HighlightCard({ highlight, href }: { highlight: Highlight; href?: string }) {
+/** `label` overrides the category name (admins see the files as "Asset Management"). */
+export function HighlightCard({ highlight, href, label }: { highlight: Highlight; href?: string; label?: string }) {
   const category = categories[highlight.category];
   const content = <>
     <div className="card-head">
       <CategoryIcon category={highlight.category} />
-      <span className="card-head-title" style={{ color: category.text }}>{category.name}</span>
+      <span className="card-head-title" style={{ color: category.text }}>{label ?? category.name}</span>
       <span className="card-head-time">{highlight.period}</span>{href && <Chevron />}
     </div>
     <p className="t-headline highlight-headline">{highlight.headline}</p>

@@ -30,7 +30,8 @@ export function LargeTitleHeader({ title, date, actions, leading, icon }: { titl
         {date && <p className="large-title-date">{date}</p>}
         <div className="large-title-row">
           <div className="large-title-text">
-            <h1 className="t-large-title">{icon}{title}</h1>
+            {/* A soft hyphen keeps long words like "Management" from breaking at a random letter on phones. */}
+            <h1 className="t-large-title">{icon}{title.replace(/Management/g, "Manage­ment")}</h1>
           </div>
           <div className="large-title-actions">
             {actions}

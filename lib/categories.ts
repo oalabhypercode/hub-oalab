@@ -1,7 +1,7 @@
-import { FolderOpen, Files, MessageSquare, type LucideIcon } from "lucide-react";
-import type { HubSection } from "./hub-data";
+import { CalendarDays, FolderOpen, Files, MessageSquare, type LucideIcon } from "lucide-react";
+import { adminSectionLabels, type HubSection } from "./hub-data";
 
-export type CategoryId = "projects" | "files" | "messages";
+export type CategoryId = "projects" | "files" | "messages" | "calendar";
 
 export type Category = {
   id: CategoryId;
@@ -20,6 +20,10 @@ export const categories: Record<CategoryId, Category> = {
   projects: { id: "projects", name: "Projekte", section: "projects", icon: FolderOpen, fill: "#FF9500", text: "#7F2100" },
   files: { id: "files", name: "Dateien", section: "files", icon: Files, fill: "#5856D6", text: "#3533A1" },
   messages: { id: "messages", name: "Nachrichten", section: "messages", icon: MessageSquare, fill: "#007AFF", text: "#004285" },
+  calendar: { id: "calendar", name: "Kalender", section: "calendar", icon: CalendarDays, fill: "#FF3B30", text: "#800F0B" },
 };
 
-export const categoryOrder: CategoryId[] = ["projects", "files", "messages"];
+export const categoryOrder: CategoryId[] = ["projects", "files", "messages", "calendar"];
+
+/** The category's name as this person sees it: admins call the files their "Asset Management". */
+export const categoryLabel = (id: CategoryId, admin: boolean) => (admin && adminSectionLabels[categories[id].section]) || categories[id].name;

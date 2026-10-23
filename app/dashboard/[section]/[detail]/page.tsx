@@ -16,7 +16,7 @@ async function WorkspaceDetail({ params }: { params: Promise<{ section: string; 
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
   const filesState = await loadFilesForIdentity(identity);
-  return <HubView section={section === "settings" ? "settings" : "overview"} detail={detail} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} />;
+  return <HubView section={section === "settings" ? "settings" : "overview"} detail={detail} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} role={identity.account?.role ?? null} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string; detail: string }> }) {

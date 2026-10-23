@@ -1,28 +1,27 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Check, Download, File, FileArchive, FileImage, FileText, Inbox, Loader2, Search, Upload, Users } from "lucide-react";
-import { categories } from "@/lib/categories";
-import { createClient } from "@/lib/supabase/client";
-import { checkUpload, fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDate, formatFileDateTime, HUB_FILES_BUCKET, MAX_FILE_BYTES, type FileCategory } from "@/lib/hub-files/catalog";
-import { createDownloadUrl, finalizeUpload, prepareUpload, setFileAssignments } from "@/lib/hub-files/actions";
-import type { HubFileCustomer, HubStoredFile } from "@/lib/hub-files/types";
+import { useMemo, useState } from "react";
+import { Building2, Check, Download, FileType, Folder, FolderPlus, Inbox, Loader2, Pencil, Tag, Trash2, Users, X } from "lucide-react";
+import { categoryLabel } from "@/lib/categories";
+import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
+import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDate, formatFileDateTime, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
+import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
+import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { CategoryMetrics, CategoryTitle } from "./workspace";
 import { HeaderActions } from "../app-shell";
 import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { Modal } from "../modal";
+import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
 import { EmptyState } from "./overview";
+import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
+import { useFilesStore } from "./files-store";
+import { FileUploadCard } from "./files-upload";
 import type { ScreenProps } from "./types";
 
 const ALL = "all";
 const UNASSIGNED = "unassigned";
-
-function FileIcon({ file, size = 22 }: { file: Pick<HubStoredFile, "mimeType" | "fileName">; size?: number }) {
-  const format = fileFormat(file.fileName);
-  const Icon = file.mimeType.startsWith("image/") ? FileImage : ["ZIP", "RAR", "7Z"].includes(format) ? FileArchive : ["PDF", "DOC", "DOCX", "TXT", "XLSX", "PPTX"].includes(format) ? FileText : File;
-  return <Icon size={size} color={categories.files.fill} strokeWidth={1.9} aria-hidden="true" />;
-}
+const NO_FOLDER = "none";
 
 /** Fixture samples are plain links; real files get a 60-second signed URL from the server first. */
 function DownloadButton({ file, onError, label = false }: { file: HubStoredFile; onError: (message: string) => void; label?: boolean }) {
@@ -42,134 +41,13 @@ function DownloadButton({ file, onError, label = false }: { file: HubStoredFile;
   return <button type="button" className={className} onClick={download} disabled={busy} aria-label={label ? undefined : `${file.title} herunterladen`} title={label ? undefined : "Herunterladen"}>{content}</button>;
 }
 
-function CategoryPill({ category }: { category: FileCategory }) {
-  return <span className={`file-category file-category-${category}`}>{fileCategories[category]}</span>;
-}
-
-/** Checkbox list of customers, searchable by customer number or company. */
-function CustomerPicker({ customers, selected, onChange, idPrefix }: { customers: HubFileCustomer[]; selected: string[]; onChange: (ids: string[]) => void; idPrefix: string }) {
-  const [query, setQuery] = useState("");
-  const term = query.trim().toLowerCase();
-  const shown = customers.filter((customer) => `${customer.customerNumber} ${customer.company}`.toLowerCase().includes(term));
-  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
-  return (
-    <fieldset className="customer-picker">
-      <legend>Kunden zuordnen <span>{selected.length ? `${selected.length} ausgewählt` : "Ohne Zuordnung landet die Datei in der Ablage"}</span></legend>
-      {customers.length > 6 && <label className="search-input customer-picker-search"><Search size={16} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kundennummer oder Firma" aria-label="Kunden durchsuchen" /></label>}
-      <ul>
-        {shown.map((customer) => (
-          <li key={customer.id}>
-            <label htmlFor={`${idPrefix}-${customer.id}`}>
-              <input id={`${idPrefix}-${customer.id}`} type="checkbox" checked={selected.includes(customer.id)} onChange={() => toggle(customer.id)} />
-              <span className="customer-number numeric">{customer.customerNumber}</span>
-              <span className="customer-company">{customer.company}</span>
-            </label>
-          </li>
-        ))}
-        {!shown.length && <li className="customer-picker-empty">{customers.length ? `Kein Kunde passt zu „${query}“.` : "Es sind noch keine Kunden angelegt."}</li>}
-      </ul>
-    </fieldset>
-  );
-}
-
-const titleFromFileName = (name: string) => name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
-
-async function sha256Hex(file: Blob) {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/** Admin: upload one file with metadata straight to Supabase Storage and assign it to customers. */
-function FileUploadCard({ customers }: { customers: HubFileCustomer[] }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<FileCategory>("other");
-  const [description, setDescription] = useState("");
-  const [customerIds, setCustomerIds] = useState<string[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
-  const [message, setMessage] = useState("");
-
-  function choose(next: File | null) {
-    setStatus("idle");
-    setMessage("");
-    if (!next) return;
-    const check = checkUpload(next.name, next.size);
-    if (!check.ok) { setStatus("error"); setMessage(check.error); return; }
-    setFile(next);
-    if (!title.trim()) setTitle(titleFromFileName(next.name));
-  }
-
-  async function upload(event: React.FormEvent) {
-    event.preventDefault();
-    if (!file) { setStatus("error"); setMessage("Bitte zuerst eine Datei auswählen."); return; }
-    if (!title.trim()) { setStatus("error"); setMessage("Bitte einen Titel angeben."); return; }
-    setStatus("working");
-    try {
-      setMessage("Prüfsumme wird berechnet …");
-      const sha256 = await sha256Hex(file);
-      setMessage("Upload wird vorbereitet …");
-      const prepared = await prepareUpload(file.name, file.size);
-      if (!prepared.ok) throw new Error(prepared.error);
-      setMessage("Datei wird hochgeladen …");
-      const uploaded = await createClient().storage.from(HUB_FILES_BUCKET).uploadToSignedUrl(prepared.data.path, prepared.data.token, file, { contentType: file.type || "application/octet-stream" });
-      if (uploaded.error) throw new Error("Die Datei konnte nicht hochgeladen werden.");
-      setMessage("Angaben werden gespeichert …");
-      const saved = await finalizeUpload({ path: prepared.data.path, fileName: file.name, title, category, description, mimeType: file.type, sha256, customerIds });
-      if (!saved.ok) throw new Error(saved.error);
-      const assigned = customers.filter((customer) => customerIds.includes(customer.id)).map((customer) => customer.customerNumber);
-      setStatus("done");
-      setMessage(`„${title.trim()}“ wurde hochgeladen${assigned.length ? ` und ${assigned.join(", ")} zugeordnet` : " und liegt in der Ablage"}.`);
-      setFile(null); setTitle(""); setDescription(""); setCustomerIds([]); setCategory("other");
-      if (input.current) input.current.value = "";
-    } catch (failure) {
-      setStatus("error");
-      setMessage(failure instanceof Error ? failure.message : "Der Upload ist fehlgeschlagen.");
-    }
-  }
-
-  const working = status === "working";
-  return (
-    <GlassCard as="section" className="upload-card" aria-labelledby="upload-title">
-      <h2 className="t-headline upload-title" id="upload-title"><Upload size={18} color="var(--accent-text)" aria-hidden="true" />Datei hochladen</h2>
-      <form onSubmit={upload} className="upload-form">
-        <label
-          className={`upload-drop${dragging ? " is-dragging" : ""}${file ? " has-file" : ""}`}
-          onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => { event.preventDefault(); setDragging(false); choose(event.dataTransfer.files[0] ?? null); }}
-        >
-          <input ref={input} type="file" className="visually-hidden" onChange={(event) => choose(event.target.files?.[0] ?? null)} disabled={working} />
-          {file
-            ? <><FileIcon file={{ mimeType: file.type, fileName: file.name }} size={26} /><span><strong>{file.name}</strong><small>{fileFormat(file.name)} · {formatBytes(file.size)} · andere Datei wählen</small></span></>
-            : <><Upload size={26} color="var(--accent-text)" aria-hidden="true" /><span><strong>Datei auswählen oder hierher ziehen</strong><small>Bis {formatBytes(MAX_FILE_BYTES)} · keine ausführbaren Dateien</small></span></>}
-        </label>
-        <div className="upload-fields">
-          <label className="upload-field"><span>Titel</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="z. B. Servicevertrag" disabled={working} required /></label>
-          <label className="upload-field"><span>Kategorie</span>
-            <select value={category} onChange={(event) => setCategory(event.target.value as FileCategory)} disabled={working}>
-              {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
-            </select>
-          </label>
-          <label className="upload-field upload-field-wide"><span>Beschreibung</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={3} placeholder="Was steckt in der Datei, wofür ist sie gedacht?" disabled={working} /></label>
-        </div>
-        <CustomerPicker customers={customers} selected={customerIds} onChange={setCustomerIds} idPrefix="upload-customer" />
-        <div className="upload-actions">
-          <button type="submit" className="sheet-button sheet-button-primary upload-submit" disabled={working || !file}>{working ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Upload size={18} aria-hidden="true" />}Hochladen</button>
-          <p className={`upload-status upload-status-${status}`} role="status">{status === "done" && <Check size={16} aria-hidden="true" />}{message}</p>
-        </div>
-      </form>
-    </GlassCard>
-  );
-}
-
 /** All details of a file; admins can change the customer assignment here. */
-function FileDetailDialog({ file, customers, canManage, onClose }: { file: HubStoredFile; customers: HubFileCustomer[]; canManage: boolean; onClose: () => void }) {
+function FileDetailDialog({ file, customers, folders, canManage, onClose }: { file: HubStoredFile; customers: HubFileCustomer[]; folders: HubFolder[]; canManage: boolean; onClose: () => void }) {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState(file.customers.map((customer) => customer.id));
   const [saving, setSaving] = useState(false);
+  const folderName = (customerId: string) => folders.find((folder) => folder.id === file.folderIds[customerId])?.name ?? "Ohne Ordner";
 
   async function save() {
     setSaving(true);
@@ -189,6 +67,7 @@ function FileDetailDialog({ file, customers, canManage, onClose }: { file: HubSt
         <div><dt>Größe</dt><dd>{formatBytes(file.sizeBytes)} ({new Intl.NumberFormat("de-DE").format(file.sizeBytes)} Bytes)</dd></div>
         <div><dt>Bereitgestellt</dt><dd>{formatFileDateTime(file.createdAt)}</dd></div>
         <div><dt>{file.customers.length > 1 ? "Kunden" : "Kunde"}</dt><dd>{file.customers.length ? file.customers.map((customer) => `${customer.customerNumber} · ${customer.company}`).join(", ") : "Ablage (keinem Kunden zugeordnet)"}</dd></div>
+        {file.customers.length > 0 && <div><dt>Ordner</dt><dd>{file.customers.length === 1 ? folderName(file.customers[0].id) : file.customers.map((customer) => `${customer.customerNumber}: ${folderName(customer.id)}`).join(", ")}</dd></div>}
         {file.sha256 && <div className="file-details-block"><dt>Prüfsumme (SHA-256)</dt><dd className="file-checksum">{file.sha256}</dd></div>}
       </dl>
       {file.sha256 && <p className="t-footnote t-secondary file-detail-note">Der Download liefert genau diese Fassung. Die Prüfsumme wurde beim Upload berechnet.</p>}
@@ -211,83 +90,258 @@ function FileDetailDialog({ file, customers, canManage, onClose }: { file: HubSt
   );
 }
 
-export function FilesScreen({ model, populated, fileState }: ScreenProps) {
-  const { files, customers, canManage, source } = fileState;
+/** Name a new folder or rename one. */
+function FolderNameDialog({ title, initial, onSave, onClose }: { title: string; initial: string; onSave: (name: string) => Promise<ActionResult<unknown>>; onClose: () => void }) {
+  const [name, setName] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    const result = await onSave(name);
+    setSaving(false);
+    if (result.ok) onClose(); else setError(result.error);
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <form onSubmit={submit} className="upload-form">
+        <label className="upload-field"><span>Name des Ordners</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={MAX_FOLDER_NAME} placeholder="z. B. Verträge, Logos, Briefings" autoFocus required disabled={saving} /></label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="file-assign-actions">
+          <button type="button" className="sheet-button" onClick={onClose} disabled={saving}>Abbrechen</button>
+          <button type="submit" className="sheet-button sheet-button-primary" disabled={saving || !name.trim()}>{saving ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}Speichern</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function DeleteFolderDialog({ folder, count, onDelete, onClose }: { folder: HubFolder; count: number; onDelete: () => Promise<ActionResult<unknown>>; onClose: () => void }) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  async function confirm() {
+    setDeleting(true);
+    const result = await onDelete();
+    setDeleting(false);
+    if (result.ok) onClose(); else setError(result.error);
+  }
+  return (
+    <Modal title={`„${folder.name}“ löschen?`} onClose={onClose}>
+      <p className="modal-description">{count ? `${count === 1 ? "Die Datei darin landet" : `Die ${count} Dateien darin landen`} in „Ohne Ordner“. Gelöscht wird keine Datei.` : "Der Ordner ist leer."}</p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="file-assign-actions">
+        <button type="button" className="sheet-button" onClick={onClose} disabled={deleting}>Abbrechen</button>
+        <button type="button" className="sheet-button sheet-button-danger" onClick={confirm} disabled={deleting}>{deleting ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}Ordner löschen</button>
+      </div>
+    </Modal>
+  );
+}
+
+type FolderDialog = { kind: "create" } | { kind: "rename" | "delete"; folder: HubFolder };
+
+type FileSortKey = "date" | "title" | "category" | "format" | "size";
+const fileSorts: Record<FileSortKey, SortOption<FileSortKey>> = {
+  date: { id: "date", label: "Bereitgestellt", firstDir: "desc", dirLabels: { asc: "älteste zuerst", desc: "neueste zuerst" } },
+  title: { id: "title", label: "Titel", dirLabels: alphabetical },
+  category: { id: "category", label: "Kategorie", dirLabels: alphabetical },
+  format: { id: "format", label: "Format", dirLabels: alphabetical },
+  size: { id: "size", label: "Größe", firstDir: "desc", dirLabels: { asc: "kleinste zuerst", desc: "größte zuerst" } },
+};
+const fileSortValue: Record<FileSortKey, (file: HubStoredFile) => SortValue> = {
+  date: (file) => file.createdAt,
+  title: (file) => file.title,
+  category: (file) => fileCategories[file.category],
+  format: (file) => fileFormat(file.fileName),
+  size: (file) => file.sizeBytes,
+};
+
+export function FilesScreen({ model, populated, fileState, admin }: ScreenProps) {
+  const title = categoryLabel("files", admin);
+  const store = useFilesStore(fileState);
+  const { files, folders } = store;
+  const { customers, canManage, source } = fileState;
   const [category, setCategory] = useState<string>(ALL);
   const [customer, setCustomer] = useState<string>(ALL);
   const [query, setQuery] = useState("");
+  const [format, setFormat] = useState<string>(ALL);
+  const [sort, setSort] = useState<SortState<FileSortKey>>({ key: "date", dir: "desc" });
+  const [folderChoice, setFolderChoice] = useState<{ scope: string | null; folder: string }>({ scope: null, folder: ALL });
+  const [selected, setSelected] = useState<string[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<FolderDialog | null>(null);
+  const [busy, setBusy] = useState<"download" | "move" | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const showCustomers = canManage || customers.length > 1;
-  const term = query.trim().toLowerCase();
-  const shown = useMemo(() => files.filter((file) =>
+  // Folders belong to one customer: customers see their own, admins those of the customer chosen in the filter.
+  const scope = showCustomers ? (customer !== ALL && customer !== UNASSIGNED ? customer : null) : customers[0]?.id ?? null;
+  const scopeFolders = useMemo(() => folders.filter((item) => item.customerId === scope), [folders, scope]);
+  const folder = folderChoice.scope === scope && (folderChoice.folder === ALL || folderChoice.folder === NO_FOLDER || scopeFolders.some((item) => item.id === folderChoice.folder)) ? folderChoice.folder : ALL;
+  const activeFolder = scopeFolders.find((item) => item.id === folder);
+  const inFolder = (file: HubStoredFile, folderId: string) => !scope || folderId === ALL || (folderId === NO_FOLDER ? !file.folderIds[scope] : file.folderIds[scope] === folderId);
+  const shown = sortRows(files.filter((file) =>
     (category === ALL || file.category === category)
+    && (format === ALL || fileFormat(file.fileName) === format)
     && (customer === ALL || (customer === UNASSIGNED ? !file.customers.length : file.customers.some((item) => item.id === customer)))
-    && (!term || `${file.title} ${file.fileName} ${file.description}`.toLowerCase().includes(term)),
-  ), [files, category, customer, term]);
+    && matchesSearch(query, [file.title, file.fileName, file.description, fileCategories[file.category], ...(showCustomers ? file.customers.flatMap((item) => [item.company, item.customerNumber]) : [])])
+    && inFolder(file, folder)), fileSortValue[sort.key], sort.dir, { tieBreak: (file) => file.title });
+  const usedFormats = Array.from(new Set(files.map((file) => fileFormat(file.fileName)))).sort();
+  // The customer filter also picks the folders, so the reset leaves it alone.
+  const narrowed = files.length > 0 && (query.trim() !== "" || category !== ALL || format !== ALL);
+  const resetFilters = () => { setQuery(""); setCategory(ALL); setFormat(ALL); };
+  const scopeFiles = scope ? files.filter((file) => file.customers.some((item) => item.id === scope)) : [];
+  const countIn = (folderId: string) => scopeFiles.filter((file) => inFolder(file, folderId)).length;
+  const selection = shown.filter((file) => selected.includes(file.id));
   const openFile = files.find((file) => file.id === openId);
   const usedCategories = fileCategoryIds.filter((id) => files.some((file) => file.category === id));
+  const canOrganize = Boolean(scope) && !fileState.error;
+
+  const chooseFolder = (next: string) => { setFolderChoice({ scope, folder: next }); setNotice(""); };
+  const toggle = (id: string) => setSelected((list) => list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
+  const toggleAll = () => setSelected(selection.length === shown.length ? [] : shown.map((file) => file.id));
+
+  async function download() {
+    setBusy("download");
+    setError("");
+    const result = await store.download(selection);
+    setBusy(null);
+    if (!result.ok) setError(result.error);
+  }
+
+  async function move(target: string) {
+    if (!scope || !target) return;
+    setBusy("move");
+    setError("");
+    const folderId = target === NO_FOLDER ? null : target;
+    const result = await store.move(selection.map((file) => file.id), scope, folderId);
+    setBusy(null);
+    if (!result.ok) { setError(result.error); return; }
+    const name = folderId ? scopeFolders.find((item) => item.id === folderId)?.name : "Ohne Ordner";
+    setNotice(`${result.data.count === 1 ? "1 Datei" : `${result.data.count} Dateien`} nach „${name}“ verschoben.`);
+    setSelected([]);
+  }
 
   if (source === "fixtures" && !populated) {
-    return <><LargeTitleHeader title="Dateien" icon={<CategoryTitle category="files" />} actions={<HeaderActions />} /><EmptyState section="files" /></>;
+    return <><LargeTitleHeader title={title} icon={<CategoryTitle category="files" />} actions={<HeaderActions />} /><EmptyState section="files" /></>;
   }
 
   return (
     <>
-      <LargeTitleHeader title="Dateien" icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
+      <LargeTitleHeader title={title} icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
       {files.length > 0 && <CategoryMetrics model={model} category="files" />}
       {fileState.error && <GlassCard className="section-first"><p className="t-headline">Dateien nicht verfügbar</p><p className="t-subheadline t-secondary">{fileState.error}</p></GlassCard>}
 
-      {canManage && source === "supabase" && !fileState.error && <><SectionHeader title="Hochladen" /><FileUploadCard customers={customers} /></>}
-      {source === "fixtures" && customers.length > 1 && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Hochladen und Zuordnen ist nur mit echtem Admin-Login möglich. Die Tabelle zeigt fiktive Beispieldateien.</p></GlassCard>}
+      {canManage && source === "supabase" && !fileState.error && <><SectionHeader title="Hochladen" /><FileUploadCard customers={customers} folders={folders} /></>}
+      {source === "fixtures" && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">{customers.length > 1 ? "Hochladen und Zuordnen ist nur mit echtem Admin-Login möglich. " : ""}Die Tabelle zeigt fiktive Beispieldateien. Ordner und Verschiebungen bleiben in diesem Browserfenster.</p></GlassCard>}
 
       {!fileState.error && <>
         <SectionHeader title={canManage ? "Alle Dateien" : "Deine Dateien"} />
-        <div className="list-toolbar file-toolbar">
-          <label className="search-input glass glass-float"><Search size={16} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titel, Dateiname oder Beschreibung" aria-label="Dateien durchsuchen" /></label>
-          <label className="glass customer-filter"><span>Kategorie</span><select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Nach Kategorie filtern"><option value={ALL}>Alle</option>{usedCategories.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}</select></label>
-          {showCustomers && <label className="glass customer-filter"><span>Kunde</span><select value={customer} onChange={(event) => setCustomer(event.target.value)} aria-label="Nach Kunde filtern"><option value={ALL}>Alle</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.customerNumber} · {item.company}</option>)}{canManage && <option value={UNASSIGNED}>Ablage (ohne Zuordnung)</option>}</select></label>}
-        </div>
+        <TableSearch value={query} onChange={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen" activeFilters={[category !== ALL, format !== ALL, customer !== ALL].filter(Boolean).length}>
+          <FilterSelect icon={Tag} name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle Kategorien" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id] }))]} />
+          <FilterSelect icon={FileType} name="Nach Format filtern" value={format} onChange={setFormat} options={[{ value: ALL, label: "Alle Formate" }, ...usedFormats.map((item) => ({ value: item, label: item }))]} />
+          {showCustomers && <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((item) => ({ value: item.id, label: `${item.customerNumber} · ${item.company}` })), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)" }] : [])]} />}
+          <SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} />
+        </TableSearch>
+
+        {canOrganize ? (
+          <div className="folder-bar" role="group" aria-label="Ordner">
+            <button type="button" className="folder-chip" aria-pressed={folder === ALL} onClick={() => chooseFolder(ALL)}>Alle Dateien <span className="numeric">{scopeFiles.length}</span></button>
+            {scopeFolders.map((item) => <button key={item.id} type="button" className="folder-chip" aria-pressed={folder === item.id} onClick={() => chooseFolder(item.id)}><Folder size={15} aria-hidden="true" />{item.name} <span className="numeric">{countIn(item.id)}</span></button>)}
+            <button type="button" className="folder-chip" aria-pressed={folder === NO_FOLDER} onClick={() => chooseFolder(NO_FOLDER)}>Ohne Ordner <span className="numeric">{countIn(NO_FOLDER)}</span></button>
+            <button type="button" className="folder-add" onClick={() => setDialog({ kind: "create" })}><FolderPlus size={16} aria-hidden="true" />Neuer Ordner</button>
+          </div>
+        ) : showCustomers && customer !== UNASSIGNED && <p className="t-footnote folder-hint">Wähle in der erweiterten Suche einen Kunden, um seine Ordner zu sehen und Dateien einzusortieren.</p>}
+        {activeFolder && (
+          <div className="folder-actions">
+            <span><Folder size={16} aria-hidden="true" />{activeFolder.name}</span>
+            <button type="button" onClick={() => setDialog({ kind: "rename", folder: activeFolder })}><Pencil size={14} aria-hidden="true" />Umbenennen</button>
+            <button type="button" onClick={() => setDialog({ kind: "delete", folder: activeFolder })}><Trash2 size={14} aria-hidden="true" />Löschen</button>
+          </div>
+        )}
+
+        {selection.length > 0 && (
+          <div className="selection-bar glass glass-float" role="region" aria-label="Auswahl">
+            <strong className="numeric">{selection.length === 1 ? "1 Datei" : `${selection.length} Dateien`} ausgewählt</strong>
+            <button type="button" className="sheet-button sheet-button-primary selection-download" onClick={download} disabled={busy !== null}>{busy === "download" ? <Loader2 size={17} className="spin" aria-hidden="true" /> : <Download size={17} aria-hidden="true" />}{selection.length > 1 ? "Als ZIP herunterladen" : "Herunterladen"}</button>
+            {canOrganize && (
+              <label className="selection-move"><span className="visually-hidden">Ausgewählte Dateien verschieben nach</span>
+                <select value="" onChange={(event) => move(event.target.value)} disabled={busy !== null}>
+                  <option value="">Verschieben nach …</option>
+                  {scopeFolders.filter((item) => item.id !== folder).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  {folder !== NO_FOLDER && <option value={NO_FOLDER}>Ohne Ordner</option>}
+                </select>
+              </label>
+            )}
+            <button type="button" className="selection-clear" onClick={() => setSelected([])}><X size={16} aria-hidden="true" />Auswahl aufheben</button>
+          </div>
+        )}
+        {notice && <p className="calendar-notice glass" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
+
         {shown.length ? (
-          <div className="glass file-table-card">
+          <div className="table-blobs">
             <table className="file-table">
               <caption className="visually-hidden">{canManage ? "Alle Dateien mit Kategorie, Format, Datum und Kunden" : "Deine Dateien mit Kategorie, Format und Datum"}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Datei</th>
-                  <th scope="col">Kategorie</th>
+                  <th scope="col" className="cell-select"><input type="checkbox" checked={selection.length === shown.length} onChange={toggleAll} aria-label="Alle angezeigten Dateien auswählen" /></th>
+                  <SortHeader option={fileSorts.title} label="Datei" sort={sort} onChange={setSort} />
+                  <SortHeader option={fileSorts.category} sort={sort} onChange={setSort} />
                   <th scope="col" className="col-description">Beschreibung</th>
-                  <th scope="col">Format</th>
-                  <th scope="col">Bereitgestellt</th>
+                  <SortHeader option={fileSorts.format} sort={sort} onChange={setSort} />
+                  <SortHeader option={fileSorts.date} sort={sort} onChange={setSort} />
                   {showCustomers && <th scope="col">Kunden</th>}
                   <th scope="col"><span className="visually-hidden">Download</span></th>
                 </tr>
               </thead>
               <tbody>
-                {shown.map((file) => (
-                  <tr key={file.id} className="file-row">
-                    <td className="cell-file">
-                      <FileIcon file={file} />
-                      <button type="button" className="file-open" onClick={() => setOpenId(file.id)}><strong>{file.title}</strong><small>{file.fileName}</small></button>
-                    </td>
-                    <td className="cell-category"><CategoryPill category={file.category} /></td>
-                    <td className="cell-description col-description"><span>{file.description || "–"}</span></td>
-                    <td className="cell-format"><strong>{fileFormat(file.fileName)}</strong><small>{formatBytes(file.sizeBytes)}</small></td>
-                    <td className="cell-date">{formatFileDate(file.createdAt)}</td>
-                    {showCustomers && <td className="cell-customers">{file.customers.length ? file.customers.map((item) => <span key={item.id} className="customer-chip numeric" title={item.company}>{item.customerNumber}</span>) : <span className="customer-chip customer-chip-empty">Ablage</span>}</td>}
-                    <td className="cell-action"><DownloadButton file={file} onError={setError} /></td>
-                  </tr>
-                ))}
+                {shown.map((file) => {
+                  const folderName = scope && folder === ALL ? folders.find((item) => item.id === file.folderIds[scope])?.name : undefined;
+                  return (
+                    <tr key={file.id} className={`file-row${selected.includes(file.id) ? " is-selected" : ""}`}>
+                      <td className="cell-select"><input type="checkbox" checked={selected.includes(file.id)} onChange={() => toggle(file.id)} aria-label={`${file.title} auswählen`} /></td>
+                      <td className="cell-file">
+                        <FileIcon file={file} />
+                        <button type="button" className="file-open" onClick={() => setOpenId(file.id)}><strong>{file.title}</strong><small>{file.fileName}</small>{folderName && <span className="file-folder"><Folder size={12} aria-hidden="true" />{folderName}</span>}</button>
+                      </td>
+                      <td className="cell-category"><CategoryPill category={file.category} /></td>
+                      <td className="cell-description col-description"><span>{file.description || "–"}</span></td>
+                      <td className="cell-format"><strong>{fileFormat(file.fileName)}</strong><small>{formatBytes(file.sizeBytes)}</small></td>
+                      <td className="cell-date">{formatFileDate(file.createdAt)}</td>
+                      {showCustomers && <td className="cell-customers">{file.customers.length ? file.customers.map((item) => <span key={item.id} className="customer-chip numeric" title={item.company}>{item.customerNumber}</span>) : <span className="customer-chip customer-chip-empty">Ablage</span>}</td>}
+                      <td className="cell-action"><DownloadButton file={file} onError={setError} /></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ) : (
-          <GlassCard><p className="t-subheadline t-secondary">{files.length ? "Keine Dateien für diese Auswahl." : canManage ? "Noch keine Dateien hochgeladen." : "Für dich sind noch keine Dateien freigegeben."}</p></GlassCard>
+          <GlassCard className="table-empty">
+            <p className="t-subheadline t-secondary">{narrowed ? (query.trim() ? `Keine Dateien zu „${query.trim()}“.` : "Keine Dateien für diese Auswahl.") : activeFolder ? `Der Ordner „${activeFolder.name}“ ist noch leer. Wähle in „Alle Dateien“ Dateien aus und verschiebe sie hierher.` : files.length ? "Keine Dateien für diese Auswahl." : canManage ? "Noch keine Dateien hochgeladen." : "Für dich sind noch keine Dateien freigegeben."}</p>
+            {narrowed && <button type="button" className="table-reset" onClick={resetFilters}>Suche und Filter zurücksetzen</button>}
+          </GlassCard>
         )}
       </>}
 
-      {openFile && <FileDetailDialog key={openFile.id} file={openFile} customers={customers} canManage={canManage && source === "supabase"} onClose={() => setOpenId(null)} />}
+      {openFile && <FileDetailDialog key={openFile.id} file={openFile} customers={customers} folders={folders} canManage={canManage && source === "supabase"} onClose={() => setOpenId(null)} />}
+      {dialog?.kind === "create" && scope && (
+        <FolderNameDialog title="Neuer Ordner" initial="" onClose={() => setDialog(null)} onSave={async (name) => {
+          const result = await store.addFolder(scope, name);
+          if (result.ok) { setFolderChoice({ scope, folder: result.data.id }); setNotice(`Ordner „${result.data.name}“ angelegt.`); }
+          return result;
+        }} />
+      )}
+      {dialog?.kind === "rename" && <FolderNameDialog key={dialog.folder.id} title="Ordner umbenennen" initial={dialog.folder.name} onClose={() => setDialog(null)} onSave={(name) => store.rename(dialog.folder, name)} />}
+      {dialog?.kind === "delete" && (
+        <DeleteFolderDialog folder={dialog.folder} count={countIn(dialog.folder.id)} onClose={() => setDialog(null)} onDelete={async () => {
+          const result = await store.remove(dialog.folder);
+          if (result.ok) { chooseFolder(ALL); setNotice(`Ordner „${dialog.folder.name}“ gelöscht.`); }
+          return result;
+        }} />
+      )}
     </>
   );
 }

@@ -11,7 +11,7 @@ async function WorkspaceOverview() {
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
   const filesState = await loadFilesForIdentity(identity);
-  return <HubView demoData={demoData} publicDemo={identity.publicDemo} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} />;
+  return <HubView demoData={demoData} publicDemo={identity.publicDemo} role={identity.account?.role ?? null} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} />;
 }
 
 export default function DashboardPage() {

@@ -1,7 +1,9 @@
-import type { HubStoredFile } from "./hub-files/types";
+import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
 import type { ServicePackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "messages", "settings", "insights", "discover"] as const;
+export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover", "users"] as const;
+/** Sections only admins may open. */
+export const adminSections: readonly HubSection[] = ["users"];
 export type HubSection = "overview" | (typeof hubSections)[number];
 
 export const sectionLabels: Record<HubSection, string> = {
@@ -9,15 +11,23 @@ export const sectionLabels: Record<HubSection, string> = {
   projects: "Projekte",
   files: "Dateien",
   messages: "Nachrichten",
+  calendar: "Kalender",
   settings: "Profil",
   insights: "Insights",
   discover: "Entdecken",
+  users: "User Management",
 };
+
+/** Admins see some sections under their own names: for them the file exchange is the "Asset Management". */
+export const adminSectionLabels: Partial<Record<HubSection, string>> = { files: "Asset Management" };
+
+export const sectionLabel = (section: HubSection, admin: boolean) => (admin && adminSectionLabels[section]) || sectionLabels[section];
 
 /** Fictional reference day of all fixtures; dates in the demo history are relative to it. */
 export const DEMO_AS_OF = "2026-10-15";
 
-export type Milestone = { title: string; at: string; kind: "milestone" | "feedback" };
+/** `description` says what the milestone delivers; the projects table shows it for the current milestone. */
+export type Milestone = { title: string; description: string; at: string; kind: "milestone" | "feedback" };
 
 export type NextStep = { id: string; title: string; category: string; date: string; dueOn: string; projectIndex: number };
 
@@ -67,10 +77,10 @@ export const previewProjects: Project[] = [
     startedOn: "2026-06-01",
     dueOn: "2026-10-30",
     milestones: [
-      { title: "Kickoff", at: "2026-06-03T10:00", kind: "milestone" },
-      { title: "Zielbild & Briefing", at: "2026-07-02T14:00", kind: "milestone" },
-      { title: "Designsystem", at: "2026-08-26T15:30", kind: "milestone" },
-      { title: "Konzept & Struktur", at: "2026-10-13T11:30", kind: "milestone" },
+      { title: "Kickoff", description: "Ziele, Zielgruppen und Zeitplan gemeinsam festgelegt.", at: "2026-06-03T10:00", kind: "milestone" },
+      { title: "Zielbild & Briefing", description: "Inhalte, Funktionen und Tonalität der Website abgestimmt.", at: "2026-07-02T14:00", kind: "milestone" },
+      { title: "Designsystem", description: "Farben, Typografie und Komponenten für alle Seiten definiert.", at: "2026-08-26T15:30", kind: "milestone" },
+      { title: "Konzept & Struktur", description: "Seitenstruktur und Navigation stehen. Als Nächstes folgen die Seitenentwürfe.", at: "2026-10-13T11:30", kind: "milestone" },
     ],
   },
   {
@@ -85,9 +95,9 @@ export const previewProjects: Project[] = [
     startedOn: "2026-08-17",
     dueOn: "2026-10-23",
     milestones: [
-      { title: "Kickoff", at: "2026-08-19T10:00", kind: "milestone" },
-      { title: "Moodboard", at: "2026-09-10T16:00", kind: "milestone" },
-      { title: "Erste Designrichtung", at: "2026-10-14T09:30", kind: "feedback" },
+      { title: "Kickoff", description: "Markenkern, Werte und Wettbewerb besprochen.", at: "2026-08-19T10:00", kind: "milestone" },
+      { title: "Moodboard", description: "Bildwelt und Stilrichtung als Moodboard festgehalten.", at: "2026-09-10T16:00", kind: "milestone" },
+      { title: "Erste Designrichtung", description: "Die erste Designrichtung ist fertig und wartet auf dein Feedback.", at: "2026-10-14T09:30", kind: "feedback" },
     ],
   },
   {
@@ -102,10 +112,10 @@ export const previewProjects: Project[] = [
     startedOn: "2026-05-04",
     dueOn: "2026-10-09",
     milestones: [
-      { title: "Kickoff", at: "2026-05-06T09:30", kind: "milestone" },
-      { title: "Content-Plan", at: "2026-06-15T13:00", kind: "milestone" },
-      { title: "Kampagnen-Assets", at: "2026-08-20T11:00", kind: "milestone" },
-      { title: "Launch", at: "2026-10-09T10:00", kind: "milestone" },
+      { title: "Kickoff", description: "Kanäle, Zielgruppen und Tonalität für Social Media festgelegt.", at: "2026-05-06T09:30", kind: "milestone" },
+      { title: "Content-Plan", description: "Redaktionsplan für die ersten drei Monate erstellt.", at: "2026-06-15T13:00", kind: "milestone" },
+      { title: "Kampagnen-Assets", description: "Vorlagen, Bilder und Texte für den Start produziert.", at: "2026-08-20T11:00", kind: "milestone" },
+      { title: "Launch", description: "Der Auftritt ist live. Das Projekt ist abgeschlossen.", at: "2026-10-09T10:00", kind: "milestone" },
     ],
   },
 ];
@@ -125,15 +135,24 @@ export function sampleFileFixtures(slug: keyof typeof sampleFileSizes, company: 
       id: `${slug}-servicevertrag`, title: "Servicevertrag", fileName: `Servicevertrag ${company}.pdf`, category: "contract",
       description: `Fiktiver Beispielvertrag zum Servicepaket ${servicePackage}: Laufzeit, Leistungen und Konditionen.`,
       mimeType: "application/pdf", sizeBytes: sampleFileSizes[slug].contract, sha256: null, createdAt: "2026-10-01T10:00", customers,
+      folderIds: { [customerNumber]: `${customerNumber}-vertraege` },
       sampleHref: `/demo-files/${slug}/servicevertrag.pdf`,
     },
     {
       id: `${slug}-logo`, title: "Logo-Datei", fileName: `Logo ${company}.svg`, category: "brand",
       description: "Fiktives Beispiel-Logo als Vektordatei (SVG) für Website, Social Media und Druck.",
-      mimeType: "image/svg+xml", sizeBytes: sampleFileSizes[slug].logo, sha256: null, createdAt: "2026-10-14T09:30", customers,
+      mimeType: "image/svg+xml", sizeBytes: sampleFileSizes[slug].logo, sha256: null, createdAt: "2026-10-14T09:30", customers, folderIds: {},
       sampleHref: `/demo-files/${slug}/logo.svg`,
     },
   ];
+}
+
+/** Example folders of the demo customers: "Verträge" holds the sample contract, "Briefings" is still empty. */
+export function sampleFolders(customers: HubFileCustomer[]): HubFolder[] {
+  return customers.flatMap((customer) => [
+    { id: `${customer.id}-briefings`, customerId: customer.id, name: "Briefings" },
+    { id: `${customer.id}-vertraege`, customerId: customer.id, name: "Verträge" },
+  ]);
 }
 
 export const previewFiles: HubStoredFile[] = sampleFileFixtures("nordlicht", "Nordlicht Studio", "KD-24017", "Oalab-Website extra");
@@ -146,6 +165,26 @@ export const demoNextSteps: NextStep[] = [
 
 /** The single example conversation shown on the messages page. */
 export const demoConversation = { title: "Brand Identity", person: "Lena Schneider", initials: "LS", topic: "Neue Designrichtung", sentAt: "2026-10-14T09:40" };
+
+const deadlineDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric" });
+
+/** A project's target date ("Terminierung"), e.g. "30. Okt. 2026". */
+export const formatDeadline = (day: string) => deadlineDate.format(Date.parse(`${day}T00:00:00Z`));
+
+/** How a target date relates to `asOf`: "in 15 Tagen", "heute", "3 Tage überfällig"; completed projects are "abgeschlossen". */
+export function deadlineHint(dueOn: string, done: boolean, asOf: string) {
+  if (done) return "abgeschlossen";
+  const days = Math.round((Date.parse(`${dueOn}T00:00:00Z`) - Date.parse(`${asOf}T00:00:00Z`)) / 86_400_000);
+  if (days === 0) return "heute";
+  if (days === 1) return "morgen";
+  if (days > 1) return `in ${days} Tagen`;
+  return days === -1 ? "1 Tag überfällig" : `${-days} Tage überfällig`;
+}
+
+/** The milestone a project stands at on `asOf`: the latest one reached, or the first one ahead if none is reached yet. */
+export function currentMilestone(project: Project, asOf: string): Milestone | undefined {
+  return project.milestones.filter((item) => item.at.slice(0, 10) <= asOf).at(-1) ?? project.milestones[0];
+}
 
 export function hubHref(preview: boolean, section: HubSection = "overview") {
   const base = preview ? "/preview" : "/dashboard";

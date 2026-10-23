@@ -126,6 +126,24 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 .password-field > button { position: absolute; top: 3px; right: 3px; bottom: 3px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--label-secondary); }
 .password-field > button:hover { color: var(--label); }
 .auth-submit { width: 100%; margin-top: 4px; }
+/* Registration: two fields side by side, optional details folded away, the privacy notice above the button. */
+.auth-field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.auth-optional { font-weight: 400; color: var(--label-secondary); }
+.auth-field textarea { width: 100%; min-width: 0; min-height: 88px; padding: 12px 14px; border: 1px solid var(--auth-input-border); border-radius: 12px; background: var(--auth-control); color: var(--label); font: inherit; font-size: 17px; line-height: 22px; resize: vertical; }
+.auth-field textarea:focus { background: #ffffff; border-color: var(--accent-text); }
+.auth-more { border-radius: 12px; }
+.auth-more > summary { display: flex; align-items: center; min-height: 44px; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--accent-text); cursor: pointer; list-style-position: inside; }
+.auth-more > summary::-webkit-details-marker { color: var(--accent-text); }
+.auth-more-fields { display: flex; flex-direction: column; gap: 16px; padding-top: 4px; }
+.auth-privacy-note { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.auth-privacy-note a { color: var(--accent-text); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+/* Waiting page */
+.auth-form > p.pending-note { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--auth-control); font-size: 15px; line-height: 21px; color: var(--label-body); }
+.pending-sign-out { margin-top: 24px; }
+/* Imprint and privacy links in the footers */
+.legal-links { display: inline-flex; align-items: center; gap: 14px; }
+.legal-links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 480px) { .auth-field-row { grid-template-columns: 1fr; } }
 .auth-page .form-error { padding: 12px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.72); border: 1px solid rgba(143, 29, 33, 0.32); color: var(--oalab-red); font-size: 15px; line-height: 20px; }
 .auth-form > .form-error { margin-top: 16px; }
 
@@ -167,10 +185,4 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 }
 @media (max-width: 380px) {
   .auth-card { padding: 20px 16px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
-  .button-primary:active:not(:disabled), .button-secondary:active { transform: none; }
-  .demo-login-chevron { transition: none; }
 }

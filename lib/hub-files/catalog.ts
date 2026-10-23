@@ -20,6 +20,34 @@ export const isFileCategory = (value: unknown): value is FileCategory => typeof 
 
 /** Matches the bucket limit in supabase/migrations. */
 export const MAX_FILE_BYTES = 50 * 1024 * 1024;
+export const MAX_UPLOAD_BATCH = 20;
+/** The ZIP is built in the browser; beyond this the download is split up by the user. */
+export const MAX_ZIP_BYTES = 500 * 1024 * 1024;
+export const MAX_FOLDER_NAME = 80;
+
+/** Folder names: trimmed, single spaces, no path separators, at most 80 characters. */
+export function cleanFolderName(value: unknown): { ok: true; name: string } | { ok: false; error: string } {
+  const name = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!name) return { ok: false, error: "Bitte einen Ordnernamen angeben." };
+  if (name.length > MAX_FOLDER_NAME) return { ok: false, error: `Ordnernamen dürfen höchstens ${MAX_FOLDER_NAME} Zeichen lang sein.` };
+  if (/[\\/]/.test(name)) return { ok: false, error: "Ordnernamen dürfen keinen Schrägstrich enthalten." };
+  return { ok: true, name };
+}
+
+/** Unique names for the entries of a ZIP: a repeated "Logo.svg" becomes "Logo (2).svg". */
+export function zipEntryNames(fileNames: string[]) {
+  const used = new Set<string>();
+  return fileNames.map((original) => {
+    const name = original.replace(/[\\/]/g, "-").trim() || "Datei";
+    const extension = fileExtension(name);
+    const base = extension ? name.slice(0, -(extension.length + 1)) : name;
+    let candidate = name;
+    for (let index = 2; used.has(candidate.toLowerCase()); index++) candidate = extension ? `${base} (${index}).${extension}` : `${base} (${index})`;
+    used.add(candidate.toLowerCase());
+    return candidate;
+  });
+}
+
 export const HUB_FILES_BUCKET = "hub-files";
 
 /** Executable or script formats are never accepted, whatever the browser reports as type. */
