@@ -19,6 +19,7 @@ export type Appearance = {
   glassAlpha: number;
   glassBlur: number;
   reduceTransparency: boolean;
+  reduceMotion: boolean;
 };
 
 /** White text reaches at least 4.5:1 on every base and orb colour (see tests/appearance.test.mjs). */
@@ -42,16 +43,17 @@ export const defaultAppearance: Appearance = {
   glassAlpha: 0.8,
   glassBlur: 24,
   reduceTransparency: false,
+  reduceMotion: false,
 };
 
-export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; onBackground: "light" | "dark" };
+export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark" };
 
 /**
  * Resolves a stored (possibly invalid) preference into CSS variables.
  * Must not reference anything outside its own body: it is serialised into the
  * inline script that runs before the first paint.
  */
-export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], systemReducedTransparency: boolean): AppearanceDom {
+export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], systemReducedTransparency: boolean, systemReducedMotion = false): AppearanceDom {
   const input = (stored && typeof stored === "object" ? stored : {}) as Record<string, unknown>;
   const clamp = (value: unknown, min: number, max: number, fallback: number) => {
     const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -77,12 +79,13 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
       "--glass-blur": `${clamp(input.glassBlur, 8, 40, 24)}px`,
     },
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
+    reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : systemReducedMotion,
     onBackground,
   };
 }
 
 /** Normalises a stored value for React state; mirrors the ranges used by resolveAppearance. */
-export function normalizeAppearance(stored: unknown, systemReducedTransparency = false): Appearance {
+export function normalizeAppearance(stored: unknown, systemReducedTransparency = false, systemReducedMotion = false): Appearance {
   const input = (stored && typeof stored === "object" ? stored : {}) as Partial<Record<keyof Appearance, unknown>>;
   const preset = backgroundPresets.find((item) => item.id === input.backgroundPreset)?.id ?? defaultAppearance.backgroundPreset;
   const number = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -92,6 +95,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     glassAlpha: Math.min(GLASS_ALPHA_RANGE.max, Math.max(GLASS_ALPHA_RANGE.min, number(input.glassAlpha, defaultAppearance.glassAlpha))),
     glassBlur: Math.min(GLASS_BLUR_RANGE.max, Math.max(GLASS_BLUR_RANGE.min, number(input.glassBlur, defaultAppearance.glassBlur))),
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
+    reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : systemReducedMotion,
   };
 }
 
@@ -99,10 +103,11 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
 export function applyAppearanceToDocument(dom: AppearanceDom, root: HTMLElement) {
   for (const [name, value] of Object.entries(dom.variables)) root.style.setProperty(name, value);
   root.dataset.reduceTransparency = String(dom.reduceTransparency);
+  root.dataset.reduceMotion = String(dom.reduceMotion);
   root.dataset.onBackground = dom.onBackground;
 }
 
 /** Inline script for the root layout: applies the stored appearance before the first paint. */
 export function appearanceInlineScript() {
-  return `(function(){try{var r=(${resolveAppearance.toString()});var a=(${applyAppearanceToDocument.toString()});var s=null;try{s=JSON.parse(localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)})||"null")}catch(e){}var m=window.matchMedia&&window.matchMedia("(prefers-reduced-transparency: reduce)").matches;a(r(s,${JSON.stringify(backgroundPresets)},m),document.documentElement)}catch(e){}})()`;
+  return `(function(){try{var r=(${resolveAppearance.toString()});var a=(${applyAppearanceToDocument.toString()});var s=null;try{s=JSON.parse(localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)})||"null")}catch(e){}var q=function(x){return !!(window.matchMedia&&window.matchMedia(x).matches)};a(r(s,${JSON.stringify(backgroundPresets)},q("(prefers-reduced-transparency: reduce)"),q("(prefers-reduced-motion: reduce)")),document.documentElement)}catch(e){}})()`;
 }

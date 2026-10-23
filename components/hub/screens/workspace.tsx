@@ -265,7 +265,7 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
       </div>
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">
-        <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" subtitle="Hintergrund, Glas und Transparenz" />
+        <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" subtitle="Hintergrund, Glas, Transparenz und Bewegung" />
         <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
         <ListRow compact onClick={signOut} icon={<LogOut size={24} color="var(--system-gray)" aria-hidden="true" />} title={preview ? "Vorschau verlassen" : signingOut ? "Wird abgemeldet …" : "Abmelden"} chevron={false} />
       </InsetGroupedList>

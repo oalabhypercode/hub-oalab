@@ -55,6 +55,6 @@ Der Client Hub nutzt die Designsprache Liquid Glass: Ein kräftiger Hintergrund 
 
 ## Umsetzung und Pflege
 
-Markenwerte werden ausschließlich in `app/brand.css` gepflegt und über CSS-Variablen wiederverwendet. `app/glass.css` gestaltet den Client Hub, `app/hub.css` die Authentifizierung und gemeinsame Basisstile. Neue Seiten übernehmen das Root-Layout und die gemeinsamen Logo-Komponenten.
+Markenwerte werden ausschließlich in `app/brand.css` gepflegt und über CSS-Variablen wiederverwendet. `app/glass.css` gestaltet den Client Hub, `app/hub.css` die Authentifizierung und gemeinsame Basisstile, `app/motion.css` die Einblend-Animation und „Bewegung reduzieren“. Neue Seiten übernehmen das Root-Layout und die gemeinsamen Logo-Komponenten.
 
 Bei Änderungen sind Login und Workspace jeweils auf Desktop und Mobilgeräten zu prüfen. Logo, Lesbarkeit, Tastaturfokus und horizontale Überläufe gehören zur Abnahme. Neue Markenentscheidungen werden hier und in `PROJECT_CONTEXT.md` dokumentiert.

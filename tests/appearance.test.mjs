@@ -53,6 +53,25 @@ test("stored appearance values are clamped and validated", () => {
   assert.equal(resolveAppearance({ backgroundPreset: "custom", customColor: "javascript:alert(1)" }, backgroundPresets, false).variables["--bg-base"], backgroundPresets.at(-1).base);
 });
 
+test("reduce motion follows the system until the user decides", () => {
+  assert.equal(resolveAppearance(null, backgroundPresets, false).reduceMotion, false);
+  assert.equal(resolveAppearance(null, backgroundPresets, false, true).reduceMotion, true, "system preference preselects the switch");
+  assert.equal(resolveAppearance({ reduceMotion: false }, backgroundPresets, false, true).reduceMotion, false, "an explicit choice wins over the system");
+  assert.equal(resolveAppearance({ reduceMotion: "yes" }, backgroundPresets, false, false).reduceMotion, false);
+});
+
+test("the waterfall stylesheet is loaded everywhere and switches off with reduce motion", async () => {
+  const layout = await source("app/layout.tsx");
+  const motion = await source("app/motion.css");
+  assert.match(layout, /import "\.\/motion\.css";/);
+  assert.match(layout, /<PageWaterfall \/>/);
+  assert.match(motion, /:root\[data-reduce-motion="true"\] \{ --waterfall: none; \}/);
+  assert.match(motion, /@media \(prefers-reduced-motion: reduce\) \{\s*:root:not\(\[data-reduce-motion\]\) \{ --waterfall: none; \}/);
+  for (const path of ["app/globals.css", "app/hub.css", "app/glass.css"]) {
+    assert.doesNotMatch(await source(path), /prefers-reduced-motion/, `${path}: motion rules live in app/motion.css`);
+  }
+});
+
 test("text on a very light custom background switches to black", () => {
   assert.equal(resolveAppearance({ backgroundPreset: "custom", customColor: "#F5E6A8" }, backgroundPresets, false).variables["--on-bg"], "#000000");
   assert.equal(resolveAppearance({ backgroundPreset: "custom", customColor: "#1B2A44" }, backgroundPresets, false).variables["--on-bg"], "#FFFFFF");
@@ -63,10 +82,11 @@ test("the pre-paint script applies the stored appearance without outside referen
   const root = { style: { setProperty: (name, value) => { variables[name] = value; } }, dataset: {} };
   vm.runInNewContext(appearanceInlineScript(), {
     localStorage: { getItem: () => JSON.stringify({ backgroundPreset: "ocean", glassAlpha: 0.9, reduceTransparency: true }) },
-    window: { matchMedia: () => ({ matches: false }) },
+    window: { matchMedia: (query) => ({ matches: query === "(prefers-reduced-motion: reduce)" }) },
     document: { documentElement: root },
   });
   assert.equal(variables["--bg-base"], "#0A2A6B");
   assert.equal(variables["--glass-alpha"], "0.9");
   assert.equal(root.dataset.reduceTransparency, "true");
+  assert.equal(root.dataset.reduceMotion, "true", "the system setting applies before the first paint");
 });

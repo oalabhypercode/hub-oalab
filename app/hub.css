@@ -186,9 +186,3 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 @media (max-width: 380px) {
   .auth-card { padding: 20px 16px; }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
-  .button-primary:active:not(:disabled), .button-secondary:active { transform: none; }
-  .demo-login-chevron { transition: none; }
-}

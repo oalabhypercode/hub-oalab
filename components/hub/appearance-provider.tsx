@@ -42,12 +42,18 @@ function subscribe(listener: () => void) {
   };
 }
 
+// System preferences preselect the switches until the user sets them in Darstellung.
 const reducedTransparencyQuery = "(prefers-reduced-transparency: reduce)";
-function subscribeSystem(listener: () => void) {
-  const query = window.matchMedia(reducedTransparencyQuery);
-  query.addEventListener("change", listener);
-  return () => query.removeEventListener("change", listener);
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+function subscribeQuery(query: string) {
+  return (listener: () => void) => {
+    const list = window.matchMedia(query);
+    list.addEventListener("change", listener);
+    return () => list.removeEventListener("change", listener);
+  };
 }
+const subscribeTransparency = subscribeQuery(reducedTransparencyQuery);
+const subscribeMotion = subscribeQuery(reducedMotionQuery);
 
 function parse(raw: string): unknown {
   try { return raw ? JSON.parse(raw) : null; } catch { return null; }
@@ -62,14 +68,15 @@ const AppearanceContext = createContext<AppearanceContextValue>({ appearance: de
 
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const raw = useSyncExternalStore(subscribe, readStored, () => "");
-  const systemReduced = useSyncExternalStore(subscribeSystem, () => window.matchMedia(reducedTransparencyQuery).matches, () => false);
-  const appearance = useMemo(() => normalizeAppearance(parse(raw), systemReduced), [raw, systemReduced]);
+  const systemTransparency = useSyncExternalStore(subscribeTransparency, () => window.matchMedia(reducedTransparencyQuery).matches, () => false);
+  const systemMotion = useSyncExternalStore(subscribeMotion, () => window.matchMedia(reducedMotionQuery).matches, () => false);
+  const appearance = useMemo(() => normalizeAppearance(parse(raw), systemTransparency, systemMotion), [raw, systemTransparency, systemMotion]);
 
   // The pre-paint script covers full page loads; this keeps <html> in sync after changes
   // and re-applies the values after React's development remount resets <html>.
   useLayoutEffect(() => {
-    applyAppearanceToDocument(resolveAppearance(parse(raw), backgroundPresets, systemReduced), document.documentElement);
-  }, [raw, systemReduced]);
+    applyAppearanceToDocument(resolveAppearance(parse(raw), backgroundPresets, systemTransparency, systemMotion), document.documentElement);
+  }, [raw, systemTransparency, systemMotion]);
 
   const update = useCallback((patch: Partial<Appearance>) => {
     writeStored(JSON.stringify({ ...appearance, ...patch }));

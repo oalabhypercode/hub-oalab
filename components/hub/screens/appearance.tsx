@@ -50,6 +50,14 @@ export function AppearanceScreen({ preview }: { preview: boolean }) {
           </div>
           <p className="t-footnote t-secondary">Ersetzt das Glas durch deckende weiße Flächen. Der Hintergrund bleibt sichtbar.</p>
         </GlassCard>
+
+        <GlassCard>
+          <div className="settings-row settings-row-flush">
+            <label htmlFor="reduce-motion" className="t-body">Bewegung reduzieren</label>
+            <Switch id="reduce-motion" checked={appearance.reduceMotion} onChange={(reduceMotion) => update({ reduceMotion })} label="Bewegung reduzieren" />
+          </div>
+          <p className="t-footnote t-secondary">Seiten erscheinen sofort, ohne nacheinander einzublenden. Auch Übergänge und andere Animationen entfallen.</p>
+        </GlassCard>
       </div>
     </>
   );

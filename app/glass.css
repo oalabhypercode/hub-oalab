@@ -1115,8 +1115,3 @@ a.teams-join:active { transform: scale(0.97); }
   .bar-chart-bars, .bar-chart-labels { gap: 2px; }
   .week-bars-plot, .week-bars-labels { gap: 6px; }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  :root { transition: none; }
-  .pressable:active, .glass-button:active, .service-cta:active, .sidebar-icon-button:active, .sidebar-settings-button:hover svg { transform: none; }
-}

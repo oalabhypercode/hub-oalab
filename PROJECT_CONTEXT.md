@@ -15,7 +15,7 @@
 - Kategorien: Projekte (Orange), Dateien (Indigo), Nachrichten (Blau), seit 22. Oktober 2026 Kalender (Rot). Rechnungen, Analytics und Hosting entfallen, bis es diese Module gibt.
 - Die Beispieldaten (Vorschau und vier Demo-Identitäten) enthalten einen ausdrücklich fiktiven, datierten Verlauf: Projektstart, Zieltermine, Meilensteine, Dateidaten. Referenztag ist der 15. Oktober 2026 (`DEMO_AS_OF`). Echte Konten sehen weiterhin leere Zustände.
 - Die Insights sind regelbasiert aus den vorhandenen Daten erzeugt und können später durch eine KI-Zusammenfassung ersetzt werden.
-- Darstellung (Preset, eigene Farbe, Deckkraft 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“) und Favoriten werden im Browser gespeichert, Favoriten pro Nutzer. Für Nutzereinstellungen gibt es noch keinen Speicher im Backend. Ein Inline-Script setzt die Darstellung vor dem ersten Paint.
+- Darstellung (Preset, eigene Farbe, Deckkraft 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“, seit 22. Oktober 2026 „Bewegung reduzieren“) und Favoriten werden im Browser gespeichert, Favoriten pro Nutzer. Für Nutzereinstellungen gibt es noch keinen Speicher im Backend. Ein Inline-Script setzt die Darstellung vor dem ersten Paint.
 - Die Übersicht begrüßt mit Namen und zeigt Unternehmen und Kundennummer (Admins: Organisation und Zahl der betreuten Kunden). Kundennummern existieren bisher nur als fiktive Demo-Werte (`KD-24017`, `KD-24023`, `KD-24031`); echte Konten zeigen „Noch nicht zugeordnet“.
 - Rechts neben der Begrüßung stehen das aktive Servicepaket und der Button „Ab zur Serviceplattform“ (https://service.oalab.de, neuer Tab). Jeder Kunde hat mindestens ein Paket: Oalab-Website & Mail, Oalab-Website lite, Oalab-Website extra oder Oalab-Website Max (zentral in `lib/service-packages.ts`). Die Demo-Zuordnungen sind fiktiv.
 - Login, Registrierung, Passwortseiten, Auth-Fehler und 404 stehen ebenfalls im Glas-Stil auf dem wählbaren Hintergrund; das Formular liegt auf einer Glaskarte. Das Original-Logo erscheint nur transparent als Wasserzeichen links (auf dem Smartphone klein oben rechts), nie umgefärbt.
@@ -160,6 +160,20 @@
     - Meta-App, Nummer und Token einrichten; Zahlungsmethode hinterlegen (ab der 1.001. Antwort im Monat kostenpflichtig).
     - Der Datenschutz muss ergänzt werden: Nachrichten und Nummern laufen über Meta.
     - Eine Nummer gleichzeitig in der WhatsApp-Business-App und der API zu nutzen, war laut einem Anbieter in der EU zuletzt nicht freigeschaltet.
+
+### Vorgabe vom 22. Oktober 2026: Einblend-Animation und „Bewegung reduzieren“
+
+- Auf jeder Seite blenden die Inhalte als Wasserfall von oben nach unten ein: Block für Block aus einer Unschärfe, leicht von oben, im Abstand von 70 ms (Kacheln in einem Raster in kürzeren Schritten).
+    - Hub: Titel, Karten, Listen und Tabellen in `.hub-content`, bei jedem Seitenwechsel neu.
+    - Login, Registrierung, Passwortseiten und 404: der Inhalt der Glaskarte; beim ersten Aufruf auch der Begrüßungstext links.
+    - Hintergrund, Sidebar, Tab-Bar, Logo-Zeile, die Glaskarte selbst, Dialoge und Ladeskelette erscheinen sofort.
+- Entscheidung: Das HTML wird immer direkt angezeigt. Die Animation ist reines CSS auf dem Server-HTML (`app/motion.css`) und wartet nie auf JavaScript.
+    - `components/page-waterfall.tsx` markiert die Seite nach dem Einblenden als fertig. So erscheinen später eingeblendete Elemente (Favoriten bearbeiten, Upload-Listen, Fehlermeldungen) ohne Animation.
+    - Glaskarten blenden selbst ein, nicht ihr Rahmen-Element: Unschärfe und Deckkraft auf einem Vorfahren würden den Glaseffekt während der Animation abschneiden.
+- Profil › Darstellung hat den Schalter **„Bewegung reduzieren“**. Er schaltet die Einblend-Animation und alle übrigen Übergänge und Animationen ab, wie die Systemeinstellung.
+    - Vorgabe ist die Systemeinstellung „Bewegung reduzieren“; eine eigene Wahl im Hub hat Vorrang.
+    - Gespeichert im Browser wie die übrige Darstellung. Das Inline-Script setzt `data-reduce-motion` vor dem ersten Paint, dadurch blitzt keine Animation auf.
+- Im Browser geprüft (Vorschau, Login, Passwort vergessen, 404): Reihenfolge der Kaskade, Seitenwechsel, keine Animation beim Bearbeiten der Favoriten, Schalter an und aus.
 
 ### Backlog
 
@@ -332,7 +346,7 @@ Für die aktuellen Demo-Konten wird `tjbslvwvisxjjcxfhbgm` verwendet. Vor der Da
 - `npx tsc --noEmit` läuft aktuell ohne Fehler.
 - `npm run lint` läuft ohne Fehler; generierte Dateien sind ausgeschlossen und der Tailwind-Import ist bereinigt.
 - `npm run build` läuft erfolgreich durch.
-- `npm test` umfasst 79 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links), die RLS-Migration des Kalenders, die Projekt-Terminierungen, Suche und Sortierung der Tabellen, das User Management (Eingaberegeln, Migration, Admin-Prüfungen), die E-Mail-Benachrichtigungen (Vorlagen, SMTP-Zugang und -Nachricht, Versandprotokoll, Supabase-Vorlagen) sowie KI-Assistent und WhatsApp-Anbindung unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
+- `npm test` umfasst 81 Tests für Auth-Weiterleitungen, Seed-Konfiguration, Demo-Zugriffsregeln, lokales Ein-Klick-Login, gemeinsames Branding, die öffentliche Signatur-/Origin-Policy, Kontrast und Darstellungslogik des Hubs sowie die Regeln, RLS-Migration und Musterdateien des Dateiaustauschs, die Kalenderregeln (Zeitzone und Sommerzeit, freie Slots, Teams-Links), die RLS-Migration des Kalenders, die Projekt-Terminierungen, Suche und Sortierung der Tabellen, das User Management (Eingaberegeln, Migration, Admin-Prüfungen), die E-Mail-Benachrichtigungen (Vorlagen, SMTP-Zugang und -Nachricht, Versandprotokoll, Supabase-Vorlagen) sowie KI-Assistent und WhatsApp-Anbindung unter Node.js 24. In Windows-Checkouts mit `core.autocrlf=true` schlägt der Musterdatei-Test fehl, weil Git die Beispiel-PDFs auf CRLF umstellt (siehe Aufräumbedarf).
 - `npm run demo:verify` besteht für alle vier echten Logins inklusive Rolle, Workspace und Abmeldung.
 - `npm run demo:smoke` besteht für alle vier Dashboard-Datensichten, fremde Projekt-IDs und den Schutz vor unangemeldetem Zugriff.
 - Alle vier lokalen Ein-Klick-Logins und der Kontowechsel sind im Browser geprüft. Produktion ohne öffentliche Freigabe verweigert Demo-POSTs mit 404. `npm run demo:public:smoke -- --local` besteht im explizit freigegebenen Produktionsmodus für alle vier Fixture-Identitäten, Kundentrennung, Abmeldung, Host-/Origin-Prüfung und die Grenze zu echten Auth-Routen. Passwörter fehlen in HTML, Browser-Assets und Deployment-Traces.
