@@ -3,7 +3,7 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 22. Oktober 2026
+**Stand:** 25. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
 ### Designentscheidung vom 19. Oktober 2026: Client Hub im Liquid-Glass-Stil
@@ -318,7 +318,20 @@ Für vollständige E-Mail-Flows müssen die eingesetzten Supabase-E-Mail-Templat
 
 ## 4. Supabase-Status
 
-Die lokale Umgebung verweist derzeit auf das Supabase-Projekt mit dem Ref:
+**Seit 25. Oktober 2026 (Aufgabe 6, gemeinsamer Login):** Der Hub nutzt das Supabase-Projekt von Service OALab:
+
+```text
+hxljfihyejwpugnsffcc
+```
+
+- Ein Konto für Hub und Service, ein gemeinsames Cookie `sb-oalab-auth-token` mit `Domain=oalab.de` (siehe README, „Supabase-Authentifizierung“).
+- Schema: alle `hub_*`-Tabellen, Bucket `hub-files`, Rechte und RLS stehen in `service-oalab/supabase/migrations/202610250001_hub_schema.sql`; die Dateien in `supabase/migrations/` hier sind nur Herkunft.
+- Bestehende Service-Konten bekamen ein aktives Hub-Profil (`source = existing`); neue Registrierungen warten auf Freigabe.
+- Hub-Konten und -Daten übernimmt `service-oalab/scripts/hub-import.mjs` mit der Zuordnung `hub_import_user_map` (Hub-ID → Ziel-ID). Gleiche E-Mail verbindet nicht stillschweigend: Das Service-Konto führt, der Fall wird vorher im Plan gezeigt.
+- Rollen: Service liest nur `memberships`. Der Hub liest vorerst `app_metadata.app_role` und `hub_profiles.status`. Hub-Admin ist kein Release-Manager. Hub-Rollen aus `memberships` abzuleiten ist offen (Phase E).
+- Rückweg: Vercel-Umgebung des Hubs auf das alte Projekt zurückstellen und den vorigen Stand deployen; das alte Projekt wird nicht gelöscht und bleibt unverändert. Keine alte Sicherung über neue Daten spielen.
+
+Bis zur Umstellung verwies die lokale Umgebung auf das Supabase-Projekt mit dem Ref:
 
 ```text
 tjbslvwvisxjjcxfhbgm

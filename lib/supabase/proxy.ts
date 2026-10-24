@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 import { getPublicDemoIdentity } from "@/lib/public-demo-session";
 import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
+import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -36,6 +37,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      cookieOptions: authCookieOptions(requestHost(request.headers)),
       cookies: {
         getAll() { return request.cookies.getAll(); },
         setAll(cookiesToSet) {
@@ -49,6 +51,10 @@ export async function updateSession(request: NextRequest) {
 
   // Keep the claims check immediately after client creation for session refresh.
   const { data, error } = await supabase.auth.getClaims();
-  if (!isPublic && (error || !data?.claims)) return loginRedirect();
-  return supabaseResponse;
+  const response = !isPublic && (error || !data?.claims) ? loginRedirect() : supabaseResponse;
+  // Session cookies of the former Hub-only Supabase project: removed, never read.
+  for (const cookie of request.cookies.getAll()) {
+    if (LEGACY_AUTH_COOKIE.test(cookie.name)) response.cookies.set(cookie.name, "", { path: "/", maxAge: 0 });
+  }
+  return response;
 }

@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, Mail } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { safeAuthRedirect } from "@/lib/auth-redirect";
+import { requestPasswordResetAction, signInAction, signUpAction, updatePasswordAction, type AuthResult } from "@/lib/hub-auth/actions";
+import { authMessage } from "@/lib/hub-auth/messages";
 import { readRegistration } from "@/lib/hub-users/rules";
 import { legalLinks } from "@/lib/legal-links";
 import { cn, hasEnvVars } from "@/lib/utils";
@@ -18,19 +17,6 @@ const copy = {
   update: { eyebrow: "Fast geschafft.", title: "Ein neues\nPasswort.", description: "Wähle ein sicheres Passwort für deinen Workspace. Mindestens acht Zeichen sind ein guter Anfang.", action: "Passwort speichern", loading: "Passwort wird gespeichert …" },
 };
 
-function authError(error: unknown) {
-  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
-  if (code === "invalid_credentials") return "E-Mail-Adresse oder Passwort stimmen nicht. Bitte prüfe deine Eingaben.";
-  if (code === "user_banned") return "Dein Zugang ist deaktiviert. Bitte wende dich an dein oalab-Team.";
-  if (code === "email_not_confirmed") return "Bitte bestätige zuerst deine E-Mail-Adresse über den Link in deinem Postfach.";
-  if (code === "user_already_exists") return "Für diese E-Mail-Adresse besteht bereits ein Konto. Bitte melde dich an.";
-  if (code.includes("rate_limit")) return "Zu viele Versuche. Bitte warte einen Moment und versuche es erneut.";
-  if (code === "weak_password") return "Bitte wähle ein stärkeres Passwort mit mindestens acht Zeichen.";
-  if (code === "same_password") return "Dein neues Passwort muss sich vom bisherigen unterscheiden.";
-  if (code === "session_not_found" || code === "refresh_token_not_found") return "Der Link ist abgelaufen. Fordere bitte einen neuen Passwort-Link an.";
-  return "Das hat gerade nicht geklappt. Bitte versuche es erneut oder wende dich an dein Projektteam.";
-}
-
 export function AuthForm({ mode, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +27,6 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
   const [success, setSuccess] = useState(false);
   // Registration only: what the oalab team needs to approve the access quickly.
   const [registration, setRegistration] = useState({ firstName: "", lastName: "", companyName: "", phone: "", position: "", website: "", customerNumberHint: "", message: "" });
-  const router = useRouter();
   const content = copy[mode];
   const field = (key: keyof typeof registration) => ({
     value: registration[key],
@@ -52,53 +37,30 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (!hasEnvVars) { setError("Der Login wird gerade eingerichtet. Bitte versuche es später erneut."); return; }
+    if (!hasEnvVars) { setError(authMessage("setup")); return; }
     const checked = mode === "signup" ? readRegistration({ ...registration, email }) : null;
     if (checked && !checked.ok) { setError(checked.error); return; }
     if ((mode === "signup" || mode === "update") && password !== repeatPassword) { setError("Die beiden Passwörter stimmen noch nicht überein."); return; }
     setLoading(true);
     try {
-      const supabase = createClient();
+      // Every auth step runs on the server: the session cookie shared with Service OALab is HTTP-only.
+      let result: AuthResult;
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
-        // A real login must supersede a previously selected public fixture identity.
-        const demoExit = await fetch("/auth/demo/logout", { method: "POST" });
-        if (!demoExit.ok && ![403, 404].includes(demoExit.status)) throw new Error("Could not leave public demo");
-        const next = new URLSearchParams(window.location.search).get("next");
-        // Discard any client router cache and UI state from a previous account.
-        window.location.replace(safeAuthRedirect(next));
+        result = await signInAction({ email: email.trim(), password, next: new URLSearchParams(window.location.search).get("next") });
       } else if (mode === "signup") {
         if (!checked?.ok) return;
-        // The details travel as user_metadata; a database trigger copies them into a profile that waits for approval.
-        const person = checked.value;
-        const { data, error } = await supabase.auth.signUp({
-          email: person.email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-            data: {
-              first_name: person.firstName, last_name: person.lastName, full_name: `${person.firstName} ${person.lastName}`, company_name: person.companyName,
-              phone: person.phone, position: person.position, website: person.website, customer_number_hint: person.customerNumberHint, message: person.message,
-              privacy_noted: true,
-            },
-          },
-        });
-        if (error) throw error;
-        router.replace(data.session ? "/dashboard" : "/auth/sign-up-success");
-        router.refresh();
+        result = await signUpAction({ ...checked.value, password });
       } else if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/auth/callback?next=/auth/update-password` });
-        if (error) throw error;
-        setSuccess(true);
+        result = await requestPasswordResetAction({ email: email.trim() });
       } else {
-        const { error } = await supabase.auth.updateUser({ password });
-        if (error) throw error;
-        router.replace("/dashboard");
-        router.refresh();
+        result = await updatePasswordAction({ password });
       }
-    } catch (failure: unknown) {
-      setError(authError(failure));
+      if (!result.ok) { setError(result.error); return; }
+      if (mode === "forgot") { setSuccess(true); return; }
+      // A fresh document: no client router cache or UI state from a previous account survives the auth boundary.
+      if (result.redirect) window.location.replace(result.redirect);
+    } catch {
+      setError(authMessage(null));
     } finally {
       setLoading(false);
     }
