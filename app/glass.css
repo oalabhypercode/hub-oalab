@@ -169,6 +169,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .sidebar-item:hover { background: rgba(255, 255, 255, 0.45); }
 .sidebar-item.is-active { background: var(--selected-pill); box-shadow: var(--selected-pill-shadow); color: var(--accent-text); font-weight: 600; }
 .sidebar-accent-icon { color: var(--accent); }
+/* Entries that leave the hub (the chat) carry an arrow instead of a count. */
+.sidebar-external { margin-left: auto; color: var(--label-secondary); }
 .sidebar-count { margin-left: auto; font-size: 15px; color: var(--label-secondary); font-variant-numeric: tabular-nums; }
 /* Waiting registrations: a badge instead of a plain count, so they do not go unnoticed. */
 .sidebar-count.sidebar-count-alert { min-width: 22px; height: 22px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: #ffffff; font-size: 13px; font-weight: 700; }
@@ -270,9 +272,9 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
   .t-large-title { font-size: 30px; line-height: 36px; }
 }
 @media (max-width: 400px) {
-  .tab-bar-wrap { left: 12px; right: 12px; gap: 8px; }
-  /* Six entries since the calendar: every label still fits at 390 px. */
-  .tab { padding: 0 1px; }
+  .tab-bar-wrap { left: 8px; right: 8px; gap: 6px; }
+  /* Seven entries since the chat: slightly tighter labels keep every one readable at 390 px. */
+  .tab { padding: 0 1px; font-size: 9.5px; letter-spacing: -0.01em; }
 }
 
 /* ---------- Content ---------- */

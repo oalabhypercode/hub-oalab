@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, LogOut, Search, Settings, UserCog } from "lucide-react";
+import { ArrowUpRight, Loader2, LogOut, Search, Settings, UserCog } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { useHubShell } from "./shell-context";
-import { mainNavigation } from "./navigation";
+import { chatNavigation, mainNavigation, newTabLinkProps } from "./navigation";
 import { BrandLogo } from "./wordmark";
 
 type SidebarProps = {
@@ -45,6 +45,10 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         {mainNavigation.map(({ section: target, label, icon: Icon }) => (
           <Link key={target} {...item(target)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{label}</span></Link>
         ))}
+        <a href={chatNavigation.href} {...newTabLinkProps} className="sidebar-item">
+          <chatNavigation.icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{chatNavigation.label}</span>
+          <ArrowUpRight size={16} className="sidebar-external" aria-hidden="true" /><span className="visually-hidden"> (öffnet in neuem Tab)</span>
+        </a>
         <span className="sidebar-caption">Kategorien</span>
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
         {categoryOrder.map((id) => {
