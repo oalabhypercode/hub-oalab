@@ -27,8 +27,9 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Profil: Name unten in der Sidebar oder das Zahnrad daneben anklicken (auf dem Smartphone die Initialen oben rechts). Dort stehen „Deine Angaben“ (Name, Position, Telefon, Unternehmen, Kundennummer, Servicepakete, Anschrift und Kontakt, gepflegt vom oalab-Team), die E-Mail-Adresse, „Passwort zurücksetzen“, „WhatsApp verbinden“, die Darstellung und „Assistent & Hilfe“. Änderungen an den Angaben übernimmt das oalab-Team.
 
 ## Navigation
-- Ab 1024 Pixel Breite steht links die Sidebar: Suchen, Übersicht, Insights und die Kategorien Projekte, Dateien, Nachrichten und Kalender. Admins sehen die Dateien als „Asset Management“ und darunter unter „Verwaltung“ das User Management (mit der Zahl offener Registrierungen). Unten stehen Name, aktives Servicepaket, Zahnrad (Profil & Darstellung) und Abmelden.
+- Ab 1024 Pixel Breite steht links die Sidebar: Suchen, Übersicht, Insights, Chat und die Kategorien Projekte, Dateien, Nachrichten und Kalender. Admins sehen die Dateien als „Asset Management“ und darunter unter „Verwaltung“ das User Management (mit der Zahl offener Registrierungen). Unten stehen Name, aktives Servicepaket, Zahnrad (Profil & Darstellung) und Abmelden.
 - Auf Smartphone und Tablet steht unten eine Tab-Leiste mit denselben Bereichen und einer Lupe für „Entdecken“.
+- „Chat“ (Sidebar und Tab-Leiste) öffnet die Serviceplattform service.oalab.de in einem neuen Tab. Dort laufen die Chats und Anfragen; der Hub bleibt im ersten Tab offen.
 - Suche: „Suchen“ in der Sidebar oder Strg+K (Mac: ⌘K). Sie findet Seiten, Kennzahlen und Projekte.
 - Oben rechts auf jeder Seite: die Glocke (Benachrichtigungen) und die Sprechblase „Assistent & Hilfe“ (dieser Assistent).
 
