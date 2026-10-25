@@ -19,6 +19,7 @@ import { CategoryIcon, GlassButton } from "./glass";
 import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
+import { accountDisplayName } from "@/lib/hub-users/display-name";
 
 export function AppShell({ children, preview = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0 }: {
   children: React.ReactNode;
@@ -44,8 +45,7 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   // Real logins take their name, company and packages from the user management; demo logins keep the fixtures.
   const live = !preview && !demoData ? hubAccount : null;
   const liveCustomer = live?.customers[0] ?? null;
-  const liveName = live ? `${live.firstName} ${live.lastName}`.trim() : "";
-  const name = preview ? previewAccount.name : demoData?.name || liveName || email.split("@")[0] || "Dein Konto";
+  const name = preview ? previewAccount.name : demoData?.name || accountDisplayName(live, liveCustomer?.company, email);
   const projects = preview ? previewProjects : demoData?.projects || [];
   const files = preview ? previewFiles : demoData?.files || [];
   const hasDemo = preview || Boolean(demoData);
