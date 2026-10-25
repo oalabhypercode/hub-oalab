@@ -4,6 +4,7 @@ import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { cleanNote, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readRequestInput, workWindow } from "./rules";
 import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
+import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
 // Row Level Security in Supabase enforces the same rules a second time.
@@ -16,6 +17,8 @@ async function signedInClient() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return null;
+  // A login with an authenticator app acts only after entering its code.
+  if (await secondFactorMissing(supabase, data.claims.aal)) return null;
   const appMetadata = data.claims.app_metadata as Record<string, unknown> | undefined;
   return { supabase, userId: data.claims.sub, admin: appMetadata?.app_role === "oalab_admin" };
 }

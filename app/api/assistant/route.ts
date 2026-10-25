@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { cleanConversation } from "@/lib/hub-assistant/conversation";
 import { assistantConfigured, assistantRequest, REFUSAL_TEXT } from "@/lib/hub-assistant/claude";
+import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
 // The hub assistant: answers questions about the platform's functions with Claude.
 // Only signed-in Supabase users reach it (public demo and preview never do); only the conversation
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return failure(401, "Der Assistent ist nur mit echtem Login verfügbar.");
+  if (await secondFactorMissing(supabase, data.claims.aal)) return failure(401, "Bitte bestätige zuerst deinen Sicherheitscode.");
   // Only approved logins may ask (each question costs money). Before the user management migration the
   // function is missing; then the earlier rule (any signed-in login) still applies.
   const { data: active, error: activeError } = await supabase.rpc("hub_is_active");

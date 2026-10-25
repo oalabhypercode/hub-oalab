@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
-import { safeAuthRedirect } from "@/lib/auth-redirect";
+import { safeAuthRedirect, SECOND_FACTOR_PAGE } from "@/lib/auth-redirect";
 import { mailPasswordLink, mailRegistrationConfirmation } from "@/lib/hub-mail/notify";
 import { cleanEmail, readRegistration } from "@/lib/hub-users/rules";
 import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
@@ -11,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
 import { authMessage, authRateLimits, clientAddress, type AuthRateAction } from "./messages";
+import { secondFactorPending } from "./second-factor";
 
 // Login, registration, password link, new password and sign-out run on the server: the session cookie that Hub and
 // Service share is HTTP-only, so browser code can neither read nor write it. Each action is a public POST endpoint
@@ -58,6 +59,28 @@ export async function signInAction(input: { email: string; password: string; nex
   if (error) return failure(error.code);
   // A real login supersedes a previously selected public fixture identity.
   (await cookies()).set(PUBLIC_DEMO_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
+  const next = safeAuthRedirect(input.next);
+  // Logins with an authenticator app continue with its code.
+  if (await secondFactorPending(supabase)) return { ok: true, redirect: `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(next)}` };
+  return { ok: true, redirect: next };
+}
+
+/**
+ * Second step for logins with an authenticator app: checks the six-digit code and raises the session to AAL2, which
+ * Service OALab accepts as well. Attempts count against the login limit of the account.
+ */
+export async function verifySecondFactorAction(input: { code: string; next?: string | null }): Promise<AuthResult> {
+  if (!hasEnvVars) return failure("setup");
+  const code = typeof input.code === "string" ? input.code.replace(/\s/g, "") : "";
+  if (!/^\d{6}$/.test(code)) return failure("mfa_verification_failed");
+  const supabase = await createClient();
+  const { data: user, error: userError } = await supabase.auth.getUser();
+  if (userError || !user.user) return failure("session_not_found");
+  if (!(await withinRate("login", user.user.email ?? user.user.id))) return failure("over_request_rate_limit");
+  const factor = (user.user.factors ?? []).find((item) => item.factor_type === "totp" && item.status === "verified");
+  if (!factor) return failure("mfa_factor_not_found");
+  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+  if (error) return failure(error.code);
   return { ok: true, redirect: safeAuthRedirect(input.next) };
 }
 
