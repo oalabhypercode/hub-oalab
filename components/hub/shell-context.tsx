@@ -23,6 +23,8 @@ export type HubAccount = {
 
 export type ShellContextValue = {
   preview: boolean;
+  /** The loading shell before the login is known: account details are blank, not "no customer". */
+  pending: boolean;
   initials: string;
   account: HubAccount;
   /** Real admin login (not the preview or the public demo): may open the user management. */

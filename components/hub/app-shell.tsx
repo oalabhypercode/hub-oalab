@@ -21,9 +21,11 @@ import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
 
-export function AppShell({ children, preview = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0 }: {
+export function AppShell({ children, preview = false, pending = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0 }: {
   children: React.ReactNode;
   preview?: boolean;
+  /** Loading fallback while the login is checked: navigation and page title at once, the account still blank. */
+  pending?: boolean;
   email?: string;
   demoData?: HubDemoData;
   publicDemo?: boolean;
@@ -45,7 +47,7 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   // Real logins take their name, company and packages from the user management; demo logins keep the fixtures.
   const live = !preview && !demoData ? hubAccount : null;
   const liveCustomer = live?.customers[0] ?? null;
-  const name = preview ? previewAccount.name : demoData?.name || accountDisplayName(live, liveCustomer?.company, email);
+  const name = preview ? previewAccount.name : pending ? "" : demoData?.name || accountDisplayName(live, liveCustomer?.company, email);
   const projects = preview ? previewProjects : demoData?.projects || [];
   const files = preview ? previewFiles : demoData?.files || [];
   const hasDemo = preview || Boolean(demoData);
@@ -104,7 +106,7 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
   const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin).toLowerCase().includes(term));
   const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = hasDemo ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
-  const shell: ShellContextValue = { preview, initials, account, manageUsers, openPanel: setPanel, unread: hasDemo && !read, signOut, signingOut, logoutError };
+  const shell: ShellContextValue = { preview, pending, initials, account, manageUsers, openPanel: setPanel, unread: hasDemo && !read, signOut, signingOut, logoutError };
 
   return (
     <AppearanceProvider>

@@ -10,7 +10,8 @@
 
 /* Waterfall: page content fades in block by block from top to bottom, out of a blur and slightly from above.
    Pure CSS on the server HTML, so nothing waits for JavaScript. Background, sidebar, tab bar, the auth frame,
-   dialogs and loading skeletons appear at once. Wrappers around glass cascade their children instead: filter and
+   the page's large title, dialogs and loading skeletons appear at once: the loading shell already shows the title
+   (components/hub/loading.tsx), so it stands still while the content cascades in below it. Wrappers around glass cascade their children instead: filter and
    opacity on an ancestor would cut the cards' backdrop blur off from the background while they fade in.
    components/page-waterfall.tsx marks <html> as settled after the cascade, so elements that appear later on the
    same page (edit modes, upload lists) show up without it; the next navigation arms it again. The auth intro only
@@ -20,8 +21,8 @@
 }
 
 :root:not([data-waterfall="settled"]) :is(
-  .hub-content > :not(.compact-nav, dialog, [role="status"]):not(:has(.glass, .segmented-control, .folder-chip)),
-  .hub-content > :not([role="status"]):has(.glass, .segmented-control, .folder-chip) > :not(dialog),
+  .hub-content > :not(.compact-nav, .large-title-header, dialog, [role="status"]):not(:has(.glass, .segmented-control, .folder-chip)),
+  .hub-content > :not(.large-title-header, [role="status"]):has(.glass, .segmented-control, .folder-chip) > :not(dialog),
   .auth-form > *
 ),
 :root:not([data-waterfall]) .auth-intro-text > * {

@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -170,7 +170,7 @@ export async function approveRegistration(input: { userId: string; role: string;
   }
   await log(ctx, "registration.approved", `Registrierung freigegeben als ${roleLabels[role]}`, { userId: user.id, customerId: customer.data.customerId });
   const mail = await mailApproval(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), origin: await requestOrigin(), company: customer.data.company, customerNumber: customer.data.customerNumber });
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { customerNumber: customer.data.customerNumber, mail } };
 }
 
@@ -189,7 +189,7 @@ export async function rejectRegistration(input: { userId: string; note: string }
   await assignCustomer(ctx, user.id, null);
   await log(ctx, "registration.rejected", note ? "Registrierung abgelehnt (mit Begründung)" : "Registrierung abgelehnt", { userId: user.id });
   const mail = await mailRejection(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), note });
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { mail } };
 }
 
@@ -237,7 +237,7 @@ export async function createHubUser(input: { email: string; firstName: string; l
   }
   await log(ctx, "user.created", `Konto angelegt als ${roleLabels[role]}`, { userId: user.id, customerId: customer.data.customerId });
   const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true }) : null;
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { userId: user.id, link, mail } };
 }
 
@@ -259,7 +259,7 @@ export async function createPasswordLink(input: { userId: string; deliver?: "cop
   await log(ctx, activation ? "user.activation_link" : "user.password_link", `${activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} erzeugt${byMail ? " und per E-Mail verschickt" : ""}`, { userId: user.id });
   if (!byMail) return { ok: true, data: { link, activation, mail: null } };
   const mail = await mailPasswordLink(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), link, activation });
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { link: null, activation, mail } };
 }
 
@@ -288,7 +288,7 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
     && await assignCustomer(ctx, user.id, customer.data.customerId);
   if (!done) return failed("Die Änderungen konnten nicht vollständig gespeichert werden. Bitte prüfe das Konto.");
   await log(ctx, "user.updated", roleChanged ? `Konto bearbeitet, Rolle jetzt ${roleLabels[role]}` : "Konto bearbeitet", { userId: user.id, customerId: customer.data.customerId });
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: null };
 }
 
@@ -311,7 +311,7 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
   const banned = saved && !(await ctx.db.auth.admin.updateUserById(user.id, { ban_duration: active ? "none" : BLOCKED })).error;
   if (!banned) return failed(active ? "Das Konto konnte nicht aktiviert werden." : "Das Konto konnte nicht vollständig deaktiviert werden. Bitte erneut versuchen.");
   await log(ctx, active ? "user.reactivated" : "user.deactivated", active ? "Konto wieder aktiviert" : "Konto deaktiviert", { userId: user.id });
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: null };
 }
 
@@ -329,7 +329,7 @@ export async function deleteHubUser(input: { userId: string; confirmEmail: strin
   const { error } = await ctx.db.auth.admin.deleteUser(user.id);
   if (error) return failed("Das Konto konnte nicht gelöscht werden.");
   await log(ctx, "user.deleted", "Konto endgültig gelöscht", { customerId: membership?.customer_id ?? null });
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: null };
 }
 
@@ -348,6 +348,6 @@ export async function saveCustomer(input: { id?: string } & Record<string, unkno
   const { data, error } = await query;
   if (error || !data) return failed(error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
   await log(ctx, id ? "customer.updated" : "customer.created", id ? "Kunde bearbeitet" : "Kunde angelegt", { customerId: data.id });
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { id: data.id } };
 }
