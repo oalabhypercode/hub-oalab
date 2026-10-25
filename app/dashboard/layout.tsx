@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AppShell } from "@/components/hub/app-shell";
 import { HubLoading } from "@/components/hub/loading";
+import { HubLoadBoundary } from "@/components/hub/load-error";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
 import { getDemoData } from "@/lib/demo-data";
 import { countPendingRegistrations } from "@/lib/hub-users/server";
@@ -14,5 +15,5 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<HubLoading />}><AuthenticatedWorkspace>{children}</AuthenticatedWorkspace></Suspense>;
+  return <HubLoadBoundary><Suspense fallback={<HubLoading />}><AuthenticatedWorkspace>{children}</AuthenticatedWorkspace></Suspense></HubLoadBoundary>;
 }

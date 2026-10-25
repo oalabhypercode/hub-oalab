@@ -165,3 +165,16 @@ test("the registration form sends what the trigger reads and shows the privacy n
   const legal = await source("lib/legal-links.ts");
   assert.match(legal, /\^https:\\\/\\\//);
 });
+
+test("a failed account read shows a load error instead of 'pending' or 'no company'", async () => {
+  const server = await source("lib/hub-users/server.ts");
+  assert.match(server, /if \(failed\(\[profile, memberships\]\)\) \[profile, memberships\] = await read\(\);/);
+  assert.match(server, /if \(failed\(\[profile, memberships\]\)\) throw new Error\(/);
+  assert.doesNotMatch(server, /if \(profile\.error \|\| !profile\.data\) return/);
+  const layout = await source("app/dashboard/layout.tsx");
+  assert.match(layout, /<HubLoadBoundary><Suspense/);
+  const boundary = await source("components/hub/load-error.tsx");
+  assert.match(boundary, /catchError\(WorkspaceLoadError\)/);
+  assert.match(boundary, /onClick=\{\(\) => retry\(\)\}/);
+  assert.match(await source("app/auth/pending/error.tsx"), /<AuthLoadError retry=\{retry\} \/>/);
+});
