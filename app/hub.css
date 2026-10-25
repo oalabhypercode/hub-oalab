@@ -153,6 +153,11 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 .auth-bottom-note a { margin-left: 4px; color: var(--accent-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .auth-back-link { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 44px; margin-top: 16px; font-size: 17px; line-height: 22px; font-weight: 500; color: var(--accent-text); }
 .auth-back-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* The code page's leave action is a button styled like the back link. */
+button.auth-back-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; }
+button.auth-back-link:disabled { opacity: .5; cursor: default; }
+/* Six digits from the authenticator app: large, evenly spaced, centred. */
+.auth-field .auth-code-input { font-size: 26px; font-weight: 600; letter-spacing: .32em; text-align: center; font-variant-numeric: tabular-nums; }
 .auth-form > p.auth-security-note { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 13px; line-height: 18px; }
 
 /* Error page (404): the same glass card, centred */

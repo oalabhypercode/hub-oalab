@@ -7,6 +7,7 @@ import type { ServicePackageId } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { displayStatus, isAccountStatus, isHubRole, nextCustomerNumber, servicePackageIds, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
+import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
 type ProfileRow = {
   user_id: string;
@@ -80,6 +81,7 @@ export async function verifyHubAdmin(): Promise<{ userId: string } | null> {
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return null;
   if ((data.claims.app_metadata as Record<string, unknown> | undefined)?.app_role !== "oalab_admin") return null;
+  if (await secondFactorMissing(supabase, data.claims.aal)) return null;
   const { data: isAdmin, error: rpcError } = await supabase.rpc("is_hub_admin");
   if (rpcError || isAdmin !== true) return null;
   return { userId: data.claims.sub };

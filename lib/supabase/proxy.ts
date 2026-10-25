@@ -4,7 +4,8 @@ import { hasEnvVars } from "../utils";
 import { getPublicDemoIdentity } from "@/lib/public-demo-session";
 import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
-import { signedInRedirect } from "../auth-redirect";
+import { SECOND_FACTOR_PAGE, secondFactorRedirect, settledSecondFactorRedirect, signedInRedirect } from "../auth-redirect";
+import { secondFactorPending } from "../hub-auth/second-factor";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -56,8 +57,13 @@ export async function updateSession(request: NextRequest) {
   // Keep the claims check immediately after client creation for session refresh.
   const { data, error } = await supabase.auth.getClaims();
   const signedIn = !error && Boolean(data?.claims);
+  const next = request.nextUrl.searchParams.get("next");
+  // A login with an authenticator app first enters its code; the pages themselves check it again (lib/hub-session.ts).
+  const codePending = signedIn && (await secondFactorPending(supabase));
   // One login for Hub and Service: whoever arrives signed in (e.g. via „Zum Hub“) skips the login form.
-  const landing = signedIn ? signedInRedirect(pathname, request.nextUrl.searchParams.get("next")) : null;
+  const landing = codePending ? secondFactorRedirect(pathname, request.nextUrl.search, next, isPublic)
+    : pathname === SECOND_FACTOR_PAGE ? settledSecondFactorRedirect(signedIn, next)
+    : signedIn ? signedInRedirect(pathname, next) : null;
   const response = landing
     ? withSessionCookies(NextResponse.redirect(new URL(landing, request.url)))
     : !isPublic && !signedIn ? loginRedirect() : supabaseResponse;
