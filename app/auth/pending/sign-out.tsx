@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, LogOut } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/lib/hub-auth/actions";
 
 /** Leaves the waiting page: ends the Supabase session and starts again at the login. */
 export function PendingSignOut() {
@@ -11,8 +11,9 @@ export function PendingSignOut() {
   async function signOut() {
     setBusy(true);
     setError("");
-    const { error: failure } = await createClient().auth.signOut();
-    if (failure) { setBusy(false); setError("Abmelden nicht möglich. Bitte versuche es erneut."); return; }
+    // On the server: the shared session cookie is HTTP-only, and signing out here signs out of Service OALab too.
+    const result = await signOutAction().catch(() => null);
+    if (!result?.ok) { setBusy(false); setError("Abmelden nicht möglich. Bitte versuche es erneut."); return; }
     window.location.replace("/auth/login");
   }
   return <>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageSquare, Search } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/lib/hub-auth/actions";
 import type { AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { categories } from "@/lib/categories";
 import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubDemoData, type HubSection } from "@/lib/hub-data";
@@ -85,8 +85,9 @@ export function AppShell({ children, preview = false, email = "", demoData, publ
         const response = await fetch("/auth/demo/logout", { method: "POST" });
         if (!response.ok) throw new Error("Demo logout failed");
       } else {
-        const { error } = await createClient().auth.signOut();
-        if (error) throw error;
+        // On the server: the shared session cookie is HTTP-only, and this signs out of Service OALab too.
+        const result = await signOutAction();
+        if (!result.ok) throw new Error(result.error);
       }
       // Cross the auth boundary with a fresh document, not preserved Activity state.
       window.location.replace("/auth/login");

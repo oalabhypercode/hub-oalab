@@ -152,9 +152,11 @@ test("waiting, rejected and deactivated logins never reach the hub, the assistan
 
 test("the registration form sends what the trigger reads and shows the privacy notice", async () => {
   const form = await source("components/auth-form.tsx");
+  // The form hands its fields to the sign-up server action, which writes them as user_metadata.
+  const signUp = await source("lib/hub-auth/actions.ts");
   const trigger = (await migration()).match(/function public\.hub_handle_new_user\(\)[\s\S]+?\$\$;/)[0];
   for (const key of ["first_name", "last_name", "company_name", "phone", "position", "website", "customer_number_hint", "message", "privacy_noted"]) {
-    assert.match(form, new RegExp(`${key}: `), key);
+    assert.match(signUp, new RegExp(`${key}: `), key);
     assert.match(trigger, new RegExp(`'${key}'`), key);
   }
   assert.match(form, /Art\. 6 Abs\. 1 lit\. b DSGVO/);

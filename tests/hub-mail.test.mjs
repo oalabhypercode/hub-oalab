@@ -127,7 +127,10 @@ test("the notification log keeps no addresses or contents, sends registration ma
   // Every kind the server sends is allowed by the table.
   const notify = await source("lib/hub-mail/notify.ts");
   const kinds = [...notify.match(/export type NotificationKind = ([^;]+);/)[1].matchAll(/"([a-z.]+)"/g)].map((match) => match[1]);
-  const allowed = [...table.match(/kind in \(([^)]+)\)/)[1].matchAll(/'([a-z.]+)'/g)].map((match) => match[1]);
+  // The newest definition counts: the shared login (25.10.2026) widened the check constraint.
+  const sharedLogin = await source("supabase/migrations/20261025120000_hub_shared_login.sql");
+  const constraint = sharedLogin.match(/add constraint hub_notifications_kind_check check \(\s*kind in \(([^)]+)\)/)?.[1] ?? table.match(/kind in \(([^)]+)\)/)[1];
+  const allowed = [...constraint.matchAll(/'([a-z.]+)'/g)].map((match) => match[1]);
   assert.deepEqual(kinds, allowed);
 });
 

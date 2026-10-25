@@ -159,6 +159,25 @@ export function registrationReceivedMail(input: { firstName: string; contact: st
   });
 }
 
+/**
+ * To the person, right after the registration form: confirm the e-mail address. The hub sends it itself since the
+ * shared Supabase project of Hub and Service keeps public sign-ups closed; wording as supabase/templates/confirmation.html.
+ */
+export function registrationConfirmationMail(input: { firstName: string; link: string }, legal?: MailLegal): MailContent {
+  return render({
+    subject: "Bestätige deine E-Mail-Adresse für den oalab Client Hub",
+    preheader: "Ein Klick, dann prüft dein oalab-Team deine Registrierung.",
+    heading: "Bestätige deine E-Mail-Adresse",
+    blocks: [
+      { kind: "text", value: `Schön, dass du dich für den oalab Client Hub registriert hast, ${greetingName(input.firstName)}. Bestätige bitte noch deine E-Mail-Adresse. Danach prüft dein oalab-Team deine Angaben und schaltet deinen Zugang frei.` },
+      { kind: "button", label: "E-Mail-Adresse bestätigen", url: input.link },
+      { kind: "small", value: "Der Link funktioniert einmal und ist zeitlich begrenzt gültig. Du hast dich nicht registriert? Dann kannst du diese E-Mail ignorieren." },
+    ],
+    footer: "Diese Nachricht hat der oalab Client Hub automatisch verschickt.",
+    legal,
+  });
+}
+
 /** To the person: access approved, with the login link. */
 export function accessApprovedMail(input: { firstName: string; email: string; loginUrl: string; company: string | null; customerNumber: string | null }, legal?: MailLegal): MailContent {
   const forCustomer = input.company ? ` für ${input.company}${input.customerNumber ? ` (Kundennummer ${input.customerNumber})` : ""}` : "";

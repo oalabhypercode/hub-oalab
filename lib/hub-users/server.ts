@@ -100,6 +100,7 @@ const emptyState: UserManagementState = { users: [], customers: [], events: [], 
 
 type NotificationRow = { id: number; created_at: string; kind: string; user_id: string | null; status: string };
 const mailKinds: Record<string, string> = {
+  "registration.confirmation": "Bestätigungslink zur Registrierung",
   "registration.team": "Team-Benachrichtigung zur Registrierung",
   "registration.received": "Eingangsbestätigung",
   "registration.approved": "Freigabe mit Login-Link",
