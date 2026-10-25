@@ -222,18 +222,24 @@ export const getHubAccount = cache(async (): Promise<HubAccountData | null> => {
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return null;
   const role = (data.claims.app_metadata as Record<string, unknown> | undefined)?.app_role;
-  const [profile, memberships] = await Promise.all([
+  const read = () => Promise.all([
     supabase.from("hub_profiles").select("first_name, last_name, phone, position, status, decision_note").eq("user_id", data.claims.sub).maybeSingle<Pick<ProfileRow, "first_name" | "last_name" | "phone" | "position" | "status" | "decision_note">>(),
     supabase.from("hub_customer_members").select(`customer:hub_customers(${CUSTOMER_COLUMNS})`).eq("user_id", data.claims.sub).returns<{ customer: CustomerRow | null }[]>(),
   ]);
+  const failed = ([p, m]: Awaited<ReturnType<typeof read>>) =>
+    Boolean((p.error && !isMissingUserTables(p.error)) || (m.error && !isMissingUserTables(m.error)));
+  let [profile, memberships] = await read();
+  // A failed read is no answer: retry once, then show the load error instead of "pending" or "no company".
+  if (failed([profile, memberships])) [profile, memberships] = await read();
+  if (failed([profile, memberships])) throw new Error("Hub account could not be loaded");
   const base = {
     userId: data.claims.sub,
     email: typeof data.claims.email === "string" ? data.claims.email : "",
     role: isHubRole(role) ? role : null, firstName: "", lastName: "", phone: "", position: "", decisionNote: "", customers: [],
   };
   if (isMissingUserTables(profile.error) || isMissingUserTables(memberships.error)) return { ...base, status: "unknown" };
-  // Without a readable profile the login counts as waiting: access is granted only by an active profile.
-  if (profile.error || !profile.data) return { ...base, status: "pending" };
+  // Without a profile the login counts as waiting: access is granted only by an active profile.
+  if (!profile.data) return { ...base, status: "pending" };
   return {
     ...base,
     status: isAccountStatus(profile.data.status) ? profile.data.status : "pending",

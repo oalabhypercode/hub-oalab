@@ -1119,3 +1119,5 @@ a.teams-join:active { transform: scale(0.97); }
   .bar-chart-bars, .bar-chart-labels { gap: 2px; }
   .week-bars-plot, .week-bars-labels { gap: 6px; }
 }
+.load-error { display: grid; gap: 12px; justify-items: start; }
+.load-error .button-primary { margin-top: 8px; }
