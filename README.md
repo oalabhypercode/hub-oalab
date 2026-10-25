@@ -61,7 +61,7 @@ Sicherheitsgrenze: Das `__Host-oalab-demo`-Cookie gewährt für zwölf Stunden n
 
 ## Dateiablage einrichten
 
-Die Dateiablage liegt im Supabase-Projekt `tjbslvwvisxjjcxfhbgm`. Für die Migration selbst in `.env.local` eintragen (niemals einchecken):
+Die Dateiablage (Bucket `hub-files`) liegt seit 25. Oktober 2026 im gemeinsamen Supabase-Projekt `hxljfihyejwpugnsffcc`; ihr Schema pflegt `service-oalab/supabase/migrations`. Die folgenden Werte brauchte nur die frühere Migration in das alte Hub-Projekt `tjbslvwvisxjjcxfhbgm` (`.env.local`, niemals einchecken):
 
 ```env
 SUPABASE_ACCESS_TOKEN=<persönlicher Supabase Access Token>
@@ -190,7 +190,7 @@ Die Unit-Tests prüfen Auth-Weiterleitungen, das gemeinsame Login-Cookie und die
 
 ## Supabase-Authentifizierung
 
-**Ein Login für Hub und Service (seit 25. Oktober 2026):** Der Hub nutzt das Supabase-Projekt von Service OALab (`hxljfihyejwpugnsffcc`). Beide Apps schreiben die Sitzung in dasselbe HttpOnly-Cookie `sb-oalab-auth-token` (`lib/supabase/cookies.ts`, gleiche Werte in `service-oalab/apps/web/lib/supabase/config.ts`). Auf `oalab.de` und Subdomains trägt es `Domain=oalab.de`, Secure und SameSite=Lax; wer im Hub angemeldet ist, öffnet service.oalab.de ohne zweite Anmeldung, und Abmelden in einer App beendet die Sitzung in beiden. Vorschauen und localhost bleiben hostgebunden; für einen lokalen Test beider Apps `OALAB_AUTH_COOKIE_DOMAIN=oalab.localhost` setzen und die Apps unter `hub.oalab.localhost` und `service.oalab.localhost` öffnen. Alte Cookies des früheren Hub-Projekts entfernt der Proxy; Hub-Konten melden sich nach der Umstellung einmal neu an.
+**Ein Login für Hub und Service (seit 25. Oktober 2026):** Der Hub nutzt das Supabase-Projekt von Service OALab (`hxljfihyejwpugnsffcc`). Beide Apps schreiben die Sitzung in dasselbe HttpOnly-Cookie `sb-oalab-auth-token` (`lib/supabase/cookies.ts`, gleiche Werte in `service-oalab/apps/web/lib/supabase/config.ts`). Auf `oalab.de` und Subdomains trägt es `Domain=oalab.de`, Secure und SameSite=Lax; wer im Hub angemeldet ist, öffnet service.oalab.de ohne zweite Anmeldung, und Abmelden in einer App beendet die Sitzung in beiden. Vorschauen und localhost bleiben hostgebunden; für einen lokalen Test beider Apps `OALAB_AUTH_COOKIE_DOMAIN=oalab.localhost` setzen und die Apps unter `hub.oalab.localhost` und `service.oalab.localhost` öffnen. Alte Cookies des früheren Hub-Projekts entfernt der Proxy; Hub-Konten melden sich nach der Umstellung einmal neu an. Das gemeinsame Projekt liegt seit dem Abend des 25. Oktober 2026 in der Supabase-Organisation **OALAB** (Konto `oalabhypercode`); Adresse und Schlüssel blieben beim Umzug gleich. Das alte Hub-Projekt `oalab-client-hub-dev` (`tjbslvwvisxjjcxfhbgm`) ist pausiert.
 
 Login, Registrierung, „Passwort vergessen“ und Abmelden laufen über Server-Aktionen (`lib/hub-auth/actions.ts`), nie im Browser. Die öffentliche Registrierung bleibt im Supabase-Projekt abgeschaltet: Der Hub legt das wartende Konto mit dem Secret Key an und schickt den Bestätigungslink selbst per SMTP (`registration.confirmation`). Login, Registrierung und Passwort-Links sind je Adresse und Netz begrenzt (`hub_take_auth_rate`). Die Rollen für Service kommen weiter aus `memberships`; eine Sperre im Hub (`hub_profiles.status` `disabled` oder `rejected`) sperrt auch dort. Das Schema mit allen `hub_*`-Tabellen pflegt `service-oalab/supabase/migrations` (`202610250001_hub_schema.sql`); `npm run db:push` in diesem Repo wendet nichts mehr an.
 
