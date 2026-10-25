@@ -4,6 +4,7 @@ import { hasEnvVars } from "../utils";
 import { getPublicDemoIdentity } from "@/lib/public-demo-session";
 import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
+import { signedInRedirect } from "../auth-redirect";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -18,6 +19,11 @@ export async function updateSession(request: NextRequest) {
   // Public demo cookies grant access to fixture pages only, never Supabase data APIs.
   if ((pathname === "/dashboard" || pathname.startsWith("/dashboard/")) && getPublicDemoIdentity(request.cookies.get(PUBLIC_DEMO_COOKIE)?.value, request.headers)) return supabaseResponse;
 
+  function withSessionCookies(response: NextResponse) {
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+    return response;
+  }
+
   function loginRedirect() {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
@@ -25,9 +31,7 @@ export async function updateSession(request: NextRequest) {
     if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
       url.searchParams.set("next", pathname + request.nextUrl.search);
     }
-    const response = NextResponse.redirect(url);
-    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
-    return response;
+    return withSessionCookies(NextResponse.redirect(url));
   }
 
   // Missing configuration must never expose the authenticated workspace.
@@ -51,7 +55,12 @@ export async function updateSession(request: NextRequest) {
 
   // Keep the claims check immediately after client creation for session refresh.
   const { data, error } = await supabase.auth.getClaims();
-  const response = !isPublic && (error || !data?.claims) ? loginRedirect() : supabaseResponse;
+  const signedIn = !error && Boolean(data?.claims);
+  // One login for Hub and Service: whoever arrives signed in (e.g. via „Zum Hub“) skips the login form.
+  const landing = signedIn ? signedInRedirect(pathname, request.nextUrl.searchParams.get("next")) : null;
+  const response = landing
+    ? withSessionCookies(NextResponse.redirect(new URL(landing, request.url)))
+    : !isPublic && !signedIn ? loginRedirect() : supabaseResponse;
   // Session cookies of the former Hub-only Supabase project: removed, never read.
   for (const cookie of request.cookies.getAll()) {
     if (LEGACY_AUTH_COOKIE.test(cookie.name)) response.cookies.set(cookie.name, "", { path: "/", maxAge: 0 });

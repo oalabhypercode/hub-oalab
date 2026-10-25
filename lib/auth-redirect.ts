@@ -17,3 +17,11 @@ export function safeAuthRedirect(value: string | null | undefined): string {
     return "/dashboard";
   }
 }
+
+/** Pages that only ask for a login. Someone already signed in (e.g. coming from Service OALab) skips them. */
+const SIGN_IN_PAGES = new Set(["/", "/auth/login", "/auth/sign-up"]);
+
+/** Where a signed-in visitor of a sign-in page goes instead: the requested `next` page or the dashboard. */
+export function signedInRedirect(pathname: string, next: string | null | undefined): string | null {
+  return SIGN_IN_PAGES.has(pathname) ? safeAuthRedirect(next) : null;
+}
