@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName } from "./catalog";
 
@@ -90,11 +90,11 @@ export async function finalizeUpload(input: FinalizeInput): Promise<ActionResult
   if (customerIds.length) {
     const assigned = await supabase.from("hub_file_assignments").insert(customerIds.map((customerId) => ({ file_id: data.id, customer_id: customerId, folder_id: folderId })));
     if (assigned.error) {
-      refresh();
+      refreshWorkspace();
       return { ok: false, error: "Die Datei ist gespeichert, aber die Zuordnung ist fehlgeschlagen. Bitte die Zuordnung erneut setzen." };
     }
   }
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { id: data.id } };
 }
 
@@ -117,7 +117,7 @@ export async function setFileAssignments(fileId: string, customerIds: string[]):
     const { error } = await supabase.from("hub_file_assignments").insert(added.map((customerId) => ({ file_id: fileId, customer_id: customerId })));
     if (error) return { ok: false, error: "Die Zuordnung konnte nicht geändert werden." };
   }
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { count: wanted.length } };
 }
 
@@ -169,7 +169,7 @@ export async function createFolder(customerId: string, name: string): Promise<Ac
   if (!clean.ok) return clean;
   const { data, error } = await session.supabase.from("hub_folders").insert({ customer_id: customerId, name: clean.name }).select("id, name").single();
   if (error || !data) return { ok: false, error: error ? describeFolderError(error) : "Der Ordner konnte nicht angelegt werden." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { id: data.id, name: data.name } };
 }
 
@@ -181,7 +181,7 @@ export async function renameFolder(folderId: string, name: string): Promise<Acti
   if (!clean.ok) return clean;
   const { data, error } = await session.supabase.from("hub_folders").update({ name: clean.name }).eq("id", folderId).select("name").maybeSingle();
   if (error || !data) return { ok: false, error: error ? describeFolderError(error) : "Diesen Ordner darfst du nicht ändern." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { name: data.name } };
 }
 
@@ -192,7 +192,7 @@ export async function deleteFolder(folderId: string): Promise<ActionResult<null>
   if (!uuid.test(String(folderId ?? ""))) return { ok: false, error: "Unbekannter Ordner." };
   const { data, error } = await session.supabase.from("hub_folders").delete().eq("id", folderId).select("id");
   if (error || !data?.length) return { ok: false, error: error ? describeFolderError(error) : "Diesen Ordner darfst du nicht löschen." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: null };
 }
 
@@ -204,6 +204,6 @@ export async function moveFiles(fileIds: string[], customerId: string, folderId:
   if (!ids.length || !uuid.test(String(customerId ?? "")) || (folderId !== null && !uuid.test(String(folderId)))) return { ok: false, error: "Bitte Dateien und einen Ordner wählen." };
   const { data, error } = await session.supabase.from("hub_file_assignments").update({ folder_id: folderId }).eq("customer_id", customerId).in("file_id", ids).select("file_id");
   if (error) return { ok: false, error: error.code === "23503" ? "Dieser Ordner gehört zu einem anderen Kunden." : "Die Dateien konnten nicht verschoben werden." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { count: data?.length ?? 0 } };
 }

@@ -67,7 +67,8 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         <Link {...item("settings")} className={`sidebar-profile-link${section === "settings" ? " is-active" : ""}`}>
           <span className="avatar" aria-hidden="true">{initials}</span>
           <span className="sidebar-profile-text">
-            <strong>{name}</strong>
+            {/* Blank while the loading shell waits for the login. */}
+            <strong>{name || <span className="skeleton-bar sidebar-name-skeleton" aria-hidden="true" />}</strong>
             {activePackages && <span className="sidebar-package" title={`Aktives Servicepaket: ${activePackages}`}><span className="visually-hidden">Aktives Servicepaket: </span>{activePackages}</span>}
           </span>
         </Link>

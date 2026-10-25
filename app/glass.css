@@ -182,6 +182,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .sidebar-profile-text strong, .sidebar-profile-text span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Room on the name line for the two icon buttons (2 × 36 px + gap). */
 .sidebar-profile-text strong { font-size: 15px; line-height: 20px; font-weight: 600; padding-right: 80px; }
+/* Loading shell: a bar in place of the name, on the same 20 px line. */
+.sidebar-profile-text .sidebar-name-skeleton { width: 112px; height: 14px; margin: 3px 0; }
 .sidebar-profile-text .sidebar-package { font-size: 12px; line-height: 16px; color: var(--accent-text); font-weight: 600; }
 /* Icon buttons centred on the name line: 8 px padding + half of the 20 px line = 18 px, minus half a 36 px button. */
 .sidebar-profile-actions { position: absolute; top: 10px; right: 4px; display: flex; gap: 4px; }

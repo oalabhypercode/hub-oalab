@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { cleanNote, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readRequestInput, workWindow } from "./rules";
 import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
@@ -42,7 +42,7 @@ export async function saveAppointment(id: string | null, input: AppointmentInput
     ? await supabase.from("hub_appointments").update(row).eq("id", id).select("id").maybeSingle()
     : await supabase.from("hub_appointments").insert(row).select("id").single();
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht gespeichert werden." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { id: data.id } };
 }
 
@@ -53,7 +53,7 @@ export async function closeAppointment(id: string, status: "declined" | "cancell
   if (!uuid.test(String(id ?? "")) || (status !== "declined" && status !== "cancelled")) return unknownAppointment;
   const { data, error } = await supabase.from("hub_appointments").update({ status, response_note: cleanNote(note) }).eq("id", id).select("id").maybeSingle();
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht geändert werden." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: null };
 }
 
@@ -64,7 +64,7 @@ export async function deleteAppointment(id: string): Promise<CalendarActionResul
   if (!uuid.test(String(id ?? ""))) return unknownAppointment;
   const { error } = await supabase.from("hub_appointments").delete().eq("id", id);
   if (error) return { ok: false, error: "Der Termin konnte nicht gelöscht werden." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: null };
 }
 
@@ -100,7 +100,7 @@ export async function requestAppointment(input: RequestInput): Promise<CalendarA
     starts_at: new Date(interval.start).toISOString(), ends_at: new Date(interval.end).toISOString(),
   }).select("id").single();
   if (error || !data) return { ok: false, error: "Die Anfrage konnte nicht gesendet werden." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: { id: data.id } };
 }
 
@@ -111,6 +111,6 @@ export async function withdrawRequest(id: string): Promise<CalendarActionResult>
   if (!uuid.test(String(id ?? ""))) return { ok: false, error: "Unbekannte Anfrage." };
   const { data, error } = await session.supabase.rpc("hub_withdraw_appointment_request", { appointment_id: id });
   if (error || data !== true) return { ok: false, error: "Die Anfrage konnte nicht zurückgezogen werden. Vielleicht wurde sie schon beantwortet." };
-  refresh();
+  refreshWorkspace();
   return { ok: true, data: null };
 }
