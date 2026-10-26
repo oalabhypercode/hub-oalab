@@ -156,8 +156,11 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 /* The code page's leave action is a button styled like the back link. */
 button.auth-back-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; }
 button.auth-back-link:disabled { opacity: .5; cursor: default; }
-/* Six digits from the authenticator app: large, evenly spaced, centred. */
+/* „Neuen Code senden“ sits right above the leave action. */
+.auth-back-link + .auth-back-link { margin-top: 0; }
+/* Six digits from the e-mail: large, evenly spaced, centred. */
 .auth-field .auth-code-input { font-size: 26px; font-weight: 600; letter-spacing: .32em; text-align: center; font-variant-numeric: tabular-nums; }
+.auth-fields > p.code-notice { padding: 12px 14px; border-radius: 12px; background: var(--auth-control); font-size: 15px; line-height: 21px; color: var(--label-body); }
 .auth-form > p.auth-security-note { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 13px; line-height: 18px; }
 
 /* Error page (404): the same glass card, centred */

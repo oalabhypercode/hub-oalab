@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, LogOut, Mail, ShieldCheck } from "lucide-react";
-import { requestPasswordResetAction, signInAction, signOutAction, signUpAction, updatePasswordAction, verifySecondFactorAction, type AuthResult } from "@/lib/hub-auth/actions";
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, LogOut, Mail, RotateCcw, ShieldCheck } from "lucide-react";
+import { requestPasswordResetAction, sendSecondFactorCodeAction, signInAction, signOutAction, signUpAction, updatePasswordAction, verifySecondFactorAction, type AuthResult } from "@/lib/hub-auth/actions";
 import { authMessage } from "@/lib/hub-auth/messages";
 import { readRegistration } from "@/lib/hub-users/rules";
 import { legalLinks } from "@/lib/legal-links";
@@ -14,15 +14,20 @@ const copy = {
   login: { eyebrow: "Willkommen zurück.", title: "Schön, dass\ndu da bist.", description: "Melde dich an und bring dein nächstes Projekt einen Schritt weiter.", action: "Anmelden", loading: "Du wirst angemeldet …" },
   signup: { eyebrow: "Gemeinsam geht mehr.", title: "Dein Platz\nfür gute Ideen.", description: "Registriere dich mit deinen Angaben. Dein oalab-Team prüft sie und schaltet deinen Zugang zum Client Hub frei.", action: "Registrierung senden", loading: "Registrierung wird gesendet …" },
   forgot: { eyebrow: "Wir helfen dir weiter.", title: "Ein neuer\nAnfang.", description: "Gib deine E-Mail-Adresse ein. Wir senden dir einen Link, mit dem du dein Passwort zurücksetzen kannst.", action: "Link zum Zurücksetzen senden", loading: "Link wird gesendet …" },
-  mfa: { eyebrow: "Noch ein Schritt.", title: "Dein\nSicherheitscode.", description: "Gib den sechsstelligen Code aus deiner Authenticator-App ein. Danach bist du im Hub und auf der Serviceplattform angemeldet.", action: "Bestätigen", loading: "Code wird geprüft …" },
+  mfa: { eyebrow: "Noch ein Schritt.", title: "Dein\nSicherheitscode.", description: "Gib den sechsstelligen Code aus deiner E-Mail ein. Danach bist du im Hub und auf der Serviceplattform angemeldet.", action: "Bestätigen", loading: "Code wird geprüft …" },
   update: { eyebrow: "Fast geschafft.", title: "Ein neues\nPasswort.", description: "Wähle ein sicheres Passwort für deinen Workspace. Mindestens acht Zeichen sind ein guter Anfang.", action: "Passwort speichern", loading: "Passwort wird gespeichert …" },
 };
 
-export function AuthForm({ mode, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode }) {
+/** Code page only: the (masked) address the code goes to and whether one for this session is already on its way. */
+type SecondFactorState = { email: string; codeSent: boolean };
+
+export function AuthForm({ mode, secondFactor, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode; secondFactor?: SecondFactorState }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [code, setCode] = useState("");
+  const [codeSent, setCodeSent] = useState(secondFactor?.codeSent ?? true);
+  const [notice, setNotice] = useState("");
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,7 +35,12 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
   // Registration only: what the oalab team needs to approve the access quickly.
   const [registration, setRegistration] = useState({ firstName: "", lastName: "", companyName: "", phone: "", position: "", website: "", customerNumberHint: "", message: "" });
   const content = copy[mode];
-  const field = (key: keyof typeof registration) => ({
+  const codeTo = secondFactor?.email ? ` an ${secondFactor.email}` : "";
+  const description = mode !== "mfa" ? content.description
+    : codeSent ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Gib ihn hier ein; danach bist du im Hub und auf der Serviceplattform angemeldet.`
+    : `Wir schicken dir einen sechsstelligen Code${codeTo}. Damit bestätigst du deine Anmeldung im Hub und auf der Serviceplattform.`;
+  const action = mode === "mfa" && !codeSent ? { label: "Code per E-Mail senden", loading: "Code wird gesendet …" } : { label: content.action, loading: content.loading };
+  const field =(key: keyof typeof registration) => ({
     value: registration[key],
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setRegistration((value) => ({ ...value, [key]: event.target.value })),
     disabled: loading,
@@ -43,6 +53,7 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
     const checked = mode === "signup" ? readRegistration({ ...registration, email }) : null;
     if (checked && !checked.ok) { setError(checked.error); return; }
     if ((mode === "signup" || mode === "update") && password !== repeatPassword) { setError("Die beiden Passwörter stimmen noch nicht überein."); return; }
+    if (mode === "mfa" && !codeSent) { await sendCode(); return; }
     setLoading(true);
     try {
       // Every auth step runs on the server: the session cookie shared with Service OALab is HTTP-only.
@@ -70,6 +81,24 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
     }
   }
 
+  /** A (new) code by e-mail for this session; an older one stops working. */
+  async function sendCode() {
+    setError("");
+    setNotice("");
+    setLoading(true);
+    try {
+      const result = await sendSecondFactorCodeAction();
+      if (!result.ok) { setError(result.error); return; }
+      setNotice(codeSent ? "Ein neuer Code ist unterwegs. Der vorherige gilt nicht mehr." : "Der Code ist unterwegs. Schau auch im Spam-Ordner nach.");
+      setCode("");
+      setCodeSent(true);
+    } catch {
+      setError(authMessage(null));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   /** The code page belongs to a half-finished login: leaving it ends that session, so another account can sign in. */
   async function leave() {
     setLoading(true);
@@ -83,7 +112,7 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
     <div className={cn("auth-form", className)} {...props}>
       <span className="eyebrow">{content.eyebrow}</span>
       <h2>{content.title.split("\n").map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</h2>
-      <p className="auth-description">{content.description}</p>
+      <p className="auth-description">{description}</p>
       {mode === "login" && children}
       <form onSubmit={submit} className="auth-fields" aria-busy={loading}>
         {mode === "signup" && <>
@@ -97,7 +126,8 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
             <div className="auth-field"><label htmlFor="position">Position <span className="auth-optional">(optional)</span></label><input id="position" name="organization-title" autoComplete="organization-title" placeholder="z. B. Geschäftsführung" maxLength={80} {...field("position")} /></div>
           </div>
         </>}
-        {mode === "mfa" && <div className="auth-field"><label htmlFor="code">Code aus der Authenticator-App</label><input id="code" name="one-time-code" className="auth-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="______" required autoFocus value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} disabled={loading} /></div>}
+        {mode === "mfa" && codeSent && <div className="auth-field"><label htmlFor="code">Code aus deiner E-Mail</label><input id="code" name="one-time-code" className="auth-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="______" required autoFocus value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} disabled={loading} /></div>}
+        {notice && <p className="code-notice" role="status">{notice}</p>}
         {mode !== "update" && mode !== "mfa" && <div className="auth-field"><label htmlFor="email">E-Mail-Adresse</label><input id="email" name="email" type="email" autoComplete="email" placeholder="du@unternehmen.de" required value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} /></div>}
         {mode !== "forgot" && mode !== "mfa" && <div className="auth-field"><div className="auth-label-row"><label htmlFor="password">{mode === "update" ? "Neues Passwort" : "Passwort"}</label>{mode === "login" && <Link href="/auth/forgot-password">Passwort vergessen?</Link>}</div><div className="password-field"><input id="password" name="password" type={visible ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder={mode === "login" ? "Dein Passwort" : "Mindestens 8 Zeichen"} required minLength={mode === "login" ? undefined : 8} value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} /><button type="button" aria-label={visible ? "Passwort verbergen" : "Passwort anzeigen"} aria-pressed={visible} onClick={() => setVisible((value) => !value)}>{visible ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}</button></div></div>}
         {(mode === "signup" || mode === "update") && <div className="auth-field"><label htmlFor="repeat-password">Passwort wiederholen</label><input id="repeat-password" name="repeat-password" type={visible ? "text" : "password"} autoComplete="new-password" required minLength={8} placeholder="Noch einmal zur Sicherheit" value={repeatPassword} onChange={(event) => setRepeatPassword(event.target.value)} disabled={loading} /></div>}
@@ -114,11 +144,12 @@ export function AuthForm({ mode, className, children, ...props }: React.Componen
           <p className="auth-privacy-note">Wir verwenden deine Angaben, um deine Registrierung zu prüfen und deinen Zugang zum oalab Client Hub einzurichten (Art. 6 Abs. 1 lit. b DSGVO).{legalLinks.privacy && <> Mehr dazu in der <a href={legalLinks.privacy} target="_blank" rel="noopener noreferrer">Datenschutzerklärung</a>.</>}</p>
         </>}
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="button-primary auth-submit" type="submit" disabled={loading}>{loading ? <><Loader2 size={18} className="spin" aria-hidden="true" />{content.loading}</> : <>{content.action}<ArrowRight size={18} aria-hidden="true" /></>}</button>
+        <button className="button-primary auth-submit" type="submit" disabled={loading}>{loading ? <><Loader2 size={18} className="spin" aria-hidden="true" />{action.loading}</> : <>{action.label}<ArrowRight size={18} aria-hidden="true" /></>}</button>
       </form>
+      {mode === "mfa" && codeSent && <button type="button" className="auth-back-link" onClick={sendCode} disabled={loading}><RotateCcw size={18} aria-hidden="true" />Neuen Code senden</button>}
       {mode === "mfa" ? <button type="button" className="auth-back-link" onClick={leave} disabled={loading}><LogOut size={18} aria-hidden="true" />Mit einem anderen Konto anmelden</button>
         : mode === "login" ? <p className="auth-bottom-note">Noch kein Konto? <Link href="/auth/sign-up">Jetzt registrieren</Link></p> :<Link className="auth-back-link" href="/auth/login"><ArrowLeft size={18} aria-hidden="true" />Zurück zur Anmeldung</Link>}
-      {mode === "mfa" && <p className="auth-security-note"><ShieldCheck size={14} aria-hidden="true" />Dein Konto ist mit einem zweiten Faktor geschützt.</p>}
+      {mode === "mfa" && <p className="auth-security-note"><ShieldCheck size={14} aria-hidden="true" />Dein Konto ist mit einem Code per E-Mail geschützt.</p>}
       {mode === "update" && <p className="auth-security-note"><Check size={14} aria-hidden="true" />Dein Passwort wird verschlüsselt übertragen.</p>}
     </div>
   );

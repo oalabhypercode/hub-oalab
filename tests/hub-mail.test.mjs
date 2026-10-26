@@ -4,7 +4,7 @@ import test from "node:test";
 import { safeAuthRedirect } from "../lib/auth-redirect.ts";
 import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport } from "../lib/hub-mail/smtp.ts";
 import {
-  accessApprovedMail, cleanSubject, escapeHtml, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
+  accessApprovedMail, cleanSubject, escapeHtml, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
 } from "../lib/hub-mail/templates.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -80,6 +80,16 @@ test("activation and password links go out as a button with a copyable fallback"
   assert.doesNotMatch(passwordLinkMail({ firstName: "Ben", link: "javascript:alert(1)", activation: true }).html, /javascript:/);
 });
 
+test("the sign-in code mail shows the six digits large in the body and keeps them out of subject and preheader", () => {
+  const mail = loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10 }, legal);
+  assert.equal(mail.subject, "Dein Sicherheitscode für oalab");
+  assert.match(mail.html, /letter-spacing:8px;[^>]*>042917<\/p>/);
+  assert.equal(mail.html.match(/042917/g).length, 1);
+  assert.match(mail.text, /^Hallo Jana,\n[\s\S]*\n042917\n[\s\S]*10 Minuten/);
+  assert.doesNotMatch(mail.html.match(/<div style="display:none[^>]*>([^<]*)<\/div>/)[1], /042917/);
+  assert.match(loginCodeMail({ firstName: "", code: "000001", minutes: 10 }).text, /^Hallo du,/);
+});
+
 test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {
   const env = { SMTP_HOST: " mxe989.netcup.net ", SMTP_USER: "hub@oalab.de", SMTP_PASSWORD: "geheim" };
   assert.deepEqual(readSmtpSettings(env), { host: "mxe989.netcup.net", port: 465, secure: true, user: "hub@oalab.de", password: "geheim" });
@@ -127,9 +137,13 @@ test("the notification log keeps no addresses or contents, sends registration ma
   // Every kind the server sends is allowed by the table.
   const notify = await source("lib/hub-mail/notify.ts");
   const kinds = [...notify.match(/export type NotificationKind = ([^;]+);/)[1].matchAll(/"([a-z.]+)"/g)].map((match) => match[1]);
-  // The newest definition counts: the shared login (25.10.2026) widened the check constraint.
-  const sharedLogin = await source("supabase/migrations/20261025120000_hub_shared_login.sql");
-  const constraint = sharedLogin.match(/add constraint hub_notifications_kind_check check \(\s*kind in \(([^)]+)\)/)?.[1] ?? table.match(/kind in \(([^)]+)\)/)[1];
+  // The newest definition counts: the shared login (25.10.2026) and the e-mail code (26.10.2026) widened the check.
+  const widened = [];
+  for (const file of ["20261025120000_hub_shared_login.sql", "20261026120000_mail_second_factor.sql"]) {
+    const found = (await source(`supabase/migrations/${file}`)).match(/add constraint hub_notifications_kind_check check \(\s*kind in \(([^)]+)\)/)?.[1];
+    if (found) widened.push(found);
+  }
+  const constraint = widened.at(-1) ?? table.match(/kind in \(([^)]+)\)/)[1];
   const allowed = [...constraint.matchAll(/'([a-z.]+)'/g)].map((match) => match[1]);
   assert.deepEqual(kinds, allowed);
 });

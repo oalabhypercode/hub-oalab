@@ -690,6 +690,9 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .link-panel-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--label); }
 .user-link-button { margin-top: 14px; }
 .user-link-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+/* Second factor switch: its own row with a short explanation below. */
+.user-security { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--separator); }
+.user-security .check-row svg { flex: 0 0 auto; color: var(--accent-text); }
 /* Outcome of a mail: sent (green), not set up (orange), failed (red). */
 .mail-status { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 149, 0, 0.16); color: #7f2100; font-size: 14px; line-height: 19px; }
 .mail-status svg { flex: 0 0 auto; margin-top: 1px; }

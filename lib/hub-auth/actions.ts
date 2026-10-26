@@ -2,16 +2,17 @@
 
 import { createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
-import { safeAuthRedirect, SECOND_FACTOR_PAGE } from "@/lib/auth-redirect";
-import { mailPasswordLink, mailRegistrationConfirmation } from "@/lib/hub-mail/notify";
+import { safeAuthRedirect, SECOND_FACTOR_PAGE, secondFactorDestination, serviceOrigin } from "@/lib/auth-redirect";
+import { mailLoginCode, mailPasswordLink, mailRegistrationConfirmation } from "@/lib/hub-mail/notify";
 import { cleanEmail, readRegistration } from "@/lib/hub-users/rules";
 import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { siteOrigin } from "@/lib/site-origin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
+import { isMailCodeCheck, MAIL_CODE_MINUTES, mailCodeHash, newMailCode, readMailCode } from "./mail-code";
 import { authMessage, authRateLimits, clientAddress, type AuthRateAction } from "./messages";
-import { secondFactorPending } from "./second-factor";
+import { wantsMailCode } from "./second-factor";
 
 // Login, registration, password link, new password and sign-out run on the server: the session cookie that Hub and
 // Service share is HTTP-only, so browser code can neither read nor write it. Each action is a public POST endpoint
@@ -55,33 +56,104 @@ export async function signInAction(input: { email: string; password: string; nex
   if (!email.ok || !passwordOk(input.password, 1)) return failure("invalid_credentials");
   if (!(await withinRate("login", email.value))) return failure("over_request_rate_limit");
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email: email.value, password: input.password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email: email.value, password: input.password });
   if (error) return failure(error.code);
   // A real login supersedes a previously selected public fixture identity.
   (await cookies()).set(PUBLIC_DEMO_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
   const next = safeAuthRedirect(input.next);
-  // Logins with an authenticator app continue with its code.
-  if (await secondFactorPending(supabase)) return { ok: true, redirect: `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(next)}` };
+  // Logins with the e-mail code get it right away and continue on the code page (which offers a new one if this fails).
+  if (wantsMailCode(data.user?.app_metadata)) {
+    const session = data.session ? sessionOf(data.session.access_token) : null;
+    if (session) await issueMailCode(session);
+    return { ok: true, redirect: `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(next)}` };
+  }
   return { ok: true, redirect: next };
 }
 
+type CodeSession = { userId: string; sessionId: string; email: string };
+
+/** The claims of an access token Supabase Auth just issued to this server (not verified again: it never left it). */
+function tokenClaims(accessToken: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function sessionOf(accessToken: string): CodeSession | null {
+  const claims = tokenClaims(accessToken);
+  return claims && typeof claims.sub === "string" && typeof claims.session_id === "string" && typeof claims.email === "string"
+    ? { userId: claims.sub, sessionId: claims.session_id, email: claims.email }
+    : null;
+}
+
+/** The signed-in session from the verified cookie token. */
+async function currentSession(supabase: Awaited<ReturnType<typeof createClient>>): Promise<CodeSession | null> {
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = error ? null : data?.claims;
+  return claims && typeof claims.session_id === "string" && typeof claims.email === "string"
+    ? { userId: claims.sub, sessionId: claims.session_id, email: claims.email }
+    : null;
+}
+
 /**
- * Second step for logins with an authenticator app: checks the six-digit code and raises the session to AAL2, which
- * Service OALab accepts as well. Attempts count against the login limit of the account.
+ * Issues a new code for the session (an older one expires) and mails it to the login's own address. Counted per
+ * address and account; the database keeps only the hash and the hub_notifications row only kind and outcome.
+ * "sent", or the error code for authMessage.
+ */
+async function issueMailCode(session: CodeSession): Promise<string> {
+  if (!(await withinRate("login_code", session.email))) return "over_email_send_rate_limit";
+  const db = createAdminClient();
+  if (!db) return "setup";
+  const code = newMailCode();
+  const { error } = await db.rpc("oalab_mail_code_issue", { p_user_id: session.userId, p_session_id: session.sessionId, p_code_hash: mailCodeHash(session.sessionId, code) });
+  if (error) {
+    console.error("[hub-auth] Sicherheitscode nicht ausstellbar", error.code ?? "unbekannt");
+    return "setup";
+  }
+  const { data: profile } = await db.from("hub_profiles").select("first_name").eq("user_id", session.userId).maybeSingle<{ first_name: string }>();
+  const mail = await mailLoginCode(db, { id: session.userId, email: session.email }, { firstName: profile?.first_name ?? "", code, minutes: MAIL_CODE_MINUTES });
+  return mail === "sent" ? "sent" : "mail_failed";
+}
+
+/** „Code senden“ / „Neuen Code senden“ on the code page: a fresh code for the signed-in session. */
+export async function sendSecondFactorCodeAction(): Promise<AuthResult> {
+  if (!hasEnvVars) return failure("setup");
+  const session = await currentSession(await createClient());
+  if (!session) return failure("session_not_found");
+  const result = await issueMailCode(session);
+  return result === "sent" ? { ok: true } : failure(result);
+}
+
+/**
+ * Second step: checks the six-digit code from the e-mail. A correct code marks the session in the database; the
+ * renewed token then carries aal2 from the access token hook, which Service OALab accepts as well. Wrong codes count
+ * against the account's login limit and the code's own five attempts.
  */
 export async function verifySecondFactorAction(input: { code: string; next?: string | null }): Promise<AuthResult> {
   if (!hasEnvVars) return failure("setup");
-  const code = typeof input.code === "string" ? input.code.replace(/\s/g, "") : "";
-  if (!/^\d{6}$/.test(code)) return failure("mfa_verification_failed");
+  const code = readMailCode(input.code);
+  if (!code) return failure("mail_code_wrong");
   const supabase = await createClient();
-  const { data: user, error: userError } = await supabase.auth.getUser();
-  if (userError || !user.user) return failure("session_not_found");
-  if (!(await withinRate("login", user.user.email ?? user.user.id))) return failure("over_request_rate_limit");
-  const factor = (user.user.factors ?? []).find((item) => item.factor_type === "totp" && item.status === "verified");
-  if (!factor) return failure("mfa_factor_not_found");
-  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
-  if (error) return failure(error.code);
-  return { ok: true, redirect: safeAuthRedirect(input.next) };
+  const session = await currentSession(supabase);
+  if (!session) return failure("session_not_found");
+  if (!(await withinRate("login", session.email))) return failure("over_request_rate_limit");
+  const db = createAdminClient();
+  if (!db) return failure("setup");
+  const { data, error } = await db.rpc("oalab_mail_code_verify", { p_user_id: session.userId, p_session_id: session.sessionId, p_code_hash: mailCodeHash(session.sessionId, code) });
+  if (error || !isMailCodeCheck(data)) {
+    console.error("[hub-auth] Sicherheitscode nicht prüfbar", error?.code ?? "unbekannt");
+    return failure("setup");
+  }
+  if (data !== "verified") return failure(`mail_code_${data}`);
+  // The session is confirmed; its next token comes with aal2. Without the hook it would not, so the login stops here.
+  const { data: renewed, error: renewError } = await supabase.auth.refreshSession();
+  if (renewError || !renewed.session || tokenClaims(renewed.session.access_token)?.aal !== "aal2") {
+    console.error("[hub-auth] Code bestätigt, aber die erneuerte Sitzung hat kein aal2. Ist der Hook aus der Migration 202610260001 in Supabase aktiv?");
+    return failure("setup");
+  }
+  return { ok: true, redirect: secondFactorDestination(input.next, serviceOrigin()) };
 }
 
 /**

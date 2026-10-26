@@ -12,9 +12,10 @@ export function authMessage(code: string | undefined | null) {
   if (value === "weak_password") return "Bitte wähle ein stärkeres Passwort mit mindestens acht Zeichen.";
   if (value === "same_password") return "Dein neues Passwort muss sich vom bisherigen unterscheiden.";
   if (value === "session_not_found" || value === "refresh_token_not_found") return "Der Link ist abgelaufen. Fordere bitte einen neuen Passwort-Link an.";
-  if (value === "mfa_verification_failed" || value === "mfa_challenge_expired") return "Der Code stimmt nicht. Bitte gib den aktuellen Code aus deiner Authenticator-App ein.";
-  if (value === "mfa_factor_not_found") return "Für dein Konto ist keine Authenticator-App hinterlegt. Bitte wende dich an dein oalab-Team.";
-  if (value === "insufficient_aal") return "Bitte bestätige zuerst den Code aus deiner Authenticator-App.";
+  if (value === "mail_code_wrong") return "Der Code stimmt nicht. Bitte gib den sechsstelligen Code aus deiner letzten E-Mail ein.";
+  if (value === "mail_code_locked") return "Der Code wurde zu oft falsch eingegeben. Fordere bitte einen neuen Code an.";
+  if (value === "mail_code_expired" || value === "mail_code_missing") return "Der Code ist abgelaufen. Fordere bitte einen neuen Code an.";
+  if (value === "insufficient_aal") return "Bitte bestätige zuerst den Code aus deiner E-Mail.";
   if (value === "setup") return "Der Login wird gerade eingerichtet. Bitte versuche es später erneut.";
   if (value === "mail_failed") return "Die E-Mail konnte gerade nicht gesendet werden. Bitte versuche es später erneut oder wende dich an dein oalab-Team.";
   return "Das hat gerade nicht geklappt. Bitte versuche es erneut oder wende dich an dein Projektteam.";
@@ -25,6 +26,8 @@ export const authRateLimits = {
   login: { network: 30, account: 10, windowSeconds: 15 * 60 },
   signup: { network: 5, account: 3, windowSeconds: 60 * 60 },
   password_reset: { network: 5, account: 3, windowSeconds: 60 * 60 },
+  /** Codes by e-mail for the second factor (sending only; wrong codes count against `login` and the code itself). */
+  login_code: { network: 20, account: 5, windowSeconds: 15 * 60 },
 } as const;
 export type AuthRateAction = keyof typeof authRateLimits;
 

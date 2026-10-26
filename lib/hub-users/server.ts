@@ -7,7 +7,7 @@ import type { ServicePackageId } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { displayStatus, isAccountStatus, isHubRole, nextCustomerNumber, servicePackageIds, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
-import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
+import { secondFactorMissing, wantsMailCode } from "@/lib/hub-auth/second-factor";
 
 type ProfileRow = {
   user_id: string;
@@ -109,6 +109,7 @@ const mailKinds: Record<string, string> = {
   "registration.rejected": "Ablehnung",
   "user.activation": "Aktivierungslink",
   "user.password": "Passwort-Link",
+  "user.login_code": "Sicherheitscode zur Anmeldung",
 };
 const mailOutcome: Record<string, string> = { sent: "gesendet", skipped: "nicht gesendet (Mailversand nicht eingerichtet)", failed: "fehlgeschlagen", sending: "wird gesendet" };
 
@@ -156,6 +157,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         role: roleOf(user),
         demo: isDemoUser(user),
         self: user.id === admin.userId,
+        mailCode: wantsMailCode(user.app_metadata),
         customerIds: memberships.filter((row) => row.user_id === user.id).map((row) => row.customer_id),
         source: profile?.source === "admin" || profile?.source === "existing" ? profile.source : "registration",
         createdAt: user.created_at,
