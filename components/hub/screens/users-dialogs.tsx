@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AlertTriangle, Ban, Check, Copy, KeyRound, Loader2, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
-import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, setHubUserActive, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
+import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, setHubUserActive, setHubUserMailCode, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
 import type { MailStatus } from "@/lib/hub-mail/smtp";
 import { displayStatusLabels, roleLabels, servicePackageIds, suggestCustomer, type HubRole } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedEvent, ManagedUser } from "@/lib/hub-users/types";
@@ -282,6 +282,7 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
   const [link, setLink] = useState<{ link: string | null; activation: boolean; mail: MailStatus | null } | null>(null);
   const [confirming, setConfirming] = useState<"deactivate" | "delete" | null>(null);
   const [confirmEmail, setConfirmEmail] = useState("");
+  const [mailCode, setMailCode] = useState(user?.mailCode ?? false);
   const { busy, error, run } = useAction();
   const set = (key: keyof typeof person) => (event: React.ChangeEvent<HTMLInputElement>) => setPerson((value) => ({ ...value, [key]: event.target.value }));
   const locked = Boolean(user?.demo);
@@ -338,7 +339,11 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
       </form>
 
       {user && !locked && <>
-        {user.status === "active" && (link?.link ? <LinkPanel link={link.link} activation={link.activation} user={user} /> : (
+        <div className="user-security">
+          <label className="check-row"><input type="checkbox" checked={mailCode} disabled={busy !== null} onChange={(event) => { const on = event.target.checked; run("mailCode", () => setHubUserMailCode({ userId: user.id, on }), () => { setMailCode(on); onNotice(on ? `${fullName(user)} bestätigt jede Anmeldung jetzt mit einem Code per E-Mail.` : `Code per E-Mail für ${fullName(user)} ausgeschaltet.`); }); }} />{busy === "mailCode" ? <Spinner /> : <ShieldCheck size={18} aria-hidden="true" />}Code per E-Mail bei jeder Anmeldung</label>
+          <p className="field-hint">Nach dem Passwort kommt ein sechsstelliger Code an {user.email}, gültig 10 Minuten. Das gilt ab der nächsten Seite, die die Person öffnet, auch auf der Serviceplattform. Team-Konten fragt die Serviceplattform ohnehin nach dem Code.</p>
+        </div>
+        {user.status === "active" && (link?.link ?<LinkPanel link={link.link} activation={link.activation} user={user} /> : (
           <div className="user-link-actions">
             {link?.mail && <p className={`mail-status${link.mail === "sent" ? " is-sent" : link.mail === "failed" ? " is-failed" : ""}`}>{link.mail === "sent" ? <MailCheck size={18} aria-hidden="true" /> : <MailX size={18} aria-hidden="true" />}{link.mail === "sent" ? `${link.activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} an ${user.email} geschickt.` : mailStatusText(link.mail)}</p>}
             <div className="file-assign-actions">

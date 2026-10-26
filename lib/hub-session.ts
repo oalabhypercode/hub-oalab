@@ -23,7 +23,7 @@ export const getWorkspaceIdentity = cache(async () => {
   if (error || !data?.claims) redirect("/auth/login");
   // Only logins with an active profile enter the hub; waiting, rejected and deactivated ones see why on
   // /auth/pending. "unknown" means the user management migration is not applied yet. A login with an
-  // authenticator app enters only after its code (the proxy normally sends it there before).
+  // e-mail code enters only after confirming it (the proxy normally sends it there before).
   const [account, codeMissing] = await Promise.all([getHubAccount(), secondFactorMissing(supabase, data.claims.aal)]);
   if (codeMissing) redirect("/auth/mfa");
   if (!account || (account.status !== "active" && account.status !== "unknown")) redirect("/auth/pending");

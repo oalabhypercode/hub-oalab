@@ -35,6 +35,7 @@ type Block =
   | { kind: "details"; rows: [string, string][] }
   | { kind: "quote"; label: string; value: string }
   | { kind: "button"; label: string; url: string }
+  | { kind: "code"; value: string }
   | { kind: "small"; value: string };
 
 type Mail = { subject: string; preheader: string; heading: string; blocks: Block[]; footer: string; legal?: MailLegal };
@@ -47,6 +48,8 @@ function renderBlock(block: Block) {
       return paragraph(block.value);
     case "small":
       return `<p style="margin:0 0 14px;font-family:${FONT};font-size:13px;line-height:19px;color:${BRAND.muted};">${escapeHtml(block.value)}</p>`;
+    case "code":
+      return `<p style="margin:4px 0 18px;padding:14px 18px;border-radius:14px;background:${BRAND.paper};border:1px solid ${BRAND.line};text-align:center;font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;font-size:32px;line-height:38px;font-weight:700;letter-spacing:8px;color:${BRAND.ink};">${escapeHtml(block.value)}</p>`;
     case "quote":
       return `<div style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:${BRAND.paper};border-left:3px solid ${BRAND.bordeaux};font-family:${FONT};">`
         + `<p style="margin:0 0 4px;font-size:12px;line-height:16px;font-weight:600;color:${BRAND.muted};">${escapeHtml(block.label)}</p>`
@@ -99,7 +102,7 @@ function render(mail: Mail): MailContent {
 
   const lines = [mail.heading, ""];
   for (const block of mail.blocks) {
-    if (block.kind === "text" || block.kind === "small") lines.push(block.value, "");
+    if (block.kind === "text" || block.kind === "small" || block.kind === "code") lines.push(block.value, "");
     if (block.kind === "quote") lines.push(`${block.label}:`, block.value, "");
     if (block.kind === "details") lines.push(...block.rows.filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`), "");
     if (block.kind === "button" && safeUrl(block.url)) lines.push(`${block.label}: ${safeUrl(block.url)}`, "");
@@ -232,6 +235,26 @@ export function passwordLinkMail(input: { firstName: string; link: string; activ
       { kind: "text", value: "über den Button legst du ein neues Passwort für den oalab Client Hub fest; danach bist du direkt angemeldet." },
       { kind: "button", label: "Neues Passwort festlegen", url: input.link },
       { kind: "small", value: "Der Link funktioniert einmal und ist zeitlich begrenzt gültig. Hast du kein neues Passwort angefordert, sprich bitte kurz mit deinem oalab-Team." },
+    ],
+    footer: "Diese Nachricht hat der oalab Client Hub automatisch verschickt.",
+    legal,
+  });
+}
+
+/**
+ * To the person, right after the password: the six-digit code that confirms this sign-in (second factor). The code
+ * stays out of subject and preheader, so it never shows on a lock screen.
+ */
+export function loginCodeMail(input: { firstName: string; code: string; minutes: number }, legal?: MailLegal): MailContent {
+  return render({
+    subject: "Dein Sicherheitscode für oalab",
+    preheader: `Er gilt ${input.minutes} Minuten für deine Anmeldung.`,
+    heading: `Hallo ${greetingName(input.firstName)},`,
+    blocks: [
+      { kind: "text", value: "hier ist dein Sicherheitscode für die Anmeldung im oalab Client Hub und auf der Serviceplattform:" },
+      { kind: "code", value: input.code },
+      { kind: "small", value: `Der Code gilt ${input.minutes} Minuten und nur für die Anmeldung, bei der du ihn angefordert hast. Gib ihn nie an andere weiter, auch nicht an dein oalab-Team.` },
+      { kind: "small", value: "Du hast dich gerade nicht angemeldet? Dann kennt jemand dein Passwort. Ändere es bitte über „Passwort vergessen“ und sag deinem oalab-Team Bescheid." },
     ],
     footer: "Diese Nachricht hat der oalab Client Hub automatisch verschickt.",
     legal,

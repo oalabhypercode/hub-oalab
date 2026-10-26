@@ -53,7 +53,13 @@ test("auth actions are server actions with rate limits, no public sign-up and no
   assert.match(code, /generateLink\(\{\s*type: "signup"/);
   assert.match(code, /hub_take_auth_rate/);
   assert.doesNotMatch(code, /console\.[a-z]+\([^)]*(token|link|email|password)/i);
-  for (const action of ["login", "signup", "password_reset"]) assert.ok(authRateLimits[action].account <= authRateLimits[action].network);
+  for (const action of ["login", "signup", "password_reset", "login_code"]) assert.ok(authRateLimits[action].account <= authRateLimits[action].network);
+  // Codes go to the login's own address, are hashed per session and only finish a login once the token has aal2.
+  assert.match(code, /mailLoginCode\(db, \{ id: session\.userId, email: session\.email \}/);
+  assert.match(code, /p_code_hash: mailCodeHash\(session\.sessionId, code\)/);
+  assert.match(code, /tokenClaims\(renewed\.session\.access_token\)\?\.aal !== "aal2"/);
+  // Next.js would otherwise print Server Action arguments (passwords, codes) in the dev terminal.
+  assert.match(await source("next.config.ts"), /logging: \{ serverFunctions: false \}/);
 });
 
 test("the visitor's address comes from the first forwarded entry", () => {

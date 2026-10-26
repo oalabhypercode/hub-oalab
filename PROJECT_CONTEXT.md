@@ -332,6 +332,12 @@ hxljfihyejwpugnsffcc
 - Rollen: Service liest nur `memberships`. Der Hub liest vorerst `app_metadata.app_role` und `hub_profiles.status`. Hub-Admin ist kein Release-Manager. Hub-Rollen aus `memberships` abzuleiten ist offen (Phase E).
 - Rückweg: altes Projekt im Supabase-Dashboard fortsetzen, Vercel-Umgebung des Hubs darauf zurückstellen und den vorigen Stand deployen; das alte Projekt wird nicht gelöscht. Keine alte Sicherung über neue Daten spielen.
 
+**Seit 26. Oktober 2026: zweiter Faktor per E-Mail-Code statt Authenticator-App** (Nutzerentscheidung: keine Kosten, nur sechsstelliger Code per Mail; Supabase kennt Mail nicht als Faktor, SMS hätte 75 $ im Monat gekostet):
+
+- Schalter pro Konto im User Management („Code per E-Mail bei jeder Anmeldung“, `app_metadata.second_factor = "email"`); Admins schalten ihn, Testadressen ohne Postfach lassen sich nicht einschalten.
+- Ablauf: Passwort → Code an die Login-Adresse (10 Minuten, 5 Versuche, „Neuen Code senden“) → `/auth/mfa` → die Sitzung ist in `oalab_mail_code_sessions` bestätigt, der Hook `public.oalab_access_token_hook` stellt ihre Tokens mit `aal2` aus (höchstens 30 Tage). Service verlangt `aal2` für Team-Rollen und schickt diese Konten zur Code-Seite des Hubs.
+- Offen bei der Einführung: Migration `202610260001_mail_second_factor.sql` in `service-oalab` anwenden, Hook im Dashboard einschalten, `npm run auth:mail-code -- --apply` für info@oalab.de, nach dem Livetest `-- --remove-apps` und TOTP im Dashboard abschalten. Die beiden alten Service-Testkonten `oalab-ops-…@example.invalid` und `oalab-admin-…@example.invalid` (zuletzt 16.08.2026 angemeldet) haben eine App, aber kein Postfach.
+
 Bis zur Umstellung verwies die lokale Umgebung auf das Supabase-Projekt mit dem Ref:
 
 ```text

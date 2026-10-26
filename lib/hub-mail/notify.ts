@@ -4,12 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
-import { accessApprovedMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
+import { accessApprovedMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
 
 // Every mail the hub sends on its own. Each attempt lands in hub_notifications (kind and outcome only);
 // the registration mails go out once per login. Nothing here throws: a mail problem never breaks an action.
 
-export type NotificationKind = "registration.confirmation" | "registration.team" | "registration.received" | "registration.approved" | "registration.rejected" | "user.activation" | "user.password";
+export type NotificationKind = "registration.confirmation" | "registration.team" | "registration.received" | "registration.approved" | "registration.rejected" | "user.activation" | "user.password" | "user.login_code";
 
 const mailOf = (to: string[], content: MailContent, extra: Partial<OutgoingMail> = {}): OutgoingMail => ({ to, ...content, ...extra });
 
@@ -83,6 +83,12 @@ export function mailRejection(db: SupabaseClient, user: User, input: { firstName
 export function mailPasswordLink(db: SupabaseClient, user: User, input: { firstName: string; link: string; activation: boolean }) {
   const settings = mailSettings();
   return sendTracked(db, input.activation ? "user.activation" : "user.password", user.id, mailOf([user.email ?? ""], passwordLinkMail(input, settings.legal)));
+}
+
+/** The six-digit code of a sign-in with second factor, to the login's own address only. The log keeps no code. */
+export function mailLoginCode(db: SupabaseClient, user: Pick<User, "id" | "email">, input: { firstName: string; code: string; minutes: number }) {
+  const settings = mailSettings();
+  return sendTracked(db, "user.login_code", user.id, mailOf([user.email ?? ""], loginCodeMail(input, settings.legal)));
 }
 
 /** Right after the registration form: the link that confirms the e-mail address. */

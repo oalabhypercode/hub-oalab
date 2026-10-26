@@ -4,8 +4,8 @@ import { hasEnvVars } from "../utils";
 import { getPublicDemoIdentity } from "@/lib/public-demo-session";
 import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
-import { SECOND_FACTOR_PAGE, secondFactorRedirect, settledSecondFactorRedirect, signedInRedirect } from "../auth-redirect";
-import { secondFactorPending } from "../hub-auth/second-factor";
+import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, serviceOrigin, signedInRedirect } from "../auth-redirect";
+import { secondFactorPending, wantsMailCode } from "../hub-auth/second-factor";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -56,13 +56,28 @@ export async function updateSession(request: NextRequest) {
 
   // Keep the claims check immediately after client creation for session refresh.
   const { data, error } = await supabase.auth.getClaims();
-  const signedIn = !error && Boolean(data?.claims);
+  const claims = !error && data?.claims ? data.claims : null;
+  const signedIn = claims !== null;
   const next = request.nextUrl.searchParams.get("next");
-  // A login with an authenticator app first enters its code; the pages themselves check it again (lib/hub-session.ts).
-  const codePending = signedIn && (await secondFactorPending(supabase));
+
+  /**
+   * The code page asks Supabase Auth itself whether the login wants the code: the token's copy of the switch may be up
+   * to an hour old. A token that still says yes after the switch went off is renewed, or every page would lead back.
+   */
+  const codePageState = async () => {
+    if (!claims) return { signedIn: false, confirmed: false, wanted: false };
+    if (claims.aal === "aal2") return { signedIn: true, confirmed: true, wanted: true };
+    const { data: fresh } = await supabase.auth.getUser();
+    const wanted = wantsMailCode(fresh.user?.app_metadata);
+    if (!wanted && wantsMailCode(claims.app_metadata)) await supabase.auth.refreshSession();
+    return { signedIn: true, confirmed: false, wanted };
+  };
+
+  // A login with the e-mail code first confirms it; the pages themselves check it again (lib/hub-session.ts).
+  const codePending = secondFactorPending(claims);
   // One login for Hub and Service: whoever arrives signed in (e.g. via „Zum Hub“) skips the login form.
-  const landing = codePending ? secondFactorRedirect(pathname, request.nextUrl.search, next, isPublic)
-    : pathname === SECOND_FACTOR_PAGE ? settledSecondFactorRedirect(signedIn, next)
+  const landing = pathname === SECOND_FACTOR_PAGE ? secondFactorPageRedirect(await codePageState(), next, serviceOrigin())
+    : codePending ? secondFactorRedirect(pathname, request.nextUrl.search, next, isPublic)
     : signedIn ? signedInRedirect(pathname, next) : null;
   const response = landing
     ? withSessionCookies(NextResponse.redirect(new URL(landing, request.url)))

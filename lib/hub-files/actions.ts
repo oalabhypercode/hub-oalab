@@ -17,7 +17,7 @@ async function signedInClient() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return null;
-  // A login with an authenticator app acts only after entering its code.
+  // A login with the e-mail code acts only after confirming it.
   if (await secondFactorMissing(supabase, data.claims.aal)) return null;
   const appMetadata = data.claims.app_metadata as Record<string, unknown> | undefined;
   return { supabase, admin: appMetadata?.app_role === "oalab_admin" };

@@ -6,6 +6,8 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
 import { mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import { hasMailbox } from "@/lib/hub-auth/mail-code";
+import { MAIL_SECOND_FACTOR } from "@/lib/hub-auth/second-factor";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { cleanEmail, cleanText, isHubRole, readCustomer, readPerson, roleLabels, type CustomerInput, type HubRole } from "./rules";
 import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
@@ -311,6 +313,26 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
   const banned = saved && !(await ctx.db.auth.admin.updateUserById(user.id, { ban_duration: active ? "none" : BLOCKED })).error;
   if (!banned) return failed(active ? "Das Konto konnte nicht aktiviert werden." : "Das Konto konnte nicht vollständig deaktiviert werden. Bitte erneut versuchen.");
   await log(ctx, active ? "user.reactivated" : "user.deactivated", active ? "Konto wieder aktiviert" : "Konto deaktiviert", { userId: user.id });
+  refreshWorkspace();
+  return { ok: true, data: null };
+}
+
+/**
+ * Turns the six-digit code by e-mail (second factor) on or off for a login. It counts from the login's next page on:
+ * the hub checks the switch with Supabase Auth, not with the token's copy. Supabase merges app_metadata, so "off"
+ * sends null, which removes the key.
+ */
+export async function setHubUserMailCode(input: { userId: string; on: boolean }): Promise<ActionResult<null>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user) return failed("Dieses Konto gibt es nicht mehr.");
+  if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet und lassen sich hier nicht ändern.");
+  const on = input?.on === true;
+  if (on && !hasMailbox(user.email)) return failed("An diese Adresse kann kein Code zugestellt werden (Testadresse ohne Postfach).");
+  const { error } = await ctx.db.auth.admin.updateUserById(user.id, { app_metadata: { second_factor: on ? MAIL_SECOND_FACTOR : null } });
+  if (error) return failed("Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.");
+  await log(ctx, on ? "user.mail_code_on" : "user.mail_code_off", on ? "Code per E-Mail eingeschaltet" : "Code per E-Mail ausgeschaltet", { userId: user.id });
   refreshWorkspace();
   return { ok: true, data: null };
 }
