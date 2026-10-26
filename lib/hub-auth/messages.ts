@@ -15,7 +15,10 @@ export function authMessage(code: string | undefined | null) {
   if (value === "mail_code_wrong") return "Der Code stimmt nicht. Bitte gib den sechsstelligen Code aus deiner letzten E-Mail ein.";
   if (value === "mail_code_locked") return "Der Code wurde zu oft falsch eingegeben. Fordere bitte einen neuen Code an.";
   if (value === "mail_code_expired" || value === "mail_code_missing") return "Der Code ist abgelaufen. Fordere bitte einen neuen Code an.";
-  if (value === "insufficient_aal") return "Bitte bestätige zuerst den Code aus deiner E-Mail.";
+  if (value === "mfa_verification_failed" || value === "mfa_challenge_expired") return "Der Code stimmt nicht. Bitte gib den aktuellen Code aus deiner Authenticator-App ein.";
+  if (value === "mfa_factor_not_found") return "Für dein Konto ist keine Authenticator-App hinterlegt. Bitte wende dich an dein oalab-Team.";
+  if (value === "mfa_use_app") return "Für dein Konto gilt der Code aus deiner Authenticator-App, nicht per E-Mail.";
+  if (value === "insufficient_aal") return "Bitte bestätige zuerst deinen Sicherheitscode.";
   if (value === "setup") return "Der Login wird gerade eingerichtet. Bitte versuche es später erneut.";
   if (value === "mail_failed") return "Die E-Mail konnte gerade nicht gesendet werden. Bitte versuche es später erneut oder wende dich an dein oalab-Team.";
   return "Das hat gerade nicht geklappt. Bitte versuche es erneut oder wende dich an dein Projektteam.";

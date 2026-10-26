@@ -4,7 +4,8 @@ import { test } from "node:test";
 import { safeAuthRedirect, secondFactorDestination, secondFactorPageRedirect, secondFactorRedirect, serviceDestination, serviceOrigin, signedInRedirect } from "../lib/auth-redirect.ts";
 import { hasMailbox, isMailCodeCheck, mailCodeHash, maskEmail, newMailCode, readMailCode } from "../lib/hub-auth/mail-code.ts";
 import { authMessage } from "../lib/hub-auth/messages.ts";
-import { secondFactorPending, wantsMailCode } from "../lib/hub-auth/second-factor.ts";
+import { chosenSecondFactor, codeMethod, hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../lib/hub-auth/second-factor.ts";
+import { sessionOf } from "../lib/hub-auth/session-token.ts";
 
 const SERVICE = "https://service.oalab.de";
 
@@ -32,13 +33,45 @@ test("leaves every other page alone, including the waiting and recovery pages", 
   }
 });
 
-test("only logins switched to the e-mail code owe it, and only until the session carries aal2", () => {
-  assert.equal(wantsMailCode({ second_factor: "email", app_role: "oalab_admin" }), true);
-  for (const metadata of [null, undefined, {}, { second_factor: null }, { second_factor: "totp" }, { second_factor: true }, "email"]) assert.equal(wantsMailCode(metadata), false);
-  assert.equal(secondFactorPending({ aal: "aal1", app_metadata: { second_factor: "email" } }), true);
-  assert.equal(secondFactorPending({ aal: "aal2", app_metadata: { second_factor: "email" } }), false);
-  assert.equal(secondFactorPending({ aal: "aal1", app_metadata: {} }), false);
-  assert.equal(secondFactorPending(null), false);
+test("each login has exactly one method: its choice, an app without a choice, never none once chosen", () => {
+  assert.equal(chosenSecondFactor({ second_factor: "email", app_role: "oalab_admin" }), "email");
+  assert.equal(chosenSecondFactor({ second_factor: "totp" }), "totp");
+  for (const metadata of [null, undefined, {}, { second_factor: null }, { second_factor: true }, "email"]) assert.equal(chosenSecondFactor(metadata), null);
+  assert.equal(hasConfirmedApp([{ factor_type: "totp", status: "verified" }]), true);
+  assert.equal(hasConfirmedApp([{ factor_type: "totp", status: "unverified" }, { factor_type: "phone", status: "verified" }]), false);
+  assert.equal(hasConfirmedApp(undefined), false);
+  assert.equal(secondFactorMethod({ second_factor: "email" }, false), "email");
+  assert.equal(secondFactorMethod({ second_factor: "email" }, true), "email");
+  assert.equal(secondFactorMethod({ second_factor: "totp" }, true), "totp");
+  // An app an admin removed falls back to the e-mail code, not to no protection.
+  assert.equal(secondFactorMethod({ second_factor: "totp" }, false), "email");
+  // Apps set up before the choice existed keep asking for their code.
+  assert.equal(secondFactorMethod({}, true), "totp");
+  assert.equal(secondFactorMethod({}, false), null);
+});
+
+test("the code page asks for the method's code; a new password always needs an app that exists", () => {
+  assert.equal(codeMethod("email", false, "/dashboard"), "email");
+  assert.equal(codeMethod("totp", true, "/dashboard"), "totp");
+  assert.equal(codeMethod("email", true, "/auth/update-password"), "totp");
+  assert.equal(codeMethod("email", false, "/auth/update-password"), "email");
+  // Service OALab sends team logins without any method: they confirm by e-mail.
+  assert.equal(codeMethod(null, false, "https://service.oalab.de/ops"), "email");
+});
+
+test("a session owes its code only while it has a method and no aal2", () => {
+  assert.equal(secondFactorPending({ aal: "aal1", app_metadata: { second_factor: "email" } }, false), true);
+  assert.equal(secondFactorPending({ aal: "aal1", app_metadata: {} }, true), true);
+  assert.equal(secondFactorPending({ aal: "aal2", app_metadata: { second_factor: "totp" } }, true), false);
+  assert.equal(secondFactorPending({ aal: "aal1", app_metadata: {} }, false), false);
+  assert.equal(secondFactorPending(null, true), false);
+});
+
+test("the session behind a freshly issued token is read from its claims", () => {
+  const token = (claims) => `x.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.y`;
+  assert.deepEqual(sessionOf(token({ sub: "u", session_id: "s", email: "a@b.de" })), { userId: "u", sessionId: "s", email: "a@b.de" });
+  assert.equal(sessionOf(token({ sub: "u", email: "a@b.de" })), null);
+  assert.equal(sessionOf("kein-token"), null);
 });
 
 test("codes are six random digits, hashed per session, and read leniently but strictly", () => {
@@ -120,4 +153,6 @@ test("wrong, used-up and expired codes each get one clear message", () => {
   assert.match(authMessage("mail_code_expired"), /abgelaufen/);
   assert.equal(authMessage("mail_code_missing"), authMessage("mail_code_expired"));
   assert.match(authMessage("over_email_send_rate_limit"), /Zu viele Versuche/);
+  assert.match(authMessage("mfa_verification_failed"), /Authenticator-App/);
+  assert.match(authMessage("mfa_use_app"), /Authenticator-App, nicht per E-Mail/);
 });

@@ -7,7 +7,7 @@ import type { ServicePackageId } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { displayStatus, isAccountStatus, isHubRole, nextCustomerNumber, servicePackageIds, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
-import { secondFactorMissing, wantsMailCode } from "@/lib/hub-auth/second-factor";
+import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
 type ProfileRow = {
   user_id: string;
@@ -137,6 +137,11 @@ export async function loadUserManagement(): Promise<UserManagementState> {
 
     const profileOf = new Map((profiles.data ?? []).map((row) => [row.user_id, row]));
     const memberships = members.data ?? [];
+    // The user list carries no factors: each login is asked for its app, all at once (no answer counts as no app).
+    const withApp = new Set(await Promise.all(authUsers.map(async (user) => {
+      const { data } = await db.auth.admin.mfa.listFactors({ userId: user.id });
+      return hasConfirmedApp(data?.factors) ? user.id : "";
+    })));
     const users: ManagedUser[] = authUsers.map((user) => {
       const profile = profileOf.get(user.id);
       const status = isAccountStatus(profile?.status) ? profile.status : "pending";
@@ -157,7 +162,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         role: roleOf(user),
         demo: isDemoUser(user),
         self: user.id === admin.userId,
-        mailCode: wantsMailCode(user.app_metadata),
+        secondFactor: secondFactorMethod(user.app_metadata, withApp.has(user.id)) ?? "off",
         customerIds: memberships.filter((row) => row.user_id === user.id).map((row) => row.customer_id),
         source: profile?.source === "admin" || profile?.source === "existing" ? profile.source : "registration",
         createdAt: user.created_at,

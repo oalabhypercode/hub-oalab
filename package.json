@@ -14,7 +14,7 @@
     "db:check": "node scripts/supabase-db.mjs --check",
     "db:push": "node scripts/supabase-db.mjs",
     "files:seed": "node scripts/seed-hub-files.mjs",
-    "auth:mail-code": "node scripts/mail-second-factor.mjs"
+    "auth:second-factor": "node scripts/second-factor.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.1.0",

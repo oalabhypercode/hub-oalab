@@ -18,8 +18,11 @@ const copy = {
   update: { eyebrow: "Fast geschafft.", title: "Ein neues\nPasswort.", description: "Wähle ein sicheres Passwort für deinen Workspace. Mindestens acht Zeichen sind ein guter Anfang.", action: "Passwort speichern", loading: "Passwort wird gespeichert …" },
 };
 
-/** Code page only: the (masked) address the code goes to and whether one for this session is already on its way. */
-type SecondFactorState = { email: string; codeSent: boolean };
+/**
+ * Code page only: the login's method, the (masked) address an e-mail code goes to and whether one for this session is
+ * already on its way.
+ */
+type SecondFactorState = { method: "email" | "totp"; email: string; codeSent: boolean };
 
 export function AuthForm({ mode, secondFactor, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode; secondFactor?: SecondFactorState }) {
   const [email, setEmail] = useState("");
@@ -35,8 +38,10 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
   // Registration only: what the oalab team needs to approve the access quickly.
   const [registration, setRegistration] = useState({ firstName: "", lastName: "", companyName: "", phone: "", position: "", website: "", customerNumberHint: "", message: "" });
   const content = copy[mode];
+  const byApp = secondFactor?.method === "totp";
   const codeTo = secondFactor?.email ? ` an ${secondFactor.email}` : "";
   const description = mode !== "mfa" ? content.description
+    : byApp ? "Gib den sechsstelligen Code aus deiner Authenticator-App ein. Danach bist du im Hub und auf der Serviceplattform angemeldet."
     : codeSent ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Gib ihn hier ein; danach bist du im Hub und auf der Serviceplattform angemeldet.`
     : `Wir schicken dir einen sechsstelligen Code${codeTo}. Damit bestätigst du deine Anmeldung im Hub und auf der Serviceplattform.`;
   const action = mode === "mfa" && !codeSent ? { label: "Code per E-Mail senden", loading: "Code wird gesendet …" } : { label: content.action, loading: content.loading };
@@ -87,7 +92,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
     setNotice("");
     setLoading(true);
     try {
-      const result = await sendSecondFactorCodeAction();
+      const result = await sendSecondFactorCodeAction({ next: new URLSearchParams(window.location.search).get("next") });
       if (!result.ok) { setError(result.error); return; }
       setNotice(codeSent ? "Ein neuer Code ist unterwegs. Der vorherige gilt nicht mehr." : "Der Code ist unterwegs. Schau auch im Spam-Ordner nach.");
       setCode("");
@@ -126,7 +131,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
             <div className="auth-field"><label htmlFor="position">Position <span className="auth-optional">(optional)</span></label><input id="position" name="organization-title" autoComplete="organization-title" placeholder="z. B. Geschäftsführung" maxLength={80} {...field("position")} /></div>
           </div>
         </>}
-        {mode === "mfa" && codeSent && <div className="auth-field"><label htmlFor="code">Code aus deiner E-Mail</label><input id="code" name="one-time-code" className="auth-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="______" required autoFocus value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} disabled={loading} /></div>}
+        {mode === "mfa" && codeSent && <div className="auth-field"><label htmlFor="code">{byApp ? "Code aus deiner Authenticator-App" : "Code aus deiner E-Mail"}</label><input id="code" name="one-time-code" className="auth-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="______" required autoFocus value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} disabled={loading} /></div>}
         {notice && <p className="code-notice" role="status">{notice}</p>}
         {mode !== "update" && mode !== "mfa" && <div className="auth-field"><label htmlFor="email">E-Mail-Adresse</label><input id="email" name="email" type="email" autoComplete="email" placeholder="du@unternehmen.de" required value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} /></div>}
         {mode !== "forgot" && mode !== "mfa" && <div className="auth-field"><div className="auth-label-row"><label htmlFor="password">{mode === "update" ? "Neues Passwort" : "Passwort"}</label>{mode === "login" && <Link href="/auth/forgot-password">Passwort vergessen?</Link>}</div><div className="password-field"><input id="password" name="password" type={visible ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder={mode === "login" ? "Dein Passwort" : "Mindestens 8 Zeichen"} required minLength={mode === "login" ? undefined : 8} value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} /><button type="button" aria-label={visible ? "Passwort verbergen" : "Passwort anzeigen"} aria-pressed={visible} onClick={() => setVisible((value) => !value)}>{visible ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}</button></div></div>}
@@ -146,10 +151,10 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="button-primary auth-submit" type="submit" disabled={loading}>{loading ? <><Loader2 size={18} className="spin" aria-hidden="true" />{action.loading}</> : <>{action.label}<ArrowRight size={18} aria-hidden="true" /></>}</button>
       </form>
-      {mode === "mfa" && codeSent && <button type="button" className="auth-back-link" onClick={sendCode} disabled={loading}><RotateCcw size={18} aria-hidden="true" />Neuen Code senden</button>}
+      {mode === "mfa" && codeSent && !byApp && <button type="button" className="auth-back-link" onClick={sendCode} disabled={loading}><RotateCcw size={18} aria-hidden="true" />Neuen Code senden</button>}
       {mode === "mfa" ? <button type="button" className="auth-back-link" onClick={leave} disabled={loading}><LogOut size={18} aria-hidden="true" />Mit einem anderen Konto anmelden</button>
         : mode === "login" ? <p className="auth-bottom-note">Noch kein Konto? <Link href="/auth/sign-up">Jetzt registrieren</Link></p> :<Link className="auth-back-link" href="/auth/login"><ArrowLeft size={18} aria-hidden="true" />Zurück zur Anmeldung</Link>}
-      {mode === "mfa" && <p className="auth-security-note"><ShieldCheck size={14} aria-hidden="true" />Dein Konto ist mit einem Code per E-Mail geschützt.</p>}
+      {mode === "mfa" && <p className="auth-security-note"><ShieldCheck size={14} aria-hidden="true" />{byApp ? "Dein Konto ist mit einer Authenticator-App geschützt." : "Dein Konto ist mit einem Code per E-Mail geschützt."}</p>}
       {mode === "update" && <p className="auth-security-note"><Check size={14} aria-hidden="true" />Dein Passwort wird verschlüsselt übertragen.</p>}
     </div>
   );
