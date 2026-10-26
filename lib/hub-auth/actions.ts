@@ -12,7 +12,8 @@ import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
 import { isMailCodeCheck, MAIL_CODE_MINUTES, mailCodeHash, newMailCode, readMailCode } from "./mail-code";
 import { authMessage, authRateLimits, clientAddress, type AuthRateAction } from "./messages";
-import { wantsMailCode } from "./second-factor";
+import { codeMethod, hasConfirmedApp, secondFactorMethod } from "./second-factor";
+import { sessionOf, tokenClaims, type CodeSession } from "./session-token";
 
 // Login, registration, password link, new password and sign-out run on the server: the session cookie that Hub and
 // Service share is HTTP-only, so browser code can neither read nor write it. Each action is a public POST endpoint
@@ -61,31 +62,23 @@ export async function signInAction(input: { email: string; password: string; nex
   // A real login supersedes a previously selected public fixture identity.
   (await cookies()).set(PUBLIC_DEMO_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
   const next = safeAuthRedirect(input.next);
-  // Logins with the e-mail code get it right away and continue on the code page (which offers a new one if this fails).
-  if (wantsMailCode(data.user?.app_metadata)) {
-    const session = data.session ? sessionOf(data.session.access_token) : null;
+  // Logins with a second factor continue on the code page. The e-mail code goes out right away (the page offers a new
+  // one if this fails); the app needs nothing sent.
+  const method = secondFactorMethod(data.user?.app_metadata, hasConfirmedApp(data.user?.factors));
+  if (method) {
+    const session = method === "email" && data.session ? sessionOf(data.session.access_token) : null;
     if (session) await issueMailCode(session);
     return { ok: true, redirect: `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(next)}` };
   }
   return { ok: true, redirect: next };
 }
 
-type CodeSession = { userId: string; sessionId: string; email: string };
-
-/** The claims of an access token Supabase Auth just issued to this server (not verified again: it never left it). */
-function tokenClaims(accessToken: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString("utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function sessionOf(accessToken: string): CodeSession | null {
-  const claims = tokenClaims(accessToken);
-  return claims && typeof claims.sub === "string" && typeof claims.session_id === "string" && typeof claims.email === "string"
-    ? { userId: claims.sub, sessionId: claims.session_id, email: claims.email }
-    : null;
+/** The login's second factor as Supabase Auth knows it now (not the token's copy). */
+async function secondFactorOf(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return null;
+  const hasApp = hasConfirmedApp(data.user.factors);
+  return { user: data.user, hasApp, method: secondFactorMethod(data.user.app_metadata, hasApp) };
 }
 
 /** The signed-in session from the verified cookie token. */
@@ -117,28 +110,44 @@ async function issueMailCode(session: CodeSession): Promise<string> {
   return mail === "sent" ? "sent" : "mail_failed";
 }
 
-/** „Code senden“ / „Neuen Code senden“ on the code page: a fresh code for the signed-in session. */
-export async function sendSecondFactorCodeAction(): Promise<AuthResult> {
+/**
+ * „Code senden“ / „Neuen Code senden“ on the code page: a fresh e-mail code for the signed-in session. Logins whose
+ * method is the app get none: the choice is fixed per login.
+ */
+export async function sendSecondFactorCodeAction(input?: { next?: string | null }): Promise<AuthResult> {
   if (!hasEnvVars) return failure("setup");
-  const session = await currentSession(await createClient());
-  if (!session) return failure("session_not_found");
+  const supabase = await createClient();
+  const session = await currentSession(supabase);
+  const state = session ? await secondFactorOf(supabase) : null;
+  if (!session || !state) return failure("session_not_found");
+  if (codeMethod(state.method, state.hasApp, input?.next) !== "email") return failure("mfa_use_app");
   const result = await issueMailCode(session);
   return result === "sent" ? { ok: true } : failure(result);
 }
 
 /**
- * Second step: checks the six-digit code from the e-mail. A correct code marks the session in the database; the
- * renewed token then carries aal2 from the access token hook, which Service OALab accepts as well. Wrong codes count
- * against the account's login limit and the code's own five attempts.
+ * Second step: checks the six-digit code of the login's method. The app's code goes to Supabase MFA, which raises the
+ * session to aal2 itself. A correct e-mail code marks the session in the database; the renewed token then carries
+ * aal2 from the access token hook. Service OALab accepts both. Wrong codes count against the account's login limit
+ * (and an e-mail code's own five attempts).
  */
 export async function verifySecondFactorAction(input: { code: string; next?: string | null }): Promise<AuthResult> {
   if (!hasEnvVars) return failure("setup");
-  const code = readMailCode(input.code);
-  if (!code) return failure("mail_code_wrong");
   const supabase = await createClient();
   const session = await currentSession(supabase);
-  if (!session) return failure("session_not_found");
+  const state = session ? await secondFactorOf(supabase) : null;
+  if (!session || !state) return failure("session_not_found");
+  const method = codeMethod(state.method, state.hasApp, input.next);
+  const code = readMailCode(input.code);
+  if (!code) return failure(method === "totp" ? "mfa_verification_failed" : "mail_code_wrong");
   if (!(await withinRate("login", session.email))) return failure("over_request_rate_limit");
+  const destination = secondFactorDestination(input.next, serviceOrigin());
+  if (method === "totp") {
+    const factor = (state.user.factors ?? []).find((item) => item.factor_type === "totp" && item.status === "verified");
+    if (!factor) return failure("mfa_factor_not_found");
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+    return error ? failure(error.code) : { ok: true, redirect: destination };
+  }
   const db = createAdminClient();
   if (!db) return failure("setup");
   const { data, error } = await db.rpc("oalab_mail_code_verify", { p_user_id: session.userId, p_session_id: session.sessionId, p_code_hash: mailCodeHash(session.sessionId, code) });
@@ -153,7 +162,7 @@ export async function verifySecondFactorAction(input: { code: string; next?: str
     console.error("[hub-auth] Code bestätigt, aber die erneuerte Sitzung hat kein aal2. Ist der Hook aus der Migration 202610260001 in Supabase aktiv?");
     return failure("setup");
   }
-  return { ok: true, redirect: secondFactorDestination(input.next, serviceOrigin()) };
+  return { ok: true, redirect: destination };
 }
 
 /**

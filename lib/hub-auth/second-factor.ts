@@ -1,35 +1,64 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Logins with the e-mail code (app_metadata.second_factor = "email", switch in the user management) only count as
-// signed in once this session has confirmed a six-digit code from their inbox. The hub mails and checks the code;
-// the database then marks the session, and its access token hook issues the session's tokens with aal2
-// (service-oalab/supabase/migrations/202610260001_mail_second_factor.sql). Service OALab requires aal2 for team
-// roles, so a hub login with code is valid there as well. Self-contained, so `node --test` can load it.
+// Every login picks its second factor in the profile (since 26.10.2026): off, a six-digit code by e-mail or an
+// authenticator app (app_metadata.second_factor = "email" | "totp"). Sign-in asks for exactly that one.
+// - "totp": Supabase MFA checks the app's code itself and raises the session to aal2.
+// - "email": the hub mails and checks the code; the database marks the session, and its access token hook issues the
+//   session's tokens with aal2 (service-oalab/supabase/migrations/202610260001_mail_second_factor.sql).
+// Service OALab requires aal2 for team roles, so a hub login with either code is valid there as well.
+// Self-contained (type import only), so `node --test` can load it.
 
-/** The value of app_metadata.second_factor for logins that confirm each session with a code by e-mail. */
-export const MAIL_SECOND_FACTOR = "email";
+export type SecondFactorMethod = "email" | "totp";
+export type SecondFactorChoice = SecondFactorMethod | "off";
 
-/** The login confirms its sessions with a code by e-mail. */
-export function wantsMailCode(appMetadata: unknown): boolean {
-  return Boolean(appMetadata && typeof appMetadata === "object" && (appMetadata as Record<string, unknown>).second_factor === MAIL_SECOND_FACTOR);
+/** What the login chose in the profile (or an admin set), null for none. */
+export function chosenSecondFactor(appMetadata: unknown): SecondFactorMethod | null {
+  const value = appMetadata && typeof appMetadata === "object" ? (appMetadata as Record<string, unknown>).second_factor : null;
+  return value === "email" || value === "totp" ? value : null;
+}
+
+/** A confirmed authenticator app among the login's Supabase factors. */
+export function hasConfirmedApp(factors: readonly { factor_type?: string; status?: string }[] | null | undefined) {
+  return (factors ?? []).some((factor) => factor.factor_type === "totp" && factor.status === "verified");
 }
 
 /**
- * The login wants the code, but this session has not confirmed it yet. Read from the verified token's claims without
- * a network call: good for redirects, not for access decisions (the claims' app_metadata is as old as the token,
- * see secondFactorMissing).
+ * The method sign-in asks for. An app that was chosen but is gone (an admin reset it) means the e-mail code, never
+ * no protection; an app without a choice (set up before the choice existed) means the app.
  */
-export function secondFactorPending(claims: { aal?: unknown; app_metadata?: unknown } | null | undefined): boolean {
-  return Boolean(claims) && claims?.aal !== "aal2" && wantsMailCode(claims?.app_metadata);
+export function secondFactorMethod(appMetadata: unknown, hasApp: boolean): SecondFactorMethod | null {
+  const chosen = chosenSecondFactor(appMetadata);
+  if (chosen === "totp") return hasApp ? "totp" : "email";
+  if (chosen === "email") return "email";
+  return hasApp ? "totp" : null;
 }
 
 /**
- * The same, checked against Supabase Auth: a switch turned on after the token was issued counts at once. Sessions
- * that already confirmed the code (`aal` claim of the verified token) need no extra request.
+ * The code this session confirms with. A new password needs the app whenever there is one: Supabase Auth refuses the
+ * password otherwise, whatever the hub decided. Logins without any method that Service OALab sends for its team pages
+ * get the e-mail code.
+ */
+export function codeMethod(method: SecondFactorMethod | null, hasApp: boolean, destination?: string | null): SecondFactorMethod {
+  if (hasApp && destination?.startsWith("/auth/update-password")) return "totp";
+  return method ?? "email";
+}
+
+/**
+ * The login has a method, but this session has not confirmed it yet. From the verified token's claims and the
+ * cookie's copy of the factors, without a network call: good for redirects, not for access decisions (see
+ * secondFactorMissing).
+ */
+export function secondFactorPending(claims: { aal?: unknown; app_metadata?: unknown } | null | undefined, hasApp: boolean): boolean {
+  return Boolean(claims) && claims?.aal !== "aal2" && secondFactorMethod(claims?.app_metadata, hasApp) !== null;
+}
+
+/**
+ * The same, checked against Supabase Auth: a choice changed after the token was issued counts at once. Sessions that
+ * already confirmed their code (`aal` claim of the verified token) need no extra request.
  */
 export async function secondFactorMissing(supabase: Pick<SupabaseClient, "auth">, aal: unknown): Promise<boolean> {
   if (aal === "aal2") return false;
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return true;
-  return wantsMailCode(data.user.app_metadata);
+  return secondFactorMethod(data.user.app_metadata, hasConfirmedApp(data.user.factors)) !== null;
 }

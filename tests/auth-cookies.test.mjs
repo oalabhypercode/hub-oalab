@@ -58,8 +58,32 @@ test("auth actions are server actions with rate limits, no public sign-up and no
   assert.match(code, /mailLoginCode\(db, \{ id: session\.userId, email: session\.email \}/);
   assert.match(code, /p_code_hash: mailCodeHash\(session\.sessionId, code\)/);
   assert.match(code, /tokenClaims\(renewed\.session\.access_token\)\?\.aal !== "aal2"/);
+  // The app's code goes to Supabase MFA; the e-mail code is never sent to a login whose method is the app.
+  assert.match(code, /supabase\.auth\.mfa\.challengeAndVerify\(\{ factorId: factor\.id, code \}\)/);
+  assert.match(code, /if \(codeMethod\(state\.method, state\.hasApp, input\?\.next\) !== "email"\) return failure\("mfa_use_app"\);/);
   // Next.js would otherwise print Server Action arguments (passwords, codes) in the dev terminal.
   assert.match(await source("next.config.ts"), /logging: \{ serverFunctions: false \}/);
+});
+
+test("a password link counts as the e-mail code only for logins without an app, and only for recovery", async () => {
+  const route = await source("app/auth/confirm/route.ts");
+  assert.match(route, /if \(type === "recovery" && await confirmRecoveryByMail\(data\.user, data\.session\)\) await supabase\.auth\.refreshSession\(\);/);
+  const recovery = await source("lib/hub-auth/recovery.ts");
+  assert.match(recovery, /^import "server-only";/);
+  assert.match(recovery, /if \(hasApp \|\| secondFactorMethod\(user\.app_metadata, hasApp\) !== "email"\) return false;/);
+});
+
+test("the profile changes the second factor only from a confirmed session and removes apps it leaves", async () => {
+  const actions = await source("lib/hub-auth/second-factor-actions.ts");
+  assert.match(actions, /^"use server";/);
+  assert.match(actions, /confirmed: method === null \|\| claimData\.claims\.aal === "aal2"/);
+  for (const name of ["chooseSecondFactor", "startAppSetup", "confirmAppSetup"]) {
+    const body = actions.match(new RegExp(`export async function ${name}[\\s\\S]+?\\n}\\n`))[0];
+    assert.match(body, /if \(!login\.confirmed\) return notConfirmed;/, name);
+  }
+  assert.match(actions, /if \(factor\.factor_type !== "totp" \|\| factor\.id === keepFactorId\) continue;/);
+  // The QR code is shown as an image only after scripts and event handlers were ruled out.
+  assert.match(actions, /if \(!svg\.startsWith\("<svg"\) \|\| \/<script\|\\son\\w\+\\s\*=\/i\.test\(svg\)/);
 });
 
 test("the visitor's address comes from the first forwarded entry", () => {

@@ -22,8 +22,8 @@ export type ManagedUser = {
   demo: boolean;
   /** The signed-in admin themself: no role change, deactivation or deletion. */
   self: boolean;
-  /** Confirms each sign-in with a six-digit code by e-mail (second factor). */
-  mailCode: boolean;
+  /** The method sign-in asks for as second factor: off, a code by e-mail or the login's authenticator app. */
+  secondFactor: "off" | "email" | "totp";
   customerIds: string[];
   source: "registration" | "admin" | "existing";
   createdAt: string;

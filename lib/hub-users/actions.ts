@@ -7,7 +7,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
 import { mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
-import { MAIL_SECOND_FACTOR } from "@/lib/hub-auth/second-factor";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { cleanEmail, cleanText, isHubRole, readCustomer, readPerson, roleLabels, type CustomerInput, type HubRole } from "./rules";
 import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
@@ -318,21 +317,29 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
 }
 
 /**
- * Turns the six-digit code by e-mail (second factor) on or off for a login. It counts from the login's next page on:
- * the hub checks the switch with Supabase Auth, not with the token's copy. Supabase merges app_metadata, so "off"
- * sends null, which removes the key.
+ * Sets a login's second factor to the code by e-mail or off. The person sets up an app in the profile themself (the
+ * QR code has to reach their phone); an admin can only take it back, e.g. after a lost phone: the app is removed.
+ * It counts from the login's next page on, since the hub asks Supabase Auth, not the token's copy. Supabase merges
+ * app_metadata, so "off" sends null, which removes the key.
  */
-export async function setHubUserMailCode(input: { userId: string; on: boolean }): Promise<ActionResult<null>> {
+export async function setHubUserSecondFactor(input: { userId: string; choice: "off" | "email" }): Promise<ActionResult<null>> {
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
   if (!user) return failed("Dieses Konto gibt es nicht mehr.");
   if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet und lassen sich hier nicht ändern.");
-  const on = input?.on === true;
-  if (on && !hasMailbox(user.email)) return failed("An diese Adresse kann kein Code zugestellt werden (Testadresse ohne Postfach).");
-  const { error } = await ctx.db.auth.admin.updateUserById(user.id, { app_metadata: { second_factor: on ? MAIL_SECOND_FACTOR : null } });
+  const choice = input?.choice === "email" ? "email" : input?.choice === "off" ? "off" : null;
+  if (!choice) return failed("Bitte eine Methode wählen.");
+  if (choice === "email" && !hasMailbox(user.email)) return failed("An diese Adresse kann kein Code zugestellt werden (Testadresse ohne Postfach).");
+  const { data: factors } = await ctx.db.auth.admin.mfa.listFactors({ userId: user.id });
+  const apps = (factors?.factors ?? []).filter((factor) => factor.factor_type === "totp");
+  for (const factor of apps) {
+    if ((await ctx.db.auth.admin.mfa.deleteFactor({ userId: user.id, id: factor.id })).error) return failed("Die Authenticator-App konnte nicht entfernt werden. Bitte versuche es erneut.");
+  }
+  const { error } = await ctx.db.auth.admin.updateUserById(user.id, { app_metadata: { second_factor: choice === "email" ? "email" : null } });
   if (error) return failed("Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.");
-  await log(ctx, on ? "user.mail_code_on" : "user.mail_code_off", on ? "Code per E-Mail eingeschaltet" : "Code per E-Mail ausgeschaltet", { userId: user.id });
+  const summary = choice === "email" ? "Zwei-Faktor-Schutz: Code per E-Mail" : "Zwei-Faktor-Schutz ausgeschaltet";
+  await log(ctx, choice === "email" ? "user.second_factor_email" : "user.second_factor_off", apps.length ? `${summary}, Authenticator-App entfernt` : summary, { userId: user.id });
   refreshWorkspace();
   return { ok: true, data: null };
 }

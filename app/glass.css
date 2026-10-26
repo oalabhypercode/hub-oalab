@@ -951,6 +951,21 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .whatsapp-action { margin-top: 4px; }
 .whatsapp-open { text-decoration: none; }
 
+/* Second factor card in the profile: three choices as tappable rows, the app's QR code below */
+.factor-options { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; padding: 0; border: 0; }
+.factor-option { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--fill-tertiary); cursor: pointer; }
+.factor-option.is-selected { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.factor-option input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent-text); }
+.factor-option:has(input:disabled) { cursor: default; opacity: 0.55; }
+.factor-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.factor-option strong { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 21px; color: var(--label); }
+.factor-option small { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.factor-current { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; background: var(--switch-on); color: #fff; font-size: 11px; line-height: 16px; font-weight: 600; }
+.factor-setup { display: flex; flex-direction: column; gap: 10px; }
+.factor-qr { align-self: center; width: 176px; height: 176px; padding: 10px; border-radius: 16px; background: #fff; }
+.factor-secret { padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); font-size: 15px; line-height: 20px; letter-spacing: 0.06em; text-align: center; word-break: break-all; color: var(--label); }
+.factor-notice { color: var(--label); }
+
 /* Calendar: month grid with the occupancy of every working day, day timeline, requests and appointments */
 .calendar-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin: 20px 0 14px; }
 .calendar-month-nav { display: inline-flex; align-items: center; gap: 2px; height: 44px; padding: 0 4px; border-radius: 999px; }
