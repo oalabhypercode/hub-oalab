@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Loader2, LogOut, Search, Settings, UserCog } from "lucide-react";
+import { ArrowUpRight, Loader2, LogOut, ScrollText, Search, Settings, UserCog } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
@@ -62,6 +62,11 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
             {pendingRegistrations > 0 && <span className="sidebar-count sidebar-count-alert" title={`${pendingRegistrations} offene Registrierung${pendingRegistrations === 1 ? "" : "en"}`}><span className="visually-hidden">Offene Registrierungen: </span>{pendingRegistrations}</span>}
           </Link>
         </>}
+        {/* Admins keep the patch notes with the administration; customers have no "Verwaltung", so theirs get a caption of their own. */}
+        {!manageUsers && <span className="sidebar-caption">Neuigkeiten</span>}
+        <Link {...item("patch-notes")}>
+          <ScrollText size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels["patch-notes"]}</span>
+        </Link>
       </nav>
       <div className={`sidebar-profile${activePackages ? " has-package" : ""}`}>
         <Link {...item("settings")} className={`sidebar-profile-link${section === "settings" ? " is-active" : ""}`}>

@@ -20,6 +20,7 @@ import { InsightsScreen, OverviewScreen } from "./screens/overview";
 import { FilesScreen } from "./screens/files";
 import { DiscoverScreen, MessagesScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
 import { UserManagementScreen } from "./screens/users";
+import { PatchNotesScreen } from "./screens/patch-notes";
 import type { ScreenProps } from "./screens/types";
 import type { HubRole } from "@/lib/hub-users/rules";
 import type { UserManagementState } from "@/lib/hub-users/types";
@@ -82,6 +83,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "messages" ? <MessagesScreen {...screen} />
         : section === "calendar" ? <CalendarScreen {...screen} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
+        : section === "patch-notes" ? <PatchNotesScreen />
         : <ProfileScreen {...screen} email={email} publicDemo={publicDemo} />}
       {selectedProject && <ProjectModal project={selectedProject} preview={preview} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
     </>
