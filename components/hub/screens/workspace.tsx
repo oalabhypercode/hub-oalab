@@ -20,7 +20,7 @@ import { useHubShell } from "../shell-context";
 import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
 import { WhatsAppCard } from "../whatsapp-card";
 import { SecondFactorCard } from "../second-factor-card";
-import { EmptyState } from "./overview";
+import { EmptyState, LoadNotice } from "./overview";
 import type { ScreenProps } from "./types";
 
 export function CategoryTitle({ category }: { category: CategoryId }) {
@@ -87,8 +87,9 @@ const projectSorts: Record<ProjectSortKey, SortOption<ProjectSortKey>> = {
 // "Dein Feedback" first: that is where the customer has to act.
 const statusRank: Record<Project["status"], number> = { "Dein Feedback": 0, "In Umsetzung": 1, Abgeschlossen: 2 };
 const projectSortValue: Record<ProjectSortKey, (project: Project) => SortValue> = {
-  deadline: (project) => project.dueOn,
-  start: (project) => project.startedOn,
+  // Projects without a date sort after every dated one.
+  deadline: (project) => project.dueOn ?? "9999-12-31",
+  start: (project) => project.startedOn ?? "9999-12-31",
   title: (project) => project.name,
   area: (project) => project.category,
   status: (project) => statusRank[project.status],
@@ -96,14 +97,16 @@ const projectSortValue: Record<ProjectSortKey, (project: Project) => SortValue> 
   customer: (project) => project.company ?? "",
 };
 
-export function ProjectsScreen({ preview, populated, projects, admin, asOf }: ScreenProps) {
+export function ProjectsScreen({ preview, populated, projects, admin, asOf, liveProjects }: ScreenProps) {
   const [filter, setFilter] = useState<(typeof filters)[number]>("Alle Projekte");
   const [companyFilter, setCompanyFilter] = useState(ALL);
   const [areaFilter, setAreaFilter] = useState(ALL);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState<ProjectSortKey>>({ key: "deadline", dir: "asc" });
   const matches = (item: (typeof filters)[number], status: string) => item === "Alle Projekte" || (item === "Aktiv" ? status !== "Abgeschlossen" : status === "Abgeschlossen");
-  const areas = Array.from(new Set(projects.map((project) => project.category))).sort();
+  const areas = Array.from(new Set(projects.flatMap((project) => project.category ? [project.category] : []))).sort();
+  // Studio projects have no area, so the column and its filter only appear for the fixtures.
+  const showArea = areas.length > 0;
   const companies = Array.from(new Set(projects.flatMap((project) => project.company ? [project.company] : []))).sort();
   // Search, area and customer narrow the list; the status filter counts within that result.
   const found = projects.filter((project) => {
@@ -123,26 +126,27 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
   return (
     <>
       <LargeTitleHeader title="Projekte" icon={<CategoryTitle category="projects" />} actions={<HeaderActions />} />
-      {populated ? <>
+      {liveProjects?.error ? <LoadNotice text={liveProjects.error} />
+      : populated || projects.length ? <>
         <SectionHeader title="Alle Projekte" />
         <TableSearch value={query} onChange={setQuery} placeholder="Titel, Bereich, Meilenstein, Status …" label="Projekte durchsuchen" activeFilters={activeFilters}>
           <SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
             const count = found.filter((project) => matches(item, project.status)).length;
             return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
           })} />
-          <FilterSelect icon={Layers} name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle Bereiche" }, ...areas.map((area) => ({ value: area, label: area }))]} />
+          {showArea && <FilterSelect icon={Layers} name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle Bereiche" }, ...areas.map((area) => ({ value: area, label: area }))]} />}
           {admin && <FilterSelect icon={Building2} name="Kunden filtern" value={companyFilter} onChange={setCompanyFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...companies.map((company) => ({ value: company, label: company }))]} />}
-          <SortControl options={sortOptions} sort={sort} onChange={setSort} />
+          <SortControl options={sortOptions.filter((option) => showArea || option.id !== "area")} sort={sort} onChange={setSort} />
         </TableSearch>
         {shown.length ? (
           <div className="table-blobs">
             <table className="project-table">
-              <caption className="visually-hidden">{admin ? "Projekte mit Kunde, " : "Projekte mit "}Bereich, aktuellem Meilenstein, Status, Startzeitpunkt, nächstem Termin und Fortschritt</caption>
+              <caption className="visually-hidden">{admin ? "Projekte mit Kunde, " : "Projekte mit "}{showArea ? "Bereich, " : ""}aktuellem Meilenstein, Status, Startzeitpunkt, nächstem Termin und Fortschritt</caption>
               <thead>
                 <tr>
                   {/* Admins see every customer's projects, so the customer leads the row. */}
                   {admin && <SortHeader option={projectSorts.customer} sort={sort} onChange={setSort} />}
-                  <SortHeader option={projectSorts.area} sort={sort} onChange={setSort} />
+                  {showArea && <SortHeader option={projectSorts.area} sort={sort} onChange={setSort} />}
                   <SortHeader option={projectSorts.title} sort={sort} onChange={setSort} />
                   {/* Soft hyphens let the long headers break on narrower screens. */}
                   <th scope="col" className="col-milestone">Meilenstein&shy;beschreibung</th>
@@ -160,19 +164,21 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf }: Sc
                   return (
                     <tr key={project.id} className={`project-row${done ? " is-done" : ""}`}>
                       {admin && <td className="cell-customer">{project.company ?? "–"}</td>}
-                      <td className="cell-area">{project.category}</td>
+                      {showArea && <td className="cell-area">{project.category}</td>}
                       <td className="cell-project">
                         <Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">{project.name}</Link>
                       </td>
                       <td className="cell-milestone">
-                        {milestone ? <><strong>{milestone.title}</strong><span>{milestone.description}</span></> : <span>Noch kein Meilenstein</span>}
+                        {milestone ? <><strong>{milestone.title}</strong>{milestone.description && <span>{milestone.description}</span>}</> : <span>Noch kein Meilenstein</span>}
                       </td>
                       <td className="cell-status"><ProjectStatus value={project.status} /></td>
                       <td className="cell-start"><span className="cell-start-label">Start </span><span className="numeric">{formatDeadline(project.startedOn)}</span></td>
                       <td className="cell-deadline">
-                        <Link className="deadline-link" href={`${hubHref(preview, "calendar")}?day=${project.dueOn}`} title="Im Kalender anzeigen" aria-label={`Nächster Termin ${formatDeadline(project.dueOn)} im Kalender anzeigen`}>
-                          <CalendarDays size={15} aria-hidden="true" /><span className="numeric">{formatDeadline(project.dueOn)}</span>
-                        </Link>
+                        {project.dueOn ? (
+                          <Link className="deadline-link" href={`${hubHref(preview, "calendar")}?day=${project.dueOn}`} title="Im Kalender anzeigen" aria-label={`Nächster Termin ${formatDeadline(project.dueOn)} im Kalender anzeigen`}>
+                            <CalendarDays size={15} aria-hidden="true" /><span className="numeric">{formatDeadline(project.dueOn)}</span>
+                          </Link>
+                        ) : <span className="numeric">–</span>}
                         <small className={hint.endsWith("überfällig") ? "is-overdue" : undefined}>{hint}</small>
                       </td>
                       <td className="cell-progress">

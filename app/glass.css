@@ -1158,3 +1158,11 @@ a.teams-join:active { transform: scale(0.97); }
   .patch-changes li { grid-template-columns: minmax(0, 1fr); }
   .patch-kind { justify-self: start; }
 }
+
+/* Tasks of a Studio project in the project dialog */
+.project-tasks { display: grid; gap: 2px; margin: 18px 0 4px; padding: 0; list-style: none; }
+.project-tasks li { display: grid; gap: 2px; padding: 10px 0; border-top: 1px solid var(--separator); }
+.project-tasks li:first-child { border-top: 0; }
+.project-task-title { font-size: 15px; line-height: 20px; font-weight: 600; }
+.project-task-meta { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.project-tasks li.is-done .project-task-title { color: var(--label-secondary); text-decoration: line-through; }

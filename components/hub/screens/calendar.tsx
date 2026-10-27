@@ -54,8 +54,9 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
   const [selected, setSelected] = useState(startDay);
 
   // Project deadlines of every project this login sees: customers their own, admins those of all customers.
+  // Studio projects without a target date have no place in the calendar.
   const goals = useMemo(() => projects
-    .map((project): ProjectGoal => ({ id: project.id, day: project.dueOn, title: project.name, company: project.company, category: project.category, done: project.status === "Abgeschlossen" }))
+    .flatMap((project): ProjectGoal[] => project.dueOn ? [{ id: project.id, day: project.dueOn, title: project.name, company: project.company, category: project.category, done: project.status === "Abgeschlossen" }] : [])
     .sort((a, b) => Number(a.done) - Number(b.done) || a.day.localeCompare(b.day)), [projects]);
   const goalsByDay = useMemo(() => {
     const days = new Map<string, ProjectGoal[]>();
@@ -155,7 +156,7 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
                   <span className="appointment-date" aria-hidden="true"><strong className="numeric">{Number(goal.day.slice(8))}</strong><small>{monthShort.format(Date.parse(`${goal.day}T00:00:00Z`))}</small></span>
                   <span className="list-row-text">
                     <span className="list-row-title">{goal.title}</span>
-                    <span className="list-row-subtitle">{formatDayShort(goal.day)} · {canManage && goal.company ? `${goal.company} · ` : ""}{goal.category}</span>
+                    <span className="list-row-subtitle">{[formatDayShort(goal.day), canManage ? goal.company : "", goal.category].filter(Boolean).join(" · ")}</span>
                   </span>
                   <span className={`goal-hint${hint.endsWith("überfällig") ? " is-overdue" : ""}`}>{hint}</span>
                 </Link>
@@ -275,7 +276,7 @@ function DayPanel({ day, store, items, goals, projectHref, onOpen, onCreate, onR
             <li key={goal.id}>
               <Link href={projectHref(goal.id)} className={`day-goal${goal.done ? " is-done" : ""}`}>
                 <Flag size={16} aria-hidden="true" />
-                <span><strong>{goal.title}</strong><small>Projektziel · {store.canManage && goal.company ? `${goal.company} · ` : ""}{goal.category}{goal.done ? " · abgeschlossen" : ""}</small></span>
+                <span><strong>{goal.title}</strong><small>{["Projektziel", store.canManage ? goal.company : "", goal.category, goal.done ? "abgeschlossen" : ""].filter(Boolean).join(" · ")}</small></span>
               </Link>
             </li>
           ))}

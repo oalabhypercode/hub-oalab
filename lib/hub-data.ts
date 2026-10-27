@@ -32,9 +32,24 @@ export type Milestone = { title: string; description: string; at: string; kind: 
 
 export type NextStep = { id: string; title: string; category: string; date: string; dueOn: string; projectIndex: number };
 
+/** A Studio task as the hub shows it; customers only ever receive the ones released to them. */
+export type ProjectTask = {
+  id: string;
+  /** Studio's running task number, e.g. 128. */
+  number: number;
+  title: string;
+  status: "backlog" | "todo" | "progress" | "review" | "done";
+  dueOn: string | null;
+  /** Carries the label "Kunde": the customer has to act. */
+  customer: boolean;
+  /** Released to the customer (client_visible). */
+  visible: boolean;
+};
+
 export type Project = {
   id: string;
   name: string;
+  /** Area such as "Website & Digital"; empty for Studio projects, which have none. */
   category: string;
   description: string;
   status: "In Umsetzung" | "Dein Feedback" | "Abgeschlossen";
@@ -43,10 +58,12 @@ export type Project = {
   artwork: "orange" | "sage" | "lilac";
   brand?: string;
   company?: string;
-  /** ISO dates of the fictional project history. */
-  startedOn: string;
-  dueOn: string;
+  /** ISO dates; fixtures always have both, Studio projects may have neither. */
+  startedOn: string | null;
+  dueOn: string | null;
   milestones: Milestone[];
+  /** Real projects from OALab Studio carry their tasks; fixtures have none. */
+  tasks?: ProjectTask[];
 };
 
 export type HubDemoData = {
@@ -169,12 +186,13 @@ export const demoConversation = { title: "Brand Identity", person: "Lena Schneid
 
 const deadlineDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric" });
 
-/** A project's target date ("Terminierung"), e.g. "30. Okt. 2026". */
-export const formatDeadline = (day: string) => deadlineDate.format(Date.parse(`${day}T00:00:00Z`));
+/** A project's target date ("Terminierung"), e.g. "30. Okt. 2026"; "–" when none is set. */
+export const formatDeadline = (day: string | null) => day ? deadlineDate.format(Date.parse(`${day}T00:00:00Z`)) : "–";
 
 /** How a target date relates to `asOf`: "in 15 Tagen", "heute", "3 Tage überfällig"; completed projects are "abgeschlossen". */
-export function deadlineHint(dueOn: string, done: boolean, asOf: string) {
+export function deadlineHint(dueOn: string | null, done: boolean, asOf: string) {
   if (done) return "abgeschlossen";
+  if (!dueOn) return "kein Zieltermin";
   const days = Math.round((Date.parse(`${dueOn}T00:00:00Z`) - Date.parse(`${asOf}T00:00:00Z`)) / 86_400_000);
   if (days === 0) return "heute";
   if (days === 1) return "morgen";

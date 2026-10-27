@@ -89,15 +89,17 @@ const plural = (count: number, one: string, many: string) => (count === 1 ? one 
 
 /** Progress of a project at a given time, interpolated linearly between start and today (or completion). */
 function progressAt(project: Project, time: number, asOfEnd: number) {
-  const start = toTime(project.startedOn);
+  // Studio projects may lack dates: without a start they count from the beginning, without a target until today.
+  const start = project.startedOn ? toTime(project.startedOn) : 0;
   if (time < start) return null;
   const done = project.status === "Abgeschlossen";
-  const end = done ? toTime(project.dueOn) + DAY : asOfEnd;
+  const end = done && project.dueOn ? toTime(project.dueOn) + DAY : asOfEnd;
   const target = done ? 100 : project.progress;
   return target * clamp((time - start) / Math.max(end - start, DAY));
 }
 
-const isActiveAt = (project: Project, time: number) => time >= toTime(project.startedOn) && (project.status !== "Abgeschlossen" || time < toTime(project.dueOn) + DAY);
+const isActiveAt = (project: Project, time: number) => time >= (project.startedOn ? toTime(project.startedOn) : 0)
+  && (project.status !== "Abgeschlossen" || (project.dueOn !== null && time < toTime(project.dueOn) + DAY));
 
 const feedbackSince = (project: Project) => project.status === "Dein Feedback" ? project.milestones.find((item) => item.kind === "feedback")?.at : undefined;
 
@@ -226,7 +228,7 @@ export function buildHubModel(input: HubModelInput) {
     "active-projects": snapshot("active-projects", activeProjects.length, `von ${projects.length} ${plural(projects.length, "Projekt", "Projekten")} insgesamt`),
     "average-progress": snapshot("average-progress", avgProgress, avgProgress - avgProgressWeekAgo >= 0.5 ? `+${integer.format(avgProgress - avgProgressWeekAgo)} Punkte seit letzter Woche` : "über alle gestarteten Projekte", { type: "progress", value: avgProgress }),
     milestones: snapshot("milestones", countEvents("milestones", asOf - 29 * DAY, asOfEnd + 1), "in den letzten 30 Tagen", { type: "bars", values: weeklyCounts("milestones", 7) }, lastEvent("milestones") ? formatDayMonth(lastEvent("milestones")!.at) : asOfLabel),
-    feedback: snapshot("feedback", feedbackProjects.length, feedbackProjects[0] ? feedbackProjects[0].category + (feedbackProjects.length > 1 ? ` und ${feedbackProjects.length - 1} weitere` : "") : "Gerade wartet nichts auf dich", projects.length ? { type: "ticks", values: projects.slice(0, 18).map((project) => project.status === "Dein Feedback" ? "warning" : "ok") } : undefined),
+    feedback: snapshot("feedback", feedbackProjects.length, feedbackProjects[0] ? (feedbackProjects[0].category || feedbackProjects[0].name) + (feedbackProjects.length > 1 ? ` und ${feedbackProjects.length - 1} weitere` : "") : "Gerade wartet nichts auf dich", projects.length ? { type: "ticks", values: projects.slice(0, 18).map((project) => project.status === "Dein Feedback" ? "warning" : "ok") } : undefined),
     "open-steps": snapshot("open-steps", openSteps.length, nextStep ? nextStep.title : "Alles erledigt", nextStep ? { type: "badge", label: `fällig ${numeric.format(toTime(nextStep.dueOn))}` } : undefined),
     "shared-files": snapshot("shared-files", files.length, filesThisWeek ? `${filesThisWeek} neu in dieser Woche` : "Diese Woche keine neuen", { type: "bars", values: dailyCounts("shared-files", 7) }, lastEvent("shared-files") ? formatDayMonth(lastEvent("shared-files")!.at) : asOfLabel),
     "file-volume": snapshot("file-volume", totalVolume, `in ${files.length} ${plural(files.length, "Datei", "Dateien")}`, files.length ? { type: "sparkline", values: Array.from({ length: 30 }, (_, index) => stateAt("file-volume", asOf - (29 - index) * DAY + DAY - 1) ?? 0) } : undefined),
@@ -278,7 +280,7 @@ export function buildHubModel(input: HubModelInput) {
   ] : [];
 
   // Insights
-  const nextDue = activeProjects.map((project) => toTime(project.dueOn)).filter((time) => time >= asOf).sort((a, b) => a - b)[0];
+  const nextDue = activeProjects.flatMap((project) => project.dueOn ? [toTime(project.dueOn)] : []).filter((time) => time >= asOf).sort((a, b) => a - b)[0];
   const insight: Insight | null = populated ? {
     headline: feedbackProjects.length
       ? `${feedbackProjects.length === 1 ? "Ein Projekt wartet" : `${feedbackProjects.length} Projekte warten`} auf ${admin ? "Kundenfeedback" : "dein Feedback"}.`
@@ -299,15 +301,16 @@ export function buildHubModel(input: HubModelInput) {
   const activity: ActivityItem[] = events.slice(0, 4).map((event, index) => ({
     id: `${event.kind}-${index}`,
     title: event.kind === "milestone" ? `Meilenstein erreicht: ${event.title}` : event.kind === "feedback" ? `Bereit für Feedback: ${event.title}` : event.kind === "file" ? `Neue Datei: ${event.title}` : `Neue Nachricht von ${demoConversation.person.split(" ")[0]}`,
-    detail: `${event.project ? (event.project.company ? `${event.project.company} · ` : "") + event.project.category : event.kind === "file" ? "Dateien" : demoConversation.title} · ${formatDayMonth(event.at)}`,
+    detail: `${event.project ? (event.project.company ? `${event.project.company} · ` : "") + (event.project.category || event.project.name) : event.kind === "file" ? "Dateien" : demoConversation.title} · ${formatDayMonth(event.at)}`,
     category: event.category,
     href: event.project ? projectHref(preview, event.project.id) : `${metricHref(preview, event.kind === "file" ? "shared-files" : "messages")}`,
   }));
 
   const projectRows: ProjectRow[] = activeProjects.map((project) => ({
     id: project.id,
-    title: project.category,
-    subtitle: `${project.company ? `${project.company} · ` : ""}Ziel ${dayMonth.format(toTime(project.dueOn))}`,
+    // Fixtures lead with their area; Studio projects have none and lead with their name.
+    title: project.category || project.name,
+    subtitle: [project.company, project.dueOn ? `Ziel ${dayMonth.format(toTime(project.dueOn))}` : "Kein Zieltermin"].filter(Boolean).join(" · "),
     progress: project.progress,
     href: projectHref(preview, project.id),
   }));

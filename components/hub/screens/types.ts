@@ -2,6 +2,7 @@ import type { Project } from "@/lib/hub-data";
 import type { HubFilesState, HubStoredFile } from "@/lib/hub-files/types";
 import type { HubCalendarState } from "@/lib/hub-calendar/types";
 import type { HubModel } from "@/lib/hub-metrics";
+import type { LiveProjectsState } from "@/lib/hub-projects/map";
 import type { useFavorites } from "@/lib/use-favorites";
 
 export type ScreenProps = {
@@ -12,6 +13,8 @@ export type ScreenProps = {
   asOf: string;
   admin: boolean;
   projects: Project[];
+  /** Real logins: their Studio projects or why they did not load; null for fixtures. */
+  liveProjects: LiveProjectsState | null;
   files: HubStoredFile[];
   /** Files table data: Supabase (real logins) or fixtures (preview, public demo). */
   fileState: HubFilesState;
