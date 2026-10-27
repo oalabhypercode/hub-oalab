@@ -58,6 +58,8 @@ export type Project = {
   artwork: "orange" | "sage" | "lilac";
   brand?: string;
   company?: string;
+  /** Studio projects: the customer organization, to find the hub customer it belongs to. */
+  organizationId?: string;
   /** ISO dates; fixtures always have both, Studio projects may have neither. */
   startedOn: string | null;
   dueOn: string | null;

@@ -7,7 +7,7 @@ import { Modal } from "./modal";
 
 const suggestions = {
   customer: ["Wie frage ich einen Termin an?", "Wo finde ich meine Dateien?", "Was bedeutet „Dein Feedback“?", "Wie ändere ich den Hintergrund?"],
-  admin: ["Wie lade ich eine Datei für einen Kunden hoch?", "Wie nehme ich eine Terminanfrage an?", "Wie hinterlege ich einen Teams-Link?", "Was sehen Kunden von meinem Kalender?"],
+  admin: ["Welche Aufgaben liegen gerade bei Kunden?", "Welche Projekte sind überfällig?", "Wie nehme ich eine Terminanfrage an?", "Wie lade ich eine Datei für einen Kunden hoch?"],
 };
 
 type PanelProps = {
@@ -24,6 +24,8 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** What the assistant is looking up right now, e.g. "Suche „Müller“ …". */
+  const [status, setStatus] = useState("");
   const list = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,12 +39,16 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
     setTurns([...history, { role: "assistant", content: "" }]);
     setDraft("");
     setError("");
+    setStatus("");
     setBusy(true);
     try {
+      // The open page, so "dieses Projekt" works; the server only passes on a project the admin can see.
+      const url = new URL(window.location.href);
+      const context = { section: url.pathname.split("/")[2] || "overview", projectId: url.searchParams.get("project") };
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.slice(-MAX_TURNS) }),
+        body: JSON.stringify({ messages: history.slice(-MAX_TURNS), context }),
       });
       // Without a session the proxy redirects to the login page instead of answering.
       if (response.redirected) throw new Error("Der Assistent ist nur mit echtem Login verfügbar.");
@@ -50,14 +56,26 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
         const payload = await response.json().catch(() => null) as { error?: string } | null;
         throw new Error(payload?.error ?? "Der Assistent ist gerade nicht erreichbar.");
       }
+      // One JSON event per line: answer text, a note on what is being looked up, or an error.
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let answer = "";
+      let buffer = "";
       for (;;) {
         const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = done ? "" : lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as { t: "text" | "tool" | "error"; v: string };
+          if (event.t === "error") throw new Error(event.v);
+          if (event.t === "tool") { setStatus(event.v); continue; }
+          answer += event.v;
+          setStatus("");
+          setTurns([...history, { role: "assistant", content: answer }]);
+        }
         if (done) break;
-        answer += decoder.decode(value, { stream: true });
-        setTurns([...history, { role: "assistant", content: answer }]);
       }
       if (!answer.trim()) throw new Error("Es kam keine Antwort. Bitte versuche es erneut.");
     } catch (failure) {
@@ -67,6 +85,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
       setError(failure instanceof Error ? failure.message : "Der Assistent ist gerade nicht erreichbar.");
     } finally {
       setBusy(false);
+      setStatus("");
     }
   }
 
@@ -82,7 +101,9 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
       <div className="assistant-messages" ref={list} aria-live="polite">
         <div className="assistant-intro">
           <span className="assistant-avatar" aria-hidden="true"><Sparkles size={18} /></span>
-          <p>Ich bin der KI-Assistent von oalab und erkläre dir die Funktionen des Client Hub. Bei Fragen zu deinem Projekt ist dein OALAB-Team die erste Anlaufstelle.</p>
+          <p>{admin
+            ? "Ich bin der KI-Assistent von oalab. Ich erkläre den Client Hub und lese für dich Kunden, Projekte und Aufgaben (mit aktivem Zwei-Faktor-Schutz). Ändern kann ich noch nichts."
+            : "Ich bin der KI-Assistent von oalab und erkläre dir die Funktionen des Client Hub. Bei Fragen zu deinem Projekt ist dein OALAB-Team die erste Anlaufstelle."}</p>
         </div>
         {!available && <p className="assistant-note">Der Assistent ist mit einem echten Login verfügbar. In der Vorschau und der öffentlichen Demo werden keine Fragen an Claude gesendet.</p>}
         {available && !turns.length && (
@@ -96,7 +117,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
             <div className="assistant-bubble">
               {turn.role === "user" ? turn.content
                 : turn.content ? <AssistantText text={turn.content} />
-                : <span className="assistant-typing" role="status"><Loader2 size={16} className="spin" aria-hidden="true" />Antwort wird geschrieben …</span>}
+                : <span className="assistant-typing" role="status"><Loader2 size={16} className="spin" aria-hidden="true" />{status || "Antwort wird geschrieben …"}</span>}
             </div>
           </div>
         ))}
@@ -118,7 +139,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
         </form>
       )}
       <div className="assistant-footer">
-        <span>Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und können Fehler enthalten. Bitte keine persönlichen Daten eingeben.</span>
+        <span>Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation{admin ? " und der Daten im Hub" : ""} und können Fehler enthalten. Bitte keine persönlichen Daten eingeben.</span>
         {turns.length > 0 && <button type="button" onClick={() => { setTurns([]); setError(""); }} disabled={busy}><RotateCcw size={14} aria-hidden="true" />Neu starten</button>}
       </div>
     </Modal>

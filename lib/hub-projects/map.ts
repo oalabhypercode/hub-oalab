@@ -91,6 +91,7 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     date: dueOn ? targetDate.format(Date.parse(`${dueOn}T00:00:00Z`)) : "Kein Zieltermin",
     artwork: "orange",
     company: input.company,
+    organizationId: project.organization_id,
     startedOn: details?.start_date ?? null,
     dueOn,
     milestones: toMilestones(details?.milestones),

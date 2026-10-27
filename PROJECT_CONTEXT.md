@@ -31,6 +31,14 @@
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
 
+### Vorgabe vom 27. Oktober 2026: Assistent liest Kunden, Projekte und Aufgaben (KI-Aktionen, Schritt 2)
+
+- Der bestehende Chat „Assistent & Hilfe“ nutzt jetzt Claude Tool Use, aber nur lesend: `search`, `get_customer`, `get_project`, `list_tasks` (`lib/hub-assistant/tools.ts`). Die Werkzeuge bekommt nur ein Admin mit Token-Rolle, Bestätigung durch `verifyHubAdmin()` und `aal2`; Admins ohne aktiven zweiten Faktor bekommen einen Hinweis. Kunden und WhatsApp bleiben beim reinen Hilfe-Chat.
+- Ablauf in `app/api/assistant/route.ts`: Tool-Schleife mit höchstens 8 Runden, der Assistenten-Turn geht unverändert zurück, alle Ergebnisse eines Turns in einer Nachricht, Fehler als `is_error`. Daten stammen aus derselben Quelle wie der Hub (`lib/hub-assistant/data.ts`: Studio-Projekte und `hub_customers`). Werkzeug-Ergebnisse gelten im System-Prompt ausdrücklich als Daten, nicht als Anweisungen.
+- Seitenkontext: Das Panel schickt Bereich und geöffnetes Projekt (`?project=`). Der Server nennt Claude ein Projekt nur, wenn der Admin es sehen kann, als System-Nachricht nach der Frage (der gecachte Anfang bleibt gleich).
+- Aufwand `medium` für Admin-Anfragen mit Werkzeugen, `low` für den Hilfe-Chat. Die Antwort kommt jetzt als Folge von JSON-Zeilen (Text, Statuszeile „Suche … “, Fehler).
+- Nicht geprüft: echte Antworten mit Werkzeugen (braucht einen Admin-Login mit Code-Bestätigung und den API-Schlüssel).
+
 ### Vorgabe vom 27. Oktober 2026: Projekte und Aufgaben aus OALab Studio (KI-Aktionen, Schritt 1)
 
 - Hintergrund: Der Hub-Assistent soll später Aufgaben anlegen, Projekte ändern und Daten abfragen (Planung vom 26./27. Oktober 2026). Entscheidungen des Nutzers: Projekte und Aufgaben kommen aus den vorhandenen Studio-Tabellen der gemeinsamen Datenbank (`customer_projects`, `studio_project_details`, `studio_tasks`); bestehende Tabellen werden nicht verändert.
@@ -146,7 +154,7 @@
 
 - Die Sprechblase oben rechts heißt jetzt „Assistent & Hilfe“. Sie öffnet für Kunden und Admins einen Chat, der Fragen zu den Funktionen der Plattform beantwortet. Er zeigt Vorschlagsfragen je Rolle, streamt die Antworten, kann neu gestartet werden und behält den Verlauf beim Seitenwechsel.
 - Modell: **Claude Opus 5.5** (`claude-opus-5-5`) über `@anthropic-ai/sdk` 1.1.0. Aufwand `low` für schnelle, kurze Antworten. Lehnt das Modell eine Anfrage ab, übernimmt automatisch ein Ersatzmodell (`fallbacks: "default"`).
-- Grundlage ist allein die Wissensbasis `lib/hub-assistant/knowledge.ts`. Der Assistent sieht keine Projekte, Dateien oder Termine und ändert nichts. Für Geplantes sagt er, dass es das noch nicht gibt.
+- Grundlage ist die Wissensbasis `lib/hub-assistant/knowledge.ts`. Für Kunden und über WhatsApp sieht der Assistent keine Daten und ändert nichts. Seit 27. Oktober 2026 (KI-Aktionen, Schritt 2) liest er für Admins mit bestätigtem zweiten Faktor (`aal2`) Kunden, Projekte und Aufgaben, siehe unten.
 - `app/api/assistant/route.ts` antwortet nur echten Supabase-Logins; die Rolle kommt aus dem Token. Der Verlauf ist auf 20 Nachrichten und 1000 Zeichen pro Frage begrenzt. Vorschau und öffentliche Demo senden keine Fragen an Claude.
 - Der Chat weist aus, dass eine KI antwortet (Transparenzpflicht seit 02.08.2026), und bittet, keine persönlichen Daten einzugeben.
 - CLI-Schnittstelle: Projektbefehl `/hub-hilfe` für Claude Code (`.claude/commands/hub-hilfe.md`). Er liest dieselbe Wissensbasis und bei Bedarf den Code, nur lesend.
