@@ -66,6 +66,15 @@ test("Claude learns the outcome only from the hub's own note", () => {
   assert.match(proposalNote(view, "open"), /noch nicht gespeichert/);
 });
 
+test("the assistant knows today's date, so a day without a year means the coming one", async () => {
+  const { assistantSystem } = await import("../lib/hub-assistant/knowledge.ts");
+  const note = assistantSystem("admin", "web", "tools", new Date("2026-10-28T10:00:00Z"))[1].text;
+  assert.match(note, /Heute ist Mittwoch, 28\. Oktober 2026/);
+  assert.match(note, /ein Datum ohne Jahr meint das nächste kommende/);
+  // The date stays out of the cached block.
+  assert.doesNotMatch(assistantSystem("admin", "web", "tools")[0].text, /Heute ist/);
+});
+
 test("saving claims the proposal once and writes with the admin's own session", async () => {
   const actions = await source("lib/hub-assistant/actions.ts");
   assert.match(actions, /^"use server";/);

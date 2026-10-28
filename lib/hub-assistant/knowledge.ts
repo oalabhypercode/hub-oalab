@@ -176,9 +176,11 @@ const accessNotes: Record<AssistantAccess, string> = {
 };
 
 /** System prompt: the stable rules and knowledge first (cached; one variant with and one without data tools), then role, channel and access. */
-export function assistantSystem(role: AssistantRole, channel: AssistantChannel = "web", access: AssistantAccess = "none") {
+export function assistantSystem(role: AssistantRole, channel: AssistantChannel = "web", access: AssistantAccess = "none", now = new Date()) {
+  // Today's date sits after the cached block, so "bis 15. November" means the coming 15 November, not a guessed year.
+  const today = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(now);
   return [
     { type: "text" as const, text: rulesFor(access), cache_control: { type: "ephemeral" as const } },
-    { type: "text" as const, text: `${roleNotes[role]} ${channelNotes[channel]}${accessNotes[access]}` },
+    { type: "text" as const, text: `${roleNotes[role]} ${channelNotes[channel]}${accessNotes[access]} Heute ist ${today} (Zeitzone Europe/Berlin); ein Datum ohne Jahr meint das nächste kommende.` },
   ];
 }
