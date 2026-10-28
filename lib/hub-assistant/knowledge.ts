@@ -32,7 +32,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Auf Smartphone und Tablet steht unten eine Tab-Leiste mit denselben Bereichen und einer Lupe für „Entdecken“.
 - „Chat“ (Sidebar und Tab-Leiste) öffnet die Serviceplattform service.oalab.de in einem neuen Tab. Dort laufen die Chats und Anfragen; der Hub bleibt im ersten Tab offen.
 - Suche: „Suchen“ in der Sidebar oder Strg+K (Mac: ⌘K). Sie findet Seiten, Kennzahlen und Projekte.
-- Oben rechts auf jeder Seite: die Glocke (Benachrichtigungen) und die Sprechblase „Assistent & Hilfe“ (dieser Assistent). Für Kunden beantwortet er Fragen zum Hub. Admins kann er zusätzlich Kunden, Projekte und Aufgaben aus dem Hub nennen und erklären (nur lesend, nur mit aktivem und beim Login bestätigtem Zwei-Faktor-Schutz); ist ein Projekt geöffnet, meint „dieses Projekt“ dieses. Anlegen oder ändern kann er noch nichts.
+- Oben rechts auf jeder Seite: die Glocke (Benachrichtigungen) und die Sprechblase „Assistent & Hilfe“ (dieser Assistent). Für Kunden beantwortet er Fragen zum Hub. Admins kann er zusätzlich Kunden, Projekte und Aufgaben aus dem Hub nennen und erklären (nur lesend, nur mit aktivem und beim Login bestätigtem Zwei-Faktor-Schutz); im Projektdialog öffnet „Assistent zu diesem Projekt fragen“ den Chat zu diesem Projekt, dann meint „dieses Projekt“ dieses. Anlegen oder ändern kann er noch nichts.
 
 ## Übersicht
 - Begrüßung mit Name, Unternehmen und Kundennummer. Daneben das aktive Servicepaket (Oalab-Website & Mail, lite, extra oder Max) und der Button „Ab zur Serviceplattform“ (service.oalab.de, öffnet einen neuen Tab).
