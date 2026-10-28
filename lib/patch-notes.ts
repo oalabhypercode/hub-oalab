@@ -37,7 +37,7 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 export const patchPackages: PatchPackage[] = [
   {
     number: 6,
-    date: "2026-10-27",
+    date: "2026-10-28",
     title: "Patch Notes und echte Projekte",
     summary: "Der neue Reiter „Patch Notes“ hält jede Änderung am Hub fest. Projekte und Aufgaben kommen jetzt aus OALab Studio statt aus Beispieldaten.",
     changes: [
