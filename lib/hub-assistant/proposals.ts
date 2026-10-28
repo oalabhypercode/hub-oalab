@@ -23,12 +23,20 @@ export type ProposedTask = {
   dueOn: string | null;
   /** An open task with the same title already exists in the project. */
   duplicate: boolean;
+  /** The quote given as evidence does not appear in what the user pasted (see `evidence`). */
+  unsupported: boolean;
 };
 
 export type TaskProposal = { projectId: string; organizationId: string; projectName: string; customer: string | null; tasks: ProposedTask[] };
 
-/** What the chat shows: the stored proposal plus its id and how long it stays valid. */
-export type ProposalView = TaskProposal & { id: string; expiresAt: string };
+/** The stored proposal with its id and how long it stays valid. */
+export type StoredProposal = TaskProposal & { id: string; expiresAt: string };
+
+/**
+ * What the chat shows: the stored proposal plus the quote behind each task. Quotes come from pasted transcripts, so
+ * they only travel to the preview and are never stored with the proposal.
+ */
+export type ProposalView = StoredProposal & { evidence: string[] };
 
 /** The admin's choice per proposed task in the preview: only switches, never new text. */
 export type TaskChoice = { include: boolean; customer: boolean; visible: boolean };
@@ -51,8 +59,9 @@ export const PROPOSE_TASKS_TOOL: Anthropic.Beta.BetaTool = {
             owner: { type: "string", enum: ["oalab", "customer"], description: "Wer die Aufgabe erledigt." },
             visible_to_customer: { type: "boolean", description: "Für den Kunden freigeben; im Zweifel false." },
             due: { anyOf: [{ type: "string", format: "date" }, { type: "null" }], description: "Fälligkeit YYYY-MM-DD, nur wenn genannt." },
+            evidence: { type: "string", description: "Aus einem eingefügten Transkript: wörtliches, kurzes Zitat, das die Aufgabe belegt. Leer, wenn der Nutzer die Aufgabe direkt genannt hat." },
           },
-          required: ["title", "description", "owner", "visible_to_customer", "due"],
+          required: ["title", "description", "owner", "visible_to_customer", "due", "evidence"],
           additionalProperties: false,
         },
       },
@@ -67,10 +76,29 @@ export const PROPOSE_TASKS_TOOL: Anthropic.Beta.BetaTool = {
 /** Lower case without accents and extra spaces, so "Startseite prüfen" equals "startseite  pruefen"-ish titles. */
 export const foldTitle = (text: string) => text.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().replaceAll("ß", "ss").replace(/\s+/g, " ").trim();
 
+/** For matching quotes: case, quote marks, dashes, ellipses and spacing do not matter. */
+export function foldQuote(text: string) {
+  return text.toLowerCase()
+    .replace(/[„“”»«"'‚‘’]/g, "")
+    .replace(/[–—]/g, "-")
+    .replace(/…|\.\.\./g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** A quote counts as found when it appears, folded, in one of the user's own messages. */
+export function quoteFound(quote: string, sources: readonly string[]) {
+  const needle = foldQuote(quote);
+  return needle.length > 0 && sources.some((source) => foldQuote(source).includes(needle));
+}
+
 const isDay = (value: unknown): value is string => typeof value === "string" && day.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 
-/** Checks a propose_tasks call. Unknown projects, empty or oversized titles and bad dates are refused, not repaired. */
-export function prepareTaskProposal(input: unknown, data: AssistantData): { ok: true; proposal: TaskProposal } | { ok: false; error: string } {
+/**
+ * Checks a propose_tasks call. Unknown projects, empty or oversized titles and bad dates are refused, not repaired.
+ * `sources` are the user's own messages: a task whose quote does not appear in them is marked as unsupported.
+ */
+export function prepareTaskProposal(input: unknown, data: AssistantData, sources: readonly string[] = []): { ok: true; proposal: TaskProposal; evidence: string[] } | { ok: false; error: string } {
   const args = input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : null;
   if (!args) return { ok: false, error: "Ungültige Eingabe." };
   const projectId = typeof args.project_id === "string" && uuid.test(args.project_id) ? args.project_id : null;
@@ -83,6 +111,7 @@ export function prepareTaskProposal(input: unknown, data: AssistantData): { ok: 
   const existing = new Set((project.tasks ?? []).filter((task) => task.status !== "done").map((task) => foldTitle(task.title)));
   const seen = new Set<string>();
   const tasks: ProposedTask[] = [];
+  const evidence: string[] = [];
   for (const [index, raw] of args.tasks.entries()) {
     const task = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
     const title = typeof task.title === "string" ? task.title.replace(/\s+/g, " ").trim() : "";
@@ -91,7 +120,9 @@ export function prepareTaskProposal(input: unknown, data: AssistantData): { ok: 
     if (description.length > MAX_DESCRIPTION) return { ok: false, error: `Aufgabe ${index + 1}: Die Beschreibung ist länger als ${MAX_DESCRIPTION} Zeichen.` };
     if (task.owner !== "oalab" && task.owner !== "customer") return { ok: false, error: `Aufgabe ${index + 1}: owner muss oalab oder customer sein.` };
     if (task.due !== null && !isDay(task.due)) return { ok: false, error: `Aufgabe ${index + 1}: due muss ein Datum JJJJ-MM-TT oder null sein.` };
+    const quote = typeof task.evidence === "string" ? task.evidence.trim().slice(0, 500) : "";
     const key = foldTitle(title);
+    evidence.push(quote);
     tasks.push({
       title,
       description,
@@ -99,10 +130,12 @@ export function prepareTaskProposal(input: unknown, data: AssistantData): { ok: 
       visible: task.visible_to_customer === true,
       dueOn: task.due as string | null,
       duplicate: existing.has(key) || seen.has(key),
+      // No quote means the user asked for the task directly; a quote has to be found in what the user wrote.
+      unsupported: quote !== "" && !quoteFound(quote, sources),
     });
     seen.add(key);
   }
-  return { ok: true, proposal: { projectId: project.id, organizationId: project.organizationId, projectName: project.name, customer: project.company ?? null, tasks } };
+  return { ok: true, proposal: { projectId: project.id, organizationId: project.organizationId, projectName: project.name, customer: project.company ?? null, tasks }, evidence };
 }
 
 /** The tasks to save: the stored proposal with the admin's switches applied. Anything that does not fit is refused. */

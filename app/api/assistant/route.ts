@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
-import { cleanConversation } from "@/lib/hub-assistant/conversation";
+import { cleanConversation, MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS } from "@/lib/hub-assistant/conversation";
 import { assistantConfigured, assistantRequest, REFUSAL_TEXT } from "@/lib/hub-assistant/claude";
 import type { AssistantAccess } from "@/lib/hub-assistant/knowledge";
 import { loadAssistantData } from "@/lib/hub-assistant/data";
@@ -23,14 +23,18 @@ const MAX_ROUNDS = 8;
 
 type StreamEvent = "text" | "tool" | "proposal" | "error";
 
-/** propose_tasks: check the proposal, store it for the admin and show it as a preview card; nothing is saved in Studio. */
-async function proposeTasks(input: unknown, store: AssistantData, userId: string, send: (t: StreamEvent, v: string) => void): Promise<ToolOutcome> {
-  const prepared = prepareTaskProposal(input, store);
+/**
+ * propose_tasks: check the proposal against the user's own messages, store it for the admin and show it as a preview
+ * card; nothing is saved in Studio. The quotes go only to the preview, never into the database.
+ */
+async function proposeTasks(input: unknown, store: AssistantData, userId: string, sources: readonly string[], send: (t: StreamEvent, v: string) => void): Promise<ToolOutcome> {
+  const prepared = prepareTaskProposal(input, store, sources);
   if (!prepared.ok) return prepared;
   const saved = await saveTaskProposal(userId, prepared.proposal);
   if (!saved.ok) return saved;
-  send("proposal", JSON.stringify(saved.view));
+  send("proposal", JSON.stringify({ ...saved.view, evidence: prepared.evidence }));
   const duplicates = saved.view.tasks.filter((task) => task.duplicate).length;
+  const unsupported = saved.view.tasks.filter((task) => task.unsupported).length;
   return {
     ok: true,
     content: JSON.stringify({
@@ -38,6 +42,8 @@ async function proposeTasks(input: unknown, store: AssistantData, userId: string
       state: "Vorschau angezeigt, NICHT gespeichert. Der Nutzer prüft und speichert selbst.",
       tasks: saved.view.tasks.length,
       possible_duplicates: duplicates,
+      // Deselected in the preview; the assistant should say which quotes it could not back up.
+      quotes_not_found: unsupported,
     }),
   };
 }
@@ -64,12 +70,13 @@ export async function POST(request: Request) {
   if (!activeError && active !== true) return failure(403, "Der Assistent steht dir zur Verfügung, sobald dein Zugang freigegeben ist.");
   if (!assistantConfigured()) return failure(503, "Der Assistent ist noch nicht eingerichtet. Es fehlt der API-Schlüssel (ANTHROPIC_API_KEY).");
 
-  const body = await request.json().catch(() => null) as { messages?: unknown; context?: unknown } | null;
-  const conversation = cleanConversation(body?.messages);
-  if (!conversation.ok) return failure(400, conversation.error);
   // The role comes from the verified token, never from the browser.
   const admin = (data.claims.app_metadata as Record<string, unknown> | undefined)?.app_role === "oalab_admin";
   const userId = data.claims.sub;
+  const body = await request.json().catch(() => null) as { messages?: unknown; context?: unknown } | null;
+  // Admins may paste meeting transcripts; customers keep the short question limit.
+  const conversation = cleanConversation(body?.messages, admin ? MAX_ADMIN_QUESTION_CHARS : MAX_QUESTION_CHARS);
+  if (!conversation.ok) return failure(400, conversation.error);
 
   // Data tools only for an admin the database confirms, signed in with a confirmed second factor.
   let access: AssistantAccess = "none";
@@ -84,6 +91,8 @@ export async function POST(request: Request) {
   // The open page as an operator note after the question: the cached prefix stays the same, and a project id from
   // the browser only reaches Claude if this admin can see that project.
   const context = store ? describeContext(readContext(body?.context), store) : null;
+  // What the user wrote in this conversation; quotes behind proposed tasks have to come from here.
+  const sources = conversation.turns.filter((turn) => turn.role === "user").map((turn) => turn.content);
   if (context) messages.push({ role: "system", content: context });
 
   const client = new Anthropic();
@@ -117,7 +126,7 @@ export async function POST(request: Request) {
           for (const block of message.content) {
             if (block.type !== "tool_use") continue;
             send("tool", toolStatus(block.name, block.input, store));
-            const outcome = block.name === "propose_tasks" ? await proposeTasks(block.input, store, userId, send) : runAssistantTool(block.name, block.input, store);
+            const outcome = block.name === "propose_tasks" ? await proposeTasks(block.input, store, userId, sources, send) : runAssistantTool(block.name, block.input, store);
             results.push(outcome.ok
               ? { type: "tool_result", tool_use_id: block.id, content: outcome.content }
               : { type: "tool_result", tool_use_id: block.id, content: outcome.error, is_error: true });

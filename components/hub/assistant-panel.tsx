@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUp, Check, Loader2, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
-import { MAX_QUESTION_CHARS, MAX_TURNS, type AssistantTurn } from "@/lib/hub-assistant/conversation";
+import { MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS, MAX_TURNS, type AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { proposalNote, type ProposalView, type TaskChoice } from "@/lib/hub-assistant/proposals";
 import { confirmTaskProposal, discardTaskProposal } from "@/lib/hub-assistant/actions";
 import { formatDeadline } from "@/lib/hub-data";
@@ -38,6 +38,8 @@ type PanelProps = {
 
 /** Chat with the hub assistant (Claude); the conversation lives in the shell so it survives page changes. */
 export function AssistantPanel({ turns, setTurns, admin, available, onClose }: PanelProps) {
+  // Admins paste meeting transcripts; the server applies the same limit by role.
+  const limit = admin ? MAX_ADMIN_QUESTION_CHARS : MAX_QUESTION_CHARS;
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +52,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
   }, [turns, error]);
 
   async function ask(question: string) {
-    const text = question.trim().slice(0, MAX_QUESTION_CHARS);
+    const text = question.trim().slice(0, limit);
     if (!text || busy) return;
     const history: ChatTurn[] = [...turns, { role: "user", content: text }];
     setTurns([...history, { role: "assistant", content: "" }]);
@@ -92,7 +94,8 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
           if (event.t === "proposal") {
             // New tasks start as the assistant proposed them; the admin can switch each one before saving.
             const view = JSON.parse(event.v) as ProposalView;
-            proposals.push({ view, choices: view.tasks.map((task) => ({ include: !task.duplicate, customer: task.customer, visible: task.visible })), state: "open" });
+            // Possible duplicates and tasks whose quote is not in the pasted text start deselected.
+            proposals.push({ view, choices: view.tasks.map((task) => ({ include: !task.duplicate && !task.unsupported, customer: task.customer, visible: task.visible })), state: "open" });
           } else {
             answer += event.v;
             setStatus("");
@@ -182,8 +185,8 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
             rows={2}
-            maxLength={MAX_QUESTION_CHARS}
-            placeholder="Frag mich etwas zum Client Hub …"
+            maxLength={limit}
+            placeholder={admin ? "Frag mich etwas oder füge ein Meeting-Transkript ein …" : "Frag mich etwas zum Client Hub …"}
             aria-label="Frage an den Assistenten"
             disabled={busy}
           />
@@ -191,7 +194,9 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
         </form>
       )}
       <div className="assistant-footer">
-        <span>Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation{admin ? " und der Daten im Hub" : ""} und können Fehler enthalten. Bitte keine persönlichen Daten eingeben.</span>
+        <span>{admin
+          ? "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und der Daten im Hub und können Fehler enthalten. Eingefügte Transkripte verarbeitet Anthropic im Auftrag von OALAB; der Hub speichert sie nicht."
+          : "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und können Fehler enthalten. Bitte keine persönlichen Daten eingeben."}</span>
         {turns.length > 0 && <button type="button" onClick={() => { setTurns([]); setError(""); }} disabled={busy}><RotateCcw size={14} aria-hidden="true" />Neu starten</button>}
       </div>
     </Modal>
@@ -219,12 +224,14 @@ function ProposalCard({ item, onChoose, onDecide }: { item: ProposalState; onCho
               <span>{task.title}</span>
             </label>
             {task.description && <p className="proposal-description">{task.description}</p>}
+            {view.evidence?.[index] && <blockquote className="proposal-evidence">„{view.evidence[index]}“</blockquote>}
             <div className="proposal-switches">
               <button type="button" disabled={!editable} aria-pressed={choices[index].customer} onClick={() => set(index, { customer: !choices[index].customer })}>{choices[index].customer ? "Kunde" : "OALAB"}</button>
               <button type="button" disabled={!editable} aria-pressed={choices[index].visible} onClick={() => set(index, { visible: !choices[index].visible })}>{choices[index].visible ? "Für Kunde sichtbar" : "Intern"}</button>
               <span>{task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : "ohne Fälligkeit"}</span>
             </div>
             {task.duplicate && <p className="proposal-warning"><TriangleAlert size={14} aria-hidden="true" /> Eine offene Aufgabe mit diesem Titel gibt es schon.</p>}
+            {task.unsupported && <p className="proposal-warning"><TriangleAlert size={14} aria-hidden="true" /> Dieses Zitat steht so nicht im eingefügten Text. Bitte prüfen.</p>}
             {choices[index].customer && !choices[index].visible && choices[index].include && <p className="proposal-hint">Der Kunde sieht diese Aufgabe erst, wenn sie freigegeben ist.</p>}
           </li>
         ))}

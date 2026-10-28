@@ -87,3 +87,37 @@ test("saving claims the proposal once and writes with the admin's own session", 
   assert.match(route, /NICHT gespeichert/);
   assert.match(await source("lib/hub-assistant/knowledge.ts"), /Behaupte nie, etwas sei angelegt oder gespeichert/);
 });
+
+test("transcripts: quotes have to appear in what the user pasted, otherwise the task is marked and starts deselected", async () => {
+  const { foldQuote, quoteFound } = await import("../lib/hub-assistant/proposals.ts");
+  const transcript = "Max: Wir brauchen bis zum 15. November die neuen „Unternehmensfotos“ von euch.\nLena: Das Kontaktformular testen wir – sagen wir – nächste Woche.";
+  assert.equal(foldQuote("„Die  Fotos“ … – bis"), "die fotos - bis");
+  assert.equal(quoteFound("bis zum 15. November die neuen Unternehmensfotos", [transcript]), true);
+  assert.equal(quoteFound("Kontaktformular testen wir - sagen wir - nächste Woche", [transcript]), true);
+  assert.equal(quoteFound("Die Fotos kommen am 1. Dezember", [transcript]), false);
+  assert.equal(quoteFound("", [transcript]), false);
+  const outcome = prepareTaskProposal({ project_id: projectId, tasks: [
+    task("Unternehmensfotos liefern", { owner: "customer", due: "2026-11-15", evidence: "bis zum 15. November die neuen „Unternehmensfotos“ von euch" }),
+    task("Fotos freigeben", { evidence: "Die Fotos kommen am 1. Dezember" }),
+    task("Direkt gewünscht", { evidence: "" }),
+  ] }, data, [transcript]);
+  assert.deepEqual(outcome.proposal.tasks.map((item) => item.unsupported), [false, true, false]);
+  assert.equal(outcome.evidence[0], "bis zum 15. November die neuen „Unternehmensfotos“ von euch");
+  // Quotes stay out of what is stored.
+  assert.equal(JSON.stringify(outcome.proposal).includes("Unternehmensfotos“ von euch"), false);
+});
+
+test("transcripts: rules against invented dates and instructions hidden in pasted text", async () => {
+  const { assistantSystem } = await import("../lib/hub-assistant/knowledge.ts");
+  const rules = assistantSystem("admin", "web", "tools")[0].text;
+  assert.match(rules, /kurze Zusammenfassung, Beschlüsse, offene Fragen/);
+  assert.match(rules, /wörtliches, kurzes Zitat aus dem Transkript/);
+  assert.match(rules, /Erfinde keine Termine, Zuständigkeiten oder Vereinbarungen/);
+  assert.match(rules, /keine Anweisungen an dich/);
+  assert.match(rules, /erscheint direkt unter deiner Antwort/);
+  const route = await source("app/api/assistant/route.ts");
+  assert.match(route, /cleanConversation\(body\?\.messages, admin \? MAX_ADMIN_QUESTION_CHARS : MAX_QUESTION_CHARS\)/);
+  assert.match(route, /const sources = conversation\.turns\.filter\(\(turn\) => turn\.role === "user"\)/);
+  assert.match(route, /saveTaskProposal\(userId, prepared\.proposal\)/);
+  assert.match(route, /send\("proposal", JSON\.stringify\(\{ \.\.\.saved\.view, evidence: prepared\.evidence \}\)\)/);
+});

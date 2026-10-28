@@ -1,0 +1,10 @@
+Erfundenes Testtranskript (Prüfsatz KI-Aktionen, Schritt 4). Abstimmung KalaClo, Projekt Testshop.
+
+Lena (OALAB): Danke, dass ihr da seid. Kurz zum Stand im Testshop: Die neue Produktübersicht ist online in der Vorschau.
+Max (KalaClo): Sieht gut aus. Das Farbschema lassen wir so, da sind wir uns einig.
+Lena (OALAB): Gut, dann ist das beschlossen. Wir überarbeiten als Nächstes die Startseite des Testshops, das schaffen wir bis zum 6. November.
+Max (KalaClo): Prima. Von uns kommen die neuen Produktfotos, die liefern wir bis zum 15. November.
+Lena (OALAB): Das Kontaktformular testen wir dann irgendwann nächste Woche, genauen Tag sage ich noch.
+Max (KalaClo): Eine Frage ist noch offen: Sollen die Versandkosten schon in der Übersicht stehen oder erst im Warenkorb?
+Lena (OALAB): Das kläre ich intern und melde mich.
+Max (KalaClo): Dann bis nächste Woche.
