@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { AssistantTurn } from "./conversation";
 import { ASSISTANT_MODEL, assistantSystem, type AssistantAccess, type AssistantChannel, type AssistantRole } from "./knowledge";
 import { ASSISTANT_TOOLS } from "./tools";
+import { PROPOSE_TASKS_TOOL } from "./proposals";
 
 // One Claude request for both channels: the hub chat streams it, WhatsApp waits for the whole answer.
 
@@ -21,7 +22,8 @@ export function assistantRequest(messages: Anthropic.Beta.BetaMessageParam[], ro
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default" as const,
     system: assistantSystem(role, channel, access),
-    ...(tools ? { tools: ASSISTANT_TOOLS } : {}),
+    // Read tools plus one proposal tool; nothing the assistant calls writes to Studio.
+    ...(tools ? { tools: [...ASSISTANT_TOOLS, PROPOSE_TASKS_TOOL] } : {}),
     messages,
   };
 }

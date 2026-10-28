@@ -4,19 +4,43 @@ import { cleanConversation } from "@/lib/hub-assistant/conversation";
 import { assistantConfigured, assistantRequest, REFUSAL_TEXT } from "@/lib/hub-assistant/claude";
 import type { AssistantAccess } from "@/lib/hub-assistant/knowledge";
 import { loadAssistantData } from "@/lib/hub-assistant/data";
-import { describeContext, readContext, runAssistantTool, toolStatus, type AssistantData } from "@/lib/hub-assistant/tools";
+import { describeContext, readContext, runAssistantTool, toolStatus, type AssistantData, type ToolOutcome } from "@/lib/hub-assistant/tools";
+import { prepareTaskProposal } from "@/lib/hub-assistant/proposals";
+import { saveTaskProposal } from "@/lib/hub-assistant/action-store";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 
 // The hub assistant: answers questions about the platform with Claude. Only signed-in Supabase users reach it (public
 // demo and preview never do). Customers get help only; verified admins with a confirmed second factor may also let it
-// read customers, projects and tasks through read-only tools. Nothing here writes.
-// The answer streams back as one JSON object per line: {"t":"text"|"tool"|"error","v":"…"}.
+// read customers, projects and tasks, and propose new tasks. Nothing here writes to Studio: a proposal is only stored
+// for the admin to confirm in the chat (lib/hub-assistant/actions.ts).
+// The answer streams back as one JSON object per line: {"t":"text"|"tool"|"proposal"|"error","v":"…"}.
 
 export const maxDuration = 120;
 
 /** Tool rounds per question; more means the question is too broad. */
 const MAX_ROUNDS = 8;
+
+type StreamEvent = "text" | "tool" | "proposal" | "error";
+
+/** propose_tasks: check the proposal, store it for the admin and show it as a preview card; nothing is saved in Studio. */
+async function proposeTasks(input: unknown, store: AssistantData, userId: string, send: (t: StreamEvent, v: string) => void): Promise<ToolOutcome> {
+  const prepared = prepareTaskProposal(input, store);
+  if (!prepared.ok) return prepared;
+  const saved = await saveTaskProposal(userId, prepared.proposal);
+  if (!saved.ok) return saved;
+  send("proposal", JSON.stringify(saved.view));
+  const duplicates = saved.view.tasks.filter((task) => task.duplicate).length;
+  return {
+    ok: true,
+    content: JSON.stringify({
+      proposal_id: saved.view.id,
+      state: "Vorschau angezeigt, NICHT gespeichert. Der Nutzer prüft und speichert selbst.",
+      tasks: saved.view.tasks.length,
+      possible_duplicates: duplicates,
+    }),
+  };
+}
 
 const failure = (status: number, error: string) => Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -45,6 +69,7 @@ export async function POST(request: Request) {
   if (!conversation.ok) return failure(400, conversation.error);
   // The role comes from the verified token, never from the browser.
   const admin = (data.claims.app_metadata as Record<string, unknown> | undefined)?.app_role === "oalab_admin";
+  const userId = data.claims.sub;
 
   // Data tools only for an admin the database confirms, signed in with a confirmed second factor.
   let access: AssistantAccess = "none";
@@ -67,7 +92,7 @@ export async function POST(request: Request) {
 
   return new Response(new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (t: "text" | "tool" | "error", v: string) => controller.enqueue(encoder.encode(`${JSON.stringify({ t, v })}\n`));
+      const send = (t: StreamEvent, v: string) => controller.enqueue(encoder.encode(`${JSON.stringify({ t, v })}\n`));
       let wroteText = false;
       try {
         for (let round = 0; ; round++) {
@@ -88,14 +113,15 @@ export async function POST(request: Request) {
           if (round + 1 >= MAX_ROUNDS) { send("text", "\n\nDafür bräuchte ich zu viele Schritte. Bitte stell die Frage etwas genauer."); break; }
           // The assistant's turn goes back unchanged (thinking and tool calls included), followed by all results at once.
           messages.push({ role: "assistant", content: message.content });
-          const results: Anthropic.Beta.BetaToolResultBlockParam[] = message.content.flatMap((block) => {
-            if (block.type !== "tool_use") return [];
+          const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+          for (const block of message.content) {
+            if (block.type !== "tool_use") continue;
             send("tool", toolStatus(block.name, block.input, store));
-            const outcome = runAssistantTool(block.name, block.input, store);
-            return [outcome.ok
-              ? { type: "tool_result" as const, tool_use_id: block.id, content: outcome.content }
-              : { type: "tool_result" as const, tool_use_id: block.id, content: outcome.error, is_error: true }];
-          });
+            const outcome = block.name === "propose_tasks" ? await proposeTasks(block.input, store, userId, send) : runAssistantTool(block.name, block.input, store);
+            results.push(outcome.ok
+              ? { type: "tool_result", tool_use_id: block.id, content: outcome.content }
+              : { type: "tool_result", tool_use_id: block.id, content: outcome.error, is_error: true });
+          }
           messages.push({ role: "user", content: results });
         }
       } catch (cause) {

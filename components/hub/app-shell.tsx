@@ -5,13 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageSquare, Search } from "lucide-react";
 import { signOutAction } from "@/lib/hub-auth/actions";
-import type { AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { categories } from "@/lib/categories";
 import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { AppearanceProvider } from "./appearance-provider";
-import { AssistantPanel } from "./assistant-panel";
+import { AssistantPanel, type ChatTurn } from "./assistant-panel";
 import { BackgroundLayer } from "./background-layer";
 import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
@@ -43,7 +42,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const [read, setRead] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
-  const [assistantTurns, setAssistantTurns] = useState<AssistantTurn[]>([]);
+  const [assistantTurns, setAssistantTurns] = useState<ChatTurn[]>([]);
   const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
   const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
   // Real logins take their name, company and packages from the user management; demo logins keep the fixtures.
