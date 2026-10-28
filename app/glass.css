@@ -1167,3 +1167,33 @@ a.teams-join:active { transform: scale(0.97); }
 .project-task-meta { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .project-tasks li.is-done .project-task-title { color: var(--label-secondary); text-decoration: line-through; }
 .project-ask { margin-top: 16px; }
+
+/* Task proposals of the assistant: a preview the admin checks before anything is saved */
+.proposal-card { margin-top: 10px; padding: 12px; border-radius: 14px; background: #ffffff; border: 1px solid var(--separator); }
+.assistant-bubble > .proposal-card:first-child { margin-top: 0; }
+.proposal-card header { display: grid; gap: 2px; margin-bottom: 8px; }
+.proposal-card header strong { font-size: 15px; }
+.proposal-card header span { font-size: 13px; color: var(--label-secondary); }
+.proposal-card ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.proposal-card li { padding-top: 10px; border-top: 1px solid var(--separator); }
+.proposal-card li:first-child { padding-top: 0; border-top: 0; }
+.proposal-card li.is-off .proposal-pick span { color: var(--label-secondary); text-decoration: line-through; }
+.proposal-pick { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; }
+.proposal-pick input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent-text); flex: 0 0 auto; }
+.proposal-description { margin: 2px 0 0 26px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.proposal-switches { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0 26px; font-size: 13px; color: var(--label-secondary); }
+.proposal-switches button { min-height: 28px; padding: 0 10px; border-radius: 999px; background: var(--fill-tertiary); color: var(--label-body); font-size: 13px; font-weight: 600; }
+.proposal-switches button[aria-pressed="true"] { background: rgba(255, 149, 0, 0.22); color: #7f2100; }
+.proposal-switches button:disabled { opacity: 0.6; }
+.proposal-warning, .proposal-hint { display: flex; gap: 5px; align-items: center; margin: 6px 0 0 26px; font-size: 13px; line-height: 18px; }
+.proposal-warning { color: #8a1c14; }
+.proposal-hint { color: var(--label-secondary); }
+.proposal-done { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-weight: 600; color: #124e20; }
+.proposal-link { display: inline-block; margin-top: 4px; font-weight: 600; color: var(--accent-text); }
+.proposal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.proposal-actions button { min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.proposal-discard { background: var(--fill-tertiary); color: var(--label-body); }
+.proposal-save { background: var(--accent-text); color: #ffffff; }
+.proposal-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
+.proposal-expiry { margin-top: 6px; font-size: 12px; color: var(--label-secondary); text-align: right; }
+.proposal-card .form-error { margin-top: 10px; }
