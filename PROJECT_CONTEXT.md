@@ -3,7 +3,7 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 25. Oktober 2026
+**Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
 ### Designentscheidung vom 19. Oktober 2026: Client Hub im Liquid-Glass-Stil
@@ -30,6 +30,12 @@
 - Hauptlogo und Iconvariante sind als gelieferte Originaldateien eingebunden.
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
+
+### Vorgabe vom 27. Oktober 2026: Reiter „Patch Notes“
+
+- Neuer Reiter **Patch Notes** (`/dashboard/patch-notes`, `/preview/patch-notes`): Alle Änderungen am Hub stehen dort als Pakete, eines pro Livegang-Tag, mit Nummer, Datum und Einträgen der Arten Neu, Verbessert, Behoben und Sicherheit. Rückwirkend ab dem 15. Oktober 2026 aus der Git-Historie erfasst; reine Doku-Änderungen ohne Wirkung auf den Hub fehlen.
+- Entscheidungen des Nutzers: Admins sehen alles (dazu je Paket eine Zusammenfassung, interne Einträge mit „Intern“), Kunden nur die für sie markierten Einträge. Platz in der Sidebar: bei Admins unter „Verwaltung“, bei Kunden unter einer eigenen Überschrift „Neuigkeiten“; auf dem Smartphone über „Entdecken“. Die Tab-Leiste bleibt bei sieben Einträgen. Vorschau und öffentliche Demo zeigen die Kundenauswahl.
+- Quelle ist `lib/patch-notes.ts`, versioniert mit dem Code, ohne Datenbank. Pflegeregel in `CLAUDE.md`: jeder PR, der auf `main` geht, ergänzt das Paket seines Livegang-Tags. `tests/patch-notes.test.mjs` prüft Reihenfolge, Kundenfilter und dass keine Adressen, Links oder Schlüssel darin stehen.
 
 ### Vorgabe vom 22. Oktober 2026: Kalender und Reiter „Projekte“
 
@@ -294,6 +300,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/messages` | Geschützt | Zugeordnete Beispielunterhaltung ohne Versand |
 | `/dashboard/calendar` | Geschützt | Kalender: Admins planen Termine mit Teams-Link und beantworten Anfragen; Kunden sehen die Auslastung und fragen Termine an |
 | `/dashboard/users` | Nur Admins | User Management: Registrierungen freigeben, Logins und Kunden anlegen, bearbeiten, sperren und löschen |
+| `/dashboard/patch-notes` | Geschützt | Patch Notes: alle Änderungen als Pakete pro Livegang; Admins sehen alles, Kunden die für sie markierten Einträge |
 | `/dashboard/insights` | Geschützt | Insights und alle Highlights |
 | `/dashboard/discover` | Geschützt | Entdecken: Kategorien, Kennzahlen und Konto durchsuchen |
 | `/dashboard/metrics/<kennzahl>` | Geschützt | Detailseite einer Kennzahl mit Zeitraum-Umschalter |

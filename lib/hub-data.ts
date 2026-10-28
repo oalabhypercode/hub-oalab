@@ -1,7 +1,7 @@
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
 import type { ServicePackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover", "users"] as const;
+export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover", "users", "patch-notes"] as const;
 /** Sections only admins may open. */
 export const adminSections: readonly HubSection[] = ["users"];
 export type HubSection = "overview" | (typeof hubSections)[number];
@@ -16,6 +16,7 @@ export const sectionLabels: Record<HubSection, string> = {
   insights: "Insights",
   discover: "Entdecken",
   users: "User Management",
+  "patch-notes": "Patch Notes",
 };
 
 /** Admins see some sections under their own names: for them the file exchange is the "Asset Management". */

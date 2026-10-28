@@ -1139,3 +1139,22 @@ a.teams-join:active { transform: scale(0.97); }
 }
 .load-error { display: grid; gap: 12px; justify-items: start; }
 .load-error .button-primary { margin-top: 8px; }
+
+/* Patch notes: one glass card per package, each change with its kind as a pill */
+/* The intro sits on the background, not on glass, so it takes the background's text colour like the large title. */
+.patch-intro { max-width: 680px; font-weight: 600; color: var(--on-bg-soft); }
+.patch-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 4px; font-weight: 600; }
+.patch-summary { margin-top: 6px; max-width: 680px; }
+.patch-changes { display: grid; gap: 14px; margin: 16px 0 0; padding: 0; list-style: none; }
+.patch-changes li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 12px; align-items: start; }
+.patch-changes li p + p { margin-top: 2px; }
+.patch-kind { justify-content: center; margin-top: 1px; }
+.patch-kind-new { color: #004285; background: rgba(0, 122, 255, 0.14); }
+.patch-kind-improved { color: #124e20; background: rgba(52, 199, 89, 0.18); }
+.patch-kind-fixed { color: #7f2100; background: rgba(255, 149, 0, 0.22); }
+.patch-kind-security { color: #8a1c14; background: rgba(255, 59, 48, 0.16); }
+.patch-internal { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 16px; font-weight: 600; vertical-align: 2px; color: var(--label-secondary); background: var(--fill-tertiary); }
+@media (max-width: 520px) {
+  .patch-changes li { grid-template-columns: minmax(0, 1fr); }
+  .patch-kind { justify-self: start; }
+}

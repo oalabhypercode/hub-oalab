@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Building2, CalendarDays, FileText, Layers, LogOut, MessageSquare, Palette, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { ArrowUpRight, Building2, CalendarDays, FileText, Layers, LogOut, MessageSquare, Palette, ScrollText, ShieldCheck, UserCog, UserRound } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
@@ -55,12 +55,12 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}
       {/* The tab bar has no room for it, so phones reach the user management from here. */}
-      {manageUsers && <>
-        <SectionHeader title="Verwaltung" />
-        <InsetGroupedList label="Verwaltung" className="list-icons">
-          <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Logins und Kunden" />
-        </InsetGroupedList>
-      </>}
+      {/* Same split as the sidebar: admins find the patch notes under "Verwaltung", customers under "Neuigkeiten". */}
+      <SectionHeader title={manageUsers ? "Verwaltung" : "Neuigkeiten"} />
+      <InsetGroupedList label={manageUsers ? "Verwaltung" : "Neuigkeiten"} className="list-icons">
+        {manageUsers && <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Logins und Kunden" />}
+        <ListRow compact href={hubHref(preview, "patch-notes")} icon={<ScrollText size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels["patch-notes"]} subtitle="Alle Änderungen am Hub, Paket für Paket" />
+      </InsetGroupedList>
       <SectionHeader title="Konto" />
       <InsetGroupedList label="Konto" className="list-icons">
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" />
