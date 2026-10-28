@@ -95,6 +95,8 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     startedOn: details?.start_date ?? null,
     dueOn,
     milestones: toMilestones(details?.milestones),
+    progressBasis: tasks.length ? "tasks" : requests.done + requests.open ? "requests" : "none",
+    requests,
     tasks: [...tasks].sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999") || a.number - b.number),
   };
 }

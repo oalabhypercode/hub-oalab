@@ -17,6 +17,10 @@ test("progress is the share of done tasks, like Studio", () => {
   // Without tasks Studio falls back to the finished requests.
   assert.equal(project([], { requests: { open: 1, done: 3 } }).progress, 75);
   assert.equal(project([]).progress, 0);
+  // The basis travels along, so the assistant can explain the number.
+  assert.equal(project([task("done")]).progressBasis, "tasks");
+  assert.equal(project([], { requests: { open: 1, done: 3 } }).progressBasis, "requests");
+  assert.equal(project([]).progressBasis, "none");
 });
 
 test("status: complete in Studio, waiting for a released customer task, otherwise running", () => {

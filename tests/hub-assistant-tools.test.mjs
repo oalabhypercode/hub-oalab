@@ -38,7 +38,20 @@ test("search finds customers and projects and returns every match, so the assist
   assert.deepEqual(hits.projects.map((item) => item.name), ["Logo"]);
   assert.equal(run("search", { query: "KD-1", kind: "customer" }).customers[0].customer_id, ids.abc);
   assert.ok(run("search", { query: "Zebra", kind: "all" }).note);
-  assert.equal(run("search", { query: "", kind: "all" }).ok, false);
+  // An empty query lists everything, so "alle laufenden Projekte" needs no guessing.
+  assert.deepEqual(run("search", { query: "", kind: "project" }).projects.map((item) => item.name), ["Website-Relaunch", "Logo"]);
+  assert.equal(run("search", { kind: "all" }).ok, false);
+  assert.equal(toolStatus("search", { query: "" }, data), "Lese alle Kunden und Projekte …");
+});
+
+test("the assistant learns what a progress is based on and that missing tasks are the real state", () => {
+  const withRequests = { ...data, projects: [{ ...data.projects[1], progress: 56, progressBasis: "requests", requests: { open: 4, done: 5 } }] };
+  const outcome = runAssistantTool("get_project", { project_id: ids.logo }, withRequests);
+  const project = JSON.parse(outcome.content);
+  assert.match(project.progress_basis, /Anfragen/);
+  assert.equal(project.requests_done, 5);
+  assert.match(project.note, /keine Aufgaben angelegt/);
+  assert.equal(run("get_project", { project_id: ids.web }).note, undefined);
 });
 
 test("customer and project answers carry only what the hub shows", () => {

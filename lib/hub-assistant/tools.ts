@@ -38,6 +38,8 @@ export type ToolOutcome = { ok: true; content: string } | { ok: false; error: st
 export type AssistantContext = { section: string; projectId: string | null };
 
 const MAX_HITS = 10;
+/** An empty search lists everything, up to this many. */
+const MAX_LISTED = 50;
 const MAX_TASKS = 60;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,11 +48,11 @@ const nullableId = { anyOf: [{ type: "string" }, { type: "null" }], description:
 export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "search",
-    description: "Sucht Kunden (Unternehmen, Kundennummer) und Projekte (Projektname, Kunde) im Client Hub. Nutze das zuerst, wenn der Nutzer einen Kunden oder ein Projekt mit Namen nennt. Liefert höchstens 10 Treffer mit IDs. Bei mehreren passenden Treffern frag nach, welcher gemeint ist, statt zu raten.",
+    description: "Sucht Kunden (Unternehmen, Kundennummer) und Projekte (Projektname, Kunde) im Client Hub. Nutze das zuerst, wenn der Nutzer einen Kunden oder ein Projekt mit Namen nennt; dann höchstens 10 Treffer mit IDs. Bei mehreren passenden Treffern frag nach, welcher gemeint ist, statt zu raten. Ein leerer Suchbegriff listet alle Kunden bzw. Projekte (höchstens 50), etwa für „alle laufenden Projekte“.",
     input_schema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Suchbegriff, z. B. „Müller“, „KD-24017“ oder „Website-Relaunch“." },
+        query: { type: "string", description: "Suchbegriff, z. B. „Müller“, „KD-24017“ oder „Website-Relaunch“; leer für alle." },
         kind: { type: "string", enum: ["all", "customer", "project"], description: "Was gesucht wird." },
       },
       required: ["query", "kind"],
@@ -114,12 +116,20 @@ const taskJson = (task: ProjectTask, project?: Project) => ({
   ...(project ? { project: project.name, project_id: project.id, customer: project.company ?? null } : {}),
 });
 
+const progressBases = {
+  tasks: "Anteil erledigter Aufgaben",
+  requests: "Anteil fertiger Anfragen auf der Serviceplattform, weil im Studio keine Aufgaben angelegt sind (so rechnet auch das Studio)",
+  none: "keine Aufgaben und keine Anfragen, daher 0 %",
+} as const;
+
 const projectSummary = (project: Project) => ({
   project_id: project.id,
   name: project.name,
   customer: project.company ?? null,
   status: project.status,
   progress_percent: project.progress,
+  progress_basis: project.progressBasis ? progressBases[project.progressBasis] : null,
+  ...(project.progressBasis === "requests" && project.requests ? { requests_open: project.requests.open, requests_done: project.requests.done } : {}),
   due: project.dueOn,
   open_tasks: (project.tasks ?? []).filter((task) => task.status !== "done").length,
 });
@@ -142,14 +152,15 @@ export function runAssistantTool(name: string, input: unknown, data: AssistantDa
   if (name === "search") {
     const query = text(args.query, 100);
     const kind = pick(args.kind, ["all", "customer", "project"] as const);
-    if (!query || !kind) return refuse("Bitte einen Suchbegriff und die Art (all, customer, project) angeben.");
+    if (typeof args.query !== "string" || !kind) return refuse("Bitte einen Suchbegriff (leer für alle) und die Art (all, customer, project) angeben.");
+    const limit = query ? MAX_HITS : MAX_LISTED;
     const customers = kind === "project" ? [] : data.customers
       .filter((customer) => matchesSearch(query, [customer.company, customer.customerNumber, customer.city]))
-      .slice(0, MAX_HITS)
+      .slice(0, limit)
       .map((customer) => ({ customer_id: customer.id, company: customer.company, customer_number: customer.customerNumber, projects: projectsOf(data, customer).length }));
     const projects = kind === "customer" ? [] : data.projects
       .filter((project) => matchesSearch(query, [project.name, project.company]))
-      .slice(0, MAX_HITS)
+      .slice(0, limit)
       .map(projectSummary);
     return answer({ customers, projects, note: customers.length + projects.length ? undefined : "Keine Treffer. Frag nach der genauen Schreibweise oder der Kundennummer." });
   }
@@ -180,6 +191,8 @@ export function runAssistantTool(name: string, input: unknown, data: AssistantDa
       description: project.description || null,
       milestones: project.milestones.map((item) => ({ name: item.title, date: item.at.slice(0, 10) })),
       tasks: (project.tasks ?? []).map((task) => taskJson(task)),
+      // Without this the assistant took an empty task list for a broken sync.
+      note: project.tasks?.length ? undefined : "Im Studio sind für dieses Projekt keine Aufgaben angelegt. Das ist der echte Stand, kein Fehler bei der Übertragung.",
     });
   }
 
@@ -207,7 +220,7 @@ export function runAssistantTool(name: string, input: unknown, data: AssistantDa
 /** One line for the chat while a tool runs, e.g. "Suche „Müller“ …". */
 export function toolStatus(name: string, input: unknown, data: AssistantData) {
   const args = object(input) ?? {};
-  if (name === "search") return `Suche „${text(args.query, 40) || "…"}“ …`;
+  if (name === "search") return text(args.query, 40) ? `Suche „${text(args.query, 40)}“ …` : "Lese alle Kunden und Projekte …";
   if (name === "get_customer") return `Lese Kunde ${data.customers.find((item) => item.id === args.customer_id)?.company ?? ""} …`.replace("  ", " ");
   if (name === "get_project") return `Lese Projekt ${data.projects.find((item) => item.id === args.project_id)?.name ?? ""} …`.replace("  ", " ");
   if (name === "list_tasks") return "Lese Aufgaben …";
