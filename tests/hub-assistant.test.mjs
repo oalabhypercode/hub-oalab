@@ -56,3 +56,19 @@ test("the route requires a login before calling Claude and the CLI command reads
   assert.match(command, /lib\/hub-assistant\/knowledge\.ts/);
   assert.match(command, /allowed-tools: Read, Grep, Glob/);
 });
+
+test("admins may paste long transcripts, the whole history stays bounded", async () => {
+  const { MAX_ADMIN_QUESTION_CHARS, MAX_HISTORY_CHARS } = await import("../lib/hub-assistant/conversation.ts");
+  const transcript = "y".repeat(MAX_ADMIN_QUESTION_CHARS + 10);
+  const admin = cleanConversation([{ role: "user", content: transcript }], MAX_ADMIN_QUESTION_CHARS);
+  assert.equal(admin.ok && admin.turns[0].content.length, MAX_ADMIN_QUESTION_CHARS);
+  const customer = cleanConversation([{ role: "user", content: transcript }]);
+  assert.equal(customer.ok && customer.turns[0].content.length, MAX_QUESTION_CHARS);
+  // Three pasted transcripts plus answers exceed the cap: the oldest go, the newest question stays.
+  const turns = [1, 2, 3].flatMap((round) => [{ role: "user", content: `${round}`.repeat(MAX_ADMIN_QUESTION_CHARS) }, { role: "assistant", content: "ok" }]);
+  const capped = cleanConversation([...turns, { role: "user", content: "Und jetzt?" }], MAX_ADMIN_QUESTION_CHARS);
+  assert.ok(capped.ok);
+  assert.ok(capped.turns.reduce((sum, turn) => sum + turn.content.length, 0) <= MAX_HISTORY_CHARS);
+  assert.equal(capped.turns[0].role, "user");
+  assert.equal(capped.turns.at(-1).content, "Und jetzt?");
+});
