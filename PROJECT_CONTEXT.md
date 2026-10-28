@@ -31,6 +31,14 @@
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
 
+### Vorgabe vom 27. Oktober 2026: Projekte und Aufgaben aus OALab Studio (KI-Aktionen, Schritt 1)
+
+- Hintergrund: Der Hub-Assistent soll später Aufgaben anlegen, Projekte ändern und Daten abfragen (Planung vom 26./27. Oktober 2026). Entscheidungen des Nutzers: Projekte und Aufgaben kommen aus den vorhandenen Studio-Tabellen der gemeinsamen Datenbank (`customer_projects`, `studio_project_details`, `studio_tasks`); bestehende Tabellen werden nicht verändert.
+- Echte Logins sehen jetzt ihre Studio-Projekte im Reiter „Projekte“, in der Übersicht und als Projektziele im Kalender. Demo-Konten und Vorschau behalten die Beispieldaten.
+- Regeln wie im Studio: Fortschritt = Anteil erledigter Aufgaben (ohne Aufgaben: Anteil fertiger Anfragen), „Abgeschlossen“ = Studio-Status „complete“, „Dein Feedback“ = offene, freigegebene Aufgabe mit Label „Kunde“. Die Übersicht zeigt diese Aufgaben unter „Du bist am Zug“ (Admins: „Wartet auf Kunden“) und die laufenden Projekte. Studio-Projekte haben keinen „Bereich“; Spalte und Filter erscheinen nur bei den Beispielprojekten. Projekte ohne Termine sind erlaubt.
+- Zugriff: Service gibt Browsern keine Leserechte auf `customer_projects`, `organizations` und `service_requests`. Der Hub liest deshalb wie das User Management: Admins nach `verifyHubAdmin()` mit dem Server-Schlüssel; Kunden lesen Studio-Details und -Aufgaben mit ihrer eigenen Sitzung (Studio-RLS gibt nur Freigegebenes zurück), Namen und Anfragezahlen werden danach nur für genau diese Projekte gelesen. Code: `lib/hub-projects/` (Übersetzung in `map.ts`, getestet in `tests/hub-projects.test.mjs`).
+- Nicht geprüft: echte Daten im Browser (braucht einen echten Login) und die Abfragen gegen die Live-Datenbank.
+
 ### Vorgabe vom 27. Oktober 2026: Reiter „Patch Notes“
 
 - Neuer Reiter **Patch Notes** (`/dashboard/patch-notes`, `/preview/patch-notes`): Alle Änderungen am Hub stehen dort als Pakete, eines pro Livegang-Tag, mit Nummer, Datum und Einträgen der Arten Neu, Verbessert, Behoben und Sicherheit. Rückwirkend ab dem 15. Oktober 2026 aus der Git-Historie erfasst; reine Doku-Änderungen ohne Wirkung auf den Hub fehlen.

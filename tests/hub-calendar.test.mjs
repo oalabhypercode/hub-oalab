@@ -121,7 +121,8 @@ test("project deadlines read as dates and as distance to today", () => {
 
 test("project deadlines appear in the calendar and link back from the projects table", async () => {
   const calendar = await source("components/hub/screens/calendar.tsx");
-  assert.match(calendar, /projects\s*\.map\(\(project\): ProjectGoal =>/);
+  // Studio projects without a target date are left out.
+  assert.match(calendar, /projects\s*\.flatMap\(\(project\): ProjectGoal\[\] => project\.dueOn \?/);
   assert.match(calendar, /day: project\.dueOn/);
   assert.match(calendar, /useSearchParams\(\)\.get\("day"\)/);
   const workspace = await source("components/hub/screens/workspace.tsx");

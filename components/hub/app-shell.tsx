@@ -7,7 +7,7 @@ import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageSquare, Searc
 import { signOutAction } from "@/lib/hub-auth/actions";
 import type { AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { categories } from "@/lib/categories";
-import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubDemoData, type HubSection } from "@/lib/hub-data";
+import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { AppearanceProvider } from "./appearance-provider";
@@ -21,7 +21,7 @@ import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
 
-export function AppShell({ children, preview = false, pending = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0 }: {
+export function AppShell({ children, preview = false, pending = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects }: {
   children: React.ReactNode;
   preview?: boolean;
   /** Loading fallback while the login is checked: navigation and page title at once, the account still blank. */
@@ -33,6 +33,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
   hubAccount?: HubAccountData | null;
   /** Admins: registrations waiting for approval, shown next to "User Management". */
   pendingRegistrations?: number;
+  /** Real logins: their Studio projects, for the sidebar count and the search. */
+  liveProjects?: Project[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -48,7 +50,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const live = !preview && !demoData ? hubAccount : null;
   const liveCustomer = live?.customers[0] ?? null;
   const name = preview ? previewAccount.name : pending ? "" : demoData?.name || accountDisplayName(live, liveCustomer?.company, email);
-  const projects = preview ? previewProjects : demoData?.projects || [];
+  const projects = preview ? previewProjects : demoData?.projects || liveProjects || [];
   const files = preview ? previewFiles : demoData?.files || [];
   const hasDemo = preview || Boolean(demoData);
   // Demo accounts carry no banner; the role and the kind of demo stay visible in the logout tooltip.
@@ -105,7 +107,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const manageUsers = account.admin && !preview && !publicDemo;
   const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin).toLowerCase().includes(term));
   const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
-  const projectResults = hasDemo ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
+  const projectResults = hasDemo || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
   const shell: ShellContextValue = { preview, pending, initials, account, manageUsers, openPanel: setPanel, unread: hasDemo && !read, signOut, signingOut, logoutError };
 
   return (
@@ -131,7 +133,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
             <div className="search-results">
               {sectionResults.map((key) => <Link key={key} href={hubHref(preview, key)} onClick={closeSearch}><LayoutGrid size={18} aria-hidden="true" /><span>{sectionLabel(key, account.admin)}</span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {metricResults.map((id) => <Link key={id} href={metricHref(preview, id)} onClick={closeSearch}><CategoryIcon category={metricMeta[id].category} size={18} /><span>{metricMeta[id].name}<small>Kennzahl</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
-              {projectResults.map((project) => <Link key={project.id} href={`${hubHref(preview, "projects")}?project=${project.id}`} onClick={closeSearch}><FolderOpen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{project.category}<small>{project.company ? `${project.company} · ` : ""}{project.name}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
+              {projectResults.map((project) => <Link key={project.id} href={`${hubHref(preview, "projects")}?project=${project.id}`} onClick={closeSearch}><FolderOpen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{project.category || project.name}<small>{project.company ? `${project.company} · ` : ""}{project.category ? project.name : "Projekt"}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {term && !sectionResults.length && !metricResults.length && !projectResults.length && <p className="t-subheadline t-secondary">Keine Ergebnisse für „{query}“.</p>}
             </div>
           </Modal>

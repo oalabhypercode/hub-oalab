@@ -38,9 +38,12 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 6,
     date: "2026-10-28",
-    title: "Patch Notes",
-    summary: "Der neue Reiter „Patch Notes“ hält jede Änderung am Hub fest, gebündelt in Paketen pro Livegang.",
+    title: "Patch Notes und echte Projekte",
+    summary: "Der neue Reiter „Patch Notes“ hält jede Änderung am Hub fest. Projekte und Aufgaben kommen jetzt aus OALab Studio statt aus Beispieldaten.",
     changes: [
+      { kind: "new", title: "Echte Projekte aus OALab Studio", text: "Projekte, Fortschritt und Zieltermine im Hub kommen jetzt aus OALab Studio, wo das OALAB-Team sie pflegt. Kunden sehen nur, was für sie freigegeben ist. Der Fortschritt ist der Anteil erledigter Aufgaben, genau wie im Studio.", customers: true },
+      { kind: "new", title: "Aufgaben im Projekt und „Du bist am Zug“", text: "Die Projektdetails zeigen die Aufgaben mit Stand, Fälligkeit und ob OALAB oder du dran bist. Aufgaben, die bei dir liegen, stehen in der Übersicht unter „Du bist am Zug“ und setzen das Projekt auf „Dein Feedback“.", customers: true },
+      { kind: "improved", title: "Kundenaufgaben im Studio", text: "Aufgaben mit dem Label „Kunde“ gelten im Hub als Aufgaben des Kunden. Sichtbar werden sie für den Kunden erst, wenn sie im Studio freigegeben sind. Admins sehen in der Übersicht, was gerade bei Kunden liegt." },
       { kind: "new", title: "Patch Notes", text: "Hier steht, was sich am Hub geändert hat: ein Paket pro Livegang, gegliedert in Neu, Verbessert, Behoben und Sicherheit. Admins finden den Reiter unter „Verwaltung“ und sehen alle Einträge, Kunden finden ihn unter „Neuigkeiten“ und sehen die Einträge, die sie betreffen.", customers: true },
     ],
   },

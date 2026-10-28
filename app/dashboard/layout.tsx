@@ -5,13 +5,18 @@ import { HubLoadBoundary } from "@/components/hub/load-error";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
 import { getDemoData } from "@/lib/demo-data";
 import { countPendingRegistrations } from "@/lib/hub-users/server";
+import { loadProjectsForIdentity } from "@/lib/hub-projects/server";
 
 async function AuthenticatedWorkspace({ children }: { children: React.ReactNode }) {
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
   // Real admins see how many registrations wait; RLS lets only active admins count them.
-  const pendingRegistrations = !identity.publicDemo && identity.account?.role === "oalab_admin" ? await countPendingRegistrations() : 0;
-  return <AppShell key={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} hubAccount={identity.account} pendingRegistrations={pendingRegistrations}>{children}</AppShell>;
+  const [pendingRegistrations, liveProjects] = await Promise.all([
+    !identity.publicDemo && identity.account?.role === "oalab_admin" ? countPendingRegistrations() : 0,
+    // Shared with the page through the request cache; feeds the sidebar count and the search.
+    loadProjectsForIdentity(identity),
+  ]);
+  return <AppShell key={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} hubAccount={identity.account} pendingRegistrations={pendingRegistrations} liveProjects={liveProjects?.projects}>{children}</AppShell>;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

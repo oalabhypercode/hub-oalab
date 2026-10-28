@@ -58,8 +58,9 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Erweiterte Suche: der Knopf „Erweiterte Suche“ rechts im Suchfeld (auf dem Smartphone nur das Regler-Symbol) klappt darunter eine Leiste mit Filtern und Sortierung auf; auf dem Smartphone lässt sie sich seitlich wischen. Eine Zahl am Knopf zeigt, wie viele Filter gerade aktiv sind.
 - Filter in der Leiste: Alle, Aktiv und Abgeschlossen (mit Anzahl), dazu die Auswahl „Alle Bereiche“; Admins filtern zusätzlich mit „Alle Kunden“. Daneben steht die Sortierung. „Suche und Filter zurücksetzen“ erscheint, wenn nichts passt.
 - Sortieren: per Klick auf eine Spaltenüberschrift (ein zweiter Klick dreht die Richtung) oder in der erweiterten Suche über „Sortieren“ (Nächster Termin, Startzeitpunkt, Titel, Bereich, Status, Fortschritt, bei Admins Kunde; der Pfeil kehrt die Reihenfolge um). Standard ist der nächste Termin, früheste zuerst. Abgeschlossene Projekte bleiben bei jeder Sortierung unten.
-- Ein Klick auf eine Zeile öffnet die Projektdetails mit Beschreibung, Fortschritt und dem Button „Zum Gespräch“.
-- Projekte sind derzeit Beispieldaten der Demo-Konten. Echte Projektdaten folgen; Projekte anlegen oder bearbeiten ist noch nicht möglich.
+- Ein Klick auf eine Zeile öffnet die Projektdetails mit Beschreibung, Fortschritt und den Aufgaben (Titel, Stand, ob OALAB oder der Kunde dran ist, Fälligkeit).
+- Echte Projekte und Aufgaben pflegt das OALAB-Team in OALab Studio auf der Serviceplattform; der Hub zeigt sie an. Kunden sehen nur Projekte und Aufgaben, die für sie freigegeben sind. Der Fortschritt ist der Anteil erledigter Aufgaben. „Dein Feedback“ steht, solange eine freigegebene Aufgabe mit dem Label „Kunde“ offen ist; diese Aufgaben stehen auch in der Übersicht unter „Du bist am Zug“. Echte Projekte haben keinen „Bereich“, die Spalte gibt es nur bei den Beispielprojekten. Im Hub selbst werden Projekte nicht angelegt oder bearbeitet.
+- Die Demo-Konten und die Vorschau zeigen weiterhin erfundene Beispielprojekte.
 
 ## Dateien
 - Für Admins heißt der Bereich „Asset Management“, für Kunden „Dateien“; es ist derselbe Dateiaustausch.
@@ -128,7 +129,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Die Designvorschau unter /preview zeigt ausschließlich fiktive Inhalte.
 
 ## Noch nicht verfügbar (geplant)
-- Echte Projektdaten und Projektverwaltung, Live-Nachrichten, E-Mail-Benachrichtigungen zu Projekten, Dateien, Terminen und Nachrichten, Kundendaten selbst bearbeiten, Kunden löschen, Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Uploads durch Kunden, Unterordner, Anbindung an Outlook-Kalender.
+- Projekte im Hub selbst anlegen oder bearbeiten (das läuft im Studio), Live-Nachrichten, E-Mail-Benachrichtigungen zu Projekten, Dateien, Terminen und Nachrichten, Kundendaten selbst bearbeiten, Kunden löschen, Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Uploads durch Kunden, Unterordner, Anbindung an Outlook-Kalender.
 `;
 
 const rules = `Du bist der Assistent im oalab Client Hub. Du erklärst, wie die Plattform funktioniert und wo man etwas findet.

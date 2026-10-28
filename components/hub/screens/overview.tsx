@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Check, CircleMinus, CirclePlus } from "lucide-react";
 import { categories, categoryLabel } from "@/lib/categories";
-import { hubHref, type HubSection } from "@/lib/hub-data";
+import { formatDeadline, hubHref, type HubSection } from "@/lib/hub-data";
+import { customerSteps } from "@/lib/hub-projects/map";
 import { metricOrder, type MetricId } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
 import { HighlightCard, InsightsCard, MetricCard, MetricCardStatic, ServiceCard, WelcomeCard } from "../cards";
@@ -14,7 +15,7 @@ import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { useHubShell } from "../shell-context";
 import type { ScreenProps } from "./types";
 
-export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin }: ScreenProps) {
+export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin, projects, liveProjects }: ScreenProps) {
   const { account, initials } = useHubShell();
   const [editing, setEditing] = useState(false);
   const available = metricOrder.filter((id) => !favorites.isFavorite(id));
@@ -78,9 +79,36 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
             {model.activity.map((item) => <ListRow key={item.id} href={item.href} compact icon={<CategoryIcon category={item.category} size={22} />} title={item.title} subtitle={item.detail} />)}
           </InsetGroupedList>
         </>}
-      </> : <EmptyState section="overview" />}
+      </> : liveProjects?.error ? <LoadNotice text={liveProjects.error} />
+      : projects.length ? <LiveOverview preview={preview} admin={admin} model={model} projects={projects} />
+      : <EmptyState section="overview" />}
     </>
   );
+}
+
+/** Real logins with Studio projects: what waits for the customer and how the running projects stand. */
+function LiveOverview({ preview, admin, model, projects }: Pick<ScreenProps, "preview" | "admin" | "model" | "projects">) {
+  const steps = customerSteps(projects);
+  const projectHref = (id: string) => `${hubHref(preview, "projects")}?project=${id}`;
+  return <>
+    <SectionHeader title={admin ? "Wartet auf Kunden" : "Du bist am Zug"} />
+    {steps.length ? (
+      <InsetGroupedList label={admin ? "Aufgaben, die bei Kunden liegen" : "Deine nächsten Schritte"}>
+        {steps.slice(0, 6).map(({ task, project }) => <ListRow key={task.id} href={projectHref(project.id)} title={task.title} subtitle={[admin ? project.company : "", project.name, task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : ""].filter(Boolean).join(" · ")} />)}
+      </InsetGroupedList>
+    ) : <GlassCard className="empty-card"><p className="t-subheadline t-secondary">{admin ? "Gerade liegt keine freigegebene Aufgabe bei einem Kunden." : "Gerade wartet nichts auf dich."}</p></GlassCard>}
+    {model.projectRows.length > 0 && <>
+      <SectionHeader title="Aktuelle Projekte" action={<SectionLink href={hubHref(preview, "projects")}>Alle anzeigen</SectionLink>} />
+      <InsetGroupedList label="Aktuelle Projekte">
+        {model.projectRows.map((row) => <ListRow key={row.id} href={row.href} title={row.title} subtitle={row.subtitle} trailing={<><MiniProgress value={row.progress} color={categories.projects.fill} /><span className="list-percent numeric">{row.progress} %</span></>} />)}
+      </InsetGroupedList>
+    </>}
+  </>;
+}
+
+/** A load error of real data, in place of the content it replaces. */
+export function LoadNotice({ text }: { text: string }) {
+  return <GlassCard className="empty-card section-first" role="status"><p className="t-headline">Gerade nicht verfügbar</p><p className="t-subheadline t-secondary">{text}</p></GlassCard>;
 }
 
 export function InsightsScreen({ model, preview, populated, admin }: ScreenProps) {
