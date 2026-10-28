@@ -31,6 +31,36 @@
 - Der Bordeaux-Rot-Orange-Verlauf des Icons bildet die gemeinsame Corporate-Farbwelt. Inter ist die einheitliche Schrift aller Oberflächen.
 - Verbindliche Anwendungsregeln und Farbwerte stehen in [CI_GUIDELINES.md](./CI_GUIDELINES.md); zentrale CSS-Tokens in `app/brand.css`.
 
+### Plan vom 26./27. Oktober 2026: KI-Aktionen im Hub-Assistenten (Gesamtplan und Entscheidungen)
+
+- **Ziel des Nutzers:** keine neue Plattform, sondern wenige feste Arbeitsabläufe direkt im bestehenden Chat „Assistent & Hilfe“ auf den Daten der Plattform, statt Inhalte nach claude.ai zu kopieren: Kunden anlegen, Aufgaben aus Meetingtranskripten, Projektdaten ändern, Stand abfragen.
+- **Rahmen:** kein MCP-Server, keine CLI-Schnittstelle, keine anderen Modelle, kein Agenten-Framework, kein zweiter Chat. Nur Claude API mit Tool Use im bestehenden Chat.
+- **Freigaberegel:** Umsetzung jeweils erst nach ausdrücklicher Freigabe des Nutzers („UMSETZUNG FREIGEGEBEN“ oder gleichwertig). Schritt 1 und 2 sind am 27. Oktober 2026 freigegeben und gebaut; ab Schritt 3 neue Freigabe abwarten.
+- **Entscheidungen des Nutzers:**
+  - Projekte und Aufgaben kommen aus den vorhandenen Studio-Tabellen der gemeinsamen Datenbank (Studio wird produktiv genutzt). Keine eigenen Hub-Tabellen dafür.
+  - Neue Kunden entstehen als Service-Organisation (`organizations`; der vorhandene Trigger legt den Hub-Kunden an).
+  - Die Struktur bestehender Tabellen wird nicht verändert. Erlaubt ist genau eine neue Tabelle für Vorschläge und KI-Protokoll.
+  - Standardwerte: Fortschritt = Anteil erledigter Aufgaben; „Dein Feedback“ = offene, freigegebene Aufgabe mit Label „Kunde“; Kundenaufgaben per Label „Kunde“; neue Aufgaben zunächst intern; KI-Aktionen nur für Admins mit bestätigtem zweiten Faktor; Aufwand `medium` nur für Aktionen, sonst `low`.
+  - Auftragsverarbeitungsvertrag (DPA) mit Anthropic klärt der Nutzer noch; davon hängt Schritt 4 ab.
+- **Grundsatz:** Claude liest selbst, schreibt aber nie selbst. Lese-Werkzeuge laufen automatisch; Schreib-Werkzeuge erzeugen nur einen Vorschlag, gespeichert wird erst nach Klick und genau der gespeicherte Vorschlag. Erfolg oder Fehler zeigt die Oberfläche aus dem Serverergebnis, nicht aus Claudes Text.
+- **Schritte:**
+  1. Hub zeigt echte Studio-Projekte und -Aufgaben (erledigt, PR #16).
+  2. Assistent liest Kunden, Projekte, Aufgaben mit vier Werkzeugen (erledigt, PR #17).
+  3. Aufgaben anlegen mit Bestätigung: neue Tabelle `hub_assistant_actions` (Akteur, Art, Status vorgeschlagen/läuft/erledigt/fehlgeschlagen/verworfen/abgelaufen, geprüfte Nutzdaten, Ziel, Ergebnis-IDs, Fehlercode, Zeitstempel, Ablauf nach 30 Minuten; keine Chat-Texte oder Transkripte) als Migration in `service-oalab`, Anwendung auf die Live-Datenbank nur mit OK des Nutzers. Werkzeug `propose_tasks`, Vorschaukarte im Chat (abwählen, OALAB/Kunde, intern/sichtbar), Bestätigen per Server Action mit Statuswechsel in einem UPDATE gegen Doppelklick. Aufgaben schreibt der Hub mit der Sitzung des Admins direkt in `studio_tasks` (Studio-RLS und -Trigger prüfen, versionieren und protokollieren), keine neue Datenbankfunktion. Abnahme: vor dem Klick nichts in der Datenbank, Doppelklick legt einmal an, Fehler nie als „gespeichert“.
+  4. Meetingtranskripte (erst nach Klärung des DPA): höheres Eingabelimit nur für Admins, Belegzitat pro Aufgabe mit Serverprüfung, Termine und Zuständigkeiten nur mit Beleg, Hinweistext und Datenschutzerklärung anpassen. Abnahme mit 3–5 erfundenen Testtranskripten inklusive Prompt-Injection-Falle.
+  5. Projekte und Aufgaben ändern: `propose_project_update`, `propose_task_update` mit erwarteter Version; „wir warten auf Kundenfeedback“ als Kundenaufgabe.
+  6. Kunden anlegen: `propose_customer` mit Dublettenprüfung, Service-Organisation per Server-Schlüssel nach Admin-Prüfung, Protokolleintrag in `audit_events`.
+- **Offene Punkte:** Nummernregel für Service-Kunden (`organizations.customer_number` verlangt `OA-…`, der Hub vergibt `KD-…`) und welcher Tarif (`plan_id`) für neue Kunden gilt; ob Service für eine neue Organisation weitere Einträge braucht; ob beim Kundenanlegen gleich ein Login entsteht; optional das Label „Kunde“ fest in die Studio-Auswahlliste (`apps/web/features/workspace/vocabulary.ts` in `service-oalab`; ohne das erscheint es dort, sobald eine Aufgabe es trägt); Tageslimit für KI-Anfragen pro Admin.
+- **Stand der PRs (27. Oktober 2026):** gestapelt #15 Patch Notes → #16 Schritt 1 → #17 Schritt 2. Reihenfolge beim Mergen: #15, dann Basis von #16 auf `main`, dann dasselbe bei #17. Mit echten Daten ist noch nichts geprüft; am einfachsten über die Vercel-Vorschau von #17 mit einem Admin-Login.
+
+### Vorgabe vom 27. Oktober 2026: Assistent liest Kunden, Projekte und Aufgaben (KI-Aktionen, Schritt 2)
+
+- Der bestehende Chat „Assistent & Hilfe“ nutzt jetzt Claude Tool Use, aber nur lesend: `search`, `get_customer`, `get_project`, `list_tasks` (`lib/hub-assistant/tools.ts`). Die Werkzeuge bekommt nur ein Admin mit Token-Rolle, Bestätigung durch `verifyHubAdmin()` und `aal2`; Admins ohne aktiven zweiten Faktor bekommen einen Hinweis. Kunden und WhatsApp bleiben beim reinen Hilfe-Chat.
+- Ablauf in `app/api/assistant/route.ts`: Tool-Schleife mit höchstens 8 Runden, der Assistenten-Turn geht unverändert zurück, alle Ergebnisse eines Turns in einer Nachricht, Fehler als `is_error`. Daten stammen aus derselben Quelle wie der Hub (`lib/hub-assistant/data.ts`: Studio-Projekte und `hub_customers`). Werkzeug-Ergebnisse gelten im System-Prompt ausdrücklich als Daten, nicht als Anweisungen.
+- Seitenkontext: Das Panel schickt Bereich und geöffnetes Projekt (`?project=`). Der Server nennt Claude ein Projekt nur, wenn der Admin es sehen kann, als System-Nachricht nach der Frage (der gecachte Anfang bleibt gleich).
+- Aufwand `medium` für Admin-Anfragen mit Werkzeugen, `low` für den Hilfe-Chat. Die Antwort kommt jetzt als Folge von JSON-Zeilen (Text, Statuszeile „Suche … “, Fehler).
+- Nicht geprüft: echte Antworten mit Werkzeugen (braucht einen Admin-Login mit Code-Bestätigung und den API-Schlüssel).
+
 ### Vorgabe vom 27. Oktober 2026: Projekte und Aufgaben aus OALab Studio (KI-Aktionen, Schritt 1)
 
 - Hintergrund: Der Hub-Assistent soll später Aufgaben anlegen, Projekte ändern und Daten abfragen (Planung vom 26./27. Oktober 2026). Entscheidungen des Nutzers: Projekte und Aufgaben kommen aus den vorhandenen Studio-Tabellen der gemeinsamen Datenbank (`customer_projects`, `studio_project_details`, `studio_tasks`); bestehende Tabellen werden nicht verändert.
@@ -146,7 +176,7 @@
 
 - Die Sprechblase oben rechts heißt jetzt „Assistent & Hilfe“. Sie öffnet für Kunden und Admins einen Chat, der Fragen zu den Funktionen der Plattform beantwortet. Er zeigt Vorschlagsfragen je Rolle, streamt die Antworten, kann neu gestartet werden und behält den Verlauf beim Seitenwechsel.
 - Modell: **Claude Opus 5.5** (`claude-opus-5-5`) über `@anthropic-ai/sdk` 1.1.0. Aufwand `low` für schnelle, kurze Antworten. Lehnt das Modell eine Anfrage ab, übernimmt automatisch ein Ersatzmodell (`fallbacks: "default"`).
-- Grundlage ist allein die Wissensbasis `lib/hub-assistant/knowledge.ts`. Der Assistent sieht keine Projekte, Dateien oder Termine und ändert nichts. Für Geplantes sagt er, dass es das noch nicht gibt.
+- Grundlage ist die Wissensbasis `lib/hub-assistant/knowledge.ts`. Für Kunden und über WhatsApp sieht der Assistent keine Daten und ändert nichts. Seit 27. Oktober 2026 (KI-Aktionen, Schritt 2) liest er für Admins mit bestätigtem zweiten Faktor (`aal2`) Kunden, Projekte und Aufgaben, siehe unten.
 - `app/api/assistant/route.ts` antwortet nur echten Supabase-Logins; die Rolle kommt aus dem Token. Der Verlauf ist auf 20 Nachrichten und 1000 Zeichen pro Frage begrenzt. Vorschau und öffentliche Demo senden keine Fragen an Claude.
 - Der Chat weist aus, dass eine KI antwortet (Transparenzpflicht seit 02.08.2026), und bittet, keine persönlichen Daten einzugeben.
 - CLI-Schnittstelle: Projektbefehl `/hub-hilfe` für Claude Code (`.claude/commands/hub-hilfe.md`). Er liest dieselbe Wissensbasis und bei Bedarf den Code, nur lesend.

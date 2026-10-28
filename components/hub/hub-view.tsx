@@ -12,6 +12,7 @@ import type { HubCalendarState } from "@/lib/hub-calendar/types";
 import { buildHubModel, isMetricId } from "@/lib/hub-metrics";
 import { useFavorites } from "@/lib/use-favorites";
 import { Modal } from "./modal";
+import { useHubShell } from "./shell-context";
 import { ProjectStatus } from "./project-status";
 import { AppearanceScreen } from "./screens/appearance";
 import { CalendarScreen } from "./screens/calendar";
@@ -99,6 +100,7 @@ const taskStatusLabels: Record<ProjectTask["status"], string> = { backlog: "Back
 function ProjectModal({ project, preview, admin, onClose }: { project: Project; preview: boolean; admin: boolean; onClose: () => void }) {
   // Studio projects carry their tasks; the fixtures stay example projects with the example conversation.
   const tasks = project.tasks;
+  const { manageUsers, openPanel } = useHubShell();
   return (
     <Modal title={project.category || project.company || "Projekt"} onClose={onClose}>
       <div className="project-modal-status"><ProjectStatus value={project.status} /><span>Ziel: {project.date}</span></div>
@@ -119,7 +121,12 @@ function ProjectModal({ project, preview, admin, onClose }: { project: Project; 
             ))}
           </ul>
         ) : <p className="modal-description t-secondary">Noch keine Aufgaben{admin ? "" : ", die für dich freigegeben sind"}.</p>
-      ) : <>
+      ) : null}
+      {/* The assistant opens on top of this dialog, so the project stays open and "dieses Projekt" refers to it. */}
+      {tasks && manageUsers && (
+        <button type="button" className="sheet-button project-ask" onClick={() => openPanel("help")}><Sparkles size={17} aria-hidden="true" /> Assistent zu diesem Projekt fragen</button>
+      )}
+      {!tasks && <>
         <p className="demo-detail-note"><Sparkles size={15} aria-hidden="true" /> Beispielprojekt · Die vollständige Projektverwaltung folgt im nächsten Schritt.</p>
         <Link className="sheet-button sheet-button-primary" href={hubHref(preview, "messages")}>Zum Gespräch <ArrowRight size={17} aria-hidden="true" /></Link>
       </>}

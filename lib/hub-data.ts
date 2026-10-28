@@ -58,12 +58,18 @@ export type Project = {
   artwork: "orange" | "sage" | "lilac";
   brand?: string;
   company?: string;
+  /** Studio projects: the customer organization, to find the hub customer it belongs to. */
+  organizationId?: string;
   /** ISO dates; fixtures always have both, Studio projects may have neither. */
   startedOn: string | null;
   dueOn: string | null;
   milestones: Milestone[];
   /** Real projects from OALab Studio carry their tasks; fixtures have none. */
   tasks?: ProjectTask[];
+  /** Studio projects: what the progress is the share of; without tasks Studio counts finished requests. */
+  progressBasis?: "tasks" | "requests" | "none";
+  /** Studio projects: open and finished requests (Anfragen) on the service platform. */
+  requests?: { open: number; done: number };
 };
 
 export type HubDemoData = {
