@@ -2,13 +2,14 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { StoredProposal, TaskProposal } from "./proposals";
 
-export type ProposalKind = "tasks.create" | "tasks.update" | "project.update";
+export type ProposalKind = "tasks.create" | "tasks.update" | "project.update" | "customer.create";
 
 /**
  * Stores an assistant proposal in hub_assistant_actions (service role only; the route calls this after its own
- * admin check). Nothing is executed here: the admin confirms in the chat, see actions.ts.
+ * admin check). Nothing is executed here: the admin confirms in the chat, see actions.ts. A new customer has no
+ * organization or project yet.
  */
-export async function saveProposal(actorId: string, kind: ProposalKind, target: { organizationId: string; projectId: string }, payload: object): Promise<{ ok: true; id: string; expiresAt: string } | { ok: false; error: string }> {
+export async function saveProposal(actorId: string, kind: ProposalKind, target: { organizationId: string | null; projectId: string | null }, payload: object): Promise<{ ok: true; id: string; expiresAt: string } | { ok: false; error: string }> {
   const db = createAdminClient();
   if (!db) return { ok: false, error: "Vorschläge sind noch nicht eingerichtet (Server-Schlüssel fehlt)." };
   const { data, error } = await db

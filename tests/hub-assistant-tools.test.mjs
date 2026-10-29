@@ -97,6 +97,6 @@ test("the route offers tools only to verified admins with a confirmed second fac
   assert.match(route, /const MAX_ROUNDS = 8;/);
   assert.match(route, /is_error: true/);
   const claude = await source("lib/hub-assistant/claude.ts");
-  assert.match(claude, /\.\.\.\(tools \? \{ tools: \[\.\.\.ASSISTANT_TOOLS, PROPOSE_TASKS_TOOL, PROPOSE_PROJECT_UPDATE_TOOL, PROPOSE_TASK_UPDATES_TOOL\] \} : \{\}\)/);
+  assert.match(claude, /\.\.\.\(tools \? \{ tools: \[\.\.\.ASSISTANT_TOOLS, PROPOSE_TASKS_TOOL, PROPOSE_PROJECT_UPDATE_TOOL, PROPOSE_TASK_UPDATES_TOOL, PROPOSE_CUSTOMER_TOOL\] \} : \{\}\)/);
   assert.match(claude, /assistantRequest\(turns, role, channel\)\);/);
 });

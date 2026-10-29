@@ -1201,3 +1201,10 @@ a.teams-join:active { transform: scale(0.97); }
 .proposal-change { margin: 3px 0 0 26px; font-size: 13px; line-height: 18px; color: var(--label-body); }
 .proposal-change del { color: var(--label-secondary); }
 .proposal-change-label { color: var(--label-secondary); }
+/* New customer: company with its data and package first, the optional login with its own ticks below */
+.proposal-company { font-weight: 600; }
+.proposal-facts .proposal-change, .proposal-facts .proposal-warning { margin-left: 0; }
+.proposal-field { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--label-secondary); }
+.proposal-field select { height: 32px; max-width: 100%; padding: 0 10px; border: 0; border-radius: 999px; background: var(--fill-tertiary); color: var(--label); font: inherit; font-size: 14px; font-weight: 600; }
+.proposal-field select:disabled { opacity: 0.6; }
+.proposal-pick-sub { margin: 8px 0 0 26px; font-weight: 400; }

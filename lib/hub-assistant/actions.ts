@@ -1,12 +1,17 @@
 "use server";
 
+import { randomInt, randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
+import { createHubUser } from "@/lib/hub-users/actions";
+import { normalizeCompany } from "@/lib/hub-users/rules";
+import type { MailStatus } from "@/lib/hub-mail/smtp";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { CUSTOMER_LABEL } from "@/lib/hub-projects/map";
 import { applyChoices, type TaskProposal } from "./proposals";
 import { pickChanges, projectColumns, taskColumns, type ProjectUpdateProposal, type TaskUpdateProposal } from "./updates";
+import { contactColumns, newCustomerNumber, readCustomerChoice, type CustomerProposal } from "./customers";
 
 // Confirming or discarding an assistant proposal. Each action is a public POST endpoint: it checks the admin again
 // (role, second factor, is_hub_admin() and aal2), claims the proposal in one UPDATE so a double click runs it once,
@@ -132,7 +137,7 @@ export async function discardTaskProposal(input: { id: string }): Promise<Action
 type Context = NonNullable<Awaited<ReturnType<typeof actor>>>;
 
 /** Claims an open proposal of one kind for this admin, once; null tells the caller to explain why not. */
-async function claim<T>(ctx: Context, id: string, kind: "project.update" | "tasks.update") {
+async function claim<T>(ctx: Context, id: string, kind: "project.update" | "tasks.update" | "customer.create") {
   const { data } = await ctx.db
     .from("hub_assistant_actions")
     .update({ status: "executing" })
@@ -142,7 +147,7 @@ async function claim<T>(ctx: Context, id: string, kind: "project.update" | "task
   return data?.payload ?? null;
 }
 
-async function settle(ctx: Context, id: string, status: "done" | "failed" | "proposed", fields: { result?: object; error_code?: string } = {}) {
+async function settle(ctx: Context, id: string, status: "done" | "failed" | "proposed", fields: { result?: object; error_code?: string; organization_id?: string } = {}) {
   await ctx.db.from("hub_assistant_actions").update({ status, ...(status === "proposed" ? {} : { decided_at: new Date().toISOString() }), ...fields }).eq("id", id);
 }
 
@@ -212,4 +217,88 @@ export async function confirmTaskUpdates(input: { id: string; picks: unknown }):
     refreshWorkspace();
   }
   return { ok: true, data: { saved, stale, failed } };
+}
+
+// New customers (KI-Plan Schritt 6) --------------------------------------------------------------------------------
+
+export type CustomerCreated = { customerId: string | null; customerNumber: string; company: string; login: "none" | "created" | "failed"; loginError?: string; mail: MailStatus | null };
+
+/**
+ * Creates the proposed customer as a Service organization. Browsers have no access to organizations, so this uses
+ * the server key after the admin check above; Service's trigger then creates the Hub customer, which gets the
+ * contact data. A login for the contact person goes through the user management (createHubUser), whose customer
+ * assignment also gives Service access. Once the customer exists, a failing login does not undo it.
+ */
+export async function confirmCustomerProposal(input: { id: string; choice: unknown }): Promise<ActionResult<CustomerCreated>> {
+  const ctx = await actor();
+  if (!ctx) return denied;
+  const id = typeof input?.id === "string" && uuid.test(input.id) ? input.id : null;
+  if (!id) return { ok: false, error: "Diesen Vorschlag gibt es nicht." };
+  const proposal = await claim<CustomerProposal>(ctx, id, "customer.create");
+  if (!proposal) return { ok: false, error: await whyNotOpen(ctx.db, id, ctx.userId) };
+  const read = readCustomerChoice(proposal, input.choice);
+  if (!read.ok) { await settle(ctx, id, "proposed"); return read; }
+  const { choice } = read;
+  const nothing = "Nichts wurde angelegt.";
+
+  // Someone may have created the customer or switched off the package since the proposal.
+  const [customers, organizations, plan] = await Promise.all([
+    ctx.db.from("hub_customers").select("company, customer_number").returns<{ company: string; customer_number: string }[]>(),
+    ctx.db.from("organizations").select("customer_number").returns<{ customer_number: string }[]>(),
+    ctx.db.from("plans").select("id").eq("id", choice.planId).eq("is_active", true).maybeSingle<{ id: string }>(),
+  ]);
+  if (customers.error || organizations.error || plan.error) {
+    await settle(ctx, id, "failed", { error_code: "READ_FAILED" });
+    return { ok: false, error: `Die Kundendaten sind gerade nicht erreichbar. ${nothing}` };
+  }
+  const key = normalizeCompany(proposal.company);
+  const twin = (customers.data ?? []).find((row) => normalizeCompany(row.company) === key);
+  if (twin) {
+    await settle(ctx, id, "failed", { error_code: "DUPLICATE" });
+    return { ok: false, error: `„${twin.company}“ gibt es inzwischen als Kunde (${twin.customer_number}). ${nothing}` };
+  }
+  if (!plan.data) {
+    await settle(ctx, id, "failed", { error_code: "PLAN_INACTIVE" });
+    return { ok: false, error: `Das gewählte Paket ist nicht mehr aktiv. ${nothing}` };
+  }
+
+  const taken = new Set([...(customers.data ?? []), ...(organizations.data ?? [])].map((row) => row.customer_number));
+  let organizationId: string | null = null;
+  let customerNumber: string | null = null;
+  // A number taken in the meantime fails on the unique key; then the next random one.
+  for (let attempt = 0; attempt < 3 && !organizationId; attempt++) {
+    const number = newCustomerNumber(taken, () => randomInt(90000) / 90000);
+    if (!number) break;
+    const created = await ctx.db.from("organizations").insert({ customer_number: number, name: proposal.company, kind: "client", status: "active", plan_id: choice.planId }).select("id").single<{ id: string }>();
+    if (created.data) { organizationId = created.data.id; customerNumber = number; }
+    else if (created.error?.code === "23505") taken.add(number);
+    else break;
+  }
+  if (!organizationId || !customerNumber) {
+    await settle(ctx, id, "failed", { error_code: "ORGANIZATION_FAILED" });
+    return { ok: false, error: `Der Kunde konnte nicht angelegt werden. ${nothing}` };
+  }
+
+  // Service's trigger created the Hub customer with the organization; it gets the contact data.
+  const customer = await ctx.db.from("hub_customers").update(contactColumns(proposal.contact)).eq("organization_id", organizationId).select("id").maybeSingle<{ id: string }>();
+  const customerId = customer.data?.id ?? null;
+  await ctx.db.from("audit_events").insert({
+    organization_id: organizationId, actor_type: "user", actor_id: ctx.userId, action: "hub.customer_created", target_type: "organization", target_id: organizationId,
+    result: "success", correlation_id: `cor_${randomUUID().replaceAll("-", "")}`, safe_metadata: { customerNumber, source: "hub_assistant" },
+  });
+  await ctx.db.from("hub_admin_events").insert({ actor_id: ctx.userId, action: "assistant.customer_created", summary: `Kunde ${customerNumber} über den Assistenten angelegt`, target_customer_id: customerId });
+
+  let login: CustomerCreated["login"] = "none";
+  let loginError: string | undefined;
+  let mail: MailStatus | null = null;
+  if (choice.login && proposal.login) {
+    const created = customerId
+      ? await createHubUser({ email: proposal.login.email, firstName: proposal.login.firstName, lastName: proposal.login.lastName, phone: "", position: "", role: "oalab_customer", customer: { mode: "existing", customerId }, mailLink: choice.mail })
+      : { ok: false as const, error: "Der Kunde ist im Hub noch nicht angekommen." };
+    if (created.ok) { login = "created"; mail = created.data.mail; }
+    else { login = "failed"; loginError = created.error; }
+  }
+  await settle(ctx, id, "done", { organization_id: organizationId, result: { organization_id: organizationId, customer_id: customerId, customer_number: customerNumber, login }, ...(login === "failed" ? { error_code: "LOGIN_FAILED" } : {}) });
+  refreshWorkspace();
+  return { ok: true, data: { customerId, customerNumber, company: proposal.company, login, ...(loginError ? { loginError } : {}), mail } };
 }

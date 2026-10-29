@@ -5,6 +5,7 @@ import { ASSISTANT_MODEL, assistantSystem, type AssistantAccess, type AssistantC
 import { ASSISTANT_TOOLS } from "./tools";
 import { PROPOSE_TASKS_TOOL } from "./proposals";
 import { PROPOSE_PROJECT_UPDATE_TOOL, PROPOSE_TASK_UPDATES_TOOL } from "./updates";
+import { PROPOSE_CUSTOMER_TOOL } from "./customers";
 
 // One Claude request for both channels: the hub chat streams it, WhatsApp waits for the whole answer.
 
@@ -23,8 +24,8 @@ export function assistantRequest(messages: Anthropic.Beta.BetaMessageParam[], ro
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default" as const,
     system: assistantSystem(role, channel, access),
-    // Read tools plus proposal tools; nothing the assistant calls writes to Studio, the admin saves in the preview.
-    ...(tools ? { tools: [...ASSISTANT_TOOLS, PROPOSE_TASKS_TOOL, PROPOSE_PROJECT_UPDATE_TOOL, PROPOSE_TASK_UPDATES_TOOL] } : {}),
+    // Read tools plus proposal tools; nothing the assistant calls writes to Studio or Service, the admin saves in the preview.
+    ...(tools ? { tools: [...ASSISTANT_TOOLS, PROPOSE_TASKS_TOOL, PROPOSE_PROJECT_UPDATE_TOOL, PROPOSE_TASK_UPDATES_TOOL, PROPOSE_CUSTOMER_TOOL] } : {}),
     messages,
   };
 }

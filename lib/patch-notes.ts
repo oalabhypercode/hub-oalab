@@ -38,9 +38,11 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 7,
     date: "2026-10-29",
-    title: "Projekte und Aufgaben per Assistent ändern",
-    summary: "Der Assistent schlägt jetzt auch Änderungen an Projekten und bestehenden Aufgaben vor. Gespeichert wird nur, was der Admin in der Vorschau anhakt, und nie über eine neuere Änderung im Studio hinweg.",
+    title: "Projekte, Aufgaben und Kunden per Assistent",
+    summary: "Der Assistent schlägt jetzt auch Änderungen an Projekten und bestehenden Aufgaben sowie neue Kunden vor. Gespeichert wird nur, was der Admin in der Vorschau bestätigt, und nie über eine neuere Änderung im Studio hinweg.",
     changes: [
+      { kind: "new", title: "Kunden anlegen", text: "Admins können den Assistenten bitten, einen neuen Kunden anzulegen. Er prüft vorher, ob es das Unternehmen schon gibt, und zeigt eine Vorschau mit Kontaktdaten und Service-Paket. Erst „Kunde anlegen“ legt ihn an, mit einer neuen Kundennummer aus OA- und einer fünfstelligen Zahl." },
+      { kind: "new", title: "Login für den Ansprechpartner", text: "Nennt der Admin einen Ansprechpartner mit E-Mail-Adresse, bietet die Vorschau gleich einen Login für ihn an. Die Einladungs-Mail geht nur raus, wenn sie dort eigens angehakt ist; sonst gibt es den Aktivierungslink im User Management." },
       { kind: "new", title: "Projekte ändern", text: "Admins können den Assistenten bitten, Zieltermin, Start oder Status eines Projekts zu ändern oder eine Notiz an die Beschreibung anzuhängen, etwa „Wir warten auf Kundenfeedback“. Die Vorschau zeigt alt → neu, erst „Speichern“ übernimmt es ins Studio." },
       { kind: "new", title: "Aufgaben ändern", text: "Bestehende Aufgaben lassen sich über den Assistenten umstellen: Titel, Stand, Fälligkeit, ob OALAB oder der Kunde dran ist und die Freigabe für den Kunden. Jede Aufgabe lässt sich in der Vorschau einzeln abwählen." },
       { kind: "improved", title: "Schutz vor Überschreiben", text: "Wurde ein Projekt oder eine Aufgabe zwischen Vorschlag und Speichern im Studio geändert, speichert der Hub diese Änderung nicht und sagt das. Andere Labels einer Aufgabe bleiben beim Umstellen auf „Kunde“ erhalten." },

@@ -5,21 +5,33 @@ import Link from "next/link";
 import { ArrowUp, Check, Loader2, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
 import { MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS, MAX_TURNS, type AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { proposalNote, type ProposalView, type TaskChoice } from "@/lib/hub-assistant/proposals";
-import { confirmProjectUpdate, confirmTaskProposal, confirmTaskUpdates, discardTaskProposal } from "@/lib/hub-assistant/actions";
+import { confirmCustomerProposal, confirmProjectUpdate, confirmTaskProposal, confirmTaskUpdates, discardTaskProposal, type CustomerCreated } from "@/lib/hub-assistant/actions";
 import { changeNote, projectChangeLine, taskChangeLines, type ChangeLine, type ChangeView } from "@/lib/hub-assistant/updates";
+import { contactLines, customerNote, type CustomerChoice, type CustomerView } from "@/lib/hub-assistant/customers";
 import { formatDeadline } from "@/lib/hub-data";
 import { Modal } from "./modal";
 
-/** New tasks (Schritt 3/4) or a change to a project or to existing tasks (Schritt 5). */
-type AnyView = (ProposalView & { kind?: "tasks.create" }) | ChangeView;
+/** New tasks (Schritt 3/4), a change to a project or to existing tasks (Schritt 5) or a new customer (Schritt 6). */
+type AnyView = (ProposalView & { kind?: "tasks.create" }) | ChangeView | CustomerView;
 
 /**
  * A proposal as the chat shows it: the stored proposal, the admin's choices and what happened to it.
- * New tasks use `choices` (pick and switch), changes use `picks` (one tick per field or task).
+ * New tasks use `choices` (pick and switch), changes use `picks` (one tick per field or task), a customer `customer`.
  */
-type ProposalState = { view: AnyView; choices: TaskChoice[]; picks: boolean[]; state: "open" | "saving" | "saved" | "discarded" | "failed"; message?: string; saved?: number };
+type ProposalState = { view: AnyView; choices: TaskChoice[]; picks: boolean[]; customer?: CustomerChoice; state: "open" | "saving" | "saved" | "discarded" | "failed"; message?: string; saved?: number };
 
 const isChange = (view: AnyView): view is ChangeView => view.kind === "project.update" || view.kind === "tasks.update";
+const isCustomer = (view: AnyView): view is CustomerView => view.kind === "customer.create";
+
+/** The outcome of creating a customer in one or two sentences; the activation link stays in the user management. */
+function customerMessage(result: CustomerCreated) {
+  const created = `Angelegt: ${result.company} · ${result.customerNumber}.`;
+  if (result.login === "failed") return `${created} Der Login wurde nicht angelegt: ${result.loginError ?? "unbekannter Fehler"}`;
+  if (result.login === "none") return created;
+  if (result.mail === "sent") return `${created} Login angelegt, die Einladung ist per E-Mail unterwegs.`;
+  if (result.mail === "failed") return `${created} Login angelegt, aber die Einladungs-Mail ist fehlgeschlagen. Den Aktivierungslink gibt es im User Management.`;
+  return `${created} Login angelegt. Den Aktivierungslink erzeugst oder verschickst du im User Management.`;
+}
 
 /** A chat turn; assistant turns may carry task proposals (admins only). */
 export type ChatTurn = AssistantTurn & { proposals?: ProposalState[] };
@@ -29,7 +41,9 @@ function toApiTurn(turn: ChatTurn): AssistantTurn {
   if (turn.role !== "assistant" || !turn.proposals?.length) return { role: turn.role, content: turn.content };
   const notes = turn.proposals.map((item) => {
     const outcome = item.state === "saved" ? "saved" : item.state === "discarded" ? "discarded" : item.state === "failed" ? "failed" : "open";
-    return isChange(item.view) ? changeNote(item.view, outcome, item.message) : proposalNote(item.view, outcome, item.saved);
+    return isCustomer(item.view) ? customerNote(item.view, outcome, item.message)
+      : isChange(item.view) ? changeNote(item.view, outcome, item.message)
+      : proposalNote(item.view, outcome, item.saved);
   });
   return { role: "assistant", content: [turn.content, ...notes].filter(Boolean).join("\n\n") };
 }
@@ -105,7 +119,10 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
           if (event.t === "tool") { setStatus(event.v); continue; }
           if (event.t === "proposal") {
             const view = JSON.parse(event.v) as AnyView;
-            if (isChange(view)) {
+            if (isCustomer(view)) {
+              // A new customer starts with the default package and the offered login ticked; the invitation mail stays off.
+              proposals.push({ view, choices: [], picks: [], customer: { planId: view.planId, login: Boolean(view.login && !view.login.taken), mail: false }, state: "open" });
+            } else if (isChange(view)) {
               // A change starts with every field or task ticked, as the assistant proposed it.
               proposals.push({ view, choices: [], picks: (view.kind === "project.update" ? view.changes : view.tasks).map(() => true), state: "open" });
             } else {
@@ -141,7 +158,12 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
   async function decide(turnIndex: number, proposalIndex: number, item: ProposalState, save: boolean) {
     patchProposal(turnIndex, proposalIndex, { state: "saving", message: undefined });
     try {
-      if (save && item.view.kind === "project.update") {
+      if (save && item.view.kind === "customer.create") {
+        const result = await confirmCustomerProposal({ id: item.view.id, choice: item.customer });
+        patchProposal(turnIndex, proposalIndex, result.ok
+          ? { state: "saved", saved: 1, message: customerMessage(result.data) }
+          : { state: result.error.includes("Nichts wurde") ? "failed" : "open", message: result.error });
+      } else if (save && item.view.kind === "project.update") {
         const result = await confirmProjectUpdate({ id: item.view.id, picks: item.picks });
         patchProposal(turnIndex, proposalIndex, result.ok
           ? { state: "saved", saved: result.data.saved, message: `${result.data.saved === 1 ? "Eine Änderung" : `${result.data.saved} Änderungen`} am Projekt gespeichert.` }
@@ -187,7 +209,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
         <div className="assistant-intro">
           <span className="assistant-avatar" aria-hidden="true"><Sparkles size={18} /></span>
           <p>{admin
-            ? "Ich bin der KI-Assistent von oalab. Ich erkläre den Client Hub, lese für dich Kunden, Projekte und Aufgaben, schlage neue Aufgaben und Änderungen vor (mit aktivem Zwei-Faktor-Schutz). Gespeichert wird erst, wenn du in der Vorschau auf „Speichern“ klickst."
+            ? "Ich bin der KI-Assistent von oalab. Ich erkläre den Client Hub, lese für dich Kunden, Projekte und Aufgaben, schlage neue Aufgaben, Änderungen und neue Kunden vor (mit aktivem Zwei-Faktor-Schutz). Gespeichert wird erst, wenn du in der Vorschau auf „Speichern“ klickst."
             : "Ich bin der KI-Assistent von oalab und erkläre dir die Funktionen des Client Hub. Bei Fragen zu deinem Projekt ist dein OALAB-Team die erste Anlaufstelle."}</p>
         </div>
         {!available && <p className="assistant-note">Der Assistent ist mit einem echten Login verfügbar. In der Vorschau und der öffentlichen Demo werden keine Fragen an Claude gesendet.</p>}
@@ -203,7 +225,11 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
               {turn.role === "user" ? turn.content
                 : turn.content ? <AssistantText text={turn.content} />
                 : !turn.proposals?.length && <span className="assistant-typing" role="status"><Loader2 size={16} className="spin" aria-hidden="true" />{status || "Antwort wird geschrieben …"}</span>}
-              {turn.proposals?.map((item, position) => isChange(item.view) ? (
+              {turn.proposals?.map((item, position) => isCustomer(item.view) ? (
+                <CustomerCard key={item.view.id} item={item} view={item.view}
+                  onChoose={(customer) => patchProposal(index, position, { customer })}
+                  onDecide={(save) => decide(index, position, item, save)} />
+              ) : isChange(item.view) ? (
                 <ChangeCard key={item.view.id} item={item} view={item.view}
                   onPick={(picks) => patchProposal(index, position, { picks })}
                   onDecide={(save) => decide(index, position, item, save)} />
@@ -239,6 +265,71 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
         {turns.length > 0 && <button type="button" onClick={() => { setTurns([]); setError(""); }} disabled={busy}><RotateCcw size={14} aria-hidden="true" />Neu starten</button>}
       </div>
     </Modal>
+  );
+}
+
+/** Preview of a new customer: company and contact data, the package to pick and the optional login with its invitation. */
+function CustomerCard({ item, view, onChoose, onDecide }: { item: ProposalState; view: CustomerView; onChoose: (choice: CustomerChoice) => void; onDecide: (save: boolean) => void }) {
+  const { state } = item;
+  const choice = item.customer ?? { planId: view.planId, login: false, mail: false };
+  const editable = state === "open";
+  const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(view.expiresAt));
+  const login = view.login;
+  return (
+    <section className={`proposal-card is-${state}`} aria-label={`Vorschlag: neuer Kunde ${view.company}`}>
+      <header>
+        <strong>Neuer Kunde</strong>
+        <span>Die Kundennummer vergibt der Hub beim Anlegen.</span>
+      </header>
+      <ul>
+        <li className="proposal-facts">
+          <p className="proposal-company">{view.company}</p>
+          {contactLines(view.contact).map((line) => (
+            <p key={line.label} className="proposal-change"><span className="proposal-change-label">{line.label}: </span>{line.value}</p>
+          ))}
+          <label className="proposal-field">
+            Service-Paket
+            <select value={choice.planId} disabled={!editable} onChange={(event) => onChoose({ ...choice, planId: event.target.value })}>
+              {view.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+            </select>
+          </label>
+          {view.similar.map((other) => (
+            <p key={other.customerNumber} className="proposal-warning"><TriangleAlert size={14} aria-hidden="true" /> {other.reason === "name" ? "Ähnlicher Kunde" : "Gleiche Kontakt-E-Mail wie"}: {other.company} ({other.customerNumber})</p>
+          ))}
+        </li>
+        {login && (
+          <li className={choice.login ? undefined : "is-off"}>
+            {login.taken ? (
+              <p className="proposal-hint">Für {login.email} gibt es schon einen Login, hier entsteht keiner.</p>
+            ) : <>
+              <label className="proposal-pick">
+                <input type="checkbox" checked={choice.login} disabled={!editable} onChange={(event) => onChoose({ ...choice, login: event.target.checked, mail: event.target.checked && choice.mail })} />
+                <span>Login für {login.firstName} {login.lastName} anlegen</span>
+              </label>
+              <p className="proposal-change">{login.email}</p>
+              {choice.login && editable && (view.mailReady ? <>
+                <label className="proposal-pick proposal-pick-sub">
+                  <input type="checkbox" checked={choice.mail} disabled={!editable} onChange={(event) => onChoose({ ...choice, mail: event.target.checked })} />
+                  <span>Einladungs-Mail an {login.email} senden</span>
+                </label>
+                {!choice.mail && <p className="proposal-hint">Ohne Mail erzeugst oder verschickst du den Aktivierungslink später im User Management.</p>}
+              </> : <p className="proposal-hint">Der Mailversand ist nicht eingerichtet; den Aktivierungslink gibst du im User Management weiter.</p>)}
+            </>}
+          </li>
+        )}
+      </ul>
+      {item.message && <p className={state === "saved" ? "proposal-done" : state === "discarded" ? "proposal-hint" : "form-error"} role="status">{state === "saved" && <Check size={15} aria-hidden="true" />} {item.message}</p>}
+      {state === "saved" && <Link className="proposal-link" href="/dashboard/users">Im User Management ansehen</Link>}
+      {(state === "open" || state === "saving") && (
+        <div className="proposal-actions">
+          <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
+          <button type="button" className="proposal-save" disabled={state === "saving"} onClick={() => onDecide(true)}>
+            {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}Kunde anlegen
+          </button>
+        </div>
+      )}
+      {state === "open" && <p className="proposal-expiry">Noch nicht angelegt · gültig bis {until} Uhr</p>}
+    </section>
   );
 }
 
