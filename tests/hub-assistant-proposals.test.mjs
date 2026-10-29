@@ -119,5 +119,5 @@ test("transcripts: rules against invented dates and instructions hidden in paste
   assert.match(route, /cleanConversation\(body\?\.messages, admin \? MAX_ADMIN_QUESTION_CHARS : MAX_QUESTION_CHARS\)/);
   assert.match(route, /const sources = conversation\.turns\.filter\(\(turn\) => turn\.role === "user"\)/);
   assert.match(route, /saveTaskProposal\(userId, prepared\.proposal\)/);
-  assert.match(route, /send\("proposal", JSON\.stringify\(\{ \.\.\.saved\.view, evidence: prepared\.evidence \}\)\)/);
+  assert.match(route, /send\("proposal", JSON\.stringify\(\{ kind: "tasks\.create", \.\.\.saved\.view, evidence: prepared\.evidence \}\)\)/);
 });

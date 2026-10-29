@@ -44,7 +44,12 @@ export type ProjectTask = {
   customer: boolean;
   /** Released to the customer (client_visible). */
   visible: boolean;
+  /** Studio's row version; a change is only written while it still matches (optimistic locking). */
+  version?: number;
 };
+
+/** Studio's own project status, which the hub maps onto its three statuses. */
+export type StudioProjectStatus = "planning" | "active" | "risk" | "hold" | "complete";
 
 export type Project = {
   id: string;
@@ -66,6 +71,8 @@ export type Project = {
   milestones: Milestone[];
   /** Real projects from OALab Studio carry their tasks; fixtures have none. */
   tasks?: ProjectTask[];
+  /** Studio projects: their Studio status and the version of their details row (null while Studio has none). */
+  studio?: { status: StudioProjectStatus; version: number | null };
   /** Studio projects: what the progress is the share of; without tasks Studio counts finished requests. */
   progressBasis?: "tasks" | "requests" | "none";
   /** Studio projects: open and finished requests (Anfragen) on the service platform. */

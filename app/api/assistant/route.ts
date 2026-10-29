@@ -6,7 +6,8 @@ import type { AssistantAccess } from "@/lib/hub-assistant/knowledge";
 import { loadAssistantData } from "@/lib/hub-assistant/data";
 import { describeContext, readContext, runAssistantTool, toolStatus, type AssistantData, type ToolOutcome } from "@/lib/hub-assistant/tools";
 import { prepareTaskProposal } from "@/lib/hub-assistant/proposals";
-import { saveTaskProposal } from "@/lib/hub-assistant/action-store";
+import { saveProposal, saveTaskProposal } from "@/lib/hub-assistant/action-store";
+import { prepareProjectUpdate, prepareTaskUpdates } from "@/lib/hub-assistant/updates";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 
@@ -24,6 +25,27 @@ const MAX_ROUNDS = 8;
 type StreamEvent = "text" | "tool" | "proposal" | "error";
 
 /**
+ * propose_project_update / propose_task_updates: check the change against what the admin sees (with the Studio
+ * versions read now), store it and show "old → new" as a preview card; nothing is saved in Studio here.
+ */
+async function proposeChange(name: "propose_project_update" | "propose_task_updates", input: unknown, store: AssistantData, userId: string, send: (t: StreamEvent, v: string) => void): Promise<ToolOutcome> {
+  const prepared = name === "propose_project_update" ? prepareProjectUpdate(input, store) : prepareTaskUpdates(input, store);
+  if (!prepared.ok) return prepared;
+  const kind = name === "propose_project_update" ? "project.update" : "tasks.update";
+  const saved = await saveProposal(userId, kind, prepared.proposal, prepared.proposal);
+  if (!saved.ok) return saved;
+  send("proposal", JSON.stringify({ kind, ...prepared.proposal, id: saved.id, expiresAt: saved.expiresAt }));
+  return {
+    ok: true,
+    content: JSON.stringify({
+      proposal_id: saved.id,
+      state: "Vorschau alt → neu angezeigt, NICHT gespeichert. Der Nutzer prüft und speichert selbst.",
+      changes: "changes" in prepared.proposal ? prepared.proposal.changes.length : prepared.proposal.tasks.length,
+    }),
+  };
+}
+
+/**
  * propose_tasks: check the proposal against the user's own messages, store it for the admin and show it as a preview
  * card; nothing is saved in Studio. The quotes go only to the preview, never into the database.
  */
@@ -32,7 +54,7 @@ async function proposeTasks(input: unknown, store: AssistantData, userId: string
   if (!prepared.ok) return prepared;
   const saved = await saveTaskProposal(userId, prepared.proposal);
   if (!saved.ok) return saved;
-  send("proposal", JSON.stringify({ ...saved.view, evidence: prepared.evidence }));
+  send("proposal", JSON.stringify({ kind: "tasks.create", ...saved.view, evidence: prepared.evidence }));
   const duplicates = saved.view.tasks.filter((task) => task.duplicate).length;
   const unsupported = saved.view.tasks.filter((task) => task.unsupported).length;
   return {
@@ -126,7 +148,9 @@ export async function POST(request: Request) {
           for (const block of message.content) {
             if (block.type !== "tool_use") continue;
             send("tool", toolStatus(block.name, block.input, store));
-            const outcome = block.name === "propose_tasks" ? await proposeTasks(block.input, store, userId, sources, send) : runAssistantTool(block.name, block.input, store);
+            const outcome = block.name === "propose_tasks" ? await proposeTasks(block.input, store, userId, sources, send)
+              : block.name === "propose_project_update" || block.name === "propose_task_updates" ? await proposeChange(block.name, block.input, store, userId, send)
+              : runAssistantTool(block.name, block.input, store);
             results.push(outcome.ok
               ? { type: "tool_result", tool_use_id: block.id, content: outcome.content }
               : { type: "tool_result", tool_use_id: block.id, content: outcome.error, is_error: true });

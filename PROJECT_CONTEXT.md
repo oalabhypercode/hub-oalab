@@ -53,6 +53,14 @@
 - **Offene Punkte:** Nummernregel für Service-Kunden (`organizations.customer_number` verlangt `OA-…`, der Hub vergibt `KD-…`) und welcher Tarif (`plan_id`) für neue Kunden gilt; ob Service für eine neue Organisation weitere Einträge braucht; ob beim Kundenanlegen gleich ein Login entsteht; optional das Label „Kunde“ fest in die Studio-Auswahlliste (`apps/web/features/workspace/vocabulary.ts` in `service-oalab`; ohne das erscheint es dort, sobald eine Aufgabe es trägt); Tageslimit für KI-Anfragen pro Admin.
 - **Stand der PRs (27. Oktober 2026):** gestapelt #15 Patch Notes → #16 Schritt 1 → #17 Schritt 2. Reihenfolge beim Mergen: #15, dann Basis von #16 auf `main`, dann dasselbe bei #17. Mit echten Daten ist noch nichts geprüft; am einfachsten über die Vercel-Vorschau von #17 mit einem Admin-Login.
 
+### Vorgabe vom 29. Oktober 2026: Projekte und Aufgaben per Assistent ändern (KI-Aktionen, Schritt 5)
+
+- Freigabe des Nutzers am 29. Oktober 2026 („mit dem nächsten Schritt weitermachen“). Keine Datenbankänderung: `hub_assistant_actions` kennt die Arten `project.update` und `tasks.update` schon seit Schritt 3.
+- Werkzeuge (`lib/hub-assistant/updates.ts`): `propose_project_update` (Zieltermin, Start, Studio-Status, Notiz, die mit Datum an die Beschreibung angehängt wird) und `propose_task_updates` (bis 20 Aufgaben eines Projekts per Nummer: Titel, Stand, Fälligkeit, OALAB/Kunde, Freigabe). Jedes Feld hat `keep`; der Server übernimmt nur Felder, die sich wirklich ändern, und lehnt Vorschläge ohne Änderung, mit Start nach Zieltermin oder mit Aufgaben aus mehreren Projekten ab. Projekte umbenennen und Aufgaben löschen sind bewusst nicht dabei.
+- Vorschau „alt → neu“ im Chat: Projektänderungen je Feld, Aufgabenänderungen je Aufgabe anhakbar. Claude erfährt den Ausgang nur über den „Vermerk des Hubs“.
+- Speichern (`confirmProjectUpdate`, `confirmTaskUpdates` in `lib/hub-assistant/actions.ts`): Prüfung wie in Schritt 3, dann Schreiben mit der eigenen Sitzung des Admins und nur, solange die beim Vorschlag gelesene Studio-Version noch stimmt (`.eq("version", …)`). Sonst „inzwischen im Studio geändert“, nichts überschrieben. Projekte ohne Studio-Details bekommen beim ersten Speichern ihre Details-Zeile, wie im Studio. Beim Umstellen auf „Kunde“ bleiben andere Labels erhalten. Aufgaben werden einzeln geschrieben; das Ergebnis nennt gespeicherte, veraltete und fehlgeschlagene Nummern. Protokoll: `assistant.project_updated` bzw. `assistant.tasks_updated`.
+- Dafür lädt der Hub jetzt Studio-Status und Versionen mit (`lib/hub-projects/`).
+
 ### Vorgabe vom 28. Oktober 2026: Meetingtranskripte auswerten (KI-Aktionen, Schritt 4)
 
 - Voraussetzung: Der Nutzer meldet den Auftragsverarbeitungsvertrag (DPA) mit Anthropic am 28. Oktober 2026 als geregelt; Freigabe von Schritt 4 am selben Tag.
