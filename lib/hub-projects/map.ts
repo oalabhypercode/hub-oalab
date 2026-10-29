@@ -5,7 +5,7 @@
  * - "Abgeschlossen" is Studio's status "complete";
  * - "Dein Feedback" means an open task with the label "Kunde" that is released to the customer.
  */
-import type { Milestone, Project, ProjectTask } from "../hub-data";
+import type { Milestone, Project, ProjectTask, StudioProjectStatus } from "../hub-data";
 
 /** The label that marks a task the customer has to do. */
 export const CUSTOMER_LABEL = "Kunde";
@@ -18,6 +18,7 @@ export type StudioDetailsRow = {
   start_date: string | null;
   due_date: string | null;
   milestones: unknown;
+  version?: number;
 };
 export type StudioTaskRow = {
   id: string;
@@ -28,6 +29,7 @@ export type StudioTaskRow = {
   due_date: string | null;
   labels: string[] | null;
   client_visible: boolean;
+  version?: number;
 };
 export type RequestCounts = { open: number; done: number };
 
@@ -56,7 +58,15 @@ export function toProjectTask(row: StudioTaskRow): ProjectTask {
     dueOn: row.due_date,
     customer: (row.labels ?? []).some(isCustomerLabel),
     visible: row.client_visible,
+    ...(row.version ? { version: Number(row.version) } : {}),
   };
+}
+
+const studioStatuses: StudioProjectStatus[] = ["planning", "active", "risk", "hold", "complete"];
+
+/** Studio's status, as Studio shows it: without a details row a paused project is "hold", otherwise "active". */
+function studioStatusOf(project: StudioProjectRow, details: StudioDetailsRow | null): StudioProjectStatus {
+  return studioStatuses.find((status) => status === details?.status) ?? (project.status === "paused" ? "hold" : "active");
 }
 
 const percent = (part: number, whole: number) => whole ? Math.round((part / whole) * 100) : 0;
@@ -97,6 +107,7 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     milestones: toMilestones(details?.milestones),
     progressBasis: tasks.length ? "tasks" : requests.done + requests.open ? "requests" : "none",
     requests,
+    studio: { status: studioStatusOf(project, details), version: details?.version ? Number(details.version) : null },
     tasks: [...tasks].sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999") || a.number - b.number),
   };
 }

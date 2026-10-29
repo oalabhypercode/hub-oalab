@@ -12,8 +12,8 @@ import { countRequests, toHubProject, toProjectTask, type LiveProjectsState, typ
 // - customers read Studio details and tasks with their own session, where Studio's RLS only returns what is released
 //   to their company; names and request counts are then read for exactly those projects.
 
-const DETAILS = "project_id, description, status, start_date, due_date, milestones";
-const TASKS = "id, task_number, project_id, title, status, due_date, labels, client_visible";
+const DETAILS = "project_id, description, status, start_date, due_date, milestones, version";
+const TASKS = "id, task_number, project_id, title, status, due_date, labels, client_visible, version";
 const unavailable = (error: string): LiveProjectsState => ({ projects: [], error });
 
 async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boolean): Promise<LiveProjectsState> {

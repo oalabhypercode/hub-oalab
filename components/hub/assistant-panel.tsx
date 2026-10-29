@@ -5,12 +5,21 @@ import Link from "next/link";
 import { ArrowUp, Check, Loader2, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
 import { MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS, MAX_TURNS, type AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { proposalNote, type ProposalView, type TaskChoice } from "@/lib/hub-assistant/proposals";
-import { confirmTaskProposal, discardTaskProposal } from "@/lib/hub-assistant/actions";
+import { confirmProjectUpdate, confirmTaskProposal, confirmTaskUpdates, discardTaskProposal } from "@/lib/hub-assistant/actions";
+import { changeNote, projectChangeLine, taskChangeLines, type ChangeLine, type ChangeView } from "@/lib/hub-assistant/updates";
 import { formatDeadline } from "@/lib/hub-data";
 import { Modal } from "./modal";
 
-/** A task proposal as the chat shows it: the stored proposal, the admin's switches and what happened to it. */
-type ProposalState = { view: ProposalView; choices: TaskChoice[]; state: "open" | "saving" | "saved" | "discarded" | "failed"; message?: string; saved?: number };
+/** New tasks (Schritt 3/4) or a change to a project or to existing tasks (Schritt 5). */
+type AnyView = (ProposalView & { kind?: "tasks.create" }) | ChangeView;
+
+/**
+ * A proposal as the chat shows it: the stored proposal, the admin's choices and what happened to it.
+ * New tasks use `choices` (pick and switch), changes use `picks` (one tick per field or task).
+ */
+type ProposalState = { view: AnyView; choices: TaskChoice[]; picks: boolean[]; state: "open" | "saving" | "saved" | "discarded" | "failed"; message?: string; saved?: number };
+
+const isChange = (view: AnyView): view is ChangeView => view.kind === "project.update" || view.kind === "tasks.update";
 
 /** A chat turn; assistant turns may carry task proposals (admins only). */
 export type ChatTurn = AssistantTurn & { proposals?: ProposalState[] };
@@ -18,7 +27,10 @@ export type ChatTurn = AssistantTurn & { proposals?: ProposalState[] };
 /** What goes to the server: plain text, with a factual note on each proposal so Claude knows what was saved. */
 function toApiTurn(turn: ChatTurn): AssistantTurn {
   if (turn.role !== "assistant" || !turn.proposals?.length) return { role: turn.role, content: turn.content };
-  const notes = turn.proposals.map((item) => proposalNote(item.view, item.state === "saved" ? "saved" : item.state === "discarded" ? "discarded" : item.state === "failed" ? "failed" : "open", item.saved));
+  const notes = turn.proposals.map((item) => {
+    const outcome = item.state === "saved" ? "saved" : item.state === "discarded" ? "discarded" : item.state === "failed" ? "failed" : "open";
+    return isChange(item.view) ? changeNote(item.view, outcome, item.message) : proposalNote(item.view, outcome, item.saved);
+  });
   return { role: "assistant", content: [turn.content, ...notes].filter(Boolean).join("\n\n") };
 }
 
@@ -92,10 +104,14 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
           if (event.t === "error") throw new Error(event.v);
           if (event.t === "tool") { setStatus(event.v); continue; }
           if (event.t === "proposal") {
-            // New tasks start as the assistant proposed them; the admin can switch each one before saving.
-            const view = JSON.parse(event.v) as ProposalView;
-            // Possible duplicates and tasks whose quote is not in the pasted text start deselected.
-            proposals.push({ view, choices: view.tasks.map((task) => ({ include: !task.duplicate && !task.unsupported, customer: task.customer, visible: task.visible })), state: "open" });
+            const view = JSON.parse(event.v) as AnyView;
+            if (isChange(view)) {
+              // A change starts with every field or task ticked, as the assistant proposed it.
+              proposals.push({ view, choices: [], picks: (view.kind === "project.update" ? view.changes : view.tasks).map(() => true), state: "open" });
+            } else {
+              // New tasks start as proposed; possible duplicates and tasks whose quote is not in the pasted text start deselected.
+              proposals.push({ view, choices: view.tasks.map((task) => ({ include: !task.duplicate && !task.unsupported, customer: task.customer, visible: task.visible })), picks: [], state: "open" });
+            }
           } else {
             answer += event.v;
             setStatus("");
@@ -125,7 +141,26 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
   async function decide(turnIndex: number, proposalIndex: number, item: ProposalState, save: boolean) {
     patchProposal(turnIndex, proposalIndex, { state: "saving", message: undefined });
     try {
-      if (save) {
+      if (save && item.view.kind === "project.update") {
+        const result = await confirmProjectUpdate({ id: item.view.id, picks: item.picks });
+        patchProposal(turnIndex, proposalIndex, result.ok
+          ? { state: "saved", saved: result.data.saved, message: `${result.data.saved === 1 ? "Eine Änderung" : `${result.data.saved} Änderungen`} am Projekt gespeichert.` }
+          : { state: result.error.includes("Nichts wurde") ? "failed" : "open", message: result.error });
+      } else if (save && item.view.kind === "tasks.update") {
+        const result = await confirmTaskUpdates({ id: item.view.id, picks: item.picks });
+        if (!result.ok) {
+          patchProposal(turnIndex, proposalIndex, { state: "open", message: result.error });
+        } else {
+          const { saved, stale, failed } = result.data;
+          const list = (numbers: number[]) => numbers.map((number) => `#${number}`).join(", ");
+          const message = [
+            saved.length ? `Gespeichert: ${list(saved)}.` : "Nichts wurde gespeichert.",
+            stale.length ? `Nicht gespeichert, weil inzwischen im Studio geändert: ${list(stale)}.` : "",
+            failed.length ? `Nicht gespeichert (Fehler): ${list(failed)}.` : "",
+          ].filter(Boolean).join(" ");
+          patchProposal(turnIndex, proposalIndex, { state: saved.length ? "saved" : "failed", saved: saved.length, message });
+        }
+      } else if (save) {
         const result = await confirmTaskProposal({ id: item.view.id, choices: item.choices });
         patchProposal(turnIndex, proposalIndex, result.ok
           ? { state: "saved", saved: result.data.saved, message: `${result.data.saved === 1 ? "Eine Aufgabe" : `${result.data.saved} Aufgaben`} gespeichert: ${result.data.taskNumbers.map((number) => `#${number}`).join(", ")}.` }
@@ -152,7 +187,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
         <div className="assistant-intro">
           <span className="assistant-avatar" aria-hidden="true"><Sparkles size={18} /></span>
           <p>{admin
-            ? "Ich bin der KI-Assistent von oalab. Ich erkläre den Client Hub, lese für dich Kunden, Projekte und Aufgaben und schlage neue Aufgaben vor (mit aktivem Zwei-Faktor-Schutz). Gespeichert wird erst, wenn du in der Vorschau auf „Speichern“ klickst."
+            ? "Ich bin der KI-Assistent von oalab. Ich erkläre den Client Hub, lese für dich Kunden, Projekte und Aufgaben, schlage neue Aufgaben und Änderungen vor (mit aktivem Zwei-Faktor-Schutz). Gespeichert wird erst, wenn du in der Vorschau auf „Speichern“ klickst."
             : "Ich bin der KI-Assistent von oalab und erkläre dir die Funktionen des Client Hub. Bei Fragen zu deinem Projekt ist dein OALAB-Team die erste Anlaufstelle."}</p>
         </div>
         {!available && <p className="assistant-note">Der Assistent ist mit einem echten Login verfügbar. In der Vorschau und der öffentlichen Demo werden keine Fragen an Claude gesendet.</p>}
@@ -168,8 +203,12 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
               {turn.role === "user" ? turn.content
                 : turn.content ? <AssistantText text={turn.content} />
                 : !turn.proposals?.length && <span className="assistant-typing" role="status"><Loader2 size={16} className="spin" aria-hidden="true" />{status || "Antwort wird geschrieben …"}</span>}
-              {turn.proposals?.map((item, position) => (
-                <ProposalCard key={item.view.id} item={item}
+              {turn.proposals?.map((item, position) => isChange(item.view) ? (
+                <ChangeCard key={item.view.id} item={item} view={item.view}
+                  onPick={(picks) => patchProposal(index, position, { picks })}
+                  onDecide={(save) => decide(index, position, item, save)} />
+              ) : (
+                <ProposalCard key={item.view.id} item={item} view={item.view}
                   onChoose={(choices) => patchProposal(index, position, { choices })}
                   onDecide={(save) => decide(index, position, item, save)} />
               ))}
@@ -203,9 +242,56 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
   );
 }
 
+/** Preview of a change: every field or task as "old → new" with a tick; the admin saves the ticked ones or discards. */
+function ChangeCard({ item, view, onPick, onDecide }: { item: ProposalState; view: ChangeView; onPick: (picks: boolean[]) => void; onDecide: (save: boolean) => void }) {
+  const { picks, state } = item;
+  const editable = state === "open";
+  const chosen = picks.filter(Boolean).length;
+  const toggle = (index: number) => onPick(picks.map((pick, position) => position === index ? !pick : pick));
+  const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(view.expiresAt));
+  const rows: { key: string; title?: string; lines: ChangeLine[] }[] = view.kind === "project.update"
+    ? view.changes.map((change) => ({ key: change.field, lines: [projectChangeLine(change)] }))
+    : view.tasks.map((task) => ({ key: task.taskId, title: `#${task.number} ${task.before.title}`, lines: taskChangeLines(task) }));
+  return (
+    <section className={`proposal-card is-${state}`} aria-label={`Änderungsvorschlag für ${view.projectName}`}>
+      <header>
+        <strong>Änderung · {view.kind === "project.update" ? "Projekt" : view.tasks.length === 1 ? "1 Aufgabe" : `${view.tasks.length} Aufgaben`}</strong>
+        <span>{[view.customer, view.projectName].filter(Boolean).join(" · ")}</span>
+      </header>
+      <ul>
+        {rows.map((row, index) => (
+          <li key={row.key} className={picks[index] ? undefined : "is-off"}>
+            <label className="proposal-pick">
+              <input type="checkbox" checked={picks[index]} disabled={!editable} onChange={() => toggle(index)} />
+              <span>{row.title ?? row.lines[0].label}</span>
+            </label>
+            {row.lines.map((line) => (
+              <p key={line.label} className="proposal-change">
+                {row.title && <span className="proposal-change-label">{line.label}: </span>}
+                {line.before ? <><del>{line.before}</del> → </> : "+ "}<strong>{line.after}</strong>
+              </p>
+            ))}
+          </li>
+        ))}
+      </ul>
+      {item.message && <p className={state === "saved" ? "proposal-done" : state === "discarded" ? "proposal-hint" : "form-error"} role="status">{state === "saved" && <Check size={15} aria-hidden="true" />} {item.message}</p>}
+      {state === "saved" && <Link className="proposal-link" href={`/dashboard/projects?project=${view.projectId}`}>Im Projekt ansehen</Link>}
+      {(state === "open" || state === "saving") && (
+        <div className="proposal-actions">
+          <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
+          <button type="button" className="proposal-save" disabled={state === "saving" || !chosen} onClick={() => onDecide(true)}>
+            {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}{chosen === 1 ? "1 Änderung speichern" : `${chosen} Änderungen speichern`}
+          </button>
+        </div>
+      )}
+      {state === "open" && <p className="proposal-expiry">Noch nicht gespeichert · gültig bis {until} Uhr</p>}
+    </section>
+  );
+}
+
 /** Preview of proposed tasks: the admin picks, switches owner and release, then saves or discards. */
-function ProposalCard({ item, onChoose, onDecide }: { item: ProposalState; onChoose: (choices: TaskChoice[]) => void; onDecide: (save: boolean) => void }) {
-  const { view, choices, state } = item;
+function ProposalCard({ item, view, onChoose, onDecide }: { item: ProposalState; view: ProposalView; onChoose: (choices: TaskChoice[]) => void; onDecide: (save: boolean) => void }) {
+  const { choices, state } = item;
   const editable = state === "open";
   const chosen = choices.filter((choice) => choice.include).length;
   const set = (index: number, patch: Partial<TaskChoice>) => onChoose(choices.map((choice, position) => position === index ? { ...choice, ...patch } : choice));

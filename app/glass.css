@@ -1198,3 +1198,6 @@ a.teams-join:active { transform: scale(0.97); }
 .proposal-expiry { margin-top: 6px; font-size: 12px; color: var(--label-secondary); text-align: right; }
 .proposal-card .form-error { margin-top: 10px; }
 .proposal-evidence { margin: 6px 0 0 26px; padding-left: 8px; border-left: 3px solid var(--separator); font-size: 13px; line-height: 18px; font-style: italic; color: var(--label-secondary); }
+.proposal-change { margin: 3px 0 0 26px; font-size: 13px; line-height: 18px; color: var(--label-body); }
+.proposal-change del { color: var(--label-secondary); }
+.proposal-change-label { color: var(--label-secondary); }
