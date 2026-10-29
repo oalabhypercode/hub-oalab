@@ -1,7 +1,10 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadLiveProjects } from "@/lib/hub-projects/server";
+import { listAllUsers } from "@/lib/hub-users/server";
+import { mailSettings } from "@/lib/hub-mail/send";
 import type { AssistantData } from "./tools";
+import type { CustomerContext } from "./customers";
 
 type CustomerRow = {
   id: string;
@@ -40,4 +43,29 @@ export async function loadAssistantData(): Promise<AssistantData | null> {
       contactEmail: row.contact_email ?? "",
     })),
   };
+}
+
+type PlanRow = { id: string; code: string; name: string; created_at: string };
+
+/**
+ * For a customer proposal (propose_customer), loaded only when the assistant makes one: the active Service packages,
+ * the addresses that already have a login and whether mails really go out. Call only after the same admin check.
+ */
+export async function loadCustomerContext(): Promise<CustomerContext | null> {
+  const db = createAdminClient();
+  if (!db) return null;
+  try {
+    const [plans, users] = await Promise.all([
+      db.from("plans").select("id, code, name, created_at").eq("is_active", true).returns<PlanRow[]>(),
+      listAllUsers(db),
+    ]);
+    if (plans.error) return null;
+    return {
+      plans: (plans.data ?? []).map((row) => ({ id: row.id, code: row.code, name: row.name, createdAt: row.created_at })),
+      loginEmails: new Set(users.flatMap((user) => user.email ? [user.email.toLowerCase()] : [])),
+      mailReady: mailSettings().configured,
+    };
+  } catch {
+    return null;
+  }
 }

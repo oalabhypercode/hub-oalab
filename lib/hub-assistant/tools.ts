@@ -225,7 +225,7 @@ export function toolStatus(name: string, input: unknown, data: AssistantData) {
   if (name === "get_customer") return `Lese Kunde ${data.customers.find((item) => item.id === args.customer_id)?.company ?? ""} …`.replace("  ", " ");
   if (name === "get_project") return `Lese Projekt ${data.projects.find((item) => item.id === args.project_id)?.name ?? ""} …`.replace("  ", " ");
   if (name === "list_tasks") return "Lese Aufgaben …";
-  if (name === "propose_tasks" || name === "propose_project_update" || name === "propose_task_updates") return "Bereite die Vorschau vor …";
+  if (name === "propose_tasks" || name === "propose_project_update" || name === "propose_task_updates" || name === "propose_customer") return "Bereite die Vorschau vor …";
   return "Lese Daten …";
 }
 

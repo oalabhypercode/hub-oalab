@@ -3,18 +3,20 @@ import { createClient } from "@/lib/supabase/server";
 import { cleanConversation, MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS } from "@/lib/hub-assistant/conversation";
 import { assistantConfigured, assistantRequest, REFUSAL_TEXT } from "@/lib/hub-assistant/claude";
 import type { AssistantAccess } from "@/lib/hub-assistant/knowledge";
-import { loadAssistantData } from "@/lib/hub-assistant/data";
+import { loadAssistantData, loadCustomerContext } from "@/lib/hub-assistant/data";
 import { describeContext, readContext, runAssistantTool, toolStatus, type AssistantData, type ToolOutcome } from "@/lib/hub-assistant/tools";
 import { prepareTaskProposal } from "@/lib/hub-assistant/proposals";
 import { saveProposal, saveTaskProposal } from "@/lib/hub-assistant/action-store";
 import { prepareProjectUpdate, prepareTaskUpdates } from "@/lib/hub-assistant/updates";
+import { prepareCustomerProposal } from "@/lib/hub-assistant/customers";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
+import { cleanEmail, cleanLine, cleanPhone, cleanWebsite, normalizeCompany, readPerson } from "@/lib/hub-users/rules";
 
 // The hub assistant: answers questions about the platform with Claude. Only signed-in Supabase users reach it (public
 // demo and preview never do). Customers get help only; verified admins with a confirmed second factor may also let it
-// read customers, projects and tasks, and propose new tasks. Nothing here writes to Studio: a proposal is only stored
-// for the admin to confirm in the chat (lib/hub-assistant/actions.ts).
+// read customers, projects and tasks, and propose new tasks, changes and customers. Nothing here writes to Studio or
+// Service: a proposal is only stored for the admin to confirm in the chat (lib/hub-assistant/actions.ts).
 // The answer streams back as one JSON object per line: {"t":"text"|"tool"|"proposal"|"error","v":"…"}.
 
 export const maxDuration = 120;
@@ -41,6 +43,32 @@ async function proposeChange(name: "propose_project_update" | "propose_task_upda
       proposal_id: saved.id,
       state: "Vorschau alt → neu angezeigt, NICHT gespeichert. Der Nutzer prüft und speichert selbst.",
       changes: "changes" in prepared.proposal ? prepared.proposal.changes.length : prepared.proposal.tasks.length,
+    }),
+  };
+}
+
+/**
+ * propose_customer: check the new customer against the existing ones, the active Service packages and the logins,
+ * store it and show it as a preview card; nothing is created here. Same input rules as the user management form.
+ */
+async function proposeCustomer(input: unknown, store: AssistantData, userId: string, send: (t: StreamEvent, v: string) => void): Promise<ToolOutcome> {
+  const context = await loadCustomerContext();
+  if (!context) return { ok: false, error: "Pakete und Logins sind gerade nicht erreichbar. Bitte gleich noch einmal versuchen." };
+  const prepared = prepareCustomerProposal(input, store, context, { cleanEmail, cleanLine, cleanPhone, cleanWebsite, normalizeCompany, readPerson });
+  if (!prepared.ok) return prepared;
+  const saved = await saveProposal(userId, "customer.create", { organizationId: null, projectId: null }, prepared.proposal);
+  if (!saved.ok) return saved;
+  send("proposal", JSON.stringify({ kind: "customer.create", ...prepared.proposal, id: saved.id, expiresAt: saved.expiresAt }));
+  const { login, plans, planId, similar } = prepared.proposal;
+  return {
+    ok: true,
+    content: JSON.stringify({
+      proposal_id: saved.id,
+      state: "Vorschau angezeigt, NICHT angelegt. Der Nutzer wählt Paket und Login und legt selbst an; die Kundennummer vergibt der Hub dabei.",
+      package: plans.find((plan) => plan.id === planId)?.name,
+      login_offered: Boolean(login && !login.taken),
+      ...(login?.taken ? { login_note: "Für diese E-Mail gibt es schon einen Login; die Vorschau bietet keinen neuen an." } : {}),
+      similar_customers: similar.map((item) => `${item.company} (${item.customerNumber})`),
     }),
   };
 }
@@ -150,6 +178,7 @@ export async function POST(request: Request) {
             send("tool", toolStatus(block.name, block.input, store));
             const outcome = block.name === "propose_tasks" ? await proposeTasks(block.input, store, userId, sources, send)
               : block.name === "propose_project_update" || block.name === "propose_task_updates" ? await proposeChange(block.name, block.input, store, userId, send)
+              : block.name === "propose_customer" ? await proposeCustomer(block.input, store, userId, send)
               : runAssistantTool(block.name, block.input, store);
             results.push(outcome.ok
               ? { type: "tool_result", tool_use_id: block.id, content: outcome.content }
