@@ -260,3 +260,25 @@ export function loginCodeMail(input: { firstName: string; code: string; minutes:
     legal,
   });
 }
+
+/**
+ * To a customer: what is new for them in the hub, bundled (lib/hub-notify). Each item names its context and what
+ * happened; one button leads into the hub, where every notice links to its place.
+ */
+export function noticeDigestMail(input: { firstName: string; items: { title: string; body: string }[]; more: number; hubUrl: string }, legal?: MailLegal): MailContent {
+  const count = input.items.length + input.more;
+  const first = input.items[0]?.title ?? "";
+  return render({
+    subject: count === 1 ? `Neu im Client Hub: ${first}` : `Neu im Client Hub: ${count} Neuigkeiten`,
+    preheader: count === 1 ? first : `${first} und ${count - 1} weitere`,
+    heading: `Hallo ${greetingName(input.firstName)}, es gibt Neues für dich.`,
+    blocks: [
+      ...input.items.map((item): Block => ({ kind: "quote", label: item.body, value: item.title })),
+      ...(input.more ? [{ kind: "text", value: input.more === 1 ? "Eine weitere Neuigkeit findest du im Hub." : `${input.more} weitere Neuigkeiten findest du im Hub.` } as Block] : []),
+      { kind: "button", label: "Im Client Hub ansehen", url: input.hubUrl },
+      { kind: "small", value: "Diese E-Mails kannst du im Client Hub unter „Profil & Zugang“ abschalten. Die Glocke im Hub zeigt dir die Neuigkeiten weiterhin." },
+    ],
+    footer: "Diese Nachricht hat der oalab Client Hub automatisch verschickt. Fragen? Antworte einfach auf diese E-Mail.",
+    legal,
+  });
+}

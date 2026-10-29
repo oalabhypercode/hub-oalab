@@ -4,6 +4,8 @@ import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName } from "./catalog";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
+import { fileNotice } from "@/lib/hub-notify/rules";
+import { notifyCustomers } from "@/lib/hub-notify/server";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
 // Row Level Security in Supabase enforces the same rules a second time.
@@ -96,6 +98,7 @@ export async function finalizeUpload(input: FinalizeInput): Promise<ActionResult
       refreshWorkspace();
       return { ok: false, error: "Die Datei ist gespeichert, aber die Zuordnung ist fehlgeschlagen. Bitte die Zuordnung erneut setzen." };
     }
+    await notifyCustomers(customerIds, fileNotice(title));
   }
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
@@ -119,6 +122,8 @@ export async function setFileAssignments(fileId: string, customerIds: string[]):
   if (added.length) {
     const { error } = await supabase.from("hub_file_assignments").insert(added.map((customerId) => ({ file_id: fileId, customer_id: customerId })));
     if (error) return { ok: false, error: "Die Zuordnung konnte nicht geändert werden." };
+    const file = await supabase.from("hub_files").select("title").eq("id", fileId).maybeSingle<{ title: string }>();
+    if (file.data) await notifyCustomers(added, fileNotice(file.data.title));
   }
   refreshWorkspace();
   return { ok: true, data: { count: wanted.length } };

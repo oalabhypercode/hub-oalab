@@ -106,6 +106,7 @@ Der Hub verschickt seine E-Mails selbst per SMTP über das Netcup-Postfach `hub@
 | Zugang freigeschaltet, mit Login-Link | Person | „Freigeben“ |
 | Registrierung nicht freigegeben, mit Begründung | Person | „Ablehnen“ |
 | Aktivierungs- oder Passwort-Link | Person | Häkchen beim Anlegen oder „Link per E-Mail senden“ |
+| „Neu im Client Hub“: gebündelte Benachrichtigungen | Kunden-Logins | Siehe [Benachrichtigungen](#benachrichtigungen) |
 
 - Team-Mail und Eingangsbestätigung gehen pro Login genau einmal raus: Der Server reserviert vor dem Versand eine Zeile in `hub_notifications` (eindeutiger Index). Ein fehlgeschlagener Versand wird beim nächsten Aufruf der Warteseite wiederholt.
 - `hub_notifications` (Migration `supabase/migrations/20261022210000_hub_notifications.sql`) speichert nur Art, Login, Ergebnis und Message-ID, keine Adressen, Betreffzeilen oder Inhalte. Admins sehen die Einträge im Verlauf des Benutzers. Server-Logs nennen nur die Art der Mail; jede Mail trägt sie auch im Kopf `X-Hub-Mail` (für Postfach-Filter).
@@ -123,6 +124,23 @@ Einrichtung für den Livebetrieb (das Passwort nur bei Netcup, in Vercel, in Sup
 6. DNS: Der SPF-Eintrag von oalab.de schließt Netcup bereits ein (`include:_spf.webhosting.systems`). Damit die Mails nicht im Spam landen, sind DKIM für oalab.de (falls der Netcup-Tarif es anbietet) und ein DMARC-Eintrag `_dmarc` empfehlenswert; bisher gibt es keinen, für den Anfang reicht `v=DMARC1; p=none;`.
 
 Die Mails laufen über den Mailserver von Netcup in Deutschland. Netcup verarbeitet dabei Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag; dafür braucht es den Auftragsverarbeitungsvertrag mit Netcup und einen Absatz in der Datenschutzerklärung.
+
+## Benachrichtigungen
+
+Kunden sehen in der Glocke, was für sie neu ist, und bekommen dazu eine gebündelte E-Mail (`lib/hub-notify/`):
+
+| Meldung | ausgelöst durch |
+| --- | --- |
+| „Du bist am Zug: …“ | Eine freigegebene, nicht erledigte Aufgabe mit Label „Kunde“ liegt jetzt beim Kunden (Studio oder Assistent) |
+| „Projekt aktualisiert: …“ | Status oder Zieltermin eines freigegebenen Projekts ändert sich im Studio |
+| „Neue Datei: …“ | Ein Admin ordnet dem Kunden eine Datei zu |
+| Termin angelegt, bestätigt, verschoben, abgesagt, Anfrage abgelehnt | Kalender im Hub |
+
+- Dateien und Termine schreibt der Hub beim Speichern in `hub_inbox`. Studio-Änderungen liest er alle fünf Minuten aus `studio_activity`; `hub_notice_marks` hält den letzten Stand je Aufgabe und Projekt, damit jede Änderung genau einmal gemeldet wird. Vorhandene Tabellen bleiben unverändert (Migration `202610300001_hub_notifications.sql` in `service-oalab`).
+- Den Takt gibt pg_cron in der Datenbank vor: Er ruft `/api/notifications/sweep` mit dem Token aus Supabase Vault auf. Die Route antwortet nur mit `HUB_NOTIFY_TOKEN`.
+- Die E-Mail geht etwa 15 Minuten nach der ersten neuen Meldung raus und enthält alles bis dahin Ungelesene (höchstens zehn Einträge, der Rest steht im Hub). Kunden schalten sie im Profil unter „Benachrichtigungen“ ab (Metadaten des Logins `hub_mail_notifications`); die Glocke bleibt.
+
+Einrichtung: Nach der Migration den Wert von `oalab_hub_notify_token` aus Supabase (Project Settings → Vault) als `HUB_NOTIFY_TOKEN` in Vercel (Production, „Sensitive“) eintragen, für lokale Tests auch in `.env.local`, und neu deployen.
 
 ## KI-Assistent (Claude)
 

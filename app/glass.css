@@ -233,6 +233,15 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .notification-item strong { font-size: 17px; font-weight: 600; color: var(--label); }
 .notification-item p { font-size: 15px; line-height: 20px; margin-top: 4px; color: var(--label-secondary); }
 .notification-item div > span { display: block; margin-top: 6px; font-size: 13px; color: var(--label-secondary); }
+.notice-list { list-style: none; margin: 0 0 16px; padding: 0; max-height: min(60vh, 520px); overflow-y: auto; }
+.notice-row { display: flex; align-items: flex-start; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--separator); color: var(--label-body); }
+.notice-list li:last-child .notice-row { border-bottom: 0; }
+.notice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.notice-text strong { font-size: 16px; line-height: 21px; font-weight: 500; color: var(--label); overflow-wrap: anywhere; }
+.notice-row.is-unread .notice-text strong { font-weight: 700; }
+.notice-text > span { font-size: 14px; line-height: 19px; color: var(--label-secondary); overflow-wrap: anywhere; }
+.notice-text time { font-size: 13px; color: var(--label-tertiary); }
+.notice-row.is-unread .notice-text time { color: var(--accent-text); }
 .text-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: 17px; font-weight: 500; color: var(--accent-text); }
 .sheet-button { width: 100%; min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; background: var(--fill-tertiary); color: var(--accent-text); font-size: 17px; font-weight: 600; }
 .sheet-button-primary { background: var(--accent-text); color: #ffffff; }
@@ -472,6 +481,8 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .settings-card { display: flex; flex-direction: column; gap: 8px; }
 .settings-card-title { display: flex; align-items: center; gap: 8px; }
 .settings-label { font-size: 13px; font-weight: 600; color: var(--label-secondary); margin-top: 6px; }
+.settings-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.settings-switch-row label { font-size: 17px; color: var(--label); }
 .account-input { height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--fill-tertiary); font-size: 17px; color: var(--label); width: 100%; }
 
 /* Detail page */

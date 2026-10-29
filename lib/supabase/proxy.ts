@@ -10,8 +10,9 @@ import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPreview = pathname === "/preview" || pathname.startsWith("/preview/");
-  // The WhatsApp webhook is called by Meta without a session; it checks Meta's signature itself.
-  const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === "/api/whatsapp";
+  // The WhatsApp webhook is called by Meta without a session; it checks Meta's signature itself. The notification
+  // schedule is called by the database without a session; it checks its token itself.
+  const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === "/api/whatsapp" || pathname === "/api/notifications/sweep";
   let supabaseResponse = NextResponse.next({ request });
 
   // The preview is an isolated, public UI with fictional fixtures only.
