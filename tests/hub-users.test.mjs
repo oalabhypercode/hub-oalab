@@ -136,6 +136,18 @@ test("every user management action checks the admin first and guards lock-outs",
   assert.match(await source("lib/supabase/admin.ts"), /^import "server-only";/);
 });
 
+test("logins are deleted together with their Service client membership, or not at all", async () => {
+  const actions = await source("lib/hub-users/actions.ts");
+  // The membership row Service keeps for every hub customer login blocks a plain auth delete.
+  assert.doesNotMatch(actions, /auth\.admin\.deleteUser/);
+  assert.match(actions, /ctx\.db\.rpc\("hub_delete_login", \{ target: userId \}\)/);
+  const remove = actions.slice(actions.indexOf("export async function deleteHubUser"));
+  assert.match(remove, /const removed = await removeLogin\(ctx, user\.id\);\n  if \(removed !== "deleted"\) return failed\(removalErrors\[removed\]\);/);
+  assert.match(actions, /in_use: "Auf dieses Konto verweisen noch Einträge in der Serviceplattform[^"]*Deaktiviere es stattdessen\."/);
+  // A login whose setup failed halfway is removed the same way, even after its customer assignment.
+  assert.match(actions, /const undo = async \(customerId\?: string \| null\) => \{\n    await removeLogin\(ctx, user\.id\);/);
+});
+
 test("waiting, rejected and deactivated logins never reach the hub, the assistant or WhatsApp answers", async () => {
   const session = await source("lib/hub-session.ts");
   assert.match(session, /if \(!account \|\| \(account\.status !== "active" && account\.status !== "unknown"\)\) redirect\("\/auth\/pending"\);/);

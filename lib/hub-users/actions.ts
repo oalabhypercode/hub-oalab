@@ -47,6 +47,25 @@ async function profileStatus(ctx: Context, userId: string) {
   return data?.status ?? null;
 }
 
+type LoginRemoval = "deleted" | "in_use" | "staff" | "missing" | "failed";
+
+/**
+ * Deletes a login. A hub customer login is also a client member in Service, and that row blocks deleting it; the
+ * database function removes both in one transaction and changes nothing while other Service records (requests,
+ * messages) still point at the login. Profile, hub memberships and WhatsApp link go with the login (foreign keys).
+ */
+async function removeLogin(ctx: Context, userId: string): Promise<LoginRemoval> {
+  const { data, error } = await ctx.db.rpc("hub_delete_login", { target: userId });
+  return !error && (data === "deleted" || data === "in_use" || data === "staff" || data === "missing") ? data : "failed";
+}
+
+const removalErrors: Record<Exclude<LoginRemoval, "deleted">, string> = {
+  in_use: "Auf dieses Konto verweisen noch Einträge in der Serviceplattform, etwa Anfragen oder Nachrichten. Deaktiviere es stattdessen.",
+  staff: "Das Konto hat Team-Zugang zur Serviceplattform und lässt sich hier nicht löschen. Deaktiviere es stattdessen.",
+  missing: "Dieses Konto gibt es nicht mehr.",
+  failed: "Das Konto konnte nicht gelöscht werden.",
+};
+
 /** Admins that can still sign in and act: the hub role in their token and an active profile. */
 async function activeAdminIds(ctx: Context) {
   const [users, profiles] = await Promise.all([
@@ -221,7 +240,7 @@ export async function createHubUser(input: { email: string; firstName: string; l
   }
   const user = created.data.user;
   const undo = async (customerId?: string | null) => {
-    await ctx.db.auth.admin.deleteUser(user.id);
+    await removeLogin(ctx, user.id);
     if (customerId) await ctx.db.from("hub_customers").delete().eq("id", customerId);
   };
 
@@ -354,9 +373,9 @@ export async function deleteHubUser(input: { userId: string; confirmEmail: strin
   if (refused) return failed(refused);
   if (cleanEmail(input?.confirmEmail).ok === false || String(input.confirmEmail).trim().toLowerCase() !== user.email.toLowerCase()) return failed("Zur Bestätigung bitte die E-Mail-Adresse des Kontos genau eintragen.");
   const { data: membership } = await ctx.db.from("hub_customer_members").select("customer_id").eq("user_id", user.id).limit(1).maybeSingle<{ customer_id: string }>();
-  // Profile, memberships and WhatsApp link go with the login (foreign keys); files and appointments stay.
-  const { error } = await ctx.db.auth.admin.deleteUser(user.id);
-  if (error) return failed("Das Konto konnte nicht gelöscht werden.");
+  // Files and appointments of the customer stay.
+  const removed = await removeLogin(ctx, user.id);
+  if (removed !== "deleted") return failed(removalErrors[removed]);
   await log(ctx, "user.deleted", "Konto endgültig gelöscht", { customerId: membership?.customer_id ?? null });
   refreshWorkspace();
   return { ok: true, data: null };
