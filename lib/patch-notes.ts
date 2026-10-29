@@ -46,6 +46,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", title: "Projekte ändern", text: "Admins können den Assistenten bitten, Zieltermin, Start oder Status eines Projekts zu ändern oder eine Notiz an die Beschreibung anzuhängen, etwa „Wir warten auf Kundenfeedback“. Die Vorschau zeigt alt → neu, erst „Speichern“ übernimmt es ins Studio." },
       { kind: "new", title: "Aufgaben ändern", text: "Bestehende Aufgaben lassen sich über den Assistenten umstellen: Titel, Stand, Fälligkeit, ob OALAB oder der Kunde dran ist und die Freigabe für den Kunden. Jede Aufgabe lässt sich in der Vorschau einzeln abwählen." },
       { kind: "improved", title: "Schutz vor Überschreiben", text: "Wurde ein Projekt oder eine Aufgabe zwischen Vorschlag und Speichern im Studio geändert, speichert der Hub diese Änderung nicht und sagt das. Andere Labels einer Aufgabe bleiben beim Umstellen auf „Kunde“ erhalten." },
+      { kind: "fixed", title: "Kunden-Logins löschen", text: "Logins, die einem Kunden zugeordnet waren, ließen sich im User Management nicht löschen. Jetzt verschwinden sie samt Zugang zur Serviceplattform. Gibt es dort noch Anfragen oder Nachrichten der Person, sagt der Hub, dass sich das Konto nur deaktivieren lässt." },
     ],
   },
   {

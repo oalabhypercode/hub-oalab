@@ -53,6 +53,12 @@
 - **Offene Punkte:** (Nummernregel, Tarif und Login beim Kundenanlegen am 29. Oktober 2026 entschieden, siehe Schritt 6.) Optional das Label „Kunde“ fest in die Studio-Auswahlliste (`apps/web/features/workspace/vocabulary.ts` in `service-oalab`; ohne das erscheint es dort, sobald eine Aufgabe es trägt); Tageslimit für KI-Anfragen pro Admin.
 - **Stand der PRs (27. Oktober 2026):** gestapelt #15 Patch Notes → #16 Schritt 1 → #17 Schritt 2. Reihenfolge beim Mergen: #15, dann Basis von #16 auf `main`, dann dasselbe bei #17. Mit echten Daten ist noch nichts geprüft; am einfachsten über die Vercel-Vorschau von #17 mit einem Admin-Login.
 
+### Fix vom 29. Oktober 2026: Kunden-Logins löschen
+
+- Ursache: Seit dem 25. Oktober macht eine Kundenzuordnung im Hub den Login per Trigger zum Kunden in Service (`memberships`). Endet die Zuordnung, wird die Mitgliedschaft nur widerrufen; die Zeile bleibt und blockiert das Löschen des Logins (`on delete restrict`). „Löschen“ im User Management scheiterte deshalb bei fast allen Kunden-Logins.
+- Entscheidung des Nutzers (Variante A): neue Funktion `public.hub_delete_login(target)` in `service-oalab` (Migration `202610290001_hub_delete_login.sql`, nur Service-Rolle, keine Tabellenänderung). Sie löscht Kunden-Mitgliedschaften und Login in einer Transaktion. Verweist sonst noch etwas in Service auf den Login (Anfragen, Nachrichten), bleibt alles unverändert (`in_use`); Team-Zugänge zu Service fasst sie nie an (`staff`).
+- Der Hub löscht Logins nur noch darüber (`removeLogin` in `lib/hub-users/actions.ts`), auch beim Zurückrollen eines halb angelegten Kontos. Bei `in_use` und `staff` sagt er, dass sich das Konto nur deaktivieren lässt.
+
 ### Vorgabe vom 29. Oktober 2026: Kunden per Assistent anlegen (KI-Aktionen, Schritt 6)
 
 - Freigabe des Nutzers am 29. Oktober 2026 („UMSETZUNG FREIGEGEBEN für Schritt 6 wie geplant“). Keine Datenbankänderung: `hub_assistant_actions` kennt `customer.create` seit Schritt 3 (Organisation und Projekt dürfen leer sein).
@@ -137,7 +143,7 @@
   - Ablehnen mit Begründung, die die Person per E-Mail bekommt und auf `/auth/pending` sieht. Abgelehnte Registrierungen bleiben gespeichert (Entscheidung vom 22. Oktober 2026) und lassen sich später freigeben oder löschen.
   - Benutzer-Tabelle (Kunden-Nr. mit Kopieren, Name + E-Mail, Unternehmen, Rolle, farbiger Status, letzter Login) und Kunden-Tabelle (Kunden-Nr., Unternehmen, Servicepakete, Logins, Ort), beide mit Suche, erweiterter Suche und Sortierung.
   - Benutzer anlegen: Login mit Rolle und Kunde; der Admin erhält einen einmaligen Aktivierungslink zum Kopieren oder „Im Mailprogramm öffnen“; auf Wunsch verschickt ihn der Hub selbst (siehe E-Mail-Benachrichtigungen unten). Der Link ist ein Supabase-Recovery-Link über `/auth/confirm` → `/auth/update-password`.
-  - Bearbeiten: Person, Rolle, Kunde, Passwort-Link (kopieren oder per E-Mail), deaktivieren/reaktivieren, endgültig löschen nach Eingabe der E-Mail-Adresse (Entscheidung: Deaktivieren als Standard, Löschen mit Bestätigung). Verlauf je Konto und Kunde.
+  - Bearbeiten: Person, Rolle, Kunde, Passwort-Link (kopieren oder per E-Mail), deaktivieren/reaktivieren, endgültig löschen nach Eingabe der E-Mail-Adresse (Entscheidung: Deaktivieren als Standard, Löschen mit Bestätigung; seit dem 29. Oktober über `hub_delete_login`, siehe Fix oben). Verlauf je Konto und Kunde.
   - Status: Wartet auf Freigabe, Aktivierung offen (aktiv, aber noch nie angemeldet), Aktiv, Deaktiviert, Abgelehnt.
 - **Registrierung:** Pflicht sind Vorname, Nachname, Unternehmen, Telefon, E-Mail, Passwort; optional Position, Website, Kundennummer, Nachricht. Datenschutzhinweis am Formular (Art. 6 Abs. 1 lit. b DSGVO, keine Einwilligungs-Checkbox). Prüfung im Browser und in der Datenbank (`lib/hub-users/rules.ts`, Trigger kürzt und bereinigt).
 - **Zugang:** Nur Logins mit aktivem Profil kommen in den Hub (`getWorkspaceIdentity`); alle anderen sehen `/auth/pending` mit ihrem Stand. KI-Assistent, WhatsApp-Antworten, WhatsApp-Verknüpfung und Kalender-Auslastung verlangen ebenfalls ein aktives Konto.
