@@ -274,9 +274,9 @@ const MOVED_HINT = "Schon in deinem Kalender? Lösch dort den alten Eintrag. Pri
 /** The ways into a calendar, each with a safe link; an empty list when none is usable. */
 function calendarEntries(calendar: MailCalendar) {
   const entries = [
-    { label: "Apple Kalender", hint: "iPhone, iPad, Mac", short: "Apple", url: calendar.ics, glyph: "calendar-add" },
-    { label: "Google Kalender", hint: "Android, Gmail, Web", short: "Google", url: calendar.google, glyph: "calendar-add" },
-    { label: "Outlook", hint: "Microsoft 365 im Browser", short: "Outlook", url: calendar.outlook, glyph: "calendar-add" },
+    { label: "Apple Kalender", hint: "iPhone, iPad, Mac", short: "Apple", url: calendar.ics, glyph: "brand-apple" },
+    { label: "Google Kalender", hint: "Android, Gmail, Web", short: "Google", url: calendar.google, glyph: "brand-google" },
+    { label: "Outlook", hint: "Microsoft 365 im Browser", short: "Outlook", url: calendar.outlook, glyph: "brand-microsoft" },
     { label: "Andere Kalender-App", hint: ".ics-Datei herunterladen", short: ".ics-Datei", url: calendar.ics, glyph: "calendar-file" },
   ];
   return entries.map((entry) => ({ ...entry, url: safeUrl(entry.url) })).filter((entry) => entry.url);

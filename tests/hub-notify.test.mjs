@@ -189,7 +189,11 @@ test("appointment mails carry the calendar links: a block in a mail of its own, 
   assert.match(one.html, /href="https:\/\/hub\.oalab\.de\/api\/calendar\/x\/google\?sig=abc"/);
   assert.doesNotMatch(one.html, /alten Eintrag/);
   assert.match(one.text, textLinks);
-  assert.ok(["calendar-tile", "calendar-add", "calendar-file"].every((id) => one.images.includes(id)));
+  assert.ok(["calendar-tile", "brand-apple", "brand-google", "brand-microsoft", "calendar-file"].every((id) => one.images.includes(id)));
+  // Each button shows the mark of its calendar, the one for other apps the download symbol.
+  for (const [id, label] of [["brand-apple", "Apple Kalender"], ["brand-google", "Google Kalender"], ["brand-microsoft", "Outlook"], ["calendar-file", "Andere Kalender-App"]]) {
+    assert.match(one.html, new RegExp(`cid:${id}@hub\\.oalab\\.de"(?:(?!cid:)[^])*>${label}</span>`));
+  }
 
   // In a list: compact links under the appointment.
   const list = noticeDigestMail({ firstName: "Jana", items: [created, { kind: "file.shared", title: "Neue Datei: Vertrag", body: "Im Bereich Dateien" }], more: 0, ...HUB });
