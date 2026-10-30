@@ -115,7 +115,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 
 ## Benachrichtigungen
 - Kunden sehen in der Glocke oben rechts, was für sie neu ist: eine für sie freigegebene Aufgabe liegt jetzt bei ihnen („Du bist am Zug“), Status oder Zieltermin ihres Projekts hat sich geändert, eine neue Datei ist für sie da, oder ein Termin wurde angelegt, bestätigt, verschoben, abgesagt oder eine Terminanfrage abgelehnt. Ein Punkt an der Glocke zeigt Ungelesenes; ein Klick auf eine Meldung führt zur Aufgabe, zum Projekt, zu den Dateien oder zum Kalender.
-- Dazu kommt eine E-Mail, die alles bündelt, was in etwa einer Viertelstunde dazukam. Was der Kunde schon in der Glocke gelesen hat, steht nicht mehr drin. Abschalten lässt sich die E-Mail im Profil unter „Benachrichtigungen“; die Glocke bleibt.
+- Dazu kommt eine E-Mail, die alles bündelt, was in etwa einer Viertelstunde dazukam, auch Meldungen, die der Kunde schon in der Glocke geöffnet hat. Abschalten lässt sich die E-Mail im Profil unter „Benachrichtigungen“; die Glocke bleibt.
 - Änderungen im Studio erscheinen nach spätestens etwa fünf Minuten, Dateien und Termine aus dem Hub sofort. Admins bekommen noch keine Benachrichtigungen. In den Demo-Konten zeigt die Glocke ein Beispiel.
 
 ## WhatsApp

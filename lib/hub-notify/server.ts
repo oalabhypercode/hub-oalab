@@ -114,20 +114,20 @@ async function sendDueMails(db: SupabaseClient, origin: string, now: Date) {
       .in("id", digest.rows.map((row) => row.id)).eq("mail_state", "pending").select("id").returns<{ id: number }[]>();
     const ids = new Set((claimed.data ?? []).map((row) => row.id));
     if (!ids.size) continue;
-    const unread = digest.unread.filter((row) => ids.has(row.id));
+    const items = digest.rows.filter((row) => ids.has(row.id));
 
     const [login, profile] = await Promise.all([
       db.auth.admin.getUserById(digest.userId),
       db.from("hub_profiles").select("first_name, status").eq("user_id", digest.userId).maybeSingle<{ first_name: string; status: string }>(),
     ]);
     const email = login.data.user?.email;
-    const wanted = unread.length > 0 && email && profile.data?.status === "active" && mailsWanted(login.data.user?.user_metadata);
+    const wanted = items.length > 0 && email && profile.data?.status === "active" && mailsWanted(login.data.user?.user_metadata);
     let state: "sent" | "skipped" | "failed" = "skipped";
     if (wanted) {
       const content = noticeDigestMail({
         firstName: profile.data?.first_name ?? "",
-        items: unread.slice(0, MAIL_ITEMS).map((row) => ({ title: row.title, body: row.body })),
-        more: Math.max(0, unread.length - MAIL_ITEMS),
+        items: items.slice(0, MAIL_ITEMS).map((row) => ({ title: row.title, body: row.body })),
+        more: Math.max(0, items.length - MAIL_ITEMS),
         hubUrl: `${origin}/dashboard`,
       }, legal);
       state = (await sendMail({ to: [email], ...content, kind: "notice.digest" })).status;

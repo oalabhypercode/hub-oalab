@@ -138,7 +138,7 @@ Kunden sehen in der Glocke, was für sie neu ist, und bekommen dazu eine gebünd
 
 - Dateien und Termine schreibt der Hub beim Speichern in `hub_inbox`. Studio-Änderungen liest er alle fünf Minuten aus `studio_activity`; `hub_notice_marks` hält den letzten Stand je Aufgabe und Projekt, damit jede Änderung genau einmal gemeldet wird. Vorhandene Tabellen bleiben unverändert (Migration `202610300001_hub_notifications.sql` in `service-oalab`).
 - Den Takt gibt pg_cron in der Datenbank vor: Er ruft `/api/notifications/sweep` mit dem Token aus Supabase Vault auf. Die Route antwortet nur mit `HUB_NOTIFY_TOKEN`.
-- Die E-Mail geht etwa 15 Minuten nach der ersten neuen Meldung raus und enthält alles bis dahin Ungelesene (höchstens zehn Einträge, der Rest steht im Hub). Kunden schalten sie im Profil unter „Benachrichtigungen“ ab (Metadaten des Logins `hub_mail_notifications`); die Glocke bleibt.
+- Die E-Mail geht etwa 15 Minuten nach der ersten neuen Meldung raus und enthält alle bis dahin neuen Meldungen, auch schon in der Glocke gelesene (höchstens zehn Einträge, der Rest steht im Hub). Kunden schalten sie im Profil unter „Benachrichtigungen“ ab (Metadaten des Logins `hub_mail_notifications`); die Glocke bleibt.
 
 Einrichtung: Nach der Migration den Wert von `oalab_hub_notify_token` aus Supabase (Project Settings → Vault) als `HUB_NOTIFY_TOKEN` in Vercel (Production, „Sensitive“) eintragen, für lokale Tests auch in `.env.local`, und neu deployen.
 

@@ -71,15 +71,16 @@ test("the cursor reads a little back and only moves forward", () => {
   assert.equal(nextCursor(cursor, [{ created_at: "2026-10-30T10:02:00.123456+00:00" }, { created_at: "2026-10-30T10:01:00+00:00" }]), "2026-10-30T10:02:00.123456+00:00");
 });
 
-test("a mail is due 15 minutes after the first notice and bundles everything unread", () => {
+test("a mail is due 15 minutes after the first notice and bundles everything pending, read or not", () => {
   const now = new Date("2026-10-30T12:00:00Z");
   const at = (minutes) => new Date(now.getTime() - minutes * 60_000).toISOString();
   const row = (id, user, minutes, read = false) => ({ id, user_id: user, created_at: at(minutes), read_at: read ? at(1) : null, title: `Meldung ${id}`, body: "", href: "/dashboard" });
   assert.equal(MAIL_WAIT_MINUTES, 15);
   const due = dueDigests([row(1, "anna", 16), row(2, "anna", 2), row(3, "anna", 10, true), row(4, "ben", 14)], now);
   assert.deepEqual(due.map((digest) => digest.userId), ["anna"]);
+  // Notice 3 was already opened in the bell; it goes into the mail all the same.
   assert.deepEqual(due[0].rows.map((item) => item.id), [1, 3, 2]);
-  assert.deepEqual(due[0].unread.map((item) => item.id), [1, 2]);
+  assert.equal("unread" in due[0], false);
   assert.equal(mailsWanted({}), true);
   assert.equal(mailsWanted(null), true);
   assert.equal(mailsWanted({ hub_mail_notifications: false }), false);

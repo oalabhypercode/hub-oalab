@@ -141,8 +141,8 @@ export function nextCursor(cursor: string, activity: Pick<ActivityRow, "created_
 export type PendingRow = { id: number; user_id: string; created_at: string; read_at: string | null; title: string; body: string; href: string };
 
 /**
- * Logins whose oldest unsent notice waited long enough. Everything pending goes into one mail; notices the person
- * already read in the hub are left out, and a mail with nothing unread is not sent at all.
+ * Logins whose oldest unsent notice waited long enough. Everything pending goes into one mail, also notices the
+ * person already opened in the bell (decision of 30.10.2026: the mail is the record, whatever was read).
  */
 export function dueDigests(rows: PendingRow[], now: Date) {
   const byUser = new Map<string, PendingRow[]>();
@@ -150,10 +150,7 @@ export function dueDigests(rows: PendingRow[], now: Date) {
   const due = now.getTime() - MAIL_WAIT_MINUTES * 60_000;
   return [...byUser.entries()]
     .filter(([, list]) => Math.min(...list.map((row) => Date.parse(row.created_at))) <= due)
-    .map(([userId, list]) => {
-      const sorted = [...list].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
-      return { userId, rows: sorted, unread: sorted.filter((row) => !row.read_at) };
-    });
+    .map(([userId, list]) => ({ userId, rows: [...list].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)) }));
 }
 
 /** The mail setting lives in the login's own metadata; only an explicit "off" stops mails. */
