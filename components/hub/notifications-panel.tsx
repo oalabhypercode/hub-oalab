@@ -17,14 +17,16 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
 }
 
 /** The bell of a real login: its notices, newest first; opening one marks it read. */
-export function NotificationsPanel({ items, onClose }: { items: InboxItem[]; onClose: () => void }) {
+export function NotificationsPanel({ items, admin, onClose }: { items: InboxItem[]; admin: boolean; onClose: () => void }) {
   const [read, setRead] = useState(() => new Set(items.filter((item) => item.read).map((item) => item.id)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const unread = items.filter((item) => !read.has(item.id));
 
   if (!items.length) {
-    return <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Hier erscheint, wenn eine Aufgabe bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt.</p></div>;
+    return <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>{admin
+      ? "Benachrichtigungen bekommen bisher nur Kunden: wenn eine Aufgabe bei ihnen liegt, sich ihr Projekt ändert oder eine Datei oder ein Termin für sie dazukommt."
+      : "Hier erscheint, wenn eine Aufgabe bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt."}</p></div>;
   }
 
   function open(item: InboxItem) {
