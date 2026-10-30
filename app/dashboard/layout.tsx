@@ -19,7 +19,7 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
     // The bell of real logins; demo logins keep their example notice.
     identity.publicDemo || identity.demoAccess ? null : loadInbox(),
   ]);
-  return <AppShell key={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} hubAccount={identity.account} pendingRegistrations={pendingRegistrations} liveProjects={liveProjects?.projects} inbox={inbox}>{children}</AppShell>;
+  return <AppShell key={identity.userId} userId={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} hubAccount={identity.account} pendingRegistrations={pendingRegistrations} liveProjects={liveProjects?.projects} inbox={inbox}>{children}</AppShell>;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

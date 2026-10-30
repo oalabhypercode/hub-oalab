@@ -10,7 +10,9 @@ import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previ
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { AppearanceProvider } from "./appearance-provider";
-import { AssistantPanel, type ChatTurn } from "./assistant-panel";
+import { AssistantPanel, type AssistantMode, type ChatTurn } from "./assistant-panel";
+import { applyProposalStatus, chatKey, MODE_KEY, openProposalIds, parseChat, serializeChat } from "@/lib/hub-assistant/chat-storage";
+import { proposalStatuses } from "@/lib/hub-assistant/actions";
 import { NotificationsPanel } from "./notifications-panel";
 import type { InboxState } from "@/lib/hub-notify/server";
 import { BackgroundLayer } from "./background-layer";
@@ -22,8 +24,15 @@ import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
 
-export function AppShell({ children, preview = false, pending = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null }: {
+/** localStorage can throw (private mode, blocked site data); the hub then simply doesn't remember. */
+function readStored<T>(read: () => T, fallback: T): T {
+  try { return read(); } catch { return fallback; }
+}
+
+export function AppShell({ children, preview = false, pending = false, email = "", userId, demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null }: {
   children: React.ReactNode;
+  /** The signed-in login; keys the chat stored in this browser. */
+  userId?: string;
   preview?: boolean;
   /** Loading fallback while the login is checked: navigation and page title at once, the account still blank. */
   pending?: boolean;
@@ -46,7 +55,13 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const [read, setRead] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
-  const [assistantTurns, setAssistantTurns] = useState<ChatTurn[]>([]);
+  // The chat of a real login lives in this browser until "Neu starten" or signing out (lib/hub-assistant/chat-storage.ts).
+  // The panel is closed on the first render, so reading the browser here never changes the server-rendered page.
+  const chatStore = !preview && !publicDemo && userId ? chatKey(userId) : null;
+  const [assistantTurns, setAssistantTurns] = useState<ChatTurn[]>(() => chatStore && typeof window !== "undefined" ? readStored(() => parseChat<ChatTurn>(localStorage.getItem(chatStore)), []) : []);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>(() => typeof window !== "undefined" && readStored(() => localStorage.getItem(MODE_KEY), null) === "dock" ? "dock" : "window");
+  const [assistantProject, setAssistantProject] = useState<{ id: string; name: string } | null>(null);
   const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
   const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
   // Real logins take their name, company and packages from the user management; demo logins keep the fixtures.
@@ -83,6 +98,25 @@ export function AppShell({ children, preview = false, pending = false, email = "
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Restored proposals that still look open: the server knows whether they were decided elsewhere or ran out.
+  const [restoredIds] = useState(() => openProposalIds(assistantTurns));
+  useEffect(() => {
+    if (!restoredIds.length || !account.admin) return;
+    proposalStatuses({ ids: restoredIds })
+      .then((result) => { if (result.ok) setAssistantTurns((current) => applyProposalStatus(current, result.data)); })
+      .catch(() => { /* the cards stay as stored; saving still checks on the server */ });
+  }, [restoredIds, account.admin]);
+
+  useEffect(() => {
+    if (!chatStore) return;
+    try {
+      const text = serializeChat(assistantTurns);
+      if (text) localStorage.setItem(chatStore, text); else localStorage.removeItem(chatStore);
+    } catch {
+      // Storage blocked or full: the chat still works, it just isn't kept.
+    }
+  }, [chatStore, assistantTurns]);
+
   async function signOut() {
     if (preview) { router.push("/auth/login"); return; }
     setSigningOut(true);
@@ -96,6 +130,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
         const result = await signOutAction();
         if (!result.ok) throw new Error(result.error);
       }
+      // Signing out ends the stored chat of this login.
+      if (chatStore) readStored(() => localStorage.removeItem(chatStore), undefined);
       // Cross the auth boundary with a fresh document, not preserved Activity state.
       window.location.replace("/auth/login");
     } catch {
@@ -111,13 +147,24 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin).toLowerCase().includes(term));
   const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = hasDemo || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
-  const shell: ShellContextValue = { preview, pending, initials, account, manageUsers, openPanel: setPanel, unread: hasDemo ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError };
+  const assistantDocked = assistantOpen && assistantMode === "dock";
+  const shell: ShellContextValue = {
+    preview, pending, initials, account, manageUsers,
+    openPanel: (next) => next === "help" ? setAssistantOpen(true) : setPanel(next),
+    askAboutProject: (project) => { setAssistantProject(project); setAssistantOpen(true); },
+    assistantDocked: assistantMode === "dock",
+    unread: hasDemo ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError,
+  };
+  const changeAssistantMode = (mode: AssistantMode) => {
+    setAssistantMode(mode);
+    try { localStorage.setItem(MODE_KEY, mode); } catch { /* the choice just isn't remembered */ }
+  };
 
   return (
     <AppearanceProvider>
       <ShellContext.Provider value={shell}>
         <BackgroundLayer />
-        <div className="hub-app">
+        <div className={`hub-app${assistantDocked ? " has-assistant-dock" : ""}`}>
           <a className="skip-link" href="#main-content">Zum Inhalt springen</a>
           <GlassSidebar onSearch={() => setPanel("search")} preview={preview} section={section} counts={counts} name={name} accountLabel={accountLabel} initials={initials} pendingRegistrations={pendingRegistrations} />
           <div className="hub-main">
@@ -150,7 +197,12 @@ export function AppShell({ children, preview = false, pending = false, email = "
               : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
           </Modal>
         )}
-        {panel === "help" && <AssistantPanel turns={assistantTurns} setTurns={setAssistantTurns} admin={account.admin} available={!preview && !publicDemo} onClose={() => setPanel(null)} />}
+        {assistantOpen && (
+          <AssistantPanel turns={assistantTurns} setTurns={setAssistantTurns} admin={account.admin} available={!preview && !publicDemo}
+            mode={assistantMode} onModeChange={changeAssistantMode}
+            project={assistantProject} onClearProject={() => setAssistantProject(null)}
+            onClose={() => setAssistantOpen(false)} />
+        )}
       </ShellContext.Provider>
     </AppearanceProvider>
   );

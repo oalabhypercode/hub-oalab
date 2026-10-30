@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Loader2, LogOut, ScrollText, Search, Settings, UserCog } from "lucide-react";
+import { ArrowUpRight, Bot, Loader2, LogOut, ScrollText, Search, Settings, UserCog } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
@@ -60,6 +60,9 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           <Link {...item("users")}>
             <UserCog size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels.users}</span>
             {pendingRegistrations > 0 && <span className="sidebar-count sidebar-count-alert" title={`${pendingRegistrations} offene Registrierung${pendingRegistrations === 1 ? "" : "en"}`}><span className="visually-hidden">Offene Registrierungen: </span>{pendingRegistrations}</span>}
+          </Link>
+          <Link {...item("ai-log")}>
+            <Bot size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels["ai-log"]}</span>
           </Link>
         </>}
         {/* Admins keep the patch notes with the administration; customers have no "Verwaltung", so theirs get a caption of their own. */}

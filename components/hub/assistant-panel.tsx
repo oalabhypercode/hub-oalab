@@ -2,7 +2,8 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUp, Check, Loader2, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowUp, Building2, Check, ChevronDown, ChevronUp, FolderPen, ListChecks, ListPlus, Loader2, PanelRightClose, PanelRightOpen, RotateCcw, Sparkles, TriangleAlert, X, type LucideIcon } from "lucide-react";
+import { isExpired } from "@/lib/hub-assistant/chat-storage";
 import { MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS, MAX_TURNS, type AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { proposalNote, type ProposalView, type TaskChoice } from "@/lib/hub-assistant/proposals";
 import { confirmCustomerProposal, confirmProjectUpdate, confirmTaskProposal, confirmTaskUpdates, discardTaskProposal, type CustomerCreated } from "@/lib/hub-assistant/actions";
@@ -18,7 +19,10 @@ type AnyView = (ProposalView & { kind?: "tasks.create" }) | ChangeView | Custome
  * A proposal as the chat shows it: the stored proposal, the admin's choices and what happened to it.
  * New tasks use `choices` (pick and switch), changes use `picks` (one tick per field or task), a customer `customer`.
  */
-type ProposalState = { view: AnyView; choices: TaskChoice[]; picks: boolean[]; customer?: CustomerChoice; state: "open" | "saving" | "saved" | "discarded" | "failed"; message?: string; saved?: number };
+type ProposalState = { view: AnyView; choices: TaskChoice[]; picks: boolean[]; customer?: CustomerChoice; state: "open" | "saving" | "saved" | "discarded" | "failed" | "expired"; message?: string; saved?: number };
+
+/** What a card shows: an open proposal past its 30 minutes counts as expired without asking the server. */
+const shownState = (item: ProposalState) => isExpired(item) ? "expired" : item.state;
 
 const isChange = (view: AnyView): view is ChangeView => view.kind === "project.update" || view.kind === "tasks.update";
 const isCustomer = (view: AnyView): view is CustomerView => view.kind === "customer.create";
@@ -40,7 +44,9 @@ export type ChatTurn = AssistantTurn & { proposals?: ProposalState[] };
 function toApiTurn(turn: ChatTurn): AssistantTurn {
   if (turn.role !== "assistant" || !turn.proposals?.length) return { role: turn.role, content: turn.content };
   const notes = turn.proposals.map((item) => {
-    const outcome = item.state === "saved" ? "saved" : item.state === "discarded" ? "discarded" : item.state === "failed" ? "failed" : "open";
+    const state = shownState(item);
+    // An expired proposal saved nothing; the notes know no "expired", "failed" with the message comes closest.
+    const outcome = state === "saved" ? "saved" : state === "discarded" ? "discarded" : state === "failed" || state === "expired" ? "failed" : "open";
     return isCustomer(item.view) ? customerNote(item.view, outcome, item.message)
       : isChange(item.view) ? changeNote(item.view, outcome, item.message)
       : proposalNote(item.view, outcome, item.saved);
@@ -53,17 +59,25 @@ const suggestions = {
   admin: ["Welche Aufgaben liegen gerade bei Kunden?", "Welche Projekte sind überfällig?", "Wie nehme ich eine Terminanfrage an?", "Wie lade ich eine Datei für einen Kunden hoch?"],
 };
 
+/** A window on top of the page, or a sidebar next to it that leaves the page usable (from 1024 px). */
+export type AssistantMode = "window" | "dock";
+
 type PanelProps = {
   turns: ChatTurn[];
   setTurns: React.Dispatch<React.SetStateAction<ChatTurn[]>>;
   admin: boolean;
   /** False for the preview and the public demo, which have no real login. */
   available: boolean;
+  mode: AssistantMode;
+  onModeChange: (mode: AssistantMode) => void;
+  /** The project "Assistent zu diesem Projekt fragen" was opened from; it stays the reference until removed. */
+  project: { id: string; name: string } | null;
+  onClearProject: () => void;
   onClose: () => void;
 };
 
-/** Chat with the hub assistant (Claude); the conversation lives in the shell so it survives page changes. */
-export function AssistantPanel({ turns, setTurns, admin, available, onClose }: PanelProps) {
+/** Chat with the hub assistant (Claude); the conversation lives in the shell (and the browser) so it survives page changes. */
+export function AssistantPanel({ turns, setTurns, admin, available, mode, onModeChange, project, onClearProject, onClose }: PanelProps) {
   // Admins paste meeting transcripts; the server applies the same limit by role.
   const limit = admin ? MAX_ADMIN_QUESTION_CHARS : MAX_QUESTION_CHARS;
   const [draft, setDraft] = useState("");
@@ -89,7 +103,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
     try {
       // The open page, so "dieses Projekt" works; the server only passes on a project the admin can see.
       const url = new URL(window.location.href);
-      const context = { section: url.pathname.split("/")[2] || "overview", projectId: url.searchParams.get("project") };
+      const context = { section: url.pathname.split("/")[2] || "overview", projectId: url.searchParams.get("project") ?? project?.id ?? null };
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -203,8 +217,14 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
     }
   }
 
-  return (
-    <Modal title="Wie können wir helfen?" onClose={onClose} className="assistant-modal">
+  const title = "Wie können wir helfen?";
+  const modeToggle = (
+    <button type="button" className="assistant-mode" onClick={() => onModeChange(mode === "dock" ? "window" : "dock")}
+      aria-label={mode === "dock" ? "Als Fenster öffnen" : "Rechts andocken"} title={mode === "dock" ? "Als Fenster öffnen" : "Rechts andocken, die Seite bleibt bedienbar"}>
+      {mode === "dock" ? <PanelRightClose size={19} aria-hidden="true" /> : <PanelRightOpen size={19} aria-hidden="true" />}
+    </button>
+  );
+  const body = <>
       <div className="assistant-messages" ref={list} aria-live="polite">
         <div className="assistant-intro">
           <span className="assistant-avatar" aria-hidden="true"><Sparkles size={18} /></span>
@@ -243,6 +263,12 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
         ))}
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>
+      {available && project && (
+        <p className="assistant-context">
+          <FolderPen size={14} aria-hidden="true" /><span>Bezug: <strong>{project.name}</strong></span>
+          <button type="button" onClick={onClearProject} aria-label={`Bezug auf ${project.name} entfernen`}><X size={14} aria-hidden="true" /></button>
+        </p>
+      )}
       {available && (
         <form className="assistant-input" onSubmit={(event) => { event.preventDefault(); ask(draft); }}>
           <textarea
@@ -260,27 +286,107 @@ export function AssistantPanel({ turns, setTurns, admin, available, onClose }: P
       )}
       <div className="assistant-footer">
         <span>{admin
-          ? "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und der Daten im Hub und können Fehler enthalten. Eingefügte Transkripte verarbeitet Anthropic im Auftrag von OALAB; der Hub speichert sie nicht."
-          : "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und können Fehler enthalten. Bitte keine persönlichen Daten eingeben."}</span>
-        {turns.length > 0 && <button type="button" onClick={() => { setTurns([]); setError(""); }} disabled={busy}><RotateCcw size={14} aria-hidden="true" />Neu starten</button>}
+          ? "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und der Daten im Hub und können Fehler enthalten. Eingefügte Transkripte verarbeitet Anthropic im Auftrag von OALAB. Der Hub speichert sie nicht auf seinem Server; der Chatverlauf bleibt in diesem Browser, bis du „Neu starten“ klickst oder dich abmeldest."
+          : "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und können Fehler enthalten. Bitte keine persönlichen Daten eingeben. Der Chatverlauf bleibt in diesem Browser, bis du „Neu starten“ klickst oder dich abmeldest."}</span>
+        {turns.length > 0 && <button type="button" onClick={() => { setTurns([]); setError(""); onClearProject(); }} disabled={busy}><RotateCcw size={14} aria-hidden="true" />Neu starten</button>}
       </div>
-    </Modal>
+  </>;
+
+  // Docked, the chat is no dialog: the page next to it stays usable. Below 1024 px CSS turns it into a full sheet.
+  return mode === "dock" ? (
+    <aside className="assistant-dock glass" aria-labelledby="assistant-dock-title">
+      <div className="modal-heading"><h2 id="assistant-dock-title">{title}</h2>{modeToggle}<button type="button" className="modal-close" aria-label="Schließen" onClick={onClose}><X size={20} aria-hidden="true" /></button></div>
+      {body}
+    </aside>
+  ) : (
+    <Modal title={title} onClose={onClose} className="assistant-modal" actions={modeToggle}>{body}</Modal>
+  );
+}
+
+const kinds: Record<AnyView["kind"] & string, { label: string; icon: LucideIcon }> = {
+  "tasks.create": { label: "Neue Aufgaben", icon: ListPlus },
+  "tasks.update": { label: "Aufgaben ändern", icon: ListChecks },
+  "project.update": { label: "Projekt ändern", icon: FolderPen },
+  "customer.create": { label: "Neuer Kunde", icon: Building2 },
+};
+
+const statusLabels: Record<ProposalState["state"], string> = {
+  open: "Offen", saving: "Wird gespeichert …", saved: "Gespeichert", discarded: "Verworfen", failed: "Fehler", expired: "Abgelaufen",
+};
+
+/** Rows of a card: from six on only the first five show, until "Alle zeigen". */
+const SHORT_LIST = 5;
+
+function useShortList<T>(rows: T[]) {
+  const [all, setAll] = useState(false);
+  const hidden = rows.length > SHORT_LIST && !all ? rows.length - SHORT_LIST : 0;
+  const shown = hidden ? rows.slice(0, SHORT_LIST) : rows;
+  const toggle = rows.length > SHORT_LIST
+    ? <button type="button" className="proposal-more" onClick={() => setAll(!all)}>{all ? <><ChevronUp size={14} aria-hidden="true" />Weniger zeigen</> : <><ChevronDown size={14} aria-hidden="true" />Alle {rows.length} zeigen</>}</button>
+    : null;
+  return { shown, toggle };
+}
+
+/**
+ * The frame every proposal shares: kind, context and status on top; while open the body and the buttons, once decided
+ * one line with the outcome that opens the details again. A decided card collapses on its own.
+ */
+function CardFrame({ item, kind, count, context, label, link, children, actions, expiryText }: {
+  item: ProposalState;
+  kind: keyof typeof kinds;
+  count?: string;
+  context: string;
+  label: string;
+  link?: { href: string; text: string };
+  children: React.ReactNode;
+  actions: React.ReactNode;
+  expiryText: string;
+}) {
+  const state = shownState(item);
+  const decided = state === "saved" || state === "discarded" || state === "failed" || state === "expired";
+  const [expanded, setExpanded] = useState<boolean | null>(null);
+  const open = expanded ?? !decided;
+  const { icon: Icon, label: kindLabel } = kinds[kind];
+  const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(item.view.expiresAt));
+  const summary = item.message ?? (state === "expired" ? "Abgelaufen (30 Minuten), nichts gespeichert. Bitte den Assistenten neu vorschlagen lassen." : state === "discarded" ? "Verworfen, nichts gespeichert." : "");
+  return (
+    <section className={`proposal-card is-${state}${open ? "" : " is-collapsed"}`} aria-label={label}>
+      <header className="proposal-head">
+        <span className="proposal-icon" aria-hidden="true"><Icon size={16} /></span>
+        <span className="proposal-title">
+          <strong>{kindLabel}{count ? ` · ${count}` : ""}</strong>
+          {context && <span>{context}</span>}
+        </span>
+        <span className={`proposal-status is-${state}`}>{state === "open" ? `${statusLabels.open} · bis ${until}` : statusLabels[state]}</span>
+      </header>
+      {open && children}
+      {summary && <p className={state === "saved" ? "proposal-done" : state === "discarded" || state === "expired" ? "proposal-hint" : "form-error"} role="status">{state === "saved" && <Check size={15} aria-hidden="true" />} {summary}</p>}
+      {state === "saved" && link && <Link className="proposal-link" href={link.href}>{link.text}</Link>}
+      {(state === "open" || state === "saving") && <>
+        <div className="proposal-actions">{actions}</div>
+        <p className="proposal-expiry">{expiryText} · gültig bis {until} Uhr</p>
+      </>}
+      {decided && <button type="button" className="proposal-more" onClick={() => setExpanded(!open)} aria-expanded={open}>{open ? <><ChevronUp size={14} aria-hidden="true" />Details ausblenden</> : <><ChevronDown size={14} aria-hidden="true" />Details zeigen</>}</button>}
+    </section>
   );
 }
 
 /** Preview of a new customer: company and contact data, the package to pick and the optional login with its invitation. */
 function CustomerCard({ item, view, onChoose, onDecide }: { item: ProposalState; view: CustomerView; onChoose: (choice: CustomerChoice) => void; onDecide: (save: boolean) => void }) {
-  const { state } = item;
+  const state = shownState(item);
   const choice = item.customer ?? { planId: view.planId, login: false, mail: false };
   const editable = state === "open";
-  const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(view.expiresAt));
   const login = view.login;
   return (
-    <section className={`proposal-card is-${state}`} aria-label={`Vorschlag: neuer Kunde ${view.company}`}>
-      <header>
-        <strong>Neuer Kunde</strong>
-        <span>Die Kundennummer vergibt der Hub beim Anlegen.</span>
-      </header>
+    <CardFrame item={item} kind="customer.create" context={view.company} label={`Vorschlag: neuer Kunde ${view.company}`}
+      link={{ href: "/dashboard/users", text: "Im User Management ansehen" }} expiryText="Noch nicht angelegt"
+      actions={<>
+        <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
+        <button type="button" className="proposal-save" disabled={state === "saving"} onClick={() => onDecide(true)}>
+          {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}Kunde anlegen
+        </button>
+      </>}>
+      <p className="proposal-hint">Die Kundennummer vergibt der Hub beim Anlegen.</p>
       <ul>
         <li className="proposal-facts">
           <p className="proposal-company">{view.company}</p>
@@ -318,39 +424,33 @@ function CustomerCard({ item, view, onChoose, onDecide }: { item: ProposalState;
           </li>
         )}
       </ul>
-      {item.message && <p className={state === "saved" ? "proposal-done" : state === "discarded" ? "proposal-hint" : "form-error"} role="status">{state === "saved" && <Check size={15} aria-hidden="true" />} {item.message}</p>}
-      {state === "saved" && <Link className="proposal-link" href="/dashboard/users">Im User Management ansehen</Link>}
-      {(state === "open" || state === "saving") && (
-        <div className="proposal-actions">
-          <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
-          <button type="button" className="proposal-save" disabled={state === "saving"} onClick={() => onDecide(true)}>
-            {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}Kunde anlegen
-          </button>
-        </div>
-      )}
-      {state === "open" && <p className="proposal-expiry">Noch nicht angelegt · gültig bis {until} Uhr</p>}
-    </section>
+    </CardFrame>
   );
 }
 
 /** Preview of a change: every field or task as "old → new" with a tick; the admin saves the ticked ones or discards. */
 function ChangeCard({ item, view, onPick, onDecide }: { item: ProposalState; view: ChangeView; onPick: (picks: boolean[]) => void; onDecide: (save: boolean) => void }) {
-  const { picks, state } = item;
+  const { picks } = item;
+  const state = shownState(item);
   const editable = state === "open";
   const chosen = picks.filter(Boolean).length;
   const toggle = (index: number) => onPick(picks.map((pick, position) => position === index ? !pick : pick));
-  const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(view.expiresAt));
   const rows: { key: string; title?: string; lines: ChangeLine[] }[] = view.kind === "project.update"
     ? view.changes.map((change) => ({ key: change.field, lines: [projectChangeLine(change)] }))
     : view.tasks.map((task) => ({ key: task.taskId, title: `#${task.number} ${task.before.title}`, lines: taskChangeLines(task) }));
+  const { shown, toggle: more } = useShortList(rows);
   return (
-    <section className={`proposal-card is-${state}`} aria-label={`Änderungsvorschlag für ${view.projectName}`}>
-      <header>
-        <strong>Änderung · {view.kind === "project.update" ? "Projekt" : view.tasks.length === 1 ? "1 Aufgabe" : `${view.tasks.length} Aufgaben`}</strong>
-        <span>{[view.customer, view.projectName].filter(Boolean).join(" · ")}</span>
-      </header>
+    <CardFrame item={item} kind={view.kind} count={view.kind === "tasks.update" ? (view.tasks.length === 1 ? "1 Aufgabe" : `${view.tasks.length} Aufgaben`) : undefined}
+      context={[view.customer, view.projectName].filter(Boolean).join(" · ")} label={`Änderungsvorschlag für ${view.projectName}`}
+      link={{ href: `/dashboard/projects?project=${view.projectId}`, text: "Im Projekt ansehen" }} expiryText="Noch nicht gespeichert"
+      actions={<>
+        <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
+        <button type="button" className="proposal-save" disabled={state === "saving" || !chosen} onClick={() => onDecide(true)}>
+          {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}{chosen === 1 ? "1 Änderung speichern" : `${chosen} Änderungen speichern`}
+        </button>
+      </>}>
       <ul>
-        {rows.map((row, index) => (
+        {shown.map((row, index) => (
           <li key={row.key} className={picks[index] ? undefined : "is-off"}>
             <label className="proposal-pick">
               <input type="checkbox" checked={picks[index]} disabled={!editable} onChange={() => toggle(index)} />
@@ -365,36 +465,31 @@ function ChangeCard({ item, view, onPick, onDecide }: { item: ProposalState; vie
           </li>
         ))}
       </ul>
-      {item.message && <p className={state === "saved" ? "proposal-done" : state === "discarded" ? "proposal-hint" : "form-error"} role="status">{state === "saved" && <Check size={15} aria-hidden="true" />} {item.message}</p>}
-      {state === "saved" && <Link className="proposal-link" href={`/dashboard/projects?project=${view.projectId}`}>Im Projekt ansehen</Link>}
-      {(state === "open" || state === "saving") && (
-        <div className="proposal-actions">
-          <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
-          <button type="button" className="proposal-save" disabled={state === "saving" || !chosen} onClick={() => onDecide(true)}>
-            {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}{chosen === 1 ? "1 Änderung speichern" : `${chosen} Änderungen speichern`}
-          </button>
-        </div>
-      )}
-      {state === "open" && <p className="proposal-expiry">Noch nicht gespeichert · gültig bis {until} Uhr</p>}
-    </section>
+      {more}
+    </CardFrame>
   );
 }
 
 /** Preview of proposed tasks: the admin picks, switches owner and release, then saves or discards. */
 function ProposalCard({ item, view, onChoose, onDecide }: { item: ProposalState; view: ProposalView; onChoose: (choices: TaskChoice[]) => void; onDecide: (save: boolean) => void }) {
-  const { choices, state } = item;
+  const { choices } = item;
+  const state = shownState(item);
   const editable = state === "open";
   const chosen = choices.filter((choice) => choice.include).length;
   const set = (index: number, patch: Partial<TaskChoice>) => onChoose(choices.map((choice, position) => position === index ? { ...choice, ...patch } : choice));
-  const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(view.expiresAt));
+  const { shown, toggle: more } = useShortList(view.tasks);
   return (
-    <section className={`proposal-card is-${state}`} aria-label={`Vorschlag: Aufgaben für ${view.projectName}`}>
-      <header>
-        <strong>Vorschlag · {view.tasks.length === 1 ? "1 Aufgabe" : `${view.tasks.length} Aufgaben`}</strong>
-        <span>{[view.customer, view.projectName].filter(Boolean).join(" · ")}</span>
-      </header>
+    <CardFrame item={item} kind="tasks.create" count={view.tasks.length === 1 ? "1 Aufgabe" : `${view.tasks.length} Aufgaben`}
+      context={[view.customer, view.projectName].filter(Boolean).join(" · ")} label={`Vorschlag: Aufgaben für ${view.projectName}`}
+      link={{ href: `/dashboard/projects?project=${view.projectId}`, text: "Im Projekt ansehen" }} expiryText="Noch nicht gespeichert"
+      actions={<>
+        <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
+        <button type="button" className="proposal-save" disabled={state === "saving" || !chosen} onClick={() => onDecide(true)}>
+          {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}{chosen === 1 ? "1 Aufgabe speichern" : `${chosen} Aufgaben speichern`}
+        </button>
+      </>}>
       <ul>
-        {view.tasks.map((task, index) => (
+        {shown.map((task, index) => (
           <li key={index} className={choices[index].include ? undefined : "is-off"}>
             <label className="proposal-pick">
               <input type="checkbox" checked={choices[index].include} disabled={!editable} onChange={(event) => set(index, { include: event.target.checked })} />
@@ -413,18 +508,8 @@ function ProposalCard({ item, view, onChoose, onDecide }: { item: ProposalState;
           </li>
         ))}
       </ul>
-      {item.message && <p className={state === "saved" ? "proposal-done" : state === "discarded" ? "proposal-hint" : "form-error"} role="status">{state === "saved" && <Check size={15} aria-hidden="true" />} {item.message}</p>}
-      {state === "saved" && <Link className="proposal-link" href={`/dashboard/projects?project=${view.projectId}`}>Im Projekt ansehen</Link>}
-      {(state === "open" || state === "saving") && (
-        <div className="proposal-actions">
-          <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
-          <button type="button" className="proposal-save" disabled={state === "saving" || !chosen} onClick={() => onDecide(true)}>
-            {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}{chosen === 1 ? "1 Aufgabe speichern" : `${chosen} Aufgaben speichern`}
-          </button>
-        </div>
-      )}
-      {state === "open" && <p className="proposal-expiry">Noch nicht gespeichert · gültig bis {until} Uhr</p>}
-    </section>
+      {more}
+    </CardFrame>
   );
 }
 

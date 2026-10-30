@@ -12,6 +12,7 @@ import { CUSTOMER_LABEL } from "@/lib/hub-projects/map";
 import { applyChoices, type TaskProposal } from "./proposals";
 import { pickChanges, projectColumns, taskColumns, type ProjectUpdateProposal, type TaskUpdateProposal } from "./updates";
 import { contactColumns, newCustomerNumber, readCustomerChoice, type CustomerProposal } from "./customers";
+import type { ProposalStatus } from "./chat-storage";
 
 // Confirming or discarding an assistant proposal. Each action is a public POST endpoint: it checks the admin again
 // (role, second factor, is_hub_admin() and aal2), claims the proposal in one UPDATE so a double click runs it once,
@@ -301,4 +302,28 @@ export async function confirmCustomerProposal(input: { id: string; choice: unkno
   await settle(ctx, id, "done", { organization_id: organizationId, result: { organization_id: organizationId, customer_id: customerId, customer_number: customerNumber, login }, ...(login === "failed" ? { error_code: "LOGIN_FAILED" } : {}) });
   refreshWorkspace();
   return { ok: true, data: { customerId, customerNumber, company: proposal.company, login, ...(loginError ? { loginError } : {}), mail } };
+}
+
+/**
+ * The current status of proposals the chat restored from the browser (lib/hub-assistant/chat-storage.ts). Only the
+ * admin's own proposals count; unknown ids come back as "missing", undecided ones past 30 minutes as "expired".
+ */
+export async function proposalStatuses(input: { ids: unknown }): Promise<ActionResult<Record<string, ProposalStatus>>> {
+  const ctx = await actor();
+  if (!ctx) return denied;
+  const ids = Array.isArray(input?.ids) ? [...new Set(input.ids.filter((id): id is string => typeof id === "string" && uuid.test(id)))].slice(0, 100) : [];
+  if (!ids.length) return { ok: true, data: {} };
+  const { data, error } = await ctx.db.from("hub_assistant_actions").select("id, status, expires_at").eq("actor_id", ctx.userId).in("id", ids)
+    .returns<{ id: string; status: Exclude<ProposalStatus, "expired" | "missing">; expires_at: string }[]>();
+  if (error) return { ok: false, error: "Der Stand der Vorschläge konnte nicht geladen werden." };
+  const found = new Map((data ?? []).map((row) => [row.id, row]));
+  const now = Date.now();
+  return {
+    ok: true,
+    data: Object.fromEntries(ids.map((id) => {
+      const row = found.get(id);
+      const status: ProposalStatus = !row ? "missing" : row.status === "proposed" && Date.parse(row.expires_at) <= now ? "expired" : row.status;
+      return [id, status];
+    })),
+  };
 }

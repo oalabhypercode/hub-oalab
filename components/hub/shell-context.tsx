@@ -30,6 +30,10 @@ export type ShellContextValue = {
   /** Real admin login (not the preview or the public demo): may open the user management. */
   manageUsers: boolean;
   openPanel: (panel: ShellPanel) => void;
+  /** Opens the assistant about this project; it keeps the project as its reference, also when docked. */
+  askAboutProject: (project: { id: string; name: string }) => void;
+  /** The assistant opens as a sidebar next to the page (a dialog on top of it would block that sidebar). */
+  assistantDocked: boolean;
   unread: boolean;
   signOut: () => void;
   signingOut: boolean;
