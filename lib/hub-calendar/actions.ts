@@ -50,7 +50,7 @@ export async function saveAppointment(id: string | null, input: AppointmentInput
     : await supabase.from("hub_appointments").insert(row).select("id").single();
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht gespeichert werden." };
   const sameCustomer = before && before.customer_id === customerId ? { status: before.status, startsAt: before.starts_at } : null;
-  const notice = customerId ? appointmentNotice({ title, startsAt: row.starts_at, before: sameCustomer, status: "confirmed" }) : null;
+  const notice = customerId ? appointmentNotice({ id: data.id, title, startsAt: row.starts_at, before: sameCustomer, status: "confirmed" }) : null;
   if (customerId && notice) await notifyCustomers([customerId], notice);
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
@@ -64,7 +64,7 @@ export async function closeAppointment(id: string, status: "declined" | "cancell
   const { data, error } = await supabase.from("hub_appointments").update({ status, response_note: cleanNote(note) }).eq("id", id)
     .select("id, title, starts_at, customer_id").maybeSingle<{ id: string; title: string; starts_at: string; customer_id: string | null }>();
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht geändert werden." };
-  const notice = data.customer_id ? appointmentNotice({ title: data.title, startsAt: data.starts_at, before: null, status, note: cleanNote(note) }) : null;
+  const notice = data.customer_id ? appointmentNotice({ id: data.id, title: data.title, startsAt: data.starts_at, before: null, status, note: cleanNote(note) }) : null;
   if (data.customer_id && notice) await notifyCustomers([data.customer_id], notice);
   refreshWorkspace();
   return { ok: true, data: null };

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  MAIL_WAIT_MINUTES, appointmentNotice, describeProjectChange, detectStudioNotices, dueDigests, fileNotice, mailsWanted, nextCursor, projectState, readFrom, taskState,
+  MAIL_WAIT_MINUTES, appointmentNotice, calendarRows, describeProjectChange, detectStudioNotices, dueDigests, fileNotice, mailsWanted, nextCursor, noticeAppointment,
+  projectState, readFrom, taskState,
 } from "../lib/hub-notify/rules.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
 
@@ -88,8 +89,12 @@ test("a mail is due 15 minutes after the first notice and bundles everything pen
 
 test("appointment notices tell new, confirmed, moved, cancelled and declined apart", () => {
   const startsAt = "2026-11-06T09:00:00.000Z";
-  const notice = (patch) => appointmentNotice({ title: "Abstimmung", startsAt, status: "confirmed", before: null, ...patch });
+  const appointmentId = "0b6f4f0e-2c1a-4d7e-9a51-3f2e8d7c6b5a";
+  const notice = (patch) => appointmentNotice({ id: appointmentId, title: "Abstimmung", startsAt, status: "confirmed", before: null, ...patch });
   assert.equal(notice({}).kind, "appointment.created");
+  assert.equal(notice({}).href, `/dashboard/calendar?appointment=${appointmentId}`);
+  assert.equal(noticeAppointment(notice({ status: "cancelled" }).href), appointmentId);
+  for (const href of ["/dashboard/calendar", "/dashboard/files", `/dashboard/calendar?appointment=${appointmentId}&x=1`, "/dashboard/calendar?appointment=1"]) assert.equal(noticeAppointment(href), null, href);
   // ICU writes "Fr., 6. November um 10:00"; older versions put a comma instead of "um".
   assert.match(notice({}).body, /^Fr\., 6\. November(,| um) 10:00 Uhr$/);
   assert.equal(notice({ before: { status: "requested", startsAt } }).kind, "appointment.confirmed");
@@ -111,6 +116,54 @@ test("the digest mail lists the notices, escapes them and points to the profile 
   const many = noticeDigestMail({ firstName: "", items: [{ title: "A", body: "" }, { title: "B", body: "" }], more: 3, hubUrl: "https://hub.oalab.de/dashboard" });
   assert.equal(many.subject, "Neu im Client Hub: 5 Neuigkeiten");
   assert.match(many.text, /3 weitere Neuigkeiten findest du im Hub\./);
+  assert.doesNotMatch(many.html, /In deinen Kalender eintragen/);
+});
+
+test("new, confirmed and moved appointments get calendar buttons once, while still confirmed and not over", () => {
+  const a = "0b6f4f0e-2c1a-4d7e-9a51-3f2e8d7c6b5a";
+  const b = "1c7a5e1f-3d2b-4e8f-8b62-4a3f9e8d7c6b";
+  const c = "2d8b6f2a-4e3c-4f9a-9c73-5b4a0f9e8d7c";
+  const href = (id) => `/dashboard/calendar?appointment=${id}`;
+  const rows = [
+    { id: 1, kind: "appointment.created", href: href(a) },
+    { id: 2, kind: "appointment.changed", href: href(a) },
+    { id: 3, kind: "appointment.confirmed", href: href(b) },
+    { id: 4, kind: "appointment.created", href: href(c) },
+    { id: 5, kind: "appointment.cancelled", href: href(b) },
+    { id: 6, kind: "file.shared", href: "/dashboard/files" },
+  ];
+  const now = new Date("2026-10-30T14:00:00Z");
+  const appointments = new Map([
+    [a, { status: "confirmed", ends_at: "2026-11-06T11:00:00+00:00" }],
+    [b, { status: "confirmed", ends_at: "2026-11-12T10:00:00+00:00" }],
+    [c, { status: "confirmed", ends_at: "2026-10-30T13:00:00+00:00" }],
+  ]);
+  // a: only its latest notice; b: the confirmation (the cancel notice gets none); c: over already.
+  assert.deepEqual([...calendarRows(rows, appointments, now)], [[2, a], [3, b]]);
+  appointments.set(a, { status: "cancelled", ends_at: "2026-11-06T11:00:00+00:00" });
+  assert.deepEqual([...calendarRows(rows, appointments, now)], [[3, b]]);
+  assert.deepEqual([...calendarRows(rows, new Map(), now)], []);
+});
+
+test("the digest mail shows the calendar buttons under an appointment, as links and in the text version", () => {
+  const calendar = {
+    ics: "https://hub.oalab.de/api/calendar/x/oalab-termin.ics?sig=abc",
+    google: "https://hub.oalab.de/api/calendar/x/google?sig=abc",
+    outlook: "https://hub.oalab.de/api/calendar/x/outlook?sig=abc",
+  };
+  const mail = noticeDigestMail({ firstName: "Jana", items: [{ title: "Neuer Termin: Kickoff", body: "Di., 10. November um 14:00 Uhr", calendar }, { title: "Neue Datei: Vertrag", body: "Im Bereich Dateien" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.equal((mail.html.match(/In deinen Kalender eintragen/g) ?? []).length, 1);
+  for (const label of ["Apple Kalender", "Google Kalender", "Outlook", "Andere (.ics)"]) assert.match(mail.html, new RegExp(`>${label.replace(/[().]/g, "\\$&")}</a>`));
+  assert.equal((mail.html.match(/href="https:\/\/hub\.oalab\.de\/api\/calendar\/x\/oalab-termin\.ics\?sig=abc"/g) ?? []).length, 2);
+  assert.match(mail.html, /href="https:\/\/hub\.oalab\.de\/api\/calendar\/x\/google\?sig=abc"/);
+  assert.doesNotMatch(mail.html, /alten Eintrag/);
+  assert.match(mail.text, /Neuer Termin: Kickoff\nIn deinen Kalender eintragen:\nApple Kalender und andere Apps \(\.ics\): https:\/\/hub\.oalab\.de\/api\/calendar\/x\/oalab-termin\.ics\?sig=abc\nGoogle Kalender: https:\/\/hub\.oalab\.de\/api\/calendar\/x\/google\?sig=abc\nOutlook \(Microsoft 365\): https:\/\/hub\.oalab\.de\/api\/calendar\/x\/outlook\?sig=abc\n/);
+  const moved = noticeDigestMail({ firstName: "", items: [{ title: "Termin verschoben: Kickoff", body: "", calendar: { ...calendar, moved: true } }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.match(moved.html, /Schon in deinem Kalender\? Lösch dort den alten Eintrag/);
+  assert.match(moved.text, /Schon in deinem Kalender\? Lösch dort den alten Eintrag/);
+  const unsafe = noticeDigestMail({ firstName: "", items: [{ title: "Neuer Termin", body: "", calendar: { ics: "javascript:alert(1)", google: "javascript:x", outlook: "data:x" } }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.doesNotMatch(unsafe.html, /In deinen Kalender eintragen|javascript:|data:x/);
+  assert.doesNotMatch(unsafe.text, /In deinen Kalender eintragen/);
 });
 
 test("the schedule needs its token, rows are written by the server and read only by their owner", async () => {

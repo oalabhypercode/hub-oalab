@@ -138,7 +138,7 @@ export function nextCursor(cursor: string, activity: Pick<ActivityRow, "created_
   return activity.reduce((latest, row) => Date.parse(row.created_at) > Date.parse(latest) ? row.created_at : latest, cursor);
 }
 
-export type PendingRow = { id: number; user_id: string; created_at: string; read_at: string | null; title: string; body: string; href: string };
+export type PendingRow = { id: number; user_id: string; created_at: string; read_at: string | null; kind: string; title: string; body: string; href: string };
 
 /**
  * Logins whose oldest unsent notice waited long enough. Everything pending goes into one mail, also notices the
@@ -156,8 +156,20 @@ export function dueDigests(rows: PendingRow[], now: Date) {
 /** The mail setting lives in the login's own metadata; only an explicit "off" stops mails. */
 export const mailsWanted = (metadata: Record<string, unknown> | null | undefined) => metadata?.hub_mail_notifications !== false;
 
+/**
+ * The appointment's id rides in the notice's link: the bell still opens the calendar, and the mail finds the
+ * appointment by it for the calendar buttons (no extra column in hub_inbox).
+ */
+export const appointmentHref = (appointmentId: string) => `/dashboard/calendar?appointment=${appointmentId}`;
+
+/** The appointment a notice links to, or null. */
+export function noticeAppointment(href: string) {
+  return /^\/dashboard\/calendar\?appointment=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(href)?.[1] ?? null;
+}
+
 /** Appointment notices for the customer; null when nothing worth telling changed. */
 export function appointmentNotice(input: {
+  id: string;
   title: string;
   startsAt: string;
   before: { status: string; startsAt: string } | null;
@@ -166,7 +178,7 @@ export function appointmentNotice(input: {
 }): Notice | null {
   const when = formatMoment(input.startsAt);
   const note = input.note?.trim() ? ` · ${input.note.trim()}` : "";
-  const make = (kind: NoticeKind, title: string, body: string): Notice => ({ kind, title: clip(title, 200), body: clip(body, 300), href: "/dashboard/calendar" });
+  const make = (kind: NoticeKind, title: string, body: string): Notice => ({ kind, title: clip(title, 200), body: clip(body, 300), href: appointmentHref(input.id) });
   if (input.status === "declined") return make("appointment.declined", `Terminanfrage abgelehnt: ${input.title}`, `${when}${note}`);
   if (input.status === "cancelled") return make("appointment.cancelled", `Termin abgesagt: ${input.title}`, `${when}${note}`);
   if (!input.before) return make("appointment.created", `Neuer Termin: ${input.title}`, when);
@@ -176,3 +188,25 @@ export function appointmentNotice(input: {
 }
 
 export const fileNotice = (fileName: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: "/dashboard/files" });
+
+/** Only these notices offer "In deinen Kalender eintragen"; cancelled and declined ones do not. */
+const CALENDAR_KINDS = new Set<string>(["appointment.created", "appointment.confirmed", "appointment.changed"]);
+
+/**
+ * Which rows of one mail get calendar buttons, with their appointment: new, confirmed and moved appointments that are
+ * still confirmed and not over. Each appointment once, on its latest notice (rows come oldest first); the links
+ * always deliver the current time anyway.
+ */
+export function calendarRows(
+  rows: Pick<PendingRow, "id" | "kind" | "href">[],
+  appointments: Map<string, { status: string; ends_at: string }>,
+  now: Date,
+) {
+  const latest = new Map<string, number>();
+  for (const row of rows) {
+    const appointmentId = CALENDAR_KINDS.has(row.kind) ? noticeAppointment(row.href) : null;
+    const appointment = appointmentId ? appointments.get(appointmentId) : undefined;
+    if (appointmentId && appointment?.status === "confirmed" && Date.parse(appointment.ends_at) > now.getTime()) latest.set(appointmentId, row.id);
+  }
+  return new Map([...latest].map(([appointmentId, rowId]) => [rowId, appointmentId]));
+}

@@ -30,10 +30,17 @@ export function safeUrl(value: string) {
   }
 }
 
+/**
+ * "In deinen Kalender eintragen" under an appointment notice: signed hub links (lib/hub-calendar/links.ts). The .ics
+ * file serves Apple Kalender and every other app; `moved` adds the reminder to remove the old private entry.
+ * The pills are interim: the mail redesign comes first and gives this its own panel (PROJECT_CONTEXT.md, Benachrichtigungen).
+ */
+export type MailCalendar = { ics: string; google: string; outlook: string; moved?: boolean };
+
 type Block =
   | { kind: "text"; value: string }
   | { kind: "details"; rows: [string, string][] }
-  | { kind: "quote"; label: string; value: string }
+  | { kind: "quote"; label: string; value: string; calendar?: MailCalendar }
   | { kind: "button"; label: string; url: string }
   | { kind: "code"; value: string }
   | { kind: "small"; value: string };
@@ -41,6 +48,32 @@ type Block =
 type Mail = { subject: string; preheader: string; heading: string; blocks: Block[]; footer: string; legal?: MailLegal };
 
 const paragraph = (value: string) => `<p style="margin:0 0 14px;font-family:${FONT};font-size:16px;line-height:24px;color:${BRAND.ink};">${escapeHtml(value)}</p>`;
+
+const MOVED_HINT = "Schon in deinem Kalender? Lösch dort den alten Eintrag; private Kalender ändern sich nicht von selbst.";
+
+/** The ways into a calendar, each with a safe link; an empty list when none is usable. */
+function calendarEntries(calendar: MailCalendar) {
+  const entries: [string, string][] = [["Apple Kalender", calendar.ics], ["Google Kalender", calendar.google], ["Outlook", calendar.outlook], ["Andere (.ics)", calendar.ics]];
+  return entries.map(([label, url]): [string, string] => [label, safeUrl(url)]).filter(([, url]) => url);
+}
+
+function calendarHtml(calendar: MailCalendar) {
+  const entries = calendarEntries(calendar);
+  if (!entries.length) return "";
+  const pills = entries.map(([label, url]) => `<a href="${escapeHtml(url)}" style="display:inline-block;margin:6px 6px 0 0;padding:6px 12px;border:1px solid ${BRAND.line};border-radius:999px;background:#ffffff;font-size:13px;line-height:16px;font-weight:600;color:${BRAND.bordeaux};text-decoration:none;white-space:nowrap;">${escapeHtml(label)}</a>`).join("");
+  return `<p style="margin:12px 0 0;font-size:12px;line-height:16px;font-weight:600;color:${BRAND.muted};">In deinen Kalender eintragen</p><p style="margin:0;">${pills}</p>`
+    + (calendar.moved ? `<p style="margin:8px 0 0;font-size:12px;line-height:18px;color:${BRAND.muted};">${escapeHtml(MOVED_HINT)}</p>` : "");
+}
+
+function calendarText(calendar: MailCalendar) {
+  const [ics, google, outlook] = [calendar.ics, calendar.google, calendar.outlook].map(safeUrl);
+  const lines = [
+    ics && `Apple Kalender und andere Apps (.ics): ${ics}`,
+    google && `Google Kalender: ${google}`,
+    outlook && `Outlook (Microsoft 365): ${outlook}`,
+  ].filter(Boolean);
+  return lines.length ? ["In deinen Kalender eintragen:", ...lines, ...(calendar.moved ? [MOVED_HINT] : [])] : [];
+}
 
 function renderBlock(block: Block) {
   switch (block.kind) {
@@ -53,7 +86,8 @@ function renderBlock(block: Block) {
     case "quote":
       return `<div style="margin:0 0 16px;padding:12px 14px;border-radius:12px;background:${BRAND.paper};border-left:3px solid ${BRAND.bordeaux};font-family:${FONT};">`
         + `<p style="margin:0 0 4px;font-size:12px;line-height:16px;font-weight:600;color:${BRAND.muted};">${escapeHtml(block.label)}</p>`
-        + `<p style="margin:0;font-size:15px;line-height:22px;color:${BRAND.ink};white-space:pre-line;">${escapeHtml(block.value)}</p></div>`;
+        + `<p style="margin:0;font-size:15px;line-height:22px;color:${BRAND.ink};white-space:pre-line;">${escapeHtml(block.value)}</p>`
+        + `${block.calendar ? calendarHtml(block.calendar) : ""}</div>`;
     case "details": {
       const rows = block.rows.filter(([, value]) => value).map(([label, value]) =>
         `<tr><td style="padding:6px 12px 6px 0;vertical-align:top;font-family:${FONT};font-size:13px;line-height:20px;color:${BRAND.muted};white-space:nowrap;">${escapeHtml(label)}</td>`
@@ -103,7 +137,7 @@ function render(mail: Mail): MailContent {
   const lines = [mail.heading, ""];
   for (const block of mail.blocks) {
     if (block.kind === "text" || block.kind === "small" || block.kind === "code") lines.push(block.value, "");
-    if (block.kind === "quote") lines.push(`${block.label}:`, block.value, "");
+    if (block.kind === "quote") lines.push(`${block.label}:`, block.value, ...(block.calendar ? calendarText(block.calendar) : []), "");
     if (block.kind === "details") lines.push(...block.rows.filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`), "");
     if (block.kind === "button" && safeUrl(block.url)) lines.push(`${block.label}: ${safeUrl(block.url)}`, "");
   }
@@ -263,9 +297,10 @@ export function loginCodeMail(input: { firstName: string; code: string; minutes:
 
 /**
  * To a customer: what is new for them in the hub, bundled (lib/hub-notify). Each item names its context and what
- * happened; one button leads into the hub, where every notice links to its place.
+ * happened, new, confirmed and moved appointments with their calendar buttons; one button leads into the hub, where
+ * every notice links to its place.
  */
-export function noticeDigestMail(input: { firstName: string; items: { title: string; body: string }[]; more: number; hubUrl: string }, legal?: MailLegal): MailContent {
+export function noticeDigestMail(input: { firstName: string; items: { title: string; body: string; calendar?: MailCalendar }[]; more: number; hubUrl: string }, legal?: MailLegal): MailContent {
   const count = input.items.length + input.more;
   const first = input.items[0]?.title ?? "";
   return render({
@@ -273,7 +308,7 @@ export function noticeDigestMail(input: { firstName: string; items: { title: str
     preheader: count === 1 ? first : `${first} und ${count - 1} weitere`,
     heading: `Hallo ${greetingName(input.firstName)}, es gibt Neues für dich.`,
     blocks: [
-      ...input.items.map((item): Block => ({ kind: "quote", label: item.body, value: item.title })),
+      ...input.items.map((item): Block => ({ kind: "quote", label: item.body, value: item.title, calendar: item.calendar })),
       ...(input.more ? [{ kind: "text", value: input.more === 1 ? "Eine weitere Neuigkeit findest du im Hub." : `${input.more} weitere Neuigkeiten findest du im Hub.` } as Block] : []),
       { kind: "button", label: "Im Client Hub ansehen", url: input.hubUrl },
       { kind: "small", value: "Diese E-Mails kannst du im Client Hub unter „Profil & Zugang“ abschalten. Die Glocke im Hub zeigt dir die Neuigkeiten weiterhin." },

@@ -11,8 +11,10 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPreview = pathname === "/preview" || pathname.startsWith("/preview/");
   // The WhatsApp webhook is called by Meta without a session; it checks Meta's signature itself. The notification
-  // schedule is called by the database without a session; it checks its token itself.
-  const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === "/api/whatsapp" || pathname === "/api/notifications/sweep";
+  // schedule is called by the database without a session; it checks its token itself. The calendar links of the
+  // notification mails open on any phone without a session; each checks its own signature.
+  const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === "/api/whatsapp" || pathname === "/api/notifications/sweep"
+    || pathname.startsWith("/api/calendar/");
   let supabaseResponse = NextResponse.next({ request });
 
   // The preview is an isolated, public UI with fictional fixtures only.
