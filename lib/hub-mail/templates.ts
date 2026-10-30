@@ -33,6 +33,7 @@ export function safeUrl(value: string) {
 /**
  * "In deinen Kalender eintragen" under an appointment notice: signed hub links (lib/hub-calendar/links.ts). The .ics
  * file serves Apple Kalender and every other app; `moved` adds the reminder to remove the old private entry.
+ * The pills are interim: the mail redesign comes first and gives this its own panel (PROJECT_CONTEXT.md, Benachrichtigungen).
  */
 export type MailCalendar = { ics: string; google: string; outlook: string; moved?: boolean };
 
