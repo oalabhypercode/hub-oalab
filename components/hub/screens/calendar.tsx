@@ -47,8 +47,11 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
   const store = useCalendarStore(calendar);
   const { canManage, appointments, busy, now, today } = store;
   const range = useMemo(() => calendarWindow(today), [today]);
-  // The projects page links a deadline to its day: /calendar?day=2026-10-30.
-  const requested = useSearchParams().get("day");
+  // The projects page links a deadline to its day (/calendar?day=2026-10-30), a notice its appointment
+  // (/calendar?appointment=<id>): the calendar opens on that day, with the appointment open.
+  const params = useSearchParams();
+  const linked = appointments.find((item) => item.id === params.get("appointment"));
+  const requested = linked ? dayOf(linked.start) : params.get("day");
   const startDay = isDay(requested) && monthOf(requested) >= range.firstMonth && monthOf(requested) <= range.lastMonth ? requested : today;
   const [month, setMonth] = useState(() => monthOf(startDay));
   const [selected, setSelected] = useState(startDay);
@@ -64,7 +67,7 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
     return days;
   }, [goals]);
   const projectHref = (id: string) => `${hubHref(preview, "projects")}?project=${id}`;
-  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(() => linked ? { kind: "detail", id: linked.id } : null);
   const [notice, setNotice] = useState("");
 
   // Declined and cancelled appointments stay in the lists but leave the grid and the timeline.

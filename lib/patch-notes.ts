@@ -38,8 +38,8 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 8,
     date: "2026-10-30",
-    title: "Benachrichtigungen und ein bequemerer Assistent",
-    summary: "Kunden erfahren jetzt in der Glocke und per gebündelter E-Mail, was für sie neu ist: Aufgaben, bei denen sie am Zug sind, Änderungen an Status oder Zieltermin aus dem Studio, neue Dateien und Termine. Termine lassen sich aus der E-Mail mit einem Tipp in den eigenen Kalender übernehmen. Admins bekommen noch keine Benachrichtigungen. Der Assistent behält seinen Verlauf im Browser, lässt sich rechts andocken, zeigt Vorschauen übersichtlicher, und das neue KI-Protokoll listet alle seine Vorschläge.",
+    title: "Benachrichtigungen, neue E-Mails und ein bequemerer Assistent",
+    summary: "Kunden erfahren jetzt in der Glocke und per E-Mail, was für sie neu ist: Aufgaben, bei denen sie am Zug sind, Änderungen an Status oder Zieltermin aus dem Studio, neue Dateien und Termine. Termine lassen sich aus der E-Mail mit einem Tipp in den eigenen Kalender übernehmen. Alle E-Mails des Hubs haben ein neues Design, und Links führen direkt zum Termin oder zur Datei. Admins bekommen noch keine Benachrichtigungen. Der Assistent behält seinen Verlauf im Browser, lässt sich rechts andocken, zeigt Vorschauen übersichtlicher, und das neue KI-Protokoll listet alle seine Vorschläge.",
     changes: [
       { kind: "improved", title: "Assistent behält den Verlauf", text: "Der Chat mit dem Assistenten bleibt nach dem Neuladen und sogar nach einem Neustart des Browsers erhalten, bis du „Neu starten“ klickst oder dich abmeldest. Er liegt nur in deinem Browser.", customers: true },
       { kind: "new", title: "Assistent als Seitenleiste", text: "Ein Knopf im Chat dockt den Assistenten rechts an. Die Seite daneben bleibt bedienbar, und der Chat bleibt beim Wechseln der Seiten offen. Auf dem Handy öffnet er weiter als Fenster.", customers: true },
@@ -48,6 +48,10 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", title: "Benachrichtigungen in der Glocke", text: "Die Glocke oben rechts zeigt jetzt, was für dich neu ist: eine Aufgabe, bei der du am Zug bist, ein geänderter Projektstatus oder Zieltermin, eine neue Datei oder ein neuer, bestätigter, verschobener oder abgesagter Termin. Ein Klick führt direkt dorthin.", customers: true },
       { kind: "new", title: "Neuigkeiten per E-Mail", text: "Zusätzlich bekommst du eine E-Mail, die alles Neue einer Viertelstunde bündelt, statt für jede Kleinigkeit eine eigene. Im Profil unter „Benachrichtigungen“ lässt sich die E-Mail abschalten.", customers: true },
       { kind: "new", title: "Termine in den eigenen Kalender", text: "Bei neuen, bestätigten und verschobenen Terminen stehen in der E-Mail jetzt Buttons für Apple Kalender, Google Kalender, Outlook und eine Kalender-Datei für alle anderen Apps. Ein Tipp genügt, und der Termin landet mit Uhrzeit und Teams-Link in deinem Kalender, am Handy wie am Rechner.", customers: true },
+      { kind: "improved", title: "Neues Design für alle E-Mails", text: "Alle E-Mails aus dem Client Hub haben ein neues, einheitliches Design: oben Logo und Bereich, darunter klar, was passiert ist und was zu tun ist, und ein großer Button direkt an die richtige Stelle. Sie passen sich hellem und dunklem Modus an und sind auch auf dem Handy gut lesbar.", customers: true },
+      { kind: "improved", title: "Eine Neuigkeit, eine klare E-Mail", text: "Gibt es nur eine Neuigkeit, kommt sie als eigene E-Mail mit passender Überschrift, etwa „Du bist am Zug“ oder „Dein Termin wurde verschoben“. Mehrere Neuigkeiten stehen als Liste mit einem eigenen Link für jede. Bei Terminen stehen die Kalender-Buttons jetzt in einem eigenen Bereich.", customers: true },
+      { kind: "improved", title: "Links direkt zum Termin und zur Datei", text: "Ein Link zu einem Termin öffnet den Kalender an diesem Tag mit dem Termin, ein Link zu einer neuen Datei öffnet die Datei. Das gilt in den E-Mails und in der Glocke.", customers: true },
+      { kind: "improved", title: "Neue Registrierung als Kontaktkarte", text: "Die E-Mail an das oalab-Team zu einer neuen Registrierung zeigt die Person jetzt als Kontaktkarte: Name und Unternehmen groß, darunter Position, E-Mail-Adresse, Telefon, Website und Kundennummer zum Antippen." },
     ],
   },
   {

@@ -144,13 +144,16 @@ async function sendDueMails(db: SupabaseClient, origin: string, now: Date) {
         items: items.slice(0, MAIL_ITEMS).map((row) => {
           const appointmentId = calendar.get(row.id);
           return {
+            kind: row.kind,
             title: row.title,
             body: row.body,
+            url: `${origin}${row.href}`,
             calendar: appointmentId && secret ? { ...calendarLinks(origin, appointmentId, secret), moved: row.kind === "appointment.changed" } : undefined,
           };
         }),
         more: Math.max(0, items.length - MAIL_ITEMS),
         hubUrl: `${origin}/dashboard`,
+        settingsUrl: `${origin}/dashboard/settings`,
       }, legal);
       state = (await sendMail({ to: [email], ...content, kind: "notice.digest" })).status;
     }

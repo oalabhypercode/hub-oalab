@@ -187,7 +187,8 @@ export function appointmentNotice(input: {
   return null;
 }
 
-export const fileNotice = (fileName: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: "/dashboard/files" });
+/** A file shared with the customer; the link opens it in the files page. */
+export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });
 
 /** Only these notices offer "In deinen Kalender eintragen"; cancelled and declined ones do not. */
 const CALENDAR_KINDS = new Set<string>(["appointment.created", "appointment.confirmed", "appointment.changed"]);

@@ -103,19 +103,45 @@ test("appointment notices tell new, confirmed, moved, cancelled and declined apa
   assert.equal(notice({ status: "cancelled", note: "Krank" }).title, "Termin abgesagt: Abstimmung");
   assert.match(notice({ status: "cancelled", note: "Krank" }).body, / · Krank$/);
   assert.equal(notice({ status: "declined" }).kind, "appointment.declined");
-  assert.deepEqual(fileNotice("Servicevertrag"), { kind: "file.shared", title: "Neue Datei: Servicevertrag", body: "Im Bereich Dateien", href: "/dashboard/files" });
+  // The file's own link opens it in the files page.
+  assert.deepEqual(fileNotice("Servicevertrag", "9d2e41c0-1b2c-4d3e-8f40-5a6b7c8d9e0f"), { kind: "file.shared", title: "Neue Datei: Servicevertrag", body: "Im Bereich Dateien", href: "/dashboard/files?file=9d2e41c0-1b2c-4d3e-8f40-5a6b7c8d9e0f" });
 });
 
-test("the digest mail lists the notices, escapes them and points to the profile switch", () => {
-  const one = noticeDigestMail({ firstName: "Jana", items: [{ title: "Du bist am Zug: <Logo>", body: "Website · Aufgabe #12" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
-  assert.equal(one.subject, "Neu im Client Hub: Du bist am Zug: <Logo>");
-  assert.match(one.html, /Du bist am Zug: &lt;Logo&gt;/);
+const HUB = { hubUrl: "https://hub.oalab.de/dashboard", settingsUrl: "https://hub.oalab.de/dashboard/settings" };
+
+test("one notice comes as a mail of its own: headline by kind, the notice escaped, a button to its place", () => {
+  const one = noticeDigestMail({ firstName: "Jana", items: [{ kind: "task.customer", title: "Du bist am Zug: <Logo>", body: "Website · Aufgabe #12", url: "https://hub.oalab.de/dashboard/projects?project=p1" }], more: 0, ...HUB });
+  assert.equal(one.subject, "Du bist am Zug: <Logo>");
+  assert.match(one.html, />Du bist am Zug<\/h1>/);
+  // The card leaves out what the headline already says.
+  assert.match(one.html, />&lt;Logo&gt;<\/div>/);
   assert.doesNotMatch(one.html, /<Logo>/);
-  assert.match(one.text, /Im Client Hub ansehen: https:\/\/hub\.oalab\.de\/dashboard/);
+  assert.match(one.html, /Wartet auf dich/);
+  assert.match(one.text, /^Aufgabe öffnen: https:\/\/hub\.oalab\.de\/dashboard\/projects\?project=p1$/m);
   assert.match(one.text, /Profil & Zugang/);
-  const many = noticeDigestMail({ firstName: "", items: [{ title: "A", body: "" }, { title: "B", body: "" }], more: 3, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.match(one.text, /^Benachrichtigungen verwalten: https:\/\/hub\.oalab\.de\/dashboard\/settings$/m);
+  assert.ok(["logo", "area-projects"].every((id) => one.images.includes(id)), one.images.join());
+  // A link that is not http(s) never makes it in; the button then leads into the hub.
+  const unsafe = noticeDigestMail({ items: [{ kind: "file.shared", title: "Neue Datei: x", body: "", url: "javascript:alert(1)" }], more: 0, ...HUB });
+  assert.doesNotMatch(unsafe.html, /javascript:/);
+  assert.match(unsafe.text, /^Datei ansehen: https:\/\/hub\.oalab\.de\/dashboard$/m);
+  // An unknown kind still gets a mail.
+  assert.match(noticeDigestMail({ items: [{ kind: "neu", title: "Etwas Neues", body: "" }], more: 0, ...HUB }).html, />Neu im Client Hub<\/h1>/);
+});
+
+test("several notices come as a list, each with its own link, and the rest stays in the hub", () => {
+  const many = noticeDigestMail({ firstName: "", items: [
+    { kind: "task.customer", title: "Du bist am Zug: A", body: "", url: "https://hub.oalab.de/dashboard/projects?project=p1" },
+    { kind: "file.shared", title: "Neue Datei: B", body: "Im Bereich Dateien", url: "https://hub.oalab.de/dashboard/files?file=f1" },
+  ], more: 3, ...HUB });
   assert.equal(many.subject, "Neu im Client Hub: 5 Neuigkeiten");
+  assert.match(many.html, />5 Neuigkeiten für dich<\/h1>/);
+  assert.match(many.text, /Eine Aufgabe wartet auf dich, der Rest ist zur Info\./);
+  assert.match(many.text, /^Aufgabe öffnen: https:\/\/hub\.oalab\.de\/dashboard\/projects\?project=p1$/m);
+  assert.match(many.text, /^Datei ansehen: https:\/\/hub\.oalab\.de\/dashboard\/files\?file=f1$/m);
   assert.match(many.text, /3 weitere Neuigkeiten findest du im Hub\./);
+  assert.match(many.text, /^Alles im Client Hub ansehen: https:\/\/hub\.oalab\.de\/dashboard$/m);
+  assert.ok(["area-news", "area-projects", "area-files"].every((id) => many.images.includes(id)));
   assert.doesNotMatch(many.html, /In deinen Kalender eintragen/);
 });
 
@@ -145,24 +171,48 @@ test("new, confirmed and moved appointments get calendar buttons once, while sti
   assert.deepEqual([...calendarRows(rows, new Map(), now)], []);
 });
 
-test("the digest mail shows the calendar buttons under an appointment, as links and in the text version", () => {
+test("appointment mails carry the calendar links: a block in a mail of its own, compact links in a list, and in the text", () => {
   const calendar = {
     ics: "https://hub.oalab.de/api/calendar/x/oalab-termin.ics?sig=abc",
     google: "https://hub.oalab.de/api/calendar/x/google?sig=abc",
     outlook: "https://hub.oalab.de/api/calendar/x/outlook?sig=abc",
   };
-  const mail = noticeDigestMail({ firstName: "Jana", items: [{ title: "Neuer Termin: Kickoff", body: "Di., 10. November um 14:00 Uhr", calendar }, { title: "Neue Datei: Vertrag", body: "Im Bereich Dateien" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
-  assert.equal((mail.html.match(/In deinen Kalender eintragen/g) ?? []).length, 1);
-  for (const label of ["Apple Kalender", "Google Kalender", "Outlook", "Andere (.ics)"]) assert.match(mail.html, new RegExp(`>${label.replace(/[().]/g, "\\$&")}</a>`));
-  assert.equal((mail.html.match(/href="https:\/\/hub\.oalab\.de\/api\/calendar\/x\/oalab-termin\.ics\?sig=abc"/g) ?? []).length, 2);
-  assert.match(mail.html, /href="https:\/\/hub\.oalab\.de\/api\/calendar\/x\/google\?sig=abc"/);
-  assert.doesNotMatch(mail.html, /alten Eintrag/);
-  assert.match(mail.text, /Neuer Termin: Kickoff\nIn deinen Kalender eintragen:\nApple Kalender und andere Apps \(\.ics\): https:\/\/hub\.oalab\.de\/api\/calendar\/x\/oalab-termin\.ics\?sig=abc\nGoogle Kalender: https:\/\/hub\.oalab\.de\/api\/calendar\/x\/google\?sig=abc\nOutlook \(Microsoft 365\): https:\/\/hub\.oalab\.de\/api\/calendar\/x\/outlook\?sig=abc\n/);
-  const moved = noticeDigestMail({ firstName: "", items: [{ title: "Termin verschoben: Kickoff", body: "", calendar: { ...calendar, moved: true } }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
-  assert.match(moved.html, /Schon in deinem Kalender\? Lösch dort den alten Eintrag/);
-  assert.match(moved.text, /Schon in deinem Kalender\? Lösch dort den alten Eintrag/);
-  const unsafe = noticeDigestMail({ firstName: "", items: [{ title: "Neuer Termin", body: "", calendar: { ics: "javascript:alert(1)", google: "javascript:x", outlook: "data:x" } }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
-  assert.doesNotMatch(unsafe.html, /In deinen Kalender eintragen|javascript:|data:x/);
+  const ics = /href="https:\/\/hub\.oalab\.de\/api\/calendar\/x\/oalab-termin\.ics\?sig=abc"/g;
+  const textLinks = /In deinen Kalender eintragen:\nApple Kalender und andere Apps \(\.ics\): https:\/\/hub\.oalab\.de\/api\/calendar\/x\/oalab-termin\.ics\?sig=abc\nGoogle Kalender: https:\/\/hub\.oalab\.de\/api\/calendar\/x\/google\?sig=abc\nOutlook \(Microsoft 365\): https:\/\/hub\.oalab\.de\/api\/calendar\/x\/outlook\?sig=abc\n/;
+  const created = { kind: "appointment.created", title: "Neuer Termin: Kickoff", body: "Di., 10. November um 14:00 Uhr", url: "https://hub.oalab.de/dashboard/calendar?appointment=x", calendar };
+
+  // On its own: the block with four buttons, each app with a hint where it is used; Apple and "Andere" get the .ics file.
+  const one = noticeDigestMail({ items: [created], more: 0, ...HUB });
+  assert.match(one.html, />In deinen Kalender eintragen<\/div>/);
+  for (const label of ["Apple Kalender", "Google Kalender", "Outlook", "Andere Kalender-App"]) assert.match(one.html, new RegExp(`>${label}</span>`));
+  assert.equal((one.html.match(ics) ?? []).length, 4);
+  assert.match(one.html, /href="https:\/\/hub\.oalab\.de\/api\/calendar\/x\/google\?sig=abc"/);
+  assert.doesNotMatch(one.html, /alten Eintrag/);
+  assert.match(one.text, textLinks);
+  assert.ok(["calendar-tile", "calendar-add", "calendar-file"].every((id) => one.images.includes(id)));
+
+  // In a list: compact links under the appointment.
+  const list = noticeDigestMail({ firstName: "Jana", items: [created, { kind: "file.shared", title: "Neue Datei: Vertrag", body: "Im Bereich Dateien" }], more: 0, ...HUB });
+  assert.equal((list.html.match(/In deinen Kalender eintragen/g) ?? []).length, 1);
+  for (const label of ["Apple", "Google", "Outlook", ".ics-Datei"]) assert.match(list.html, new RegExp(`>${label.replace(/\./g, "\\.")}</a>`));
+  assert.equal((list.html.match(ics) ?? []).length, 2);
+  assert.match(list.text, new RegExp(`Di\\., 10\\. November um 14:00 Uhr\\n${textLinks.source}`));
+
+  // A moved appointment asks to remove the old private entry, on its own and in a list.
+  const moved = { ...created, kind: "appointment.changed", title: "Termin verschoben: Kickoff", calendar: { ...calendar, moved: true } };
+  for (const mail of [noticeDigestMail({ items: [moved], more: 0, ...HUB }), noticeDigestMail({ items: [moved, created], more: 0, ...HUB })]) {
+    assert.match(mail.html, /Schon in deinem Kalender\? Lösch dort den alten Eintrag/);
+    assert.match(mail.text, /Schon in deinem Kalender\? Lösch dort den alten Eintrag/);
+  }
+  assert.match(noticeDigestMail({ items: [moved], more: 0, ...HUB }).html, />Neue Zeit in deinen Kalender<\/div>/);
+
+  // Links that are not http(s) leave the calendar part out entirely.
+  const broken = { ics: "javascript:alert(1)", google: "javascript:x", outlook: "data:x" };
+  for (const mail of [noticeDigestMail({ items: [{ ...created, calendar: broken }], more: 0, ...HUB }), noticeDigestMail({ items: [{ ...created, calendar: broken }, created], more: 0, ...HUB })]) {
+    assert.doesNotMatch(mail.html, /javascript:|data:x/);
+  }
+  const unsafe = noticeDigestMail({ items: [{ ...created, calendar: broken }], more: 0, ...HUB });
+  assert.doesNotMatch(unsafe.html, /In deinen Kalender eintragen/);
   assert.doesNotMatch(unsafe.text, /In deinen Kalender eintragen/);
 });
 
@@ -181,4 +231,12 @@ test("the schedule needs its token, rows are written by the server and read only
   assert.match(actions, /^"use server";/);
   assert.doesNotMatch(actions, /createAdminClient/);
   for (const file of ["lib/hub-calendar/actions.ts", "lib/hub-files/actions.ts"]) assert.match(await source(file), /await notifyCustomers\(/, file);
+});
+
+test("a file notice opens its file: the link names it and the files page opens what a link names", async () => {
+  const actions = await source("lib/hub-files/actions.ts");
+  assert.match(actions, /notifyCustomers\(customerIds, fileNotice\(title, data\.id\)\)/);
+  assert.match(actions, /notifyCustomers\(added, fileNotice\(file\.data\.title, fileId\)\)/);
+  const files = await source("components/hub/screens/files.tsx");
+  assert.match(files, /const linkedFile = useSearchParams\(\)\.get\("file"\);\s+const \[openId, setOpenId\] = useState<string \| null>\(\(\) => files\.some\(\(file\) => file\.id === linkedFile\) \? linkedFile : null\);/);
 });
