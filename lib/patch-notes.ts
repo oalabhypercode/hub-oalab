@@ -36,6 +36,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 9,
+    date: "2026-10-31",
+    title: "Kalender-Buttons mit Logos",
+    summary: "Die Kalender-Buttons in Termin-Mails zeigen jetzt die Logos von Apple, Google und Microsoft statt eines gemeinsamen Kalender-Symbols.",
+    changes: [
+      { kind: "improved", title: "Kalender-Buttons mit Logos", text: "In E-Mails zu einem neuen, bestätigten oder verschobenen Termin trägt jeder Kalender-Button jetzt das Logo seines Kalenders: Apple, Google und Microsoft für Outlook, einfarbig im Design des Hubs. So findest du den passenden Button auf einen Blick.", customers: true },
+    ],
+  },
+  {
     number: 8,
     date: "2026-10-30",
     title: "Benachrichtigungen, neue E-Mails und ein bequemerer Assistent",
