@@ -2,7 +2,8 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { cleanEmail } from "@/lib/hub-users/rules";
 import { legalLinks } from "@/lib/legal-links";
-import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport, type MailStatus, type OutgoingMail } from "./smtp";
+import { MAIL_IMAGES } from "./images";
+import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport, type InlineImage, type MailStatus, type OutgoingMail } from "./smtp";
 
 export type { MailStatus };
 export type MailResult = { status: MailStatus; id?: string; error?: string };
@@ -31,6 +32,11 @@ export function mailSettings() {
 /** What the logs may say about a mail: its kind. Subjects carry names, so they stay out like addresses and content. */
 const kindOf = (mail: OutgoingMail) => mail.kind ?? "ohne Art";
 
+/** The pictures a mail shows, as inline attachments; names without a picture are skipped. */
+const inlineImages = (ids: string[] = []): InlineImage[] => ids.flatMap((id) => Object.hasOwn(MAIL_IMAGES, id)
+  ? [{ filename: `${id}.png`, content: MAIL_IMAGES[id as keyof typeof MAIL_IMAGES], encoding: "base64" as const, contentType: "image/png" as const, cid: `${id}@hub.oalab.de` }]
+  : []);
+
 /** Sends one mail through the SMTP server; never throws. The password and the mail content never reach the logs. */
 export async function sendMail(mail: OutgoingMail): Promise<MailResult> {
   const settings = mailSettings();
@@ -40,7 +46,7 @@ export async function sendMail(mail: OutgoingMail): Promise<MailResult> {
   }
   try {
     const transport = nodemailer.createTransport(smtpTransport(settings.smtp));
-    const result = readSmtpResult(await transport.sendMail(smtpMessage(settings.from, { ...mail, replyTo: mail.replyTo ?? settings.replyTo })));
+    const result = readSmtpResult(await transport.sendMail(smtpMessage(settings.from, { ...mail, replyTo: mail.replyTo ?? settings.replyTo }, inlineImages(mail.images))));
     if (result.ok) return { status: "sent", id: result.id };
     console.error(`[hub-mail] Mailserver hat ${kindOf(mail)} abgelehnt: ${result.error}`);
     return { status: "failed", error: result.error };

@@ -60,7 +60,8 @@ export async function notifyConfirmedRegistration(userId: string, origin: string
       // Replies to the team mail go straight to the person.
       await sendOnce(db, "registration.team", userId, mailOf(settings.team, content, { replyTo: user.email }));
     }
-    await sendOnce(db, "registration.received", userId, mailOf([user.email], registrationReceivedMail({ firstName: profile.first_name, contact: settings.replyTo }, settings.legal)));
+    const receipt = registrationReceivedMail({ firstName: profile.first_name, contact: settings.replyTo, email: user.email, loginUrl: `${origin ?? ""}/auth/login` }, settings.legal);
+    await sendOnce(db, "registration.received", userId, mailOf([user.email], receipt));
   } catch (error) {
     console.error("[hub-mail] Benachrichtigung zur Registrierung fehlgeschlagen", error instanceof Error ? error.name : "unbekannt");
   }
@@ -76,13 +77,13 @@ export function mailApproval(db: SupabaseClient, user: User, input: { firstName:
 /** The person learns that the registration was not approved, with the note if there is one. */
 export function mailRejection(db: SupabaseClient, user: User, input: { firstName: string; note: string }) {
   const settings = mailSettings();
-  return sendTracked(db, "registration.rejected", user.id, mailOf([user.email ?? ""], registrationRejectedMail(input, settings.legal)));
+  return sendTracked(db, "registration.rejected", user.id, mailOf([user.email ?? ""], registrationRejectedMail({ ...input, contact: settings.replyTo }, settings.legal)));
 }
 
 /** A one-time link to set the first or a new password, sent to the login's own address only. */
 export function mailPasswordLink(db: SupabaseClient, user: User, input: { firstName: string; link: string; activation: boolean }) {
   const settings = mailSettings();
-  return sendTracked(db, input.activation ? "user.activation" : "user.password", user.id, mailOf([user.email ?? ""], passwordLinkMail(input, settings.legal)));
+  return sendTracked(db, input.activation ? "user.activation" : "user.password", user.id, mailOf([user.email ?? ""], passwordLinkMail({ ...input, email: user.email ?? "" }, settings.legal)));
 }
 
 /** The six-digit code of a sign-in with second factor, to the login's own address only. The log keeps no code. */
@@ -94,5 +95,5 @@ export function mailLoginCode(db: SupabaseClient, user: Pick<User, "id" | "email
 /** Right after the registration form: the link that confirms the e-mail address. */
 export function mailRegistrationConfirmation(db: SupabaseClient, user: User, input: { firstName: string; link: string }) {
   const settings = mailSettings();
-  return sendTracked(db, "registration.confirmation", user.id, mailOf([user.email ?? ""], registrationConfirmationMail(input, settings.legal)));
+  return sendTracked(db, "registration.confirmation", user.id, mailOf([user.email ?? ""], registrationConfirmationMail({ ...input, email: user.email ?? "" }, settings.legal)));
 }

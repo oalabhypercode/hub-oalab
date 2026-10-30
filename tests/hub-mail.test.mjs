@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { safeAuthRedirect } from "../lib/auth-redirect.ts";
+import { MAIL_IMAGES } from "../lib/hub-mail/images.ts";
 import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport } from "../lib/hub-mail/smtp.ts";
 import {
   accessApprovedMail, cleanSubject, escapeHtml, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
@@ -34,37 +35,73 @@ test("the team mail carries every registration detail, escaped, with the review 
   assert.doesNotMatch(mail.html, /<b>bitte|<Studio>/);
   assert.match(mail.html, /<a href="https:\/\/hub\.oalab\.de\/dashboard\/users"/);
   assert.match(mail.html, /<a href="https:\/\/oalab\.de\/impressum"[^>]*>Impressum<\/a>/);
+  // The contact card: address, phone and website can be tapped, the monogram comes from the name.
+  assert.match(mail.html, /href="mailto:jana@nordlicht\.example"/);
+  assert.match(mail.html, /href="tel:\+49301234567"/);
+  assert.match(mail.html, /href="https:\/\/nordlicht\.example\/"[^>]*>nordlicht\.example<\/a>/);
+  assert.match(mail.html, />JS<\/td>/);
   // The plain-text version has the same facts, unescaped.
-  for (const line of ["Unternehmen: Nordlicht <Studio> & Co.", "Telefon: +49 30 1234567", "Nachricht:\nHallo Team,", "Im User Management prüfen: https://hub.oalab.de/dashboard/users", "Datenschutz: https://oalab.de/datenschutz"]) {
+  for (const line of ["Unternehmen: Nordlicht <Studio> & Co.", "Telefon: +49 30 1234567", "Nachricht:\nHallo Team,", "Registrierung prüfen: https://hub.oalab.de/dashboard/users", "Datenschutz: https://oalab.de/datenschutz"]) {
     assert.ok(mail.text.includes(line), line);
   }
   // Empty optional fields leave no empty rows, and without legal addresses there are no footer links.
   const short = teamRegistrationMail({ ...registration, position: "", website: "", customerNumberHint: "", message: "" }, "https://hub.oalab.de/dashboard/users");
   assert.doesNotMatch(short.text, /^(Position|Website|Kundennummer \(Angabe\)|Nachricht):/m);
   assert.doesNotMatch(short.html, /Impressum|Datenschutz/);
+  // Typed website and phone never become links to anything but a website or a phone number.
+  const odd = teamRegistrationMail({ ...registration, website: "javascript:alert(1)", phone: "<b>ruf an</b>" }, "https://hub.oalab.de/dashboard/users");
+  assert.doesNotMatch(odd.html, /href="javascript:|<b>ruf|href="tel:"/);
+  assert.match(odd.html, /javascript:alert\(1\)<\/span>/);
+});
+
+test("every mail names the pictures it shows, and each of them exists", () => {
+  const mails = [
+    teamRegistrationMail(registration, "https://hub.oalab.de/dashboard/users", legal),
+    registrationReceivedMail({ firstName: "Jana", contact: "info@oalab.de" }),
+    loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10 }),
+  ];
+  for (const mail of mails) {
+    const shown = [...new Set([...mail.html.matchAll(/src="cid:([a-z0-9-]+)@hub\.oalab\.de"/g)].map((match) => match[1]))];
+    assert.deepEqual([...mail.images].sort(), shown.sort());
+    for (const id of mail.images) assert.ok(Object.hasOwn(MAIL_IMAGES, id), id);
+    assert.ok(mail.images.includes("logo"));
+    // Below the size at which Gmail cuts a mail off.
+    assert.ok(mail.html.length < 100_000, String(mail.html.length));
+  }
+  assert.ok(mails[0].images.includes("area-users") && mails[0].images.includes("glyph-phone"));
+  // The pictures are PNG.
+  for (const data of Object.values(MAIL_IMAGES)) assert.equal(Buffer.from(data, "base64").subarray(1, 4).toString(), "PNG");
 });
 
 test("the person gets a receipt, the approval with the login link or the rejection with the team's note", () => {
-  const receipt = registrationReceivedMail({ firstName: "Jana", contact: "info@oalab.de" }, legal);
-  assert.equal(receipt.subject, "Deine Registrierung beim oalab Client Hub");
-  assert.match(receipt.text, /^Danke, Jana!/);
+  const receipt = registrationReceivedMail({ firstName: "Jana", contact: "info@oalab.de", email: "jana@nordlicht.example", loginUrl: "https://hub.oalab.de/auth/login" }, legal);
+  assert.equal(receipt.subject, "Deine Registrierung ist eingegangen");
+  assert.match(receipt.text, /^Danke, Jana – deine Registrierung ist da/);
+  assert.match(receipt.text, /^Stand: In Prüfung$/m);
+  assert.match(receipt.text, /per E-Mail an jana@nordlicht\.example/);
   assert.match(receipt.text, /info@oalab\.de/);
-  // A receipt links to nothing but the legal pages.
-  for (const link of receipt.html.matchAll(/href="([^"]+)"/g)) assert.ok(Object.values(legal).includes(link[1]), link[1]);
+  // A receipt links to the login and the legal pages only.
+  for (const link of receipt.html.matchAll(/href="([^"]+)"/g)) assert.ok([...Object.values(legal), "https://hub.oalab.de/auth/login"].includes(link[1]), link[1]);
+  assert.doesNotMatch(registrationReceivedMail({ firstName: "", contact: "info@oalab.de" }).html, /href="(?!https:\/\/oalab)/);
 
   const input = { firstName: "Jana", email: "jana@nordlicht.example", loginUrl: "https://hub.oalab.de/auth/login", company: "Nordlicht Studio", customerNumber: "KD-24017" };
   const approved = accessApprovedMail(input);
   assert.equal(approved.subject, "Dein Zugang zum oalab Client Hub ist freigeschaltet");
-  assert.match(approved.text, /freigeschaltet für Nordlicht Studio \(Kundennummer KD-24017\)\. Du meldest dich mit deiner E-Mail-Adresse jana@nordlicht\.example/);
-  assert.match(approved.text, /Zum Client Hub: https:\/\/hub\.oalab\.de\/auth\/login/);
-  assert.match(accessApprovedMail({ ...input, company: null, customerNumber: null }).text, /ist freigeschaltet\. Du meldest/);
+  for (const line of ["Unternehmen: Nordlicht Studio", "Kundennummer: KD-24017", "Anmeldung mit: jana@nordlicht.example", "Stand: Freigeschaltet", "Zum Client Hub: https://hub.oalab.de/auth/login"]) {
+    assert.match(approved.text, new RegExp(`^${line.replace(/[.?]/g, "\\$&")}$`, "m"), line);
+  }
+  assert.doesNotMatch(accessApprovedMail({ ...input, company: null, customerNumber: null }).text, /^(Unternehmen|Kundennummer):/m);
   // Without a usable origin the button is left out rather than sent as a relative link.
   assert.doesNotMatch(accessApprovedMail({ ...input, loginUrl: "/auth/login" }).html, /href="\/auth/);
 
-  const rejected = registrationRejectedMail({ firstName: "Jana", note: "Bitte meldet euch <telefonisch>." });
+  const rejected = registrationRejectedMail({ firstName: "Jana", note: "Bitte meldet euch <telefonisch>.", contact: "info@oalab.de" });
   assert.match(rejected.html, /Bitte meldet euch &lt;telefonisch&gt;\./);
   assert.match(rejected.text, /Hinweis deines oalab-Teams:\nBitte meldet euch <telefonisch>\./);
+  // Its button writes to the team; a mail link needs no copyable fallback.
+  assert.match(rejected.html, /href="mailto:info@oalab\.de\?subject=Registrierung%20Client%20Hub"/);
+  assert.doesNotMatch(rejected.html, /Button funktioniert nicht/);
   assert.doesNotMatch(registrationRejectedMail({ firstName: "Jana", note: "" }).text, /Hinweis/);
+  assert.doesNotMatch(registrationRejectedMail({ firstName: "Jana", note: "", contact: "kein <Kontakt>" }).html, /mailto:/);
 });
 
 test("activation and password links go out as a button with a copyable fallback", () => {
@@ -72,8 +109,9 @@ test("activation and password links go out as a button with a copyable fallback"
   const activation = passwordLinkMail({ firstName: "Ben", link, activation: true });
   assert.equal(activation.subject, "Dein Zugang zum oalab Client Hub");
   assert.match(activation.text, /^Passwort festlegen: https:\/\/hub\.oalab\.de\/auth\/confirm\?token_hash=abc&type=recovery&next=\/auth\/update-password$/m);
-  // Button, fallback link and fallback text, each with escaped ampersands.
-  assert.equal(activation.html.split("token_hash=abc&amp;type=recovery&amp;next=/auth/update-password").length - 1, 3);
+  // Button (and its Outlook twin), fallback link and fallback text, each with escaped ampersands.
+  assert.equal(activation.html.split("token_hash=abc&amp;type=recovery&amp;next=/auth/update-password").length - 1, 4);
+  assert.equal(passwordLinkMail({ firstName: "Ben", link, activation: true, email: "ben@example.com" }).text.match(/^Anmeldung mit: ben@example\.com$/m)?.length, 1);
   const reset = passwordLinkMail({ firstName: "Ben", link, activation: false });
   assert.equal(reset.subject, "Neues Passwort für den oalab Client Hub");
   assert.match(reset.text, /^Neues Passwort festlegen: https:/m);
@@ -83,11 +121,12 @@ test("activation and password links go out as a button with a copyable fallback"
 test("the sign-in code mail shows the six digits large in the body and keeps them out of subject and preheader", () => {
   const mail = loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10 }, legal);
   assert.equal(mail.subject, "Dein Sicherheitscode für oalab");
-  assert.match(mail.html, /letter-spacing:8px;[^>]*>042917<\/p>/);
-  assert.equal(mail.html.match(/042917/g).length, 1);
-  assert.match(mail.text, /^Hallo Jana,\n[\s\S]*\n042917\n[\s\S]*10 Minuten/);
-  assert.doesNotMatch(mail.html.match(/<div style="display:none[^>]*>([^<]*)<\/div>/)[1], /042917/);
-  assert.match(loginCodeMail({ firstName: "", code: "000001", minutes: 10 }).text, /^Hallo du,/);
+  // Large and in two groups of three; the gap is spacing, so a copied code has no blank in it.
+  assert.equal(mail.html.match(/letter-spacing:12px;[^>]*><span>042<\/span><span style="padding-left:14px;">917<\/span><\/div>/g).length, 1);
+  assert.doesNotMatch(mail.html, /042917|042 917/);
+  assert.match(mail.text, /^Dein Sicherheitscode\n\nHallo Jana, gib diesen Code ein[\s\S]*\n042917\n[\s\S]*10 Minuten/);
+  assert.doesNotMatch(mail.html.match(/<div style="display:none[^>]*>([^<]*)<\/div>/)[1], /042|917/);
+  assert.match(loginCodeMail({ firstName: "", code: "000001", minutes: 10 }).text, /^Dein Sicherheitscode\n\nGib diesen Code ein/);
 });
 
 test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {
@@ -114,6 +153,9 @@ test("the SMTP message carries sender, reply address and kind, and at most 50 re
   assert.deepEqual(message.headers, { "X-Hub-Mail": "registration.team" });
   assert.equal(smtpMessage("hub@oalab.de", { to: ["a@example.com"], subject: "s", html: "h", text: "t", kind: "a\r\nBcc: x" }).headers["X-Hub-Mail"], "a__Bcc__x");
   assert.deepEqual(Object.keys(smtpMessage("hub@oalab.de", { to: ["a@example.com"], subject: "s", html: "h", text: "t" })).sort(), ["from", "html", "subject", "text", "to"]);
+  // Pictures go along inline, found by their content ID.
+  const logo = { filename: "logo.png", content: MAIL_IMAGES.logo, encoding: "base64", contentType: "image/png", cid: "logo@hub.oalab.de" };
+  assert.deepEqual(smtpMessage("hub@oalab.de", { to: ["a@example.com"], subject: "s", html: "h", text: "t", images: ["logo"] }, [logo]).attachments, [logo]);
 });
 
 test("server answers become a short status without addresses", () => {

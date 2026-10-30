@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Building2, Check, Download, FileType, Folder, FolderPlus, Inbox, Loader2, Pencil, Tag, Trash2, Users, X } from "lucide-react";
 import { categoryLabel } from "@/lib/categories";
 import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
@@ -169,7 +170,9 @@ export function FilesScreen({ model, populated, fileState, admin }: ScreenProps)
   const [sort, setSort] = useState<SortState<FileSortKey>>({ key: "date", dir: "desc" });
   const [folderChoice, setFolderChoice] = useState<{ scope: string | null; folder: string }>({ scope: null, folder: ALL });
   const [selected, setSelected] = useState<string[]>([]);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // A notice links its file (/files?file=<id>): the page opens with that file.
+  const linkedFile = useSearchParams().get("file");
+  const [openId, setOpenId] = useState<string | null>(() => files.some((file) => file.id === linkedFile) ? linkedFile : null);
   const [dialog, setDialog] = useState<FolderDialog | null>(null);
   const [busy, setBusy] = useState<"download" | "move" | null>(null);
   const [error, setError] = useState("");

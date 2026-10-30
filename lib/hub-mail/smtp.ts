@@ -14,7 +14,12 @@ export type OutgoingMail = {
   replyTo?: string;
   /** The kind of mail (e.g. "registration.team"): an X-Hub-Mail header for mailbox filters, and all the logs say about it. */
   kind?: string;
+  /** The pictures the HTML shows (cid:<id>@hub.oalab.de); lib/hub-mail/send.ts attaches them inline. */
+  images?: string[];
 };
+
+/** A picture inside the mail, shown by the HTML through its content ID. */
+export type InlineImage = { filename: string; content: string; encoding: "base64"; contentType: "image/png"; cid: string };
 
 export type SmtpSettings = { host: string; port: number; secure: boolean; user: string; password: string };
 
@@ -42,8 +47,8 @@ export function smtpTransport(settings: SmtpSettings) {
   };
 }
 
-/** The message: at most 50 recipients, HTML with a plain-text alternative, the kind as header. */
-export function smtpMessage(from: string, mail: OutgoingMail) {
+/** The message: at most 50 recipients, HTML with a plain-text alternative and its pictures inline, the kind as header. */
+export function smtpMessage(from: string, mail: OutgoingMail, images: InlineImage[] = []) {
   return {
     from,
     to: mail.to.slice(0, 50),
@@ -52,6 +57,7 @@ export function smtpMessage(from: string, mail: OutgoingMail) {
     text: mail.text,
     ...(mail.replyTo ? { replyTo: mail.replyTo } : {}),
     ...(mail.kind ? { headers: { "X-Hub-Mail": mail.kind.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 60) } } : {}),
+    ...(images.length ? { attachments: images } : {}),
   };
 }
 

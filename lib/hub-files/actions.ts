@@ -98,7 +98,7 @@ export async function finalizeUpload(input: FinalizeInput): Promise<ActionResult
       refreshWorkspace();
       return { ok: false, error: "Die Datei ist gespeichert, aber die Zuordnung ist fehlgeschlagen. Bitte die Zuordnung erneut setzen." };
     }
-    await notifyCustomers(customerIds, fileNotice(title));
+    await notifyCustomers(customerIds, fileNotice(title, data.id));
   }
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
@@ -123,7 +123,7 @@ export async function setFileAssignments(fileId: string, customerIds: string[]):
     const { error } = await supabase.from("hub_file_assignments").insert(added.map((customerId) => ({ file_id: fileId, customer_id: customerId })));
     if (error) return { ok: false, error: "Die Zuordnung konnte nicht geändert werden." };
     const file = await supabase.from("hub_files").select("title").eq("id", fileId).maybeSingle<{ title: string }>();
-    if (file.data) await notifyCustomers(added, fileNotice(file.data.title));
+    if (file.data) await notifyCustomers(added, fileNotice(file.data.title, fileId));
   }
   refreshWorkspace();
   return { ok: true, data: { count: wanted.length } };

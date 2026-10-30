@@ -124,7 +124,10 @@ test("project deadlines appear in the calendar and link back from the projects t
   // Studio projects without a target date are left out.
   assert.match(calendar, /projects\s*\.flatMap\(\(project\): ProjectGoal\[\] => project\.dueOn \?/);
   assert.match(calendar, /day: project\.dueOn/);
-  assert.match(calendar, /useSearchParams\(\)\.get\("day"\)/);
+  // A deadline links to its day; a notice links its appointment, which opens on its day.
+  assert.match(calendar, /const params = useSearchParams\(\);/);
+  assert.match(calendar, /const linked = appointments\.find\(\(item\) => item\.id === params\.get\("appointment"\)\);\s+const requested = linked \? dayOf\(linked\.start\) : params\.get\("day"\);/);
+  assert.match(calendar, /useState<Dialog \| null>\(\(\) => linked \? \{ kind: "detail", id: linked\.id \} : null\)/);
   const workspace = await source("components/hub/screens/workspace.tsx");
   assert.match(workspace, /hubHref\(preview, "calendar"\)\}\?day=\$\{project\.dueOn\}/);
 });
