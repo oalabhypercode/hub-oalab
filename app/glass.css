@@ -662,7 +662,8 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .data-table .cell-action { width: 52px; text-align: right; }
 /* KI-Protokoll: the summary may wrap, everything else stays on one line */
 .ai-log-table td { white-space: nowrap; }
-.ai-log-table .cell-summary { white-space: normal; min-width: 220px; font-size: 14px; line-height: 19px; }
+.ai-log-table .cell-target, .ai-log-table .cell-summary { white-space: normal; min-width: 150px; font-size: 14px; line-height: 19px; }
+.ai-log-table .cell-summary { min-width: 180px; }
 .ai-log-table .table-link { font-weight: 600; color: var(--accent-text); }
 .row-open { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; text-align: left; border-radius: 8px; }
 .row-open strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
@@ -965,11 +966,17 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .assistant-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .assistant-context button { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--accent-text); }
 /* Docked assistant: a sidebar on the right; the page keeps its room next to it. Below 1024 px a full sheet instead. */
-.hub-app { --assistant-dock: 400px; }
+:root { --assistant-dock: 400px; }
 .assistant-dock { position: fixed; z-index: 45; top: 12px; right: 12px; bottom: 12px; width: var(--assistant-dock); display: flex; flex-direction: column; padding: 16px 16px 14px; border-radius: var(--radius-sidebar); overflow: hidden; }
 .assistant-dock .modal-heading { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; }
 .assistant-dock .modal-heading h2 { font-size: 20px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; color: var(--label); }
 .assistant-dock .form-error { margin-bottom: 0; }
+/* The sidebar is narrow: answers (with their previews) take the full width next to the avatar */
+.assistant-dock .assistant-turn-assistant .assistant-bubble { flex: 1; min-width: 0; max-width: none; padding: 10px 12px; }
+.assistant-dock .assistant-turn-assistant > .assistant-avatar { display: none; }
+.assistant-dock .proposal-card { padding: 10px; }
+.assistant-dock .proposal-head { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; row-gap: 6px; }
+.assistant-dock .proposal-status { grid-column: 2; justify-self: start; }
 .hub-app.has-assistant-dock .hub-main { padding-right: calc(var(--assistant-dock) + 12px + 28px); }
 @media (max-width: 1023px) {
   .assistant-dock { inset: 0; z-index: 60; width: auto; border-radius: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom)); }
@@ -1235,8 +1242,8 @@ a.teams-join:active { transform: scale(0.97); }
 .proposal-hint { color: var(--label-secondary); }
 .proposal-done { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-weight: 600; color: #124e20; }
 .proposal-link { display: inline-block; margin-top: 4px; font-weight: 600; color: var(--accent-text); }
-.proposal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.proposal-actions button { min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.proposal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.proposal-actions button { min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .proposal-discard { background: var(--fill-tertiary); color: var(--label-body); }
 .proposal-save { background: var(--accent-text); color: #ffffff; }
 .proposal-actions button:disabled { opacity: 0.55; cursor: not-allowed; }

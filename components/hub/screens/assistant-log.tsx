@@ -13,6 +13,8 @@ import { LargeTitleHeader } from "../large-title-header";
 import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
 
 const ALL = "all";
+/** Short in the table ("29.10.26, 17:43"); the long form is in the tooltip. */
+const when = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 const outcomeOrder: ActionOutcome[] = ["open", "executing", "done", "discarded", "expired", "failed"];
 /** The status pills of the user management, by meaning: green saved, orange open, blue running, red failed. */
 const outcomeStyle: Record<ActionOutcome, string> = { open: "status-feedback", executing: "status-invited", done: "status-active", discarded: "status-done", expired: "status-done", failed: "status-disabled" };
@@ -85,10 +87,10 @@ export function AssistantLogScreen({ state }: { state: AssistantLogState }) {
             <tbody>
               {shown.map((row) => (
                 <tr key={row.id} className={`data-row${row.outcome === "discarded" || row.outcome === "expired" ? " is-muted" : ""}`}>
-                  <td className="cell-login">{formatFileDateTime(row.createdAt)}</td>
+                  <td className="cell-login"><time dateTime={row.createdAt} title={formatFileDateTime(row.createdAt)}>{when.format(new Date(row.createdAt))}</time></td>
                   <td>{row.actor}</td>
                   <td className="cell-role">{kindLabels[row.kind]}</td>
-                  <td>{row.projectId && row.outcome === "done" ? <Link className="table-link" href={`/dashboard/projects?project=${row.projectId}`}>{row.target}</Link> : row.target || <span className="t-secondary">–</span>}</td>
+                  <td className="cell-target">{row.projectId && row.outcome === "done" ? <Link className="table-link" href={`/dashboard/projects?project=${row.projectId}`}>{row.target}</Link> : row.target || <span className="t-secondary">–</span>}</td>
                   <td className="cell-summary">{row.summary}{row.errorCode && <small className="t-secondary"> · Fehler {row.errorCode}</small>}</td>
                   <td className="cell-status"><span className={`project-status ${outcomeStyle[row.outcome]}`}><i aria-hidden="true" />{outcomeLabels[row.outcome]}</span></td>
                 </tr>
