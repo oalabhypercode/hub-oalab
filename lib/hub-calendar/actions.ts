@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { cleanNote, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readRequestInput, workWindow } from "./rules";
 import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
+import { appointmentNotice } from "@/lib/hub-notify/rules";
+import { notifyCustomers } from "@/lib/hub-notify/server";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
 // Row Level Security in Supabase enforces the same rules a second time.
@@ -41,10 +43,15 @@ export async function saveAppointment(id: string | null, input: AppointmentInput
     title, description, customer_id: customerId, teams_url: teamsUrl, status: "confirmed", response_note: "",
     starts_at: new Date(interval.start).toISOString(), ends_at: new Date(interval.end).toISOString(),
   };
+  // The state before saving decides the customer's notice: new, confirmed request or moved.
+  const before = id ? (await supabase.from("hub_appointments").select("status, starts_at, customer_id").eq("id", id).maybeSingle<{ status: string; starts_at: string; customer_id: string | null }>()).data : null;
   const { data, error } = id
     ? await supabase.from("hub_appointments").update(row).eq("id", id).select("id").maybeSingle()
     : await supabase.from("hub_appointments").insert(row).select("id").single();
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht gespeichert werden." };
+  const sameCustomer = before && before.customer_id === customerId ? { status: before.status, startsAt: before.starts_at } : null;
+  const notice = customerId ? appointmentNotice({ title, startsAt: row.starts_at, before: sameCustomer, status: "confirmed" }) : null;
+  if (customerId && notice) await notifyCustomers([customerId], notice);
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
 }
@@ -54,8 +61,11 @@ export async function closeAppointment(id: string, status: "declined" | "cancell
   const supabase = await adminClient();
   if (!supabase) return denied;
   if (!uuid.test(String(id ?? "")) || (status !== "declined" && status !== "cancelled")) return unknownAppointment;
-  const { data, error } = await supabase.from("hub_appointments").update({ status, response_note: cleanNote(note) }).eq("id", id).select("id").maybeSingle();
+  const { data, error } = await supabase.from("hub_appointments").update({ status, response_note: cleanNote(note) }).eq("id", id)
+    .select("id, title, starts_at, customer_id").maybeSingle<{ id: string; title: string; starts_at: string; customer_id: string | null }>();
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht geändert werden." };
+  const notice = data.customer_id ? appointmentNotice({ title: data.title, startsAt: data.starts_at, before: null, status, note: cleanNote(note) }) : null;
+  if (data.customer_id && notice) await notifyCustomers([data.customer_id], notice);
   refreshWorkspace();
   return { ok: true, data: null };
 }

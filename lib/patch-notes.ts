@@ -36,6 +36,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 8,
+    date: "2026-10-30",
+    title: "Benachrichtigungen für Kunden",
+    summary: "Kunden erfahren jetzt in der Glocke und per gebündelter E-Mail, was für sie neu ist: Aufgaben, bei denen sie am Zug sind, Änderungen an Status oder Zieltermin aus dem Studio, neue Dateien und Termine. Admins bekommen noch keine Benachrichtigungen.",
+    changes: [
+      { kind: "new", title: "Benachrichtigungen in der Glocke", text: "Die Glocke oben rechts zeigt jetzt, was für dich neu ist: eine Aufgabe, bei der du am Zug bist, ein geänderter Projektstatus oder Zieltermin, eine neue Datei oder ein neuer, bestätigter, verschobener oder abgesagter Termin. Ein Klick führt direkt dorthin.", customers: true },
+      { kind: "new", title: "Neuigkeiten per E-Mail", text: "Zusätzlich bekommst du eine E-Mail, die alles Neue einer Viertelstunde bündelt, statt für jede Kleinigkeit eine eigene. Im Profil unter „Benachrichtigungen“ lässt sich die E-Mail abschalten.", customers: true },
+    ],
+  },
+  {
     number: 7,
     date: "2026-10-29",
     title: "Projekte, Aufgaben und Kunden per Assistent",

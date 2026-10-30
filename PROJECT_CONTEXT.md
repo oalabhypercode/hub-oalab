@@ -53,6 +53,13 @@
 - **Offene Punkte:** (Nummernregel, Tarif und Login beim Kundenanlegen am 29. Oktober 2026 entschieden, siehe Schritt 6.) Optional das Label „Kunde“ fest in die Studio-Auswahlliste (`apps/web/features/workspace/vocabulary.ts` in `service-oalab`; ohne das erscheint es dort, sobald eine Aufgabe es trägt); Tageslimit für KI-Anfragen pro Admin.
 - **Stand der PRs (27. Oktober 2026):** gestapelt #15 Patch Notes → #16 Schritt 1 → #17 Schritt 2. Reihenfolge beim Mergen: #15, dann Basis von #16 auf `main`, dann dasselbe bei #17. Mit echten Daten ist noch nichts geprüft; am einfachsten über die Vercel-Vorschau von #17 mit einem Admin-Login.
 
+### Vorgabe vom 30. Oktober 2026: Benachrichtigungen für Kunden
+
+- Freigabe des Nutzers am 30. Oktober 2026 („So umsetzen“). Entscheidungen: Ereignisse sind Aufgabe liegt beim Kunden, Projektstatus oder Zieltermin geändert, neue Datei, Termin angelegt/bestätigt/verschoben/abgesagt/Anfrage abgelehnt; E-Mail gebündelt etwa 15 Minuten nach der ersten Meldung, auch mit Meldungen, die schon in der Glocke gelesen wurden (Nutzerentscheidung nach dem ersten Test); die Glocke zeigt dieselben Meldungen; Kunden schalten die E-Mail im Profil ab, die Glocke bleibt. Admins bekommen vorerst keine Meldungen; WhatsApp und Terminerinnerungen kommen später.
+- Migration `202610300001_hub_notifications.sql` in `service-oalab`: `hub_inbox` (Meldung je Login; lesen und „gelesen“ setzen nur die Person selbst, schreiben nur die Service-Rolle) und `hub_notice_marks` (interner Abgleichstand, nur Service-Rolle, mit Startstand aller Aufgaben und Projekte). Vorhandene Tabellen bleiben unverändert. pg_cron ruft alle fünf Minuten `/api/notifications/sweep` mit dem Token aus Vault auf (`oalab_hub_notify_url`, `oalab_hub_notify_token`, von der Migration angelegt); im Hub muss derselbe Wert als `HUB_NOTIFY_TOKEN` stehen.
+- Code: Regeln in `lib/hub-notify/rules.ts` (eigenständig, getestet in `tests/hub-notify.test.mjs`), Datenbank und Versand in `lib/hub-notify/server.ts`, Aktionen (gelesen, E-Mail-Schalter in den Metadaten des Logins) in `lib/hub-notify/actions.ts`. Studio-Änderungen kommen aus `studio_activity` (ohne alte Werte), deshalb hält `hub_notice_marks` den letzten Stand; Dateien und Termine schreibt der Hub direkt beim Speichern. Glocke: `components/hub/notifications-panel.tsx`; Profil: `components/hub/notification-settings-card.tsx`; Mail: `noticeDigestMail` in `lib/hub-mail/templates.ts`.
+- **To-do (Nutzerwunsch vom 30. Oktober 2026, unbedingt):** Die Benachrichtigungs-Mails „Neu im Client Hub“ neu gestalten. Die erste Fassung nutzt nur die vorhandenen Bausteine der übrigen Hub-Mails (Zitatblöcke, ein Knopf); vor dem Redesign Entwurf und Entscheidungen mit dem Nutzer klären.
+
 ### Fix vom 29. Oktober 2026: Kunden-Logins löschen
 
 - Ursache: Seit dem 25. Oktober macht eine Kundenzuordnung im Hub den Login per Trigger zum Kunden in Service (`memberships`). Endet die Zuordnung, wird die Mitgliedschaft nur widerrufen; die Zeile bleibt und blockiert das Löschen des Logins (`on delete restrict`). „Löschen“ im User Management scheiterte deshalb bei fast allen Kunden-Logins.
@@ -261,6 +268,7 @@
 
 ### Backlog
 
+- **Unbedingt:** Benachrichtigungs-Mails „Neu im Client Hub“ neu gestalten (Nutzerwunsch vom 30. Oktober 2026, siehe Benachrichtigungen oben).
 - Kennzahl-Kacheln im Reiter „Projekte“ (aktive Projekte, Fortschritt, Meilensteine, Feedback): am 22. Oktober 2026 auf Wunsch entfernt. Offen ist, ob sie zurückkommen oder einen anderen Platz bekommen.
 
 ### Vorgabe vom 20. Oktober 2026: User-Management für Admins (geplant)

@@ -106,7 +106,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Teams-Link hinterlegen (nur Admin): in Microsoft Teams oder Outlook ein Meeting anlegen, den Link „An der Besprechung teilnehmen“ kopieren und ins Feld einfügen. Es werden nur Teams-Links angenommen.
 - Anfragen beantworten (nur Admin): unter „Offene Anfragen“ eine Anfrage öffnen. „Annehmen“ (Zeit anpassbar, Teams-Link eintragen) oder „Ablehnen“ mit optionaler Begründung, die der Kunde sieht.
 - Bestätigte Termine (nur Admin): Bearbeiten, Absagen (mit Hinweis an den Kunden) oder Löschen.
-- E-Mail-Benachrichtigungen zu Terminen und automatisch erzeugte Teams-Meetings gibt es noch nicht.
+- Kunden bekommen eine Benachrichtigung (Glocke und gebündelte E-Mail), wenn ein Termin für sie angelegt, bestätigt, verschoben oder abgesagt oder ihre Anfrage abgelehnt wird. Erinnerungen vor dem Termin und automatisch erzeugte Teams-Meetings gibt es noch nicht.
 
 ## Darstellung
 - Profil → Darstellung: Hintergrund (oalab, Ozean, Aubergine, Smaragd, Glut, Graphit oder eine eigene Farbe), Deckkraft des Glases 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“ und „Bewegung reduzieren“.
@@ -114,7 +114,9 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Die Darstellung wird im Browser gespeichert und gilt deshalb pro Gerät und Browser.
 
 ## Benachrichtigungen
-- Die Glocke oben rechts zeigt Hinweise; in den Demo-Konten sind es Beispiele. Echte Benachrichtigungen folgen.
+- Kunden sehen in der Glocke oben rechts, was für sie neu ist: eine für sie freigegebene Aufgabe liegt jetzt bei ihnen („Du bist am Zug“), Status oder Zieltermin ihres Projekts hat sich geändert, eine neue Datei ist für sie da, oder ein Termin wurde angelegt, bestätigt, verschoben, abgesagt oder eine Terminanfrage abgelehnt. Ein Punkt an der Glocke zeigt Ungelesenes; ein Klick auf eine Meldung führt zur Aufgabe, zum Projekt, zu den Dateien oder zum Kalender.
+- Dazu kommt eine E-Mail, die alles bündelt, was in etwa einer Viertelstunde dazukam, auch Meldungen, die der Kunde schon in der Glocke geöffnet hat. Abschalten lässt sich die E-Mail im Profil unter „Benachrichtigungen“; die Glocke bleibt.
+- Änderungen im Studio erscheinen nach spätestens etwa fünf Minuten, Dateien und Termine aus dem Hub sofort. Admins bekommen noch keine Benachrichtigungen. In den Demo-Konten zeigt die Glocke ein Beispiel.
 
 ## WhatsApp
 - Der Assistent ist auch per WhatsApp erreichbar, aber nur für verbundene Nummern.
@@ -129,7 +131,7 @@ Der oalab Client Hub ist das Kundenportal von OALAB (Agentur für Websites, Mark
 - Die Designvorschau unter /preview zeigt ausschließlich fiktive Inhalte.
 
 ## Noch nicht verfügbar (geplant)
-- Projekte im Hub selbst anlegen oder bearbeiten (das läuft im Studio), Live-Nachrichten, E-Mail-Benachrichtigungen zu Projekten, Dateien, Terminen und Nachrichten, Kundendaten selbst bearbeiten, Kunden löschen, Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Uploads durch Kunden, Unterordner, Anbindung an Outlook-Kalender.
+- Projekte im Hub selbst anlegen oder bearbeiten (das läuft im Studio), Live-Nachrichten, Benachrichtigungen für Admins, Benachrichtigungen per WhatsApp, Kundendaten selbst bearbeiten, Kunden löschen, Angebote und Rechnungen als eigener Bereich, Online-Zahlungen, Dateien löschen oder neue Fassungen hochladen, Uploads durch Kunden, Unterordner, Anbindung an Outlook-Kalender.
 `;
 
 /** How the assistant may use data: none (help only), read tools (verified admins), or not yet (admin without second factor). */

@@ -11,6 +11,8 @@ import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { AppearanceProvider } from "./appearance-provider";
 import { AssistantPanel, type ChatTurn } from "./assistant-panel";
+import { NotificationsPanel } from "./notifications-panel";
+import type { InboxState } from "@/lib/hub-notify/server";
 import { BackgroundLayer } from "./background-layer";
 import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
@@ -20,7 +22,7 @@ import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
 
-export function AppShell({ children, preview = false, pending = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects }: {
+export function AppShell({ children, preview = false, pending = false, email = "", demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null }: {
   children: React.ReactNode;
   preview?: boolean;
   /** Loading fallback while the login is checked: navigation and page title at once, the account still blank. */
@@ -34,6 +36,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
   pendingRegistrations?: number;
   /** Real logins: their Studio projects, for the sidebar count and the search. */
   liveProjects?: Project[];
+  /** Real logins: the notices behind the bell (null before the migration or for demo logins). */
+  inbox?: InboxState | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -107,7 +111,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin).toLowerCase().includes(term));
   const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = hasDemo || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
-  const shell: ShellContextValue = { preview, pending, initials, account, manageUsers, openPanel: setPanel, unread: hasDemo && !read, signOut, signingOut, logoutError };
+  const shell: ShellContextValue = { preview, pending, initials, account, manageUsers, openPanel: setPanel, unread: hasDemo ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError };
 
   return (
     <AppearanceProvider>
@@ -142,7 +146,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
             {hasDemo ? <>
               <div className="notification-item"><span className="notification-symbol"><MessageSquare size={19} color={categories.messages.fill} aria-hidden="true" /></span><div><strong>Deine Meinung ist gefragt.</strong><p>Die erste Brand Direction ist bereit für dein Feedback.</p><span>Beispiel · 14. Oktober 2026</span><Link className="text-link" href={hubHref(preview, "messages")} onClick={() => setPanel(null)}>Nachricht ansehen <ArrowUpRight size={15} aria-hidden="true" /></Link></div></div>
               <button className="sheet-button" onClick={() => setRead(true)}><Check size={17} aria-hidden="true" />{read ? "Alle als gelesen markiert" : "Alle als gelesen markieren"}</button>
-            </> : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
+            </> : inbox ? <NotificationsPanel items={inbox.items} admin={account.admin} onClose={() => setPanel(null)} />
+              : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
           </Modal>
         )}
         {panel === "help" && <AssistantPanel turns={assistantTurns} setTurns={setAssistantTurns} admin={account.admin} available={!preview && !publicDemo} onClose={() => setPanel(null)} />}

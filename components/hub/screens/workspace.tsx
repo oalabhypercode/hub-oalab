@@ -19,6 +19,7 @@ import { ProjectStatus } from "../project-status";
 import { useHubShell } from "../shell-context";
 import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
 import { WhatsAppCard } from "../whatsapp-card";
+import { NotificationSettingsCard } from "../notification-settings-card";
 import { SecondFactorCard } from "../second-factor-card";
 import { EmptyState, LoadNotice } from "./overview";
 import type { ScreenProps } from "./types";
@@ -268,6 +269,7 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
           <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : account.admin ? "Dein Workspace ist nur nach Anmeldung erreichbar. Als Admin verwaltest du Konten und Kunden im User Management." : "Dein Workspace ist nur nach Anmeldung erreichbar und zeigt ausschließlich die Daten deines Unternehmens."}</p>
           {preview && <Link className="text-link" href="/auth/login">Zum Login</Link>}
         </GlassCard>}
+        {!preview && !publicDemo && !account.admin && <NotificationSettingsCard />}
         {!preview && !publicDemo && <WhatsAppCard />}
       </div>
       <SectionHeader title="Einstellungen" />
