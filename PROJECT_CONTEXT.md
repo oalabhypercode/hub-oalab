@@ -53,6 +53,13 @@
 - **Offene Punkte:** (Nummernregel, Tarif und Login beim Kundenanlegen am 29. Oktober 2026 entschieden, siehe Schritt 6.) Optional das Label „Kunde“ fest in die Studio-Auswahlliste (`apps/web/features/workspace/vocabulary.ts` in `service-oalab`; ohne das erscheint es dort, sobald eine Aufgabe es trägt); Tageslimit für KI-Anfragen pro Admin.
 - **Stand der PRs (27. Oktober 2026):** gestapelt #15 Patch Notes → #16 Schritt 1 → #17 Schritt 2. Reihenfolge beim Mergen: #15, dann Basis von #16 auf `main`, dann dasselbe bei #17. Mit echten Daten ist noch nichts geprüft; am einfachsten über die Vercel-Vorschau von #17 mit einem Admin-Login.
 
+### Vorgabe vom 30. Oktober 2026: Assistent im Frontend
+
+- Freigabe des Nutzers am 30. Oktober 2026 („So umsetzen“). Entscheidungen: Chatverlauf dauerhaft im Browser (localStorage je Login, bis „Neu starten“ oder Abmelden), eingefügte Transkripte komplett mit; großer Modus als Leiste rechts (Umschalter Fenster/Leiste, ab 1024 px); KI-Protokoll als eigene Admin-Seite unter Verwaltung.
+- Folge für den Datenschutz: Der Hinweis im Chat lautet jetzt „Der Hub speichert sie nicht auf seinem Server; der Chatverlauf bleibt in diesem Browser …“. Der geplante Datenschutz-Absatz muss das ebenso sagen.
+- Code: `lib/hub-assistant/chat-storage.ts` (eigenständig, getestet: höchstens 50 Nachrichten und 2 Mio. Zeichen, nichts Halbfertiges, Abgleich alter Vorschläge), `proposalStatuses` in `lib/hub-assistant/actions.ts` (Stand eigener Vorschläge), Laden/Speichern/Löschen in `components/hub/app-shell.tsx`, Leiste und einheitlicher Kartenrahmen (`CardFrame`, Status-Chip, Zusammenklappen, „Alle zeigen“ ab sechs Einträgen) in `components/hub/assistant-panel.tsx`. Aus dem Projektdialog bleibt das Projekt als „Bezug“ im Chat; angedockt schließt der Dialog, weil ein Dialog die Leiste blockieren würde.
+- KI-Protokoll: Bereich `ai-log` (nur Admins), Regeln in `lib/hub-assistant/log-rules.ts`, Laden in `lib/hub-assistant/log.ts` (Admin-Prüfung, dann Server-Schlüssel, die letzten 500 Vorschläge), Seite `components/hub/screens/assistant-log.tsx`. Keine Datenbankänderung.
+
 ### Vorgabe vom 30. Oktober 2026: Benachrichtigungen für Kunden
 
 - Freigabe des Nutzers am 30. Oktober 2026 („So umsetzen“). Entscheidungen: Ereignisse sind Aufgabe liegt beim Kunden, Projektstatus oder Zieltermin geändert, neue Datei, Termin angelegt/bestätigt/verschoben/abgesagt/Anfrage abgelehnt; E-Mail gebündelt etwa 15 Minuten nach der ersten Meldung, auch mit Meldungen, die schon in der Glocke gelesen wurden (Nutzerentscheidung nach dem ersten Test); die Glocke zeigt dieselben Meldungen; Kunden schalten die E-Mail im Profil ab, die Glocke bleibt. Admins bekommen vorerst keine Meldungen; WhatsApp und Terminerinnerungen kommen später.

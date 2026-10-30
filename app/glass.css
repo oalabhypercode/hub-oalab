@@ -660,6 +660,10 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .data-table .cell-login { font-size: 14px; color: var(--label-secondary); }
 .data-table .cell-logins { text-align: center; font-weight: 600; }
 .data-table .cell-action { width: 52px; text-align: right; }
+/* KI-Protokoll: the summary may wrap, everything else stays on one line */
+.ai-log-table td { white-space: nowrap; }
+.ai-log-table .cell-summary { white-space: normal; min-width: 220px; font-size: 14px; line-height: 19px; }
+.ai-log-table .table-link { font-weight: 600; color: var(--accent-text); }
 .row-open { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; text-align: left; border-radius: 8px; }
 .row-open strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
 .row-open small { font-size: 13px; line-height: 18px; color: var(--label-secondary); overflow-wrap: anywhere; }
@@ -953,6 +957,25 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
   .hub-modal.assistant-modal { height: calc(100dvh - 32px); }
   .assistant-suggestions { padding-left: 0; }
 }
+/* Window or sidebar: the toggle sits next to the close button */
+.modal-heading .assistant-mode { margin-left: auto; }
+.assistant-mode, .assistant-dock .modal-close { width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--fill-tertiary); color: var(--label-secondary); flex: 0 0 auto; }
+/* The project "Assistent zu diesem Projekt fragen" came from; it stays the reference until removed */
+.assistant-context { align-self: flex-start; max-width: 100%; display: flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 4px 4px 4px 12px; border-radius: 999px; background: rgba(126, 0, 75, 0.08); color: var(--accent-text); font-size: 13px; line-height: 18px; }
+.assistant-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-context button { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--accent-text); }
+/* Docked assistant: a sidebar on the right; the page keeps its room next to it. Below 1024 px a full sheet instead. */
+.hub-app { --assistant-dock: 400px; }
+.assistant-dock { position: fixed; z-index: 45; top: 12px; right: 12px; bottom: 12px; width: var(--assistant-dock); display: flex; flex-direction: column; padding: 16px 16px 14px; border-radius: var(--radius-sidebar); overflow: hidden; }
+.assistant-dock .modal-heading { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; }
+.assistant-dock .modal-heading h2 { font-size: 20px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; color: var(--label); }
+.assistant-dock .form-error { margin-bottom: 0; }
+.hub-app.has-assistant-dock .hub-main { padding-right: calc(var(--assistant-dock) + 12px + 28px); }
+@media (max-width: 1023px) {
+  .assistant-dock { inset: 0; z-index: 60; width: auto; border-radius: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom)); }
+  .hub-app.has-assistant-dock .hub-main { padding-right: 24px; }
+  .assistant-mode { display: none; }
+}
 
 /* WhatsApp card in the profile */
 .whatsapp-linked { display: flex; align-items: center; gap: 6px; color: #124e20; }
@@ -1182,9 +1205,20 @@ a.teams-join:active { transform: scale(0.97); }
 /* Task proposals of the assistant: a preview the admin checks before anything is saved */
 .proposal-card { margin-top: 10px; padding: 12px; border-radius: 14px; background: #ffffff; border: 1px solid var(--separator); }
 .assistant-bubble > .proposal-card:first-child { margin-top: 0; }
-.proposal-card header { display: grid; gap: 2px; margin-bottom: 8px; }
-.proposal-card header strong { font-size: 15px; }
-.proposal-card header span { font-size: 13px; color: var(--label-secondary); }
+/* One frame for every proposal: kind, context and status on top; a decided card folds to its outcome */
+.proposal-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.proposal-card.is-collapsed .proposal-head { margin-bottom: 0; }
+.proposal-icon { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: rgba(126, 0, 75, 0.1); color: var(--accent-text); }
+.proposal-title { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.proposal-title strong { font-size: 15px; line-height: 20px; }
+.proposal-title span { font-size: 13px; line-height: 17px; color: var(--label-secondary); overflow-wrap: anywhere; }
+.proposal-status { flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; background: var(--fill-tertiary); color: var(--label-body); font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; }
+.proposal-status.is-open, .proposal-status.is-saving { background: rgba(255, 149, 0, 0.18); color: #7f2100; }
+.proposal-status.is-saved { background: rgba(52, 199, 89, 0.18); color: #124e20; }
+.proposal-status.is-failed { background: rgba(255, 59, 48, 0.14); color: #8a1c14; }
+.proposal-card > .proposal-hint, .proposal-card > .proposal-done { margin-left: 0; }
+.proposal-card > .proposal-hint:first-of-type { margin: 0 0 10px; }
+.proposal-more { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--accent-text); }
 .proposal-card ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .proposal-card li { padding-top: 10px; border-top: 1px solid var(--separator); }
 .proposal-card li:first-child { padding-top: 0; border-top: 0; }

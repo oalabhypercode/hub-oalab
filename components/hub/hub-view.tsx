@@ -22,6 +22,8 @@ import { FilesScreen } from "./screens/files";
 import { DiscoverScreen, MessagesScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
 import { UserManagementScreen } from "./screens/users";
 import { PatchNotesScreen } from "./screens/patch-notes";
+import { AssistantLogScreen } from "./screens/assistant-log";
+import type { AssistantLogState } from "@/lib/hub-assistant/log";
 import type { ScreenProps } from "./screens/types";
 import type { HubRole } from "@/lib/hub-users/rules";
 import type { UserManagementState } from "@/lib/hub-users/types";
@@ -46,9 +48,11 @@ type HubViewProps = {
   userManagement?: UserManagementState;
   /** Studio projects of a real login; absent for the preview, the public demo and the demo logins. */
   liveProjects?: LiveProjectsState;
+  /** The assistant's proposals on the admin's "KI-Protokoll" page. */
+  assistantLog?: AssistantLogState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -88,6 +92,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "messages" ? <MessagesScreen {...screen} />
         : section === "calendar" ? <CalendarScreen {...screen} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
+        : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />
         : section === "patch-notes" ? <PatchNotesScreen />
         : <ProfileScreen {...screen} email={email} publicDemo={publicDemo} />}
       {selectedProject && <ProjectModal project={selectedProject} preview={preview} admin={admin} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
@@ -100,7 +105,7 @@ const taskStatusLabels: Record<ProjectTask["status"], string> = { backlog: "Back
 function ProjectModal({ project, preview, admin, onClose }: { project: Project; preview: boolean; admin: boolean; onClose: () => void }) {
   // Studio projects carry their tasks; the fixtures stay example projects with the example conversation.
   const tasks = project.tasks;
-  const { manageUsers, openPanel } = useHubShell();
+  const { manageUsers, askAboutProject, assistantDocked } = useHubShell();
   return (
     <Modal title={project.category || project.company || "Projekt"} onClose={onClose}>
       <div className="project-modal-status"><ProjectStatus value={project.status} /><span>Ziel: {project.date}</span></div>
@@ -122,9 +127,10 @@ function ProjectModal({ project, preview, admin, onClose }: { project: Project; 
           </ul>
         ) : <p className="modal-description t-secondary">Noch keine Aufgaben{admin ? "" : ", die für dich freigegeben sind"}.</p>
       ) : null}
-      {/* The assistant opens on top of this dialog, so the project stays open and "dieses Projekt" refers to it. */}
+      {/* The assistant keeps this project as its reference, so "dieses Projekt" works. As a window it opens on top of
+          this dialog; docked it sits next to the page, and this dialog closes, because a dialog would block the sidebar. */}
       {tasks && manageUsers && (
-        <button type="button" className="sheet-button project-ask" onClick={() => openPanel("help")}><Sparkles size={17} aria-hidden="true" /> Assistent zu diesem Projekt fragen</button>
+        <button type="button" className="sheet-button project-ask" onClick={() => { askAboutProject({ id: project.id, name: project.category || project.name }); if (assistantDocked) onClose(); }}><Sparkles size={17} aria-hidden="true" /> Assistent zu diesem Projekt fragen</button>
       )}
       {!tasks && <>
         <p className="demo-detail-note"><Sparkles size={15} aria-hidden="true" /> Beispielprojekt · Die vollständige Projektverwaltung folgt im nächsten Schritt.</p>

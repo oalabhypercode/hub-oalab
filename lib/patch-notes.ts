@@ -38,9 +38,13 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 8,
     date: "2026-10-30",
-    title: "Benachrichtigungen für Kunden",
-    summary: "Kunden erfahren jetzt in der Glocke und per gebündelter E-Mail, was für sie neu ist: Aufgaben, bei denen sie am Zug sind, Änderungen an Status oder Zieltermin aus dem Studio, neue Dateien und Termine. Admins bekommen noch keine Benachrichtigungen.",
+    title: "Benachrichtigungen und ein bequemerer Assistent",
+    summary: "Kunden erfahren jetzt in der Glocke und per gebündelter E-Mail, was für sie neu ist: Aufgaben, bei denen sie am Zug sind, Änderungen an Status oder Zieltermin aus dem Studio, neue Dateien und Termine. Admins bekommen noch keine Benachrichtigungen. Der Assistent behält seinen Verlauf im Browser, lässt sich rechts andocken, zeigt Vorschauen übersichtlicher, und das neue KI-Protokoll listet alle seine Vorschläge.",
     changes: [
+      { kind: "improved", title: "Assistent behält den Verlauf", text: "Der Chat mit dem Assistenten bleibt nach dem Neuladen und sogar nach einem Neustart des Browsers erhalten, bis du „Neu starten“ klickst oder dich abmeldest. Er liegt nur in deinem Browser.", customers: true },
+      { kind: "new", title: "Assistent als Seitenleiste", text: "Ein Knopf im Chat dockt den Assistenten rechts an. Die Seite daneben bleibt bedienbar, und der Chat bleibt beim Wechseln der Seiten offen. Auf dem Handy öffnet er weiter als Fenster.", customers: true },
+      { kind: "improved", title: "Übersichtlichere Vorschauen", text: "Jede Vorschau des Assistenten zeigt oben, worum es geht und wie der Stand ist, etwa „Offen · bis 18:13“ oder „Gespeichert“. Entschiedene Vorschauen klappen auf eine Zeile zusammen, lange Listen zeigen erst fünf Einträge." },
+      { kind: "new", title: "KI-Protokoll", text: "Unter Verwaltung listet das KI-Protokoll alle Vorschläge des Assistenten mit Zeit, Admin, Art, Kunde oder Projekt, Inhalt und Ergebnis. Suche, Filter und Sortierung funktionieren wie in den anderen Tabellen." },
       { kind: "new", title: "Benachrichtigungen in der Glocke", text: "Die Glocke oben rechts zeigt jetzt, was für dich neu ist: eine Aufgabe, bei der du am Zug bist, ein geänderter Projektstatus oder Zieltermin, eine neue Datei oder ein neuer, bestätigter, verschobener oder abgesagter Termin. Ein Klick führt direkt dorthin.", customers: true },
       { kind: "new", title: "Neuigkeiten per E-Mail", text: "Zusätzlich bekommst du eine E-Mail, die alles Neue einer Viertelstunde bündelt, statt für jede Kleinigkeit eine eigene. Im Profil unter „Benachrichtigungen“ lässt sich die E-Mail abschalten.", customers: true },
     ],
