@@ -4,8 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { mailSettings, sendMail } from "@/lib/hub-mail/send";
 import { noticeDigestMail } from "@/lib/hub-mail/templates";
+import { calendarLinks, calendarLinkSecret } from "@/lib/hub-calendar/links";
 import {
-  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, detectStudioNotices, dueDigests, mailsWanted, nextCursor, readFrom,
+  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, calendarRows, detectStudioNotices, dueDigests, mailsWanted, nextCursor, noticeAppointment, readFrom,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow,
 } from "./rules";
 
@@ -101,15 +102,28 @@ async function collectStudioNotices(db: SupabaseClient) {
   return saved.error ? { error: "marks" } : { created };
 }
 
+/** State of the appointments the notices link to, for the calendar buttons; empty when it cannot be read. */
+async function linkedAppointments(db: SupabaseClient, rows: Pick<PendingRow, "href">[]) {
+  const ids = [...new Set(rows.flatMap((row) => noticeAppointment(row.href) ?? []))];
+  if (!ids.length) return new Map<string, { status: string; ends_at: string }>();
+  const { data } = await db.from("hub_appointments").select("id, status, ends_at").in("id", ids)
+    .returns<{ id: string; status: string; ends_at: string }[]>();
+  return new Map((data ?? []).map((row) => [row.id, row]));
+}
+
 /** Sends the bundled mails that are due; claims rows first, so two runs never send the same notice. */
 async function sendDueMails(db: SupabaseClient, origin: string, now: Date) {
-  const pending = await db.from("hub_inbox").select("id, user_id, created_at, read_at, title, body, href")
+  const pending = await db.from("hub_inbox").select("id, user_id, created_at, read_at, kind, title, body, href")
     .eq("mail_state", "pending").order("created_at").limit(2000).returns<PendingRow[]>();
   if (pending.error) return { error: "inbox" };
   const counts = { sent: 0, skipped: 0, failed: 0 };
   const legal = mailSettings().legal;
+  const digests = dueDigests(pending.data ?? [], now);
+  // Without the token there are no signed links, and the mails go out without calendar buttons.
+  const secret = calendarLinkSecret();
+  const appointments = secret ? await linkedAppointments(db, digests.flatMap((digest) => digest.rows)) : new Map();
 
-  for (const digest of dueDigests(pending.data ?? [], now)) {
+  for (const digest of digests) {
     const claimed = await db.from("hub_inbox").update({ mail_state: "sending" })
       .in("id", digest.rows.map((row) => row.id)).eq("mail_state", "pending").select("id").returns<{ id: number }[]>();
     const ids = new Set((claimed.data ?? []).map((row) => row.id));
@@ -124,9 +138,17 @@ async function sendDueMails(db: SupabaseClient, origin: string, now: Date) {
     const wanted = items.length > 0 && email && profile.data?.status === "active" && mailsWanted(login.data.user?.user_metadata);
     let state: "sent" | "skipped" | "failed" = "skipped";
     if (wanted) {
+      const calendar = calendarRows(items, appointments, now);
       const content = noticeDigestMail({
         firstName: profile.data?.first_name ?? "",
-        items: items.slice(0, MAIL_ITEMS).map((row) => ({ title: row.title, body: row.body })),
+        items: items.slice(0, MAIL_ITEMS).map((row) => {
+          const appointmentId = calendar.get(row.id);
+          return {
+            title: row.title,
+            body: row.body,
+            calendar: appointmentId && secret ? { ...calendarLinks(origin, appointmentId, secret), moved: row.kind === "appointment.changed" } : undefined,
+          };
+        }),
         more: Math.max(0, items.length - MAIL_ITEMS),
         hubUrl: `${origin}/dashboard`,
       }, legal);
