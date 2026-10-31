@@ -45,6 +45,8 @@ export type ManagedCustomer = {
   postalCode: string;
   city: string;
   country: string;
+  /** Also a Service organization: company, number and contact data are the same on both platforms. */
+  inService: boolean;
   createdAt: string;
   memberIds: string[];
 };

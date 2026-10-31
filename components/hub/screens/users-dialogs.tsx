@@ -132,7 +132,7 @@ function RoleAndCustomer({ role, onRole, choice, onChoice, customers, disabled, 
             <span><strong>Bestehendem Kunden zuordnen</strong><small>{customers.length ? "Die Person sieht die Dateien, Termine und Projekte dieses Kunden." : "Es gibt noch keine Kunden."}</small></span>
           </label>
           <label className="choice-option"><input type="radio" name="customer-mode" checked={choice.mode === "new"} onChange={() => onChoice({ ...choice, mode: "new" })} />
-            <span><strong>Neuen Kunden anlegen</strong><small>Mit der nächsten freien Kundennummer.</small></span>
+            <span><strong>Neuen Kunden anlegen</strong><small>Auch in Service, mit einer freien Kundennummer.</small></span>
           </label>
         </fieldset>
         {choice.mode === "existing" && customers.length > 0 && (
@@ -403,6 +403,9 @@ export function CustomerDialog({ customer, users, nextNumber, events, onClose, o
       <form onSubmit={(event) => { event.preventDefault(); run("save", () => saveCustomer({ ...draft, id: customer?.id }), () => { onNotice(customer ? `${draft.company} gespeichert.` : `Kunde ${draft.company} angelegt.`); onClose(); }); }}>
         <CustomerFields draft={draft} onChange={setDraft} disabled={busy !== null} />
         <p className="field-hint">Die Kundinnen und Kunden sehen Unternehmen, Kundennummer, Servicepakete und Kontaktdaten nach dem Login in ihrem Profil.</p>
+        <p className="field-hint">{!customer || customer.inService
+          ? "Unternehmen, Kundennummer und Kontaktdaten gelten auch in Service: Was du hier änderst, steht dort und umgekehrt. Die Logins dieses Kunden kommen mit demselben Zugang in Service."
+          : "Diesen Kunden gibt es nur im Hub, nicht in Service."}</p>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button type="submit" className="sheet-button sheet-button-primary" disabled={busy !== null}>{busy === "save" ? <Spinner /> : <Save size={18} aria-hidden="true" />}{customer ? "Änderungen speichern" : "Kunde anlegen"}</button>
       </form>

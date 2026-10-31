@@ -38,10 +38,12 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 9,
     date: "2026-10-31",
-    title: "Kalender-Buttons mit Logos",
-    summary: "Die Kalender-Buttons in Termin-Mails zeigen jetzt die Logos von Apple, Google und Microsoft statt eines gemeinsamen Kalender-Symbols.",
+    title: "Kalender-Logos und ein gemeinsamer Kundenstamm",
+    summary: "Die Kalender-Buttons in Termin-Mails zeigen jetzt die Logos von Apple, Google und Microsoft statt eines gemeinsamen Kalender-Symbols. Hub und Serviceplattform haben einen gemeinsamen Kundenstamm: Neue Kunden entstehen auf beiden Seiten, ihre Logins kommen mit demselben Zugang auf die Serviceplattform, und Unternehmen, Kundennummer und Kontaktdaten gelten überall.",
     changes: [
       { kind: "improved", title: "Kalender-Buttons mit Logos", text: "In E-Mails zu einem neuen, bestätigten oder verschobenen Termin trägt jeder Kalender-Button jetzt das Logo seines Kalenders: Apple, Google und Microsoft für Outlook, einfarbig im Design des Hubs. So findest du den passenden Button auf einen Blick.", customers: true },
+      { kind: "improved", title: "Deine Firmendaten überall gleich", text: "Unternehmen, Kontakt-E-Mail, Telefon, Website und Anschrift sind im Client Hub und auf der Serviceplattform jetzt dieselben. Was du auf der Serviceplattform unter „Profil und Firma“ änderst, siehst du auch im Hub.", customers: true },
+      { kind: "new", title: "Ein Kundenstamm für Hub und Serviceplattform", text: "Neue Kunden aus dem User Management entstehen jetzt auch auf der Serviceplattform, und ihre Logins kommen mit demselben Zugang dorthin. Unternehmen, Kundennummer und Kontaktdaten gelten auf beiden Seiten; Kundennummern haben dafür die Form OA- mit einer freien Zahl." },
     ],
   },
   {

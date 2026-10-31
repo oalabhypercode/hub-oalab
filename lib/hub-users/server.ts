@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ServicePackageId } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
-import { displayStatus, isAccountStatus, isHubRole, nextCustomerNumber, servicePackageIds, type HubRole } from "./rules";
+import { newCustomerNumber } from "@/lib/hub-assistant/customers";
+import { displayStatus, isAccountStatus, isHubRole, servicePackageIds, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
 import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
@@ -37,11 +38,12 @@ type CustomerRow = {
   postal_code: string;
   city: string;
   country: string;
+  organization_id: string | null;
   created_at: string;
 };
 type EventRow = { id: number; created_at: string; actor_id: string | null; target_user_id: string | null; target_customer_id: string | null; action: string; summary: string };
 
-const CUSTOMER_COLUMNS = "id, customer_number, company, service_packages, contact_email, phone, website, street, postal_code, city, country, created_at";
+const CUSTOMER_COLUMNS = "id, customer_number, company, service_packages, contact_email, phone, website, street, postal_code, city, country, organization_id, created_at";
 
 /** The user management tables are missing until its migration is applied. */
 export function isMissingUserTables(error: { code?: string; message?: string } | null) {
@@ -98,7 +100,7 @@ export async function listAllUsers(db: SupabaseClient) {
   }
 }
 
-const emptyState: UserManagementState = { users: [], customers: [], events: [], nextCustomerNumber: nextCustomerNumber([]), mailConfigured: false };
+const emptyState: UserManagementState = { users: [], customers: [], events: [], nextCustomerNumber: "", mailConfigured: false };
 
 type NotificationRow = { id: number; created_at: string; kind: string; user_id: string | null; status: string };
 const mailKinds: Record<string, string> = {
@@ -121,7 +123,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Konten verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events, notifications] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications, organizations] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
@@ -129,6 +131,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       db.from("hub_admin_events").select("id, created_at, actor_id, target_user_id, target_customer_id, action, summary").order("created_at", { ascending: false }).limit(300).returns<EventRow[]>(),
       // Optional until its migration is applied: without the table the history simply shows no mails.
       db.from("hub_notifications").select("id, created_at, kind, user_id, status").order("created_at", { ascending: false }).limit(300).returns<NotificationRow[]>(),
+      // Numbers taken in Service count too: a new customer becomes a Service organization.
+      db.from("organizations").select("customer_number").returns<{ customer_number: string }[]>(),
     ]);
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
@@ -181,6 +185,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       users,
       customers: customerRows.map((row): ManagedCustomer => ({
         ...toCustomer(row),
+        inService: Boolean(row.organization_id),
         createdAt: row.created_at,
         memberIds: memberships.filter((member) => member.customer_id === row.id).map((member) => member.user_id),
       })),
@@ -205,7 +210,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
           targetCustomerId: null,
         })),
       ].sort((a, b) => b.at.localeCompare(a.at)),
-      nextCustomerNumber: nextCustomerNumber(customerRows.map((row) => row.customer_number)),
+      // The rule of 29.10.2026: "OA-" and a random free number, so customers cannot tell how many there are.
+      nextCustomerNumber: newCustomerNumber(new Set([...customerRows, ...(organizations.data ?? [])].map((row) => row.customer_number))) ?? "",
       mailConfigured: mailSettings().configured,
     };
   } catch {

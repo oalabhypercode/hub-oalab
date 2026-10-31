@@ -80,21 +80,17 @@ export function cleanWebsite(value: unknown): Check<string> {
 export function cleanCustomerNumber(value: unknown, required: boolean): Check<string> {
   const number = cleanLine(value, 40).toUpperCase().replace(/\s+/g, "");
   if (!number) return required ? { ok: false, error: "Bitte eine Kundennummer angeben." } : { ok: true, value: "" };
-  return /^[A-Z0-9][A-Z0-9-]{1,39}$/.test(number) ? { ok: true, value: number } : { ok: false, error: "Kundennummern bestehen aus Buchstaben, Ziffern und Bindestrichen, z. B. KD-24017." };
+  return /^[A-Z0-9][A-Z0-9-]{1,39}$/.test(number) ? { ok: true, value: number } : { ok: false, error: "Kundennummern bestehen aus Buchstaben, Ziffern und Bindestrichen, z. B. OA-48213." };
 }
 
-/** The next free number after the highest "KD-…" number in use, keeping its width; KD-10001 for the first one. */
-export function nextCustomerNumber(existing: readonly string[]) {
-  let highest = 0;
-  let width = 5;
-  for (const number of existing) {
-    const match = /^KD-(\d+)$/.exec(number);
-    if (match && Number(match[1]) >= highest) {
-      highest = Number(match[1]);
-      width = Math.max(width, match[1].length);
-    }
-  }
-  return `KD-${String(highest ? highest + 1 : 10001).padStart(width, "0")}`;
+/**
+ * Customers live in Service too (one customer master since 31.10.2026), so new and linked ones follow Service's rules:
+ * the number is "OA-" and 4 to 20 capitals or digits, the company name at most 160 characters. Null when both fit.
+ */
+export function serviceCustomerRefusal(customer: { company: string; customerNumber: string }) {
+  if (!/^OA-[A-Z0-9]{4,20}$/.test(customer.customerNumber)) return "Kundennummern für Hub und Service beginnen mit „OA-“ und haben danach 4 bis 20 Großbuchstaben oder Ziffern, z. B. OA-48213.";
+  if (customer.company.length > 160) return "Der Name des Unternehmens darf höchstens 160 Zeichen haben.";
+  return null;
 }
 
 /** Company names compared without case, punctuation and legal forms: "Nordlicht Studio GmbH" ≈ "nordlicht studio". */

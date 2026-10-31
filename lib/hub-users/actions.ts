@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
@@ -8,7 +9,8 @@ import { siteOrigin } from "@/lib/site-origin";
 import { mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
-import { cleanEmail, cleanText, isHubRole, readCustomer, readPerson, roleLabels, type CustomerInput, type HubRole } from "./rules";
+import { defaultPlan } from "@/lib/hub-assistant/customers";
+import { cleanEmail, cleanText, isHubRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type HubRole } from "./rules";
 import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
@@ -97,9 +99,10 @@ function readChoice(value: unknown): CustomerChoice | null {
   return null;
 }
 
-const customerRow = (input: CustomerInput) => ({
-  company: input.company,
-  customer_number: input.customerNumber,
+const customerRow = (input: CustomerInput) => ({ company: input.company, customer_number: input.customerNumber, ...customerDetails(input) });
+
+/** What the Hub keeps itself; company and number of a customer in Service belong to its organization. */
+const customerDetails = (input: CustomerInput) => ({
   service_packages: input.servicePackages,
   contact_email: input.contactEmail,
   phone: input.phone,
@@ -110,24 +113,77 @@ const customerRow = (input: CustomerInput) => ({
   country: input.country,
 });
 
+type ResolvedCustomer = { customerId: string | null; customerNumber: string | null; company: string | null; organizationId: string | null; created: boolean };
+
 /**
  * Resolves the customer a login is assigned to: an existing one, a new one (created here) or none (admins).
  * `created` tells the caller which customer to remove again if a later step fails.
  */
-async function resolveCustomer(ctx: Context, role: HubRole, value: unknown): Promise<ActionResult<{ customerId: string | null; customerNumber: string | null; company: string | null; created: boolean }>> {
+async function resolveCustomer(ctx: Context, role: HubRole, value: unknown): Promise<ActionResult<ResolvedCustomer>> {
   const choice = readChoice(value);
-  if (role === "oalab_admin") return { ok: true, data: { customerId: null, customerNumber: null, company: null, created: false } };
+  if (role === "oalab_admin") return { ok: true, data: { customerId: null, customerNumber: null, company: null, organizationId: null, created: false } };
   if (!choice || choice.mode === "none") return failed("Bitte einen Kunden auswählen oder neu anlegen.");
   if (choice.mode === "existing") {
     const { data } = await ctx.db.from("hub_customers").select("id, customer_number, company").eq("id", choice.customerId).maybeSingle<{ id: string; customer_number: string; company: string }>();
-    return data ? { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, created: false } } : failed("Dieser Kunde existiert nicht mehr.");
+    return data ? { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, organizationId: null, created: false } } : failed("Dieser Kunde existiert nicht mehr.");
   }
   const input = readCustomer(choice.customer);
   if (!input.ok) return input;
-  const { data, error } = await ctx.db.from("hub_customers").insert(customerRow(input.value)).select("id, customer_number, company").single<{ id: string; customer_number: string; company: string }>();
-  if (error) return failed(error.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht angelegt werden.");
-  await log(ctx, "customer.created", "Kunde angelegt", { customerId: data.id });
-  return { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, created: true } };
+  const created = await createServiceCustomer(ctx, input.value);
+  if (!created.ok) return created;
+  await log(ctx, "customer.created", "Kunde angelegt", { customerId: created.data.customerId });
+  return { ok: true, data: { ...created.data, created: true } };
+}
+
+type ServiceCustomer = { customerId: string; customerNumber: string; company: string; organizationId: string };
+
+/**
+ * A new customer starts as a Service organization, with the package Service itself would pick, so its logins reach
+ * Service too. Service's trigger adds the Hub customer; it then gets packages and contact data, which its own trigger
+ * passes on to Service's customer profile (migration 202610310001 in service-oalab).
+ */
+async function createServiceCustomer(ctx: Context, input: CustomerInput): Promise<ActionResult<ServiceCustomer>> {
+  const refused = serviceCustomerRefusal(input);
+  if (refused) return failed(refused);
+  const plans = await ctx.db.from("plans").select("id, code, name, created_at").eq("is_active", true).returns<{ id: string; code: string; name: string; created_at: string }[]>();
+  const plan = defaultPlan((plans.data ?? []).map((row) => ({ id: row.id, code: row.code, name: row.name, createdAt: row.created_at })));
+  if (plans.error || !plan) return failed("In Service ist gerade kein Paket aktiv. Der Kunde wurde nicht angelegt.");
+  const organization = await ctx.db.from("organizations").insert({ customer_number: input.customerNumber, name: input.company, kind: "client", status: "active", plan_id: plan.id }).select("id").single<{ id: string }>();
+  if (organization.error || !organization.data) return failed(organization.error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht angelegt werden.");
+  const organizationId = organization.data.id;
+  const customer = await ctx.db.from("hub_customers").update({ ...customerDetails(input), updated_by: ctx.actorId }).eq("organization_id", organizationId).select("id, customer_number, company").maybeSingle<{ id: string; customer_number: string; company: string }>();
+  if (customer.error || !customer.data) {
+    await removeServiceCustomer(ctx, organizationId);
+    return failed("Der Kunde konnte nicht angelegt werden.");
+  }
+  return { ok: true, data: { customerId: customer.data.id, customerNumber: customer.data.customer_number, company: customer.data.company, organizationId } };
+}
+
+/** Takes back a customer created a moment ago when a later step fails; one that lives only in the Hub goes alone. */
+async function removeNewCustomer(ctx: Context, customerId: string) {
+  const { data } = await ctx.db.from("hub_customers").select("organization_id").eq("id", customerId).maybeSingle<{ organization_id: string | null }>();
+  if (data?.organization_id) await removeServiceCustomer(ctx, data.organization_id);
+  else await ctx.db.from("hub_customers").delete().eq("id", customerId);
+}
+
+/**
+ * Memberships, profile, Hub customer and finally the organization they all point to; only for brand-new ones. The
+ * memberships go first: removing one makes Service's sync rebuild the organization's Hub customer if it is missing.
+ */
+async function removeServiceCustomer(ctx: Context, organizationId: string) {
+  await ctx.db.from("memberships").delete().eq("organization_id", organizationId);
+  await ctx.db.from("business_customer_profiles").delete().eq("organization_id", organizationId);
+  await ctx.db.from("hub_customers").delete().eq("organization_id", organizationId);
+  await ctx.db.from("organizations").delete().eq("id", organizationId);
+}
+
+/** Service's audit trail notes where a customer came from, as for the ones the assistant creates. Once it is complete. */
+async function noteServiceCustomer(ctx: Context, customer: { organizationId: string | null; customerNumber: string | null }) {
+  if (!customer.organizationId) return;
+  await ctx.db.from("audit_events").insert({
+    organization_id: customer.organizationId, actor_type: "user", actor_id: ctx.actorId, action: "hub.customer_created", target_type: "organization", target_id: customer.organizationId,
+    result: "success", correlation_id: `cor_${randomUUID().replaceAll("-", "")}`, safe_metadata: { customerNumber: customer.customerNumber, source: "hub_user_management" },
+  });
 }
 
 async function firstNameOf(ctx: Context, userId: string) {
@@ -185,9 +241,10 @@ export async function approveRegistration(input: { userId: string; role: string;
   const steps = await setRole(ctx, user, role) && await assignCustomer(ctx, user.id, customer.data.customerId);
   const activated = steps && !(await ctx.db.from("hub_profiles").update({ status: "active", decided_at: new Date().toISOString(), decided_by: ctx.actorId, decision_note: "" }).eq("user_id", user.id)).error;
   if (!activated) {
-    if (customer.data.created && customer.data.customerId) await ctx.db.from("hub_customers").delete().eq("id", customer.data.customerId);
+    if (customer.data.created && customer.data.customerId) await removeNewCustomer(ctx, customer.data.customerId);
     return failed("Die Freigabe ist nicht vollständig gelungen. Bitte versuche es erneut.");
   }
+  if (customer.data.created) await noteServiceCustomer(ctx, customer.data);
   await log(ctx, "registration.approved", `Registrierung freigegeben als ${roleLabels[role]}`, { userId: user.id, customerId: customer.data.customerId });
   const mail = await mailApproval(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), origin: await requestOrigin(), company: customer.data.company, customerNumber: customer.data.customerNumber });
   refreshWorkspace();
@@ -241,7 +298,7 @@ export async function createHubUser(input: { email: string; firstName: string; l
   const user = created.data.user;
   const undo = async (customerId?: string | null) => {
     await removeLogin(ctx, user.id);
-    if (customerId) await ctx.db.from("hub_customers").delete().eq("id", customerId);
+    if (customerId) await removeNewCustomer(ctx, customerId);
   };
 
   const customer = await resolveCustomer(ctx, role, input.customer);
@@ -255,6 +312,7 @@ export async function createHubUser(input: { email: string; firstName: string; l
     await undo(customer.data.created ? customer.data.customerId : null);
     return failed("Das Konto konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
   }
+  if (customer.data.created) await noteServiceCustomer(ctx, customer.data);
   await log(ctx, "user.created", `Konto angelegt als ${roleLabels[role]}`, { userId: user.id, customerId: customer.data.customerId });
   const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true }) : null;
   refreshWorkspace();
@@ -383,19 +441,39 @@ export async function deleteHubUser(input: { userId: string; confirmEmail: strin
 
 // Customers ----------------------------------------------------------------------------------------------------------
 
-/** Creates a customer (company) or updates one; the customer number stays unique. */
+/**
+ * Creates a customer (in Service too) or updates one; the customer number stays unique. For a customer in Service,
+ * company and number go to its organization and come back through Service's trigger; the contact data the Hub saves
+ * reaches Service's customer profile through the Hub's own trigger. Hub-only customers (the demo ones) stay as they are.
+ */
 export async function saveCustomer(input: { id?: string } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const customer = readCustomer(input ?? {});
   if (!customer.ok) return customer;
   const id = typeof input?.id === "string" && uuid.test(input.id) ? input.id : null;
-  const query = id
-    ? ctx.db.from("hub_customers").update(customerRow(customer.value)).eq("id", id).select("id").single<{ id: string }>()
-    : ctx.db.from("hub_customers").insert(customerRow(customer.value)).select("id").single<{ id: string }>();
-  const { data, error } = await query;
+  if (!id) {
+    const created = await createServiceCustomer(ctx, customer.value);
+    if (!created.ok) return created;
+    await noteServiceCustomer(ctx, created.data);
+    await log(ctx, "customer.created", "Kunde angelegt", { customerId: created.data.customerId });
+    refreshWorkspace();
+    return { ok: true, data: { id: created.data.customerId } };
+  }
+
+  const current = await ctx.db.from("hub_customers").select("organization_id").eq("id", id).maybeSingle<{ organization_id: string | null }>();
+  if (current.error || !current.data) return failed("Diesen Kunden gibt es nicht mehr.");
+  const organizationId = current.data.organization_id;
+  if (organizationId) {
+    const refused = serviceCustomerRefusal(customer.value);
+    if (refused) return failed(refused);
+    const organization = await ctx.db.from("organizations").update({ name: customer.value.company, customer_number: customer.value.customerNumber }).eq("id", organizationId);
+    if (organization.error) return failed(organization.error.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
+  }
+  const row = organizationId ? customerDetails(customer.value) : customerRow(customer.value);
+  const { data, error } = await ctx.db.from("hub_customers").update({ ...row, updated_by: ctx.actorId }).eq("id", id).select("id").single<{ id: string }>();
   if (error || !data) return failed(error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
-  await log(ctx, id ? "customer.updated" : "customer.created", id ? "Kunde bearbeitet" : "Kunde angelegt", { customerId: data.id });
+  await log(ctx, "customer.updated", "Kunde bearbeitet", { customerId: data.id });
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
 }
