@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, nextCustomerNumber, normalizeCompany,
-  readCustomer, readPerson, readRegistration, servicePackageIds, suggestCustomer,
+  cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, normalizeCompany,
+  readCustomer, readPerson, readRegistration, serviceCustomerRefusal, servicePackageIds, suggestCustomer,
 } from "../lib/hub-users/rules.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -50,8 +50,6 @@ test("single fields reject what an admin form or a crafted request could send", 
 });
 
 test("customers keep a unique-looking number and only known service packages", () => {
-  assert.equal(nextCustomerNumber(["KD-24017", "KD-24031", "KD-24023", "SONDER-1"]), "KD-24032");
-  assert.equal(nextCustomerNumber([]), "KD-10001");
   const customer = readCustomer({ company: " Form & Feld ", customerNumber: "kd-24023", servicePackages: ["website-max", "website-lite", "website-lite"], website: "formfeld.example", postalCode: "10115" });
   assert.equal(customer.ok, true);
   assert.deepEqual(customer.value.servicePackages, ["website-lite", "website-max"]);
@@ -59,6 +57,40 @@ test("customers keep a unique-looking number and only known service packages", (
   assert.equal(readCustomer({ company: "X", customerNumber: "KD-1", servicePackages: ["gold"] }).ok, false);
   assert.equal(readCustomer({ company: "", customerNumber: "KD-1" }).ok, false);
   assert.equal(readCustomer({ company: "X", customerNumber: "KD-1", contactEmail: "kein-mail" }).ok, false);
+});
+
+test("new customers start in Service, and Service customers keep company and number on their organization", async () => {
+  assert.equal(serviceCustomerRefusal({ company: "Muster GmbH", customerNumber: "OA-48213" }), null);
+  assert.equal(serviceCustomerRefusal({ company: "KalaClo", customerNumber: "OA-KALACLO" }), null);
+  for (const number of ["KD-24017", "OA-12", "OA-48213-X"]) assert.match(serviceCustomerRefusal({ company: "Muster GmbH", customerNumber: number }), /beginnen mit „OA-“/, number);
+  assert.match(serviceCustomerRefusal({ company: "x".repeat(161), customerNumber: "OA-48213" }), /höchstens 160 Zeichen/);
+
+  const actions = await source("lib/hub-users/actions.ts");
+  // The organization comes first; Service's trigger adds the Hub customer, which gets the rest and the admin as author.
+  const create = actions.slice(actions.indexOf("async function createServiceCustomer"), actions.indexOf("async function removeNewCustomer"));
+  assert.ok(create.indexOf('from("organizations").insert(') > 0 && create.indexOf('from("organizations").insert(') < create.indexOf('from("hub_customers").update('));
+  assert.match(create, /kind: "client", status: "active", plan_id: plan\.id/);
+  assert.match(create, /\.update\(\{ \.\.\.customerDetails\(input\), updated_by: ctx\.actorId \}\)\.eq\("organization_id", organizationId\)/);
+  assert.doesNotMatch(actions, /from\("hub_customers"\)\.insert\(/);
+  // Taking a new customer back: memberships before the Hub customer (Service's sync would rebuild it), organization last.
+  const remove = actions.slice(actions.indexOf("async function removeServiceCustomer"));
+  const order = ['from("memberships").delete()', 'from("business_customer_profiles").delete()', 'from("hub_customers").delete()', 'from("organizations").delete()'].map((call) => remove.indexOf(call));
+  assert.ok(order.every((at, index) => at > 0 && (index === 0 || at > order[index - 1])), String(order));
+  // Editing: company and number of a Service customer go to its organization, the rest to the Hub customer.
+  const save = actions.slice(actions.indexOf("export async function saveCustomer"));
+  assert.match(save, /from\("organizations"\)\.update\(\{ name: customer\.value\.company, customer_number: customer\.value\.customerNumber \}\)\.eq\("id", organizationId\)/);
+  assert.match(save, /const row = organizationId \? customerDetails\(customer\.value\) : customerRow\(customer\.value\);/);
+  assert.match(save, /\.update\(\{ \.\.\.row, updated_by: ctx\.actorId \}\)/);
+  // Service's audit trail hears about a new customer only once the whole step worked.
+  for (const flow of ["export async function approveRegistration", "export async function createHubUser"]) {
+    const chunk = actions.slice(actions.indexOf(flow));
+    const note = chunk.indexOf("if (customer.data.created) await noteServiceCustomer(ctx, customer.data);");
+    assert.ok(chunk.indexOf("removeNewCustomer(ctx,") > 0 && chunk.indexOf("removeNewCustomer(ctx,") < note, flow);
+  }
+  // Customers the assistant creates name their author too.
+  assert.match(await source("lib/hub-assistant/actions.ts"), /update\(\{ \.\.\.contactColumns\(proposal\.contact\), updated_by: ctx\.userId \}\)/);
+  // The suggested number follows the rule of 29.10.2026 and avoids numbers taken in Service.
+  assert.match(await source("lib/hub-users/server.ts"), /newCustomerNumber\(new Set\(\[\.\.\.customerRows, \.\.\.\(organizations\.data \?\? \[\]\)\]\.map\(\(row\) => row\.customer_number\)\)\)/);
 });
 
 test("a registration is matched to its customer by number first, then by company name", () => {

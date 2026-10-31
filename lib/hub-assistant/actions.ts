@@ -280,8 +280,9 @@ export async function confirmCustomerProposal(input: { id: string; choice: unkno
     return { ok: false, error: `Der Kunde konnte nicht angelegt werden. ${nothing}` };
   }
 
-  // Service's trigger created the Hub customer with the organization; it gets the contact data.
-  const customer = await ctx.db.from("hub_customers").update(contactColumns(proposal.contact)).eq("organization_id", organizationId).select("id").maybeSingle<{ id: string }>();
+  // Service's trigger created the Hub customer with the organization; it gets the contact data, which the Hub's
+  // trigger passes on to Service's customer profile with the admin as author.
+  const customer = await ctx.db.from("hub_customers").update({ ...contactColumns(proposal.contact), updated_by: ctx.userId }).eq("organization_id", organizationId).select("id").maybeSingle<{ id: string }>();
   const customerId = customer.data?.id ?? null;
   await ctx.db.from("audit_events").insert({
     organization_id: organizationId, actor_type: "user", actor_id: ctx.userId, action: "hub.customer_created", target_type: "organization", target_id: organizationId,
