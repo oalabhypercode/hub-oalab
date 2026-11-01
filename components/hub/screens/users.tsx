@@ -131,7 +131,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <td className="cell-mail">
           <span className="mail-cell"><span title={user.email}>{user.email}</span>{waiting && !user.emailConfirmed && <span className="confirm-badge is-open" title="Die E-Mail-Adresse ist noch nicht bestätigt">unbestätigt</span>}</span>
         </td>
-        <td className="cell-number">{customer ? <NumberChip value={customer.customerNumber} /> : <span className="cell-none">–</span>}</td>
+        <td className="cell-number col-number">{customer ? <NumberChip value={customer.customerNumber} /> : <span className="cell-none">–</span>}</td>
         <td className="cell-company">
           {customer ? <span className="company-cell"><span className="company-mark" aria-hidden="true">{companyMark(customer.company)}</span><span className="company-name" title={customer.company}>{customer.company}</span></span>
             : user.role === "oalab_admin" ? <span className="company-cell"><span className="company-mark" aria-hidden="true">OA</span>oalab<span className="role-tag">Admin</span></span>
@@ -139,7 +139,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
             : <span className="cell-none">–</span>}
         </td>
         <td className="cell-status"><span className="status-cell" title={waiting ? `Registriert am ${formatFileDateTime(user.createdAt)}` : undefined}><StatusGlyph kind={statusGlyph[user.displayStatus]} />{waiting ? `Seit ${formatFileDate(user.createdAt)}` : displayStatusLabels[user.displayStatus]}</span></td>
-        <td className="cell-login">{user.lastSignInAt ? <time dateTime={user.lastSignInAt} title={formatFileDateTime(user.lastSignInAt)}>{formatFileDate(user.lastSignInAt)}</time> : <span className="cell-none">noch nie</span>}</td>
+        <td className="cell-login col-login">{user.lastSignInAt ? <time dateTime={user.lastSignInAt} title={formatFileDateTime(user.lastSignInAt)}>{formatFileDate(user.lastSignInAt)}</time> : <span className="cell-none">noch nie</span>}</td>
         <td className="cell-action">
           {waiting ? <button type="button" className="row-check" onClick={() => openUser(user)}><ShieldCheck size={15} aria-hidden="true" />Prüfen</button>
             : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
@@ -193,10 +193,10 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                   <tr>
                     <SortHeader option={userSorts.name} sort={userSort} onChange={setUserSort} />
                     <th scope="col">E-Mail</th>
-                    <SortHeader option={userSorts.number} sort={userSort} onChange={setUserSort} />
+                    <SortHeader option={userSorts.number} className="col-number" sort={userSort} onChange={setUserSort} />
                     <SortHeader option={userSorts.company} sort={userSort} onChange={setUserSort} />
                     <SortHeader option={userSorts.status} sort={userSort} onChange={setUserSort} />
-                    <SortHeader option={userSorts.login} sort={userSort} onChange={setUserSort} />
+                    <SortHeader option={userSorts.login} className="col-login" sort={userSort} onChange={setUserSort} />
                     <th scope="col"><span className="visually-hidden">Prüfen oder bearbeiten</span></th>
                   </tr>
                 </thead>
