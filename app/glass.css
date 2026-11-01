@@ -930,6 +930,13 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .file-table .col-description { display: none; }
   .cell-deadline small { display: none; }
   .user-table .mail-cell { max-width: 160px; }
+  /* The symbol before the title and the groups already tell the status. */
+  .project-table .col-status { display: none; }
+}
+/* Tablets in portrait and windows of about 1024 px with the sidebar: the area goes as well. Status and area stay in the
+   project dialog, and the area in the filter menu. */
+@container sheet (max-width: 760px) {
+  .project-table .col-area { display: none; }
 }
 /* Phones: the tables become lists on the same sheet; groups stay as headings, the toolbar wraps, menus open at the bottom. */
 @media (max-width: 767px) {

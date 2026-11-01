@@ -153,10 +153,10 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf, live
         <td className="cell-project">
           <span className="cell-title"><StatusGlyph kind={projectGlyph[project.status]} /><Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">{project.name}</Link></span>
         </td>
-        {showArea && <td className="cell-area">{project.category}</td>}
+        {showArea && <td className="cell-area col-area">{project.category}</td>}
         {/* One fact per cell: the milestone's title; its description is in the project dialog and in the tooltip. */}
         <td className="cell-milestone" title={milestone?.description || undefined}>{milestone ? milestone.title : <span className="cell-none">Noch kein Meilenstein</span>}</td>
-        <td className="cell-status">{project.status}</td>
+        <td className="cell-status col-status">{project.status}</td>
         <td className="cell-start col-start"><span className="cell-start-label">Start </span><span className="numeric">{formatDeadline(project.startedOn)}</span></td>
         <td className="cell-deadline">
           {project.dueOn ? (
@@ -204,9 +204,9 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf, live
                     {/* Admins see every customer's projects, so the customer leads the row. */}
                     {admin && <SortHeader option={projectSorts.customer} sort={sort} onChange={setSort} />}
                     <SortHeader option={projectSorts.title} label="Projekt" sort={sort} onChange={setSort} />
-                    {showArea && <SortHeader option={projectSorts.area} sort={sort} onChange={setSort} />}
+                    {showArea && <SortHeader option={projectSorts.area} className="col-area" sort={sort} onChange={setSort} />}
                     <th scope="col" className="col-milestone">Meilenstein</th>
-                    <SortHeader option={projectSorts.status} sort={sort} onChange={setSort} />
+                    <SortHeader option={projectSorts.status} className="col-status" sort={sort} onChange={setSort} />
                     <SortHeader option={projectSorts.start} label="Start" className="col-start" sort={sort} onChange={setSort} />
                     <SortHeader option={projectSorts.deadline} sort={sort} onChange={setSort} />
                     <SortHeader option={projectSorts.progress} className="col-progress" sort={sort} onChange={setSort} />

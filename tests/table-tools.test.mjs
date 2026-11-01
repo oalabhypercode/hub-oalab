@@ -82,6 +82,17 @@ test("the projects table shows the project start and the next date in their own 
   assert.ok(headers.indexOf("projectSorts.start") < headers.indexOf("projectSorts.deadline"));
 });
 
+test("on tablets the projects table drops the status and then the area before it has to scroll", async () => {
+  const css = await source("app/glass.css");
+  assert.match(css, /@container sheet \(max-width: 900px\) \{\n(?: {2}[^\n]+\n)* {2}\.project-table \.col-status \{ display: none; \}/);
+  assert.match(css, /@container sheet \(max-width: 760px\) \{\n {2}\.project-table \.col-area \{ display: none; \}/);
+  const screen = await source("components/hub/screens/workspace.tsx");
+  for (const column of ["status", "area"]) {
+    assert.match(screen, new RegExp(`<SortHeader option=\\{projectSorts\\.${column}\\} className="col-${column}"`), column);
+    assert.match(screen, new RegExp(`<td className="cell-${column} col-${column}">`), column);
+  }
+});
+
 test("a wide table scrolls inside its sheet, and the logins drop columns before they have to", async () => {
   const css = await source("app/glass.css");
   // Labels hidden for screen readers sit absolutely; without a positioned scroll area a wide table widens the whole page.
