@@ -1,26 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, Building2, Check, Copy, Globe, Hash, Inbox, Mail, MailX, MessageSquareText, Pencil, Phone, ShieldCheck, UserCog, UserPlus } from "lucide-react";
-import { displayStatusLabels, roleLabels, suggestCustomer, type DisplayStatus } from "@/lib/hub-users/rules";
+import { Activity, ArrowUpDown, Building2, Check, Copy, ListFilter, MailX, Pencil, Rows3, ShieldCheck, UserPlus } from "lucide-react";
+import { displayStatusLabels, roleLabels, type DisplayStatus } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
 import { formatFileDate, formatFileDateTime } from "@/lib/hub-files/catalog";
 import { servicePackages } from "@/lib/service-packages";
 import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
-import { GlassCard, SectionHeader } from "../glass";
+import { SegmentedControl } from "../controls";
+import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
-import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
+import { sectionIcons } from "../navigation";
+import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
+import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { CustomerDialog, fullName, ReviewDialog, UserDialog } from "./users-dialogs";
 
 const ALL = "all";
 type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string } | { kind: "customer"; customerId?: string };
 
 const statusOrder: DisplayStatus[] = ["pending", "invited", "active", "disabled", "rejected"];
-
-function StatusPill({ status }: { status: DisplayStatus }) {
-  return <span className={`project-status status-${status}`}><i aria-hidden="true" />{displayStatusLabels[status]}</span>;
-}
 
 /** Customer number with a copy button (support calls, invoices). */
 function NumberChip({ value }: { value: string }) {
@@ -49,21 +48,31 @@ const customerSorts: Record<CustomerSortKey, SortOption<CustomerSortKey>> = {
   city: { id: "city", label: "Ort", dirLabels: alphabetical },
 };
 
-/** Admin page: open registrations first, then every login and every customer, each with search, filters and sorting. */
+const statusGlyph: Record<DisplayStatus, GlyphKind> = { pending: "pending", invited: "invited", active: "active", disabled: "disabled", rejected: "rejected" };
+const initialsOf = (user: ManagedUser) => ((user.firstName[0] ?? "") + (user.lastName[0] ?? "")).toUpperCase() || "?";
+const companyMark = (name: string) => name.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
+type Tab = "users" | "customers";
+type UserGrouping = "status" | "none";
+
+/** Admin page: one sheet with the logins (open registrations as the first group) and the customers, each with search, filters and sorting. */
 export function UserManagementScreen({ state }: { state: UserManagementState }) {
   const { users, customers, events } = state;
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState("");
+  const [tab, setTab] = useState<Tab>("users");
+  const groups = useCollapsedGroups();
   const customerOf = (user: ManagedUser) => customers.find((customer) => customer.id === user.customerIds[0]) ?? null;
-  const pending = users.filter((user) => user.status === "pending").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const pending = users.filter((user) => user.status === "pending");
   const open = (next: Dialog) => { setNotice(""); setDialog(next); };
+  const openUser = (user: ManagedUser) => open(user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id });
 
-  // Logins table
+  // Logins
   const [userQuery, setUserQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [roleFilter, setRoleFilter] = useState(ALL);
   const [customerFilter, setCustomerFilter] = useState(ALL);
   const [userSort, setUserSort] = useState<SortState<UserSortKey>>({ key: "name", dir: "asc" });
+  const [grouping, setGrouping] = useState<UserGrouping>("status");
   const userSortValue: Record<UserSortKey, (user: ManagedUser) => SortValue> = {
     name: (user) => fullName(user),
     company: (user) => customerOf(user)?.company ?? user.companyName,
@@ -80,8 +89,10 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       && matchesSearch(userQuery, [fullName(user), user.email, user.phone, user.position, user.companyName, customer?.company, customer?.customerNumber, displayStatusLabels[user.displayStatus], user.role ? roleLabels[user.role] : null]);
   }), userSortValue[userSort.key], userSort.dir, { tieBreak: (user) => fullName(user) });
   const userFilters = [statusFilter, roleFilter, customerFilter].filter((value) => value !== ALL).length;
+  const usersNarrowed = userQuery.trim() !== "" || userFilters > 0;
+  const resetUsers = () => { setUserQuery(""); setStatusFilter(ALL); setRoleFilter(ALL); setCustomerFilter(ALL); };
 
-  // Customers table
+  // Customers
   const [customerQuery, setCustomerQuery] = useState("");
   const [packageFilter, setPackageFilter] = useState(ALL);
   const [customerSort, setCustomerSort] = useState<SortState<CustomerSortKey>>({ key: "number", dir: "asc" });
@@ -95,142 +106,161 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
     (packageFilter === ALL || (customer.servicePackages as string[]).includes(packageFilter))
     && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website, ...customer.servicePackages.map((id) => servicePackages[id].name)]),
   ), customerSortValue[customerSort.key], customerSort.dir, { tieBreak: (customer) => customer.company });
+  const customersNarrowed = customerQuery.trim() !== "" || packageFilter !== ALL;
 
   const reviewUser = dialog?.kind === "review" ? users.find((user) => user.id === dialog.userId) : undefined;
   const editUser = dialog?.kind === "user" && dialog.userId ? users.find((user) => user.id === dialog.userId) : undefined;
   const editCustomer = dialog?.kind === "customer" && dialog.customerId ? customers.find((customer) => customer.id === dialog.customerId) : undefined;
-  const title = <span className="title-icon"><UserCog size={24} color="var(--accent-text)" aria-hidden="true" /></span>;
+  const title = <TitleIcon icon={sectionIcons.users!} />;
 
   if (state.error) {
     return <><LargeTitleHeader title="User Management" icon={title} actions={<HeaderActions />} /><GlassCard className="section-first"><p className="t-headline">User Management nicht verfügbar</p><p className="t-subheadline t-secondary">{state.error}</p></GlassCard></>;
   }
 
+  const userRow = (user: ManagedUser) => {
+    const customer = customerOf(user);
+    const waiting = user.status === "pending";
+    return (
+      <tr key={user.id} className={`data-row${user.status === "disabled" || user.status === "rejected" ? " is-muted" : ""}`}>
+        <td className="cell-person">
+          <button type="button" className="row-open" onClick={() => openUser(user)}>
+            <span className="avatar avatar-s" aria-hidden="true">{initialsOf(user)}</span><strong title={fullName(user)}>{fullName(user)}</strong>
+            {user.self && <span className="self-badge">Du</span>}{user.demo && <span className="self-badge">Demo</span>}
+          </button>
+        </td>
+        <td className="cell-mail">
+          <span className="mail-cell"><span title={user.email}>{user.email}</span>{waiting && !user.emailConfirmed && <span className="confirm-badge is-open" title="Die E-Mail-Adresse ist noch nicht bestätigt">unbestätigt</span>}</span>
+        </td>
+        <td className="cell-number">{customer ? <NumberChip value={customer.customerNumber} /> : <span className="cell-none">–</span>}</td>
+        <td className="cell-company">
+          {customer ? <span className="company-cell"><span className="company-mark" aria-hidden="true">{companyMark(customer.company)}</span><span className="company-name" title={customer.company}>{customer.company}</span></span>
+            : user.role === "oalab_admin" ? <span className="company-cell"><span className="company-mark" aria-hidden="true">OA</span>oalab<span className="role-tag">Admin</span></span>
+            : user.companyName ? <span className="company-cell is-hint" title="Angabe aus der Registrierung"><span className="company-name">{user.companyName}</span><span className="role-tag">Angabe</span></span>
+            : <span className="cell-none">–</span>}
+        </td>
+        <td className="cell-status"><span className="status-cell" title={waiting ? `Registriert am ${formatFileDateTime(user.createdAt)}` : undefined}><StatusGlyph kind={statusGlyph[user.displayStatus]} />{waiting ? `Seit ${formatFileDate(user.createdAt)}` : displayStatusLabels[user.displayStatus]}</span></td>
+        <td className="cell-login">{user.lastSignInAt ? <time dateTime={user.lastSignInAt} title={formatFileDateTime(user.lastSignInAt)}>{formatFileDate(user.lastSignInAt)}</time> : <span className="cell-none">noch nie</span>}</td>
+        <td className="cell-action">
+          {waiting ? <button type="button" className="row-check" onClick={() => openUser(user)}><ShieldCheck size={15} aria-hidden="true" />Prüfen</button>
+            : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+        </td>
+      </tr>
+    );
+  };
+
+  const userGroups = statusOrder.map((status) => ({ status, rows: shownUsers.filter((user) => user.displayStatus === status) }))
+    // The registrations always have their group at the top, also empty: that is where new ones appear.
+    .filter((group) => group.rows.length || (group.status === "pending" && !pending.length && !usersNarrowed));
+
   return (
     <>
       <LargeTitleHeader title="User Management" icon={title} actions={<HeaderActions />} />
-      <div className="calendar-toolbar users-toolbar">
-        <p className="users-summary">{users.filter((user) => user.status === "active").length} aktive Logins · {customers.length} Kunden{pending.length ? ` · ${pending.length} offene Registrierung${pending.length === 1 ? "" : "en"}` : ""}</p>
-        <button type="button" className="glass glass-float glass-button glass-button-text" onClick={() => open({ kind: "customer" })}><Building2 size={18} aria-hidden="true" />Kunde anlegen</button>
-        <button type="button" className="calendar-primary users-primary" onClick={() => open({ kind: "user" })}><UserPlus size={18} aria-hidden="true" />Konto anlegen</button>
-      </div>
-      {notice && <p className="calendar-notice glass" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
-      {!state.mailConfigured && <GlassCard className="file-demo-note"><MailX size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Der Mailversand ist noch nicht eingerichtet (SMTP-Zugang fehlt). Benachrichtigungen werden nur protokolliert; Links und Nachrichten gibst du bis dahin selbst weiter.</p></GlassCard>}
+      {notice && <p className="calendar-notice section-first" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
+      {!state.mailConfigured && <GlassCard className="file-demo-note section-first"><MailX size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Der Mailversand ist noch nicht eingerichtet (SMTP-Zugang fehlt). Benachrichtigungen werden nur protokolliert; Links und Nachrichten gibst du bis dahin selbst weiter.</p></GlassCard>}
 
-      <SectionHeader title={pending.length ? `Offene Registrierungen (${pending.length})` : "Offene Registrierungen"} />
-      {pending.length ? (
-        <div className="registration-grid">
-          {pending.map((user) => {
-            const suggestion = suggestCustomer(user, customers);
-            return (
-              <article key={user.id} className="glass glass-card registration-card">
-                <div className="registration-head">
-                  <span className="avatar" aria-hidden="true">{(user.firstName[0] ?? "") + (user.lastName[0] ?? "") || "?"}</span>
-                  <div><h3>{fullName(user)}</h3><p>{[user.position, user.companyName].filter(Boolean).join(" · ") || "Ohne Angabe zum Unternehmen"}</p></div>
-                </div>
-                <ul className="registration-facts">
-                  <li><Mail size={15} aria-hidden="true" /><span>{user.email}</span><span className={user.emailConfirmed ? "confirm-badge" : "confirm-badge is-open"}>{user.emailConfirmed ? "bestätigt" : "offen"}</span></li>
-                  {user.phone && <li><Phone size={15} aria-hidden="true" /><span>{user.phone}</span></li>}
-                  {user.website && <li><Globe size={15} aria-hidden="true" /><a href={user.website} target="_blank" rel="noopener noreferrer">{user.website.replace(/^https?:\/\//, "")}</a></li>}
-                  {user.customerNumberHint && <li><Hash size={15} aria-hidden="true" /><span>Kundennummer laut Angabe: {user.customerNumberHint}</span></li>}
-                  {user.message && <li className="registration-message"><MessageSquareText size={15} aria-hidden="true" /><span>{user.message}</span></li>}
-                </ul>
-                {suggestion && <p className="suggestion"><Check size={15} aria-hidden="true" />Passt zu {suggestion.customerNumber} · {suggestion.company}</p>}
-                <div className="registration-foot">
-                  <small>Registriert {formatFileDateTime(user.createdAt)}</small>
-                  <button type="button" className="calendar-primary" onClick={() => open({ kind: "review", userId: user.id })}><ShieldCheck size={17} aria-hidden="true" />Prüfen</button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : <GlassCard className="file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Keine offenen Registrierungen. Neue Registrierungen von der Login-Seite erscheinen hier zur Freigabe.</p></GlassCard>}
+      <div className="sheet section-first">
+        {tab === "users" ? (
+          <SheetToolbar query={userQuery} onQuery={setUserQuery} placeholder="Name, E-Mail, Unternehmen, Kunden-Nr. …" label="Konten durchsuchen" compact
+            leading={<TabSwitch tab={tab} onTab={setTab} users={users.length} customers={customers.length} />}
+            trailing={<ManageButtons onCustomer={() => open({ kind: "customer" })} onUser={() => open({ kind: "user" })} />}>
+            <ToolbarMenu icon={ListFilter} label="Filter" badge={userFilters}>
+              <FilterSelect icon={Activity} name="Nach Status filtern" value={statusFilter} onChange={setStatusFilter} options={[{ value: ALL, label: "Alle Status" }, ...statusOrder.map((status) => ({ value: status, label: displayStatusLabels[status] }))]} />
+              <FilterSelect icon={ShieldCheck} name="Nach Rolle filtern" value={roleFilter} onChange={setRoleFilter} options={[{ value: ALL, label: "Alle Rollen" }, { value: "oalab_customer", label: roleLabels.oalab_customer }, { value: "oalab_admin", label: roleLabels.oalab_admin }, { value: "none", label: "Ohne Rolle" }]} />
+              <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customerFilter} onChange={setCustomerFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.customerNumber} · ${customer.company}` }))]} />
+            </ToolbarMenu>
+            <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={userSorts[userSort.key].label}><SortControl options={Object.values(userSorts)} sort={userSort} onChange={setUserSort} /></ToolbarMenu>
+            <ToolbarMenu icon={Rows3} label="Gruppe" value={grouping === "status" ? "Status" : "Keine"}>
+              <MenuChoices label="Gruppieren nach" value={grouping} onChange={setGrouping} options={[{ id: "status", label: "Status" }, { id: "none", label: "Keine Gruppen" }]} />
+            </ToolbarMenu>
+          </SheetToolbar>
+        ) : (
+          <SheetToolbar query={customerQuery} onQuery={setCustomerQuery} placeholder="Unternehmen, Kunden-Nr., Ort, Servicepaket …" label="Kunden durchsuchen" compact
+            leading={<TabSwitch tab={tab} onTab={setTab} users={users.length} customers={customers.length} />}
+            trailing={<ManageButtons onCustomer={() => open({ kind: "customer" })} onUser={() => open({ kind: "user" })} />}>
+            <ToolbarMenu icon={ListFilter} label="Filter" badge={packageFilter === ALL ? 0 : 1}>
+              <FilterSelect icon={Activity} name="Nach Servicepaket filtern" value={packageFilter} onChange={setPackageFilter} options={[{ value: ALL, label: "Alle Servicepakete" }, ...Object.entries(servicePackages).map(([id, item]) => ({ value: id, label: item.name }))]} />
+            </ToolbarMenu>
+            <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={customerSorts[customerSort.key].label}><SortControl options={Object.values(customerSorts)} sort={customerSort} onChange={setCustomerSort} /></ToolbarMenu>
+          </SheetToolbar>
+        )}
 
-      <SectionHeader title="Benutzer" />
-      <TableSearch value={userQuery} onChange={setUserQuery} placeholder="Name, E-Mail, Unternehmen, Kunden-Nr. …" label="Benutzer durchsuchen" activeFilters={userFilters}>
-        <FilterSelect icon={Activity} name="Nach Status filtern" value={statusFilter} onChange={setStatusFilter} options={[{ value: ALL, label: "Alle Status" }, ...statusOrder.map((status) => ({ value: status, label: displayStatusLabels[status] }))]} />
-        <FilterSelect icon={ShieldCheck} name="Nach Rolle filtern" value={roleFilter} onChange={setRoleFilter} options={[{ value: ALL, label: "Alle Rollen" }, { value: "oalab_customer", label: roleLabels.oalab_customer }, { value: "oalab_admin", label: roleLabels.oalab_admin }, { value: "none", label: "Ohne Rolle" }]} />
-        <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customerFilter} onChange={setCustomerFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((customer) => ({ value: customer.id, label: `${customer.customerNumber} · ${customer.company}` }))]} />
-        <SortControl options={Object.values(userSorts)} sort={userSort} onChange={setUserSort} />
-      </TableSearch>
-      {shownUsers.length ? (
-        <div className="table-blobs">
-          <table className="data-table user-table">
-            <caption className="visually-hidden">Logins mit Kundennummer, Name, Unternehmen, Rolle, Status und letztem Login</caption>
-            <thead>
-              <tr>
-                <SortHeader option={userSorts.number} sort={userSort} onChange={setUserSort} />
-                <SortHeader option={userSorts.name} sort={userSort} onChange={setUserSort} />
-                <SortHeader option={userSorts.company} sort={userSort} onChange={setUserSort} />
-                <th scope="col">Rolle</th>
-                <SortHeader option={userSorts.status} sort={userSort} onChange={setUserSort} />
-                <SortHeader option={userSorts.login} sort={userSort} onChange={setUserSort} />
-                <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {shownUsers.map((user) => {
-                const customer = customerOf(user);
-                return (
-                  <tr key={user.id} className={`data-row${user.status === "disabled" || user.status === "rejected" ? " is-muted" : ""}`}>
-                    <td className="cell-number">{customer ? <NumberChip value={customer.customerNumber} /> : <span className="t-secondary">–</span>}</td>
-                    <td className="cell-person">
-                      <button type="button" className="row-open" onClick={() => open(user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id })}>
-                        <strong>{fullName(user)}{user.self && <span className="self-badge">Du</span>}{user.demo && <span className="self-badge">Demo</span>}</strong><small>{user.email}</small>
-                      </button>
-                    </td>
-                    <td className="cell-company">{customer?.company ?? (user.role === "oalab_admin" ? "oalab" : user.companyName ? <span className="t-secondary">{user.companyName} (Angabe)</span> : "–")}</td>
-                    <td className="cell-role">{user.role ? roleLabels[user.role] : <span className="t-secondary">–</span>}</td>
-                    <td className="cell-status"><StatusPill status={user.displayStatus} /></td>
-                    <td className="cell-login">{user.lastSignInAt ? formatFileDateTime(user.lastSignInAt) : <span className="t-secondary">noch nie</span>}</td>
-                    <td className="cell-action"><button type="button" className="row-action" onClick={() => open(user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id })} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Pencil size={17} aria-hidden="true" /></button></td>
+        {tab === "users" ? (
+          userGroups.length ? (
+            <div className="sheet-scroll">
+              <table className="data-table user-table">
+                <caption className="visually-hidden">Konten mit Name, E-Mail, Kundennummer, Unternehmen, Status und letztem Login</caption>
+                <thead>
+                  <tr>
+                    <SortHeader option={userSorts.name} sort={userSort} onChange={setUserSort} />
+                    <th scope="col">E-Mail</th>
+                    <SortHeader option={userSorts.number} sort={userSort} onChange={setUserSort} />
+                    <SortHeader option={userSorts.company} sort={userSort} onChange={setUserSort} />
+                    <SortHeader option={userSorts.status} sort={userSort} onChange={setUserSort} />
+                    <SortHeader option={userSorts.login} sort={userSort} onChange={setUserSort} />
+                    <th scope="col"><span className="visually-hidden">Prüfen oder bearbeiten</span></th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : <GlassCard><p className="t-subheadline t-secondary">{users.length ? "Keine Benutzer für diese Suche oder Filter." : "Noch keine Benutzer."}</p></GlassCard>}
-
-      <SectionHeader title="Kunden" />
-      <TableSearch value={customerQuery} onChange={setCustomerQuery} placeholder="Unternehmen, Kunden-Nr., Ort, Servicepaket …" label="Kunden durchsuchen" activeFilters={packageFilter === ALL ? 0 : 1}>
-        <FilterSelect icon={Activity} name="Nach Servicepaket filtern" value={packageFilter} onChange={setPackageFilter} options={[{ value: ALL, label: "Alle Servicepakete" }, ...Object.entries(servicePackages).map(([id, item]) => ({ value: id, label: item.name }))]} />
-        <SortControl options={Object.values(customerSorts)} sort={customerSort} onChange={setCustomerSort} />
-      </TableSearch>
-      {shownCustomers.length ? (
-        <div className="table-blobs">
-          <table className="data-table customer-table">
-            <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Servicepaketen, Logins und Ort</caption>
-            <thead>
-              <tr>
-                <SortHeader option={customerSorts.number} sort={customerSort} onChange={setCustomerSort} />
-                <SortHeader option={customerSorts.company} sort={customerSort} onChange={setCustomerSort} />
-                <th scope="col">Servicepakete</th>
-                <SortHeader option={customerSorts.logins} sort={customerSort} onChange={setCustomerSort} />
-                <SortHeader option={customerSorts.city} sort={customerSort} onChange={setCustomerSort} />
-                <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {shownCustomers.map((customer) => (
-                <tr key={customer.id} className="data-row">
-                  <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
-                  <td className="cell-person">
-                    <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><strong>{customer.company}</strong><small>{customer.contactEmail || customer.website.replace(/^https?:\/\//, "") || `Kunde seit ${formatFileDate(customer.createdAt)}`}</small></button>
-                  </td>
-                  <td className="cell-packages">{customer.servicePackages.length ? customer.servicePackages.map((id) => <span key={id} className="customer-chip">{servicePackages[id].name}</span>) : <span className="t-secondary">–</span>}</td>
-                  <td className="cell-logins numeric">{customer.memberIds.length}</td>
-                  <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="t-secondary">–</span>}</td>
-                  <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Pencil size={17} aria-hidden="true" /></button></td>
+                </thead>
+                {grouping === "status" ? userGroups.map((group) => (
+                  <TableGroup key={group.status} colSpan={7} label={group.status === "pending" ? "Wartet auf Freigabe" : displayStatusLabels[group.status]} count={group.rows.length}
+                    glyph={<StatusGlyph kind={statusGlyph[group.status]} />} collapsed={groups.isCollapsed(group.status)} onToggle={() => groups.toggle(group.status)}
+                    empty="Keine offenen Registrierungen. Neue Registrierungen von der Login-Seite erscheinen hier zur Freigabe.">
+                    {group.rows.map(userRow)}
+                  </TableGroup>
+                )) : <tbody>{shownUsers.map(userRow)}</tbody>}
+              </table>
+            </div>
+          ) : <SheetEmpty text={users.length ? "Keine Konten für diese Suche oder Filter." : "Noch keine Konten."} onReset={usersNarrowed ? resetUsers : undefined} />
+        ) : shownCustomers.length ? (
+          <div className="sheet-scroll">
+            <table className="data-table customer-table">
+              <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Servicepaketen, Konten und Ort</caption>
+              <thead>
+                <tr>
+                  <SortHeader option={customerSorts.company} sort={customerSort} onChange={setCustomerSort} />
+                  <SortHeader option={customerSorts.number} sort={customerSort} onChange={setCustomerSort} />
+                  <th scope="col">Servicepakete</th>
+                  <SortHeader option={customerSorts.logins} label="Konten" className="col-count" sort={customerSort} onChange={setCustomerSort} />
+                  <SortHeader option={customerSorts.city} sort={customerSort} onChange={setCustomerSort} />
+                  <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : <GlassCard><p className="t-subheadline t-secondary">{customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."}</p></GlassCard>}
+              </thead>
+              <tbody>
+                {shownCustomers.map((customer) => (
+                  <tr key={customer.id} className="data-row">
+                    <td className="cell-person">
+                      <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><span className="company-mark" aria-hidden="true">{companyMark(customer.company)}</span><strong>{customer.company}</strong></button>
+                    </td>
+                    <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
+                    <td className="cell-packages">{customer.servicePackages.length ? customer.servicePackages.map((id) => servicePackages[id].name).join(", ") : <span className="cell-none">–</span>}</td>
+                    <td className="cell-logins numeric">{customer.memberIds.length}</td>
+                    <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
+                    <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <SheetEmpty text={customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."} onReset={customersNarrowed ? () => { setCustomerQuery(""); setPackageFilter(ALL); } : undefined} />}
+        <SheetFooter hint={tab === "users" && pending.length ? `${pending.length === 1 ? "1 Registrierung wartet" : `${pending.length} Registrierungen warten`} auf Freigabe` : undefined}>
+          {users.filter((user) => user.status === "active").length} aktive Konten · {customers.length === 1 ? "1 Kunde" : `${customers.length} Kunden`}
+        </SheetFooter>
+      </div>
 
       {reviewUser && <ReviewDialog key={reviewUser.id} user={reviewUser} customers={customers} nextNumber={state.nextCustomerNumber} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserDialog key={dialog.userId ?? "new"} user={editUser} customers={customers} nextNumber={state.nextCustomerNumber} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onClose={() => setDialog(null)} onNotice={setNotice} onReview={(userId) => setDialog({ kind: "review", userId })} />}
       {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerDialog key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
     </>
   );
+}
+
+/** Logins and customers share one sheet; the switch sits where Studio has its views. */
+function TabSwitch({ tab, onTab, users, customers }: { tab: Tab; onTab: (tab: Tab) => void; users: number; customers: number }) {
+  return <SegmentedControl label="Konten oder Kunden" value={tab} onChange={onTab} options={[{ id: "users", label: "Konten", count: users, name: `Konten: ${users}` }, { id: "customers", label: "Kunden", count: customers, name: `Kunden: ${customers}` }]} />;
+}
+
+function ManageButtons({ onCustomer, onUser }: { onCustomer: () => void; onUser: () => void }) {
+  return <>
+    <button type="button" className="sheet-action" onClick={onCustomer}><Building2 size={15} aria-hidden="true" />Kunde anlegen</button>
+    <button type="button" className="sheet-action is-primary" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Konto anlegen</button>
+  </>;
 }

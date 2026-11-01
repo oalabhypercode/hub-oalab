@@ -47,32 +47,35 @@ test("a header click flips the sorted column and starts others in their first di
   assert.deepEqual(nextSort({ key: "date", dir: "asc" }, "title"), { key: "title", dir: "asc" });
 });
 
-test("both tables offer search with filters and sorting folded into the extended search", async () => {
+test("both tables offer search, filters, sorting and grouping in one toolbar", async () => {
   for (const [path, search] of [["components/hub/screens/workspace.tsx", "Projekte durchsuchen"], ["components/hub/screens/files.tsx", "Dateien durchsuchen"]]) {
     const screen = await source(path);
     assert.ok(screen.includes(`label="${search}"`), path);
-    // Filters and sorting sit inside <TableSearch>, which shows only the search field until "Erweiterte Suche" is opened.
-    const panel = screen.slice(screen.indexOf("<TableSearch "), screen.indexOf("</TableSearch>"));
-    assert.match(panel, /<FilterSelect /, path);
-    assert.match(panel, /<SortControl /, path);
+    // Filters, sorting and grouping sit in menus of the sheet's toolbar, next to the search field.
+    const toolbar = screen.slice(screen.indexOf("<SheetToolbar "), screen.indexOf("</SheetToolbar>"));
+    for (const menu of ["Filter", "Sortierung", "Gruppe"]) assert.ok(toolbar.includes(`label="${menu}"`), `${path}: ${menu}`);
+    assert.match(toolbar, /<FilterSelect /, path);
+    assert.match(toolbar, /<SortControl /, path);
     assert.match(screen, /<SortHeader /, path);
-    assert.match(screen, /className="table-blobs"/, path);
+    assert.match(screen, /<TableGroup /, path);
+    assert.match(screen, /className="sheet section-first"/, path);
   }
-  const tools = await source("components/hub/table-tools.tsx");
-  assert.match(tools, /aria-expanded=\{open\}/);
-  assert.match(tools, /hidden=\{!open\}><div className="table-search-bar">\{children\}<\/div>/);
+  const sheet = await source("components/hub/sheet.tsx");
+  assert.match(sheet, /aria-expanded=\{open\}/);
+  assert.match(sheet, /hidden=\{!open\}/);
+  assert.match(sheet, /event\.key === "Escape"/);
   const css = await source("app/glass.css");
-  assert.match(css, /border-spacing: 0 4px/);
-  // Status, filters and sorting share one bar that scrolls sideways instead of wrapping into a second line.
-  const bar = css.match(/\.table-search-bar \{[^}]+\}/)[0];
-  assert.match(bar, /overflow-x: auto/);
-  assert.doesNotMatch(bar, /flex-wrap: wrap/);
+  // The menus drop out of the sheet: it must not clip them, even when it holds only a few rows.
+  const sheetRule = css.match(/\n\.sheet \{[^}]+\}/)[0];
+  assert.doesNotMatch(sheetRule, /overflow/);
+  // Narrower sheets drop the start date before the table has to scroll sideways.
+  assert.match(css, /@container sheet \(max-width: 1040px\) \{\n(?: {2}[^\n]+\n)* {2}\.project-table \.col-start \{ display: none; \}/);
 });
 
 test("the projects table shows the project start and the next date in their own columns", async () => {
   const screen = await source("components/hub/screens/workspace.tsx");
   assert.match(screen, /label: "Nächster Termin"/);
-  assert.match(screen, /className="cell-start"[^\n]+project\.startedOn/);
+  assert.match(screen, /className="cell-start col-start"[^\n]+project\.startedOn/);
   // The milestone cell no longer carries a date.
   assert.doesNotMatch(screen, /milestone\.at/);
   const headers = screen.slice(screen.indexOf("<thead>"), screen.indexOf("</thead>"));

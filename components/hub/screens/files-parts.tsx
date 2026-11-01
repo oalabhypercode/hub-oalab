@@ -16,6 +16,11 @@ export function CategoryPill({ category }: { category: FileCategory }) {
   return <span className={`file-category file-category-${category}`}>{fileCategories[category]}</span>;
 }
 
+/** The category in a table: its colour as a small dot, the name as plain text. */
+export function CategoryDot({ category }: { category: FileCategory }) {
+  return <span className={`file-dot file-dot-${category}`}><i aria-hidden="true" />{fileCategories[category]}</span>;
+}
+
 /** Checkbox list of customers, searchable by customer number or company. */
 export function CustomerPicker({ customers, selected, onChange, idPrefix, emptyHint = "Ohne Zuordnung landet die Datei in der Ablage" }: { customers: HubFileCustomer[]; selected: string[]; onChange: (ids: string[]) => void; idPrefix: string; emptyHint?: string }) {
   const [query, setQuery] = useState("");

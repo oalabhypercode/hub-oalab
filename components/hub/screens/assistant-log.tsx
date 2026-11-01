@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Activity, Bot, Sparkles, UserRound } from "lucide-react";
+import { Activity, ArrowUpDown, ListFilter, Sparkles, UserRound } from "lucide-react";
 import { kindLabels, outcomeLabels, type ActionKind, type ActionOutcome } from "@/lib/hub-assistant/log-rules";
 import type { AssistantLogRow, AssistantLogState } from "@/lib/hub-assistant/log";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
-import { GlassCard } from "../glass";
+import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
-import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
+import { sectionIcons } from "../navigation";
+import { SheetEmpty, SheetFooter, SheetToolbar, ToolbarMenu } from "../sheet";
+import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 
 const ALL = "all";
 /** Short in the table ("29.10.26, 17:43"); the long form is in the tooltip. */
@@ -52,7 +54,8 @@ export function AssistantLogScreen({ state }: { state: AssistantLogState }) {
   ), value[sort.key], sort.dir, { tieBreak: (row) => row.createdAt });
   const filters = [outcome, kind, actor].filter((item) => item !== ALL).length;
   const saved = rows.filter((row) => row.outcome === "done").length;
-  const title = <span className="title-icon"><Bot size={24} color="var(--accent-text)" aria-hidden="true" /></span>;
+  const title = <TitleIcon icon={sectionIcons["ai-log"]!} />;
+  const reset = () => { setQuery(""); setOutcome(ALL); setKind(ALL); setActor(ALL); };
 
   if (state.error) {
     return <><LargeTitleHeader title="KI-Protokoll" icon={title} actions={<HeaderActions />} /><GlassCard className="section-first"><p className="t-headline">KI-Protokoll nicht verfügbar</p><p className="t-subheadline t-secondary">{state.error}</p></GlassCard></>;
@@ -61,17 +64,17 @@ export function AssistantLogScreen({ state }: { state: AssistantLogState }) {
   return (
     <>
       <LargeTitleHeader title="KI-Protokoll" icon={title} actions={<HeaderActions />} />
-      <div className="calendar-toolbar users-toolbar">
-        <p className="users-summary">{rows.length === 1 ? "1 Vorschlag" : `${rows.length} Vorschläge`} des Assistenten · {saved} gespeichert</p>
-      </div>
-      <TableSearch value={query} onChange={setQuery} placeholder="Admin, Kunde, Projekt, Inhalt …" label="KI-Protokoll durchsuchen" activeFilters={filters}>
-        <FilterSelect icon={Activity} name="Nach Ergebnis filtern" value={outcome} onChange={setOutcome} options={[{ value: ALL, label: "Alle Ergebnisse" }, ...outcomeOrder.map((item) => ({ value: item, label: outcomeLabels[item] }))]} />
-        <FilterSelect icon={Sparkles} name="Nach Art filtern" value={kind} onChange={setKind} options={[{ value: ALL, label: "Alle Arten" }, ...(Object.keys(kindLabels) as ActionKind[]).map((item) => ({ value: item, label: kindLabels[item] }))]} />
-        <FilterSelect icon={UserRound} name="Nach Admin filtern" value={actor} onChange={setActor} options={[{ value: ALL, label: "Alle Admins" }, ...actors.map((item) => ({ value: item, label: item }))]} />
-        <SortControl options={Object.values(sorts)} sort={sort} onChange={setSort} />
-      </TableSearch>
+      <div className="sheet section-first">
+      <SheetToolbar query={query} onQuery={setQuery} placeholder="Admin, Kunde, Projekt, Inhalt …" label="KI-Protokoll durchsuchen">
+        <ToolbarMenu icon={ListFilter} label="Filter" badge={filters}>
+          <FilterSelect icon={Activity} name="Nach Ergebnis filtern" value={outcome} onChange={setOutcome} options={[{ value: ALL, label: "Alle Ergebnisse" }, ...outcomeOrder.map((item) => ({ value: item, label: outcomeLabels[item] }))]} />
+          <FilterSelect icon={Sparkles} name="Nach Art filtern" value={kind} onChange={setKind} options={[{ value: ALL, label: "Alle Arten" }, ...(Object.keys(kindLabels) as ActionKind[]).map((item) => ({ value: item, label: kindLabels[item] }))]} />
+          <FilterSelect icon={UserRound} name="Nach Admin filtern" value={actor} onChange={setActor} options={[{ value: ALL, label: "Alle Admins" }, ...actors.map((item) => ({ value: item, label: item }))]} />
+        </ToolbarMenu>
+        <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={sorts[sort.key].label}><SortControl options={Object.values(sorts)} sort={sort} onChange={setSort} /></ToolbarMenu>
+      </SheetToolbar>
       {shown.length ? (
-        <div className="table-blobs">
+        <div className="sheet-scroll">
           <table className="data-table ai-log-table">
             <caption className="visually-hidden">Vorschläge des Assistenten mit Zeit, Admin, Art, Kunde oder Projekt, Inhalt und Ergebnis</caption>
             <thead>
@@ -87,7 +90,7 @@ export function AssistantLogScreen({ state }: { state: AssistantLogState }) {
             <tbody>
               {shown.map((row) => (
                 <tr key={row.id} className={`data-row${row.outcome === "discarded" || row.outcome === "expired" ? " is-muted" : ""}`}>
-                  <td className="cell-login"><time dateTime={row.createdAt} title={formatFileDateTime(row.createdAt)}>{when.format(new Date(row.createdAt))}</time></td>
+                  <td className="cell-time numeric"><time dateTime={row.createdAt} title={formatFileDateTime(row.createdAt)}>{when.format(new Date(row.createdAt))}</time></td>
                   <td>{row.actor}</td>
                   <td className="cell-role">{kindLabels[row.kind]}</td>
                   <td className="cell-target">{row.projectId && row.outcome === "done" ? <Link className="table-link" href={`/dashboard/projects?project=${row.projectId}`}>{row.target}</Link> : row.target || <span className="t-secondary">–</span>}</td>
@@ -98,7 +101,9 @@ export function AssistantLogScreen({ state }: { state: AssistantLogState }) {
             </tbody>
           </table>
         </div>
-      ) : <GlassCard><p className="t-subheadline t-secondary">{rows.length ? "Keine Vorschläge für diese Suche oder Filter." : "Der Assistent hat noch nichts vorgeschlagen."}</p></GlassCard>}
+      ) : <SheetEmpty text={rows.length ? "Keine Vorschläge für diese Suche oder Filter." : "Der Assistent hat noch nichts vorgeschlagen."} onReset={rows.length && (query.trim() || filters) ? reset : undefined} />}
+      <SheetFooter>{rows.length === 1 ? "1 Vorschlag" : `${rows.length} Vorschläge`} des Assistenten · {saved} gespeichert</SheetFooter>
+      </div>
     </>
   );
 }
