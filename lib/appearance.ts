@@ -6,6 +6,9 @@
 
 export type BackgroundPresetId = "oalab" | "ocean" | "aubergine" | "emerald" | "ember" | "graphite" | "custom";
 
+/** Erscheinungsbild: follow the device, or always light or dark. */
+export type ColorScheme = "system" | "light" | "dark";
+
 export type BackgroundPreset = {
   id: BackgroundPresetId;
   name: string;
@@ -14,6 +17,7 @@ export type BackgroundPreset = {
 };
 
 export type Appearance = {
+  colorScheme: ColorScheme;
   backgroundPreset: BackgroundPresetId;
   customColor: string;
   glassAlpha: number;
@@ -38,6 +42,7 @@ export const GLASS_BLUR_RANGE = { min: 8, max: 40 } as const;
 export const APPEARANCE_STORAGE_KEY = "oalab-hub-appearance";
 
 export const defaultAppearance: Appearance = {
+  colorScheme: "system",
   backgroundPreset: "oalab",
   customColor: "#2B3A55",
   glassAlpha: 0.8,
@@ -46,14 +51,17 @@ export const defaultAppearance: Appearance = {
   reduceMotion: false,
 };
 
-export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark" };
+export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark" };
+
+/** The dark theme shows the background at this brightness at most (glass.css mixes it with black, --bg-shade). */
+export const DARK_BACKGROUND_SHADE = 0.62;
 
 /**
  * Resolves a stored (possibly invalid) preference into CSS variables.
  * Must not reference anything outside its own body: it is serialised into the
  * inline script that runs before the first paint.
  */
-export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], systemReducedTransparency: boolean, systemReducedMotion = false): AppearanceDom {
+export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], systemReducedTransparency: boolean, systemReducedMotion = false, systemDark = false): AppearanceDom {
   const input = (stored && typeof stored === "object" ? stored : {}) as Record<string, unknown>;
   const clamp = (value: unknown, min: number, max: number, fallback: number) => {
     const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -62,11 +70,18 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
   const isHex = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
   const preset = presets.find((item) => item.id === input.backgroundPreset) || presets[0];
   const base = preset.id === "custom" ? (isHex(input.customColor) ? input.customColor : preset.base) : preset.base;
-  const channel = (offset: number) => {
-    const value = parseInt(base.slice(offset, offset + 2), 16) / 255;
+  const scheme = input.colorScheme === "light" || input.colorScheme === "dark" ? input.colorScheme : "system";
+  const theme = scheme === "system" ? (systemDark ? "dark" : "light") : scheme;
+  const channel = (offset: number, shade: number) => {
+    const value = parseInt(base.slice(offset, offset + 2), 16) / 255 * shade;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
   };
-  const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  const luminanceAt = (shade: number) => 0.2126 * channel(1, shade) + 0.7152 * channel(3, shade) + 0.0722 * channel(5, shade);
+  // The dark theme shows the background darker: 62 % (DARK_BACKGROUND_SHADE, repeated because this body is
+  // serialised), and less for a light custom colour, so light text on dark glass keeps 4.5:1 (see the tests).
+  let shade = theme === "dark" ? 0.62 : 1;
+  while (theme === "dark" && shade > 0.2 && luminanceAt(shade) > 0.04) shade -= 0.02;
+  const luminance = luminanceAt(shade);
   const onBackground = luminance > 0.2 ? "dark" : "light";
   return {
     variables: {
@@ -74,6 +89,7 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
       "--bg-orb-1": preset.orbs[0],
       "--bg-orb-2": preset.orbs[1],
       "--bg-orb-3": preset.orbs[2],
+      "--bg-shade": `${Math.round(shade * 100)}%`,
       "--on-bg": onBackground === "dark" ? "#000000" : "#FFFFFF",
       "--glass-alpha": String(clamp(input.glassAlpha, 0.7, 0.95, 0.8)),
       "--glass-blur": `${clamp(input.glassBlur, 8, 40, 24)}px`,
@@ -81,6 +97,7 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : systemReducedMotion,
     onBackground,
+    theme,
   };
 }
 
@@ -89,7 +106,9 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
   const input = (stored && typeof stored === "object" ? stored : {}) as Partial<Record<keyof Appearance, unknown>>;
   const preset = backgroundPresets.find((item) => item.id === input.backgroundPreset)?.id ?? defaultAppearance.backgroundPreset;
   const number = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  const scheme = input.colorScheme;
   return {
+    colorScheme: scheme === "light" || scheme === "dark" ? scheme : "system",
     backgroundPreset: preset,
     customColor: typeof input.customColor === "string" && /^#[0-9a-f]{6}$/i.test(input.customColor) ? input.customColor : defaultAppearance.customColor,
     glassAlpha: Math.min(GLASS_ALPHA_RANGE.max, Math.max(GLASS_ALPHA_RANGE.min, number(input.glassAlpha, defaultAppearance.glassAlpha))),
@@ -105,9 +124,12 @@ export function applyAppearanceToDocument(dom: AppearanceDom, root: HTMLElement)
   root.dataset.reduceTransparency = String(dom.reduceTransparency);
   root.dataset.reduceMotion = String(dom.reduceMotion);
   root.dataset.onBackground = dom.onBackground;
+  root.dataset.theme = dom.theme;
+  // Native controls and scrollbars follow the theme as well.
+  root.style.colorScheme = dom.theme;
 }
 
 /** Inline script for the root layout: applies the stored appearance before the first paint. */
 export function appearanceInlineScript() {
-  return `(function(){try{var r=(${resolveAppearance.toString()});var a=(${applyAppearanceToDocument.toString()});var s=null;try{s=JSON.parse(localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)})||"null")}catch(e){}var q=function(x){return !!(window.matchMedia&&window.matchMedia(x).matches)};a(r(s,${JSON.stringify(backgroundPresets)},q("(prefers-reduced-transparency: reduce)"),q("(prefers-reduced-motion: reduce)")),document.documentElement)}catch(e){}})()`;
+  return `(function(){try{var r=(${resolveAppearance.toString()});var a=(${applyAppearanceToDocument.toString()});var s=null;try{s=JSON.parse(localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)})||"null")}catch(e){}var q=function(x){return !!(window.matchMedia&&window.matchMedia(x).matches)};a(r(s,${JSON.stringify(backgroundPresets)},q("(prefers-reduced-transparency: reduce)"),q("(prefers-reduced-motion: reduce)"),q("(prefers-color-scheme: dark)")),document.documentElement)}catch(e){}})()`;
 }
