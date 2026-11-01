@@ -81,3 +81,17 @@ test("the projects table shows the project start and the next date in their own 
   const headers = screen.slice(screen.indexOf("<thead>"), screen.indexOf("</thead>"));
   assert.ok(headers.indexOf("projectSorts.start") < headers.indexOf("projectSorts.deadline"));
 });
+
+test("a wide table scrolls inside its sheet, and the logins drop columns before they have to", async () => {
+  const css = await source("app/glass.css");
+  // Labels hidden for screen readers sit absolutely; without a positioned scroll area a wide table widens the whole page.
+  assert.match(css, /\n\.sheet-scroll \{ position: relative; overflow-x: auto; \}/);
+  // With open registrations the logins need the most room: first the customer number goes, then the last login.
+  assert.match(css, /@container sheet \(max-width: 1200px\) \{\n {2}\.user-table \.col-number \{ display: none; \}/);
+  assert.match(css, /@container sheet \(max-width: 1040px\) \{\n(?: {2}[^\n]+\n)* {2}\.user-table \.col-login \{ display: none; \}/);
+  const users = await source("components/hub/screens/users.tsx");
+  for (const column of ["number", "login"]) {
+    assert.match(users, new RegExp(`<SortHeader option=\\{userSorts\\.${column}\\} className="col-${column}"`), column);
+    assert.match(users, new RegExp(`<td className="cell-${column} col-${column}">`), column);
+  }
+});

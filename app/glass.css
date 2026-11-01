@@ -660,7 +660,8 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .sheet-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px 8px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-select); }
 .sheet-selection strong { margin-right: 4px; font-size: 13px; font-weight: 600; color: var(--label); }
 .sheet-move select { height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13px; font-weight: 500; }
-.sheet-scroll { overflow-x: auto; }
+/* Positioned, so labels hidden for screen readers (position: absolute) scroll with a wide table instead of widening the page. */
+.sheet-scroll { position: relative; overflow-x: auto; }
 .sheet-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; min-height: 40px; padding: 8px 16px 8px 20px; font-size: 12px; color: var(--sheet-muted); }
 .sheet-empty { display: grid; justify-items: center; gap: 6px; padding: 28px 20px; border-bottom: 1px solid var(--sheet-divider); text-align: center; font-size: 14px; color: var(--sheet-muted); }
 .sheet-empty .table-reset { margin: 0; font-size: 14px; }
@@ -723,10 +724,10 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .data-table .cell-person { min-width: 170px; }
 .data-table :is(.cell-number, .cell-status, .cell-login, .cell-time, .cell-mail) { white-space: nowrap; }
 .data-table :is(.cell-login, .cell-time, .cell-mail, .cell-packages, .cell-city) { color: var(--sheet-muted); }
-.mail-cell { display: flex; align-items: center; gap: 6px; max-width: 240px; }
+.mail-cell { display: flex; align-items: center; gap: 6px; max-width: 200px; }
 .mail-cell > span:first-child, .data-table .company-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.data-table .company-name { max-width: 190px; }
-.user-table .row-open strong { max-width: 200px; }
+.data-table .company-name { max-width: 160px; }
+.user-table .row-open strong { max-width: 170px; }
 .mail-cell .confirm-badge { margin-left: 0; }
 .data-table :is(.cell-logins, .col-count) { text-align: right; }
 .data-table .cell-action { width: 96px; text-align: right; white-space: nowrap; }
@@ -911,16 +912,24 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .file-assign-actions, .file-detail-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .file-assign-actions > *, .file-detail-actions > * { flex: 1 1 180px; }
 
-/* Narrower sheets (laptops, tablets): first the start date goes and the description gets less room, then the details. */
+/* Narrower sheets (laptops, tablets) drop details before a table has to scroll sideways. The logins need the most room
+   ("Seit …" and "Prüfen" for open registrations), so their customer number goes first; the account dialog still shows it. */
+@container sheet (max-width: 1200px) {
+  .user-table .col-number { display: none; }
+}
+/* Then the start date and the last login go and descriptions and e-mail addresses get less room, then the details. */
 @container sheet (max-width: 1040px) {
   .sheet-search { flex-basis: 200px; }
   .project-table .col-start { display: none; }
+  .user-table .col-login { display: none; }
+  .user-table .mail-cell { max-width: 180px; }
   .cell-description { max-width: 200px; }
 }
 @container sheet (max-width: 900px) {
   .sheet-menu-value { display: none; }
   .file-table .col-description { display: none; }
   .cell-deadline small { display: none; }
+  .user-table .mail-cell { max-width: 160px; }
 }
 /* Phones: the tables become lists on the same sheet; groups stay as headings, the toolbar wraps, menus open at the bottom. */
 @media (max-width: 767px) {
