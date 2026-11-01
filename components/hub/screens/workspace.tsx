@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown, ArrowUpRight, Bot, Building2, FileText, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, MessageSquare, Palette, Rows3, ScrollText, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { ArrowUpDown, ArrowUpRight, Bot, Building2, FileText, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, MessageSquare, Palette, Rows3, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
@@ -15,7 +15,7 @@ import { SearchField, SegmentedControl } from "../controls";
 import { CategoryIcon, GlassCard, SectionHeader, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
-import { sectionIcons } from "../navigation";
+import { chatNavigation, sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
@@ -40,9 +40,11 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
   const term = query.trim().toLowerCase();
   const shownCategories = categoryOrder.filter((id) => categoryLabel(id, admin).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
   const shownMetrics = term && populated ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
+  const showInsights = sectionLabels.insights.toLowerCase().includes(term);
+  const showChat = chatNavigation.label.toLowerCase().includes(term);
   return (
     <>
-      <LargeTitleHeader title="Entdecken" icon={<TitleIcon icon={sectionIcons.discover!} />} actions={<HeaderActions />} />
+      <LargeTitleHeader title="Mehr" icon={<TitleIcon icon={sectionIcons.discover!} />} actions={<HeaderActions />} />
       <div className="section-first"><SearchField glass value={query} onChange={setQuery} placeholder="Bereiche und Kennzahlen" label="Bereiche und Kennzahlen durchsuchen" /></div>
       {shownMetrics.length > 0 && <>
         <SectionHeader title="Kennzahlen" />
@@ -50,6 +52,13 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
           {shownMetrics.map((id) => <ListRow key={id} compact href={model.metrics[id].href} icon={<CategoryIcon category={metricMeta[id].category} size={24} />} title={metricMeta[id].name} trailing={<span className="numeric list-value">{model.metrics[id].value} {model.metrics[id].unit}</span>} />)}
         </InsetGroupedList>
       </>}
+      {/* "Mehr" is the last tab on phones: first what the tab bar has no room for, as at the top of the sidebar. */}
+      {(showInsights || showChat) && (
+        <InsetGroupedList label="Insights und Chat" className="list-icons section-first">
+          {showInsights && <ListRow compact href={hubHref(preview, "insights")} icon={<Sparkles size={24} color="var(--insights)" aria-hidden="true" />} title={sectionLabels.insights} subtitle="Zusammenfassung und Highlights" />}
+          {showChat && <ListRow compact external href={chatNavigation.href} icon={<chatNavigation.icon size={24} color="var(--accent-text)" aria-hidden="true" />} title={chatNavigation.label} subtitle="Chats und Anfragen auf der Serviceplattform" />}
+        </InsetGroupedList>
+      )}
       <SectionHeader title="Bereiche" />
       {shownCategories.length ? (
         <InsetGroupedList label="Bereiche" className="list-icons">
@@ -66,8 +75,8 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
       </InsetGroupedList>
       <SectionHeader title="Konto" />
       <InsetGroupedList label="Konto" className="list-icons">
-        <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" />
         <ListRow compact href={hubHref(preview, "settings")} icon={<UserRound size={24} color="var(--system-gray)" aria-hidden="true" />} title="Profil" />
+        <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" />
         <ListRow compact onClick={() => openPanel("help")} icon={<MessageCircleQuestion size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
       </InsetGroupedList>
     </>

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { Chevron } from "./glass";
+import { newTabLinkProps } from "./navigation";
 
 /** One glass card holding rows separated by inset hairlines. Rows are not glass themselves. */
 export function InsetGroupedList({ children, label, className = "" }: { children: React.ReactNode; label?: string; className?: string }) {
@@ -17,11 +19,13 @@ function Content({ icon, title, subtitle, trailing, chevron = true }: RowContent
   </>;
 }
 
-export function ListRow({ href, onClick, compact = false, className, ...content }: RowContent & { href?: string; onClick?: () => void; compact?: boolean; className?: string }) {
+/** A row that links, opens something, or just shows; `external` opens the link in a new tab (the chat on the service platform). */
+export function ListRow({ href, external = false, onClick, compact = false, className, ...content }: RowContent & { href?: string; external?: boolean; onClick?: () => void; compact?: boolean; className?: string }) {
   const rowClass = className ?? `list-row${compact ? " list-row-compact" : ""}${content.icon ? " has-icon" : ""}`;
   return (
     <li className={`list-item${compact ? " is-compact" : ""}${content.icon ? " has-icon" : ""}`}>
-      {href ? <Link href={href} className={rowClass}><Content {...content} /></Link>
+      {href && external ? <a href={href} {...newTabLinkProps} className={rowClass}><Content {...content} chevron={false} trailing={<ArrowUpRight size={18} className="list-row-external" aria-hidden="true" />} /><span className="visually-hidden"> (öffnet in neuem Tab)</span></a>
+        : href ? <Link href={href} className={rowClass}><Content {...content} /></Link>
         : onClick ? <button type="button" className={rowClass} onClick={onClick}><Content {...content} /></button>
         : <div className={rowClass}><Content {...content} chevron={content.chevron ?? false} /></div>}
     </li>
