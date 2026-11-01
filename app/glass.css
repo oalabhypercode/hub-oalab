@@ -427,44 +427,36 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .step-link { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 10px 16px 10px 4px; }
 .step-item.is-done .list-row-title { text-decoration: line-through; color: var(--label-secondary); }
 
-/* Projects table: area, title, current milestone, status, deadline, progress. The title link's class project-card is used by the
-   smoke tests and stretches over the whole row. */
+/* Projects: the title leads with its status symbol; the title link (class project-card, used by the smoke tests)
+   stretches over the whole row. */
 .project-row { position: relative; }
-.project-table th.col-milestone { width: 26%; }
-.cell-area { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
-/* Admins only: the customer leads each row. */
-.cell-customer { min-width: 84px; font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); }
-.project-row.is-done .cell-customer { color: var(--label-secondary); font-weight: 500; }
-.cell-project { min-width: 170px; }
-.project-card { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
+.cell-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.project-card { min-width: 0; font-weight: 500; color: var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-card::after { content: ""; position: absolute; inset: 0; }
-.project-row:hover .project-card { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.project-row:hover .project-card { color: var(--accent-text); }
 .project-card:focus-visible { outline: none; box-shadow: none; }
-/* Keyboard focus rings the whole blob: top and bottom on every cell, the sides on the first and last one. */
-.project-row:has(.project-card:focus-visible) td { box-shadow: inset 0 3px 0 var(--accent-text), inset 0 -3px 0 var(--accent-text); }
-.project-row:has(.project-card:focus-visible) td:first-child { box-shadow: inset 3px 0 0 var(--accent-text), inset 0 3px 0 var(--accent-text), inset 0 -3px 0 var(--accent-text); }
-.project-row:has(.project-card:focus-visible) td:last-child { box-shadow: inset -3px 0 0 var(--accent-text), inset 0 3px 0 var(--accent-text), inset 0 -3px 0 var(--accent-text); }
-.cell-project small, .cell-milestone small, .cell-progress small { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
-.cell-milestone strong { display: block; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label-body); }
-.cell-milestone span { display: block; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
-.cell-status, .cell-progress, .cell-deadline, .cell-start { white-space: nowrap; }
-/* Project start; "Start" only shows on phones, where the column headers are hidden. */
-.cell-start { color: var(--label-body); }
+/* Keyboard focus rings the whole row: top and bottom on every cell, the sides on the first and last one. */
+.project-row:has(.project-card:focus-visible) td { box-shadow: inset 0 2px 0 var(--accent-text), inset 0 -2px 0 var(--accent-text); }
+.project-row:has(.project-card:focus-visible) td:first-child { box-shadow: inset 2px 0 0 var(--accent-text), inset 0 2px 0 var(--accent-text), inset 0 -2px 0 var(--accent-text); }
+.project-row:has(.project-card:focus-visible) td:last-child { box-shadow: inset -2px 0 0 var(--accent-text), inset 0 2px 0 var(--accent-text), inset 0 -2px 0 var(--accent-text); }
+.cell-customer { font-weight: 500; color: var(--label); white-space: nowrap; }
+.cell-area, .cell-status, .cell-start { color: var(--sheet-muted); white-space: nowrap; }
+.cell-milestone { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-start-label { display: none; }
-.project-row.is-done .cell-start { color: var(--label-secondary); }
-.progress-line { display: flex; align-items: center; gap: 10px; }
-.progress-line .list-progress { width: 72px; }
-/* The deadline links to its day in the calendar; it sits above the row link. */
-.deadline-link { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 5px; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); border-radius: 6px; }
-.deadline-link svg { color: var(--accent-text); flex: 0 0 auto; }
-.deadline-link:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
-.cell-deadline small { display: block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.cell-none { color: var(--sheet-muted); }
+.cell-deadline { white-space: nowrap; }
+.cell-deadline small { margin-left: 6px; font-size: 12px; color: var(--sheet-muted); }
 .cell-deadline small.is-overdue { color: var(--danger); font-weight: 600; }
-/* Completed projects are greyed out to set them apart from running ones; the progress cell keeps its full colour. */
-.project-table tbody tr.project-row.is-done td { background-image: linear-gradient(rgba(118, 118, 128, 0.14), rgba(118, 118, 128, 0.14)); }
-.project-table tbody tr.project-row.is-done:hover td { background-image: linear-gradient(rgba(118, 118, 128, 0.2), rgba(118, 118, 128, 0.2)); }
-.project-row.is-done .project-card, .project-row.is-done .cell-milestone strong, .project-row.is-done .deadline-link { color: var(--label-secondary); font-weight: 500; }
-.project-row.is-done .deadline-link svg { color: var(--label-secondary); }
+/* The deadline links to its day in the calendar; it sits above the row link. */
+.deadline-link { position: relative; z-index: 1; color: var(--label-body); border-radius: 4px; }
+.deadline-link:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.col-progress, .cell-progress { text-align: right; }
+.progress-line { display: inline-flex; align-items: center; gap: 8px; }
+.progress-line .list-progress { width: 52px; height: 4px; border-radius: 2px; }
+.progress-line .list-percent { min-width: 36px; font-size: 13px; font-weight: 500; }
+/* Completed projects stay at the end in grey; the progress keeps its colour so 100 % stays visible. */
+.project-row.is-done td, .project-row.is-done .project-card, .project-row.is-done .cell-customer, .project-row.is-done .deadline-link { color: var(--sheet-muted); }
+.project-row.is-done .project-card { font-weight: 400; }
 .project-status { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .project-status > i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-active { color: var(--tone-ok); background: var(--tone-ok-bg); }
@@ -568,36 +560,6 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .color-input::-webkit-color-swatch { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 50%; }
 .color-input::-moz-color-swatch { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 50%; }
 
-/* Table toolbar (projects, files): search and sorting on top, the filters below. */
-.table-toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.table-search { height: 48px; padding: 0 5px 0 14px; }
-.table-search-toggle { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border-radius: 9px; background: var(--fill-tertiary); color: var(--accent-text); font-size: 14px; font-weight: 600; white-space: nowrap; transition: background 150ms ease, color 150ms ease; }
-.table-search-toggle:hover { background: rgba(118, 118, 128, 0.26); }
-.table-search-toggle[aria-expanded="true"] { background: var(--accent-text); color: #ffffff; }
-.table-search-chevron { transition: transform 200ms var(--ease-spring); }
-.table-search-toggle[aria-expanded="true"] .table-search-chevron { transform: rotate(180deg); }
-/* Active filters stay visible on the closed toggle. */
-.table-search-badge { min-width: 20px; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: #ffffff; font-size: 12px; font-weight: 700; line-height: 1; }
-.table-search-toggle[aria-expanded="true"] .table-search-badge { background: #ffffff; color: var(--accent-text); }
-.table-search-panel { padding: 8px; border-radius: 18px; }
-.table-search-panel[hidden] { display: none; }
-/* One bar: status, filters and sorting side by side at one height. Where it does not fit, it scrolls sideways instead of
-   wrapping; the inner padding keeps focus rings clear of the scroll edge. */
-.table-search-bar { display: flex; align-items: center; gap: 6px; margin: -4px; padding: 4px; overflow-x: auto; scrollbar-width: thin; }
-.table-search-bar > * { flex: 0 0 auto; }
-/* Inside the light panel the controls sit on grey fills instead of glass (no glass in glass). */
-.table-search-panel .customer-filter { height: 38px; gap: 6px; padding: 0 4px 0 10px; background: var(--fill-tertiary); color: var(--label-secondary); }
-.table-search-panel .customer-filter select { height: 30px; max-width: none; padding: 0 6px; background: rgba(255, 255, 255, 0.8); font-size: 14px; }
-.table-search-panel .sort-control label { gap: 6px; }
-.table-search-panel .sort-direction { width: 30px; height: 30px; margin-left: 0; }
-.table-search-panel .segmented-control { width: auto; height: 38px; background: var(--fill-tertiary); border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.table-search-panel .segment { color: var(--label-body); }
-.table-search-panel .segment-count { background: rgba(118, 118, 128, 0.18); box-shadow: none; }
-/* Narrow phones: the toggle keeps icon, badge and arrow, so the search field keeps its room. */
-@media (max-width: 480px) {
-  .table-search-toggle { padding: 0 10px; }
-  .table-search-toggle-text { display: none; }
-}
 .sort-control label { display: inline-flex; align-items: center; gap: 8px; }
 .sort-direction { flex: 0 0 auto; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; border-radius: 50%; background: var(--fill-tertiary); color: var(--accent-text); }
 .sort-direction:hover { background: rgba(118, 118, 128, 0.26); }
@@ -612,43 +574,109 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .table-reset { margin: -6px -10px; padding: 6px 10px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--accent-text); }
 .table-reset:hover { background: var(--fill-tertiary); }
 
-/* Tables: every row is its own glass blob with rounded corners, with 4 px of background between the rows (6 px on phones).
-   The cells carry the background so the rows stay real table rows; one drop shadow follows all blobs. */
-.table-blobs { --row-bg: rgba(255, 255, 255, var(--glass-alpha)); --row-bg-hover: rgba(255, 255, 255, min(1, calc(var(--glass-alpha) + 0.14))); --row-radius: 14px; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.08)); }
-:root[data-reduce-transparency="true"] .table-blobs { --row-bg: #ffffff; --row-bg-hover: #ffffff; }
-@media (prefers-reduced-transparency: reduce) {
-  :root:not([data-reduce-transparency]) .table-blobs { --row-bg: #ffffff; --row-bg-hover: #ffffff; }
+/* Tables in the Studio look (OALab Studio on the service platform): one opaque sheet with a toolbar, hairlines between
+   the rows and groups as headings. The glass stays outside; on the opaque sheet the second text level can be lighter. */
+:root {
+  --sheet: #ffffff; --sheet-hover: #f8f5f6; --sheet-sunken: #faf8f7; --sheet-line: #e9e2e5; --sheet-divider: #f1ecee;
+  --sheet-muted: #6f626b; --sheet-icon: #b3a7ad; --sheet-seg: #f5f1f3; --sheet-select: rgba(126, 0, 75, 0.05);
+  --sheet-shadow: 0 0 0 1px rgba(30, 25, 28, 0.05), 0 1px 2px rgba(30, 25, 28, 0.08), 0 16px 36px rgba(20, 4, 14, 0.22);
 }
-.file-table, .project-table { width: 100%; margin: -4px 0; border-collapse: separate; border-spacing: 0 4px; text-align: left; color: var(--label-body); }
-.file-table th, .project-table th { padding: 9px 14px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); white-space: nowrap; background: var(--row-bg); }
-.file-table td, .project-table td { padding: 12px 14px; vertical-align: middle; font-size: 15px; line-height: 20px; background-color: var(--row-bg); transition: background-color 150ms ease; }
-.file-table th:first-child, .file-table td:first-child, .project-table th:first-child, .project-table td:first-child { padding-left: 20px; border-radius: var(--row-radius) 0 0 var(--row-radius); }
-.file-table th:last-child, .file-table td:last-child, .project-table th:last-child, .project-table td:last-child { border-radius: 0 var(--row-radius) var(--row-radius) 0; }
-.file-table tbody tr:hover td, .project-table tbody tr:hover td { background-color: var(--row-bg-hover); }
-/* Seven project columns: tighter cells and wrapping headers; where they still do not fit, the table scrolls sideways in its own box. */
-.table-blobs { overflow-x: auto; overflow-y: hidden; }
-.project-table th, .project-table td { padding-left: 8px; padding-right: 8px; }
-.project-table th:first-child, .project-table td:first-child { padding-left: 16px; }
-.project-table th, .project-table .sort-header { white-space: normal; text-align: left; }
-.project-table .cell-project, .project-table .cell-milestone { min-width: 130px; }
+.sheet { border-radius: 16px; background: var(--sheet); box-shadow: var(--sheet-shadow); color: var(--label-body); }
+/* Pages with a table may use more of the width, like Studio: up to 1240 px instead of 1040 px. */
+.hub-content:has(> .sheet) { max-width: 1240px; }
+/* From tablet width on, a sheet measures itself, so its table can drop details before it has to scroll (see below). */
+@media (min-width: 768px) {
+  .sheet { container: sheet / inline-size; }
+}
+.sheet-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; min-height: 52px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--sheet-line); }
+.sheet-search { display: inline-flex; align-items: center; gap: 7px; flex: 0 1 260px; min-width: 170px; height: 32px; margin-right: 6px; padding: 0 10px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.sheet-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 13.5px; color: var(--label); }
+.sheet-search input::placeholder { color: var(--sheet-muted); }
+.sheet-search:focus-within { box-shadow: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgba(126, 0, 75, 0.14); }
+.sheet-spacer { flex: 1 1 0; }
+.sheet-menu { position: relative; }
+.sheet-menu-button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--sheet-muted); white-space: nowrap; }
+.sheet-menu-button:hover, .sheet-menu-button[aria-expanded="true"] { background: var(--sheet-hover); color: var(--label); }
+.sheet-menu-value { margin-left: -6px; }
+.sheet-menu-value b { font-weight: 500; color: var(--label); }
+.sheet-toolbar.is-compact .sheet-menu-value { display: none; }
+.sheet-toolbar.is-compact .sheet-search { flex-basis: 220px; }
+.sheet-menu-badge { min-width: 18px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: #ffffff; font-size: 11px; font-weight: 700; }
+.sheet-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: max-content; min-width: 240px; max-width: min(340px, calc(100vw - 32px)); display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line), 0 16px 36px rgba(20, 4, 14, 0.18); }
+.sheet-pop[hidden] { display: none; }
+.sheet-pop.is-end { left: auto; right: 0; }
+.sheet-pop .customer-filter { width: 100%; height: 38px; gap: 8px; padding: 0 4px 0 10px; border-radius: 9px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.sheet-pop .customer-filter select { flex: 1; height: 30px; max-width: none; padding: 0 6px; border-radius: 7px; background: transparent; font-size: 14px; }
+.sheet-pop .sort-control label { flex: 1; min-width: 0; }
+.sheet-pop .sort-direction { width: 30px; height: 30px; margin-left: 2px; }
+.sheet-choices { display: grid; gap: 2px; }
+.sheet-choice { display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; font-size: 14px; color: var(--label-body); text-align: left; }
+.sheet-choice:hover { background: var(--sheet-hover); }
+.sheet-choice[aria-checked="true"] { color: var(--accent-text); font-weight: 600; background: rgba(126, 0, 75, 0.06); }
+/* Counts and tabs in the toolbar: the segmented control on the sheet instead of on glass. */
+.sheet-toolbar .segmented-control { width: auto; height: 30px; padding: 2px; border: 0; border-radius: 8px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet-toolbar .segment { gap: 6px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: var(--sheet-muted); }
+.sheet-toolbar .segment[aria-pressed="true"] { background: var(--sheet); color: var(--label); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); }
+.sheet-toolbar .segment-count, .sheet-toolbar .segment[aria-pressed="true"] .segment-count { min-width: 0; height: auto; padding: 0; background: none; box-shadow: none; color: var(--sheet-muted); font-size: 12.5px; font-weight: 500; }
+/* Actions on the sheet: small and calm; the main one in the gradient of the mails. */
+.sheet-action { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 8px; background: rgba(126, 0, 75, 0.06); box-shadow: inset 0 0 0 1px rgba(126, 0, 75, 0.18); color: var(--accent-text); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.sheet-action:hover { background: rgba(126, 0, 75, 0.1); }
+.sheet-action.is-primary { background: var(--accent-gradient); box-shadow: none; color: #ffffff; }
+.sheet-action.is-primary:hover { filter: brightness(0.94); }
+.sheet-action:disabled { opacity: 0.55; cursor: not-allowed; }
+.sheet-hint { padding: 10px 20px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; color: var(--sheet-muted); }
+.sheet-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px 8px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-select); }
+.sheet-selection strong { margin-right: 4px; font-size: 13px; font-weight: 600; color: var(--label); }
+.sheet-move select { height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13px; font-weight: 500; }
+.sheet-scroll { overflow-x: auto; }
+.sheet-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; min-height: 40px; padding: 8px 16px 8px 20px; font-size: 12px; color: var(--sheet-muted); }
+.sheet-empty { display: grid; justify-items: center; gap: 6px; padding: 28px 20px; border-bottom: 1px solid var(--sheet-divider); text-align: center; font-size: 14px; color: var(--sheet-muted); }
+.sheet-empty .table-reset { margin: 0; font-size: 14px; }
 
-/* User management (admins): registrations as cards, logins and customers as blob tables, dialogs. */
-.users-toolbar .users-summary { margin-right: auto; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--on-bg); }
-.users-toolbar .calendar-primary { margin-left: 0; }
-.registration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: var(--grid-gap); }
-.registration-card { display: flex; flex-direction: column; gap: 12px; }
-.registration-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.registration-head h3 { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
-.registration-head p { font-size: 14px; line-height: 19px; color: var(--label-secondary); overflow-wrap: anywhere; }
-.registration-facts { display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 20px; color: var(--label-body); }
-.registration-facts li { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-.registration-facts li > span:first-of-type, .registration-facts a { min-width: 0; overflow-wrap: anywhere; }
-.registration-facts svg { flex: 0 0 auto; margin-top: 3px; color: var(--label-secondary); }
-.registration-facts a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
-.registration-message span { white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--label-secondary); }
-.registration-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; }
-.registration-foot small { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
-.registration-foot .calendar-primary { margin-left: 0; min-height: 40px; padding: 0 16px; font-size: 15px; }
+/* Rows of 40 px with hairlines and no vertical lines; the sorted column's header is darker and shows its arrow. */
+.project-table, .file-table, .data-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 13px; line-height: 18px; color: var(--label-body); }
+:is(.project-table, .file-table, .data-table) th { height: 34px; padding: 0 10px; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--sheet-muted); white-space: nowrap; border-bottom: 1px solid var(--sheet-line); }
+:is(.project-table, .file-table, .data-table) td { height: 40px; padding: 6px 10px; vertical-align: middle; border-bottom: 1px solid var(--sheet-divider); transition: background-color 120ms ease; }
+:is(.project-table, .file-table, .data-table) :is(th, td):first-child { padding-left: 20px; }
+:is(.project-table, .file-table, .data-table) :is(th, td):last-child { padding-right: 16px; }
+:is(.project-table, .file-table, .data-table) tbody tr:not(.table-group, .table-empty-row, .table-add-row):hover td { background-color: var(--sheet-hover); }
+:is(.project-table, .file-table, .data-table) .sort-header { font-weight: 500; }
+:is(.project-table, .file-table, .data-table) .sort-header svg { opacity: 0; }
+:is(.project-table, .file-table, .data-table) th:hover .sort-header svg { opacity: 0.55; }
+:is(.project-table, .file-table, .data-table) .sort-header.is-active svg { opacity: 1; }
+
+/* Groups: a heading with chevron, symbol, name and count, a line below and space above. The chevron sits in the gutter,
+   so the symbol lines up with the symbols of the rows and the name with their titles. */
+.table-group th { height: 36px; padding: 0 12px 0 4px; border-bottom: 1px solid var(--sheet-line); font-size: 12.5px; font-weight: 600; color: var(--label); white-space: nowrap; }
+.table-group-body + .table-group-body > .table-group > th { border-top: 12px solid transparent; }
+.table-group-in { display: flex; align-items: center; gap: 8px; }
+.table-group-toggle { display: inline-flex; align-items: center; min-height: 30px; border-radius: 6px; color: inherit; font: inherit; }
+.table-group-chevron { flex: 0 0 auto; margin-right: 2px; color: var(--sheet-icon); transition: transform 160ms ease; }
+.table-group-toggle[aria-expanded="false"] .table-group-chevron { transform: rotate(-90deg); }
+.table-group-glyph { display: inline-flex; justify-content: center; flex: 0 0 auto; margin-right: 8px; color: var(--sheet-muted); }
+.table-group-count { margin-left: 6px; font-weight: 500; color: var(--sheet-muted); }
+.table-group-actions { display: inline-flex; gap: 2px; margin-left: auto; }
+.table-group-action { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--sheet-muted); }
+.table-group-action:hover { background: var(--sheet-hover); color: var(--accent-text); }
+.table-empty-row td { height: 40px; padding-left: 42px; font-size: 12.5px; color: var(--sheet-muted); }
+.table-add-row td { height: 40px; padding: 0 16px 0 20px; border-bottom: 0; }
+.table-add { display: inline-flex; align-items: center; gap: 8px; min-height: 30px; border-radius: 6px; font-size: 13px; color: var(--sheet-muted); }
+.table-add:hover { color: var(--accent-text); }
+.status-glyph { display: block; flex: 0 0 auto; }
+.status-glyph.tone-todo { color: var(--tone-todo-bar); }
+.status-glyph.tone-info { color: var(--tone-info-bar); }
+.status-glyph.tone-ok { color: var(--tone-ok-bar); }
+.status-glyph.tone-off { color: var(--tone-off-bar); }
+.status-glyph.tone-bad { color: var(--tone-bad-bar); }
+/* Files: the tick column leads, so the folder symbol stands over the file symbols and the name over the titles. */
+.file-table .table-group th { padding-left: 22px; }
+.file-table .table-group-chevron { margin-right: 18px; }
+.file-table .table-empty-row td { padding-left: 78px; }
+.file-table .table-add-row td { padding-left: 54px; }
+/* Logins: the avatar leads, the group symbol takes its width. */
+.user-table .table-group-glyph { width: 24px; }
+
+/* User management (admins): logins and customers on one sheet; dialogs below. */
 .confirm-badge { flex: 0 0 auto; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--tone-ok-bg); color: var(--tone-ok); font-size: 12px; line-height: 18px; font-weight: 600; }
 .confirm-badge.is-open { background: var(--tone-todo-bg); color: var(--tone-todo); }
 .suggestion { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(126, 0, 75, 0.07); color: var(--accent-text); font-size: 14px; line-height: 19px; font-weight: 600; }
@@ -657,32 +685,40 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .status-invited { color: var(--tone-info); background: var(--tone-info-bg); }
 .status-disabled { color: var(--tone-bad); background: var(--tone-bad-bg); }
 .status-rejected { color: var(--tone-off); background: var(--tone-off-bg); }
-.number-chip { display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 0 3px 0 9px; border-radius: 999px; background: var(--fill-tertiary); color: var(--label-body); font-size: 13px; font-weight: 600; white-space: nowrap; }
-.number-chip button { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--accent-text); }
-.number-chip button:hover { background: rgba(255, 255, 255, 0.8); }
-.data-table { width: 100%; margin: -4px 0; border-collapse: separate; border-spacing: 0 4px; text-align: left; color: var(--label-body); }
-.data-table th { padding: 9px 12px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); white-space: nowrap; background: var(--row-bg); }
-.data-table td { padding: 10px 12px; vertical-align: middle; font-size: 15px; line-height: 20px; background-color: var(--row-bg); transition: background-color 150ms ease; }
-.data-table th:first-child, .data-table td:first-child { padding-left: 16px; border-radius: var(--row-radius) 0 0 var(--row-radius); }
-.data-table th:last-child, .data-table td:last-child { border-radius: 0 var(--row-radius) var(--row-radius) 0; }
-.data-table tbody tr:hover td { background-color: var(--row-bg-hover); }
-.data-table tbody tr.is-muted td { background-image: linear-gradient(rgba(118, 118, 128, 0.12), rgba(118, 118, 128, 0.12)); color: var(--label-secondary); }
-.data-table .cell-number, .data-table .cell-role, .data-table .cell-status, .data-table .cell-login { white-space: nowrap; }
-.data-table .cell-login { font-size: 14px; color: var(--label-secondary); }
-.data-table .cell-logins { text-align: center; font-weight: 600; }
-.data-table .cell-action { width: 52px; text-align: right; }
-/* KI-Protokoll: the summary may wrap, everything else stays on one line */
+.number-chip { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 2px 0 8px; border-radius: 6px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.number-chip button { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; color: var(--sheet-muted); }
+.number-chip button:hover { background: var(--sheet); color: var(--accent-text); }
+.data-table .cell-person { min-width: 170px; }
+.data-table :is(.cell-number, .cell-status, .cell-login, .cell-time, .cell-mail) { white-space: nowrap; }
+.data-table :is(.cell-login, .cell-time, .cell-mail, .cell-packages, .cell-city) { color: var(--sheet-muted); }
+.mail-cell { display: flex; align-items: center; gap: 6px; max-width: 240px; }
+.mail-cell > span:first-child, .data-table .company-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.data-table .company-name { max-width: 190px; }
+.user-table .row-open strong { max-width: 200px; }
+.mail-cell .confirm-badge { margin-left: 0; }
+.data-table :is(.cell-logins, .col-count) { text-align: right; }
+.data-table .cell-action { width: 96px; text-align: right; white-space: nowrap; }
+.data-table tbody tr.is-muted td, .data-table tbody tr.is-muted .row-open strong { color: var(--sheet-muted); }
+.data-table tbody tr.is-muted .row-open strong { font-weight: 400; }
+/* AI log: the summary may wrap, everything else stays on one line. */
 .ai-log-table td { white-space: nowrap; }
-.ai-log-table .cell-target, .ai-log-table .cell-summary { white-space: normal; min-width: 150px; font-size: 14px; line-height: 19px; }
-.ai-log-table .cell-summary { min-width: 180px; }
+.ai-log-table .cell-target, .ai-log-table .cell-summary { white-space: normal; min-width: 150px; }
+.ai-log-table .cell-summary { min-width: 200px; color: var(--sheet-muted); }
 .ai-log-table .table-link { font-weight: 600; color: var(--accent-text); }
-.row-open { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; text-align: left; border-radius: 8px; }
-.row-open strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
-.row-open small { font-size: 13px; line-height: 18px; color: var(--label-secondary); overflow-wrap: anywhere; }
+.row-open { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; text-align: left; border-radius: 6px; color: var(--label); }
+.row-open strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .row-open:hover strong { color: var(--accent-text); }
+.hub-app .avatar.avatar-s { width: 24px; height: 24px; font-size: 11px; }
+.company-cell { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; white-space: nowrap; }
+.company-cell.is-hint { color: var(--sheet-muted); }
+.company-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: 0 0 auto; border-radius: 6px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font-size: 11px; font-weight: 700; }
+.role-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 11px; font-weight: 600; }
+.status-cell { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .self-badge { padding: 1px 7px; border-radius: 999px; background: rgba(126, 0, 75, 0.1); color: var(--accent-text); font-size: 11px; line-height: 16px; font-weight: 700; }
-.row-action { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--fill-tertiary); color: var(--accent-text); }
-.row-action:hover { background: rgba(118, 118, 128, 0.26); }
+.row-action { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--sheet-muted); }
+.row-action:hover { background: var(--sheet-hover); color: var(--accent-text); }
+.row-check { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; background: var(--accent-gradient); color: #ffffff; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.row-check:hover { filter: brightness(0.94); }
 .hub-modal.users-modal { width: min(640px, calc(100% - 32px)); }
 .users-modal form, .users-modal .decision, .role-customer { display: flex; flex-direction: column; gap: 14px; }
 .detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0 0 14px; padding: 14px; border-radius: 14px; background: var(--fill-tertiary); }
@@ -743,18 +779,29 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .account-details dt { font-size: 13px; line-height: 20px; color: var(--label-secondary); }
 .account-details dd { font-size: 15px; line-height: 20px; color: var(--label-body); overflow-wrap: anywhere; }
 .hub-legal-links { display: flex; justify-content: center; width: 100%; margin-top: 20px; font-size: 13px; color: var(--on-bg); }
-.cell-file { min-width: 220px; }
-.cell-file > svg { vertical-align: middle; margin-right: 10px; }
-.file-open { display: inline-flex; flex-direction: column; align-items: flex-start; max-width: calc(100% - 40px); vertical-align: middle; text-align: left; border-radius: 8px; }
-.file-open strong { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
-.file-open small { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+.file-table .cell-select { width: 44px; padding-right: 0; }
+.cell-select input { width: 16px; height: 16px; accent-color: var(--accent-text); cursor: pointer; vertical-align: middle; }
+.file-table tbody tr.is-selected td { background-color: var(--sheet-select); }
+.cell-file { min-width: 200px; max-width: 320px; }
+.file-open { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; text-align: left; border-radius: 6px; color: var(--label); }
+.file-open svg { flex: 0 0 auto; }
+.file-open strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .file-open:hover strong { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
-.cell-description span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 280px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
-.cell-format strong, .cell-format small { display: block; }
-.cell-format strong { font-size: 13px; font-weight: 600; }
-.cell-format small, .cell-date { font-size: 13px; color: var(--label-secondary); white-space: nowrap; }
-.cell-customers { min-width: 110px; }
-.cell-action { width: 56px; text-align: right; }
+.cell-description { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sheet-muted); }
+.cell-format, .cell-size, .cell-date { white-space: nowrap; color: var(--sheet-muted); }
+.col-size, .cell-size { text-align: right; }
+.cell-customers { white-space: nowrap; }
+.cell-action { width: 52px; text-align: right; }
+/* The category in the table: a dot in its colour and the name as plain text. */
+.file-dot { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.file-dot i { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 3px; background: var(--sheet-icon); }
+.file-dot-contract i { background: var(--accent-text); }
+.file-dot-offer i { background: var(--tone-todo-bar); }
+.file-dot-invoice i { background: var(--tone-ok-bar); }
+.file-dot-brand i { background: #af52de; }
+.file-dot-design i { background: #e0315a; }
+.file-dot-website i { background: #30b0c7; }
+.file-dot-documentation i { background: #5856d6; }
 .file-category { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .file-category-contract { color: #7e004b; background: rgba(126, 0, 75, 0.1); }
 .file-category-offer { color: #7f2100; background: rgba(255, 149, 0, 0.18); }
@@ -819,34 +866,6 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .upload-item-remove { flex: 0 0 32px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--label-secondary); }
 .upload-item-remove:hover { background: var(--fill-tertiary); color: var(--label); }
 
-/* Folders: one level per customer, chips above the table */
-.folder-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-.folder-chip, .folder-add { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 15px; font-weight: 600; transition: background 150ms ease, color 150ms ease; }
-.folder-chip { background: rgba(255, 255, 255, 0.2); color: var(--on-bg); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
-.folder-chip span { font-weight: 500; opacity: 0.85; }
-.folder-chip:hover { background: rgba(255, 255, 255, 0.32); }
-.folder-chip[aria-pressed="true"] { background: #ffffff; color: #000000; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
-.folder-chip[aria-pressed="true"] svg { color: var(--accent-text); }
-.folder-add { background: rgba(255, 255, 255, 0.85); color: var(--accent-text); }
-.folder-add:hover { background: #ffffff; }
-.folder-hint { margin: -2px 0 12px; color: var(--on-bg-soft); }
-.folder-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: -4px 0 12px; color: var(--on-bg); font-size: 15px; font-weight: 600; }
-.folder-actions > span { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; }
-.folder-actions button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 10px; border-radius: 999px; color: var(--on-bg); font-size: 13px; font-weight: 600; background: rgba(255, 255, 255, 0.16); }
-.folder-actions button:hover { background: rgba(255, 255, 255, 0.28); }
-
-/* Selection: download as ZIP, move to a folder */
-.selection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 12px; padding: 8px 8px 8px 16px; border-radius: 18px; }
-.selection-bar strong { font-size: 15px; color: var(--label); }
-.selection-download { width: auto; min-height: 40px; padding: 0 16px; font-size: 15px; }
-.selection-move select { height: 40px; max-width: 220px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--fill-tertiary); color: var(--label); font: inherit; font-size: 15px; font-weight: 600; }
-.selection-clear { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; border-radius: 999px; color: var(--accent-text); font-size: 14px; font-weight: 600; }
-.selection-clear:hover { background: var(--fill-tertiary); }
-.file-table .cell-select { width: 44px; padding-right: 0; }
-.cell-select input { width: 18px; height: 18px; accent-color: var(--accent-text); cursor: pointer; vertical-align: middle; }
-.file-table tbody tr.is-selected td { background-image: linear-gradient(rgba(126, 0, 75, 0.07), rgba(126, 0, 75, 0.07)); }
-.file-folder { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--accent-text); }
-
 .file-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; min-width: 0; }
 .file-detail-head .modal-file-icon { margin: 0; flex: 0 0 auto; }
 .file-detail-head strong, .file-detail-head small { display: block; overflow-wrap: anywhere; }
@@ -860,78 +879,78 @@ a.list-row:hover, button.list-row:hover { background: rgba(255, 255, 255, 0.4); 
 .file-assign-actions, .file-detail-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .file-assign-actions > *, .file-detail-actions > * { flex: 1 1 180px; }
 
-@media (max-width: 1100px) {
-  .file-table .col-description { display: none; }
+/* Narrower sheets (laptops, tablets): first the start date goes and the description gets less room, then the details. */
+@container sheet (max-width: 1040px) {
+  .sheet-search { flex-basis: 200px; }
+  .project-table .col-start { display: none; }
+  .cell-description { max-width: 200px; }
 }
-/* Phones: each row becomes a card (file and download on top, details below). */
+@container sheet (max-width: 900px) {
+  .sheet-menu-value { display: none; }
+  .file-table .col-description { display: none; }
+  .cell-deadline small { display: none; }
+}
+/* Phones: the tables become lists on the same sheet; groups stay as headings, the toolbar wraps, menus open at the bottom. */
 @media (max-width: 767px) {
   .upload-fields { grid-template-columns: 1fr; }
-  .selection-clear { margin-left: 0; }
-  /* Filters share a line two by two; sorting takes the full width under the search. */
-  /* The bar is wider than a phone: it fades out on the right to show that it can be swiped. */
-  .table-search-bar { padding-right: 32px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); scrollbar-width: none; }
-  .table-search-bar::-webkit-scrollbar { display: none; }
-  /* The row itself is the blob here; its cells drop their own background, corners and focus ring. */
-  .file-table, .project-table { margin: 0; }
-  .file-table tbody td, .project-table tbody td, .file-table tbody tr:hover td, .project-table tbody tr:hover td,
-  .project-table tbody tr.project-row.is-done td, .file-table tbody tr.is-selected td,
-  .project-row:has(.project-card:focus-visible) td, .project-row:has(.project-card:focus-visible) td:first-child, .project-row:has(.project-card:focus-visible) td:last-child { background: none; border-radius: 0; box-shadow: none; }
-  .file-table tbody tr, .project-table tbody tr { margin-top: 6px; border-radius: 16px; background-color: var(--row-bg); transition: background-color 150ms ease; }
-  .file-table tbody tr:first-child, .project-table tbody tr:first-child { margin-top: 0; }
-  .file-table tbody tr:hover, .project-table tbody tr:hover { background-color: var(--row-bg-hover); }
-  .project-table tbody tr.project-row.is-done { background-image: linear-gradient(rgba(118, 118, 128, 0.14), rgba(118, 118, 128, 0.14)); }
-  .file-table tbody tr.is-selected { background-image: linear-gradient(rgba(126, 0, 75, 0.07), rgba(126, 0, 75, 0.07)); }
-  .project-row:has(.project-card:focus-visible) { box-shadow: inset 0 0 0 3px var(--accent-text); }
-  .file-table thead { display: none; }
-  .file-table, .file-table tbody { display: block; }
-  .file-table tr.file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 12px 16px; }
-  .file-table td { display: block; padding: 0; border: 0; }
-  .file-table td:first-child { padding-left: 0; }
-  .file-table .cell-file { order: 1; flex: 1 1 0; min-width: 0; display: flex; align-items: center; }
-  .file-table .cell-file > svg { flex: 0 0 auto; }
-  .file-open { max-width: 100%; min-width: 0; }
-  .file-open small { max-width: 100%; }
-  .file-table .cell-action { order: 2; width: auto; }
-  .file-table .cell-select { order: 0; width: auto; }
-  .file-table .cell-category { order: 3; margin-left: 58px; }
-  .file-table .cell-format, .file-table .cell-date, .file-table .cell-customers { order: 4; }
-  .cell-format strong, .cell-format small { display: inline; }
-  .cell-format small { margin-left: 4px; }
-  .file-table tr.file-row > .cell-category { flex-basis: auto; }
-  .file-table tr.file-row::after { content: ""; order: 2; flex-basis: 100%; height: 0; }
-  /* Projects: title and status on top, milestone and progress below. */
-  .project-table thead { display: none; }
-  .project-table, .project-table tbody { display: block; }
-  .project-table tr.project-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding: 14px 16px; }
-  .project-table td { display: block; padding: 0; border: 0; }
-  .project-table td:first-child { padding-left: 0; }
-  .project-table .cell-area { order: 0; flex-basis: 100%; margin-bottom: -6px; }
-  /* Customer and area share the first line: "Nordlicht Studio · Brand Identity". */
-  .project-table .cell-customer { order: 0; min-width: 0; margin-bottom: -6px; font-size: 13px; line-height: 18px; }
-  .project-table .cell-customer + .cell-area { flex: 1 1 0; min-width: 0; }
-  .project-table .cell-customer + .cell-area::before { content: "· "; }
-  .project-table .cell-project { order: 1; flex: 1 1 0; min-width: 0; }
-  .project-table .cell-status { order: 2; }
-  .project-table .cell-milestone, .project-table .cell-start, .project-table .cell-deadline, .project-table .cell-progress { order: 3; flex-basis: 100%; }
-  .project-table .cell-start { margin-bottom: -4px; font-size: 13px; color: var(--label-secondary); }
-  .cell-start-label { display: inline; }
-  .project-table .cell-deadline { display: flex; align-items: center; gap: 8px; }
-  .project-table .cell-deadline small { margin-top: 0; }
-  .project-table .progress-line .list-progress { flex: 1; width: auto; }
-  /* User management tables: name and edit button on top, the other facts as one wrapped line below. */
-  .data-table thead { display: none; }
-  .data-table, .data-table tbody { display: block; margin: 0; }
-  .data-table tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; padding: 12px 12px 12px 14px; border-radius: 16px; background-color: var(--row-bg); }
-  .data-table tbody tr:first-child { margin-top: 0; }
-  .data-table tbody tr.is-muted { background-image: linear-gradient(rgba(118, 118, 128, 0.12), rgba(118, 118, 128, 0.12)); }
-  .data-table tbody td, .data-table tbody td:first-child, .data-table tbody tr:hover td, .data-table tbody tr.is-muted td { display: block; padding: 0; background: none; border-radius: 0; font-size: 13px; }
-  .data-table .cell-person { order: 0; flex: 1 1 0; min-width: 0; }
-  .data-table .cell-action { order: 1; width: auto; }
-  .data-table tbody tr::after { content: ""; order: 1; flex-basis: 100%; height: 0; }
-  .data-table td:not(.cell-person):not(.cell-action) { order: 2; }
-  .user-table .cell-login::before { content: "Letzter Login: "; }
-  .data-table .cell-logins::before { content: "Logins: "; font-weight: 400; }
   .detail-list { grid-template-columns: 1fr; }
+  .sheet { border-radius: 14px; }
+  .sheet-toolbar { padding: 10px 12px; }
+  .sheet-search { flex: 1 1 100%; margin-right: 0; }
+  .sheet-menu-value { display: none; }
+  .sheet-pop, .sheet-pop.is-end { position: fixed; left: 12px; right: 12px; top: auto; bottom: calc(108px + env(safe-area-inset-bottom)); width: auto; max-width: none; z-index: 70; }
+  .sheet-scroll { overflow: visible; }
+  .sheet-selection { padding-left: 14px; }
+  .sheet-footer { padding: 8px 14px; }
+  :is(.project-table, .file-table, .data-table), :is(.project-table, .file-table, .data-table) tbody { display: block; }
+  :is(.project-table, .file-table, .data-table) thead { display: none; }
+  .table-group, .table-group th { display: block; }
+  .table-group th, .file-table .table-group th { height: auto; padding: 8px 14px 6px 4px; }
+  .sheet .file-table .table-group-chevron { margin-right: 2px; }
+  .table-empty-row, .table-empty-row td, .table-add-row, .table-add-row td { display: block; height: auto; }
+  .table-empty-row td, .file-table .table-empty-row td { padding: 10px 14px 10px 42px; }
+  .table-add-row td, .file-table .table-add-row td { padding: 8px 14px; }
+  :is(.project-table, .file-table, .data-table) tbody tr:not(.table-group, .table-empty-row, .table-add-row) { padding: 11px 14px; border-bottom: 1px solid var(--sheet-divider); transition: background-color 120ms ease; }
+  :is(.project-table, .file-table, .data-table) tbody tr:not(.table-group, .table-empty-row, .table-add-row):hover { background-color: var(--sheet-hover); }
+  :is(.project-table, .file-table, .data-table) tbody tr:not(.table-group, .table-empty-row, .table-add-row) td,
+  :is(.project-table, .file-table, .data-table) tbody tr:not(.table-group, .table-empty-row, .table-add-row) td:first-child { display: block; height: auto; padding: 0; border: 0; background: none; box-shadow: none; }
+  /* Projects: title and date on top, area and milestone below, then the progress across the row. */
+  .sheet .project-table tr.project-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "customer customer" "title due" "area area" "milestone milestone" "progress progress"; column-gap: 12px; row-gap: 2px; align-items: center; }
+  .sheet .project-table .cell-customer { grid-area: customer; font-size: 12px; color: var(--sheet-muted); }
+  .sheet .project-table .cell-project { grid-area: title; }
+  .sheet .project-table .cell-project .project-card { font-size: 15px; line-height: 20px; }
+  .sheet .project-table .cell-deadline { grid-area: due; text-align: right; }
+  .sheet .project-table .cell-deadline small { display: block; margin: 0; }
+  .sheet .project-table .cell-area, .sheet .project-table .cell-milestone { max-width: none; padding-left: 22px; font-size: 13px; color: var(--sheet-muted); }
+  .sheet .project-table .cell-area { grid-area: area; }
+  .sheet .project-table .cell-milestone { grid-area: milestone; }
+  .sheet .project-table .cell-status, .sheet .project-table .cell-start { display: none; }
+  .sheet .project-table .cell-progress { grid-area: progress; margin-top: 4px; padding-left: 22px; text-align: left; }
+  .sheet .project-table .progress-line { display: flex; }
+  .sheet .project-table .progress-line .list-progress { flex: 1; width: auto; }
+  .sheet .project-row:has(.project-card:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent-text); }
+  /* Files: tick, title and download on top, category and facts below. */
+  .sheet .file-table tr.file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+  .sheet .file-table .cell-select { order: 0; width: auto; }
+  .sheet .file-table .cell-file { order: 1; flex: 1 1 0; min-width: 0; max-width: none; }
+  .sheet .file-table .cell-action { order: 2; width: auto; }
+  .sheet .file-table tr.file-row::after { content: ""; order: 3; flex-basis: 100%; height: 0; }
+  .sheet .file-table :is(.cell-category, .cell-format, .cell-size, .cell-date, .cell-customers) { order: 4; font-size: 12.5px; }
+  .sheet .file-table .cell-category { margin-left: 26px; }
+  .sheet .file-table .cell-description { display: none; }
+  .sheet .file-table tbody tr.is-selected { background-color: var(--sheet-select); }
+  /* Logins, customers, AI log: name and action on top, the other facts as one wrapped line below. */
+  .sheet .data-table tbody tr:not(.table-group, .table-empty-row, .table-add-row) { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+  .sheet .data-table .cell-person { order: 0; flex: 1 1 0; min-width: 0; }
+  .sheet .data-table .cell-action { order: 1; width: auto; }
+  .sheet .data-table tbody tr::after { content: ""; order: 1; flex-basis: 100%; height: 0; }
+  .sheet .data-table td:not(.cell-person):not(.cell-action) { order: 2; font-size: 12.5px; }
+  .sheet .data-table .cell-mail { flex-basis: 100%; }
+  .sheet .data-table .mail-cell { max-width: none; }
+  .sheet .data-table :is(.cell-number, .cell-company):has(> .cell-none) { display: none; }
+  .sheet .user-table .cell-login::before { content: "Letzter Login: "; }
+  .sheet .data-table .cell-logins::before { content: "Konten: "; }
+  .sheet .ai-log-table .cell-summary { flex-basis: 100%; min-width: 0; }
 }
 
 /* Assistant chat behind "Assistent & Hilfe": messages scroll, the input stays at the bottom */
