@@ -35,7 +35,7 @@ export function LargeTitleHeader({ title, date, actions, leading, icon }: { titl
           </div>
           <div className="large-title-actions">
             {actions}
-            <Link href={hubHref(preview, "settings")} className="glass glass-float mobile-avatar" aria-label="Profil & Darstellung">{initials}</Link>
+            <Link href={hubHref(preview, "settings")} className="glass glass-float mobile-avatar" aria-label="Profil">{initials}</Link>
           </div>
         </div>
       </header>

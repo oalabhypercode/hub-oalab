@@ -65,7 +65,7 @@ export const PROPOSE_PROJECT_UPDATE_TOOL: Anthropic.Beta.BetaTool = {
 
 export const PROPOSE_TASK_UPDATES_TOOL: Anthropic.Beta.BetaTool = {
   name: "propose_task_updates",
-  description: "Schlägt Änderungen an bestehenden Aufgaben eines Projekts vor: Titel, Stand, Fälligkeit, ob OALAB oder der Kunde dran ist, Freigabe für den Kunden. Dabei wird nichts gespeichert: Der Nutzer sieht alt → neu je Aufgabe und speichert selbst. Aufgaben über ihre Nummer aus get_project oder list_tasks angeben; nur ändern, was der Nutzer verlangt, alles andere auf keep.",
+  description: "Schlägt Änderungen an bestehenden Aufgaben eines Projekts vor: Titel, Stand, Fälligkeit, ob oalab oder der Kunde dran ist, Freigabe für den Kunden. Dabei wird nichts gespeichert: Der Nutzer sieht alt → neu je Aufgabe und speichert selbst. Aufgaben über ihre Nummer aus get_project oder list_tasks angeben; nur ändern, was der Nutzer verlangt, alles andere auf keep.",
   input_schema: {
     type: "object",
     properties: {
@@ -243,7 +243,7 @@ export function taskChangeLines(change: TaskChange): ChangeLine[] {
   if (after.title !== undefined) lines.push({ label: "Titel", before: before.title, after: after.title });
   if (after.status !== undefined) lines.push({ label: "Stand", before: taskStatusLabels[before.status], after: taskStatusLabels[after.status] });
   if (after.dueOn !== undefined) lines.push({ label: "Fällig", before: showDate(before.dueOn), after: showDate(after.dueOn) });
-  if (after.customer !== undefined) lines.push({ label: "Dran ist", before: before.customer ? "Kunde" : "OALAB", after: after.customer ? "Kunde" : "OALAB" });
+  if (after.customer !== undefined) lines.push({ label: "Dran ist", before: before.customer ? "Kunde" : "oalab", after: after.customer ? "Kunde" : "oalab" });
   if (after.visible !== undefined) lines.push({ label: "Freigabe", before: before.visible ? "für Kunde sichtbar" : "intern", after: after.visible ? "für Kunde sichtbar" : "intern" });
   return lines;
 }

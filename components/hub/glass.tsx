@@ -13,6 +13,11 @@ export function CategoryIcon({ category, size = 17 }: { category: CategoryId; si
   return <Icon className="category-icon" size={size} color={fill} strokeWidth={2.2} aria-hidden="true" />;
 }
 
+/** The white tile next to a page title, for pages without a category colour (the accent instead). */
+export function TitleIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return <span className="title-icon"><Icon size={24} color="var(--accent-text)" aria-hidden="true" /></span>;
+}
+
 /** Round (icon) or capsule (text) glass button. Icon-only buttons need a label. */
 export function GlassButton({ icon: Icon, label, children, badge = false, className = "", ...rest }: { icon?: LucideIcon; label?: string; badge?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (

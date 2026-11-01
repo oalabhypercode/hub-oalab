@@ -9,9 +9,10 @@ import { customerSteps } from "@/lib/hub-projects/map";
 import { metricOrder, type MetricId } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
 import { HighlightCard, InsightsCard, MetricCard, MetricCardStatic, ServiceCard, WelcomeCard } from "../cards";
-import { CategoryIcon, GlassCard, SectionHeader, SectionLink } from "../glass";
+import { CategoryIcon, GlassCard, SectionHeader, SectionLink, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
+import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
 import type { ScreenProps } from "./types";
 
@@ -22,7 +23,7 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
 
   return (
     <>
-      <LargeTitleHeader title="Übersicht" date={model.dateLine} actions={<HeaderActions />} />
+      <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
       <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} /><ServiceCard account={account} /></div>
       {populated ? <>
         {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
@@ -114,7 +115,7 @@ export function LoadNotice({ text }: { text: string }) {
 export function InsightsScreen({ model, preview, populated, admin }: ScreenProps) {
   return (
     <>
-      <LargeTitleHeader title="Insights" date={model.dateLine} actions={<HeaderActions />} />
+      <LargeTitleHeader title="Insights" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.insights!} />} actions={<HeaderActions />} />
       {populated && model.insight ? <>
         <div className="section-first"><InsightsCard insight={model.insight} /></div>
         <SectionHeader title="Highlights" />

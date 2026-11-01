@@ -50,7 +50,7 @@ export function getDemoData(access: DemoAccess, displayName: string): HubDemoDat
   const account = blueprint.accounts.find((item) => item.role === access.role && item.workspace === access.workspace);
   return {
     name: displayName || account?.name || "Dein Testkonto",
-    company: access.role === "oalab_admin" ? "OALAB Administration" : workspaceContent[access.workspace].company,
+    company: access.role === "oalab_admin" ? "oalab Administration" : workspaceContent[access.workspace].company,
     customerNumber: access.role === "oalab_admin" ? null : workspaceContent[access.workspace].customerNumber,
     servicePackages: access.role === "oalab_admin" ? [] : workspaceContent[access.workspace].servicePackages,
     role: access.role,

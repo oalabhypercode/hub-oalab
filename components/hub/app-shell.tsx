@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageSquare, Search } from "lucide-react";
+import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageCircleQuestion, MessageSquare, Search } from "lucide-react";
 import { signOutAction } from "@/lib/hub-auth/actions";
 import { categories } from "@/lib/categories";
 import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
@@ -72,7 +72,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const files = preview ? previewFiles : demoData?.files || [];
   const hasDemo = preview || Boolean(demoData);
   // Demo accounts carry no banner; the role and the kind of demo stay visible in the logout tooltip.
-  const accountLabel = preview ? "Designvorschau" : demoData ? `${demoData.role === "oalab_admin" ? "OALAB Admin" : "OALAB Customer"} · ${publicDemo ? "Öffentliche Demo" : "Demo"}` : "Angemeldet";
+  const accountLabel = preview ? "Designvorschau" : demoData ? `${demoData.role === "oalab_admin" ? "oalab-Admin" : "Kunde"} · ${publicDemo ? "Öffentliche Demo" : "Demo"}` : "Angemeldet";
   const words = name.trim().split(/\s+/).filter(Boolean);
   const initials = preview ? previewAccount.initials : (words.length > 1 ? words[0][0] + words[words.length - 1][0] : name.slice(0, 2)).toUpperCase();
   const account: HubAccount = {
@@ -170,8 +170,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
           <div className="hub-main">
             <div className="hub-topbar">
               {/* Below 1024 px the sidebar (and its logo) is hidden, so the brand sits in the top row. */}
-              <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-name" aria-hidden="true">oalab</span></Link>
-              {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zum Login <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
+              <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
+              {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
             </div>
             <main className="hub-content" id="main-content">{children}</main>
           </div>
@@ -184,7 +184,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
               {sectionResults.map((key) => <Link key={key} href={hubHref(preview, key)} onClick={closeSearch}><LayoutGrid size={18} aria-hidden="true" /><span>{sectionLabel(key, account.admin)}</span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {metricResults.map((id) => <Link key={id} href={metricHref(preview, id)} onClick={closeSearch}><CategoryIcon category={metricMeta[id].category} size={18} /><span>{metricMeta[id].name}<small>Kennzahl</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {projectResults.map((project) => <Link key={project.id} href={`${hubHref(preview, "projects")}?project=${project.id}`} onClick={closeSearch}><FolderOpen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{project.category || project.name}<small>{project.company ? `${project.company} · ` : ""}{project.category ? project.name : "Projekt"}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
-              {term && !sectionResults.length && !metricResults.length && !projectResults.length && <p className="t-subheadline t-secondary">Keine Ergebnisse für „{query}“.</p>}
+              {term && !sectionResults.length && !metricResults.length && !projectResults.length && <p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p>}
             </div>
           </Modal>
         )}
@@ -213,6 +213,6 @@ export function HeaderActions() {
   const { openPanel, unread } = useHubShell();
   return <>
     <GlassButton icon={Bell} label="Benachrichtigungen" badge={unread} onClick={() => openPanel("notifications")} />
-    <GlassButton icon={MessageSquare} label="Assistent & Hilfe" onClick={() => openPanel("help")} />
+    <GlassButton icon={MessageCircleQuestion} label="Assistent & Hilfe" onClick={() => openPanel("help")} />
   </>;
 }

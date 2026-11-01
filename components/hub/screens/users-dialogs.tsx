@@ -317,7 +317,7 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
     : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choice), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Konto für ${person.firstName} ${person.lastName} angelegt.`); });
 
   return (
-    <Modal title={user ? fullName(user) : "Benutzer anlegen"} onClose={onClose} className="users-modal">
+    <Modal title={user ? fullName(user) : "Konto anlegen"} onClose={onClose} className="users-modal">
       {user && <p className="modal-description">{user.email} · <span className={`project-status status-${user.displayStatus}`}><i aria-hidden="true" />{displayStatusLabels[user.displayStatus]}</span>{user.lastSignInAt ? ` · zuletzt angemeldet ${formatFileDateTime(user.lastSignInAt)}` : " · noch nie angemeldet"}</p>}
       {locked && <p className="field-warning"><AlertTriangle size={16} aria-hidden="true" />Demo-Konto: wird per Seed verwaltet und ist hier schreibgeschützt.</p>}
       <form className="user-form" onSubmit={(event) => { event.preventDefault(); save(); }}>

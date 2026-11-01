@@ -49,7 +49,8 @@ Der Client Hub nutzt die Designsprache Liquid Glass: Ein kräftiger Hintergrund 
 
 - **Hintergrund:** Standard ist das Preset „oalab“ mit Grundfarbe `#3A0624` und den Farbflächen Bordeaux `#7E004B`, Rot `#8F1D21` und Orange `#B4400F`. Weitere Presets und alle Grenzwerte stehen ausschließlich in `lib/appearance.ts`. Weißer Text erreicht auf jeder Preset-Farbe mindestens 4,5:1. Bei sehr hellen eigenen Farben wechselt der Text auf dem Hintergrund automatisch auf Schwarz.
 - **Glas:** Weiß mit 80 % Deckkraft (einstellbar 70–95 %), 24 px Unschärfe (8–40 px). Glas wird nie auf Glas gestapelt.
-- **Akzent:** Links, aktive Navigation, Auswahlringe und Fokusrahmen verwenden Bordeaux. Der Fokus ist ein weißer Ring mit Bordeaux-Außenring und damit auf Glas und Hintergrund sichtbar.
+- **Akzent:** Links, aktive Navigation, Auswahlringe, Schalter, Häkchen, der heutige Tag im Kalender und Fokusrahmen verwenden Bordeaux. Der Fokus ist ein weißer Ring mit Bordeaux-Außenring und damit auf Glas und Hintergrund sichtbar. Hauptbuttons tragen den Verlauf der Hub-Mails (`--accent-gradient`, Bordeaux nach `#9B1440`).
+- **Töne:** Status, Hinweise und Fehler nutzen fünf Töne mit denselben Werten wie die Hub-Mails: Zu tun (Orange), Zur Info (Blau), Erledigt (Grün), Aus (Grau), Problem (Rot), jeweils mit Hintergrund, Textfarbe und einem Balken links für Hinweise (`--tone-*` in `app/glass.css`). Feste Farbwerte für Zustände gibt es nicht mehr.
 - **Kategorien:** Jede Kategorie hat genau eine Farbe, die bei Icon, Kartentitel und Diagramm wiederkehrt. Flächen und Icons nutzen die Fill-Farbe, farbiger Text die abgedunkelte Text-Farbe aus `lib/categories.ts`. Diese erreicht auf 70 % Glas über jedem Hintergrund 4,5:1.
 - **Zahlen:** Kennzahlen stehen groß in `ui-rounded` (auf Apple-Geräten SF Pro Rounded, sonst Inter), die Einheit klein und halbfett dahinter. Inter bleibt die Schrift für alle übrigen Texte.
 

@@ -37,7 +37,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
       <div className="sidebar-brand">
         <Link href={hubHref(preview)} className="sidebar-brand-link" aria-label="oalab Client Hub – Übersicht">
           <span className="brand-tile"><BrandLogo /></span>
-          <span><strong>Client Hub</strong><span>oalab</span></span>
+          <span><strong>oalab</strong><span>Client Hub</span></span>
         </Link>
       </div>
       <button className="sidebar-search" onClick={onSearch}><Search size={16} aria-hidden="true" /><span>Suchen</span><kbd>⌘K</kbd></button>
@@ -49,7 +49,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           <chatNavigation.icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{chatNavigation.label}</span>
           <ArrowUpRight size={16} className="sidebar-external" aria-hidden="true" /><span className="visually-hidden"> (öffnet in neuem Tab)</span>
         </a>
-        <span className="sidebar-caption">Kategorien</span>
+        <span className="sidebar-caption">Bereiche</span>
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
         {categoryOrder.map((id) => {
           const Icon = categories[id].icon;
@@ -82,8 +82,8 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         </Link>
         {/* Standalone icon buttons on the name line; the package line runs underneath them. */}
         <div className="sidebar-profile-actions">
-          <Link href={hubHref(preview, "settings")} className="sidebar-icon-button sidebar-settings-button" aria-label="Profil & Darstellung" title="Profil & Darstellung"><Settings size={18} strokeWidth={2.2} aria-hidden="true" /></Link>
-          <button className="sidebar-icon-button" aria-label={preview ? "Vorschau verlassen" : "Abmelden"} title={preview ? "Zum Login" : `Abmelden (${accountLabel})`} onClick={signOut} disabled={signingOut}>{signingOut ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <LogOut size={18} aria-hidden="true" />}</button>
+          <Link href={hubHref(preview, "settings")} className="sidebar-icon-button sidebar-settings-button" aria-label="Profil" title="Profil"><Settings size={18} strokeWidth={2.2} aria-hidden="true" /></Link>
+          <button className="sidebar-icon-button" aria-label={preview ? "Vorschau verlassen" : "Abmelden"} title={preview ? "Zur Anmeldung" : `Abmelden (${accountLabel})`} onClick={signOut} disabled={signingOut}>{signingOut ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <LogOut size={18} aria-hidden="true" />}</button>
         </div>
       </div>
       {logoutError && <p role="alert" className="form-error">{logoutError}</p>}

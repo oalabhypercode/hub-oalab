@@ -56,12 +56,12 @@ export function AppointmentDetailDialog({ appointment, store, onClose, onEdit }:
       <dl className="file-details">
         {canManage && <div><dt>Kunde</dt><dd>{customerLabel(appointment)}</dd></div>}
         <div className="file-details-block"><dt>{appointment.status === "requested" && !canManage ? "Deine Nachricht" : "Beschreibung"}</dt><dd>{appointment.description || "Keine Beschreibung hinterlegt."}</dd></div>
-        {appointment.responseNote && <div className="file-details-block"><dt>Hinweis von OALAB</dt><dd>{appointment.responseNote}</dd></div>}
+        {appointment.responseNote && <div className="file-details-block"><dt>Hinweis von oalab</dt><dd>{appointment.responseNote}</dd></div>}
         {appointment.status === "confirmed" && (
-          <div className="file-details-block"><dt>Microsoft Teams</dt><dd>{appointment.teamsUrl ? <TeamsJoin appointment={appointment} /> : canManage ? "Noch kein Teams-Link hinterlegt." : "Den Teams-Link ergänzt dein OALAB-Team."}</dd></div>
+          <div className="file-details-block"><dt>Microsoft Teams</dt><dd>{appointment.teamsUrl ? <TeamsJoin appointment={appointment} /> : canManage ? "Noch kein Teams-Link hinterlegt." : "Den Teams-Link ergänzt dein oalab-Team."}</dd></div>
         )}
       </dl>
-      {appointment.status === "requested" && !canManage && <p className="t-footnote t-secondary appointment-note">Dein OALAB-Team bestätigt die Anfrage oder schlägt eine andere Zeit vor. Erst dann ist der Termin fest.</p>}
+      {appointment.status === "requested" && !canManage && <p className="t-footnote t-secondary appointment-note">Dein oalab-Team bestätigt die Anfrage oder schlägt eine andere Zeit vor. Erst dann ist der Termin fest.</p>}
       {appointment.sample && <p className="t-footnote t-secondary appointment-note">Fiktiver Beispieltermin für die Demo.</p>}
 
       {closing && (
@@ -190,12 +190,12 @@ export function RequestDialog({ store, day: initialDay, start: initialStart, onC
     const result = await store.request({ title, description, day, start: chosen, minutes });
     setSending(false);
     if (!result.ok) { setError(result.error); return; }
-    onSent(`Deine Anfrage „${title.trim()}“ ist bei OALAB. Du siehst hier, sobald sie bestätigt ist.`);
+    onSent(`Deine Anfrage „${title.trim()}“ ist bei oalab. Du siehst hier, sobald sie bestätigt ist.`);
   }
 
   return (
     <Modal title="Termin anfragen" onClose={onClose}>
-      <p className="modal-description">Wähle einen freien Zeitraum. Dein OALAB-Team bestätigt den Termin und hinterlegt den Teams-Link.</p>
+      <p className="modal-description">Wähle einen freien Zeitraum. Dein oalab-Team bestätigt den Termin und hinterlegt den Teams-Link.</p>
       <form onSubmit={submit} className="upload-form">
         <div className="upload-fields">
           <label className="upload-field"><span>Datum</span><input type="date" value={day} min={dayOf(store.now)} max={lastDay} onChange={(event) => setDay(event.target.value)} required disabled={sending} /></label>

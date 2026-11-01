@@ -1,7 +1,18 @@
-import { LayoutGrid, MessageCircleMore, Sparkles, type LucideIcon } from "lucide-react";
+import { Bot, LayoutGrid, MessageCircleMore, ScrollText, Search, Sparkles, UserCog, UserRound, type LucideIcon } from "lucide-react";
 import { categories, categoryOrder } from "@/lib/categories";
 import type { HubSection } from "@/lib/hub-data";
 import { SERVICE_PLATFORM_URL } from "@/lib/service-packages";
+
+/** The symbol in the title of every page without a category colour; the same symbols as in the sidebar. */
+export const sectionIcons: Partial<Record<HubSection, LucideIcon>> = {
+  overview: LayoutGrid,
+  insights: Sparkles,
+  discover: Search,
+  settings: UserRound,
+  users: UserCog,
+  "ai-log": Bot,
+  "patch-notes": ScrollText,
+};
 
 export type NavigationItem = { section: HubSection; label: string; icon: LucideIcon };
 

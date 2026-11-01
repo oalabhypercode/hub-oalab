@@ -75,7 +75,7 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
   },
   {
     name: "get_project",
-    description: "Ein Projekt mit Kunde, Status, Fortschritt, Start, Zieltermin, Beschreibung, Meilensteinen und allen Aufgaben (Stand, Fälligkeit, ob OALAB oder der Kunde dran ist, ob für den Kunden freigegeben).",
+    description: "Ein Projekt mit Kunde, Status, Fortschritt, Start, Zieltermin, Beschreibung, Meilensteinen und allen Aufgaben (Stand, Fälligkeit, ob oalab oder der Kunde dran ist, ob für den Kunden freigegeben).",
     input_schema: {
       type: "object",
       properties: { project_id: { type: "string", description: "ID aus search, get_customer oder dem geöffneten Projekt." } },
@@ -111,7 +111,7 @@ const taskJson = (task: ProjectTask, project?: Project) => ({
   title: task.title,
   status: statusLabels[task.status],
   due: task.dueOn,
-  owner: task.customer ? "Kunde" : "OALAB",
+  owner: task.customer ? "Kunde" : "oalab",
   released_to_customer: task.visible,
   ...(project ? { project: project.name, project_id: project.id, customer: project.company ?? null } : {}),
 });

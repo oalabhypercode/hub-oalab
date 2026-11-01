@@ -687,7 +687,7 @@ const NOTICE_VIEWS: Record<string, NoticeView> = {
   "appointment.declined": { area: "calendar", label: "Terminanfrage", prefix: "Terminanfrage abgelehnt: ", heading: "Deine Terminanfrage wurde abgelehnt", lead: "Dein oalab-Team kann den angefragten Termin leider nicht wahrnehmen.", cta: "Neuen Termin anfragen", link: "Kalender öffnen", chip: ["Abgelehnt", "off"], note: { tone: "info", text: "Frag gern einen anderen Termin im Kalender an oder antworte einfach auf diese E-Mail." } },
 };
 const OTHER_NOTICE: NoticeView = { area: "news", label: "Neuigkeit", prefix: "", heading: "Neu im Client Hub", lead: "Im Client Hub gibt es etwas Neues für dich.", cta: "Im Client Hub ansehen", link: "Ansehen", note: { tone: "info", text: "Mehr dazu findest du im Client Hub." } };
-const NOTICE_REASON = "Du bekommst diese E-Mail, weil im oalab Client Hub etwas für dich neu ist. Abschalten kannst du sie unter „Profil & Zugang“.";
+const NOTICE_REASON = "Du bekommst diese E-Mail, weil im oalab Client Hub etwas für dich neu ist. Abschalten kannst du sie im Hub unter „Profil“.";
 
 /**
  * To a customer: what is new for them in the hub (lib/hub-notify). One notice comes as a mail of its own (headline by

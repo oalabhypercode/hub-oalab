@@ -91,5 +91,5 @@ export const replies = {
   inactive: "Dein Zugang zum oalab Client Hub ist gerade nicht aktiv, deshalb kann ich hier keine Fragen beantworten. Mit „TEAM“ erreichst du dein oalab-Team.",
   limit: `Für heute sind die ${DAILY_QUESTION_LIMIT} Fragen über WhatsApp aufgebraucht. Morgen geht es weiter; im Client Hub hilft dir der Assistent jederzeit über „Assistent & Hilfe“.`,
   unavailable: "Der Assistent ist gerade nicht erreichbar. Bitte versuche es später noch einmal oder schreib „TEAM“ für den direkten Kontakt.",
-  team: (contact: string) => `Gern verbinde ich dich mit einem Menschen: Schreib dem OALAB-Team an ${contact}. Wir melden uns so schnell wie möglich.`,
+  team: (contact: string) => `Gern verbinde ich dich mit einem Menschen: Schreib dem oalab-Team an ${contact}. Wir melden uns so schnell wie möglich.`,
 };

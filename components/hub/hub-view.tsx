@@ -120,7 +120,7 @@ function ProjectModal({ project, preview, admin, onClose }: { project: Project; 
               <li key={task.id} className={task.status === "done" ? "is-done" : undefined}>
                 <span className="project-task-title">{task.title}</span>
                 <span className="project-task-meta">
-                  {[taskStatusLabels[task.status], task.customer ? "Kunde" : "OALAB", task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : "", admin && !task.visible ? "intern" : ""].filter(Boolean).join(" · ")}
+                  {[taskStatusLabels[task.status], task.customer ? "Kunde" : "oalab", task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : "", admin && !task.visible ? "intern" : ""].filter(Boolean).join(" · ")}
                 </span>
               </li>
             ))}

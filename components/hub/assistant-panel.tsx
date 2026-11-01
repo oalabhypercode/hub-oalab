@@ -230,7 +230,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
           <span className="assistant-avatar" aria-hidden="true"><Sparkles size={18} /></span>
           <p>{admin
             ? "Ich bin der KI-Assistent von oalab. Ich erkläre den Client Hub, lese für dich Kunden, Projekte und Aufgaben, schlage neue Aufgaben, Änderungen und neue Kunden vor (mit aktivem Zwei-Faktor-Schutz). Gespeichert wird erst, wenn du in der Vorschau auf „Speichern“ klickst."
-            : "Ich bin der KI-Assistent von oalab und erkläre dir die Funktionen des Client Hub. Bei Fragen zu deinem Projekt ist dein OALAB-Team die erste Anlaufstelle."}</p>
+            : "Ich bin der KI-Assistent von oalab und erkläre dir die Funktionen des Client Hub. Bei Fragen zu deinem Projekt ist dein oalab-Team die erste Anlaufstelle."}</p>
         </div>
         {!available && <p className="assistant-note">Der Assistent ist mit einem echten Login verfügbar. In der Vorschau und der öffentlichen Demo werden keine Fragen an Claude gesendet.</p>}
         {available && !turns.length && (
@@ -286,7 +286,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
       )}
       <div className="assistant-footer">
         <span>{admin
-          ? "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und der Daten im Hub und können Fehler enthalten. Eingefügte Transkripte verarbeitet Anthropic im Auftrag von OALAB. Der Hub speichert sie nicht auf seinem Server; der Chatverlauf bleibt in diesem Browser, bis du „Neu starten“ klickst oder dich abmeldest."
+          ? "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und der Daten im Hub und können Fehler enthalten. Eingefügte Transkripte verarbeitet Anthropic im Auftrag von oalab. Der Hub speichert sie nicht auf seinem Server; der Chatverlauf bleibt in diesem Browser, bis du „Neu starten“ klickst oder dich abmeldest."
           : "Die Antworten erzeugt eine KI (Claude von Anthropic) anhand der Hub-Dokumentation und können Fehler enthalten. Bitte keine persönlichen Daten eingeben. Der Chatverlauf bleibt in diesem Browser, bis du „Neu starten“ klickst oder dich abmeldest."}</span>
         {turns.length > 0 && <button type="button" onClick={() => { setTurns([]); setError(""); onClearProject(); }} disabled={busy}><RotateCcw size={14} aria-hidden="true" />Neu starten</button>}
       </div>
@@ -498,7 +498,7 @@ function ProposalCard({ item, view, onChoose, onDecide }: { item: ProposalState;
             {task.description && <p className="proposal-description">{task.description}</p>}
             {view.evidence?.[index] && <blockquote className="proposal-evidence">„{view.evidence[index]}“</blockquote>}
             <div className="proposal-switches">
-              <button type="button" disabled={!editable} aria-pressed={choices[index].customer} onClick={() => set(index, { customer: !choices[index].customer })}>{choices[index].customer ? "Kunde" : "OALAB"}</button>
+              <button type="button" disabled={!editable} aria-pressed={choices[index].customer} onClick={() => set(index, { customer: !choices[index].customer })}>{choices[index].customer ? "Kunde" : "oalab"}</button>
               <button type="button" disabled={!editable} aria-pressed={choices[index].visible} onClick={() => set(index, { visible: !choices[index].visible })}>{choices[index].visible ? "Für Kunde sichtbar" : "Intern"}</button>
               <span>{task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : "ohne Fälligkeit"}</span>
             </div>
