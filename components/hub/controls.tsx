@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Search } from "lucide-react";
-import type { BackgroundPreset } from "@/lib/appearance";
+import type { BackgroundPreset, ColorScheme } from "@/lib/appearance";
 
 /** Capsule segmented control; arrow keys move the selection. An optional count sits in its own badge next to the label. */
 export function SegmentedControl<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string; name: string; count?: number }[]; value: T; onChange: (value: T) => void; label: string }) {
@@ -60,6 +60,16 @@ export function SearchField({ value, onChange, placeholder, label, glass = false
 }
 
 /** Background preset tile: mini preview with base colour and two colour areas. */
+/** Erscheinungsbild: a small picture of the hub in light, dark, or both for "Automatisch". */
+export function SchemeSwatch({ scheme, label, selected, onSelect }: { scheme: ColorScheme; label: string; selected: boolean; onSelect: () => void }) {
+  return (
+    <button type="button" className="background-swatch" aria-pressed={selected} onClick={onSelect}>
+      <span className={`background-swatch-preview scheme-preview scheme-${scheme}`} aria-hidden="true" />
+      <span className="background-swatch-name">{label}</span>
+    </button>
+  );
+}
+
 export function BackgroundSwatch({ preset, selected, onSelect, customColor }: { preset: BackgroundPreset; selected: boolean; onSelect: () => void; customColor?: string }) {
   const base = preset.id === "custom" && customColor ? customColor : preset.base;
   return (

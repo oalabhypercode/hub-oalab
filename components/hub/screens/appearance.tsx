@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE } from "@/lib/appearance";
+import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE, type ColorScheme } from "@/lib/appearance";
 import { hubHref } from "@/lib/hub-data";
 import { useAppearance } from "../appearance-provider";
-import { BackgroundSwatch, Slider, Switch } from "../controls";
+import { BackgroundSwatch, SchemeSwatch, Slider, Switch } from "../controls";
 import { GlassCard, GlassLinkButton } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
+
+const schemes: { id: ColorScheme; label: string }[] = [{ id: "system", label: "Automatisch" }, { id: "light", label: "Hell" }, { id: "dark", label: "Dunkel" }];
 
 /** Profile › Appearance: every change applies live to the whole hub and is stored in this browser. */
 export function AppearanceScreen({ preview }: { preview: boolean }) {
@@ -23,6 +25,14 @@ export function AppearanceScreen({ preview }: { preview: boolean }) {
         </>}
       />
       <div className="appearance-stack section-first">
+        <GlassCard aria-labelledby="appearance-scheme">
+          <h2 className="t-headline" id="appearance-scheme">Erscheinungsbild</h2>
+          <div className="swatch-grid">
+            {schemes.map((scheme) => <SchemeSwatch key={scheme.id} scheme={scheme.id} label={scheme.label} selected={appearance.colorScheme === scheme.id} onSelect={() => update({ colorScheme: scheme.id })} />)}
+          </div>
+          <p className="t-footnote t-secondary">Automatisch folgt dem hellen oder dunklen Modus deines Geräts und wechselt mit ihm.</p>
+        </GlassCard>
+
         <GlassCard aria-labelledby="appearance-background">
           <h2 className="t-headline" id="appearance-background">Hintergrund</h2>
           <div className="swatch-grid">
@@ -48,7 +58,7 @@ export function AppearanceScreen({ preview }: { preview: boolean }) {
             <label htmlFor="reduce-transparency" className="t-body">Transparenz reduzieren</label>
             <Switch id="reduce-transparency" checked={appearance.reduceTransparency} onChange={(reduceTransparency) => update({ reduceTransparency })} label="Transparenz reduzieren" />
           </div>
-          <p className="t-footnote t-secondary">Ersetzt das Glas durch deckende weiße Flächen. Der Hintergrund bleibt sichtbar.</p>
+          <p className="t-footnote t-secondary">Ersetzt das Glas durch deckende Flächen, hell oder dunkel je nach Erscheinungsbild. Der Hintergrund bleibt sichtbar.</p>
         </GlassCard>
 
         <GlassCard>

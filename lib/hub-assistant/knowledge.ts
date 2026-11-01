@@ -112,7 +112,7 @@ Der oalab Client Hub ist das Kundenportal von oalab (Agentur für Websites, Mark
 - Kunden bekommen eine Benachrichtigung (Glocke und gebündelte E-Mail), wenn ein Termin für sie angelegt, bestätigt, verschoben oder abgesagt oder ihre Anfrage abgelehnt wird. Erinnerungen vor dem Termin und automatisch erzeugte Teams-Meetings gibt es noch nicht.
 
 ## Darstellung
-- Profil → Darstellung: Hintergrund (oalab, Ozean, Aubergine, Smaragd, Glut, Graphit oder eine eigene Farbe), Deckkraft des Glases 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“ und „Bewegung reduzieren“.
+- Profil → Darstellung: Erscheinungsbild (Automatisch, Hell oder Dunkel; Automatisch folgt dem hellen oder dunklen Modus des Geräts und wechselt mit ihm, Standard ist Automatisch), Hintergrund (oalab, Ozean, Aubergine, Smaragd, Glut, Graphit oder eine eigene Farbe; im dunklen Modus etwas dunkler), Deckkraft des Glases 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“ und „Bewegung reduzieren“.
 - Beim Öffnen einer Seite blenden die Inhalte von oben nach unten nacheinander ein. „Bewegung reduzieren“ schaltet das und alle anderen Animationen ab, die Inhalte stehen dann sofort da. Ist auf dem Gerät „Bewegung reduzieren“ eingeschaltet, ist der Schalter bereits aktiv.
 - Die Darstellung wird im Browser gespeichert und gilt deshalb pro Gerät und Browser.
 

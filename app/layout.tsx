@@ -44,6 +44,8 @@ export default function RootLayout({
           attribute="class"
           forcedTheme="light"
           disableTransitionOnChange
+          // Light and dark come from Darstellung (data-theme, lib/appearance.ts); next-themes must not pin color-scheme.
+          enableColorScheme={false}
         >
           {/* usePathname may suspend while prerendering; the controller renders nothing anyway. */}
           <Suspense fallback={null}><PageWaterfall /></Suspense>

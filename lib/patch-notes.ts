@@ -39,9 +39,10 @@ export const patchPackages: PatchPackage[] = [
     number: 10,
     date: "2026-11-01",
     title: "Ein einheitlicher Look",
-    summary: "Das Redesign des Hubs: gemeinsame Farben und Bausteine wie in den E-Mails des Hubs, einheitliche Seitenköpfe und Begriffe, klare Tabellen mit Suche, Filter und Gruppen, dazu mehrere kleine Korrekturen.",
+    summary: "Das Redesign des Hubs: gemeinsame Farben und Bausteine wie in den E-Mails des Hubs, einheitliche Seitenköpfe und Begriffe, klare Tabellen mit Suche, Filter und Gruppen, ein dunkler Modus und mehrere kleine Korrekturen.",
     changes: [
-      { kind: "improved", title: "Klare Tabellen", text: "Projekte und Dateien stehen jetzt in ruhigen Tabellen auf einer hellen Fläche, mit feinen Linien statt Kacheln. Oben bündelt eine Leiste Suche, Filter, Sortierung und Gruppierung, und Gruppen wie „Dein Feedback“ lassen sich einklappen.", customers: true },
+      { kind: "new", title: "Dunkler Modus", text: "Der Hub kann jetzt auch dunkel. Unter Profil › Darstellung wählst du beim Erscheinungsbild Automatisch, Hell oder Dunkel; Automatisch folgt deinem Gerät und wechselt mit ihm, auch auf der Anmeldeseite.", customers: true },
+      { kind: "improved", title: "Klare Tabellen", text: "Projekte und Dateien stehen jetzt in ruhigen Tabellen mit feinen Linien statt Kacheln. Oben bündelt eine Leiste Suche, Filter, Sortierung und Gruppierung, und Gruppen wie „Dein Feedback“ lassen sich einklappen.", customers: true },
       { kind: "improved", title: "Projekte auf einen Blick", text: "Ein Symbol vor dem Projekttitel zeigt den Status, der Meilenstein steht nur mit seinem Titel in der Zeile; seine Beschreibung erscheint beim Darüberfahren und im Projekt. Auf kleineren Bildschirmen tritt das Startdatum zurück, damit nächster Termin und Fortschritt ohne Scrollen sichtbar bleiben.", customers: true },
       { kind: "improved", title: "Ordner als Gruppen", text: "Bei den Dateien stehen Ordner jetzt als Gruppen direkt in der Tabelle, auch leere, und Dateien ohne Ordner sammeln sich unter „Ohne Ordner“. Umbenennen und Löschen findest du in der Zeile des Ordners, einen neuen Ordner legst du in der letzten Zeile an.", customers: true },
       { kind: "improved", title: "User Management in einer Tabelle", text: "Konten und Kunden liegen in einer Tabelle mit Umschalter. Offene Registrierungen stehen als erste Gruppe „Wartet auf Freigabe“ mit „Prüfen“ direkt in der Zeile, eine noch nicht bestätigte E-Mail-Adresse ist markiert." },
