@@ -2,8 +2,9 @@
 
 import { formatPatchDate, patchKindLabels, patchPackagesFor } from "@/lib/patch-notes";
 import { HeaderActions } from "../app-shell";
-import { GlassCard } from "../glass";
+import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
+import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
 
 /** Every change to the hub, one package per go-live. Real admins see all entries, everyone else the ones for customers. */
@@ -12,7 +13,7 @@ export function PatchNotesScreen() {
   const packages = patchPackagesFor(manageUsers);
   return (
     <>
-      <LargeTitleHeader title="Patch Notes" actions={<HeaderActions />} />
+      <LargeTitleHeader title="Patch Notes" icon={<TitleIcon icon={sectionIcons["patch-notes"]!} />} actions={<HeaderActions />} />
       <p className="section-first t-subheadline patch-intro">
         {manageUsers
           ? "Alle Änderungen am Hub, ein Paket pro Livegang. Einträge mit „Intern“ sehen nur Admins."
@@ -20,7 +21,7 @@ export function PatchNotesScreen() {
       </p>
       {packages.map((item) => (
         <GlassCard key={item.number} as="article" className="patch-package stack-gap" aria-labelledby={`patch-${item.number}`}>
-          <p className="patch-meta t-footnote t-secondary"><span>Paket {item.number}</span><time dateTime={item.date}>{formatPatchDate(item.date)}</time></p>
+          <p className="patch-meta t-footnote t-secondary">{manageUsers && <span>Paket {item.number}</span>}<time dateTime={item.date}>{formatPatchDate(item.date)}</time></p>
           <h2 className="t-title3" id={`patch-${item.number}`}>{item.title}</h2>
           {manageUsers && <p className="t-subheadline t-secondary patch-summary">{item.summary}</p>}
           <ul className="patch-changes">

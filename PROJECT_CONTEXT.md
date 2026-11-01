@@ -6,6 +6,14 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 1. November 2026: Redesign „Ein Hub, eine Sprache“
+
+- Freigabe des Nutzers am 1. November 2026 („Ja, so umsetzen“) nach drei Vorschau-Runden: V1 Bestandsaufnahme und Konzept, V2 „Glas außen, Tabellen innen“, V3 Tabellen wie in OALab Studio („Tabellen passen“). Vorbild für die Tabellen ist der tabellarische, Notion-artige Aufbau von OALab Studio auf der Serviceplattform.
+- Entscheidungen des Nutzers (jeweils die Empfehlung): Farben und Töne wie in den Hub-Mails (Zu tun, Zur Info, Erledigt, Aus, Problem) und der Button-Verlauf der Mails; Schalter, Häkchen und „Heute“ in Bordeaux statt Apple-Grün und -Rot; ein Name „Profil“ für `/dashboard/settings` (auch im Fußtext der Mails); „Bereiche“ statt „Kategorien“; „Zieltermin“ im Kalender, die Tabellenspalte bleibt „Nächster Termin“; „Konto anlegen“; „oalab“ immer klein; ein Seitenkopf mit Symbol auf jeder Seite.
+- Tabellen: Studio-Aufbau auf einer deckenden Fläche, das Glas bleibt außen (Hintergrund, Seitenleiste, Karten der Übersicht). Werkzeugleiste mit Suche, Filter, Sortierung und Gruppe statt des Panels „Erweiterte Suche“, Ordner als Gruppen statt Chips, Meilenstein und Datei in der Tabelle nur mit Titel (Beschreibung und Dateiname im Dialog). Diese drei Punkte ersetzen Vorgaben vom 22. Oktober 2026.
+- Dunkelmodus mit Automatisch, Hell und Dunkel (Standard Automatisch). Am Handy fünf Tabs plus „Mehr“; das ersetzt die Entscheidungen vom 25. Oktober (Chat an dritter Stelle der Tab-Leiste) und 27. Oktober 2026 (sieben Einträge).
+- Umsetzung in vier gestapelten PRs: Fundament (Töne, Bausteine, Begriffe, Fehler), Tabellen, Dunkelmodus, Navigation am Handy. Keine Datenbank-Änderungen.
+
 ### Designentscheidung vom 19. Oktober 2026: Client Hub im Liquid-Glass-Stil
 
 - Das Frontend des Hubs folgt der Struktur von Apple Health (Übersicht mit Insights, Favoriten, Highlights und Listen; Detailseiten mit Zeitraum-Umschalter T/W/M/6M/J; farbcodierte Kategorien) in der Designsprache Liquid Glass. Übernommen wird nur die Designsprache, keine Apple-Markenelemente.

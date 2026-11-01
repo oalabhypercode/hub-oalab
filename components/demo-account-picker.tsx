@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Building2, ChevronDown, Loader2, ShieldCheck, UserRound } from "lucide-react";
 import type { DemoLoginOption } from "@/lib/demo-login-policy";
 
-const title = (account: DemoLoginOption) => (account.role === "oalab_admin" ? "OALAB Admin" : account.company);
+const title = (account: DemoLoginOption) => (account.role === "oalab_admin" ? "oalab-Admin" : account.company);
 
 /**
  * Demo accounts as a dropdown. Every option stays in the HTML (hidden while closed),

@@ -118,7 +118,7 @@ test("one notice comes as a mail of its own: headline by kind, the notice escape
   assert.doesNotMatch(one.html, /<Logo>/);
   assert.match(one.html, /Wartet auf dich/);
   assert.match(one.text, /^Aufgabe öffnen: https:\/\/hub\.oalab\.de\/dashboard\/projects\?project=p1$/m);
-  assert.match(one.text, /Profil & Zugang/);
+  assert.match(one.text, /unter „Profil“/);
   assert.match(one.text, /^Benachrichtigungen verwalten: https:\/\/hub\.oalab\.de\/dashboard\/settings$/m);
   assert.ok(["logo", "area-projects"].every((id) => one.images.includes(id)), one.images.join());
   // A link that is not http(s) never makes it in; the button then leads into the hub.

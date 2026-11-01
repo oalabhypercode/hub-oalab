@@ -81,14 +81,14 @@ export async function deleteAppointment(id: string): Promise<CalendarActionResul
   return { ok: true, data: null };
 }
 
-/** Customer: ask for an appointment in a free slot of the OALAB calendar. */
+/** Customer: ask for an appointment in a free slot of the oalab calendar. */
 export async function requestAppointment(input: RequestInput): Promise<CalendarActionResult<{ id: string }>> {
   const session = await signedInClient();
   if (!session) return { ok: false, error: "Terminanfragen sind nur mit echtem Login möglich." };
   const { supabase, userId } = session;
 
   const membership = await supabase.from("hub_customer_members").select("customer_id").eq("user_id", userId).limit(1).maybeSingle();
-  if (!membership.data) return { ok: false, error: "Dein Konto ist noch keinem Kunden zugeordnet. Bitte wende dich an dein OALAB-Team." };
+  if (!membership.data) return { ok: false, error: "Dein Konto ist noch keinem Kunden zugeordnet. Bitte wende dich an dein oalab-Team." };
   const customerId = membership.data.customer_id as string;
 
   // The day's booked times and the customer's own open requests, checked on the server so a stale browser view cannot double-book.
@@ -117,7 +117,7 @@ export async function requestAppointment(input: RequestInput): Promise<CalendarA
   return { ok: true, data: { id: data.id } };
 }
 
-/** Customer: withdraw an own request that OALAB has not answered yet. */
+/** Customer: withdraw an own request that oalab has not answered yet. */
 export async function withdrawRequest(id: string): Promise<CalendarActionResult> {
   const session = await signedInClient();
   if (!session) return { ok: false, error: "Nur mit echtem Login möglich." };

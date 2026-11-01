@@ -104,7 +104,7 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
   return (
     <>
       <LargeTitleHeader title="Kalender" icon={<CategoryTitle category="calendar" />} actions={<HeaderActions />} />
-      {!store.live && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">{canManage ? "Beispieltermine der drei Demo-Kunden. Was du hier anlegst oder beantwortest, bleibt nur in diesem Browserfenster." : "Beispieltermine für die Demo. Anfragen bleiben in diesem Browserfenster und gehen nicht an OALAB."}</p></GlassCard>}
+      {!store.live && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">{canManage ? "Beispieltermine der drei Demo-Kunden. Was du hier anlegst oder beantwortest, bleibt nur in diesem Browserfenster." : "Beispieltermine für die Demo. Anfragen bleiben in diesem Browserfenster und gehen nicht an oalab."}</p></GlassCard>}
       {store.live && !canManage && !store.customers.length && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Dein Konto ist noch keinem Kunden zugeordnet. Die Auslastung siehst du schon, Termine anfragen kannst du nach der Zuordnung.</p></GlassCard>}
 
       <div className="calendar-toolbar">
@@ -124,7 +124,7 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
           <MonthGrid month={month} range={range} today={today} selected={selected} busy={busy} byDay={byDay} goalsByDay={goalsByDay} canManage={canManage} onSelect={select} />
           <ul className="occupancy-legend" aria-label="Legende">
             {legendLevels.map((level) => <li key={level}><span className={`occupancy-swatch occupancy-${level}`} aria-hidden="true" />{occupancyLabels[level]}</li>)}
-            {goals.length > 0 && <li><span className="legend-goal" aria-hidden="true" />Projektziel</li>}
+            {goals.length > 0 && <li><span className="legend-goal" aria-hidden="true" />Zieltermin</li>}
           </ul>
         </GlassCard>
         <DayPanel
@@ -148,8 +148,8 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
       {upcoming.length ? <AppointmentList label={canManage ? "Nächste Termine" : "Deine Termine und Anfragen"} items={upcoming} showCustomer={canManage} onOpen={(id) => open({ kind: "detail", id })} />
         : <GlassCard><p className="t-subheadline t-secondary">{canManage ? "Keine anstehenden Termine." : "Du hast noch keine Termine. Frag einfach einen freien Zeitraum an."}</p></GlassCard>}
       {goals.length > 0 && <>
-        <SectionHeader title="Projekt-Terminierungen" />
-        <ul className="glass inset-list appointment-list goal-list" aria-label="Projekt-Terminierungen">
+        <SectionHeader title="Zieltermine" />
+        <ul className="glass inset-list appointment-list goal-list" aria-label="Zieltermine der Projekte">
           {goals.map((goal) => {
             // Same reference day as the projects table, so both pages name the same distance (demo accounts: the fixtures' day).
             const hint = deadlineHint(goal.day, goal.done, asOf);
@@ -207,7 +207,7 @@ function MonthGrid({ month, range, today, selected, busy, byDay, goalsByDay, can
             const outside = monthOf(day) !== month;
             const className = `calendar-cell${outside ? " is-outside" : ""}${day < today ? " is-past" : ""}${load.level === "closed" ? " is-closed" : ""}`;
             const count = (items.length ? `, ${items.length} ${canManage ? (items.length === 1 ? "Termin" : "Termine") : (items.length === 1 ? "eigener Termin" : "eigene Termine")}` : "")
-              + (goals.length ? `, ${goals.length === 1 ? "1 Projektziel" : `${goals.length} Projektziele`}` : "");
+              + (goals.length ? `, ${goals.length === 1 ? "1 Zieltermin" : `${goals.length} Zieltermine`}` : "");
             const chips = [
               ...goals.map((goal) => ({ id: goal.id, className: `calendar-chip calendar-chip-goal${goal.done ? " is-done" : ""}`, content: <>Ziel · {canManage && goal.company ? goal.company : goal.title}</> })),
               ...items.map((item) => ({ id: item.id, className: `calendar-chip calendar-chip-${item.status}`, content: <><span className="numeric">{timeOf(item.start)}</span> {canManage && item.customer ? item.customer.company : item.title}</> })),
@@ -274,12 +274,12 @@ function DayPanel({ day, store, items, goals, projectHref, onOpen, onCreate, onR
         <p className="t-subheadline t-secondary">{load.level === "closed" ? "Kein Termintag" : `${formatHours(load.bookedMinutes)} von ${formatHours(load.totalMinutes)} belegt · ${occupancyLabels[load.level]}`}</p>
       </div>
       {goals.length > 0 && (
-        <ul className="day-goals" aria-label="Projektziele an diesem Tag">
+        <ul className="day-goals" aria-label="Zieltermine an diesem Tag">
           {goals.map((goal) => (
             <li key={goal.id}>
               <Link href={projectHref(goal.id)} className={`day-goal${goal.done ? " is-done" : ""}`}>
                 <Flag size={16} aria-hidden="true" />
-                <span><strong>{goal.title}</strong><small>{["Projektziel", store.canManage ? goal.company : "", goal.category, goal.done ? "abgeschlossen" : ""].filter(Boolean).join(" · ")}</small></span>
+                <span><strong>{goal.title}</strong><small>{["Zieltermin", store.canManage ? goal.company : "", goal.category, goal.done ? "abgeschlossen" : ""].filter(Boolean).join(" · ")}</small></span>
               </Link>
             </li>
           ))}

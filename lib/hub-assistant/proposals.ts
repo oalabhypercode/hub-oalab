@@ -16,7 +16,7 @@ const day = /^\d{4}-\d{2}-\d{2}$/;
 export type ProposedTask = {
   title: string;
   description: string;
-  /** The customer has to do it (label "Kunde"); otherwise OALAB. */
+  /** The customer has to do it (label "Kunde"); otherwise oalab. */
   customer: boolean;
   /** Released to the customer (client_visible). */
   visible: boolean;

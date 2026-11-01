@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Building2, CalendarDays, FileText, Layers, LogOut, MessageSquare, Palette, ScrollText, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { ArrowUpRight, Bot, Building2, CalendarDays, FileText, KeyRound, Layers, LogOut, MessageCircleQuestion, MessageSquare, Palette, ScrollText, ShieldCheck, UserCog, UserRound } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
@@ -12,9 +12,10 @@ import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/t
 import { HeaderActions } from "../app-shell";
 import { MetricCard } from "../cards";
 import { SearchField, SegmentedControl } from "../controls";
-import { CategoryIcon, GlassCard, SectionHeader } from "../glass";
+import { CategoryIcon, GlassCard, SectionHeader, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
+import { sectionIcons } from "../navigation";
 import { ProjectStatus } from "../project-status";
 import { useHubShell } from "../shell-context";
 import { alphabetical, FilterSelect, SortControl, SortHeader, TableSearch, type SortOption } from "../table-tools";
@@ -41,32 +42,33 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
   const shownMetrics = term && populated ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   return (
     <>
-      <LargeTitleHeader title="Entdecken" />
-      <div className="section-first"><SearchField glass value={query} onChange={setQuery} placeholder="Kategorien und Kennzahlen" label="Kategorien und Kennzahlen durchsuchen" /></div>
+      <LargeTitleHeader title="Entdecken" icon={<TitleIcon icon={sectionIcons.discover!} />} actions={<HeaderActions />} />
+      <div className="section-first"><SearchField glass value={query} onChange={setQuery} placeholder="Bereiche und Kennzahlen" label="Bereiche und Kennzahlen durchsuchen" /></div>
       {shownMetrics.length > 0 && <>
         <SectionHeader title="Kennzahlen" />
         <InsetGroupedList label="Kennzahlen" className="list-icons">
           {shownMetrics.map((id) => <ListRow key={id} compact href={model.metrics[id].href} icon={<CategoryIcon category={metricMeta[id].category} size={24} />} title={metricMeta[id].name} trailing={<span className="numeric list-value">{model.metrics[id].value} {model.metrics[id].unit}</span>} />)}
         </InsetGroupedList>
       </>}
-      <SectionHeader title="Kategorien" />
+      <SectionHeader title="Bereiche" />
       {shownCategories.length ? (
-        <InsetGroupedList label="Kategorien" className="list-icons">
+        <InsetGroupedList label="Bereiche" className="list-icons">
           {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin)} />)}
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}
-      {/* The tab bar has no room for it, so phones reach the user management from here. */}
+      {/* The tab bar has no room for them, so phones reach the user management and the AI log from here. */}
       {/* Same split as the sidebar: admins find the patch notes under "Verwaltung", customers under "Neuigkeiten". */}
       <SectionHeader title={manageUsers ? "Verwaltung" : "Neuigkeiten"} />
       <InsetGroupedList label={manageUsers ? "Verwaltung" : "Neuigkeiten"} className="list-icons">
-        {manageUsers && <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Logins und Kunden" />}
+        {manageUsers && <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Konten und Kunden" />}
+        {manageUsers && <ListRow compact href={hubHref(preview, "ai-log")} icon={<Bot size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels["ai-log"]} subtitle="Vorschläge des Assistenten und was daraus wurde" />}
         <ListRow compact href={hubHref(preview, "patch-notes")} icon={<ScrollText size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels["patch-notes"]} subtitle="Alle Änderungen am Hub, Paket für Paket" />
       </InsetGroupedList>
       <SectionHeader title="Konto" />
       <InsetGroupedList label="Konto" className="list-icons">
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" />
-        <ListRow compact href={hubHref(preview, "settings")} icon={<UserRound size={24} color="var(--system-gray)" aria-hidden="true" />} title="Profil & Zugang" />
-        <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
+        <ListRow compact href={hubHref(preview, "settings")} icon={<UserRound size={24} color="var(--system-gray)" aria-hidden="true" />} title="Profil" />
+        <ListRow compact onClick={() => openPanel("help")} icon={<MessageCircleQuestion size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
       </InsetGroupedList>
     </>
   );
@@ -251,23 +253,23 @@ function AccountDetailsCard() {
 }
 
 export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { email: string; publicDemo: boolean }) {
-  const { openPanel, signOut, signingOut, account } = useHubShell();
+  const { openPanel, signOut, signingOut, logoutError, account } = useHubShell();
   return (
     <>
-      <LargeTitleHeader title="Profil" actions={<HeaderActions />} />
+      <LargeTitleHeader title="Profil" icon={<TitleIcon icon={sectionIcons.settings!} />} actions={<HeaderActions />} />
       <div className="settings-grid section-first">
         {(account.person || account.company) && !account.admin && <AccountDetailsCard />}
         <GlassCard className="settings-card">
-          <h2 className="t-headline">Dein Konto</h2>
+          <h2 className="t-headline settings-card-title"><KeyRound size={20} color="var(--accent-text)" aria-hidden="true" />Dein Konto</h2>
           <label className="settings-label" htmlFor="account-email">E-Mail-Adresse</label>
           <input id="account-email" className="account-input" readOnly value={preview ? previewAccount.email : email} />
           <p className="t-footnote t-secondary">{preview ? "Fiktives Beispielkonto für die Designvorschau." : publicDemo ? "Fiktive Testidentität. Diese Adresse gehört zu keinem persönlichen Konto." : "Die E-Mail-Adresse deines angemeldeten Kontos."}</p>
           {!publicDemo && <Link className="text-link" href="/auth/forgot-password">Passwort zurücksetzen</Link>}
         </GlassCard>
         {!preview && !publicDemo ? <SecondFactorCard /> : <GlassCard className="settings-card">
-          <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--switch-on)" aria-hidden="true" />{preview ? "Du siehst die Vorschau." : publicDemo ? "Du testest die öffentliche Demo." : "Dein Zugang ist geschützt."}</h2>
+          <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--accent-text)" aria-hidden="true" />{preview ? "Du siehst die Vorschau." : publicDemo ? "Du testest die öffentliche Demo." : "Dein Zugang ist geschützt."}</h2>
           <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : account.admin ? "Dein Workspace ist nur nach Anmeldung erreichbar. Als Admin verwaltest du Konten und Kunden im User Management." : "Dein Workspace ist nur nach Anmeldung erreichbar und zeigt ausschließlich die Daten deines Unternehmens."}</p>
-          {preview && <Link className="text-link" href="/auth/login">Zum Login</Link>}
+          {preview && <Link className="text-link" href="/auth/login">Zur Anmeldung</Link>}
         </GlassCard>}
         {!preview && !publicDemo && !account.admin && <NotificationSettingsCard />}
         {!preview && !publicDemo && <WhatsAppCard />}
@@ -275,9 +277,10 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" subtitle="Hintergrund, Glas, Transparenz und Bewegung" />
-        <ListRow compact onClick={() => openPanel("help")} icon={<MessageSquare size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
+        <ListRow compact onClick={() => openPanel("help")} icon={<MessageCircleQuestion size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
         <ListRow compact onClick={signOut} icon={<LogOut size={24} color="var(--system-gray)" aria-hidden="true" />} title={preview ? "Vorschau verlassen" : signingOut ? "Wird abgemeldet …" : "Abmelden"} chevron={false} />
       </InsetGroupedList>
+      {logoutError && <p role="alert" className="form-error stack-gap">{logoutError}</p>}
       <LegalLinks className="legal-links hub-legal-links" />
     </>
   );

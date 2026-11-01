@@ -111,7 +111,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       <div className="calendar-toolbar users-toolbar">
         <p className="users-summary">{users.filter((user) => user.status === "active").length} aktive Logins · {customers.length} Kunden{pending.length ? ` · ${pending.length} offene Registrierung${pending.length === 1 ? "" : "en"}` : ""}</p>
         <button type="button" className="glass glass-float glass-button glass-button-text" onClick={() => open({ kind: "customer" })}><Building2 size={18} aria-hidden="true" />Kunde anlegen</button>
-        <button type="button" className="calendar-primary users-primary" onClick={() => open({ kind: "user" })}><UserPlus size={18} aria-hidden="true" />Benutzer anlegen</button>
+        <button type="button" className="calendar-primary users-primary" onClick={() => open({ kind: "user" })}><UserPlus size={18} aria-hidden="true" />Konto anlegen</button>
       </div>
       {notice && <p className="calendar-notice glass" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
       {!state.mailConfigured && <GlassCard className="file-demo-note"><MailX size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Der Mailversand ist noch nicht eingerichtet (SMTP-Zugang fehlt). Benachrichtigungen werden nur protokolliert; Links und Nachrichten gibst du bis dahin selbst weiter.</p></GlassCard>}

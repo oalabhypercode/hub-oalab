@@ -2,14 +2,14 @@
 
 import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { UserCog } from "lucide-react";
 import { categories, categoryLabel, categoryOrder } from "@/lib/categories";
 import { sectionLabels, type HubSection } from "@/lib/hub-data";
 import { formatFullDate } from "@/lib/hub-metrics";
 import { todayIso } from "@/lib/hub-routes";
 import { AppShell, HeaderActions } from "./app-shell";
-import { SkeletonCards } from "./glass";
+import { SkeletonCards, TitleIcon } from "./glass";
 import { LargeTitleHeader } from "./large-title-header";
+import { sectionIcons } from "./navigation";
 import { CategoryTitle } from "./screens/workspace";
 import { useHubShell } from "./shell-context";
 
@@ -35,10 +35,10 @@ function SectionTitle({ section }: { section: HubSection }) {
   const title = !category ? sectionLabels[section]
     : pending && categoryLabel(category, true) !== categoryLabel(category, false) ? " "
     : categoryLabel(category, account.admin);
-  const icon = section === "users" ? <span className="title-icon"><UserCog size={24} color="var(--accent-text)" aria-hidden="true" /></span>
-    : category ? <CategoryTitle category={category} /> : undefined;
+  const plainIcon = sectionIcons[section];
+  const icon = category ? <CategoryTitle category={category} /> : plainIcon ? <TitleIcon icon={plainIcon} /> : undefined;
   const dated = section === "overview" || section === "insights";
-  return <LargeTitleHeader title={title} icon={icon} date={dated ? date || " " : undefined} actions={section === "discover" ? undefined : <HeaderActions />} />;
+  return <LargeTitleHeader title={title} icon={icon} date={dated ? date || " " : undefined} actions={<HeaderActions />} />;
 }
 
 /** Page-level fallback inside the shell: the page's title at once, skeleton glass cards for what is still loading. */

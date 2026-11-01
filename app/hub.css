@@ -72,8 +72,8 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 
 /* Buttons (only used on authentication and error pages) */
 .button-primary, .button-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: 999px; font-size: 17px; line-height: 22px; font-weight: 600; text-align: center; transition: background 200ms ease, transform var(--duration) var(--ease-spring); }
-.button-primary { background: var(--oalab-gradient-action); color: #ffffff; border: 0; box-shadow: 0 6px 16px rgba(126, 0, 75, 0.24); }
-.button-primary:hover:not(:disabled) { background: var(--oalab-bordeaux); }
+.button-primary { background: var(--accent-gradient); color: #ffffff; border: 0; box-shadow: var(--accent-shadow); }
+.button-primary:hover:not(:disabled) { filter: brightness(0.94); }
 .button-secondary { background: var(--auth-control); color: var(--accent-text); border: 1px solid var(--auth-control-edge); box-shadow: var(--auth-control-shadow); }
 .button-secondary:hover { background: var(--auth-control-hover); }
 .button-primary:active:not(:disabled), .button-secondary:active { transform: scale(0.98); }
@@ -144,7 +144,7 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 .legal-links { display: inline-flex; align-items: center; gap: 14px; }
 .legal-links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 480px) { .auth-field-row { grid-template-columns: 1fr; } }
-.auth-page .form-error { padding: 12px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.72); border: 1px solid rgba(143, 29, 33, 0.32); color: var(--oalab-red); font-size: 15px; line-height: 20px; }
+.auth-page .form-error { padding: 12px 14px 12px 16px; border-radius: 12px; background: var(--tone-bad-bg); color: var(--tone-bad); box-shadow: inset 3px 0 0 var(--tone-bad-bar); font-size: 15px; line-height: 20px; }
 .auth-form > .form-error { margin-top: 16px; }
 
 /* Links and notes below the form */

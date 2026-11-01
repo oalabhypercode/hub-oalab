@@ -62,7 +62,7 @@ test("task changes find tasks by number, keep one project and show old → new",
     [12, 3, { status: "done", customer: true, visible: true }],
     [13, 3, { dueOn: null }],
   ]);
-  assert.deepEqual(taskChangeLines(outcome.proposal.tasks[0]).map((line) => `${line.label}: ${line.before} → ${line.after}`), ["Stand: Offen → Erledigt", "Dran ist: OALAB → Kunde", "Freigabe: intern → für Kunde sichtbar"]);
+  assert.deepEqual(taskChangeLines(outcome.proposal.tasks[0]).map((line) => `${line.label}: ${line.before} → ${line.after}`), ["Stand: Offen → Erledigt", "Dran ist: oalab → Kunde", "Freigabe: intern → für Kunde sichtbar"]);
   assert.match(prepareTaskUpdates({ tasks: [change(12, { status: "done" }), change(20, { status: "done" })] }, data).error, /selben Projekt/);
   assert.match(prepareTaskUpdates({ tasks: [change(99, { status: "done" })] }, data).error, /#99/);
   assert.match(prepareTaskUpdates({ tasks: [change(12)] }, data).error, /ändert nichts/);
