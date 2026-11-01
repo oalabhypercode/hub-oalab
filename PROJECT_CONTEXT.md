@@ -59,6 +59,7 @@
 - Folge für den Datenschutz: Der Hinweis im Chat lautet jetzt „Der Hub speichert sie nicht auf seinem Server; der Chatverlauf bleibt in diesem Browser …“. Der geplante Datenschutz-Absatz muss das ebenso sagen.
 - Code: `lib/hub-assistant/chat-storage.ts` (eigenständig, getestet: höchstens 50 Nachrichten und 2 Mio. Zeichen, nichts Halbfertiges, Abgleich alter Vorschläge), `proposalStatuses` in `lib/hub-assistant/actions.ts` (Stand eigener Vorschläge), Laden/Speichern/Löschen in `components/hub/app-shell.tsx`, Leiste und einheitlicher Kartenrahmen (`CardFrame`, Status-Chip, Zusammenklappen, „Alle zeigen“ ab sechs Einträgen) in `components/hub/assistant-panel.tsx`. Aus dem Projektdialog bleibt das Projekt als „Bezug“ im Chat; angedockt schließt der Dialog, weil ein Dialog die Leiste blockieren würde.
 - KI-Protokoll: Bereich `ai-log` (nur Admins), Regeln in `lib/hub-assistant/log-rules.ts`, Laden in `lib/hub-assistant/log.ts` (Admin-Prüfung, dann Server-Schlüssel, die letzten 500 Vorschläge), Seite `components/hub/screens/assistant-log.tsx`. Keine Datenbankänderung.
+- Am 1. November 2026 live im Browser geprüft: Beim Abmelden verschwindet der gespeicherte Chatverlauf; ein offener Vorschlag zeigt nach 30 Minuten und Neuladen „Abgelaufen“, eingeklappt und ohne Speichern-Knopf.
 
 ### Vorgabe vom 30. Oktober 2026: Benachrichtigungen für Kunden
 
