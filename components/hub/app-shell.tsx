@@ -171,6 +171,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
             <div className="hub-topbar">
               {/* Below 1024 px the sidebar (and its logo) is hidden, so the brand sits in the top row. */}
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
+              {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. */}
+              <div className="topbar-actions"><HeaderActions /><Link href={hubHref(preview, "settings")} className="glass glass-float mobile-avatar" aria-label="Profil">{initials}</Link></div>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
             </div>
             <main className="hub-content" id="main-content">{children}</main>

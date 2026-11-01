@@ -14,7 +14,7 @@ export const sectionLabels: Record<HubSection, string> = {
   calendar: "Kalender",
   settings: "Profil",
   insights: "Insights",
-  discover: "Entdecken",
+  discover: "Mehr",
   users: "User Management",
   "ai-log": "KI-Protokoll",
   "patch-notes": "Patch Notes",
