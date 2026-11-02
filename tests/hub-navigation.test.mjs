@@ -40,3 +40,15 @@ test("the tab bar below 1024 px has five entries: Übersicht, Dateien, Nachricht
   assert.match(await source("components/hub/app-shell.tsx"), /<div className="topbar-actions"><HeaderActions \/>/);
   assert.match(await source("app/glass.css"), /\.large-title-actions \{ display: none; \}/);
 });
+
+test("below 1024 px the name stays on the left and the logo alone sits in the middle of the top row", async () => {
+  // Wish of 2 November 2026, on every device with the tab bar.
+  const shell = await source("components/hub/app-shell.tsx");
+  assert.match(shell, /className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="topbar-brand-text" aria-hidden="true">/);
+  assert.match(shell, /className="topbar-logo" tabIndex=\{-1\} aria-hidden="true"><span className="brand-tile"><BrandLogo \/><\/span><\/Link>/);
+  const css = await source("app/glass.css");
+  // Equal side columns keep the logo in the middle of the screen, whatever the name and the buttons need.
+  assert.match(css, /\.hub-topbar \{ display: grid; grid-template-columns: 1fr auto 1fr;/);
+  assert.match(css, /\.topbar-logo \{ grid-column: 2;/);
+  assert.match(css, /\.hub-topbar \.hub-notice \{ grid-column: 1 \/ -1;/);
+});
