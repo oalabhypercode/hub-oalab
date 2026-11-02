@@ -19,7 +19,8 @@ import { CalendarScreen } from "./screens/calendar";
 import { MetricDetailScreen } from "./screens/metric-detail";
 import { InsightsScreen, OverviewScreen } from "./screens/overview";
 import { FilesScreen } from "./screens/files";
-import { DiscoverScreen, MessagesScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
+import { DiscoverScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
+import { ConversationsScreen } from "./screens/conversations";
 import { UserManagementScreen } from "./screens/users";
 import { PatchNotesScreen } from "./screens/patch-notes";
 import { AssistantLogScreen } from "./screens/assistant-log";
@@ -28,6 +29,7 @@ import type { ScreenProps } from "./screens/types";
 import type { HubRole } from "@/lib/hub-users/rules";
 import type { UserManagementState } from "@/lib/hub-users/types";
 import type { LiveProjectsState } from "@/lib/hub-projects/map";
+import type { ConversationsState } from "@/lib/hub-conversations/types";
 
 type HubViewProps = {
   section?: HubSection;
@@ -50,9 +52,11 @@ type HubViewProps = {
   liveProjects?: LiveProjectsState;
   /** The assistant's proposals on the admin's "KI-Protokoll" page. */
   assistantLog?: AssistantLogState;
+  /** The service platform's conversations of a real login on the Nachrichten page; examples otherwise. */
+  conversations?: ConversationsState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -89,7 +93,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "discover" ? <DiscoverScreen {...screen} />
         : section === "projects" ? <ProjectsScreen {...screen} />
         : section === "files" ? <FilesScreen {...screen} />
-        : section === "messages" ? <MessagesScreen {...screen} />
+        : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} />
         : section === "calendar" ? <CalendarScreen {...screen} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />

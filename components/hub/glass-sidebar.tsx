@@ -1,19 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Bot, Loader2, LogOut, ScrollText, Search, Settings, UserCog } from "lucide-react";
+import { Bot, Loader2, LogOut, ScrollText, Search, Settings, UserCog } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { useHubShell } from "./shell-context";
-import { chatNavigation, mainNavigation, newTabLinkProps } from "./navigation";
+import { mainNavigation } from "./navigation";
 import { BrandLogo } from "./wordmark";
 
 type SidebarProps = {
   onSearch: () => void;
   preview: boolean;
   section: HubSection;
-  /** Categories without a count (the calendar) show none. */
+  /** Categories without a count (the calendar) show none; Nachrichten counts only unread conversations. */
   counts: Partial<Record<CategoryId, number>>;
   name: string;
   accountLabel: string;
@@ -45,15 +45,11 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         {mainNavigation.map(({ section: target, label, icon: Icon }) => (
           <Link key={target} {...item(target)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{label}</span></Link>
         ))}
-        <a href={chatNavigation.href} {...newTabLinkProps} className="sidebar-item">
-          <chatNavigation.icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{chatNavigation.label}</span>
-          <ArrowUpRight size={16} className="sidebar-external" aria-hidden="true" /><span className="visually-hidden"> (öffnet in neuem Tab)</span>
-        </a>
         <span className="sidebar-caption">Bereiche</span>
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
         {categoryOrder.map((id) => {
           const Icon = categories[id].icon;
-          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin)}</span>{counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" title={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
         })}
         {manageUsers && <>
           <span className="sidebar-caption">Verwaltung</span>

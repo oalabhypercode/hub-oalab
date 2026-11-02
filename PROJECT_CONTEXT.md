@@ -6,6 +6,21 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 2. November 2026: Nachrichten als Chat „Gespräche“
+
+- Wunsch des Nutzers: „Nachrichten“ wird ein sauberer Chat unter der Überschrift „Gespräche“, wie man ihn von WhatsApp kennt. Vorschau „Gespräche V1“ (Liste links, offenes Gespräch rechts; am Handy Liste, dann Gespräch bildschirmfüllend; hell und dunkel; Admin-Sicht mit internen Notizen).
+- Entscheidungen des Nutzers: echte Gespräche statt Beispieldaten, nämlich die Anfragen der Serviceplattform mit ihren Nachrichten (dieselben Unterhaltungen an beiden Orten); ein neues Gespräch lässt sich im zweiten Schritt direkt im Hub starten; „Chat“ in der Seitenleiste entfällt, sobald die Gespräche im Hub echt sind; eigene Nachrichten in Bordeaux (dunkel in Rosé), wie im Assistenten.
+- Tab-Leiste am Handy: Übersicht, Dateien (bei Admins „Assets“), Nachrichten mit der Zahl ungelesener Gespräche, Kalender und Mehr. „Projekte“ steht dafür überall unter „Mehr“ (Wunsch des Nutzers; ersetzt die Tab-Leiste vom 1. November mit Projekte statt Nachrichten).
+- Weitere Entscheidungen des Nutzers nach der Prüfung der Serviceplattform: Kunden antworten über eine kleine interne Strecke der Serviceplattform (keine Datenbank-Änderung); Admins lesen im Hub nur mit, Antworten und interne Notizen bleiben in NoteTree Business.
+- Umsetzung: `lib/hub-conversations/` (Regeln, Server, Aktionen, Beispiele) und `components/hub/screens/conversations.tsx`.
+  - Lesen: Der Hub liest `service_requests` (ohne Papierkorb), die für Kunden sichtbaren `request_messages` und `request_seen` mit dem Server-Schlüssel, nachdem `conversationViewer()` geprüft hat, wer liest. Kunden sehen die Organisationen ihrer Firma (`hub_customer_members` → `hub_customers.organization_id`, mit eigener Sitzung), Admins alles nach `verifyHubAdmin()`.
+  - Ungelesen: Die neueste Antwort von oalab oder dem Assistenten ist jünger als `request_seen`. Öffnen schreibt `request_seen`; dann entfällt die Antwort-Mail der Serviceplattform.
+  - Antworten: `sendConversationMessage` schickt das Zugangstoken der Person an `POST service.oalab.de/api/hub/requests/{OA-n}/messages` (service-oalab, `addClientFollowUp` wie im Service-Chat). Bei `STALE_VERSION` ohne neue sichtbare Nachricht geht die Antwort einmal mit der aktuellen Version neu.
+  - Der Bildschirm schaut alle 15 Sekunden nach Neuem, solange die Seite sichtbar ist. Zähler für Seitenleiste und Tab-Leiste kommen aus dem Layout (`countUnreadConversations`).
+  - Die Beschriftungen der Stände übernimmt der Hub von der Serviceplattform („Du bist dran“, „In Bearbeitung“, „Gelöst“ …). Abgeschlossene Anfragen (Live, Abgeschlossen) nehmen keine Nachricht mehr an.
+  - Der Eintrag „Chat“ (Link zur Serviceplattform) entfällt in Seitenleiste und „Mehr“. „Neues Gespräch“ öffnet bis zu einem späteren Schritt die neue Anfrage auf der Serviceplattform.
+  - Noch nicht im Hub: Anhänge, „Gefällt mir“-Freigaben und Testseiten (dafür der Pfeil zum Gespräch auf der Serviceplattform), ein neues Gespräch direkt im Hub, ein Lesestand für Nachrichten an oalab (es gibt nur „gesendet“).
+
 ### Vorgabe vom 1. November 2026: Redesign „Ein Hub, eine Sprache“
 
 - Freigabe des Nutzers am 1. November 2026 („Ja, so umsetzen“) nach drei Vorschau-Runden: V1 Bestandsaufnahme und Konzept, V2 „Glas außen, Tabellen innen“, V3 Tabellen wie in OALab Studio („Tabellen passen“). Vorbild für die Tabellen ist der tabellarische, Notion-artige Aufbau von OALab Studio auf der Serviceplattform.

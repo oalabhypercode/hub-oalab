@@ -36,6 +36,19 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 11,
+    date: "2026-11-02",
+    title: "Gespräche wie im Messenger",
+    summary: "Nachrichten werden ein Chat: alle Gespräche mit oalab an einem Ort, wie man es vom Handy kennt.",
+    changes: [
+      { kind: "new", title: "Gespräche wie im Messenger", text: "Unter Nachrichten stehen jetzt deine Gespräche mit oalab als Chat: links die Liste mit dem Neuesten oben, rechts das offene Gespräch mit Sprechblasen, Datum und dem Stand deiner Anfrage. Am Smartphone öffnet ein Tipp das Gespräch bildschirmfüllend.", customers: true },
+      { kind: "new", title: "Direkt im Hub antworten", text: "Deine Antwort landet in derselben Anfrage wie auf der Serviceplattform, und das oalab-Team erfährt davon wie gewohnt. Neue Antworten erscheinen ohne Neuladen; liest du sie im Hub, kommt dazu keine zusätzliche E-Mail mehr.", customers: true },
+      { kind: "improved", title: "Ein Ort für Gespräche", text: "Der Eintrag „Chat“ in der Seitenleiste und unter „Mehr“ entfällt, die Gespräche stehen unter Nachrichten. Ein neues Gespräch startest du über das Stift-Symbol; es öffnet die neue Anfrage auf der Serviceplattform.", customers: true },
+      { kind: "new", title: "Gespräche mitlesen", text: "Admins sehen unter Nachrichten die Gespräche aller Kunden mit Firmenname, nur zum Lesen. Antworten und interne Notizen entstehen weiter in NoteTree Business." },
+      { kind: "improved", title: "Nachrichten in der Tab-Leiste", text: "Am Smartphone und Tablet stehen die Nachrichten jetzt direkt in der Tab-Leiste, mit der Zahl ungelesener Gespräche. Projekte findest du dort unter „Mehr“.", customers: true },
+    ],
+  },
+  {
     number: 10,
     date: "2026-11-01",
     title: "Ein einheitlicher Look",

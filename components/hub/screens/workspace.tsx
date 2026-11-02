@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown, ArrowUpRight, Bot, Building2, FileText, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, MessageSquare, Palette, Rows3, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
+import { ArrowUpDown, Bot, Building2, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, Palette, Rows3, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
-import { appearanceHref, currentMilestone, deadlineHint, demoConversation, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
+import { appearanceHref, currentMilestone, deadlineHint, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { LegalLinks } from "@/components/legal-links";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
@@ -15,7 +15,7 @@ import { SearchField, SegmentedControl } from "../controls";
 import { CategoryIcon, GlassCard, SectionHeader, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
-import { chatNavigation, sectionIcons } from "../navigation";
+import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
@@ -41,7 +41,6 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
   const shownCategories = categoryOrder.filter((id) => categoryLabel(id, admin).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
   const shownMetrics = term && populated ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const showInsights = sectionLabels.insights.toLowerCase().includes(term);
-  const showChat = chatNavigation.label.toLowerCase().includes(term);
   return (
     <>
       <LargeTitleHeader title="Mehr" icon={<TitleIcon icon={sectionIcons.discover!} />} actions={<HeaderActions />} />
@@ -53,10 +52,9 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
         </InsetGroupedList>
       </>}
       {/* "Mehr" is the last tab on phones: first what the tab bar has no room for, as at the top of the sidebar. */}
-      {(showInsights || showChat) && (
-        <InsetGroupedList label="Insights und Chat" className="list-icons section-first">
-          {showInsights && <ListRow compact href={hubHref(preview, "insights")} icon={<Sparkles size={24} color="var(--insights)" aria-hidden="true" />} title={sectionLabels.insights} subtitle="Zusammenfassung und Highlights" />}
-          {showChat && <ListRow compact external href={chatNavigation.href} icon={<chatNavigation.icon size={24} color="var(--accent-text)" aria-hidden="true" />} title={chatNavigation.label} subtitle="Chats und Anfragen auf der Serviceplattform" />}
+      {showInsights && (
+        <InsetGroupedList label="Insights" className="list-icons section-first">
+          <ListRow compact href={hubHref(preview, "insights")} icon={<Sparkles size={24} color="var(--insights)" aria-hidden="true" />} title={sectionLabels.insights} subtitle="Zusammenfassung und Highlights" />
         </InsetGroupedList>
       )}
       <SectionHeader title="Bereiche" />
@@ -226,28 +224,6 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf, live
           <SheetFooter hint="Ein Klick auf eine Zeile öffnet das Projekt">{shown.length === 1 ? "1 Projekt" : `${shown.length} Projekte`}</SheetFooter>
         </div>
       ) : <EmptyState section="projects" />}
-    </>
-  );
-}
-
-export function MessagesScreen({ model, preview, populated, firstName, admin, company }: ScreenProps) {
-  return (
-    <>
-      <LargeTitleHeader title="Nachrichten" icon={<CategoryTitle category="messages" />} actions={<HeaderActions />} />
-      {populated ? <>
-        <CategoryMetrics model={model} category="messages" />
-        <SectionHeader title="Gespräche" />
-        <GlassCard feature className="message-card">
-          <div className="thread-heading"><span className="avatar" aria-hidden="true">{demoConversation.initials}</span><div><strong>{demoConversation.person}</strong><span>Dein Designteam · {demoConversation.title}</span></div></div>
-          <p className="thread-date">14. Oktober 2026 · Beispielunterhaltung</p>
-          <div className="message-bubble">
-            <p>Hallo {firstName || "Jana"}! Die erste Designrichtung für {admin ? "einen unserer Testkunden" : company || "Nordlicht"} ist fertig. Wir haben die Klarheit eurer Marke mit einem frischen, eigenständigen Look verbunden.</p>
-            <p>Schau dir die Brand Direction in Ruhe an. Wir freuen uns auf deine Gedanken!</p>
-            <Link className="message-attachment" href={hubHref(preview, "files")}><FileText size={22} color={categories.files.fill} aria-hidden="true" /><span>Brand Direction – V01.pdf<small>PDF · 4,2 MB</small></span><ArrowUpRight size={17} aria-hidden="true" /></Link>
-          </div>
-          <p className="message-preview-note"><MessageSquare size={17} aria-hidden="true" /><span>{preview ? "Dies ist eine Designvorschau. Echte Gespräche folgen mit der Projektanbindung." : "Demo-Unterhaltung für Frontend-Tests. Live-Nachrichten folgen mit der Datenbankanbindung."}</span></p>
-        </GlassCard>
-      </> : <EmptyState section="messages" />}
     </>
   );
 }
