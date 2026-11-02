@@ -11,16 +11,35 @@ import { CustomerPicker, FileIcon } from "./files-parts";
 
 type UploadItem = { key: string; file: File; title: string; status: "ready" | "working" | "done" | "error"; message: string };
 
-const titleFromFileName = (name: string) => name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+export const titleFromFileName = (name: string) => name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
 
 async function sha256Hex(file: Blob) {
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export type UploadMeta = { title: string; category: FileCategory; description: string; customerIds: string[]; folderId: string | null };
+
+/** One file: checksum, then straight to storage through a one-time link, then the record with customers and folder. */
+export async function sendUpload(file: File, meta: UploadMeta, onStep: (message: string) => void) {
+  const check = checkUpload(file.name, file.size);
+  if (!check.ok) throw new Error(check.error);
+  if (!meta.title.trim()) throw new Error("Bitte einen Titel angeben.");
+  onStep("Prüfsumme …");
+  const sha256 = await sha256Hex(file);
+  onStep("Wird hochgeladen …");
+  const prepared = await prepareUpload(file.name, file.size);
+  if (!prepared.ok) throw new Error(prepared.error);
+  const uploaded = await createClient().storage.from(HUB_FILES_BUCKET).uploadToSignedUrl(prepared.data.path, prepared.data.token, file, { contentType: file.type || "application/octet-stream" });
+  if (uploaded.error) throw new Error("Die Datei konnte nicht hochgeladen werden.");
+  onStep("Wird gespeichert …");
+  const saved = await finalizeUpload({ path: prepared.data.path, fileName: file.name, title: meta.title, category: meta.category, description: meta.description, mimeType: file.type, sha256, customerIds: meta.customerIds, folderId: meta.folderId });
+  if (!saved.ok) throw new Error(saved.error);
+}
+
 /**
  * Admin: upload several files at once straight to Supabase Storage, with shared metadata, customers and folder.
- * The Asset Management opens it in a dialog, with the customer and folder of the place it was opened from.
+ * The Asset Management uploads through its own panel (asset-upload.tsx) with the same sendUpload.
  */
 export function FileUploadCard({ customers, folders, initialCustomerIds = [], initialFolderId = "", framed = true }: { customers: HubFileCustomer[]; folders: HubFolder[]; initialCustomerIds?: string[]; initialFolderId?: string; framed?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
@@ -55,19 +74,8 @@ export function FileUploadCard({ customers, folders, initialCustomerIds = [], in
   }
 
   async function uploadOne(item: UploadItem) {
-    const check = checkUpload(item.file.name, item.file.size);
-    if (!check.ok) throw new Error(check.error);
-    if (!item.title.trim()) throw new Error("Bitte einen Titel angeben.");
-    update(item.key, { status: "working", message: "Prüfsumme …" });
-    const sha256 = await sha256Hex(item.file);
-    update(item.key, { message: "Wird hochgeladen …" });
-    const prepared = await prepareUpload(item.file.name, item.file.size);
-    if (!prepared.ok) throw new Error(prepared.error);
-    const uploaded = await createClient().storage.from(HUB_FILES_BUCKET).uploadToSignedUrl(prepared.data.path, prepared.data.token, item.file, { contentType: item.file.type || "application/octet-stream" });
-    if (uploaded.error) throw new Error("Die Datei konnte nicht hochgeladen werden.");
-    update(item.key, { message: "Wird gespeichert …" });
-    const saved = await finalizeUpload({ path: prepared.data.path, fileName: item.file.name, title: item.title, category, description, mimeType: item.file.type, sha256, customerIds, folderId: targetFolder || null });
-    if (!saved.ok) throw new Error(saved.error);
+    update(item.key, { status: "working" });
+    await sendUpload(item.file, { title: item.title, category, description, customerIds, folderId: targetFolder || null }, (message) => update(item.key, { message }));
   }
 
   async function upload(event: React.FormEvent) {
