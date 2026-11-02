@@ -40,3 +40,14 @@ test("the tab bar below 1024 px has five entries: Übersicht, Dateien, Nachricht
   assert.match(await source("components/hub/app-shell.tsx"), /<div className="topbar-actions"><HeaderActions \/>/);
   assert.match(await source("app/glass.css"), /\.large-title-actions \{ display: none; \}/);
 });
+
+test("on tablets the logo alone sits in the middle of the top row; phones keep logo and name together on the left", async () => {
+  // Wish of 2 November 2026: centred on tablets only. The logo stays part of the link home.
+  assert.match(await source("components/hub/app-shell.tsx"), /className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo \/><\/span><span className="topbar-brand-text"/);
+  const css = await source("app/glass.css");
+  const start = css.indexOf("@media (min-width: 768px) and (max-width: 1023px) {");
+  assert.ok(start > 0, "a block for tablets only");
+  const tablet = css.slice(start).split(/\r?\n\}\r?\n/)[0];
+  assert.match(tablet, /\.topbar-brand \.brand-tile \{ position: absolute; top: 4px; left: calc\(50% - 18px\); \}/);
+  assert.match(tablet, /\.hub-topbar \.hub-notice \{ order: 3; flex: 1 1 100%; \}/);
+});
