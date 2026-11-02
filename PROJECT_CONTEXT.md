@@ -14,6 +14,11 @@
 - Ziehen: nur Dateien vom Computer (`isFileDrag`), nur mit echtem Admin-Login und nicht während eines Uploads. Der Ordner unter der Maus kommt aus `data-drop-folder` (Minimal-Gruppen, `TableGroup dropKey`), er leuchtet auf, und eine Pille unten sagt, wohin die Dateien gehen. Beim Loslassen öffnet sich die Leiste mit diesem Ordner. Auf dem Rest der Fläche bewirkt Loslassen nichts, statt die Datei im Browser zu öffnen.
 - Details: `FilePanel` (`asset-details.tsx`). Bilder bis 8 MB zeigen eine Vorschau über einen 60-Sekunden-Link (`createDownloadUrls`); dazu „Herunterladen“ und „Link kopieren“ (`/dashboard/files?file=<id>`). „Als Logo von … verwenden“ erscheint bei Bildern des geöffneten Kunden (`saveCustomerLogo` mit Quelle Datei, der bisherige Hintergrund bleibt). Unter „Freigegeben für“ stehen die Kunden mit einer Ordnerwahl je Kunde (`moveFiles` über `store.move`) und „Zuordnung ändern“ (`setFileAssignments`; neue Kunden bekommen eine Meldung); darunter die Fakten.
 - Kunden behalten ihre Dateien-Ansicht mit dem Dialog `FileDetailDialog`; Bearbeiten und Löschen von Dateien kommen mit Schritt 4.
+- Am 3. November 2026 auf „Ja, live testen“ des Nutzers lokal gegen die Live-Datenbank geprüft, nach jedem Schritt mit einer Leseabfrage:
+  - „Als Logo von Nordlicht Studio verwenden“ aus den Details der „Logo-Datei“: Das Logo steht im Kopf, in der Liste und in der Leiste, als Kopie im Logo-Ordner; danach mit „Buchstaben verwenden“ wieder entfernt.
+  - Die „Logo-Datei“ in den Details nach „Verträge“ und zurück nach „Ohne Ordner“ verschoben.
+  - Eine Textdatei per Ziehen auf den Testkunden OA-56215 hochgeladen: mit Kategorie, Beschreibung, Prüfsumme, Objekt und Zuordnung. Keine Meldung, weil der Testkunde keine Logins hat.
+  - Nordlicht Studio ist danach wie vorher. Die Testdatei „Testdatei Schritt 3“ bleibt beim Testkunden, bis Schritt 4 Löschen bringt oder OA-56215 aufgeräumt wird.
 
 ### Vorgabe vom 2. November 2026: Asset Management, Schritt 2 (Kundenlogos)
 
