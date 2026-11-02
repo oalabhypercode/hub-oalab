@@ -6,6 +6,12 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 2. November 2026: Asset Management, Schritt 1
+
+- Freigabe des Nutzers am 2. November 2026 („Ja, so umsetzen“) nach den Vorschauen „Asset Management V1–V5“, mit allen Empfehlungen: Kundenliste links und Kunde rechts, Hochladen per Knopf und Ziehen mit Seitenleiste, Details als Seitenleiste, keine Kennzahl-Karten für Admins, Bearbeiten und Löschen als eigener Schritt, Standardansicht Minimal, die Wahl im Browser gespeichert, Logos privat wie die Dateien, „Abmelden“ ins Menü am Zahnrad.
+- Reihenfolge: zuerst die Ecke unten links; Schritt 1 Aufbau mit Minimal und Detail und der Karte „Listen“ (ohne Datenbank-Änderung); Schritt 2 Kundenlogos (neues Feld am Kunden und Speicherordner, auch im Login des Kunden: unten links, in der Begrüßung, am Handy oben rechts); Schritt 3 Hochladen in einer Seitenleiste mit Ziehen und Kategorie je Datei, Details als Seitenleiste; Schritt 4 Bearbeiten und Löschen. Später übernehmen die Dateien der Kunden, die Projekte und die Freelancer-Ansichten die Listeneinstellung.
+- Umsetzung Schritt 1: `components/hub/screens/asset-management.tsx` für Admins, `FilesScreen` in `files.tsx` verzweigt (Kunden behalten ihre Tabelle). Gemeinsame Dialoge in `files-dialogs.tsx`. Die Kundenliste nutzt die Bausteine der Gespräche (`.chat-list`, `.chat-conv`), Kunden haben ein Zeichen aus den Initialen der Firma in einer von acht Farben. Ansichten: Kunde mit Ordnern, „Alle Dateien“ (Minimal nach Heute, Gestern, Diese Woche, Früher; Detail mit Spalte Kunde) und „Ablage“ mit „Zuordnen“. Minimal: Symbol in der Farbe der Kategorie (`.am-cat-*`), Titel und Tag (`formatFileDay`, `fileDayGroup` in `lib/hub-files/catalog.ts`); Häkchen und Download beim Darüberfahren, Ordner-Aktionen auf Touch-Geräten immer sichtbar. Die Wahl `listView` steht in `lib/appearance.ts` (Standard „minimal“); die Karte „Listen“ unter Darstellung sehen vorerst nur Admins. Hochladen öffnet bis Schritt 3 das bisherige Formular in einem Dialog, mit Kunde und Ordner vorbelegt.
+
 ### Vorgabe vom 2. November 2026: Ecke unten links
 
 - Wunsch des Nutzers nach der Vorschau „Asset Management V5“ (Freigabe „Ja, so umsetzen“): Zahnrad und Abmelden schwebten als zwei runde Knöpfe über der Namenszeile und wirkten unruhig.

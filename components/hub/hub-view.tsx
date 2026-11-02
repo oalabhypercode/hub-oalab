@@ -86,7 +86,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
 
   return (
     <>
-      {detail === "appearance" ? <AppearanceScreen preview={preview} />
+      {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} />
         : detail && isMetricId(detail) ? <MetricDetailScreen {...screen} metricId={detail} />
         : section === "overview" ? <OverviewScreen {...screen} />
         : section === "insights" ? <InsightsScreen {...screen} />
