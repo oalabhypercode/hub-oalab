@@ -8,12 +8,14 @@ import { countPendingRegistrations } from "@/lib/hub-users/server";
 import { loadProjectsForIdentity } from "@/lib/hub-projects/server";
 import { loadInbox } from "@/lib/hub-notify/server";
 import { countUnreadConversations } from "@/lib/hub-conversations/server";
+import { countFilesForIdentity } from "@/lib/hub-files/server";
+import { loadAccountLogo } from "@/lib/hub-logos/server";
 
 async function AuthenticatedWorkspace({ children }: { children: React.ReactNode }) {
   const identity = await getWorkspaceIdentity();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
   // Real admins see how many registrations wait; RLS lets only active admins count them.
-  const [pendingRegistrations, liveProjects, inbox, unreadConversations] = await Promise.all([
+  const [pendingRegistrations, liveProjects, inbox, unreadConversations, fileCount, accountLogo] = await Promise.all([
     !identity.publicDemo && identity.account?.role === "oalab_admin" ? countPendingRegistrations() : 0,
     // Shared with the page through the request cache; feeds the sidebar count and the search.
     loadProjectsForIdentity(identity),
@@ -21,8 +23,12 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
     identity.publicDemo || identity.demoAccess ? null : loadInbox(),
     // Unread conversations for the counts in the sidebar and the tab bar; shared with the Nachrichten page.
     countUnreadConversations(identity),
+    // The sidebar count of Asset Management / Dateien for real logins (demo logins count their fixtures).
+    countFilesForIdentity(identity),
+    // A customer login sees its company's logo instead of the initials; admins and demo logins get null.
+    loadAccountLogo(identity),
   ]);
-  return <AppShell key={identity.userId} userId={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} hubAccount={identity.account} pendingRegistrations={pendingRegistrations} liveProjects={liveProjects?.projects} inbox={inbox} unreadConversations={unreadConversations}>{children}</AppShell>;
+  return <AppShell key={identity.userId} userId={identity.userId} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} hubAccount={identity.account} pendingRegistrations={pendingRegistrations} liveProjects={liveProjects?.projects} inbox={inbox} unreadConversations={unreadConversations} fileCount={fileCount} accountLogo={accountLogo}>{children}</AppShell>;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

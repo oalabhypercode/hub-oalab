@@ -1,5 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { loadCustomerLogos } from "@/lib/hub-logos/server";
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { isFileCategory } from "./catalog";
 import type { HubFileCustomer, HubFilesState, HubFolder, HubStoredFile } from "./types";
 
@@ -36,7 +38,7 @@ export async function loadHubFiles(): Promise<HubFilesState> {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const canManage = (claims?.claims.app_metadata as Record<string, unknown> | undefined)?.app_role === "oalab_admin";
-  const [files, customers, folders] = await Promise.all([
+  const [files, customers, folders, logos] = await Promise.all([
     supabase
       .from("hub_files")
       .select("id, title, file_name, category, description, mime_type, size_bytes, sha256, created_at, hub_file_assignments(folder_id, customer:hub_customers(id, customer_number, company))")
@@ -44,13 +46,18 @@ export async function loadHubFiles(): Promise<HubFilesState> {
       .returns<FileRow[]>(),
     supabase.from("hub_customers").select("id, customer_number, company").order("customer_number").returns<CustomerRow[]>(),
     supabase.from("hub_folders").select("id, customer_id, name").order("name").returns<FolderRow[]>(),
+    // The Asset Management shows every customer's logo; customers see their own one in the shell instead.
+    canManage ? loadCustomerLogos(supabase) : new Map<string, CustomerLogo>(),
   ]);
   const error = files.error ?? folders.error;
   if (error) return { source: "supabase", files: [], customers: [], folders: [], canManage, error: describeStorageError(error) };
   return {
     source: "supabase",
     canManage,
-    customers: (customers.data ?? []).map(toCustomer),
+    customers: (customers.data ?? []).map((row) => {
+      const logo = logos.get(row.id);
+      return logo ? { ...toCustomer(row), logo } : toCustomer(row);
+    }),
     folders: (folders.data ?? []).map((row): HubFolder => ({ id: row.id, customerId: row.customer_id, name: row.name })),
     files: (files.data ?? []).map((row): HubStoredFile => ({
       id: row.id,
@@ -72,4 +79,15 @@ export async function loadHubFiles(): Promise<HubFilesState> {
 /** Real files for a signed-in Supabase user; public demo identities keep their fixtures. */
 export async function loadFilesForIdentity(identity: { publicDemo: boolean }) {
   return identity.publicDemo ? undefined : loadHubFiles();
+}
+
+/**
+ * The number next to "Asset Management" / "Dateien" in the sidebar for real logins: every file for admins, the
+ * assigned ones for customers (RLS counts). Demo logins count their fixtures, so they get undefined here.
+ */
+export async function countFilesForIdentity(identity: { publicDemo: boolean; demoAccess?: unknown }) {
+  if (identity.publicDemo || identity.demoAccess) return undefined;
+  const supabase = await createClient();
+  const { count, error } = await supabase.from("hub_files").select("id", { count: "exact", head: true });
+  return error ? undefined : count ?? 0;
 }

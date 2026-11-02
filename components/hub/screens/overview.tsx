@@ -17,14 +17,14 @@ import { useHubShell } from "../shell-context";
 import type { ScreenProps } from "./types";
 
 export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin, projects, liveProjects }: ScreenProps) {
-  const { account, initials } = useHubShell();
+  const { account, initials, logo } = useHubShell();
   const [editing, setEditing] = useState(false);
   const available = metricOrder.filter((id) => !favorites.isFavorite(id));
 
   return (
     <>
       <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
-      <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} /><ServiceCard account={account} /></div>
+      <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} logo={logo} /><ServiceCard account={account} /></div>
       {populated ? <>
         {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
 

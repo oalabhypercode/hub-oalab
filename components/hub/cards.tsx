@@ -4,15 +4,17 @@ import { categories } from "@/lib/categories";
 import type { Highlight, Insight, MetricSnapshot } from "@/lib/hub-metrics";
 import { SERVICE_PLATFORM_URL, servicePackages } from "@/lib/service-packages";
 import { ComparisonBars, MiniChart, WeekBars } from "./charts";
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { HubAccount } from "./shell-context";
 import { CategoryIcon, Chevron } from "./glass";
+import { LogoMark } from "./logo-mark";
 
-/** Greets the signed-in person and shows whom they represent (company, customer number). */
-export function WelcomeCard({ account, initials }: { account: HubAccount; initials: string }) {
+/** Greets the signed-in person and shows whom they represent (company, customer number), with the company's logo if set. */
+export function WelcomeCard({ account, initials, logo = null }: { account: HubAccount; initials: string; logo?: CustomerLogo | null }) {
   return (
     <section className="glass glass-card-feature welcome-card" aria-labelledby="welcome-title">
       <div className="welcome-head">
-        <span className="avatar welcome-avatar" aria-hidden="true">{initials}</span>
+        <LogoMark logo={logo} initials={initials} className="avatar welcome-avatar" />
         <h2 className="welcome-title" id="welcome-title"><span className="welcome-greeting">Willkommen zurück,</span> <span className="welcome-name">{account.name}</span></h2>
       </div>
       <dl className="welcome-facts">

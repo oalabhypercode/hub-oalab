@@ -1,6 +1,8 @@
 import type { FileCategory } from "./catalog";
+import type { CustomerLogo } from "../hub-logos/rules";
 
-export type HubFileCustomer = { id: string; customerNumber: string; company: string };
+/** The customers list carries each logo (admins only); customers inside a file's assignments do not. */
+export type HubFileCustomer = { id: string; customerNumber: string; company: string; logo?: CustomerLogo };
 
 /** One level of folders per customer; a file's folder is stored per customer assignment. */
 export type HubFolder = { id: string; customerId: string; name: string };

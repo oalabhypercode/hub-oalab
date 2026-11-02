@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from "react";
 import type { ServicePackageId } from "@/lib/service-packages";
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
 
 export type ShellPanel = "search" | "notifications" | "help";
 
@@ -26,6 +27,8 @@ export type ShellContextValue = {
   /** The loading shell before the login is known: account details are blank, not "no customer". */
   pending: boolean;
   initials: string;
+  /** Customer logins: their company's logo in place of the initials (null without one, for admins and demos). */
+  logo: CustomerLogo | null;
   account: HubAccount;
   /** Real admin login (not the preview or the public demo): may open the user management. */
   manageUsers: boolean;

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderPlus, Inbox, LayoutList, ListFilter, Loader2, Pencil, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderPlus, ImagePlus, Inbox, LayoutList, ListFilter, Loader2, Pencil, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import type { ListView } from "@/lib/appearance";
 import { fileCategories, fileCategoryIds, fileDayGroup, fileFormat, formatBytes, formatFileDate, formatFileDay } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
@@ -16,6 +16,8 @@ import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, TableAddRow, TableG
 import { FilterSelect, SortControl, SortHeader } from "../table-tools";
 import { CategoryTitle } from "./workspace";
 import { DeleteFolderDialog, DownloadButton, FileDetailDialog, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
+import { LogoDialog } from "./asset-logo";
+import { CustomerSign } from "./customer-sign";
 import { CategoryDot, FileIcon } from "./files-parts";
 import { useFilesStore } from "./files-store";
 import { FileUploadCard } from "./files-upload";
@@ -27,15 +29,6 @@ const NO_FOLDER = "none";
 type View = { kind: "customer"; id: string } | { kind: "all" } | { kind: "inbox" };
 type CustomerRow = { customer: HubFileCustomer; files: HubStoredFile[]; last: string };
 type Group = { key: string; label: string; folder: HubFolder | null; files: HubStoredFile[] };
-
-/** A company's sign: its initials on a rounded square in one of eight colours, the same for a customer everywhere. */
-const signColors = ["bordeaux", "blue", "green", "orange", "violet", "teal", "rose", "slate"];
-const signColor = (id: string) => signColors[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % signColors.length];
-const companyInitials = (company: string) => company.replace(/[^\p{L}\s&-]/gu, "").split(/[\s&-]+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
-
-function CustomerSign({ customer, size }: { customer: HubFileCustomer; size?: "xs" | "sm" | "md" | "lg" }) {
-  return <span className={`chat-avatar am-avatar is-${signColor(customer.id)}${size ? ` is-${size}` : ""}`} aria-hidden="true">{companyInitials(customer.company)}</span>;
-}
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const totalSize = (list: HubStoredFile[]) => formatBytes(list.reduce((sum, file) => sum + file.sizeBytes, 0));
@@ -69,6 +62,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     return { customer, files: own, last: newest(own) };
   }), [customers, files]);
   const inbox = useMemo(() => files.filter((file) => !file.customers.length), [files]);
+  // The customers list carries the logos; a file's own customer entries do not, so they are looked up here.
+  const logos = useMemo(() => new Map(customers.flatMap((customer) => customer.logo ? [[customer.id, customer.logo] as const] : [])), [customers]);
 
   // A notice links its file (/files?file=<id>): the page opens with that file and its customer.
   const linkedFile = useSearchParams().get("file");
@@ -93,6 +88,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const [dialog, setDialog] = useState<FolderDialog | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [upload, setUpload] = useState<{ customerId: string | null; folderId: string } | null>(null);
+  const [logoFor, setLogoFor] = useState<string | null>(null);
   const [busy, setBusy] = useState<"download" | "move" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -110,6 +106,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   ] : [];
   const selection = shown.filter((file) => selected.includes(file.id));
   const openFile = files.find((file) => file.id === openId);
+  const logoRow = logoFor ? rows.find((row) => row.customer.id === logoFor) : undefined;
   const usedFormats = Array.from(new Set(paneFiles.map((file) => fileFormat(file.fileName)))).sort();
   const usedCategories = fileCategoryIds.filter((id) => paneFiles.some((file) => file.category === id));
   const filterCount = [category !== ALL, format !== ALL].filter(Boolean).length;
@@ -194,7 +191,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   };
 
   const who = (file: HubStoredFile, compact = false) => file.customers.length
-    ? <span className={compact ? "am-min-who" : "am-customer"}><CustomerSign customer={file.customers[0]} size={compact ? "xs" : "sm"} /><span>{file.customers[0].company}</span>{file.customers.length > 1 && <span className={compact ? "am-min-plus" : "am-plus"} title={file.customers.slice(1).map((item) => item.company).join(", ")}>+{file.customers.length - 1}</span>}</span>
+    ? <span className={compact ? "am-min-who" : "am-customer"}><CustomerSign customer={file.customers[0]} logo={logos.get(file.customers[0].id)} size={compact ? "xs" : "sm"} /><span>{file.customers[0].company}</span>{file.customers.length > 1 && <span className={compact ? "am-min-plus" : "am-plus"} title={file.customers.slice(1).map((item) => item.company).join(", ")}>+{file.customers.length - 1}</span>}</span>
     : <span className={compact ? "am-min-who is-inbox" : "am-customer is-inbox"}><Inbox size={compact ? 13 : 15} aria-hidden="true" /><span>Ablage</span></span>;
 
   const assignButton = (file: HubStoredFile) => canManage && source === "supabase"
@@ -319,7 +316,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const head = current ? (
     <header className="am-pane-head">
       {back}
-      <CustomerSign customer={current} size="lg" />
+      {/* A click on the sign opens the logo; the badge shows on hover, and always while there is none. */}
+      {canUpload ? (
+        <button type="button" className="am-sign-edit" onClick={() => setLogoFor(current.id)} title={current.logo ? "Logo ändern" : "Logo hinterlegen"} aria-label={`Logo von ${current.company} ${current.logo ? "ändern" : "hinterlegen"}`}>
+          <CustomerSign customer={current} logo={current.logo} size="lg" />
+          <span className={`am-sign-badge${current.logo ? "" : " is-shown"}`} aria-hidden="true"><ImagePlus size={12} /></span>
+        </button>
+      ) : <CustomerSign customer={current} logo={current.logo} size="lg" />}
       <div className="am-pane-title"><strong>{current.company}</strong><span>{minimal ? `${plural(paneFiles.length, "Datei", "Dateien")} · ${totalSize(paneFiles)}` : `${current.customerNumber} · ${plural(paneFiles.length, "Datei", "Dateien")} · ${totalSize(paneFiles)}`}</span></div>
       <div className="am-pane-actions">{!minimal && <button type="button" className="sheet-action am-wide" onClick={() => setDialog({ kind: "create" })}><FolderPlus size={15} aria-hidden="true" />Neuer Ordner</button>}{uploadButton}</div>
     </header>
@@ -377,7 +380,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         <li className="am-list-label">{minimal ? "Kunden" : customerOrder === "az" ? "Kunden von A bis Z" : "Kunden · zuletzt aktiv"}</li>
         {listedRows.map(({ customer, files: own, last }) => pinned(
           { kind: "customer", id: customer.id },
-          <CustomerSign customer={customer} size={minimal ? "md" : undefined} />,
+          <CustomerSign customer={customer} logo={customer.logo} size={minimal ? "md" : undefined} />,
           customer.company,
           `${customer.customerNumber} · ${own.length ? plural(own.length, "Datei", "Dateien") : "noch keine Dateien"}`,
           minimal ? <span className="am-count">{own.length || ""}</span> : last ? <time className={formatFileDay(last, asOf) === "Heute" ? "is-new" : undefined}>{formatFileDay(last, asOf)}</time> : null,
@@ -438,6 +441,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
           <FileUploadCard customers={customers} folders={folders} initialCustomerIds={upload.customerId ? [upload.customerId] : []} initialFolderId={upload.folderId} framed={false} />
         </Modal>
       )}
+      {logoRow && <LogoDialog customer={logoRow.customer} files={logoRow.files} onClose={() => setLogoFor(null)} onSaved={(message) => { setLogoFor(null); setNotice(message); }} />}
       {dialog?.kind === "create" && current && (
         <FolderNameDialog title={`Neuer Ordner bei ${current.company}`} initial="" onClose={() => setDialog(null)} onSave={async (name) => {
           const result = await store.addFolder(current.id, name);

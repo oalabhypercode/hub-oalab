@@ -6,6 +6,16 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 2. November 2026: Asset Management, Schritt 2 (Kundenlogos)
+
+- Freigabe des Nutzers am 2. November 2026 („Ja, Schritt 2 starten“) nach der Vorschau „Asset Management V5“, Entscheidung 4: Logos liegen privat wie die Dateien, Links werden gesammelt und kurzlebig erzeugt, ein Kunde bekommt nur einen Link für sein eigenes Logo.
+- Datenbank: Migration `202611020001_hub_customer_logos.sql` in `service-oalab` (PR #8), am 2. November 2026 auf ausdrückliches „Klick du auf Run“ des Nutzers im SQL-Editor angewendet und in `supabase_migrations.schema_migrations` eingetragen. `hub_customers` hat `logo_path` (Prüfregel: `logos/<Kunden-ID>/<UUID>.svg|png|jpg|webp`), `logo_background` (`light`, `dark`, `brand`) und `logo_color` (`#rrggbb`). Privater Bucket `hub-logos` (2 MB, SVG, PNG, JPG, WebP); Speicherregeln „Hub admins manage logo objects“ und „Members read their customer logo“ (über `hub_customer_members`, also nur mit aktivem Profil). Der Abgleich mit Service reagiert nicht auf die neuen Felder.
+- Hub: `lib/hub-logos/` (Regeln, Laden mit gesammelt signierten Links für eine Stunde, Server Actions mit `verifyHubAdmin`). Die Felder werden getrennt und fehlertolerant gelesen, nie in `CUSTOMER_COLUMNS`: Ohne Migration oder bei einem Fehler bleiben die Buchstaben. Admins bekommen die Logos aller Kunden in `loadHubFiles`, ein Kunden-Login nur das eigene (`loadAccountLogo` im Dashboard-Layout, mit seiner eigenen Sitzung); Admins und Demo-Logins behalten ihre Initialen.
+- Anzeige: `LogoMark` (`components/hub/logo-mark.tsx`) zeigt das Bild auf einer Kachel (`--logo-bg`: Weiß, Fast-Schwarz oder Markenfarbe) und fällt bei einem Ladefehler auf die Buchstaben zurück. Beim Kunden unten links, in der Begrüßungskarte und am Handy oben rechts; im Asset Management in der Kundenliste, im Kopf des Kunden und bei „Alle Dateien“.
+- Pflege: Klick auf das Zeichen im Kopf des Kunden öffnet „Logo von …“ (`asset-logo.tsx`): Vorschau groß, in einer hellen und einer dunklen Listenzeile und klein; Bild aus den Dateien des Kunden (Kopie in den Logo-Ordner, Typ aus der Datei) oder neu hochladen (signierte Upload-URL); Hintergrund Hell, Dunkel oder Markenfarbe; „Buchstaben verwenden“ entfernt Logo und Bild. Das vorige Bild wird beim Ersetzen gelöscht.
+- Behoben: Die Zahl neben „Asset Management“ bzw. „Dateien“ in der Seitenleiste kam für echte Logins aus den Beispieldaten (immer 0); jetzt zählt `countFilesForIdentity` die sichtbaren Dateien.
+- Später: Logos auch in User Management, Projekten, Gesprächen und Kalender; „Als Logo verwenden“ in den Details einer Bilddatei kommt mit Schritt 3.
+
 ### Vorgabe vom 2. November 2026: Asset Management, Schritt 1
 
 - Freigabe des Nutzers am 2. November 2026 („Ja, so umsetzen“) nach den Vorschauen „Asset Management V1–V5“, mit allen Empfehlungen: Kundenliste links und Kunde rechts, Hochladen per Knopf und Ziehen mit Seitenleiste, Details als Seitenleiste, keine Kennzahl-Karten für Admins, Bearbeiten und Löschen als eigener Schritt, Standardansicht Minimal, die Wahl im Browser gespeichert, Logos privat wie die Dateien, „Abmelden“ ins Menü am Zahnrad.

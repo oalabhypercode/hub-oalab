@@ -23,13 +23,15 @@ import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import { LogoImage, logoTileStyle, useShownLogo } from "./logo-mark";
 
 /** localStorage can throw (private mode, blocked site data); the hub then simply doesn't remember. */
 function readStored<T>(read: () => T, fallback: T): T {
   try { return read(); } catch { return fallback; }
 }
 
-export function AppShell({ children, preview = false, pending = false, email = "", userId, demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null, unreadConversations }: {
+export function AppShell({ children, preview = false, pending = false, email = "", userId, demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null, unreadConversations, fileCount, accountLogo = null }: {
   children: React.ReactNode;
   /** The signed-in login; keys the chat stored in this browser. */
   userId?: string;
@@ -49,6 +51,10 @@ export function AppShell({ children, preview = false, pending = false, email = "
   inbox?: InboxState | null;
   /** Real logins: conversations with something new from oalab (Nachrichten); the examples count their own. */
   unreadConversations?: number;
+  /** Real logins: the files they see (all for admins, assigned ones for customers); the examples count their own. */
+  fileCount?: number;
+  /** Real customer logins: their company's logo with a short-lived link. */
+  accountLogo?: CustomerLogo | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -88,7 +94,9 @@ export function AppShell({ children, preview = false, pending = false, email = "
     person: live ? { phone: live.phone, position: live.position } : null,
     customerDetails: liveCustomer ? { street: liveCustomer.street, postalCode: liveCustomer.postalCode, city: liveCustomer.city, country: liveCustomer.country, website: liveCustomer.website, phone: liveCustomer.phone, contactEmail: liveCustomer.contactEmail } : null,
   };
-  const counts = { projects: projects.length, files: files.length, messages: unreadConversations ?? (hasDemo ? 1 : 0) };
+  const counts = { projects: projects.length, files: hasDemo ? files.length : fileCount ?? 0, messages: unreadConversations ?? (hasDemo ? 1 : 0) };
+  // Only a real customer login shows its company's logo; admins keep their initials.
+  const logo = live && !account.admin ? accountLogo : null;
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -152,7 +160,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const projectResults = hasDemo || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
   const assistantDocked = assistantOpen && assistantMode === "dock";
   const shell: ShellContextValue = {
-    preview, pending, initials, account, manageUsers,
+    preview, pending, initials, logo, account, manageUsers,
     openPanel: (next) => next === "help" ? setAssistantOpen(true) : setPanel(next),
     askAboutProject: (project) => { setAssistantProject(project); setAssistantOpen(true); },
     assistantDocked: assistantMode === "dock",
@@ -169,13 +177,13 @@ export function AppShell({ children, preview = false, pending = false, email = "
         <BackgroundLayer />
         <div className={`hub-app${assistantDocked ? " has-assistant-dock" : ""}`}>
           <a className="skip-link" href="#main-content">Zum Inhalt springen</a>
-          <GlassSidebar onSearch={() => setPanel("search")} preview={preview} section={section} counts={counts} name={name} accountLabel={accountLabel} initials={initials} pendingRegistrations={pendingRegistrations} />
+          <GlassSidebar onSearch={() => setPanel("search")} preview={preview} section={section} counts={counts} name={name} accountLabel={accountLabel} initials={initials} logo={logo} pendingRegistrations={pendingRegistrations} />
           <div className="hub-main">
             <div className="hub-topbar">
               {/* Below 1024 px the sidebar (and its logo) is hidden, so the brand sits in the top row. */}
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
               {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. */}
-              <div className="topbar-actions"><HeaderActions /><Link href={hubHref(preview, "settings")} className="glass glass-float mobile-avatar" aria-label="Profil">{initials}</Link></div>
+              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /></div>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
             </div>
             <main className="hub-content" id="main-content">{children}</main>
@@ -211,6 +219,14 @@ export function AppShell({ children, preview = false, pending = false, email = "
       </ShellContext.Provider>
     </AppearanceProvider>
   );
+}
+
+/** Below 1024 px the profile sits top right: the company's logo for customers who have one, else the initials. */
+function MobileAvatar({ href, initials, logo }: { href: string; initials: string; logo: CustomerLogo | null }) {
+  const { shown, onError } = useShownLogo(logo);
+  return shown
+    ? <Link href={href} className="glass glass-float mobile-avatar has-logo" style={logoTileStyle(shown)} aria-label="Profil"><LogoImage logo={shown} onError={onError} /></Link>
+    : <Link href={href} className="glass glass-float mobile-avatar" aria-label="Profil">{initials}</Link>;
 }
 
 /** Notification and help buttons for page headers. */
