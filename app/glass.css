@@ -206,27 +206,35 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .sidebar-count { margin-left: auto; font-size: 15px; color: var(--label-secondary); font-variant-numeric: tabular-nums; }
 /* Waiting registrations: a badge instead of a plain count, so they do not go unnoticed. */
 .sidebar-count.sidebar-count-alert { min-width: 22px; height: 22px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: var(--on-accent); font-size: 13px; font-weight: 700; }
-.sidebar-profile { position: relative; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--separator); }
-.sidebar-profile-link { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px; border-radius: 14px; color: var(--label-body); transition: background 200ms ease; }
-.sidebar-profile-link:hover { background: rgb(255 255 255 / calc(0.45 * var(--raise-k))); }
-.sidebar-profile-link.is-active { background: var(--selected-pill); box-shadow: var(--selected-pill-shadow); }
-.sidebar-profile-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.sidebar-profile-text strong, .sidebar-profile-text span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Room on the name line for the two icon buttons (2 × 36 px + gap). */
-.sidebar-profile-text strong { font-size: 15px; line-height: 20px; font-weight: 600; padding-right: 80px; }
+/* Profile corner: sign, name and below it a dot with the package; apart from them one gear with Profil, Darstellung and Abmelden. */
+.sidebar-account { position: relative; margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--separator); }
+.sidebar-account-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 8px; border-radius: 14px; color: var(--label-body); transition: background 200ms ease; }
+.sidebar-account-link:hover { background: rgb(255 255 255 / calc(0.45 * var(--raise-k))); }
+.sidebar-account-link.is-active { background: var(--selected-pill); box-shadow: var(--selected-pill-shadow); }
+.sidebar-account-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sidebar-account-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
 /* Loading shell: a bar in place of the name, on the same 20 px line. */
-.sidebar-profile-text .sidebar-name-skeleton { width: 112px; height: 14px; margin: 3px 0; }
-.sidebar-profile-text .sidebar-package { font-size: 12px; line-height: 16px; color: var(--accent-text); font-weight: 600; }
-/* Icon buttons centred on the name line: 8 px padding + half of the 20 px line = 18 px, minus half a 36 px button. */
-.sidebar-profile-actions { position: absolute; top: 10px; right: 4px; display: flex; gap: 4px; }
-.sidebar-profile:not(.has-package) .sidebar-profile-actions { top: calc(10px + 8px); }
-.sidebar-icon-button { position: relative; isolation: isolate; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--label-secondary); transition: color 200ms ease, transform var(--duration) var(--ease-spring); }
-.sidebar-icon-button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 50%; background: rgb(255 255 255 / calc(0.7 * var(--raise-k))); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); opacity: 0; transform: scale(0.5); transition: opacity 200ms ease, transform 300ms var(--ease-spring); }
-.sidebar-icon-button:hover, .sidebar-icon-button:focus-visible { color: var(--accent-text); }
-.sidebar-icon-button:hover::before, .sidebar-icon-button:focus-visible::before { opacity: 1; transform: scale(1); }
-.sidebar-icon-button:active { transform: scale(0.92); }
-.sidebar-settings-button svg { transition: transform 400ms var(--ease-spring); }
-.sidebar-settings-button:hover svg { transform: rotate(60deg); }
+.sidebar-account-text .sidebar-name-skeleton { display: block; width: 112px; height: 14px; margin: 3px 0; }
+.sidebar-account-meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--accent-text); }
+.sidebar-account-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-account-meta i { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+/* The gear: a quiet square of its own, a hairline apart from the name. */
+.sidebar-account-gear { position: relative; flex: 0 0 auto; width: 36px; height: 36px; margin-left: 2px; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; color: var(--label-secondary); background: rgb(255 255 255 / calc(0.4 * var(--raise-k))); box-shadow: inset 0 0 0 1px rgb(255 255 255 / calc(0.55 * var(--raise-k))), 0 1px 2px rgba(0, 0, 0, 0.06); transition: color 200ms ease, background 200ms ease, transform var(--duration) var(--ease-spring); }
+.sidebar-account-gear::before { content: ""; position: absolute; left: -7px; top: 8px; bottom: 8px; width: 1px; background: var(--separator); }
+.sidebar-account-gear:hover, .sidebar-account-gear:focus-visible, .sidebar-account-gear[aria-expanded="true"] { color: var(--accent-text); background: rgb(255 255 255 / calc(0.75 * var(--raise-k))); }
+.sidebar-account-gear:active { transform: scale(0.92); }
+.sidebar-account-gear svg { transition: transform 400ms var(--ease-spring); }
+.sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: rotate(60deg); }
+:root[data-theme="dark"] .sidebar-account-gear { background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+:root[data-theme="dark"] .sidebar-account-gear:is(:hover, :focus-visible, [aria-expanded="true"]) { background: rgba(255, 255, 255, 0.12); }
+/* The menu opens above the corner: who is signed in, Profil, Darstellung and, set apart in red, Abmelden. */
+.sidebar-account-menu { position: absolute; z-index: 50; right: 0; bottom: calc(100% + 8px); min-width: 210px; max-width: 100%; display: grid; gap: 2px; padding: 6px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--separator), 0 14px 34px rgba(20, 4, 14, 0.24); }
+.sidebar-account-menu :is(a, button) { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 9px; font-size: 14px; font-weight: 500; color: var(--label-body); text-align: left; }
+.sidebar-account-menu :is(a, button) svg { color: var(--label-secondary); }
+.sidebar-account-menu :is(a, button):is(:hover, :focus-visible) { background: var(--fill-tertiary); outline: none; }
+.sidebar-account-menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--separator); }
+.sidebar-account-menu .is-danger, .sidebar-account-menu .is-danger svg { color: var(--tone-bad); }
+.sidebar-account-menu small { padding: 4px 10px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .glass-sidebar .form-error { margin: 0 4px; }
 .hub-app .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--oalab-gradient-action); color: #ffffff; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tab-bar-wrap, .scroll-edge, .mobile-avatar, .topbar-actions { display: none; }

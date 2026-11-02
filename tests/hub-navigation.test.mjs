@@ -41,6 +41,18 @@ test("the tab bar below 1024 px has five entries: Übersicht, Dateien, Nachricht
   assert.match(await source("app/glass.css"), /\.large-title-actions \{ display: none; \}/);
 });
 
+test("the profile corner shows sign, name and package, and one gear opens Profil, Darstellung and Abmelden", async () => {
+  // Wish of 2 November 2026: nothing floats over the name any more; Abmelden moved into the gear's menu.
+  const sidebar = await source("components/hub/glass-sidebar.tsx");
+  assert.doesNotMatch(sidebar, /sidebar-profile-actions|sidebar-icon-button/);
+  assert.match(sidebar, /className="sidebar-account-gear" aria-haspopup="menu" aria-expanded=\{menuOpen\}/);
+  assert.match(sidebar, /role="menu" aria-label="Konto"/);
+  for (const label of [">Profil<", ">Darstellung<"]) assert.ok(sidebar.includes(label), label);
+  assert.match(sidebar, /\{preview \? "Vorschau verlassen" : "Abmelden"\}<\/button>/);
+  assert.match(sidebar, /const meta = activePackages \|\| \(account\.admin \? "oalab-Team" : ""\);/);
+  assert.match(await source("app/glass.css"), /\.sidebar-account-gear::before \{ content: ""; position: absolute; left: -7px;/);
+});
+
 test("on tablets the logo alone sits in the middle of the top row; phones keep logo and name together on the left", async () => {
   // Wish of 2 November 2026: centred on tablets only. The logo stays part of the link home.
   assert.match(await source("components/hub/app-shell.tsx"), /className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo \/><\/span><span className="topbar-brand-text"/);

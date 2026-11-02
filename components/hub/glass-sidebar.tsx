@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Bot, Loader2, LogOut, ScrollText, Search, Settings, UserCog } from "lucide-react";
+import { Bot, Loader2, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
-import { hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
+import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { useHubShell } from "./shell-context";
 import { mainNavigation } from "./navigation";
@@ -16,6 +17,7 @@ type SidebarProps = {
   /** Categories without a count (the calendar) show none; Nachrichten counts only unread conversations. */
   counts: Partial<Record<CategoryId, number>>;
   name: string;
+  /** The first line of the account menu: the login's e-mail, or what kind of demo or preview this is. */
   accountLabel: string;
   initials: string;
   /** Admins: registrations waiting for approval. */
@@ -26,6 +28,28 @@ type SidebarProps = {
 export function GlassSidebar({ onSearch, preview, section, counts, name, accountLabel, initials, pendingRegistrations }: SidebarProps) {
   const { signOut, signingOut, logoutError, account, manageUsers } = useHubShell();
   const activePackages = account.servicePackages.map((id) => servicePackages[id].name).join(", ");
+  // Under the name: the active package, for the oalab team its name.
+  const meta = activePackages || (account.admin ? "oalab-Team" : "");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const corner = useRef<HTMLDivElement>(null);
+  const gear = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!menuOpen) return;
+    corner.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const onPointer = (event: PointerEvent) => { if (!corner.current?.contains(event.target as Node)) setMenuOpen(false); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setMenuOpen(false); gear.current?.focus(); return; }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      const items = Array.from(corner.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+      const index = items.indexOf(document.activeElement as HTMLElement);
+      event.preventDefault();
+      items[(index + (event.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onPointer); document.removeEventListener("keydown", onKey); };
+  }, [menuOpen]);
   const item = (target: HubSection) => ({
     href: hubHref(preview, target),
     className: `sidebar-item${section === target ? " is-active" : ""}`,
@@ -67,20 +91,28 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           <ScrollText size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels["patch-notes"]}</span>
         </Link>
       </nav>
-      <div className={`sidebar-profile${activePackages ? " has-package" : ""}`}>
-        <Link {...item("settings")} className={`sidebar-profile-link${section === "settings" ? " is-active" : ""}`}>
+      {/* Sign, name and below it a dot with the package; apart from them one gear with Profil, Darstellung and Abmelden. */}
+      <div className="sidebar-account" ref={corner}>
+        <Link {...item("settings")} className={`sidebar-account-link${section === "settings" ? " is-active" : ""}`}>
           <span className="avatar" aria-hidden="true">{initials}</span>
-          <span className="sidebar-profile-text">
+          <span className="sidebar-account-text">
             {/* Blank while the loading shell waits for the login. */}
             <strong>{name || <span className="skeleton-bar sidebar-name-skeleton" aria-hidden="true" />}</strong>
-            {activePackages && <span className="sidebar-package" title={`Aktives Servicepaket: ${activePackages}`}><span className="visually-hidden">Aktives Servicepaket: </span>{activePackages}</span>}
+            {meta && <span className="sidebar-account-meta" title={activePackages ? `Aktives Servicepaket: ${activePackages}` : undefined}><i aria-hidden="true" /><span>{activePackages && <span className="visually-hidden">Aktives Servicepaket: </span>}{meta}</span></span>}
           </span>
         </Link>
-        {/* Standalone icon buttons on the name line; the package line runs underneath them. */}
-        <div className="sidebar-profile-actions">
-          <Link href={hubHref(preview, "settings")} className="sidebar-icon-button sidebar-settings-button" aria-label="Profil" title="Profil"><Settings size={18} strokeWidth={2.2} aria-hidden="true" /></Link>
-          <button className="sidebar-icon-button" aria-label={preview ? "Vorschau verlassen" : "Abmelden"} title={preview ? "Zur Anmeldung" : `Abmelden (${accountLabel})`} onClick={signOut} disabled={signingOut}>{signingOut ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <LogOut size={18} aria-hidden="true" />}</button>
-        </div>
+        <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung und ${preview ? "Vorschau verlassen" : "Abmelden"}`} title="Konto" onClick={() => setMenuOpen((open) => !open)}>
+          {signingOut ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Settings size={18} strokeWidth={2.2} aria-hidden="true" />}
+        </button>
+        {menuOpen && (
+          <div id={menuId} className="sidebar-account-menu" role="menu" aria-label="Konto">
+            <small>{accountLabel}</small>
+            <Link role="menuitem" href={hubHref(preview, "settings")} onClick={() => setMenuOpen(false)}><UserRound size={18} aria-hidden="true" />Profil</Link>
+            <Link role="menuitem" href={appearanceHref(preview)} onClick={() => setMenuOpen(false)}><Palette size={18} aria-hidden="true" />Darstellung</Link>
+            <hr />
+            <button type="button" role="menuitem" className="is-danger" onClick={() => { setMenuOpen(false); signOut(); }} disabled={signingOut}><LogOut size={18} aria-hidden="true" />{preview ? "Vorschau verlassen" : "Abmelden"}</button>
+          </div>
+        )}
       </div>
       {logoutError && <p role="alert" className="form-error">{logoutError}</p>}
     </aside>

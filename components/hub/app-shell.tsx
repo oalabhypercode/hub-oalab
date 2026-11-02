@@ -73,8 +73,9 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const projects = preview ? previewProjects : demoData?.projects || liveProjects || [];
   const files = preview ? previewFiles : demoData?.files || [];
   const hasDemo = preview || Boolean(demoData);
-  // Demo accounts carry no banner; the role and the kind of demo stay visible in the logout tooltip.
-  const accountLabel = preview ? "Designvorschau" : demoData ? `${demoData.role === "oalab_admin" ? "oalab-Admin" : "Kunde"} · ${publicDemo ? "Öffentliche Demo" : "Demo"}` : "Angemeldet";
+  // The first line of the account menu: real logins see their e-mail; demo accounts carry no banner, so the role and the
+  // kind of demo stay visible there.
+  const accountLabel = preview ? "Designvorschau" : demoData ? `${demoData.role === "oalab_admin" ? "oalab-Admin" : "Kunde"} · ${publicDemo ? "Öffentliche Demo" : "Demo"}` : email || "Angemeldet";
   const words = name.trim().split(/\s+/).filter(Boolean);
   const initials = preview ? previewAccount.initials : (words.length > 1 ? words[0][0] + words[words.length - 1][0] : name.slice(0, 2)).toUpperCase();
   const account: HubAccount = {

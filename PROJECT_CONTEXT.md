@@ -6,6 +6,13 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 2. November 2026: Ecke unten links
+
+- Wunsch des Nutzers nach der Vorschau „Asset Management V5“ (Freigabe „Ja, so umsetzen“): Zahnrad und Abmelden schwebten als zwei runde Knöpfe über der Namenszeile und wirkten unruhig.
+- Jetzt: Zeichen (Initialen, später das Kundenlogo), Name und darunter nach einem kleinen Punkt das aktive Servicepaket, bei Admins „oalab-Team“. Rechts, durch eine feine Linie abgetrennt, nur ein Zahnrad. Es öffnet ein Menü mit der E-Mail-Adresse des Logins (bei Demo und Vorschau deren Art), „Profil“, „Darstellung“ und rot „Abmelden“ (in der Vorschau „Vorschau verlassen“).
+- Name, Punkt und Paket in einer Zeile passen in die 272 px breite Seitenleiste nicht, deshalb zwei Zeilen. „Abmelden“ oben neben Glocke und Hilfe war die Alternative, gewählt wurde das Menü.
+- Code: `components/hub/glass-sidebar.tsx` (`.sidebar-account*` in `app/glass.css`); Escape und Klick daneben schließen das Menü, Pfeiltasten wandern durch die Einträge.
+
 ### Vorgabe vom 2. November 2026: Logo mittig in der Tablet-Ansicht
 
 - Wunsch des Nutzers: In der Tablet-Ansicht (768 bis 1023 px, mit Tab-Leiste) steht das oalab-Logo allein mittig oben. Der Schriftzug „oalab Client Hub“ bleibt links, Glocke, Assistent und Initialen bleiben rechts.
