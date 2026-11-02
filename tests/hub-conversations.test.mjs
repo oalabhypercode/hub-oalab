@@ -136,3 +136,10 @@ test("the Nachrichten page is the chat, with unread counts in the sidebar and th
   assert.match(css, /\.chat\[data-open\] \.chat-pane \{ position: fixed; z-index: 60; inset: 0;/);
   assert.match(css, /:root:has\(\.chat\[data-open\]\) :is\(\.tab-bar-wrap, \.scroll-edge\) \{ display: none; \}/);
 });
+
+test("the arrow opens the conversation on the service platform, at the address its e-mails use", async () => {
+  const screen = await source("components/hub/screens/conversations.tsx");
+  assert.match(screen, /href=\{`\$\{SERVICE_PLATFORM_URL\}\/requests\/\$\{conversation\.reference\}\/received`\}/);
+  // /workspace is oalab's studio; customers who open it land back in the hub.
+  assert.doesNotMatch(screen, /SERVICE_PLATFORM_URL\}\/workspace/);
+});

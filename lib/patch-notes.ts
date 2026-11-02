@@ -46,6 +46,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "improved", title: "Ein Ort für Gespräche", text: "Der Eintrag „Chat“ in der Seitenleiste und unter „Mehr“ entfällt, die Gespräche stehen unter Nachrichten. Ein neues Gespräch startest du über das Stift-Symbol; es öffnet die neue Anfrage auf der Serviceplattform.", customers: true },
       { kind: "new", title: "Gespräche mitlesen", text: "Admins sehen unter Nachrichten die Gespräche aller Kunden mit Firmenname, nur zum Lesen. Antworten und interne Notizen entstehen weiter in NoteTree Business." },
       { kind: "improved", title: "Nachrichten in der Tab-Leiste", text: "Am Smartphone und Tablet stehen die Nachrichten jetzt direkt in der Tab-Leiste, mit der Zahl ungelesener Gespräche. Projekte findest du dort unter „Mehr“.", customers: true },
+      { kind: "fixed", title: "Gespräch auf der Serviceplattform öffnen", text: "Der Pfeil oben rechts in einem Gespräch öffnet es jetzt auf der Serviceplattform, mit Freigaben und Testseite. Vorher führte er zurück in den Hub.", customers: true },
     ],
   },
   {
