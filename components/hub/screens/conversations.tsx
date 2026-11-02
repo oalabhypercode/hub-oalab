@@ -251,7 +251,7 @@ function ChatThread({ thread, admin, readOnly, live, now, preview, onClose, onSe
         <Avatar conversation={conversation} admin={admin} />
         <div className="chat-pane-title"><strong>{conversation.title}</strong><span>{subtitle}</span></div>
         <span className={`chat-pill tone-${conversation.tone}`}>{conversation.stateLabel}</span>
-        {live && !admin && <a className="chat-icon-button is-muted" href={`${SERVICE_PLATFORM_URL}/workspace/requests/${conversation.reference}`} target="_blank" rel="noopener noreferrer" title="Auf der Serviceplattform öffnen, mit Freigaben und Testseite" aria-label="Auf der Serviceplattform öffnen (neuer Tab)"><ArrowUpRight size={18} aria-hidden="true" /></a>}
+        {live && !admin && <a className="chat-icon-button is-muted" href={`${SERVICE_PLATFORM_URL}/requests/${conversation.reference}/received`} target="_blank" rel="noopener noreferrer" title="Auf der Serviceplattform öffnen, mit Freigaben und Testseite" aria-label="Auf der Serviceplattform öffnen (neuer Tab)"><ArrowUpRight size={18} aria-hidden="true" /></a>}
       </header>
       <div className="chat-log" ref={log} role="log" aria-live="polite" aria-label="Nachrichten">
         {items.length ? items.map(({ message, day, first, last }) => {
