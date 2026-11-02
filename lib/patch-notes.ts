@@ -39,7 +39,7 @@ export const patchPackages: PatchPackage[] = [
     number: 11,
     date: "2026-11-02",
     title: "Gespräche wie im Messenger",
-    summary: "Nachrichten werden ein Chat: alle Gespräche mit oalab an einem Ort, wie man es vom Handy kennt. Dazu steht das Logo am Tablet mittig oben.",
+    summary: "Nachrichten werden ein Chat: alle Gespräche mit oalab an einem Ort, wie man es vom Handy kennt. Dazu steht das Logo am Tablet mittig oben, und die Ecke unten links ist aufgeräumt.",
     changes: [
       { kind: "new", title: "Gespräche wie im Messenger", text: "Unter Nachrichten stehen jetzt deine Gespräche mit oalab als Chat: links die Liste mit dem Neuesten oben, rechts das offene Gespräch mit Sprechblasen, Datum und dem Stand deiner Anfrage. Am Smartphone öffnet ein Tipp das Gespräch bildschirmfüllend.", customers: true },
       { kind: "new", title: "Direkt im Hub antworten", text: "Deine Antwort landet in derselben Anfrage wie auf der Serviceplattform, und das oalab-Team erfährt davon wie gewohnt. Neue Antworten erscheinen ohne Neuladen; liest du sie im Hub, kommt dazu keine zusätzliche E-Mail mehr.", customers: true },
@@ -47,6 +47,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", title: "Gespräche mitlesen", text: "Admins sehen unter Nachrichten die Gespräche aller Kunden mit Firmenname, nur zum Lesen. Antworten und interne Notizen entstehen weiter in NoteTree Business." },
       { kind: "improved", title: "Nachrichten in der Tab-Leiste", text: "Am Smartphone und Tablet stehen die Nachrichten jetzt direkt in der Tab-Leiste, mit der Zahl ungelesener Gespräche. Projekte findest du dort unter „Mehr“.", customers: true },
       { kind: "improved", title: "Logo in der Mitte", text: "Am Tablet steht das oalab-Logo jetzt allein mittig oben, der Schriftzug „oalab Client Hub“ bleibt links. Am Smartphone bleibt die obere Zeile, wie sie war.", customers: true },
+      { kind: "improved", title: "Aufgeräumte Ecke unten links", text: "Unten links stehen jetzt dein Name und darunter dein Servicepaket. Das Zahnrad daneben öffnet ein kleines Menü mit Profil, Darstellung und Abmelden.", customers: true },
       { kind: "fixed", title: "Gespräch auf der Serviceplattform öffnen", text: "Der Pfeil oben rechts in einem Gespräch öffnet es jetzt auf der Serviceplattform, mit Freigaben und Testseite. Vorher führte er zurück in den Hub.", customers: true },
     ],
   },
