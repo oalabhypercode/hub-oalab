@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE, type ColorScheme } from "@/lib/appearance";
+import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE, type ColorScheme, type ListView } from "@/lib/appearance";
 import { hubHref } from "@/lib/hub-data";
 import { useAppearance } from "../appearance-provider";
-import { BackgroundSwatch, SchemeSwatch, Slider, Switch } from "../controls";
+import { BackgroundSwatch, ListViewSwatch, SchemeSwatch, Slider, Switch } from "../controls";
 import { GlassCard, GlassLinkButton } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 
 const schemes: { id: ColorScheme; label: string }[] = [{ id: "system", label: "Automatisch" }, { id: "light", label: "Hell" }, { id: "dark", label: "Dunkel" }];
+const listViews: { id: ListView; label: string }[] = [{ id: "minimal", label: "Minimalistisch" }, { id: "detail", label: "Detail" }];
 
 /** Profile › Appearance: every change applies live to the whole hub and is stored in this browser. */
-export function AppearanceScreen({ preview }: { preview: boolean }) {
+export function AppearanceScreen({ preview, admin = false }: { preview: boolean; admin?: boolean }) {
   const { appearance, update } = useAppearance();
   const profile = hubHref(preview, "settings");
   return (
@@ -32,6 +33,17 @@ export function AppearanceScreen({ preview }: { preview: boolean }) {
           </div>
           <p className="t-footnote t-secondary">Automatisch folgt dem hellen oder dunklen Modus deines Geräts und wechselt mit ihm.</p>
         </GlassCard>
+
+        {/* Only admins have a list with both views so far; customers get the card once their lists follow it. */}
+        {admin && (
+          <GlassCard aria-labelledby="appearance-lists">
+            <h2 className="t-headline" id="appearance-lists">Listen</h2>
+            <div className="swatch-grid list-swatches">
+              {listViews.map((view) => <ListViewSwatch key={view.id} view={view.id} label={view.label} selected={appearance.listView === view.id} onSelect={() => update({ listView: view.id })} />)}
+            </div>
+            <p className="t-footnote t-secondary">Minimalistisch zeigt je Zeile nur Symbol, Titel und Datum, Detail alle Spalten. Die Wahl gilt heute für das Asset Management und später für weitere Listen. Oben rechts in der Liste lässt sie sich jederzeit umschalten.</p>
+          </GlassCard>
+        )}
 
         <GlassCard aria-labelledby="appearance-background">
           <h2 className="t-headline" id="appearance-background">Hintergrund</h2>

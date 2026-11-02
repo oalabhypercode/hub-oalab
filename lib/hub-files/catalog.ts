@@ -102,6 +102,27 @@ export function formatFileDate(iso: string) {
   return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "short", year: "numeric" }).format(parseTimestamp(iso));
 }
 
+/** Berlin calendar day of a timestamp, YYYY-MM-DD. */
+export function fileDayKey(iso: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(parseTimestamp(iso));
+}
+
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+
+/** Short day for quiet lists: "Heute", "Gestern", otherwise "28. Okt.". today: YYYY-MM-DD (real day or the fixtures' day). */
+export function formatFileDay(iso: string, today: string) {
+  const days = daysBetween(fileDayKey(iso), today);
+  if (days === 0) return "Heute";
+  if (days === 1) return "Gestern";
+  return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short" }).format(parseTimestamp(iso));
+}
+
+/** Sections of a list sorted by day: Heute, Gestern, Diese Woche (the last seven days), Früher. */
+export function fileDayGroup(iso: string, today: string) {
+  const days = daysBetween(fileDayKey(iso), today);
+  return days <= 0 ? "Heute" : days === 1 ? "Gestern" : days < 7 ? "Diese Woche" : "Früher";
+}
+
 export function formatFileDateTime(iso: string) {
   return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(parseTimestamp(iso));
 }

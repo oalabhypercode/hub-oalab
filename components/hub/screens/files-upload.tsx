@@ -18,14 +18,17 @@ async function sha256Hex(file: Blob) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Admin: upload several files at once straight to Supabase Storage, with shared metadata, customers and folder. */
-export function FileUploadCard({ customers, folders }: { customers: HubFileCustomer[]; folders: HubFolder[] }) {
+/**
+ * Admin: upload several files at once straight to Supabase Storage, with shared metadata, customers and folder.
+ * The Asset Management opens it in a dialog, with the customer and folder of the place it was opened from.
+ */
+export function FileUploadCard({ customers, folders, initialCustomerIds = [], initialFolderId = "", framed = true }: { customers: HubFileCustomer[]; folders: HubFolder[]; initialCustomerIds?: string[]; initialFolderId?: string; framed?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [category, setCategory] = useState<FileCategory>("other");
   const [description, setDescription] = useState("");
-  const [customerIds, setCustomerIds] = useState<string[]>([]);
-  const [folderId, setFolderId] = useState("");
+  const [customerIds, setCustomerIds] = useState<string[]>(initialCustomerIds);
+  const [folderId, setFolderId] = useState(initialFolderId);
   const [dragging, setDragging] = useState(false);
   const [working, setWorking] = useState(false);
   const [summary, setSummary] = useState<{ tone: "done" | "error" | "idle"; text: string }>({ tone: "idle", text: "" });
@@ -96,59 +99,63 @@ export function FileUploadCard({ customers, folders }: { customers: HubFileCusto
     }
   }
 
+  const form = (
+    <form onSubmit={upload} className="upload-form">
+      <label
+        className={`upload-drop${dragging ? " is-dragging" : ""}`}
+        onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => { event.preventDefault(); setDragging(false); choose(event.dataTransfer.files); }}
+      >
+        <input ref={input} type="file" multiple className="visually-hidden" onChange={(event) => choose(event.target.files)} disabled={working} />
+        <Upload size={26} color="var(--accent-text)" aria-hidden="true" />
+        <span><strong>Dateien auswählen oder hierher ziehen</strong><small>Bis zu {MAX_UPLOAD_BATCH} Dateien auf einmal · je bis {formatBytes(MAX_FILE_BYTES)} · keine ausführbaren Dateien</small></span>
+      </label>
+
+      {items.length > 0 && (
+        <ul className="upload-list" aria-label="Ausgewählte Dateien">
+          {items.map((item) => (
+            <li key={item.key} className={`upload-item upload-item-${item.status}`}>
+              <FileIcon file={{ mimeType: item.file.type, fileName: item.file.name }} />
+              <div className="upload-item-text">
+                <input value={item.title} onChange={(event) => update(item.key, { title: event.target.value })} maxLength={200} aria-label={`Titel für ${item.file.name}`} disabled={working || item.status === "done"} />
+                <small>{item.file.name} · {fileFormat(item.file.name)} · {formatBytes(item.file.size)}{item.message ? ` · ${item.message}` : ""}</small>
+              </div>
+              <span className="upload-item-state" aria-hidden="true">
+                {item.status === "working" ? <Loader2 size={18} className="spin" /> : item.status === "done" ? <Check size={18} /> : item.status === "error" ? <CircleAlert size={18} /> : null}
+              </span>
+              {!working && item.status !== "done" && <button type="button" className="upload-item-remove" onClick={() => setItems((list) => list.filter((entry) => entry.key !== item.key))} aria-label={`${item.file.name} entfernen`}><X size={16} aria-hidden="true" /></button>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="upload-fields">
+        <label className="upload-field"><span>Kategorie (für alle)</span>
+          <select value={category} onChange={(event) => setCategory(event.target.value as FileCategory)} disabled={working}>
+            {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
+          </select>
+        </label>
+        <label className="upload-field"><span>Ordner</span>
+          <select value={targetFolder} onChange={(event) => setFolderId(event.target.value)} disabled={working || customerIds.length !== 1}>
+            <option value="">{customerIds.length === 1 ? "Ohne Ordner" : "Erst genau einen Kunden wählen"}</option>
+            {customerFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+          </select>
+        </label>
+        <label className="upload-field upload-field-wide"><span>Beschreibung (für alle, optional)</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={2} placeholder="Was steckt in den Dateien, wofür sind sie gedacht?" disabled={working} /></label>
+      </div>
+      <CustomerPicker customers={customers} selected={customerIds} onChange={setCustomerIds} idPrefix="upload-customer" emptyHint="Ohne Zuordnung landen die Dateien in der Ablage" />
+      <div className="upload-actions">
+        <button type="submit" className="sheet-button sheet-button-primary upload-submit" disabled={working || !ready.length}>{working ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Upload size={18} aria-hidden="true" />}{ready.length > 1 ? `${ready.length} Dateien hochladen` : "Hochladen"}</button>
+        <p className={`upload-status upload-status-${summary.tone}`} role="status">{summary.tone === "done" && <Check size={16} aria-hidden="true" />}{summary.text}</p>
+      </div>
+    </form>
+  );
+  if (!framed) return form;
   return (
     <GlassCard as="section" className="upload-card" aria-labelledby="upload-title">
       <h2 className="t-headline upload-title" id="upload-title"><Upload size={18} color="var(--accent-text)" aria-hidden="true" />Dateien hochladen</h2>
-      <form onSubmit={upload} className="upload-form">
-        <label
-          className={`upload-drop${dragging ? " is-dragging" : ""}`}
-          onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => { event.preventDefault(); setDragging(false); choose(event.dataTransfer.files); }}
-        >
-          <input ref={input} type="file" multiple className="visually-hidden" onChange={(event) => choose(event.target.files)} disabled={working} />
-          <Upload size={26} color="var(--accent-text)" aria-hidden="true" />
-          <span><strong>Dateien auswählen oder hierher ziehen</strong><small>Bis zu {MAX_UPLOAD_BATCH} Dateien auf einmal · je bis {formatBytes(MAX_FILE_BYTES)} · keine ausführbaren Dateien</small></span>
-        </label>
-
-        {items.length > 0 && (
-          <ul className="upload-list" aria-label="Ausgewählte Dateien">
-            {items.map((item) => (
-              <li key={item.key} className={`upload-item upload-item-${item.status}`}>
-                <FileIcon file={{ mimeType: item.file.type, fileName: item.file.name }} />
-                <div className="upload-item-text">
-                  <input value={item.title} onChange={(event) => update(item.key, { title: event.target.value })} maxLength={200} aria-label={`Titel für ${item.file.name}`} disabled={working || item.status === "done"} />
-                  <small>{item.file.name} · {fileFormat(item.file.name)} · {formatBytes(item.file.size)}{item.message ? ` · ${item.message}` : ""}</small>
-                </div>
-                <span className="upload-item-state" aria-hidden="true">
-                  {item.status === "working" ? <Loader2 size={18} className="spin" /> : item.status === "done" ? <Check size={18} /> : item.status === "error" ? <CircleAlert size={18} /> : null}
-                </span>
-                {!working && item.status !== "done" && <button type="button" className="upload-item-remove" onClick={() => setItems((list) => list.filter((entry) => entry.key !== item.key))} aria-label={`${item.file.name} entfernen`}><X size={16} aria-hidden="true" /></button>}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="upload-fields">
-          <label className="upload-field"><span>Kategorie (für alle)</span>
-            <select value={category} onChange={(event) => setCategory(event.target.value as FileCategory)} disabled={working}>
-              {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
-            </select>
-          </label>
-          <label className="upload-field"><span>Ordner</span>
-            <select value={targetFolder} onChange={(event) => setFolderId(event.target.value)} disabled={working || customerIds.length !== 1}>
-              <option value="">{customerIds.length === 1 ? "Ohne Ordner" : "Erst genau einen Kunden wählen"}</option>
-              {customerFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-            </select>
-          </label>
-          <label className="upload-field upload-field-wide"><span>Beschreibung (für alle, optional)</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={2} placeholder="Was steckt in den Dateien, wofür sind sie gedacht?" disabled={working} /></label>
-        </div>
-        <CustomerPicker customers={customers} selected={customerIds} onChange={setCustomerIds} idPrefix="upload-customer" emptyHint="Ohne Zuordnung landen die Dateien in der Ablage" />
-        <div className="upload-actions">
-          <button type="submit" className="sheet-button sheet-button-primary upload-submit" disabled={working || !ready.length}>{working ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Upload size={18} aria-hidden="true" />}{ready.length > 1 ? `${ready.length} Dateien hochladen` : "Hochladen"}</button>
-          <p className={`upload-status upload-status-${summary.tone}`} role="status">{summary.tone === "done" && <Check size={16} aria-hidden="true" />}{summary.text}</p>
-        </div>
-      </form>
+      {form}
     </GlassCard>
   );
 }

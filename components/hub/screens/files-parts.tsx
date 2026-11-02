@@ -6,10 +6,10 @@ import { categories } from "@/lib/categories";
 import { fileCategories, fileFormat, type FileCategory } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubStoredFile } from "@/lib/hub-files/types";
 
-export function FileIcon({ file, size = 22 }: { file: Pick<HubStoredFile, "mimeType" | "fileName">; size?: number }) {
+export function FileIcon({ file, size = 22, color = categories.files.fill }: { file: Pick<HubStoredFile, "mimeType" | "fileName">; size?: number; color?: string }) {
   const format = fileFormat(file.fileName);
   const Icon = file.mimeType.startsWith("image/") ? FileImage : ["ZIP", "RAR", "7Z"].includes(format) ? FileArchive : ["PDF", "DOC", "DOCX", "TXT", "XLSX", "PPTX"].includes(format) ? FileText : File;
-  return <Icon size={size} color={categories.files.fill} strokeWidth={1.9} aria-hidden="true" />;
+  return <Icon size={size} color={color} strokeWidth={1.9} aria-hidden="true" />;
 }
 
 export function CategoryPill({ category }: { category: FileCategory }) {

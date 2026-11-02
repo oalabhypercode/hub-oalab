@@ -9,6 +9,9 @@ export type BackgroundPresetId = "oalab" | "ocean" | "aubergine" | "emerald" | "
 /** Erscheinungsbild: follow the device, or always light or dark. */
 export type ColorScheme = "system" | "light" | "dark";
 
+/** Listen: one quiet line per entry (symbol, title, date) or every column. */
+export type ListView = "minimal" | "detail";
+
 export type BackgroundPreset = {
   id: BackgroundPresetId;
   name: string;
@@ -24,6 +27,7 @@ export type Appearance = {
   glassBlur: number;
   reduceTransparency: boolean;
   reduceMotion: boolean;
+  listView: ListView;
 };
 
 /** White text reaches at least 4.5:1 on every base and orb colour (see tests/appearance.test.mjs). */
@@ -49,6 +53,7 @@ export const defaultAppearance: Appearance = {
   glassBlur: 24,
   reduceTransparency: false,
   reduceMotion: false,
+  listView: "minimal",
 };
 
 export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark" };
@@ -115,6 +120,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     glassBlur: Math.min(GLASS_BLUR_RANGE.max, Math.max(GLASS_BLUR_RANGE.min, number(input.glassBlur, defaultAppearance.glassBlur))),
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : systemReducedMotion,
+    listView: input.listView === "detail" ? "detail" : "minimal",
   };
 }
 

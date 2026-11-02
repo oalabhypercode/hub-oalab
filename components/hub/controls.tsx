@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Search } from "lucide-react";
-import type { BackgroundPreset, ColorScheme } from "@/lib/appearance";
+import type { BackgroundPreset, ColorScheme, ListView } from "@/lib/appearance";
 
 /** Capsule segmented control; arrow keys move the selection. An optional count sits in its own badge next to the label. */
 export function SegmentedControl<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string; name: string; count?: number }[]; value: T; onChange: (value: T) => void; label: string }) {
@@ -61,6 +61,16 @@ export function SearchField({ value, onChange, placeholder, label, glass = false
 
 /** Background preset tile: mini preview with base colour and two colour areas. */
 /** Erscheinungsbild: a small picture of the hub in light, dark, or both for "Automatisch". */
+/** A small picture of a list: one quiet line per entry, or a table with columns. */
+export function ListViewSwatch({ view, label, selected, onSelect }: { view: ListView; label: string; selected: boolean; onSelect: () => void }) {
+  return (
+    <button type="button" className="background-swatch" aria-pressed={selected} onClick={onSelect}>
+      <span className={`background-swatch-preview list-preview list-preview-${view}`} aria-hidden="true"><i /><i /><i /><i /></span>
+      <span className="background-swatch-name">{label}</span>
+    </button>
+  );
+}
+
 export function SchemeSwatch({ scheme, label, selected, onSelect }: { scheme: ColorScheme; label: string; selected: boolean; onSelect: () => void }) {
   return (
     <button type="button" className="background-swatch" aria-pressed={selected} onClick={onSelect}>
