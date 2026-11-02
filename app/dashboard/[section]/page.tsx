@@ -11,6 +11,7 @@ import { loadCalendarForIdentity } from "@/lib/hub-calendar/server";
 import { loadUserManagement } from "@/lib/hub-users/server";
 import { loadProjectsForIdentity } from "@/lib/hub-projects/server";
 import { loadAssistantLog } from "@/lib/hub-assistant/log";
+import { loadConversationsForIdentity } from "@/lib/hub-conversations/server";
 
 export function generateStaticParams() { return hubSections.map((section) => ({ section })); }
 
@@ -22,15 +23,17 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   // Admin-only sections need a real admin session; everyone else gets a plain 404.
   if (adminSections.includes(validSection) && (identity.publicDemo || identity.account?.role !== "oalab_admin")) notFound();
   const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
-  const [filesState, calendarState, userManagement, liveProjects, assistantLog] = await Promise.all([
+  const [filesState, calendarState, userManagement, liveProjects, assistantLog, conversations] = await Promise.all([
     loadFilesForIdentity(identity),
     // Real appointments always run on today's date, also for the demo logins with fixture projects.
     validSection === "calendar" ? loadCalendarForIdentity(identity, todayIso()) : undefined,
     validSection === "users" ? loadUserManagement() : undefined,
     loadProjectsForIdentity(identity),
     validSection === "ai-log" ? loadAssistantLog() : undefined,
+    // Shared with the layout's unread count through the request cache.
+    validSection === "messages" ? loadConversationsForIdentity(identity) : undefined,
   ]);
-  return <HubView section={validSection} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} role={identity.account?.role ?? null} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} calendarState={calendarState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} />;
+  return <HubView section={validSection} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} role={identity.account?.role ?? null} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} calendarState={calendarState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {

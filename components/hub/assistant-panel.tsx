@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { RichText } from "./rich-text";
 import { ArrowUp, Building2, Check, ChevronDown, ChevronUp, FolderPen, ListChecks, ListPlus, Loader2, PanelRightClose, PanelRightOpen, RotateCcw, Sparkles, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import { isExpired } from "@/lib/hub-assistant/chat-storage";
 import { MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS, MAX_TURNS, type AssistantTurn } from "@/lib/hub-assistant/conversation";
@@ -243,7 +244,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
             {turn.role === "assistant" && <span className="assistant-avatar" aria-hidden="true"><Sparkles size={18} /></span>}
             <div className="assistant-bubble">
               {turn.role === "user" ? turn.content
-                : turn.content ? <AssistantText text={turn.content} />
+                : turn.content ? <RichText text={turn.content} />
                 : !turn.proposals?.length && <span className="assistant-typing" role="status"><Loader2 size={16} className="spin" aria-hidden="true" />{status || "Antwort wird geschrieben …"}</span>}
               {turn.proposals?.map((item, position) => isCustomer(item.view) ? (
                 <CustomerCard key={item.view.id} item={item} view={item.view}
@@ -513,41 +514,3 @@ function ProposalCard({ item, view, onChoose, onDecide }: { item: ProposalState;
   );
 }
 
-/** **bold** inside a line; everything else stays plain text (no HTML from the model is ever rendered). */
-function inline(text: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => part.length > 4 && part.startsWith("**") && part.endsWith("**") ? <strong key={index}>{part.slice(2, -2)}</strong> : <Fragment key={index}>{part}</Fragment>);
-}
-
-/** Renders the small format the assistant is asked to use: paragraphs, "- " lists, "1. " steps and bold. */
-function AssistantText({ text }: { text: string }) {
-  const blocks: React.ReactNode[] = [];
-  let paragraph: string[] = [];
-  let list: { ordered: boolean; items: string[] } | null = null;
-  const flush = () => {
-    if (paragraph.length) blocks.push(<p key={blocks.length}>{inline(paragraph.join(" "))}</p>);
-    if (list) {
-      const items = list.items.map((item, index) => <li key={index}>{inline(item)}</li>);
-      blocks.push(list.ordered ? <ol key={blocks.length}>{items}</ol> : <ul key={blocks.length}>{items}</ul>);
-    }
-    paragraph = [];
-    list = null;
-  };
-  for (const line of text.split("\n")) {
-    const bullet = /^\s*[-•*]\s+(.*)$/.exec(line);
-    const step = /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    const item = bullet ?? step;
-    if (item) {
-      const ordered = Boolean(step);
-      if (paragraph.length || (list && list.ordered !== ordered)) flush();
-      list ??= { ordered, items: [] };
-      list.items.push(item[1]);
-    } else if (!line.trim()) {
-      flush();
-    } else {
-      if (list) flush();
-      paragraph.push(line.trim());
-    }
-  }
-  flush();
-  return <>{blocks}</>;
-}

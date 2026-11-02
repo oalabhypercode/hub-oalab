@@ -29,7 +29,7 @@ function readStored<T>(read: () => T, fallback: T): T {
   try { return read(); } catch { return fallback; }
 }
 
-export function AppShell({ children, preview = false, pending = false, email = "", userId, demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null }: {
+export function AppShell({ children, preview = false, pending = false, email = "", userId, demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null, unreadConversations }: {
   children: React.ReactNode;
   /** The signed-in login; keys the chat stored in this browser. */
   userId?: string;
@@ -47,6 +47,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
   liveProjects?: Project[];
   /** Real logins: the notices behind the bell (null before the migration or for demo logins). */
   inbox?: InboxState | null;
+  /** Real logins: conversations with something new from oalab (Nachrichten); the examples count their own. */
+  unreadConversations?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -85,7 +87,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
     person: live ? { phone: live.phone, position: live.position } : null,
     customerDetails: liveCustomer ? { street: liveCustomer.street, postalCode: liveCustomer.postalCode, city: liveCustomer.city, country: liveCustomer.country, website: liveCustomer.website, phone: liveCustomer.phone, contactEmail: liveCustomer.contactEmail } : null,
   };
-  const counts = { projects: projects.length, files: files.length, messages: hasDemo ? 1 : 0 };
+  const counts = { projects: projects.length, files: files.length, messages: unreadConversations ?? (hasDemo ? 1 : 0) };
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -177,7 +179,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
             </div>
             <main className="hub-content" id="main-content">{children}</main>
           </div>
-          <GlassTabBar preview={preview} section={section} />
+          <GlassTabBar preview={preview} section={section} badges={{ messages: counts.messages }} />
         </div>
         {panel === "search" && (
           <Modal title="Wonach suchst du?" onClose={closeSearch}>
