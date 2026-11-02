@@ -81,7 +81,7 @@ export function MenuChoices<T extends string>({ label, value, options, onChange 
  * A group of rows with its heading: chevron to fold it, symbol, name and count, optional actions on the right.
  * Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title).
  */
-export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, actions, empty, children }: {
+export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, actions, empty, className, dropKey, children }: {
   colSpan: number;
   label: string;
   count: number;
@@ -91,10 +91,13 @@ export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, 
   actions?: React.ReactNode;
   /** Shown instead of rows when the group is empty (an empty folder). */
   empty?: string;
+  className?: string;
+  /** Files dragged onto this group land in it (the Asset Management's folders). */
+  dropKey?: string;
   children?: React.ReactNode;
 }) {
   return (
-    <tbody className="table-group-body">
+    <tbody className={`table-group-body${className ? ` ${className}` : ""}`} data-drop-folder={dropKey}>
       <tr className="table-group">
         <th colSpan={colSpan} scope="rowgroup">
           <span className="table-group-in">

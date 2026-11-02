@@ -60,6 +60,8 @@
 :root[data-reduce-motion="true"] *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 :root[data-reduce-motion="true"] :is(.pressable, .glass-button, .service-cta, .sidebar-account-gear, .button-secondary, .button-primary:not(:disabled)):active,
 :root[data-reduce-motion="true"] .sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: none; }
+/* The busy bar of an upload (Asset Management) stands full and still instead of running. */
+:root[data-reduce-motion="true"] .am-progress i { animation: none; width: 100%; opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-reduce-motion]),
   :root:not([data-reduce-motion]) *,
@@ -67,4 +69,5 @@
   :root:not([data-reduce-motion]) *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   :root:not([data-reduce-motion]) :is(.pressable, .glass-button, .service-cta, .sidebar-account-gear, .button-secondary, .button-primary:not(:disabled)):active,
   :root:not([data-reduce-motion]) .sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: none; }
+  :root:not([data-reduce-motion]) .am-progress i { animation: none; width: 100%; opacity: 0.5; }
 }

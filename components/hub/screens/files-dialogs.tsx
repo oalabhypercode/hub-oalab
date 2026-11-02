@@ -11,10 +11,10 @@ import { alphabetical, type SortOption } from "../table-tools";
 import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
 
 /** Fixture samples are plain links; real files get a 60-second signed URL from the server first. */
-export function DownloadButton({ file, onError, label = false, compact = false }: { file: HubStoredFile; onError: (message: string) => void; label?: boolean; compact?: boolean }) {
+export function DownloadButton({ file, onError, label = false, compact = false, className: look }: { file: HubStoredFile; onError: (message: string) => void; label?: boolean; compact?: boolean; className?: string }) {
   const [busy, setBusy] = useState(false);
   const content = <>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Download size={18} aria-hidden="true" />}{label && <span>Herunterladen</span>}</>;
-  const className = label ? "sheet-button sheet-button-primary" : compact ? "am-icon-btn is-accent" : "file-download";
+  const className = look ?? (label ? "sheet-button sheet-button-primary" : compact ? "am-icon-btn is-accent" : "file-download");
   if (file.sampleHref) {
     return <a className={className} href={file.sampleHref} download={file.fileName} aria-label={label ? undefined : `${file.title} herunterladen`} title={label ? undefined : "Herunterladen"}>{content}</a>;
   }

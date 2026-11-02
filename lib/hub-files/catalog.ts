@@ -18,6 +18,18 @@ export type FileCategory = keyof typeof fileCategories;
 export const fileCategoryIds = Object.keys(fileCategories) as FileCategory[];
 export const isFileCategory = (value: unknown): value is FileCategory => typeof value === "string" && value in fileCategories;
 
+/** A first guess from the name and type when a file is picked for upload; the upload lets you change it per file. */
+export function guessFileCategory(fileName: string, mimeType: string): FileCategory {
+  const name = fileName.toLowerCase();
+  if (/vertrag|contract|(^|[^a-z])nda([^a-z]|$)/.test(name)) return "contract";
+  if (/angebot|offer|kostenvoranschlag/.test(name)) return "offer";
+  if (/rechnung|invoice/.test(name)) return "invoice";
+  if (/logo|marke|brand/.test(name)) return "brand";
+  if (/protokoll|doku|anleitung|handbuch|briefing|konzept/.test(name)) return "documentation";
+  if (mimeType.startsWith("image/") || /\.(psd|ai|fig|sketch|indd|xd)$/.test(name)) return "design";
+  return "other";
+}
+
 /** Matches the bucket limit in supabase/migrations. */
 export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 export const MAX_UPLOAD_BATCH = 20;

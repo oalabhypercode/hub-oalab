@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderPlus, ImagePlus, Inbox, LayoutList, ListFilter, Loader2, Pencil, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import type { ListView } from "@/lib/appearance";
@@ -11,22 +11,24 @@ import { HeaderActions } from "../app-shell";
 import { useAppearance } from "../appearance-provider";
 import { GlassCard } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
-import { Modal } from "../modal";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, TableAddRow, TableGroup, ToolbarMenu, useCollapsedGroups } from "../sheet";
 import { FilterSelect, SortControl, SortHeader } from "../table-tools";
 import { CategoryTitle } from "./workspace";
-import { DeleteFolderDialog, DownloadButton, FileDetailDialog, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
+import { DeleteFolderDialog, DownloadButton, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
+import { FilePanel } from "./asset-details";
 import { LogoDialog } from "./asset-logo";
+import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
 import { CustomerSign } from "./customer-sign";
 import { CategoryDot, FileIcon } from "./files-parts";
 import { useFilesStore } from "./files-store";
-import { FileUploadCard } from "./files-upload";
 import type { ScreenProps } from "./types";
 
 const ALL = "all";
 const NO_FOLDER = "none";
 
 type View = { kind: "customer"; id: string } | { kind: "all" } | { kind: "inbox" };
+/** The panel over the files: the upload, or one file's details (opened to change its customers from the Ablage). */
+type Panel = { kind: "upload" } | { kind: "file"; id: string; assign: boolean };
 type CustomerRow = { customer: HubFileCustomer; files: HubStoredFile[]; last: string };
 type Group = { key: string; label: string; folder: HubFolder | null; files: HubStoredFile[] };
 
@@ -47,6 +49,7 @@ function DensitySwitch({ view, onChange }: { view: ListView; onChange: (view: Li
 /**
  * Asset Management for admins: customers on the left like the conversations, the chosen customer's files on the right.
  * Every list comes as "Minimal" (symbol in the category's colour, title, day) or "Detail" (all columns).
+ * Uploading and a file's details open as panels over the files; files can be dragged straight onto a folder.
  */
 export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const store = useFilesStore(fileState);
@@ -67,7 +70,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
 
   // A notice links its file (/files?file=<id>): the page opens with that file and its customer.
   const linkedFile = useSearchParams().get("file");
-  const [openId, setOpenId] = useState<string | null>(() => files.some((file) => file.id === linkedFile) ? linkedFile : null);
+  const [panel, setPanel] = useState<Panel | null>(() => linkedFile && files.some((file) => file.id === linkedFile) ? { kind: "file", id: linkedFile, assign: false } : null);
   const [view, setView] = useState<View>(() => {
     const linked = files.find((file) => file.id === linkedFile);
     if (linked) return linked.customers[0] ? { kind: "customer", id: linked.customers[0].id } : { kind: "inbox" };
@@ -86,8 +89,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const groups = useCollapsedGroups();
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<FolderDialog | null>(null);
-  const [assigning, setAssigning] = useState(false);
-  const [upload, setUpload] = useState<{ customerId: string | null; folderId: string } | null>(null);
+  const queue = useUploadQueue(customers, folders);
+  // Files dragged in from the computer: how many, and the folder under the mouse (NO_FOLDER outside of one).
+  const [drag, setDrag] = useState<{ count: number; folder: string } | null>(null);
+  const dragDepth = useRef(0);
   const [logoFor, setLogoFor] = useState<string | null>(null);
   const [busy, setBusy] = useState<"download" | "move" | null>(null);
   const [error, setError] = useState("");
@@ -105,7 +110,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     { key: NO_FOLDER, label: "Ohne Ordner", folder: null, files: shown.filter((file) => !file.folderIds[current.id]) },
   ] : [];
   const selection = shown.filter((file) => selected.includes(file.id));
-  const openFile = files.find((file) => file.id === openId);
+  const openFile = panel?.kind === "file" ? files.find((file) => file.id === panel.id) : undefined;
   const logoRow = logoFor ? rows.find((row) => row.customer.id === logoFor) : undefined;
   const usedFormats = Array.from(new Set(paneFiles.map((file) => fileFormat(file.fileName)))).sort();
   const usedCategories = fileCategoryIds.filter((id) => paneFiles.some((file) => file.category === id));
@@ -126,10 +131,68 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     setFormat(ALL);
     setNotice("");
     setError("");
+    // A file's details belong to the list they were opened from; an upload keeps its files and its target.
+    setPanel((now) => now?.kind === "file" ? null : now);
   }
   const toggle = (id: string) => setSelected((list) => list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
   const toggleAll = () => setSelected(selection.length === shown.length ? [] : shown.map((file) => file.id));
-  const open = (file: HubStoredFile, assign = false) => { setAssigning(assign); setOpenId(file.id); };
+  const open = (file: HubStoredFile, assign = false) => setPanel({ kind: "file", id: file.id, assign });
+
+  function startUpload(target: UploadTarget, dropped?: File[]) {
+    queue.start(target, dropped);
+    setPanel({ kind: "upload" });
+    setPaneOpen(true);
+  }
+  function closeUpload() {
+    queue.reset();
+    setPanel(null);
+  }
+
+  /* ---------- Dragging files in ---------- */
+  // Over the files the folder under the mouse lights up and the pill says where the files land; dropped, they wait in
+  // the upload panel for their categories. Elsewhere on the sheet a drop does nothing instead of opening the file.
+  const canDrop = canUpload && !queue.working;
+  const folderUnder = (target: EventTarget) => target instanceof Element ? target.closest("[data-drop-folder]")?.getAttribute("data-drop-folder") ?? NO_FOLDER : NO_FOLDER;
+  const overPanel = (target: EventTarget) => target instanceof Element && target.closest(".am-panel") !== null;
+  const endDrag = () => { dragDepth.current = 0; setDrag(null); };
+  const dropHandlers = canDrop ? {
+    onDragEnter: (event: React.DragEvent) => { if (isFileDrag(event)) { event.preventDefault(); dragDepth.current++; } },
+    onDragOver: (event: React.DragEvent) => {
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      if (overPanel(event.target)) { event.dataTransfer.dropEffect = "none"; setDrag(null); return; }
+      event.dataTransfer.dropEffect = "copy";
+      const folder = current ? folderUnder(event.target) : NO_FOLDER;
+      const count = Array.from(event.dataTransfer.items).filter((item) => item.kind === "file").length;
+      setDrag((now) => now?.folder === folder && now.count === count ? now : { count, folder });
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      if (!isFileDrag(event)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (!dragDepth.current) setDrag(null);
+    },
+    onDrop: (event: React.DragEvent) => {
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      endDrag();
+      if (overPanel(event.target)) return;
+      const folder = current ? folderUnder(event.target) : NO_FOLDER;
+      startUpload({ customerId: current?.id ?? null, folderId: current && folder !== NO_FOLDER ? folder : "" }, Array.from(event.dataTransfer.files));
+    },
+  } : {};
+  const guardSheet = canDrop ? {
+    onDragOver: (event: React.DragEvent) => { if (isFileDrag(event) && !event.defaultPrevented) { event.preventDefault(); event.dataTransfer.dropEffect = "none"; } },
+    onDrop: (event: React.DragEvent) => { if (isFileDrag(event)) event.preventDefault(); },
+  } : {};
+  // A drag that ends outside of the files (dropped elsewhere) must not leave the frame behind.
+  const dragging = drag !== null;
+  useEffect(() => {
+    if (!dragging) return;
+    const end = () => { dragDepth.current = 0; setDrag(null); };
+    window.addEventListener("drop", end);
+    return () => window.removeEventListener("drop", end);
+  }, [dragging]);
+  const dropFolderName = drag && current ? drag.folder === NO_FOLDER ? "Ohne Ordner" : scopeFolders.find((folder) => folder.id === drag.folder)?.name ?? "Ohne Ordner" : "";
 
   async function download() {
     setBusy("download");
@@ -225,7 +288,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   );
 
   const folderActions = (group: Group) => <>
-    {canUpload && <button type="button" className="table-group-action is-accent" onClick={() => setUpload({ customerId: current!.id, folderId: group.folder?.id ?? "" })} aria-label={`In „${group.label}“ hochladen`} title="Hierher hochladen"><Upload size={14} aria-hidden="true" /></button>}
+    {canUpload && <button type="button" className="table-group-action is-accent" onClick={() => startUpload({ customerId: current!.id, folderId: group.folder?.id ?? "" })} aria-label={`In „${group.label}“ hochladen`} title="Hierher hochladen"><Upload size={14} aria-hidden="true" /></button>}
     {group.folder && <>
       <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "rename", folder: group.folder! })} aria-label={`Ordner „${group.label}“ umbenennen`} title="Umbenennen"><Pencil size={14} aria-hidden="true" /></button>
       <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "delete", folder: group.folder! })} aria-label={`Ordner „${group.label}“ löschen`} title="Löschen"><Trash2 size={14} aria-hidden="true" /></button>
@@ -235,8 +298,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const customerBody = minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label={`Dateien von ${current?.company ?? ""}`}>
       {folderGroups.map((group) => (
-        <div key={group.key} className="am-min-group" role="presentation">
-          <div className="am-min-section">
+        <div key={group.key} className="am-min-group" role="presentation" data-drop-folder={canDrop ? group.key : undefined}>
+          <div className={`am-min-section${drag?.folder === group.key ? " is-drop" : ""}`}>
             <button type="button" className="am-min-section-toggle" aria-expanded={!groups.isCollapsed(group.key)} onClick={() => groups.toggle(group.key)}>
               <ChevronDown size={13} aria-hidden="true" /><span>{group.label}</span><span className="am-min-count">{group.files.length || (narrowed ? "0" : "leer")}</span>
             </button>
@@ -255,6 +318,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         {grouping === "folder" ? folderGroups.map((group) => (
           <TableGroup key={group.key} colSpan={columnsFor} label={group.label} count={group.files.length} glyph={<Folder size={16} aria-hidden="true" />}
             collapsed={groups.isCollapsed(group.key)} onToggle={() => groups.toggle(group.key)}
+            className={drag?.folder === group.key ? "is-drop" : undefined} dropKey={canDrop ? group.key : undefined}
             empty={narrowed ? "Keine Dateien für diese Auswahl in diesem Ordner." : "Noch leer. Wähle Dateien aus und verschiebe sie hierher."}
             actions={folderActions(group)}>
             {group.files.map((file) => tableRow(file, "customer"))}
@@ -312,7 +376,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
 
   /* ---------- Pane head ---------- */
   const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
-  const uploadButton = canUpload && <button type="button" className="sheet-action is-primary" onClick={() => setUpload({ customerId: current?.id ?? null, folderId: "" })}><Upload size={15} aria-hidden="true" />Hochladen</button>;
+  const uploadButton = canUpload && <button type="button" className="sheet-action is-primary" onClick={() => startUpload({ customerId: current?.id ?? null, folderId: "" })}><Upload size={15} aria-hidden="true" />Hochladen</button>;
   const head = current ? (
     <header className="am-pane-head">
       {back}
@@ -365,7 +429,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     <div className="chat-list">
       <div className="chat-list-head">
         <h2>Kunden<span>{customers.length}</span></h2>
-        {canUpload && <button type="button" className="chat-icon-button" onClick={() => setUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" title="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
+        {canUpload && <button type="button" className="chat-icon-button" onClick={() => startUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" title="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
       </div>
       <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder={minimal ? "Kunde suchen" : "Kunde oder Kundennummer"} aria-label="Kunden durchsuchen" /></label>
       {!minimal && (
@@ -399,10 +463,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
-        <div className={`sheet section-first am${minimal ? " is-minimal" : ""}`} data-open={paneOpen ? "" : undefined}>
+        <div className={`sheet section-first am${minimal ? " is-minimal" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
           <div className="am-grid">
             {customerList}
-            <section className="am-pane" aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"}>
+            <section className="am-pane" aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
               {head}
               <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!minimal}
                 trailing={<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} />}>
@@ -430,17 +494,24 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
               )}
               <div className="am-scroll">{body}</div>
               {!minimal && <SheetFooter hint={shown.length > 1 ? "Mehrere ankreuzen: als ZIP laden oder verschieben" : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
+              {drag && <>
+                <div className="am-drop" aria-hidden="true" />
+                <div className="am-drop-pill" aria-hidden="true">
+                  <Upload size={18} />{drag.count > 1 ? `${drag.count} Dateien loslassen` : drag.count === 1 ? "Datei loslassen" : "Dateien loslassen"}
+                  <span>{current ? `nach „${dropFolderName}“ · ${current.company}` : "Kunde und Ordner wählst du gleich"}</span>
+                </div>
+              </>}
+              {panel?.kind === "upload" && <UploadPanel queue={queue} customers={customers} onClose={closeUpload} onUploaded={(message) => { setPanel(null); setNotice(message); }} />}
+              {openFile && (
+                <FilePanel file={openFile} customers={customers} folders={folders} here={current} live={source === "supabase"} canAssign={canManage && source === "supabase"}
+                  startAssigning={panel?.kind === "file" && panel.assign} onClose={() => setPanel(null)} onNotice={setNotice}
+                  onMove={(customerId, folderId) => store.move([openFile.id], customerId, folderId)} />
+              )}
             </section>
           </div>
         </div>
       )}
 
-      {openFile && <FileDetailDialog key={`${openFile.id}-${assigning}`} file={openFile} customers={customers} folders={folders} canManage={canManage && source === "supabase"} startEditing={assigning} onClose={() => { setOpenId(null); setAssigning(false); }} />}
-      {upload && (
-        <Modal title={upload.customerId ? `Hochladen für ${customers.find((item) => item.id === upload.customerId)?.company ?? "den Kunden"}` : "Hochladen"} onClose={() => setUpload(null)}>
-          <FileUploadCard customers={customers} folders={folders} initialCustomerIds={upload.customerId ? [upload.customerId] : []} initialFolderId={upload.folderId} framed={false} />
-        </Modal>
-      )}
       {logoRow && <LogoDialog customer={logoRow.customer} files={logoRow.files} onClose={() => setLogoFor(null)} onSaved={(message) => { setLogoFor(null); setNotice(message); }} />}
       {dialog?.kind === "create" && current && (
         <FolderNameDialog title={`Neuer Ordner bei ${current.company}`} initial="" onClose={() => setDialog(null)} onSave={async (name) => {

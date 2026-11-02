@@ -6,6 +6,20 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 2. November 2026: Asset Management, Schritt 3 (Seitenleisten)
+
+- Freigabe des Nutzers am 2. November 2026 („Ja, Schritt 3“) nach der Vorschau „Asset Management V5“, Entscheidungen 6 (Hochladen per Knopf und Ziehen in einer Seitenleiste) und 7 (Details als Seitenleiste rechts). Keine Datenbankänderung: Hochladen, Zuordnen, Verschieben und „Logo aus Datei“ nutzen die vorhandenen Server Actions.
+- Rahmen: `AssetPanel` (`components/hub/screens/asset-panel.tsx`) liegt absolut über den Dateien in `.am-pane` (420 px), die Kundenliste bleibt sichtbar; kein Dialog, also bleibt die Liste bedienbar. Escape oder das Kreuz schließt, der Fokus geht beim Öffnen hinein und beim Schließen zurück. Am Handy (unter 768 px) füllt die Leiste den Bildschirm, die Tab-Leiste tritt zur Seite. Ein anderer Kunde schließt die Details; ein Upload behält Dateien und Ziel.
+- Hochladen: `useUploadQueue` und `UploadPanel` (`asset-upload.tsx`). Der Zustand lebt im Asset Management, damit hineingezogene Dateien in einen offenen Upload kommen. Kunde und Ordner kommen vom Ort, an dem man startet; unter „Für“ Kunden als Chips mit `CustomerPicker`. Je Datei Titel und Kategorie, vorgeschlagen von `guessFileCategory` (`lib/hub-files/catalog.ts`); „Kategorie für alle“, optionale Beschreibung. Dateien, die `checkUpload` ablehnt, sind rot markiert und werden übersprungen. Gesendet wird mit `sendUpload` aus `files-upload.tsx`, derselben Folge wie bei der alten Upload-Karte. Nach Erfolg schließt die Leiste und oben steht die Meldung.
+- Ziehen: nur Dateien vom Computer (`isFileDrag`), nur mit echtem Admin-Login und nicht während eines Uploads. Der Ordner unter der Maus kommt aus `data-drop-folder` (Minimal-Gruppen, `TableGroup dropKey`), er leuchtet auf, und eine Pille unten sagt, wohin die Dateien gehen. Beim Loslassen öffnet sich die Leiste mit diesem Ordner. Auf dem Rest der Fläche bewirkt Loslassen nichts, statt die Datei im Browser zu öffnen.
+- Details: `FilePanel` (`asset-details.tsx`). Bilder bis 8 MB zeigen eine Vorschau über einen 60-Sekunden-Link (`createDownloadUrls`); dazu „Herunterladen“ und „Link kopieren“ (`/dashboard/files?file=<id>`). „Als Logo von … verwenden“ erscheint bei Bildern des geöffneten Kunden (`saveCustomerLogo` mit Quelle Datei, der bisherige Hintergrund bleibt). Unter „Freigegeben für“ stehen die Kunden mit einer Ordnerwahl je Kunde (`moveFiles` über `store.move`) und „Zuordnung ändern“ (`setFileAssignments`; neue Kunden bekommen eine Meldung); darunter die Fakten.
+- Kunden behalten ihre Dateien-Ansicht mit dem Dialog `FileDetailDialog`; Bearbeiten und Löschen von Dateien kommen mit Schritt 4.
+- Am 3. November 2026 auf „Ja, live testen“ des Nutzers lokal gegen die Live-Datenbank geprüft, nach jedem Schritt mit einer Leseabfrage:
+  - „Als Logo von Nordlicht Studio verwenden“ aus den Details der „Logo-Datei“: Das Logo steht im Kopf, in der Liste und in der Leiste, als Kopie im Logo-Ordner; danach mit „Buchstaben verwenden“ wieder entfernt.
+  - Die „Logo-Datei“ in den Details nach „Verträge“ und zurück nach „Ohne Ordner“ verschoben.
+  - Eine Textdatei per Ziehen auf den Testkunden OA-56215 hochgeladen: mit Kategorie, Beschreibung, Prüfsumme, Objekt und Zuordnung. Keine Meldung, weil der Testkunde keine Logins hat.
+  - Nordlicht Studio ist danach wie vorher. Die Testdatei „Testdatei Schritt 3“ bleibt beim Testkunden, bis Schritt 4 Löschen bringt oder OA-56215 aufgeräumt wird.
+
 ### Vorgabe vom 2. November 2026: Asset Management, Schritt 2 (Kundenlogos)
 
 - Freigabe des Nutzers am 2. November 2026 („Ja, Schritt 2 starten“) nach der Vorschau „Asset Management V5“, Entscheidung 4: Logos liegen privat wie die Dateien, Links werden gesammelt und kurzlebig erzeugt, ein Kunde bekommt nur einen Link für sein eigenes Logo.
