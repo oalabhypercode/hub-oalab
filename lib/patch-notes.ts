@@ -39,7 +39,7 @@ export const patchPackages: PatchPackage[] = [
     number: 11,
     date: "2026-11-02",
     title: "Gespräche wie im Messenger",
-    summary: "Nachrichten werden ein Chat: alle Gespräche mit oalab an einem Ort, wie man es vom Handy kennt. Dazu steht das Logo am Tablet mittig oben, und die Ecke unten links ist aufgeräumt. Für Admins ordnet das Asset Management die Dateien nach Kunden, als Minimal- oder Detailansicht.",
+    summary: "Nachrichten werden ein Chat: alle Gespräche mit oalab an einem Ort, wie man es vom Handy kennt. Dazu steht das Logo am Tablet mittig oben, und die Ecke unten links ist aufgeräumt. Für Admins ordnet das Asset Management die Dateien nach Kunden, als Minimal- oder Detailansicht. Und wo bisher eure Anfangsbuchstaben standen, kann jetzt euer Firmenlogo stehen.",
     changes: [
       { kind: "new", title: "Gespräche wie im Messenger", text: "Unter Nachrichten stehen jetzt deine Gespräche mit oalab als Chat: links die Liste mit dem Neuesten oben, rechts das offene Gespräch mit Sprechblasen, Datum und dem Stand deiner Anfrage. Am Smartphone öffnet ein Tipp das Gespräch bildschirmfüllend.", customers: true },
       { kind: "new", title: "Direkt im Hub antworten", text: "Deine Antwort landet in derselben Anfrage wie auf der Serviceplattform, und das oalab-Team erfährt davon wie gewohnt. Neue Antworten erscheinen ohne Neuladen; liest du sie im Hub, kommt dazu keine zusätzliche E-Mail mehr.", customers: true },
@@ -50,7 +50,10 @@ export const patchPackages: PatchPackage[] = [
       { kind: "improved", title: "Aufgeräumte Ecke unten links", text: "Unten links stehen jetzt dein Name und darunter dein Servicepaket. Das Zahnrad daneben öffnet ein kleines Menü mit Profil, Darstellung und Abmelden.", customers: true },
       { kind: "new", title: "Asset Management: Kunden zuerst", text: "Links stehen alle Kunden mit Suche, oben „Alle Dateien“ und die „Ablage“ für Dateien ohne Kunde. Rechts siehst du die Dateien des gewählten Kunden in seinen Ordnern; Hochladen öffnet sich mit Kunde und Ordner schon ausgewählt." },
       { kind: "new", title: "Minimal oder Detail", text: "Jede Liste im Asset Management gibt es als ruhige Minimalansicht mit Symbol, Titel und Tag oder als Tabelle mit allen Spalten. Umschalten geht oben rechts in der Liste oder unter Profil › Darstellung › Listen." },
+      { kind: "new", title: "Logos für Kunden", text: "Ein Klick auf das Zeichen eines Kunden im Asset Management öffnet sein Logo: ein Bild aus seinen Dateien wählen oder ein anderes hochladen, dazu ein heller, dunkler oder farbiger Hintergrund. Das Logo steht dann überall dort, wo bisher die Anfangsbuchstaben standen." },
+      { kind: "new", title: "Euer Logo im Hub", text: "Hat oalab euer Firmenlogo hinterlegt, steht es unten links neben deinem Namen, in der Begrüßung der Übersicht und am Handy oben rechts. Ohne Logo bleiben die Anfangsbuchstaben; andere Kunden sehen euer Logo nicht.", customers: true },
       { kind: "fixed", title: "Gespräch auf der Serviceplattform öffnen", text: "Der Pfeil oben rechts in einem Gespräch öffnet es jetzt auf der Serviceplattform, mit Freigaben und Testseite. Vorher führte er zurück in den Hub.", customers: true },
+      { kind: "fixed", title: "Richtige Zahl bei den Dateien", text: "In der Seitenleiste stand neben „Dateien“ bisher immer eine 0. Jetzt steht dort, wie viele Dateien du siehst.", customers: true },
     ],
   },
   {

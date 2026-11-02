@@ -6,6 +6,8 @@ import { Bot, Loader2, LogOut, Palette, ScrollText, Search, Settings, UserCog, U
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import { LogoMark } from "./logo-mark";
 import { useHubShell } from "./shell-context";
 import { mainNavigation } from "./navigation";
 import { BrandLogo } from "./wordmark";
@@ -20,12 +22,14 @@ type SidebarProps = {
   /** The first line of the account menu: the login's e-mail, or what kind of demo or preview this is. */
   accountLabel: string;
   initials: string;
+  /** Customer logins: their company's logo instead of the initials. */
+  logo: CustomerLogo | null;
   /** Admins: registrations waiting for approval. */
   pendingRegistrations: number;
 };
 
 /** Floating glass sidebar from 1024 px; below that the tab bar takes over its entries. */
-export function GlassSidebar({ onSearch, preview, section, counts, name, accountLabel, initials, pendingRegistrations }: SidebarProps) {
+export function GlassSidebar({ onSearch, preview, section, counts, name, accountLabel, initials, logo, pendingRegistrations }: SidebarProps) {
   const { signOut, signingOut, logoutError, account, manageUsers } = useHubShell();
   const activePackages = account.servicePackages.map((id) => servicePackages[id].name).join(", ");
   // Under the name: the active package, for the oalab team its name.
@@ -94,7 +98,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
       {/* Sign, name and below it a dot with the package; apart from them one gear with Profil, Darstellung and Abmelden. */}
       <div className="sidebar-account" ref={corner}>
         <Link {...item("settings")} className={`sidebar-account-link${section === "settings" ? " is-active" : ""}`}>
-          <span className="avatar" aria-hidden="true">{initials}</span>
+          <LogoMark logo={logo} initials={initials} className="avatar" />
           <span className="sidebar-account-text">
             {/* Blank while the loading shell waits for the login. */}
             <strong>{name || <span className="skeleton-bar sidebar-name-skeleton" aria-hidden="true" />}</strong>
