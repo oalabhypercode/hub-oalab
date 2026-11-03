@@ -40,7 +40,7 @@ Der oalab Client Hub ist das Kundenportal von oalab (Agentur für Websites, Mark
 
 ## Übersicht
 - Begrüßung mit Name, Unternehmen und Kundennummer. Daneben das aktive Servicepaket (Oalab-Website & Mail, lite, extra oder Max) und der Button „Ab zur Serviceplattform“ (service.oalab.de, öffnet einen neuen Tab).
-- Kunden begrüßt dort Ali von oalab als Avatar mit Sprechblase („Hallo“ und Vorname). Nach jeder Anmeldung spricht er einmal ohne Ton; der Lautsprecher in der Blase spielt die Begrüßung mit Ton ab. Sonst und mit „Bewegung reduzieren“ steht er still da. Admins sehen die Begrüßung ohne Avatar.
+- Kunden begrüßt dort Ali von oalab als Avatar mit Sprechblase („Hallo“ und Vorname). Nach jeder Anmeldung spricht er einmal, immer ohne Ton. Sonst und mit „Bewegung reduzieren“ steht er still da. Admins sehen die Begrüßung ohne Avatar.
 - Insights: eine kurze Zusammenfassung, was in den Projekten passiert ist.
 - Favoriten: Kennzahl-Kacheln. „Bearbeiten“ fügt Kennzahlen hinzu, entfernt oder sortiert sie. Favoriten werden pro Nutzer im Browser gespeichert.
 - Highlights, „Du bist am Zug“ (nächste Schritte zum Abhaken), Aktuelle Projekte und „Zuletzt passiert“.

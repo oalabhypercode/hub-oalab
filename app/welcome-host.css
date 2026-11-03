@@ -34,7 +34,7 @@
 .speech-bubble {
   position: relative;
   max-width: 460px;
-  padding: 12px 52px 16px 20px;
+  padding: 12px 22px 16px 20px;
   border-radius: 22px;
   background: #ffffff;
   color: var(--label);
@@ -46,12 +46,6 @@
 .speech-hello { font-size: 28px; line-height: 33px; font-weight: 700; letter-spacing: -0.02em; color: var(--label); overflow-wrap: anywhere; }
 .speech-line { margin-top: 4px; font-size: 16px; line-height: 22px; font-weight: 500; color: var(--label-secondary); }
 :root[data-theme="dark"] .speech-bubble { background: #2c2c2e; filter: drop-shadow(0 12px 24px rgb(0 0 0 / 0.45)); }
-
-/* Ali's message once more, with sound (a click allows it). */
-.welcome-replay { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; background: color-mix(in srgb, var(--accent-text) 9%, transparent); color: var(--accent-text); transition: background 200ms ease, transform var(--duration) var(--ease-spring); }
-.welcome-replay:hover { background: color-mix(in srgb, var(--accent-text) 15%, transparent); }
-.welcome-replay:active { transform: scale(0.92); }
-:root[data-theme="dark"] .welcome-replay { background: rgb(255 255 255 / 0.1); color: #ffffff; }
 
 /* Entrance: hidden while due (also before hydration, from the pre-paint mark), then Ali rises and the bubble pops as he speaks. */
 :root[data-host="pending"]:not([data-reduce-motion="true"]) .welcome-stage[data-phase="still"] :is(.host-avatar, .speech-bubble),
@@ -79,9 +73,8 @@
   .welcome-card.welcome-stage { grid-template-columns: 116px minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "host speech" "facts facts" "note note"; min-height: 0; column-gap: 10px; }
   .welcome-host { width: 150px; margin: -4px 0 -14px -22px; }
   .welcome-speech { margin-left: -14px; padding: 6px 0 12px; }
-  .speech-bubble { padding: 9px 40px 12px 14px; border-radius: 18px; }
+  .speech-bubble { padding: 9px 16px 12px 14px; border-radius: 18px; }
   .speech-from { font-size: 12px; line-height: 16px; }
   .speech-hello { font-size: 21px; line-height: 26px; }
   .speech-line { margin-top: 2px; font-size: 14px; line-height: 19px; }
-  .welcome-replay { top: 7px; right: 7px; width: 28px; height: 28px; }
 }

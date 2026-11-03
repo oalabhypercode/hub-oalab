@@ -382,14 +382,15 @@
 
 ### Vorgabe vom 3. November 2026: Ali begrüßt in der Übersicht
 
-- Quelle ist ein sprechendes Avatar-Video von Ali (5 s, mit Ton) vor hellgrauem Hintergrund. Freigestellt wurde ohne KI-Modell gegen den bekannten Hintergrund. Gespeichert ist es als MP4 mit Farbe oben und Transparenz unten (`public/brand/ali-welcome.mp4`, 0,7 MB, mit Originalton), dazu ein Standbild (`ali-welcome.webp`).
+- Quelle ist ein sprechendes Avatar-Video von Ali (5 s) vor hellgrauem Hintergrund. Freigestellt wurde ohne KI-Modell gegen den bekannten Hintergrund. Gespeichert ist es als MP4 mit Farbe oben und Transparenz unten (`public/brand/ali-welcome.mp4`, 0,6 MB, ohne Tonspur), dazu ein Standbild (`ali-welcome.webp`).
 - `components/hub/host-avatar.tsx` setzt beide Hälften mit WebGL zusammen. Das läuft in allen Browsern, auch in Safari, das bei WebM keine Transparenz zeigt. Video und WebGL starten erst beim Abspielen; vorher und ohne WebGL steht das Standbild.
 - Kunden sehen in der Übersicht statt der bisherigen Begrüßungskarte `WelcomeStage` (`components/hub/welcome-stage.tsx`, `app/welcome-host.css`). Ali steht auf der Unterkante der Karte, rechts daneben steht seine Sprechblase: „Ali von oalab“, „Hallo Vorname!“, „Schön, dass du wieder da bist.“ Darunter folgen wie bisher Unternehmen (mit Logo, falls vorhanden) und Kundennummer. Admins behalten `WelcomeCard`.
 - Abgespielt wird einmal pro Anmeldung, in der Designvorschau einmal pro Tab.
     - Das Inline-Script `lib/welcome-host.ts` läuft direkt nach dem der Begrüßung. Steht die Begrüßung nach der Anmeldung an, setzt es `data-host="pending"` vor dem ersten Paint, damit Ali bis zu seinem Auftritt verborgen bleibt.
-    - Die Karte wartet, bis die Begrüßung gewichen ist. Nach 0,45 s steigt Ali auf und spricht ohne Ton (Browser erlauben Ton nur nach einem Klick). Bei 0,5 s springt die Blase heraus, bei 1,45 s folgt ihre zweite Zeile.
+    - Die Karte wartet, bis die Begrüßung gewichen ist. Nach 0,45 s steigt Ali auf und spricht ohne Ton. Bei 0,5 s springt die Blase heraus, bei 1,45 s folgt ihre zweite Zeile.
     - Startet das Video nicht innerhalb von 5 s, bleibt das Standbild mit fertiger Blase.
-- Der Lautsprecher in der Blase spielt die Begrüßung mit Ton erneut ab. „Bewegung reduzieren“ zeigt nur das Standbild mit fertiger Blase.
+- „Bewegung reduzieren“ zeigt nur das Standbild mit fertiger Blase.
+- Am 4. November 2026 nahm der Nutzer den Ton auf allen Plattformen heraus. Den Lautsprecher in der Blase gibt es nicht mehr, und die MP4 hat keine Tonspur.
 
 ### Backlog
 

@@ -75,7 +75,21 @@ test("customers get Ali in the welcome card, admins keep their card", async () =
   }
   // The customer's logo stays in the welcome card, now next to the company.
   assert.match(stage, /\{logo && <LogoMark logo=\{logo\} initials=\{initials\} className="avatar welcome-company-logo" \/>\}/);
-  assert.match(stage, /aria-label="Alis Begrüßung mit Ton abspielen"/);
+});
+
+test("Ali plays without sound: no loudspeaker, a muted video, a file without audio", async () => {
+  const stage = await source("components/hub/welcome-stage.tsx");
+  assert.doesNotMatch(stage, /Volume2|Ton abspielen|sound:/);
+  assert.doesNotMatch(await source("app/welcome-host.css"), /welcome-replay/);
+  const avatar = await source("components/hub/host-avatar.tsx");
+  assert.match(avatar, /video\.muted = true;/);
+  assert.doesNotMatch(avatar, /sound =|muted = !/);
+  // Track handlers in the MP4 (`hdlr` box: the type sits 8 bytes after the tag): picture only.
+  const mp4 = await readFile(new URL("../public/brand/ali-welcome.mp4", import.meta.url));
+  const handlers = [];
+  for (let at = mp4.indexOf("hdlr"); at >= 0; at = mp4.indexOf("hdlr", at + 4)) handlers.push(mp4.toString("latin1", at + 12, at + 16));
+  assert.ok(handlers.includes("vide"), "a video track");
+  assert.ok(!handlers.includes("soun"), "no audio track");
 });
 
 test("Ali waits hidden while due, also before hydration, but never with reduced motion", async () => {
