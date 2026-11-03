@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Download, Loader2, Trash2, Users } from "lucide-react";
+import { Check, Download, Trash2, Users } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
 import { fileCategories, fileFormat, formatBytes, formatFileDateTime, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
@@ -13,7 +14,7 @@ import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
 /** Fixture samples are plain links; real files get a 60-second signed URL from the server first. */
 export function DownloadButton({ file, onError, label = false, compact = false, className: look }: { file: HubStoredFile; onError: (message: string) => void; label?: boolean; compact?: boolean; className?: string }) {
   const [busy, setBusy] = useState(false);
-  const content = <>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Download size={18} aria-hidden="true" />}{label && <span>Herunterladen</span>}</>;
+  const content = <>{busy ? <MiniLoader size={18} /> : <Download size={18} aria-hidden="true" />}{label && <span>Herunterladen</span>}</>;
   const className = look ?? (label ? "sheet-button sheet-button-primary" : compact ? "am-icon-btn is-accent" : "file-download");
   if (file.sampleHref) {
     return <a className={className} href={file.sampleHref} download={file.fileName} aria-label={label ? undefined : `${file.title} herunterladen`} title={label ? undefined : "Herunterladen"}>{content}</a>;
@@ -64,7 +65,7 @@ export function FileDetailDialog({ file, customers, folders, canManage, onClose,
           <CustomerPicker customers={customers} selected={selected} onChange={setSelected} idPrefix={`assign-${file.id}`} />
           <div className="file-assign-actions">
             <button type="button" className="sheet-button" onClick={() => { setEditing(false); setSelected(file.customers.map((customer) => customer.id)); }} disabled={saving}>Abbrechen</button>
-            <button type="button" className="sheet-button sheet-button-primary" onClick={save} disabled={saving}>{saving ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}Zuordnung speichern</button>
+            <button type="button" className="sheet-button sheet-button-primary" onClick={save} disabled={saving}>{saving ? <MiniLoader size={18} /> : <Check size={18} aria-hidden="true" />}Zuordnung speichern</button>
           </div>
         </div>
       )}
@@ -98,7 +99,7 @@ export function FolderNameDialog({ title, initial, onSave, onClose }: { title: s
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="file-assign-actions">
           <button type="button" className="sheet-button" onClick={onClose} disabled={saving}>Abbrechen</button>
-          <button type="submit" className="sheet-button sheet-button-primary" disabled={saving || !name.trim()}>{saving ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}Speichern</button>
+          <button type="submit" className="sheet-button sheet-button-primary" disabled={saving || !name.trim()}>{saving ? <MiniLoader size={18} /> : <Check size={18} aria-hidden="true" />}Speichern</button>
         </div>
       </form>
     </Modal>
@@ -120,7 +121,7 @@ export function DeleteFolderDialog({ folder, count, onDelete, onClose }: { folde
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="file-assign-actions">
         <button type="button" className="sheet-button" onClick={onClose} disabled={deleting}>Abbrechen</button>
-        <button type="button" className="sheet-button sheet-button-danger" onClick={confirm} disabled={deleting}>{deleting ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}Ordner löschen</button>
+        <button type="button" className="sheet-button sheet-button-danger" onClick={confirm} disabled={deleting}>{deleting ? <MiniLoader size={18} /> : <Trash2 size={18} aria-hidden="true" />}Ordner löschen</button>
       </div>
     </Modal>
   );
@@ -150,7 +151,7 @@ export function DeleteFilesDialog({ files, onDelete, onClose }: { files: HubStor
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="file-assign-actions">
         <button type="button" className="sheet-button" onClick={onClose} disabled={deleting}>Abbrechen</button>
-        <button type="button" className="sheet-button sheet-button-danger" onClick={confirm} disabled={deleting}>{deleting ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}Endgültig löschen</button>
+        <button type="button" className="sheet-button sheet-button-danger" onClick={confirm} disabled={deleting}>{deleting ? <MiniLoader size={18} /> : <Trash2 size={18} aria-hidden="true" />}Endgültig löschen</button>
       </div>
     </Modal>
   );

@@ -22,7 +22,7 @@ export function PageWaterfall() {
     lastPathname.current = pathname;
 
     // Settles when the last block has faded in, or on the first interaction if the cascade finished before
-    // hydration. Never while the page is still showing its loading skeleton.
+    // hydration. Never while the page is still showing its loading logo.
     const settle = (event: Event) => {
       if (root.dataset.waterfall === "settled" || (event instanceof AnimationEvent && event.animationName !== WATERFALL)) return;
       const cascading = document.getAnimations().some((animation) => animation instanceof CSSAnimation && animation.animationName === WATERFALL);

@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Bot, Loader2, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound } from "lucide-react";
+import { Bot, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
@@ -106,7 +107,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           </span>
         </Link>
         <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung und ${preview ? "Vorschau verlassen" : "Abmelden"}`} title="Konto" onClick={() => setMenuOpen((open) => !open)}>
-          {signingOut ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Settings size={18} strokeWidth={2.2} aria-hidden="true" />}
+          {signingOut ? <MiniLoader size={18} /> : <Settings size={18} strokeWidth={2.2} aria-hidden="true" />}
         </button>
         {menuOpen && (
           <div id={menuId} className="sidebar-account-menu" role="menu" aria-label="Konto">

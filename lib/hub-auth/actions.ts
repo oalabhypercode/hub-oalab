@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { safeAuthRedirect, SECOND_FACTOR_PAGE, secondFactorDestination, serviceOrigin } from "@/lib/auth-redirect";
+import { greetsAt } from "@/lib/greeting";
 import { mailLoginCode, mailPasswordLink, mailRegistrationConfirmation } from "@/lib/hub-mail/notify";
 import { cleanEmail, readRegistration } from "@/lib/hub-users/rules";
 import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
@@ -19,7 +20,8 @@ import { sessionOf, tokenClaims, type CodeSession } from "./session-token";
 // Service share is HTTP-only, so browser code can neither read nor write it. Each action is a public POST endpoint
 // (Next.js checks its origin); inputs are validated here again, whatever the form already checked.
 
-export type AuthResult = { ok: true; redirect?: string } | { ok: false; error: string };
+/** `greeting`: first name for the greeting when a sign-in opens the hub (lib/greeting.ts); may be empty. */
+export type AuthResult = { ok: true; redirect?: string; greeting?: string } | { ok: false; error: string };
 
 const failure = (code?: string | null): AuthResult => ({ ok: false, error: authMessage(code) });
 const passwordOk = (value: unknown, min: number): value is string => typeof value === "string" && value.length >= min && value.length <= 512;
@@ -50,6 +52,13 @@ async function withinRate(action: AuthRateAction, email: string) {
   return true;
 }
 
+/** First name for the greeting when the sign-in opens the hub, read with the new session; empty if it can't be read. */
+async function greetingFor(supabase: Awaited<ReturnType<typeof createClient>>, userId: string | undefined, destination: string) {
+  if (!userId || !greetsAt(destination)) return undefined;
+  const { data } = await supabase.from("hub_profiles").select("first_name").eq("user_id", userId).maybeSingle<{ first_name: string | null }>();
+  return data?.first_name?.trim() ?? "";
+}
+
 /** Signs in with e-mail and password; the session lands in the shared cookie. */
 export async function signInAction(input: { email: string; password: string; next?: string | null }): Promise<AuthResult> {
   if (!hasEnvVars) return failure("setup");
@@ -70,7 +79,7 @@ export async function signInAction(input: { email: string; password: string; nex
     if (session) await issueMailCode(session);
     return { ok: true, redirect: `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(next)}` };
   }
-  return { ok: true, redirect: next };
+  return { ok: true, redirect: next, greeting: await greetingFor(supabase, data.user?.id, next) };
 }
 
 /** The login's second factor as Supabase Auth knows it now (not the token's copy). */
@@ -146,7 +155,7 @@ export async function verifySecondFactorAction(input: { code: string; next?: str
     const factor = (state.user.factors ?? []).find((item) => item.factor_type === "totp" && item.status === "verified");
     if (!factor) return failure("mfa_factor_not_found");
     const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
-    return error ? failure(error.code) : { ok: true, redirect: destination };
+    return error ? failure(error.code) : { ok: true, redirect: destination, greeting: await greetingFor(supabase, session.userId, destination) };
   }
   const db = createAdminClient();
   if (!db) return failure("setup");
@@ -162,7 +171,7 @@ export async function verifySecondFactorAction(input: { code: string; next?: str
     console.error("[hub-auth] Code bestätigt, aber die erneuerte Sitzung hat kein aal2. Ist der Hook aus der Migration 202610260001 in Supabase aktiv?");
     return failure("setup");
   }
-  return { ok: true, redirect: destination };
+  return { ok: true, redirect: destination, greeting: await greetingFor(supabase, session.userId, destination) };
 }
 
 /**

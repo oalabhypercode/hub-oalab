@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Ellipsis, Folder, Inbox, Link2, Loader2, Pencil, Trash2, UserPlus } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Ellipsis, Folder, Inbox, Link2, Pencil, Trash2, UserPlus } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { createDownloadUrls, setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileCategory } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
@@ -125,7 +126,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
       <button type="button" className="am-use-logo" onClick={() => makeLogo(logoFor)} disabled={busy !== null}>
         <CustomerSign customer={logoFor} logo={logoFor.logo} size="sm" />
         <span><strong>Als Logo von {logoFor.company} verwenden</strong><small>Ersetzt {logoFor.logo ? "das bisherige Logo" : "die Anfangsbuchstaben"} in allen Listen</small></span>
-        {busy === "logo" ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
+        {busy === "logo" ? <MiniLoader size={16} /> : <ChevronRight size={16} aria-hidden="true" />}
       </button>
     )}
 
@@ -139,7 +140,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
           <p className="am-help">Neu zugeordnete Kunden sehen die Datei sofort und bekommen eine Meldung.</p>
           <div className="am-pick-actions">
             <button type="button" className="sheet-action" onClick={() => { setEditing(false); setSelected(file.customers.map((customer) => customer.id)); }} disabled={busy !== null}>Abbrechen</button>
-            <button type="button" className="sheet-action is-primary" onClick={saveAssignment} disabled={busy !== null}>{busy === "assign" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}Zuordnung speichern</button>
+            <button type="button" className="sheet-action is-primary" onClick={saveAssignment} disabled={busy !== null}>{busy === "assign" ? <MiniLoader size={16} /> : <Check size={15} aria-hidden="true" />}Zuordnung speichern</button>
           </div>
         </div>
       ) : (
@@ -226,7 +227,7 @@ function FileEditForm({ file, onClose, onNotice }: { file: HubStoredFile; onClos
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="am-pick-actions">
         <button type="button" className="sheet-action" onClick={onClose} disabled={saving}>Abbrechen</button>
-        <button type="submit" className="sheet-action is-primary" disabled={saving || !title.trim() || unchanged}>{saving ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}Speichern</button>
+        <button type="submit" className="sheet-action is-primary" disabled={saving || !title.trim() || unchanged}>{saving ? <MiniLoader size={16} /> : <Check size={15} aria-hidden="true" />}Speichern</button>
       </div>
     </form>
   );

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after, connection } from "next/server";
 import { Ban, Hourglass, ShieldX } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { notifyConfirmedRegistration } from "@/lib/hub-mail/notify";
 import { getHubAccount } from "@/lib/hub-users/server";
 import { siteOrigin } from "@/lib/site-origin";
@@ -59,5 +60,5 @@ async function PendingState() {
 }
 
 export default function Page() {
-  return <Suspense fallback={<div className="auth-form" aria-busy="true" />}><PendingState /></Suspense>;
+  return <Suspense fallback={<div className="auth-form auth-form-loading" role="status" aria-label="Wird geladen"><MiniLoader size={24} /></div>}><PendingState /></Suspense>;
 }

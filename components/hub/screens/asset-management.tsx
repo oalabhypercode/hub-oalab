@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderPlus, ImagePlus, Inbox, LayoutList, ListFilter, Loader2, Pencil, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderPlus, ImagePlus, Inbox, LayoutList, ListFilter, Pencil, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import type { ListView } from "@/lib/appearance";
 import { deleteFiles } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileDayGroup, fileFormat, formatBytes, formatFileDate, formatFileDay } from "@/lib/hub-files/catalog";
@@ -497,7 +498,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
               {selection.length > 0 && (
                 <div className="sheet-selection" role="region" aria-label="Auswahl">
                   <strong className="numeric">{plural(selection.length, "Datei", "Dateien")} ausgewählt</strong>
-                  <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</button>
+                  <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</button>
                   {current && (
                     <label className="sheet-move"><span className="visually-hidden">Ausgewählte Dateien verschieben nach</span>
                       <select value="" onChange={(event) => move(event.target.value)} disabled={busy !== null}>

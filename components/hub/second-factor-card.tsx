@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { Check, KeyRound, ShieldCheck } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { chooseSecondFactor, confirmAppSetup, getSecondFactorStatus, startAppSetup, type AppSetup, type SecondFactorStatus } from "@/lib/hub-auth/second-factor-actions";
 import type { SecondFactorChoice } from "@/lib/hub-auth/second-factor";
 import { GlassCard } from "./glass";
@@ -87,7 +88,7 @@ export function SecondFactorCard() {
   return (
     <GlassCard className="settings-card second-factor-card">
       <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--switch-on)" aria-hidden="true" />Zwei-Faktor-Schutz</h2>
-      {!status && !error && <p className="t-subheadline t-secondary"><Loader2 size={16} className="spin" aria-hidden="true" /> Wird geladen …</p>}
+      {!status && !error && <p className="t-subheadline t-secondary"><MiniLoader size={16} /> Wird geladen …</p>}
       {status && <>
         <p className="t-subheadline t-secondary">Wähle, womit du deine Anmeldung im Hub und auf der Serviceplattform zusätzlich bestätigst. Gefragt wird genau diese Methode.</p>
         <fieldset className="factor-options" disabled={busy}>
@@ -103,11 +104,11 @@ export function SecondFactorCard() {
         {choice !== current && choice !== "totp" && <>
           {leavesApp && <p className="t-footnote t-secondary">Deine Authenticator-App wird dabei aus deinem Konto entfernt.</p>}
           {choice === "email" && current === "off" && <p className="t-footnote t-secondary">Zur Bestätigung schicken wir dir gleich einen ersten Code.</p>}
-          <button type="button" className="sheet-button sheet-button-primary" onClick={save} disabled={busy}>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}{choice === "off" ? "Schutz ausschalten" : "Code per E-Mail verwenden"}</button>
+          <button type="button" className="sheet-button sheet-button-primary" onClick={save} disabled={busy}>{busy ? <MiniLoader size={18} /> : <Check size={18} aria-hidden="true" />}{choice === "off" ? "Schutz ausschalten" : "Code per E-Mail verwenden"}</button>
         </>}
 
         {choice === "totp" && current !== "totp" && !setup && (
-          <button type="button" className="sheet-button sheet-button-primary" onClick={beginApp} disabled={busy}>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <KeyRound size={18} aria-hidden="true" />}App einrichten</button>
+          <button type="button" className="sheet-button sheet-button-primary" onClick={beginApp} disabled={busy}>{busy ? <MiniLoader size={18} /> : <KeyRound size={18} aria-hidden="true" />}App einrichten</button>
         )}
 
         {setup && (
@@ -120,7 +121,7 @@ export function SecondFactorCard() {
             </> : <p className="t-footnote t-secondary">Deine Authenticator-App ist schon eingerichtet. Bestätige sie mit ihrem aktuellen Code.</p>}
             <label className="settings-label" htmlFor="factor-code">Code aus der App</label>
             <input id="factor-code" className="account-input auth-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="______" required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} disabled={busy} />
-            <button type="submit" className="sheet-button sheet-button-primary" disabled={busy || code.length !== 6}>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}Bestätigen</button>
+            <button type="submit" className="sheet-button sheet-button-primary" disabled={busy || code.length !== 6}>{busy ? <MiniLoader size={18} /> : <Check size={18} aria-hidden="true" />}Bestätigen</button>
           </form>
         )}
       </>}

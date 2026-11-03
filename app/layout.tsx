@@ -4,10 +4,12 @@ import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { PageWaterfall } from "@/components/page-waterfall";
 import { appearanceInlineScript } from "@/lib/appearance";
+import { greetingInlineScript } from "@/lib/greeting";
 import "./globals.css";
 import "./brand.css";
 import "./hub.css";
 import "./glass.css";
+import "./loader.css";
 import "./motion.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -38,6 +40,8 @@ export default function RootLayout({
       <head>
         {/* Applies the stored hub appearance before the first paint (no flash on reload). */}
         <script dangerouslySetInnerHTML={{ __html: appearanceInlineScript() }} />
+        {/* After sign-in the first hub page opens with the greeting (lib/greeting.ts), also before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: greetingInlineScript() }} />
       </head>
       <body className="font-sans antialiased">
         <ThemeProvider

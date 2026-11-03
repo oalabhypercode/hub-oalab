@@ -1,0 +1,44 @@
+/* Loading animation: the oalab logo turns where a page loads (components/brand-loader.tsx), greets after sign-in
+   (components/hub/hub-greeting.tsx) and waits small inside buttons. The images come from the brand video with a real
+   alpha channel; app/motion.css swaps in the resting logo for "Bewegung reduzieren". The small logo is bordeaux on
+   light glass and white on filled buttons and in the dark theme, where bordeaux would disappear. */
+:root {
+  --loader: url("/brand/oalab-loader.webp");
+  --loader-greeting: url("/brand/oalab-greeting.webp");
+  --loader-mini-bordeaux: url("/brand/oalab-loader-mini-bordeaux.webp");
+  --loader-mini-white: url("/brand/oalab-loader-mini-white.webp");
+  --loader-mini: var(--loader-mini-bordeaux);
+}
+:root[data-theme="dark"] { --loader-mini: var(--loader-mini-white); }
+
+/* A page or section that is still loading: the logo in the middle of the free space, only after a short pause. */
+.brand-loader { display: flex; align-items: center; justify-content: center; min-height: max(240px, calc(100dvh - 320px)); animation: brand-loader-in 320ms var(--ease-spring) 200ms backwards; }
+.brand-loader-mark { width: 88px; aspect-ratio: 256 / 222; background: var(--loader) center / contain no-repeat; }
+@keyframes brand-loader-in { from { opacity: 0; transform: scale(0.94); } }
+
+/* In place of a spinner: as tall as the icon it replaces (--mini), the logo is a little wider. */
+.mini-loader { display: inline-block; flex: 0 0 auto; width: calc(var(--mini, 18px) * 1.28); height: var(--mini, 18px); background: var(--loader-mini) center / contain no-repeat; }
+:is(.button-primary, .sheet-button-primary, .sheet-button-danger, .sheet-action.is-primary, .assistant-send, .proposal-save) .mini-loader { background-image: var(--loader-mini-white); }
+/* The code page and the waiting room while their content loads. */
+.auth-form-loading { display: grid; place-items: center; min-height: 160px; }
+
+/* Greeting after sign-in: on the background while the hub loads behind it; then the workspace fades in. */
+.hub-greeting { display: none; }
+:root[data-greeting] .hub-greeting { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; color: var(--on-bg); text-align: center; pointer-events: none; }
+:root[data-greeting="on"] .hub-app { visibility: hidden; }
+:root[data-greeting="leaving"] .hub-greeting { animation: greeting-out 380ms ease both; }
+:root[data-greeting="leaving"] .hub-app { animation: greeting-app-in 420ms ease both; }
+.hub-greeting-mark { width: 128px; aspect-ratio: 256 / 222; margin-bottom: 26px; background: var(--loader-greeting) center / contain no-repeat; animation: greeting-mark-in 420ms var(--ease-spring) both; }
+.hub-greeting-text { display: flex; flex-direction: column; align-items: center; margin: 0; }
+.hub-greeting-hello { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--on-bg-soft); animation: greeting-text-in 560ms var(--ease-spring) 700ms both; }
+.hub-greeting-hello::after { content: "."; }
+.hub-greeting-name { display: none; margin-top: 2px; font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: -0.02em; animation: greeting-text-in 560ms var(--ease-spring) 810ms both; }
+.hub-greeting-name::before { content: var(--greeting-name) "."; }
+:root[data-greeting-name] .hub-greeting-hello::after { content: ","; }
+:root[data-greeting-name] .hub-greeting-name { display: block; }
+/* Without a first name the greeting is one large line. */
+:root:not([data-greeting-name]) .hub-greeting-hello { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: -0.02em; color: var(--on-bg); }
+@keyframes greeting-mark-in { from { opacity: 0; transform: scale(0.88); } }
+@keyframes greeting-text-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes greeting-out { to { opacity: 0; transform: scale(1.04); } }
+@keyframes greeting-app-in { from { opacity: 0; } }

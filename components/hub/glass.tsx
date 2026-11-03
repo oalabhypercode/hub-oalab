@@ -47,11 +47,3 @@ export function SectionLink({ href, children }: { href: string; children: React.
 export function Chevron({ size = 18 }: { size?: number }) {
   return <ChevronRight className="card-chevron" size={size} strokeWidth={2.5} aria-hidden="true" />;
 }
-
-export function SkeletonCards({ count = 3 }: { count?: number }) {
-  return (
-    <div className="metric-grid" aria-hidden="true">
-      {Array.from({ length: count }, (_, index) => <div key={index} className="glass glass-card skeleton-card"><span className="skeleton-bar" /><span className="skeleton-bar" /><span className="skeleton-bar" /></div>)}
-    </div>
-  );
-}

@@ -356,7 +356,7 @@
 - Auf jeder Seite blenden die Inhalte als Wasserfall von oben nach unten ein: Block für Block aus einer Unschärfe, leicht von oben, im Abstand von 70 ms (Kacheln in einem Raster in kürzeren Schritten).
     - Hub: Titel, Karten, Listen und Tabellen in `.hub-content`, bei jedem Seitenwechsel neu.
     - Login, Registrierung, Passwortseiten und 404: der Inhalt der Glaskarte; beim ersten Aufruf auch der Begrüßungstext links.
-    - Hintergrund, Sidebar, Tab-Bar, Logo-Zeile, die Glaskarte selbst, Dialoge und Ladeskelette erscheinen sofort.
+    - Hintergrund, Sidebar, Tab-Bar, Logo-Zeile, die Glaskarte selbst, Dialoge und die Ladeanimation erscheinen sofort.
 - Entscheidung: Das HTML wird immer direkt angezeigt. Die Animation ist reines CSS auf dem Server-HTML (`app/motion.css`) und wartet nie auf JavaScript.
     - `components/page-waterfall.tsx` markiert die Seite nach dem Einblenden als fertig. So erscheinen später eingeblendete Elemente (Favoriten bearbeiten, Upload-Listen, Fehlermeldungen) ohne Animation.
     - Glaskarten blenden selbst ein, nicht ihr Rahmen-Element: Unschärfe und Deckkraft auf einem Vorfahren würden den Glaseffekt während der Animation abschneiden.
@@ -364,6 +364,21 @@
     - Vorgabe ist die Systemeinstellung „Bewegung reduzieren“; eine eigene Wahl im Hub hat Vorrang.
     - Gespeichert im Browser wie die übrige Darstellung. Das Inline-Script setzt `data-reduce-motion` vor dem ersten Paint, dadurch blitzt keine Animation auf.
 - Im Browser geprüft (Vorschau, Login, Passwort vergessen, 404): Reihenfolge der Kaskade, Seitenwechsel, keine Animation beim Bearbeiten der Favoriten, Schalter an und aus.
+
+### Vorgabe vom 3. November 2026: Ladeanimation und Begrüßung
+
+- Quelle ist ein Video von oalab: das „oa“-Zeichen wendet sich einmal und zurück, weiß und grau auf Schwarz. Daraus entstanden animierte WebP-Dateien mit echtem Alphakanal, ohne schwarzen Hintergrund (`public/brand/oalab-loader*`, `oalab-greeting.webp`).
+- Lädt eine Seite, steht ihr Titel sofort. Darunter dreht sich mittig das Logo (88 px) statt der früheren Skelett-Karten. Es erscheint erst nach 0,2 s, damit es bei schnellen Seiten nicht aufblitzt (`components/brand-loader.tsx`, `app/loader.css`).
+- Nach der Anmeldung (Passwort, Sicherheitscode oder Demo-Konto) begrüßt der Hub einmal mit dem Logo und „Willkommen zurück, Vorname.“. Danach blendet die Seite mit dem Wasserfall ein.
+    - Die Begrüßung bleibt mindestens 2 s, bis das Logo gelandet und der Name lesbar ist.
+    - Die Login-Seite legt eine Notiz in den sessionStorage. Das Inline-Script der ersten Hub-Seite setzt daraus `data-greeting` vor dem ersten Paint (`lib/greeting.ts`).
+    - `components/hub/hub-greeting.tsx` beendet die Begrüßung, sobald der Inhalt oder ein Ladefehler da ist; spätestens nach 8 s geht sie von selbst.
+    - Bis dahin wartet die Wasserfall-Kaskade dahinter.
+- Knöpfe und kleine Ladezustände zeigen statt des drehenden Kreises ein kleines Logo (`MiniLoader`), so hoch wie das Icon.
+    - Es ist weiß auf gefüllten Knöpfen und im dunklen Modus, sonst bordeauxrot. Das weiße Logo verschwände auf hellem Glas.
+    - Beim Hochladen im Asset Management gibt es keinen zusätzlichen Lauf-Balken mehr.
+- „Bewegung reduzieren“ zeigt überall das ruhende Logo (`app/motion.css`).
+- Grenze: Das große Logo ist weiß und grau und gehört deshalb immer auf den Hintergrund, nie groß auf eine helle Karte.
 
 ### Backlog
 

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { AppShell } from "@/components/hub/app-shell";
+import { HubGreeting } from "@/components/hub/hub-greeting";
 import { HubLoading } from "@/components/hub/loading";
 import { HubLoadBoundary } from "@/components/hub/load-error";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
@@ -32,5 +33,6 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return <HubLoadBoundary><Suspense fallback={<HubLoading />}><AuthenticatedWorkspace>{children}</AuthenticatedWorkspace></Suspense></HubLoadBoundary>;
+  // The greeting after sign-in sits outside the load boundary, so it also gives way to a load error.
+  return <><HubGreeting /><HubLoadBoundary><Suspense fallback={<HubLoading />}><AuthenticatedWorkspace>{children}</AuthenticatedWorkspace></Suspense></HubLoadBoundary></>;
 }

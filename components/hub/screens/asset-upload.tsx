@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { BellRing, Check, ChevronDown, CloudUpload, Folder, Inbox, Loader2, Plus, Upload, X } from "lucide-react";
+import { BellRing, Check, ChevronDown, CloudUpload, Folder, Inbox, Plus, Upload, X } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { checkUpload, fileCategories, fileCategoryIds, formatBytes, guessFileCategory, isFileCategory, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, type FileCategory } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder } from "@/lib/hub-files/types";
 import { AssetPanel } from "./asset-panel";
@@ -128,7 +129,7 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
   const footer = <>
     <button type="button" className="sheet-action" onClick={onClose} disabled={working}>Abbrechen</button>
     <button type="button" className="sheet-action is-primary" onClick={submit} disabled={working || !ready.length}>
-      {working ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Upload size={15} aria-hidden="true" />}{ready.length > 1 ? `${ready.length} Dateien hochladen` : "Hochladen"}
+      {working ? <MiniLoader size={16} /> : <Upload size={15} aria-hidden="true" />}{ready.length > 1 ? `${ready.length} Dateien hochladen` : "Hochladen"}
     </button>
   </>;
 
@@ -212,13 +213,12 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
                     </span>
                     {step && (
                       <span className="am-upload-step">
-                        {item.status === "working" && <span className="am-progress" aria-hidden="true"><i /></span>}
                         <small className={item.status === "done" ? "is-done" : item.status === "error" ? "is-error" : undefined}>{step}</small>
                       </span>
                     )}
                   </span>
                   {item.status === "done" ? <span className="am-upload-state is-done" title="Hochgeladen"><Check size={16} aria-hidden="true" /></span>
-                    : item.status === "working" ? <span className="am-upload-state"><Loader2 size={16} className="spin" aria-hidden="true" /></span>
+                    : item.status === "working" ? <span className="am-upload-state"><MiniLoader size={16} /></span>
                     : <button type="button" className="am-icon-btn" onClick={() => queue.remove(item.key)} disabled={working} aria-label={`${item.file.name} entfernen`} title="Entfernen"><X size={15} aria-hidden="true" /></button>}
                 </li>
               );

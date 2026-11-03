@@ -151,6 +151,8 @@ test("panels sit over the files, and on phones fill the screen with the tab bar 
   assert.match(css, /@media \(max-width: 767px\) \{\n {2}\.am-panel \{ position: fixed; z-index: 60; inset: 0;/);
   assert.match(css, /:root:has\(\.am-panel\) :is\(\.tab-bar-wrap, \.scroll-edge\) \{ display: none; \}/);
   assert.match(css, /\.am-min-section\.is-drop \{/);
-  // "Bewegung reduzieren" stops the busy bar; like every motion rule it lives in motion.css.
-  assert.match(await source("app/motion.css"), /:root\[data-reduce-motion="true"\] \.am-progress i \{ animation: none;/);
+  // An upload in progress shows the small turning logo at the end of its row, without a second busy bar.
+  const upload = await source("components/hub/screens/asset-upload.tsx");
+  assert.match(upload, /item\.status === "working" \? <span className="am-upload-state"><MiniLoader size=\{16\} \/><\/span>/);
+  assert.doesNotMatch(upload + css, /am-progress/);
 });

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Building2, ChevronDown, Loader2, ShieldCheck, UserRound } from "lucide-react";
+import { Building2, ChevronDown, ShieldCheck, UserRound } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import type { DemoLoginOption } from "@/lib/demo-login-policy";
+import { noteGreeting } from "@/lib/greeting";
 
 const title = (account: DemoLoginOption) => (account.role === "oalab_admin" ? "oalab-Admin" : account.company);
 
@@ -80,7 +82,7 @@ export function DemoAccountPicker({ accounts, publicDemo = false }: { accounts: 
           onClick={() => setOpen((value) => !value)}
           onKeyDown={onTriggerKeyDown}
         >
-          {pending ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <UserRound size={18} aria-hidden="true" />}
+          {pending ? <MiniLoader size={18} /> : <UserRound size={18} aria-hidden="true" />}
           <span className="demo-login-trigger-label">{pendingAccount ? `${title(pendingAccount)} wird geöffnet …` : "Testkonto wählen"}</span>
           <ChevronDown size={18} className="demo-login-chevron" aria-hidden="true" />
         </button>
@@ -90,7 +92,8 @@ export function DemoAccountPicker({ accounts, publicDemo = false }: { accounts: 
             const Icon = admin ? ShieldCheck : Building2;
             return (
               <li key={account.id}>
-                <form action="/auth/demo" method="post" onSubmit={() => { setPending(account.id); setOpen(false); }}>
+                {/* The demo workspace opens with the same greeting as a real sign-in. */}
+                <form action="/auth/demo" method="post" onSubmit={() => { noteGreeting(account.name.split(" ")[0] ?? ""); setPending(account.id); setOpen(false); }}>
                   <input type="hidden" name="account" value={account.id} />
                   <button
                     ref={(element) => { items.current[index] = element; }}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Ban, Check, Copy, KeyRound, Loader2, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Ban, Check, Copy, KeyRound, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, setHubUserActive, setHubUserSecondFactor, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
 import type { MailStatus } from "@/lib/hub-mail/smtp";
 import { displayStatusLabels, roleLabels, servicePackageIds, suggestCustomer, type HubRole } from "@/lib/hub-users/rules";
@@ -48,7 +49,7 @@ function useAction() {
   return { busy, error, setError, run };
 }
 
-const Spinner = () => <Loader2 size={18} className="spin" aria-hidden="true" />;
+const Spinner = () => <MiniLoader size={18} />;
 
 // Customer data -----------------------------------------------------------------------------------------------------
 
