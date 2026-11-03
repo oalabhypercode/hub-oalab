@@ -18,6 +18,9 @@
   - „…“ neben dem Download (`MoreMenu`) enthält „Datei löschen“; „Löschen“ steht in der Auswahl-Leiste.
   - Beide fragen über `DeleteFilesDialog` (`files-dialogs.tsx`) nach. Der Dialog nennt die Kunden, bei denen die Dateien verschwinden, und verweist bei mehreren Kunden auf „Zuordnung ändern“.
   - Alles nur mit echtem Admin-Login; Demo und Kunden sehen nichts davon.
+- Am 3. November 2026 auf „Ja, live testen“ des Nutzers lokal gegen die Live-Datenbank geprüft, mit der „Testdatei Schritt 3“ des Testkunden OA-56215 (ohne Logins):
+  - Mit dem Stift Titel „Testdatei Schritt 4“, Kategorie „Dokumentation“ und eine neue Beschreibung gespeichert; Originalname und gespeicherte Datei blieben.
+  - Danach über „…“ gelöscht: Eintrag, Zuordnung und gespeicherte Datei sind weg. Danach gab es 6 Dateien, 6 Zuordnungen und 6 Objekte, wie vor Schritt 3.
 
 ### Vorgabe vom 2. November 2026: Asset Management, Schritt 3 (Seitenleisten)
 
