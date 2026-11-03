@@ -47,6 +47,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", title: "Logo aus einer Bilddatei", text: "In den Details eines Bildes steht „Als Logo von … verwenden“. Ein Klick genügt, und das Bild ersetzt die Anfangsbuchstaben des Kunden." },
       { kind: "new", title: "Dateien bearbeiten", text: "In den Details einer Datei öffnet der Stift Titel, Kategorie und Beschreibung zum Ändern. Kunden bekommen dafür keine Meldung." },
       { kind: "new", title: "Dateien löschen", text: "Über „…“ in den Details oder „Löschen“ bei ausgewählten Dateien lassen sich Dateien endgültig löschen. Vorher fragt der Hub nach und sagt, bei welchen Kunden sie verschwinden." },
+      { kind: "fixed", title: "Auswahl nicht mehr verdeckt", text: "Waren die Details einer Datei offen, lagen sie über „Verschieben nach …“ und „Löschen“ in der Leiste über der Liste. Jetzt schließt ein Häkchen die Details, und ein Klick auf eine Datei hebt gesetzte Häkchen auf." },
     ],
   },
   {

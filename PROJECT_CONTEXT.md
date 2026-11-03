@@ -21,6 +21,10 @@
 - Am 3. November 2026 auf „Ja, live testen“ des Nutzers lokal gegen die Live-Datenbank geprüft, mit der „Testdatei Schritt 3“ des Testkunden OA-56215 (ohne Logins):
   - Mit dem Stift Titel „Testdatei Schritt 4“, Kategorie „Dokumentation“ und eine neue Beschreibung gespeichert; Originalname und gespeicherte Datei blieben.
   - Danach über „…“ gelöscht: Eintrag, Zuordnung und gespeicherte Datei sind weg. Danach gab es 6 Dateien, 6 Zuordnungen und 6 Objekte, wie vor Schritt 3.
+- Live seit 3. November 2026 (hub #42). Im Live-Check (nur geöffnet und abgebrochen) zeigte sich: Die offene Detail-Leiste lag über dem rechten Teil der Auswahl-Leiste („Verschieben nach …“, „Löschen“, „Auswahl aufheben“), weil `AssetPanel` über `.am-pane` liegt.
+- Behoben am selben Tag auf „Ja, beheben“ des Nutzers: Häkchen und Details schließen sich gegenseitig aus.
+  - `toggle` und `toggleAll` rufen `closeDetails()`, `open` leert die Auswahl, wie ein Klick auf eine Datei im Dateimanager. Eine Upload-Leiste bleibt offen.
+  - `AssetPanel` gibt den Fokus beim Schließen nur zurück, wenn er in der Leiste war oder mit ihr verloren ging. So bleibt er nach einem Häkchen auf der Checkbox.
 
 ### Vorgabe vom 2. November 2026: Asset Management, Schritt 3 (Seitenleisten)
 
