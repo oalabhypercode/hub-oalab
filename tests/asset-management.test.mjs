@@ -80,7 +80,7 @@ test("upload and details open as panels over the files, not as dialogs", async (
 
   const panel = await source("components/hub/screens/asset-panel.tsx");
   assert.match(panel, /if \(event\.key !== "Escape" \|\| closeDisabled\) return;/);
-  assert.match(panel, /if \(opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(panel, /if \(!left && opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
 });
 
 test("the upload sends every file with its own category, the same way as before, and skips files that can never go up", async () => {
@@ -132,6 +132,17 @@ test("the pencil edits a file, „…“ deletes it, the selection deletes sever
   const dialogs = await source("components/hub/screens/files-dialogs.tsx");
   assert.match(dialogs, /Das lässt sich nicht rückgängig machen\./);
   assert.match(dialogs, /Endgültig löschen/);
+});
+
+test("ticks and a file's details exclude each other, so the details never cover the selection bar", async () => {
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  assert.match(screen, /const closeDetails = \(\) => setPanel\(\(now\) => now\?\.kind === "file" \? null : now\);/);
+  assert.match(screen, /const toggle = \(id: string\) => \{ closeDetails\(\); setSelected\(/);
+  assert.match(screen, /const toggleAll = \(\) => \{ closeDetails\(\); setSelected\(/);
+  assert.match(screen, /const open = \(file: HubStoredFile, assign = false\) => \{ setSelected\(\[\]\); setPanel\(\{ kind: "file", id: file\.id, assign \}\); \};/);
+  // A tick takes the focus with it; closing the details must not pull it back to the file that was open.
+  const panel = await source("components/hub/screens/asset-panel.tsx");
+  assert.match(panel, /const left = active !== null && active !== document\.body && !panel\?\.contains\(active\);/);
 });
 
 test("panels sit over the files, and on phones fill the screen with the tab bar out of the way", async () => {

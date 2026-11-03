@@ -125,6 +125,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     .filter((row) => !term || `${row.customer.company} ${row.customer.customerNumber}`.toLowerCase().includes(term))
     .sort((a, b) => customerOrder === "az" ? a.customer.company.localeCompare(b.customer.company, "de") : b.last.localeCompare(a.last) || a.customer.company.localeCompare(b.customer.company, "de"));
 
+  const closeDetails = () => setPanel((now) => now?.kind === "file" ? null : now);
   function choose(next: View) {
     setView(next);
     setPaneOpen(true);
@@ -135,11 +136,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     setNotice("");
     setError("");
     // A file's details belong to the list they were opened from; an upload keeps its files and its target.
-    setPanel((now) => now?.kind === "file" ? null : now);
+    closeDetails();
   }
-  const toggle = (id: string) => setSelected((list) => list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
-  const toggleAll = () => setSelected(selection.length === shown.length ? [] : shown.map((file) => file.id));
-  const open = (file: HubStoredFile, assign = false) => setPanel({ kind: "file", id: file.id, assign });
+  // Ticks and a file's details exclude each other, because the details would cover the selection bar: a tick closes
+  // them, and opening a file clears the ticks, like a click on one file in a file manager. An upload stays open.
+  const toggle = (id: string) => { closeDetails(); setSelected((list) => list.includes(id) ? list.filter((item) => item !== id) : [...list, id]); };
+  const toggleAll = () => { closeDetails(); setSelected(selection.length === shown.length ? [] : shown.map((file) => file.id)); };
+  const open = (file: HubStoredFile, assign = false) => { setSelected([]); setPanel({ kind: "file", id: file.id, assign }); };
 
   function startUpload(target: UploadTarget, dropped?: File[]) {
     queue.start(target, dropped);
