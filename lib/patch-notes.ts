@@ -39,12 +39,14 @@ export const patchPackages: PatchPackage[] = [
     number: 12,
     date: "2026-11-03",
     title: "Hochladen und Details in der Seitenleiste",
-    summary: "Im Asset Management öffnen sich Hochladen und die Details einer Datei jetzt rechts neben der Liste statt in einem Fenster. Dateien lassen sich direkt in einen Ordner ziehen, die Kategorie gilt je Datei, und aus einem Bild wird mit einem Klick das Logo des Kunden.",
+    summary: "Im Asset Management öffnen sich Hochladen und die Details einer Datei jetzt rechts neben der Liste statt in einem Fenster. Dateien lassen sich direkt in einen Ordner ziehen, die Kategorie gilt je Datei, und aus einem Bild wird mit einem Klick das Logo des Kunden. Außerdem lassen sich Dateien jetzt bearbeiten und löschen.",
     changes: [
       { kind: "new", title: "Hochladen in der Seitenleiste", text: "„Hochladen“ öffnet sich rechts neben den Dateien, mit Kunde und Ordner schon ausgefüllt. Die Kategorie wählst du für jede Datei einzeln; der Hub schlägt sie nach dem Dateinamen vor." },
       { kind: "new", title: "Dateien hineinziehen", text: "Dateien lassen sich vom Computer direkt auf die Liste eines Kunden ziehen. Der Ordner unter der Maus leuchtet auf, und unten steht, wo die Dateien landen; vor dem Hochladen kannst du alles noch prüfen." },
       { kind: "improved", title: "Details neben der Liste", text: "Ein Klick auf eine Datei zeigt ihre Details rechts, bei Bildern mit Vorschau. Dort änderst du, welche Kunden die Datei haben und in welchem Ordner sie liegt, und kopierst ihren Link; ein Klick auf die nächste Datei wechselt die Details." },
       { kind: "new", title: "Logo aus einer Bilddatei", text: "In den Details eines Bildes steht „Als Logo von … verwenden“. Ein Klick genügt, und das Bild ersetzt die Anfangsbuchstaben des Kunden." },
+      { kind: "new", title: "Dateien bearbeiten", text: "In den Details einer Datei öffnet der Stift Titel, Kategorie und Beschreibung zum Ändern. Kunden bekommen dafür keine Meldung." },
+      { kind: "new", title: "Dateien löschen", text: "Über „…“ in den Details oder „Löschen“ bei ausgewählten Dateien lassen sich Dateien endgültig löschen. Vorher fragt der Hub nach und sagt, bei welchen Kunden sie verschwinden." },
     ],
   },
   {

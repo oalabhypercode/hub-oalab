@@ -8,11 +8,13 @@ import { X } from "lucide-react";
  * list stay usable next to it, so a click on another file only changes what it shows. On phones it fills the screen.
  * Focus moves into it when it opens and back to where it came from when it closes; Escape closes it.
  */
-export function AssetPanel({ label, icon, title, subtitle, onClose, closeDisabled = false, footer, children }: {
+export function AssetPanel({ label, icon, title, subtitle, actions, onClose, closeDisabled = false, footer, children }: {
   label: string;
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
+  /** Buttons in the head before the close button, such as "Bearbeiten". */
+  actions?: React.ReactNode;
   onClose: () => void;
   /** While an upload runs, the panel stays open until it is done. */
   closeDisabled?: boolean;
@@ -36,6 +38,7 @@ export function AssetPanel({ label, icon, title, subtitle, onClose, closeDisable
       <header className="am-panel-head">
         {icon}
         <div className="am-panel-title"><strong>{title}</strong>{subtitle && <span>{subtitle}</span>}</div>
+        {actions}
         <button type="button" className="chat-icon-button is-muted" onClick={onClose} disabled={closeDisabled} aria-label="Schließen" title="Schließen"><X size={20} aria-hidden="true" /></button>
       </header>
       <div className="am-panel-body">{children}</div>

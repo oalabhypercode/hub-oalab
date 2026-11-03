@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Folder, Inbox, Link2, Loader2, UserPlus } from "lucide-react";
-import { createDownloadUrls, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
-import { fileFormat, formatBytes, formatFileDateTime } from "@/lib/hub-files/catalog";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronRight, Ellipsis, Folder, Inbox, Link2, Loader2, Pencil, Trash2, UserPlus } from "lucide-react";
+import { createDownloadUrls, setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
+import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileCategory } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
 import { saveCustomerLogo } from "@/lib/hub-logos/actions";
 import { canBeLogo } from "@/lib/hub-logos/rules";
@@ -26,28 +26,37 @@ type DetailProps = {
   here: HubFileCustomer | null;
   /** Real files: the preview, the link and the logo go through the server. */
   live: boolean;
-  /** An admin with real data: change the customers, make an image the logo. */
+  /** An admin with real data: edit, delete, change the customers, make an image the logo. */
   canAssign: boolean;
   startAssigning: boolean;
   onMove: (customerId: string, folderId: string | null) => Promise<ActionResult<{ count: number }>>;
+  /** Asks to delete this file; the Asset Management confirms it first. */
+  onDelete: () => void;
   onNotice: (message: string) => void;
 };
 
 /**
  * The details of one file, as a panel next to the list: a preview, download and link, who has the file and in which
  * of their folders (both changeable here), and the facts. A click on another file in the list shows that one.
+ * Admins edit title, category and description with the pencil and delete the file under "…".
  */
 export function FilePanel({ onClose, ...props }: DetailProps & { onClose: () => void }) {
   const { file } = props;
+  // Editing belongs to one file: a click on another file leaves it.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = props.canAssign && editingId === file.id;
+  const pencil = props.canAssign && (
+    <button type="button" className="chat-icon-button is-muted" onClick={() => setEditingId(editing ? null : file.id)} aria-pressed={editing} aria-label="Bearbeiten" title="Titel, Kategorie und Beschreibung bearbeiten"><Pencil size={18} aria-hidden="true" /></button>
+  );
   return (
-    <AssetPanel label="Details" icon={<span className="am-file-icon is-lg"><FileIcon file={file} size={20} /></span>} title={file.title} subtitle={`${fileFormat(file.fileName)} · ${formatBytes(file.sizeBytes)}`} onClose={onClose}>
-      {/* One file's state (editing, messages, preview) starts afresh with every file; the panel itself stays. */}
-      <FileDetails key={`${file.id}-${props.startAssigning}`} {...props} />
+    <AssetPanel label="Details" icon={<span className="am-file-icon is-lg"><FileIcon file={file} size={20} /></span>} title={file.title} subtitle={`${fileFormat(file.fileName)} · ${formatBytes(file.sizeBytes)}`} actions={pencil} onClose={onClose}>
+      {/* One file's state (messages, preview) starts afresh with every file; the panel itself stays. */}
+      <FileDetails key={`${file.id}-${props.startAssigning}`} {...props} editingDetails={editing} onEditDetails={(on) => setEditingId(on ? file.id : null)} />
     </AssetPanel>
   );
 }
 
-function FileDetails({ file, customers, folders, here, live, canAssign, startAssigning, onMove, onNotice }: DetailProps) {
+function FileDetails({ file, customers, folders, here, live, canAssign, startAssigning, onMove, onDelete, onNotice, editingDetails, onEditDetails }: DetailProps & { editingDetails: boolean; onEditDetails: (on: boolean) => void }) {
   const [editing, setEditing] = useState(startAssigning && canAssign);
   const [selected, setSelected] = useState(file.customers.map((customer) => customer.id));
   const [busy, setBusy] = useState<"assign" | "move" | "logo" | null>(null);
@@ -106,9 +115,11 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
     <div className="am-panel-actions">
       <DownloadButton file={file} onError={setError} label className="sheet-action is-primary" />
       {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" title={copied ? "Link kopiert" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
+      {canAssign && <MoreMenu onDelete={onDelete} disabled={busy !== null} />}
     </div>
     {copied && <p className="am-help" role="status">Link kopiert. Wer ihn öffnet, sieht die Datei, wenn sein Login sie sehen darf.</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
+    {editingDetails && <FileEditForm file={file} onClose={() => onEditDetails(false)} onNotice={onNotice} />}
 
     {logoFor && (
       <button type="button" className="am-use-logo" onClick={() => makeLogo(logoFor)} disabled={busy !== null}>
@@ -175,6 +186,82 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
     {file.sha256 && <p className="am-help">Der Download liefert genau diese Fassung; die Prüfsumme wurde beim Hochladen berechnet.</p>}
     {file.sampleHref && <p className="am-help">Fiktive Beispieldatei für die Demo.</p>}
   </>;
+}
+
+/** Title, category and description of one file. Customers get no notice for this. */
+function FileEditForm({ file, onClose, onNotice }: { file: HubStoredFile; onClose: () => void; onNotice: (message: string) => void }) {
+  const [title, setTitle] = useState(file.title);
+  const [category, setCategory] = useState<FileCategory>(file.category);
+  const [description, setDescription] = useState(file.description);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const unchanged = title.trim() === file.title && category === file.category && description.trim() === file.description;
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    const result = await updateFileDetails(file.id, { title, category, description });
+    setSaving(false);
+    if (!result.ok) { setError(result.error); return; }
+    onClose();
+    onNotice(`„${result.data.title}“ gespeichert.`);
+  }
+
+  return (
+    <form className="am-edit" onSubmit={save}>
+      <label className="am-field"><span className="am-label">Titel</span><input className="am-input" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} required autoFocus disabled={saving} /></label>
+      <div className="am-field">
+        <span className="am-label">Kategorie</span>
+        <span className={`am-control am-cat-${category}`}>
+          <i aria-hidden="true" />
+          <select value={category} onChange={(event) => { if (isFileCategory(event.target.value)) setCategory(event.target.value); }} disabled={saving} aria-label="Kategorie">
+            {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
+          </select>
+          <ChevronDown size={16} aria-hidden="true" />
+        </span>
+      </div>
+      <label className="am-field"><span className="am-label">Beschreibung</span><textarea className="am-textarea" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={3} placeholder="Was steckt in der Datei, wofür ist sie gedacht?" disabled={saving} /></label>
+      <p className="am-help">Kunden bekommen für diese Änderung keine Meldung.</p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="am-pick-actions">
+        <button type="button" className="sheet-action" onClick={onClose} disabled={saving}>Abbrechen</button>
+        <button type="submit" className="sheet-action is-primary" disabled={saving || !title.trim() || unchanged}>{saving ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}Speichern</button>
+      </div>
+    </form>
+  );
+}
+
+/** "…" beside the download: what changes the file itself; for now deleting it, later a new version. */
+function MoreMenu({ onDelete, disabled }: { onDelete: () => void; disabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const first = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    first.current?.focus();
+    const close = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+
+  return (
+    <div className="am-more" ref={box} onKeyDown={(event) => {
+      if (event.key !== "Escape" || !open) return;
+      event.stopPropagation();
+      setOpen(false);
+      trigger.current?.focus();
+    }}>
+      <button ref={trigger} type="button" className="am-icon-btn" onClick={() => setOpen((now) => !now)} disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label="Mehr" title="Mehr"><Ellipsis size={17} aria-hidden="true" /></button>
+      {open && (
+        <div className="am-more-menu" role="menu">
+          <button ref={first} type="button" role="menuitem" className="is-danger" onClick={() => { setOpen(false); onDelete(); }}><Trash2 size={15} aria-hidden="true" />Datei löschen</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Images show themselves through a 60-second link, every other file its symbol and format. */

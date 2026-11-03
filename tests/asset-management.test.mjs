@@ -108,6 +108,32 @@ test("the details change folder and customers in place, and an image of the open
   assert.match(screen, /onMove=\{\(customerId, folderId\) => store\.move\(\[openFile\.id\], customerId, folderId\)\}/);
 });
 
+test("only an admin edits or deletes files; deleting takes the record first, then the stored file", async () => {
+  const actions = await source("lib/hub-files/actions.ts");
+  const body = (name) => actions.split(`export async function ${name}(`)[1].split("\nexport ")[0];
+  for (const name of ["updateFileDetails", "deleteFiles"]) assert.match(body(name), /> \{\n {2}const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;/, name);
+  // Editing tells no customer.
+  assert.doesNotMatch(body("updateFileDetails"), /notifyCustomers/);
+  assert.match(body("updateFileDetails"), /isFileCategory\(input\?\.category\)/);
+  assert.match(body("deleteFiles"), /\.from\("hub_files"\)\.delete\(\)\.in\("id", ids\)\.select\("storage_path"\)/);
+  assert.match(body("deleteFiles"), /if \(paths\.length\) await supabase\.storage\.from\(HUB_FILES_BUCKET\)\.remove\(paths\);/);
+});
+
+test("the pencil edits a file, „…“ deletes it, the selection deletes several; deleting always asks first", async () => {
+  const details = await source("components/hub/screens/asset-details.tsx");
+  assert.match(details, /const pencil = props\.canAssign && \(/);
+  assert.match(details, /\{canAssign && <MoreMenu onDelete=\{onDelete\}/);
+  assert.match(details, /role="menuitem" className="is-danger"/);
+  assert.match(details, /await updateFileDetails\(file\.id, \{ title, category, description \}\);/);
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  assert.match(screen, /\{canUpload && <button type="button" className="sheet-action is-danger" onClick=\{\(\) => setDeleting\(selection\)\}/);
+  assert.match(screen, /onDelete=\{\(\) => setDeleting\(\[openFile\]\)\}/);
+  assert.match(screen, /\{deleting && <DeleteFilesDialog files=\{deleting\}/);
+  const dialogs = await source("components/hub/screens/files-dialogs.tsx");
+  assert.match(dialogs, /Das lässt sich nicht rückgängig machen\./);
+  assert.match(dialogs, /Endgültig löschen/);
+});
+
 test("panels sit over the files, and on phones fill the screen with the tab bar out of the way", async () => {
   const css = await source("app/glass.css");
   assert.match(css, /\.am-panel \{ position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; width: min\(420px, 100%\);/);

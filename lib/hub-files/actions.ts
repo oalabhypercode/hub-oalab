@@ -36,6 +36,10 @@ function cleanCustomerIds(value: unknown) {
   return Array.isArray(value) ? Array.from(new Set(value.filter((id): id is string => typeof id === "string" && uuid.test(id)))).slice(0, 200) : [];
 }
 
+function cleanFileIds(value: unknown) {
+  return Array.isArray(value) ? Array.from(new Set(value.filter((id): id is string => typeof id === "string" && uuid.test(id)))).slice(0, MAX_UPLOAD_BATCH * 10) : [];
+}
+
 /** Step 1 (admin): validate the file and issue a one-time signed upload URL for a fresh storage path. */
 export async function prepareUpload(fileName: string, sizeBytes: number): Promise<ActionResult<{ path: string; token: string }>> {
   const supabase = await adminClient();
@@ -129,6 +133,35 @@ export async function setFileAssignments(fileId: string, customerIds: string[]):
   return { ok: true, data: { count: wanted.length } };
 }
 
+/** Admin: a file's title, category and description. Customers get no notice for this. */
+export async function updateFileDetails(fileId: string, input: { title: string; category: string; description: string }): Promise<ActionResult<{ title: string }>> {
+  const supabase = await adminClient();
+  if (!supabase) return denied;
+  if (!uuid.test(String(fileId ?? ""))) return { ok: false, error: "Unbekannte Datei." };
+  const title = String(input?.title ?? "").trim().slice(0, 200);
+  const description = String(input?.description ?? "").trim().slice(0, 2000);
+  if (!title || !isFileCategory(input?.category)) return { ok: false, error: "Bitte Titel und Kategorie angeben." };
+  const { data, error } = await supabase.from("hub_files").update({ title, category: input.category, description }).eq("id", fileId).select("title").maybeSingle<{ title: string }>();
+  if (error || !data) return { ok: false, error: "Die Angaben konnten nicht gespeichert werden." };
+  refreshWorkspace();
+  return { ok: true, data: { title: data.title } };
+}
+
+/** Admin: deletes files for good. The records go first, their assignments with them, then the stored bytes. */
+export async function deleteFiles(fileIds: string[]): Promise<ActionResult<{ count: number }>> {
+  const supabase = await adminClient();
+  if (!supabase) return denied;
+  const ids = cleanFileIds(fileIds);
+  if (!ids.length) return { ok: false, error: "Bitte Dateien auswählen." };
+  const { data, error } = await supabase.from("hub_files").delete().in("id", ids).select("storage_path");
+  if (error) return { ok: false, error: "Die Dateien konnten nicht gelöscht werden." };
+  // Without its record nobody reaches a file's bytes any more; removing them frees the space.
+  const paths = (data ?? []).map((row) => row.storage_path as string);
+  if (paths.length) await supabase.storage.from(HUB_FILES_BUCKET).remove(paths);
+  refreshWorkspace();
+  return { ok: true, data: { count: paths.length } };
+}
+
 /** Any signed-in user: a 60-second download link to the exact stored bytes, if RLS lets them read the file. */
 export async function createDownloadUrl(fileId: string): Promise<ActionResult<{ url: string }>> {
   const session = await signedInClient();
@@ -208,7 +241,7 @@ export async function deleteFolder(folderId: string): Promise<ActionResult<null>
 export async function moveFiles(fileIds: string[], customerId: string, folderId: string | null): Promise<ActionResult<{ count: number }>> {
   const session = await signedInClient();
   if (!session) return { ok: false, error: "Nur mit echtem Login möglich." };
-  const ids = Array.isArray(fileIds) ? Array.from(new Set(fileIds.filter((id) => typeof id === "string" && uuid.test(id)))).slice(0, MAX_UPLOAD_BATCH * 10) : [];
+  const ids = cleanFileIds(fileIds);
   if (!ids.length || !uuid.test(String(customerId ?? "")) || (folderId !== null && !uuid.test(String(folderId)))) return { ok: false, error: "Bitte Dateien und einen Ordner wählen." };
   const { data, error } = await session.supabase.from("hub_file_assignments").update({ folder_id: folderId }).eq("customer_id", customerId).in("file_id", ids).select("file_id");
   if (error) return { ok: false, error: error.code === "23503" ? "Dieser Ordner gehört zu einem anderen Kunden." : "Die Dateien konnten nicht verschoben werden." };
