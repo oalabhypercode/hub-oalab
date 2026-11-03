@@ -126,6 +126,7 @@ Der oalab Client Hub ist das Kundenportal von oalab (Agentur für Websites, Mark
 ## Darstellung
 - Profil → Darstellung: Erscheinungsbild (Automatisch, Hell oder Dunkel; Automatisch folgt dem hellen oder dunklen Modus des Geräts und wechselt mit ihm, Standard ist Automatisch), Hintergrund (oalab, Ozean, Aubergine, Smaragd, Glut, Graphit oder eine eigene Farbe; im dunklen Modus etwas dunkler), Deckkraft des Glases 70–95 %, Unschärfe 8–40 px, „Transparenz reduzieren“ und „Bewegung reduzieren“.
 - Beim Öffnen einer Seite blenden die Inhalte von oben nach unten nacheinander ein. „Bewegung reduzieren“ schaltet das und alle anderen Animationen ab, die Inhalte stehen dann sofort da. Ist auf dem Gerät „Bewegung reduzieren“ eingeschaltet, ist der Schalter bereits aktiv.
+- Nach der Anmeldung begrüßt der Hub einmal mit dem oalab-Logo und „Willkommen zurück“ samt Vornamen, während der Workspace lädt; danach erscheint die Übersicht. Lädt eine Seite, dreht sich mittig das oalab-Logo, und in Knöpfen (Speichern, Senden, Hochladen) wendet sich ein kleines Logo, solange etwas läuft. Mit „Bewegung reduzieren“ steht das Logo still.
 - Die Darstellung wird im Browser gespeichert und gilt deshalb pro Gerät und Browser.
 
 ## Benachrichtigungen
