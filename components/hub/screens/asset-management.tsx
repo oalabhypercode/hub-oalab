@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderPlus, ImagePlus, Inbox, LayoutList, ListFilter, Loader2, Pencil, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import type { ListView } from "@/lib/appearance";
+import { deleteFiles } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileDayGroup, fileFormat, formatBytes, formatFileDate, formatFileDay } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
 import { matchesSearch, sortRows, type SortState } from "@/lib/table-tools";
@@ -14,7 +15,7 @@ import { LargeTitleHeader } from "../large-title-header";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, TableAddRow, TableGroup, ToolbarMenu, useCollapsedGroups } from "../sheet";
 import { FilterSelect, SortControl, SortHeader } from "../table-tools";
 import { CategoryTitle } from "./workspace";
-import { DeleteFolderDialog, DownloadButton, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
+import { DeleteFilesDialog, DeleteFolderDialog, DownloadButton, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
 import { FilePanel } from "./asset-details";
 import { LogoDialog } from "./asset-logo";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
@@ -89,6 +90,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const groups = useCollapsedGroups();
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<FolderDialog | null>(null);
+  // Files waiting for "Endgültig löschen": one from its details or several from the selection.
+  const [deleting, setDeleting] = useState<HubStoredFile[] | null>(null);
   const queue = useUploadQueue(customers, folders);
   // Files dragged in from the computer: how many, and the folder under the mouse (NO_FOLDER outside of one).
   const [drag, setDrag] = useState<{ count: number; folder: string } | null>(null);
@@ -213,6 +216,18 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     const name = folderId ? scopeFolders.find((item) => item.id === folderId)?.name : "Ohne Ordner";
     setNotice(`${plural(result.data.count, "Datei", "Dateien")} nach „${name}“ verschoben.`);
     setSelected([]);
+  }
+
+  async function remove(list: HubStoredFile[]) {
+    const ids = list.map((file) => file.id);
+    const result = await deleteFiles(ids);
+    if (!result.ok) return result;
+    setSelected((now) => now.filter((id) => !ids.includes(id)));
+    setPanel((now) => now?.kind === "file" && ids.includes(now.id) ? null : now);
+    const gone = result.data.count;
+    if (gone < ids.length) setError(`${gone} von ${ids.length} Dateien gelöscht. Die übrigen ließen sich nicht löschen.`);
+    else setNotice(ids.length === 1 ? `„${list[0].title}“ gelöscht.` : `${plural(gone, "Datei", "Dateien")} gelöscht.`);
+    return result;
   }
 
   const others = (file: HubStoredFile) => file.customers.filter((item) => item.id !== current?.id);
@@ -489,6 +504,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                       </select>
                     </label>
                   )}
+                  {canUpload && <button type="button" className="sheet-action is-danger" onClick={() => setDeleting(selection)} disabled={busy !== null}><Trash2 size={15} aria-hidden="true" />Löschen</button>}
                   <button type="button" className="am-icon-btn am-selection-clear" onClick={() => setSelected([])} aria-label="Auswahl aufheben" title="Auswahl aufheben"><X size={17} aria-hidden="true" /></button>
                 </div>
               )}
@@ -505,13 +521,14 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
               {openFile && (
                 <FilePanel file={openFile} customers={customers} folders={folders} here={current} live={source === "supabase"} canAssign={canManage && source === "supabase"}
                   startAssigning={panel?.kind === "file" && panel.assign} onClose={() => setPanel(null)} onNotice={setNotice}
-                  onMove={(customerId, folderId) => store.move([openFile.id], customerId, folderId)} />
+                  onMove={(customerId, folderId) => store.move([openFile.id], customerId, folderId)} onDelete={() => setDeleting([openFile])} />
               )}
             </section>
           </div>
         </div>
       )}
 
+      {deleting && <DeleteFilesDialog files={deleting} onClose={() => setDeleting(null)} onDelete={() => remove(deleting)} />}
       {logoRow && <LogoDialog customer={logoRow.customer} files={logoRow.files} onClose={() => setLogoFor(null)} onSaved={(message) => { setLogoFor(null); setNotice(message); }} />}
       {dialog?.kind === "create" && current && (
         <FolderNameDialog title={`Neuer Ordner bei ${current.company}`} initial="" onClose={() => setDialog(null)} onSave={async (name) => {

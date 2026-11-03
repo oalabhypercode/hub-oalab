@@ -126,6 +126,36 @@ export function DeleteFolderDialog({ folder, count, onDelete, onClose }: { folde
   );
 }
 
+const names = (list: string[]) => list.length <= 3 ? list.join(", ").replace(/, ([^,]*)$/, " und $1") : `${list.slice(0, 2).join(", ")} und ${list.length - 2} weiteren Kunden`;
+
+/** Deleting files for good: first says where they disappear, then deletes record and stored file. */
+export function DeleteFilesDialog({ files, onDelete, onClose }: { files: HubStoredFile[]; onDelete: () => Promise<ActionResult<unknown>>; onClose: () => void }) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const one = files.length === 1 ? files[0] : null;
+  const companies = Array.from(new Set(files.flatMap((file) => file.customers.map((customer) => customer.company))));
+  const where = companies.length
+    ? `${one ? "Die Datei verschwindet" : `Die ${files.length} Dateien verschwinden`} bei ${names(companies)}.`
+    : `${one ? "Die Datei liegt" : "Die Dateien liegen"} in der Ablage, kein Kunde sieht sie.`;
+  async function confirm() {
+    setDeleting(true);
+    const result = await onDelete();
+    setDeleting(false);
+    if (result.ok) onClose(); else setError(result.error);
+  }
+  return (
+    <Modal title={one ? `„${one.title}“ löschen?` : `${files.length} Dateien löschen?`} onClose={onClose}>
+      <p className="modal-description">{where} Das lässt sich nicht rückgängig machen.</p>
+      {one && one.customers.length > 1 && <p className="modal-description">Soll sie nur bei einem der Kunden verschwinden, nimm stattdessen „Zuordnung ändern“ in den Details.</p>}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="file-assign-actions">
+        <button type="button" className="sheet-button" onClick={onClose} disabled={deleting}>Abbrechen</button>
+        <button type="button" className="sheet-button sheet-button-danger" onClick={confirm} disabled={deleting}>{deleting ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}Endgültig löschen</button>
+      </div>
+    </Modal>
+  );
+}
+
 export type FolderDialog = { kind: "create" } | { kind: "rename" | "delete"; folder: HubFolder };
 
 export type FileSortKey = "date" | "title" | "category" | "format" | "size";

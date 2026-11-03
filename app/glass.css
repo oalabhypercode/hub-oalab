@@ -1895,3 +1895,18 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .am-dl { grid-template-columns: 96px minmax(0, 1fr); }
   :root:has(.am-panel) :is(.tab-bar-wrap, .scroll-edge) { display: none; }
 }
+
+/* ---------- Asset Management, step 4: editing and deleting files (admins) ---------- */
+/* The pencil in the head of the details opens title, category and description; "…" holds "Datei löschen". */
+.am-panel-head .chat-icon-button[aria-pressed="true"] { background: var(--sheet-select); color: var(--accent-text); }
+.am-edit { display: grid; gap: 12px; padding: 14px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.am-input { width: 100%; height: 38px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13.5px; }
+.am-input:focus { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.am-control > i { left: 13px; width: 10px; height: 10px; border-radius: 3px; background: var(--cat); }
+.am-more { position: relative; display: inline-flex; }
+.am-more-menu { position: absolute; z-index: 3; top: calc(100% + 6px); right: 0; min-width: 190px; display: grid; padding: 6px; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line), 0 12px 32px rgba(20, 4, 14, 0.18); }
+:root[data-theme="dark"] .am-more-menu { box-shadow: 0 0 0 1px var(--sheet-line), 0 12px 32px rgba(0, 0, 0, 0.5); }
+.am-more-menu button { display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 10px; border-radius: 8px; text-align: left; font-size: 13.5px; font-weight: 500; color: var(--label); }
+.am-more-menu button:is(:hover, :focus-visible) { background: var(--sheet-hover); }
+.am-more-menu .is-danger { color: var(--tone-bad); }
+.am .sheet-action.is-danger { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
