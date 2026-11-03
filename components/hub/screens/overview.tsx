@@ -14,6 +14,7 @@ import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
+import { WelcomeStage } from "../welcome-stage";
 import type { ScreenProps } from "./types";
 
 export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin, projects, liveProjects }: ScreenProps) {
@@ -24,7 +25,9 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
   return (
     <>
       <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
-      <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} logo={logo} /><ServiceCard account={account} /></div>
+      {account.admin
+        ? <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} logo={logo} /><ServiceCard account={account} /></div>
+        : <div className="section-first welcome-row has-host"><WelcomeStage account={account} initials={initials} logo={logo} preview={preview} /><ServiceCard account={account} /></div>}
       {populated ? <>
         {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
 

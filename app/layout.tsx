@@ -5,10 +5,12 @@ import { ThemeProvider } from "next-themes";
 import { PageWaterfall } from "@/components/page-waterfall";
 import { appearanceInlineScript } from "@/lib/appearance";
 import { greetingInlineScript } from "@/lib/greeting";
+import { hostInlineScript } from "@/lib/welcome-host";
 import "./globals.css";
 import "./brand.css";
 import "./hub.css";
 import "./glass.css";
+import "./welcome-host.css";
 import "./loader.css";
 import "./motion.css";
 
@@ -42,6 +44,8 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: appearanceInlineScript() }} />
         {/* After sign-in the first hub page opens with the greeting (lib/greeting.ts), also before the first paint. */}
         <script dangerouslySetInnerHTML={{ __html: greetingInlineScript() }} />
+        {/* Right after it: Ali's welcome in the overview is due once per sign-in (lib/welcome-host.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: hostInlineScript() }} />
       </head>
       <body className="font-sans antialiased">
         <ThemeProvider

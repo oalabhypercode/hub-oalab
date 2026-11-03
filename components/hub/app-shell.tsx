@@ -86,6 +86,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const initials = preview ? previewAccount.initials : (words.length > 1 ? words[0][0] + words[words.length - 1][0] : name.slice(0, 2)).toUpperCase();
   const account: HubAccount = {
     name,
+    firstName: (preview ? previewAccount.name.split(" ")[0] : pending ? "" : demoData ? demoData.name.split(" ")[0] : live?.firstName.trim()) ?? "",
     company: preview ? previewAccount.company : demoData?.company ?? liveCustomer?.company ?? null,
     customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? liveCustomer?.customerNumber ?? null,
     servicePackages: preview ? previewAccount.servicePackages : demoData?.servicePackages ?? liveCustomer?.servicePackages ?? [],
