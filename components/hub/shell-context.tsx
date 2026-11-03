@@ -12,6 +12,8 @@ export type HubCustomerDetails = { street: string; postalCode: string; city: str
 /** Who is signed in and whom they represent; company and number are null until assigned. */
 export type HubAccount = {
   name: string;
+  /** The person's first name for greetings; empty when the login has none (a company account, say). */
+  firstName: string;
   company: string | null;
   customerNumber: string | null;
   servicePackages: ServicePackageId[];
