@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpDown, Building2, Check, Download, FileType, Folder, Inbox, ListFilter, Loader2, Pencil, Rows3, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Building2, Check, Download, FileType, Folder, Inbox, ListFilter, Pencil, Rows3, Tag, Trash2, X } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { categoryLabel } from "@/lib/categories";
 import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDate } from "@/lib/hub-files/catalog";
 import type { HubStoredFile } from "@/lib/hub-files/types";
@@ -162,7 +163,7 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
           {selection.length > 0 && (
             <div className="sheet-selection" role="region" aria-label="Auswahl">
               <strong className="numeric">{selection.length === 1 ? "1 Datei" : `${selection.length} Dateien`} ausgewählt</strong>
-              <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "Als ZIP herunterladen" : "Herunterladen"}</button>
+              <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "Als ZIP herunterladen" : "Herunterladen"}</button>
               {canOrganize && (
                 <label className="sheet-move"><span className="visually-hidden">Ausgewählte Dateien verschieben nach</span>
                   <select value="" onChange={(event) => move(event.target.value)} disabled={busy !== null}>

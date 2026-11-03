@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Loader2, Pencil, Send, Trash2, Undo2, Video, X } from "lucide-react";
+import { Check, Pencil, Send, Trash2, Undo2, Video, X } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import {
   addDays, addMonths, APPOINTMENT_DURATIONS, appointmentStatuses, calendarWindow, dayOf, formatDayLong, formatTimeRange, isClock, isDay, overlaps,
   REQUEST_DURATIONS, slotStarts, timeOf, wallTimeToUtc, WORKDAY, type AppointmentStatus,
@@ -71,7 +72,7 @@ export function AppointmentDetailDialog({ appointment, store, onClose, onEdit }:
           </label>
           <div className="file-assign-actions">
             <button type="button" className="sheet-button" onClick={() => setClosing(null)} disabled={busy}>Zurück</button>
-            <button type="button" className="sheet-button sheet-button-danger" onClick={() => run(() => store.close(appointment.id, closing, note))} disabled={busy}>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <X size={18} aria-hidden="true" />}{closing === "declined" ? "Anfrage ablehnen" : "Termin absagen"}</button>
+            <button type="button" className="sheet-button sheet-button-danger" onClick={() => run(() => store.close(appointment.id, closing, note))} disabled={busy}>{busy ? <MiniLoader size={18} /> : <X size={18} aria-hidden="true" />}{closing === "declined" ? "Anfrage ablehnen" : "Termin absagen"}</button>
           </div>
         </div>
       )}
@@ -90,7 +91,7 @@ export function AppointmentDetailDialog({ appointment, store, onClose, onEdit }:
           {(appointment.status === "declined" || appointment.status === "cancelled") && upcoming && <button type="button" className="sheet-button" onClick={() => onEdit(false)}><Undo2 size={18} aria-hidden="true" />Neu planen</button>}
           {appointment.status !== "requested" && (
             <button type="button" className={`sheet-button${confirmDelete ? " sheet-button-danger" : ""}`} onClick={() => confirmDelete ? run(() => store.remove(appointment.id)) : setConfirmDelete(true)} disabled={busy}>
-              {busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Trash2 size={18} aria-hidden="true" />}{confirmDelete ? "Endgültig löschen" : "Löschen"}
+              {busy ? <MiniLoader size={18} /> : <Trash2 size={18} aria-hidden="true" />}{confirmDelete ? "Endgültig löschen" : "Löschen"}
             </button>
           )}
         </div>
@@ -98,7 +99,7 @@ export function AppointmentDetailDialog({ appointment, store, onClose, onEdit }:
       {!canManage && appointment.status === "requested" && upcoming && (
         <div className="file-detail-actions">
           <button type="button" className={`sheet-button${confirmWithdraw ? " sheet-button-danger" : ""}`} onClick={() => confirmWithdraw ? run(() => store.withdraw(appointment.id)) : setConfirmWithdraw(true)} disabled={busy}>
-            {busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Undo2 size={18} aria-hidden="true" />}{confirmWithdraw ? "Wirklich zurückziehen" : "Anfrage zurückziehen"}
+            {busy ? <MiniLoader size={18} /> : <Undo2 size={18} aria-hidden="true" />}{confirmWithdraw ? "Wirklich zurückziehen" : "Anfrage zurückziehen"}
           </button>
         </div>
       )}
@@ -163,7 +164,7 @@ export function AppointmentFormDialog({ store, appointment, day: initialDay, sta
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="file-assign-actions">
           <button type="button" className="sheet-button" onClick={onClose} disabled={saving}>Abbrechen</button>
-          <button type="submit" className="sheet-button sheet-button-primary" disabled={saving}>{saving ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}{accept ? "Bestätigen" : appointment ? "Speichern" : "Termin anlegen"}</button>
+          <button type="submit" className="sheet-button sheet-button-primary" disabled={saving}>{saving ? <MiniLoader size={18} /> : <Check size={18} aria-hidden="true" />}{accept ? "Bestätigen" : appointment ? "Speichern" : "Termin anlegen"}</button>
         </div>
       </form>
     </Modal>
@@ -213,7 +214,7 @@ export function RequestDialog({ store, day: initialDay, start: initialStart, onC
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="file-assign-actions">
           <button type="button" className="sheet-button" onClick={onClose} disabled={sending}>Abbrechen</button>
-          <button type="submit" className="sheet-button sheet-button-primary" disabled={sending || !chosen}>{sending ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}Anfrage senden</button>
+          <button type="submit" className="sheet-button sheet-button-primary" disabled={sending || !chosen}>{sending ? <MiniLoader size={18} /> : <Send size={18} aria-hidden="true" />}Anfrage senden</button>
         </div>
       </form>
     </Modal>

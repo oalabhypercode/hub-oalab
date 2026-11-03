@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, CircleAlert, Loader2, Upload, X } from "lucide-react";
+import { Check, CircleAlert, Upload, X } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { createClient } from "@/lib/supabase/client";
 import { checkUpload, fileCategories, fileCategoryIds, fileFormat, formatBytes, HUB_FILES_BUCKET, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, type FileCategory } from "@/lib/hub-files/catalog";
 import { finalizeUpload, prepareUpload } from "@/lib/hub-files/actions";
@@ -130,7 +131,7 @@ export function FileUploadCard({ customers, folders, initialCustomerIds = [], in
                 <small>{item.file.name} · {fileFormat(item.file.name)} · {formatBytes(item.file.size)}{item.message ? ` · ${item.message}` : ""}</small>
               </div>
               <span className="upload-item-state" aria-hidden="true">
-                {item.status === "working" ? <Loader2 size={18} className="spin" /> : item.status === "done" ? <Check size={18} /> : item.status === "error" ? <CircleAlert size={18} /> : null}
+                {item.status === "working" ? <MiniLoader size={18} /> : item.status === "done" ? <Check size={18} /> : item.status === "error" ? <CircleAlert size={18} /> : null}
               </span>
               {!working && item.status !== "done" && <button type="button" className="upload-item-remove" onClick={() => setItems((list) => list.filter((entry) => entry.key !== item.key))} aria-label={`${item.file.name} entfernen`}><X size={16} aria-hidden="true" /></button>}
             </li>
@@ -154,7 +155,7 @@ export function FileUploadCard({ customers, folders, initialCustomerIds = [], in
       </div>
       <CustomerPicker customers={customers} selected={customerIds} onChange={setCustomerIds} idPrefix="upload-customer" emptyHint="Ohne Zuordnung landen die Dateien in der Ablage" />
       <div className="upload-actions">
-        <button type="submit" className="sheet-button sheet-button-primary upload-submit" disabled={working || !ready.length}>{working ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Upload size={18} aria-hidden="true" />}{ready.length > 1 ? `${ready.length} Dateien hochladen` : "Hochladen"}</button>
+        <button type="submit" className="sheet-button sheet-button-primary upload-submit" disabled={working || !ready.length}>{working ? <MiniLoader size={18} /> : <Upload size={18} aria-hidden="true" />}{ready.length > 1 ? `${ready.length} Dateien hochladen` : "Hochladen"}</button>
         <p className={`upload-status upload-status-${summary.tone}`} role="status">{summary.tone === "done" && <Check size={16} aria-hidden="true" />}{summary.text}</p>
       </div>
     </form>

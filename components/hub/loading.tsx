@@ -2,12 +2,13 @@
 
 import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
+import { BrandLoader } from "@/components/brand-loader";
 import { categories, categoryLabel, categoryOrder } from "@/lib/categories";
 import { sectionLabels, type HubSection } from "@/lib/hub-data";
 import { formatFullDate } from "@/lib/hub-metrics";
 import { todayIso } from "@/lib/hub-routes";
 import { AppShell, HeaderActions } from "./app-shell";
-import { SkeletonCards, TitleIcon } from "./glass";
+import { TitleIcon } from "./glass";
 import { LargeTitleHeader } from "./large-title-header";
 import { sectionIcons } from "./navigation";
 import { CategoryTitle } from "./screens/workspace";
@@ -41,16 +42,13 @@ function SectionTitle({ section }: { section: HubSection }) {
   return <LargeTitleHeader title={title} icon={icon} date={dated ? date || " " : undefined} actions={<HeaderActions />} />;
 }
 
-/** Page-level fallback inside the shell: the page's title at once, skeleton glass cards for what is still loading. */
+/** Page-level fallback inside the shell: the page's title at once, the turning logo for what is still loading. */
 export function HubContentLoading() {
   const section = useLoadingSection();
   return (
     <>
       {section && <SectionTitle section={section} />}
-      <div role="status" aria-label="Dein Workspace wird geladen" className={section ? "section-first" : undefined}>
-        {!section && <div className="skeleton-title" aria-hidden="true"><span className="skeleton-bar" /><span className="skeleton-bar" /></div>}
-        <SkeletonCards count={4} />
-      </div>
+      <BrandLoader label="Dein Workspace wird geladen" className={section ? "section-first" : undefined} />
     </>
   );
 }

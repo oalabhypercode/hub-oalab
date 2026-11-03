@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Eye, ImageIcon, ImageUp, Info, Loader2, X } from "lucide-react";
+import { Check, Eye, ImageIcon, ImageUp, Info, X } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { createClient } from "@/lib/supabase/client";
 import { createDownloadUrls } from "@/lib/hub-files/actions";
 import { fileFormat, formatBytes } from "@/lib/hub-files/catalog";
@@ -145,9 +146,9 @@ export function LogoDialog({ customer, files, onClose, onSaved }: { customer: Hu
 
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="file-assign-actions am-logo-actions">
-          {current && <button type="button" className="sheet-button" onClick={remove} disabled={busy !== null}>{busy === "remove" ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <X size={18} aria-hidden="true" />}Buchstaben verwenden</button>}
+          {current && <button type="button" className="sheet-button" onClick={remove} disabled={busy !== null}>{busy === "remove" ? <MiniLoader size={18} /> : <X size={18} aria-hidden="true" />}Buchstaben verwenden</button>}
           <button type="button" className="sheet-button" onClick={onClose} disabled={busy !== null}>Abbrechen</button>
-          <button type="button" className="sheet-button sheet-button-primary" onClick={save} disabled={busy !== null || !preview || unchanged}>{busy === "save" ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}Logo speichern</button>
+          <button type="button" className="sheet-button sheet-button-primary" onClick={save} disabled={busy !== null || !preview || unchanged}>{busy === "save" ? <MiniLoader size={18} /> : <Check size={18} aria-hidden="true" />}Logo speichern</button>
         </div>
       </div>
     </Modal>

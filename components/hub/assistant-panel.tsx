@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { RichText } from "./rich-text";
-import { ArrowUp, Building2, Check, ChevronDown, ChevronUp, FolderPen, ListChecks, ListPlus, Loader2, PanelRightClose, PanelRightOpen, RotateCcw, Sparkles, TriangleAlert, X, type LucideIcon } from "lucide-react";
+import { ArrowUp, Building2, Check, ChevronDown, ChevronUp, FolderPen, ListChecks, ListPlus, PanelRightClose, PanelRightOpen, RotateCcw, Sparkles, TriangleAlert, X, type LucideIcon } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { isExpired } from "@/lib/hub-assistant/chat-storage";
 import { MAX_ADMIN_QUESTION_CHARS, MAX_QUESTION_CHARS, MAX_TURNS, type AssistantTurn } from "@/lib/hub-assistant/conversation";
 import { proposalNote, type ProposalView, type TaskChoice } from "@/lib/hub-assistant/proposals";
@@ -245,7 +246,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
             <div className="assistant-bubble">
               {turn.role === "user" ? turn.content
                 : turn.content ? <RichText text={turn.content} />
-                : !turn.proposals?.length && <span className="assistant-typing" role="status"><Loader2 size={16} className="spin" aria-hidden="true" />{status || "Antwort wird geschrieben …"}</span>}
+                : !turn.proposals?.length && <span className="assistant-typing" role="status"><MiniLoader size={16} />{status || "Antwort wird geschrieben …"}</span>}
               {turn.proposals?.map((item, position) => isCustomer(item.view) ? (
                 <CustomerCard key={item.view.id} item={item} view={item.view}
                   onChoose={(customer) => patchProposal(index, position, { customer })}
@@ -282,7 +283,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
             aria-label="Frage an den Assistenten"
             disabled={busy}
           />
-          <button type="submit" className="assistant-send" disabled={busy || !draft.trim()} aria-label="Frage senden">{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <ArrowUp size={18} aria-hidden="true" />}</button>
+          <button type="submit" className="assistant-send" disabled={busy || !draft.trim()} aria-label="Frage senden">{busy ? <MiniLoader size={18} /> : <ArrowUp size={18} aria-hidden="true" />}</button>
         </form>
       )}
       <div className="assistant-footer">
@@ -384,7 +385,7 @@ function CustomerCard({ item, view, onChoose, onDecide }: { item: ProposalState;
       actions={<>
         <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
         <button type="button" className="proposal-save" disabled={state === "saving"} onClick={() => onDecide(true)}>
-          {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}Kunde anlegen
+          {state === "saving" ? <MiniLoader size={16} /> : null}Kunde anlegen
         </button>
       </>}>
       <p className="proposal-hint">Die Kundennummer vergibt der Hub beim Anlegen.</p>
@@ -447,7 +448,7 @@ function ChangeCard({ item, view, onPick, onDecide }: { item: ProposalState; vie
       actions={<>
         <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
         <button type="button" className="proposal-save" disabled={state === "saving" || !chosen} onClick={() => onDecide(true)}>
-          {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}{chosen === 1 ? "1 Änderung speichern" : `${chosen} Änderungen speichern`}
+          {state === "saving" ? <MiniLoader size={16} /> : null}{chosen === 1 ? "1 Änderung speichern" : `${chosen} Änderungen speichern`}
         </button>
       </>}>
       <ul>
@@ -486,7 +487,7 @@ function ProposalCard({ item, view, onChoose, onDecide }: { item: ProposalState;
       actions={<>
         <button type="button" className="proposal-discard" disabled={state === "saving"} onClick={() => onDecide(false)}>Verwerfen</button>
         <button type="button" className="proposal-save" disabled={state === "saving" || !chosen} onClick={() => onDecide(true)}>
-          {state === "saving" ? <Loader2 size={15} className="spin" aria-hidden="true" /> : null}{chosen === 1 ? "1 Aufgabe speichern" : `${chosen} Aufgaben speichern`}
+          {state === "saving" ? <MiniLoader size={16} /> : null}{chosen === 1 ? "1 Aufgabe speichern" : `${chosen} Aufgaben speichern`}
         </button>
       </>}>
       <ul>

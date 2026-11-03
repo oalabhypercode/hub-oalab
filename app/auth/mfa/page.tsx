@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { AuthForm } from "@/components/auth-form";
+import { MiniLoader } from "@/components/brand-loader";
 import { maskEmail } from "@/lib/hub-auth/mail-code";
 import { codeMethod, hasConfirmedApp, secondFactorMethod } from "@/lib/hub-auth/second-factor";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -33,5 +34,5 @@ async function CodeStep({ searchParams }: PageProps) {
 }
 
 export default function Page({ searchParams }: PageProps) {
-  return <Suspense fallback={<div className="auth-form" aria-busy="true" />}><CodeStep searchParams={searchParams} /></Suspense>;
+  return <Suspense fallback={<div className="auth-form auth-form-loading" role="status" aria-label="Wird geladen"><MiniLoader size={24} /></div>}><CodeStep searchParams={searchParams} /></Suspense>;
 }

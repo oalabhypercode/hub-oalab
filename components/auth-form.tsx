@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, LogOut, Mail, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LogOut, Mail, RotateCcw, ShieldCheck } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { requestPasswordResetAction, sendSecondFactorCodeAction, signInAction, signOutAction, signUpAction, updatePasswordAction, verifySecondFactorAction, type AuthResult } from "@/lib/hub-auth/actions";
+import { greetsAt, noteGreeting } from "@/lib/greeting";
 import { authMessage } from "@/lib/hub-auth/messages";
 import { readRegistration } from "@/lib/hub-users/rules";
 import { legalLinks } from "@/lib/legal-links";
@@ -60,6 +62,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
     if ((mode === "signup" || mode === "update") && password !== repeatPassword) { setError("Die beiden Passwörter stimmen noch nicht überein."); return; }
     if (mode === "mfa" && !codeSent) { await sendCode(); return; }
     setLoading(true);
+    let leaving = false;
     try {
       // Every auth step runs on the server: the session cookie shared with Service OALab is HTTP-only.
       let result: AuthResult;
@@ -78,11 +81,16 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
       if (!result.ok) { setError(result.error); return; }
       if (mode === "forgot") { setSuccess(true); return; }
       // A fresh document: no client router cache or UI state from a previous account survives the auth boundary.
-      if (result.redirect) window.location.replace(result.redirect);
+      if (result.redirect) {
+        // A sign-in that opens the hub is greeted there; the button keeps its busy state until the page changes.
+        if ((mode === "login" || mode === "mfa") && greetsAt(result.redirect)) noteGreeting(result.greeting ?? "");
+        leaving = true;
+        window.location.replace(result.redirect);
+      }
     } catch {
       setError(authMessage(null));
     } finally {
-      setLoading(false);
+      if (!leaving) setLoading(false);
     }
   }
 
@@ -149,7 +157,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
           <p className="auth-privacy-note">Wir verwenden deine Angaben, um deine Registrierung zu prüfen und deinen Zugang zum oalab Client Hub einzurichten (Art. 6 Abs. 1 lit. b DSGVO).{legalLinks.privacy && <> Mehr dazu in der <a href={legalLinks.privacy} target="_blank" rel="noopener noreferrer">Datenschutzerklärung</a>.</>}</p>
         </>}
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="button-primary auth-submit" type="submit" disabled={loading}>{loading ? <><Loader2 size={18} className="spin" aria-hidden="true" />{action.loading}</> : <>{action.label}<ArrowRight size={18} aria-hidden="true" /></>}</button>
+        <button className="button-primary auth-submit" type="submit" disabled={loading}>{loading ? <><MiniLoader size={18} />{action.loading}</> : <>{action.label}<ArrowRight size={18} aria-hidden="true" /></>}</button>
       </form>
       {mode === "mfa" && codeSent && !byApp && <button type="button" className="auth-back-link" onClick={sendCode} disabled={loading}><RotateCcw size={18} aria-hidden="true" />Neuen Code senden</button>}
       {mode === "mfa" ? <button type="button" className="auth-back-link" onClick={leave} disabled={loading}><LogOut size={18} aria-hidden="true" />Mit einem anderen Konto anmelden</button>

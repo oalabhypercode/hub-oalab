@@ -10,7 +10,7 @@
 
 /* Waterfall: page content fades in block by block from top to bottom, out of a blur and slightly from above.
    Pure CSS on the server HTML, so nothing waits for JavaScript. Background, sidebar, tab bar, the auth frame,
-   the page's large title, dialogs and loading skeletons appear at once: the loading shell already shows the title
+   the page's large title, dialogs and the loading logo appear at once: the loading shell already shows the title
    (components/hub/loading.tsx), so it stands still while the content cascades in below it. Wrappers around glass cascade their children instead: filter and
    opacity on an ancestor would cut the cards' backdrop blur off from the background while they fade in.
    components/page-waterfall.tsx marks <html> as settled after the cascade, so elements that appear later on the
@@ -53,6 +53,10 @@
   :root:not([data-waterfall]) .auth-intro ~ .auth-card .auth-form { --wf-base: 3; }
 }
 
+/* While the greeting after sign-in covers the hub (components/hub/hub-greeting.tsx), the cascade waits behind it
+   and starts as the workspace fades in. */
+:root[data-greeting="on"] .hub-content * { animation-play-state: paused; }
+
 /* "Bewegung reduzieren": animations and transitions finish at once, buttons no longer move when pressed. */
 :root[data-reduce-motion="true"],
 :root[data-reduce-motion="true"] *,
@@ -60,8 +64,8 @@
 :root[data-reduce-motion="true"] *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 :root[data-reduce-motion="true"] :is(.pressable, .glass-button, .service-cta, .sidebar-account-gear, .button-secondary, .button-primary:not(:disabled)):active,
 :root[data-reduce-motion="true"] .sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: none; }
-/* The busy bar of an upload (Asset Management) stands full and still instead of running. */
-:root[data-reduce-motion="true"] .am-progress i { animation: none; width: 100%; opacity: 0.5; }
+/* The loading logo rests instead of turning (app/loader.css). */
+:root[data-reduce-motion="true"] { --loader: url("/brand/oalab-loader-still.png"); --loader-greeting: url("/brand/oalab-loader-still.png"); --loader-mini-bordeaux: url("/brand/oalab-loader-mini-bordeaux.png"); --loader-mini-white: url("/brand/oalab-loader-mini-white.png"); }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-reduce-motion]),
   :root:not([data-reduce-motion]) *,
@@ -69,5 +73,5 @@
   :root:not([data-reduce-motion]) *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   :root:not([data-reduce-motion]) :is(.pressable, .glass-button, .service-cta, .sidebar-account-gear, .button-secondary, .button-primary:not(:disabled)):active,
   :root:not([data-reduce-motion]) .sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: none; }
-  :root:not([data-reduce-motion]) .am-progress i { animation: none; width: 100%; opacity: 0.5; }
+  :root:not([data-reduce-motion]) { --loader: url("/brand/oalab-loader-still.png"); --loader-greeting: url("/brand/oalab-loader-still.png"); --loader-mini-bordeaux: url("/brand/oalab-loader-mini-bordeaux.png"); --loader-mini-white: url("/brand/oalab-loader-mini-white.png"); }
 }

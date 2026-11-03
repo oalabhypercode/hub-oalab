@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Loader2, MessageCircle, RefreshCw, Unlink } from "lucide-react";
+import { Check, MessageCircle, RefreshCw, Unlink } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { createWhatsAppLinkCode, getWhatsAppStatus, unlinkWhatsApp, type WhatsAppLinkCode, type WhatsAppStatus } from "@/lib/hub-whatsapp/actions";
 import { GlassCard } from "./glass";
 
@@ -48,11 +49,11 @@ export function WhatsAppCard() {
   return (
     <GlassCard className="settings-card whatsapp-card">
       <h2 className="t-headline settings-card-title"><MessageCircle size={20} color="#128c4a" aria-hidden="true" />WhatsApp verbinden</h2>
-      {!status && !error && <p className="t-subheadline t-secondary"><Loader2 size={16} className="spin" aria-hidden="true" /> Wird geladen …</p>}
+      {!status && !error && <p className="t-subheadline t-secondary"><MiniLoader size={16} /> Wird geladen …</p>}
       {status?.linkedPhone ? <>
         <p className="t-subheadline whatsapp-linked"><Check size={18} aria-hidden="true" />Verbunden mit <strong className="numeric">{status.linkedPhone}</strong></p>
         <p className="t-subheadline t-secondary">Stell dem KI-Assistenten deine Fragen zum Client Hub auch per WhatsApp. Mit „TEAM“ erreichst du einen Menschen.</p>
-        <button type="button" className="sheet-button whatsapp-action" onClick={unlink} disabled={busy}>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <Unlink size={18} aria-hidden="true" />}Trennen</button>
+        <button type="button" className="sheet-button whatsapp-action" onClick={unlink} disabled={busy}>{busy ? <MiniLoader size={18} /> : <Unlink size={18} aria-hidden="true" />}Trennen</button>
       </> : status && !status.available ? (
         <p className="t-subheadline t-secondary">WhatsApp ist für den Client Hub noch nicht eingerichtet.</p>
       ) : status && <>
@@ -67,7 +68,7 @@ export function WhatsAppCard() {
             </div>
           </div>
         ) : (
-          <button type="button" className="sheet-button sheet-button-primary whatsapp-action" onClick={createCode} disabled={busy}>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <MessageCircle size={18} aria-hidden="true" />}Code erzeugen</button>
+          <button type="button" className="sheet-button sheet-button-primary whatsapp-action" onClick={createCode} disabled={busy}>{busy ? <MiniLoader size={18} /> : <MessageCircle size={18} aria-hidden="true" />}Code erzeugen</button>
         )}
       </>}
       {error && <p className="form-error" role="alert">{error}</p>}

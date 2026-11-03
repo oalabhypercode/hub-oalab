@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Check, ChevronLeft, Info, Loader2, MessagesSquare, Search, SendHorizontal, SquarePen } from "lucide-react";
+import { ArrowUpRight, Check, ChevronLeft, Info, MessagesSquare, Search, SendHorizontal, SquarePen } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
 import { PlainText, RichText } from "../rich-text";
@@ -172,7 +173,7 @@ export function ConversationsScreen({ preview, admin, firstName, company, asOf, 
                 onClose={close} onSent={(next) => { setLiveThread(next); replaceInList(next.conversation); }} onDemoSend={appendDemo}
                 onReload={() => openConversation({ id: thread.conversation.id }).then((result) => { if (result.ok) setLiveThread(result.data); }).catch(() => {})} />
             ) : openId && live && !threadError ? (
-              <div className="chat-placeholder"><Loader2 size={22} className="spin" aria-hidden="true" /><span>Gespräch wird geladen …</span></div>
+              <div className="chat-placeholder"><MiniLoader size={22} /><span>Gespräch wird geladen …</span></div>
             ) : (
               <div className="chat-placeholder">
                 <MessagesSquare size={30} aria-hidden="true" />
@@ -286,7 +287,7 @@ function ChatThread({ thread, admin, readOnly, live, now, preview, onClose, onSe
             <textarea id={`chat-field-${conversation.id}`} ref={field} rows={1} value={draft} maxLength={MAX_MESSAGE_LENGTH} placeholder="Nachricht schreiben …" disabled={sending}
               onChange={(event) => { setDraft(event.target.value); clientId.current = null; }}
               onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
-            <button type="submit" className="chat-send" disabled={sending || !draft.trim()} aria-label="Nachricht senden">{sending ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <SendHorizontal size={18} aria-hidden="true" />}</button>
+            <button type="submit" className="chat-send" disabled={sending || !draft.trim()} aria-label="Nachricht senden">{sending ? <MiniLoader size={18} /> : <SendHorizontal size={18} aria-hidden="true" />}</button>
           </div>
           {!live && <p className="chat-hint">{preview ? "Vorschau: " : "Demo: "}Neue Nachrichten bleiben in diesem Fenster und gehen an niemanden.</p>}
         </form>

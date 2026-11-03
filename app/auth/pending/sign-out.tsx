@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { signOutAction } from "@/lib/hub-auth/actions";
 
 /** Leaves the waiting page: ends the Supabase session and starts again at the login. */
@@ -17,7 +18,7 @@ export function PendingSignOut() {
     window.location.replace("/auth/login");
   }
   return <>
-    <button type="button" className="button-secondary full-width pending-sign-out" onClick={signOut} disabled={busy}>{busy ? <Loader2 size={18} className="spin" aria-hidden="true" /> : <LogOut size={18} aria-hidden="true" />}Abmelden</button>
+    <button type="button" className="button-secondary full-width pending-sign-out" onClick={signOut} disabled={busy}>{busy ? <MiniLoader size={18} /> : <LogOut size={18} aria-hidden="true" />}Abmelden</button>
     {error && <p className="form-error" role="alert">{error}</p>}
   </>;
 }
