@@ -1,3 +1,4 @@
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { ServicePackageId } from "@/lib/service-packages";
 import type { AccountStatus, DisplayStatus, HubRole } from "./rules";
 
@@ -49,6 +50,8 @@ export type ManagedCustomer = {
   inService: boolean;
   createdAt: string;
   memberIds: string[];
+  /** The same logo as in the asset management; without one the letters stand there. */
+  logo?: CustomerLogo | null;
 };
 
 export type ManagedEvent = {

@@ -1707,6 +1707,8 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .am[data-open] .chat-list, .am:not([data-open]) .am-pane { display: none; }
   .am .chat-back { display: inline-flex; }
   .am-wide { display: none; }
+  .am-logo-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .am-logo-button { padding: 0 9px; }
 }
 @media (max-width: 1023px) {
   .am, .hub-app:has(.hub-notice) .am { height: calc(100dvh - 280px); }
@@ -1736,7 +1738,7 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
    the place of the initials bottom left, in the welcome card and top right on phones; admins keep their initials. */
 .hub-app .has-logo { overflow: hidden; background: var(--logo-bg, #ffffff); color: transparent; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07); }
 .hub-app .has-logo > img { display: block; width: 78%; height: 78%; object-fit: contain; }
-.hub-app .am-avatar.has-logo:is(.is-sm, .is-xs) > img { width: 86%; height: 86%; }
+.hub-app .am-avatar.has-logo:is(.is-sm, .is-xs) > img, .hub-app .company-mark.has-logo > img { width: 86%; height: 86%; }
 .hub-app .avatar.has-logo { border-radius: 11px; }
 .hub-app .welcome-avatar.has-logo { border-radius: 16px; }
 .hub-app .mobile-avatar.has-logo { border-radius: 11px; background: var(--logo-bg, #ffffff); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -1748,33 +1750,13 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-sign-badge { position: absolute; right: -5px; bottom: -5px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(0, 0, 0, 0.15); color: var(--accent-text); opacity: 0; transition: opacity 120ms ease; }
 .am-sign-edit:hover .am-sign-badge, .am-sign-edit:focus-visible .am-sign-badge, .am-sign-badge.is-shown { opacity: 1; }
 
-/* Logo dialog: a big preview beside how the logo reads in the lists, light and dark; then the customer's images,
-   another upload and the tile behind the logo. */
-.hub-modal.am-logo-dialog { width: min(560px, calc(100% - 32px)); }
-.am-logo-body { display: grid; gap: 16px; }
-.am-logo-stage { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 16px; padding: 14px; border-radius: 14px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.am-logo-uses { display: grid; gap: 8px; min-width: 0; }
-.am-logo-use { display: flex; align-items: center; gap: 9px; height: 40px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 500; }
-.am-logo-use > span:not(.chat-avatar) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.am-logo-use b { font-size: 12px; font-weight: 500; opacity: 0.6; }
-.am-logo-use.is-light { background: #ffffff; color: #1c1c1e; box-shadow: inset 0 0 0 1px #e9e2e5; }
-.am-logo-use.is-dark { background: #1c181b; color: #f6f0f3; }
-.am-logo-sizes { display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 12px; color: var(--sheet-muted); }
+/* Notes, fields and the drop zone of the asset management panels (upload, details). */
 .am-note { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--tone-info-bg); color: var(--tone-info); font-size: 12.5px; line-height: 17px; }
 .am-note svg { flex: 0 0 auto; margin-top: 1px; }
 .am-note.is-muted { background: var(--sheet-sunken); color: var(--sheet-muted); }
 .am-field { display: grid; gap: 7px; }
 .am-label { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--sheet-muted); }
 .am-help { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
-.am-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
-.am-thumb { display: grid; gap: 4px; padding: 8px; border-radius: 12px; text-align: left; color: inherit; box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.am-thumb:not(:disabled):hover { background: var(--sheet-hover); }
-.am-thumb.is-chosen { background: var(--sheet-select); box-shadow: inset 0 0 0 2px var(--accent-text); }
-.am-thumb-img { height: 72px; display: grid; place-items: center; margin-bottom: 4px; border-radius: 8px; color: var(--sheet-muted); background: repeating-conic-gradient(#e6e0e3 0% 25%, #f7f4f5 0% 50%) 50% / 14px 14px; box-shadow: inset 0 0 0 1px var(--sheet-line); }
-:root[data-theme="dark"] .am-thumb-img { background: repeating-conic-gradient(#3a3237 0% 25%, #2a2428 0% 50%) 50% / 14px 14px; }
-.am-thumb-img img { max-width: 84%; max-height: 56px; object-fit: contain; }
-.am-thumb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--label); }
-.am-thumb-meta { font-size: 11.5px; color: var(--sheet-muted); }
 .am-zone { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; border: 1.5px dashed var(--sheet-line); background: var(--sheet-sunken); color: var(--accent-text); cursor: pointer; }
 .am-zone:hover, .am-zone.is-dragging, .am-zone.is-chosen { border-color: var(--accent-text); }
 .am-zone.is-chosen { border-style: solid; background: var(--sheet-select); }
@@ -1782,16 +1764,68 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-zone > span { min-width: 0; }
 .am-zone strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
 .am-zone small { display: block; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
-.am-bg-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.am-bg-choice, .am-color { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 8px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13px; font-weight: 500; color: var(--label-body); }
-.am-bg-choice.is-chosen { box-shadow: inset 0 0 0 2px var(--accent-text); color: var(--label); }
-.am-bg-choice:disabled { opacity: 0.5; }
-.am-bg-dot { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
-.am-bg-dot.is-light { background: #ffffff; }
-.am-bg-dot.is-dark { background: #1e191c; }
-.am-color { cursor: pointer; }
-.am-color input { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
-.am-logo-actions > * { flex: 1 1 140px; }
+
+/* Logo of a customer (components/hub/customer-logo-dialog.tsx): one window from the asset management ("Logo
+   hochladen") and from the user management ("Kunde bearbeiten"). Its preview is the company row the customer sees
+   (the plate of app/welcome-host.css); one large zone to drop, choose or paste; the customer's images as a row; the
+   ground once there is a logo, chosen to fit it. */
+.hub-modal.logo-window { width: min(480px, calc(100% - 32px)); }
+.logo-window-body { display: grid; gap: 16px; }
+.logo-window-preview { margin: 0; padding: 16px; border-radius: 16px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.logo-window-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.logo-window-name { display: grid; min-width: 0; }
+.logo-window-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); }
+.logo-window-name small { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.logo-window-preview figcaption { margin-top: 12px; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
+.logo-window-drop { display: grid; justify-items: center; gap: 2px; padding: 22px 16px 20px; border-radius: 16px; border: 1.5px dashed rgb(var(--accent-rgb) / 0.45); background: rgb(var(--accent-rgb) / 0.04); color: var(--label); text-align: center; cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
+.logo-window-drop > svg { margin-bottom: 6px; color: var(--accent-text); }
+.logo-window-drop strong { font-size: 16px; line-height: 21px; font-weight: 650; }
+.logo-window-drop span { font-size: 14px; line-height: 20px; color: var(--label-secondary); }
+.logo-window-drop u { color: var(--accent-text); font-weight: 600; text-decoration: none; }
+.logo-window-drop small { margin-top: 6px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.logo-window-drop:hover, .logo-window-drop.is-dragging { border-color: var(--accent-text); background: rgb(var(--accent-rgb) / 0.09); }
+.logo-window-drop:focus-within, .logo-window-again:focus-within { box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+.logo-window-drop.is-compact { grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; column-gap: 12px; padding: 12px 14px; text-align: left; }
+.logo-window-drop.is-compact > svg { grid-row: span 2; margin: 0; }
+.logo-window-drop.is-compact strong { font-size: 14.5px; line-height: 19px; }
+.logo-window-drop.is-compact small { margin: 0; }
+.logo-window-chosen { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; border-radius: 14px; background: var(--sheet-select); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.logo-window-check { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-gradient); color: #ffffff; }
+.logo-window-file { flex: 1; min-width: 0; display: grid; }
+.logo-window-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 19px; font-weight: 600; color: var(--label); }
+.logo-window-file small { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.logo-window-again { flex: none; cursor: pointer; }
+.logo-window-files, .logo-window-ground { display: grid; gap: 8px; }
+.logo-window-label { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--sheet-muted); }
+.logo-window-thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 2px; }
+.logo-window-thumb { flex: none; display: grid; justify-items: center; gap: 5px; width: 96px; padding: 6px 6px 8px; border-radius: 12px; color: var(--label-body); font-size: 12px; line-height: 15px; box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.logo-window-thumb:not(:disabled):hover { background: var(--sheet-hover); }
+.logo-window-thumb.is-chosen { background: var(--sheet-select); box-shadow: inset 0 0 0 2px var(--accent-text); color: var(--label); }
+.logo-window-thumb-img { width: 100%; height: 50px; display: grid; place-items: center; border-radius: 8px; color: var(--sheet-muted); background: repeating-conic-gradient(#e6e0e3 0% 25%, #f7f4f5 0% 50%) 50% / 12px 12px; }
+:root[data-theme="dark"] .logo-window-thumb-img { background: repeating-conic-gradient(#3a3237 0% 25%, #2a2428 0% 50%) 50% / 12px 12px; }
+.logo-window-thumb-img img { max-width: 84%; max-height: 34px; object-fit: contain; }
+.logo-window-thumb-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logo-window-grounds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.logo-window-grounds button, .logo-window-color { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 8px; border-radius: 10px; color: var(--label-body); font-size: 13.5px; font-weight: 500; box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.logo-window-grounds button[aria-pressed="true"] { color: var(--label); box-shadow: inset 0 0 0 2px var(--accent-text); }
+.logo-window-dot { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.logo-window-dot.is-light { background: #ffffff; }
+.logo-window-dot.is-dark { background: #1e191c; }
+.logo-window-color { padding: 0 10px 0 6px; cursor: pointer; }
+.logo-window-color input { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
+.logo-window-hint { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.logo-window-remove { justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin: -4px 0 -6px; padding: 6px 2px; border-radius: 8px; color: var(--danger); font-size: 14px; font-weight: 500; }
+.logo-window-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+
+/* User management, "Kunde bearbeiten": the customer's logo on top, with the button into the same window. */
+.customer-logo-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 14px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.hub-app .customer-logo-mark, .hub-app .customer-logo-mark.has-logo { flex: none; width: 52px; height: 52px; border-radius: 14px; font-size: 18px; }
+.hub-app .customer-logo-mark.is-plate { width: auto; min-width: 52px; max-width: 156px; padding: 0 6px; }
+.hub-app .customer-logo-mark.is-plate > img { width: auto; max-width: 100%; height: 78%; }
+.customer-logo-text { flex: 1; min-width: 0; display: grid; }
+.customer-logo-text strong { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
+.customer-logo-text small { font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
+.customer-logo-row .sheet-action { flex: none; height: 34px; }
 
 /* ---------- Asset Management, step 3: panels for uploading and for a file's details ---------- */
 /* Both open over the files on the right: the customers stay in view, and a click on another file only changes the

@@ -6,7 +6,7 @@ import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import type { ActionResult } from "@/lib/hub-files/actions";
-import { checkLogoFile, cleanLogoColor, DEFAULT_BRAND_COLOR, isLogoBackground, isLogoPathOf, LOGO_BUCKET, MAX_LOGO_BYTES, newLogoPath } from "./rules";
+import { canBeLogo, checkLogoFile, cleanLogoColor, DEFAULT_BRAND_COLOR, isLogoBackground, isLogoPathOf, LOGO_BUCKET, MAX_LOGO_BYTES, newLogoPath } from "./rules";
 
 // Every action is a public POST endpoint: each one first asks the database whether this is an active admin.
 // Row Level Security and the storage policies of the migration enforce the same a second time.
@@ -21,6 +21,31 @@ async function adminSession() {
 }
 
 const missingSetup = (error: { code?: string; message?: string }) => error.code === "42703" || /logo_|hub-logos|bucket not found|schema cache/i.test(error.message ?? "");
+
+type CandidateRow = { id: string; title: string | null; file_name: string; mime_type: string; size_bytes: number; storage_path: string };
+
+/**
+ * Images of one customer that may become its logo (newest first, at most 12), each with a preview link for a minute,
+ * so the logo window needs nothing but the customer, from the asset management and from the user management alike.
+ */
+export async function listLogoCandidates(customerId: string): Promise<ActionResult<{ id: string; title: string; url: string | null }[]>> {
+  const session = await adminSession();
+  if (!session) return denied;
+  if (!uuid.test(String(customerId ?? ""))) return { ok: false, error: "Unbekannter Kunde." };
+  const { data, error } = await session.supabase
+    .from("hub_files")
+    .select("id, title, file_name, mime_type, size_bytes, storage_path, hub_file_assignments!inner(customer_id)")
+    .eq("hub_file_assignments.customer_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(60)
+    .returns<CandidateRow[]>();
+  if (error) return { ok: false, error: "Die Dateien des Kunden konnten nicht gelesen werden." };
+  const rows = (data ?? []).filter((row) => canBeLogo({ fileName: row.file_name, mimeType: row.mime_type, sizeBytes: Number(row.size_bytes) })).slice(0, 12);
+  if (!rows.length) return { ok: true, data: [] };
+  const signed = await session.supabase.storage.from(HUB_FILES_BUCKET).createSignedUrls(rows.map((row) => row.storage_path), 60);
+  const urls = new Map((signed.data ?? []).flatMap((item) => item.signedUrl && item.path ? [[item.path, item.signedUrl]] : []));
+  return { ok: true, data: rows.map((row) => ({ id: row.id, title: row.title || row.file_name, url: urls.get(row.storage_path) ?? null })) };
+}
 
 /** New image, step 1: check it and hand out a one-time upload link into the customer's logo folder. */
 export async function prepareLogoUpload(customerId: string, fileName: string, sizeBytes: number, mimeType: string): Promise<ActionResult<{ path: string; token: string }>> {
