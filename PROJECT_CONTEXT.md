@@ -410,9 +410,11 @@
 - Quelle ist ein sprechendes Avatar-Video von Ali (5 s) vor hellgrauem Hintergrund. Freigestellt wurde ohne KI-Modell gegen den bekannten Hintergrund. Gespeichert ist es als MP4 mit Farbe oben und Transparenz unten (`public/brand/ali-welcome.mp4`, 0,6 MB, ohne Tonspur), dazu ein Standbild (`ali-welcome.webp`).
 - `components/hub/host-avatar.tsx` setzt beide Hälften mit WebGL zusammen. Das läuft in allen Browsern, auch in Safari, das bei WebM keine Transparenz zeigt. Video und WebGL starten erst beim Abspielen; vorher und ohne WebGL steht das Standbild.
 - Kunden sehen in der Übersicht statt der bisherigen Begrüßungskarte `WelcomeStage` (`components/hub/welcome-stage.tsx`, `app/welcome-host.css`). Ali steht auf der Unterkante der Karte, rechts daneben steht seine Sprechblase: „Ali von oalab“, „Hallo Vorname!“, „Schön, dass du wieder da bist.“ Darunter folgten zunächst Unternehmen (mit kleinem Logo, falls vorhanden) und Kundennummer; seit dem 4. November 2026 steht dort die Firmenzeile (siehe unten). Admins behalten `WelcomeCard`.
-- Abgespielt wird einmal pro Anmeldung, in der Designvorschau einmal pro Tab.
-    - Das Inline-Script `lib/welcome-host.ts` läuft direkt nach dem der Begrüßung. Steht die Begrüßung nach der Anmeldung an, setzt es `data-host="pending"` vor dem ersten Paint, damit Ali bis zu seinem Auftritt verborgen bleibt.
-    - Die Karte wartet, bis die Begrüßung gewichen ist. Nach 0,45 s steigt Ali auf und spricht ohne Ton. Bei 0,5 s springt die Blase heraus, bei 1,45 s folgt ihre zweite Zeile.
+- Abgespielt wird bei jedem Öffnen der Übersicht, auch in der Designvorschau (Entscheidung des Nutzers vom 4. November 2026).
+    - Vorher galt „einmal pro Anmeldung“ über ein Inline-Script mit `data-host="pending"`. Weil die Anmeldung lange gültig bleibt, sah man Ali damit praktisch nie spielen. Das Script ist entfernt.
+    - Das Server-HTML zeigt die Karte schon in der Phase `ready`; `app/welcome-host.css` verbirgt Ali dort bis zu seinem Auftritt, außer bei „Bewegung reduzieren“.
+    - Nach der Anmeldung wartet die Karte, bis die Begrüßung gewichen ist. Nach 0,45 s steigt Ali auf und spricht ohne Ton. Bei 0,5 s springt die Blase heraus, bei 1,45 s folgt ihre zweite Zeile.
+    - Verlässt man die Übersicht, setzt sich die Bühne im Cleanup eines `useLayoutEffect` zurück, auch wenn der Router die Seite verdeckt behält. Beim nächsten Besuch steigt Ali deshalb wieder auf, ohne dass vorher die fertige Blase aufblitzt.
     - Startet das Video nicht innerhalb von 5 s, bleibt das Standbild mit fertiger Blase.
 - „Bewegung reduzieren“ zeigt nur das Standbild mit fertiger Blase.
 - Am 4. November 2026 nahm der Nutzer den Ton auf allen Plattformen heraus. Den Lautsprecher in der Blase gibt es nicht mehr, und die MP4 hat keine Tonspur.
