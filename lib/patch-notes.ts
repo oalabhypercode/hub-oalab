@@ -38,7 +38,7 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 13,
     date: "2026-11-04",
-    title: "Begrüßung ohne Ton",
+    title: "Begrüßung ohne Ton und Mitdenken",
     summary: "Der Avatar oben in der Übersicht der Kunden begrüßt nur noch ohne Ton; der Lautsprecher in seiner Sprechblase fällt weg. Unten in der Gesprächsliste denkt jetzt außerdem ein Avatar von oalab mit.",
     changes: [
       { kind: "improved", title: "Begrüßung ohne Ton", text: "Der Avatar oben in deiner Übersicht begrüßt dich jetzt immer ohne Ton. Der Lautsprecher in seiner Sprechblase fällt weg, alles andere bleibt wie gewohnt.", customers: true },
