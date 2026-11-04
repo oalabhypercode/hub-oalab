@@ -106,6 +106,7 @@
 - Wunsch des Nutzers nach der Vorschau „Asset Management V5“ (Freigabe „Ja, so umsetzen“): Zahnrad und Abmelden schwebten als zwei runde Knöpfe über der Namenszeile und wirkten unruhig.
 - Jetzt: Zeichen (Initialen, später das Kundenlogo), Name und darunter nach einem kleinen Punkt das aktive Servicepaket, bei Admins „oalab-Team“. Rechts, durch eine feine Linie abgetrennt, nur ein Zahnrad. Es öffnet ein Menü mit der E-Mail-Adresse des Logins (bei Demo und Vorschau deren Art), „Profil“, „Darstellung“ und rot „Abmelden“ (in der Vorschau „Vorschau verlassen“).
 - Name, Punkt und Paket in einer Zeile passen in die 272 px breite Seitenleiste nicht, deshalb zwei Zeilen. „Abmelden“ oben neben Glocke und Hilfe war die Alternative, gewählt wurde das Menü.
+- Wunsch des Nutzers am 5. November 2026: Auf dem Tablet (768–1023 px) fehlen Seitenleiste und Zahnrad, Abmelden ging dort nur über Profil. Seitdem sitzt rechts oben neben dem Profil ein runder Knopf zum Abmelden (`.topbar-signout`, in der Vorschau „Vorschau verlassen“). Handy und Computer bleiben wie gehabt.
 - Code: `components/hub/glass-sidebar.tsx` (`.sidebar-account*` in `app/glass.css`); Escape und Klick daneben schließen das Menü, Pfeiltasten wandern durch die Einträge.
 
 ### Vorgabe vom 2. November 2026: Logo mittig in der Tablet-Ansicht

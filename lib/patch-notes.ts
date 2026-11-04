@@ -21,6 +21,7 @@ export type PatchPackage = {
   number: number;
   /** Go-live day, YYYY-MM-DD. */
   date: string;
+  /** Shown to customers as well, so it names only changes they see; internal topics belong in the summary. */
   title: string;
   /** What the package is about, for admins. */
   summary: string;
@@ -38,10 +39,11 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 14,
     date: "2026-11-05",
-    title: "Begrüßung bei jedem Besuch und Freelancer",
-    summary: "Der Avatar oben in der Übersicht der Kunden begrüßt jetzt bei jedem Öffnen der Übersicht und nicht mehr nur einmal direkt nach der Anmeldung. Weil die Anmeldung lange gültig bleibt, war er vorher kaum in Bewegung zu sehen. Mit „Bewegung reduzieren“ steht er weiter still neben seiner Sprechblase. Neu ist außerdem die Rolle Freelancer, nur im Hub: Freelancer bekommen Kunden zugeordnet, eigene Dateien und lesen die freigegebenen Dateien ihrer Kunden, immer mit Code bei der Anmeldung.",
+    title: "Begrüßung bei jedem Besuch und Abmelden auf dem Tablet",
+    summary: "Der Avatar oben in der Übersicht der Kunden begrüßt jetzt bei jedem Öffnen der Übersicht und nicht mehr nur einmal direkt nach der Anmeldung. Weil die Anmeldung lange gültig bleibt, war er vorher kaum in Bewegung zu sehen. Mit „Bewegung reduzieren“ steht er weiter still neben seiner Sprechblase. Auf dem Tablet sitzt oben rechts jetzt ein Knopf zum Abmelden. Neu ist außerdem die Rolle Freelancer, nur im Hub: Freelancer bekommen Kunden zugeordnet, eigene Dateien und lesen die freigegebenen Dateien ihrer Kunden, immer mit Code bei der Anmeldung.",
     changes: [
       { kind: "improved", title: "Begrüßung bei jedem Besuch", text: "Der Avatar oben in deiner Übersicht begrüßt dich jetzt jedes Mal, wenn du die Übersicht öffnest, nicht mehr nur direkt nach der Anmeldung. Mit „Bewegung reduzieren“ unter Profil › Darstellung steht er weiter still neben seiner fertigen Sprechblase.", customers: true },
+      { kind: "improved", title: "Abmelden oben rechts", text: "Auf dem Tablet meldest du dich jetzt mit dem Knopf oben rechts neben deinem Profil ab. Bisher ging das dort nur über die Seite Profil.", customers: true },
       { kind: "new", title: "Freelancer im Hub", text: "Admins legen im User Management jetzt Freelancer an, die im Auftrag von oalab Kunden betreuen, und ordnen ihnen Kunden zu; beim Kunden heißt das „Betreut von“. Ein Freelancer bekommt eigene Dateien und sieht im Asset Management die Dateien seiner Kunden, nur zum Ansehen und Herunterladen. Kunden anlegen kann er nicht, und auf der Serviceplattform hat er keinen Zugang." },
       { kind: "new", title: "Sichtbar für", text: "In den Details einer Datei legt ihr bei Kunden mit Freelancer fest, wer sie sieht: Kunde und Freelancer, nur der Kunde oder nur der Freelancer. Verträge, Angebote und Rechnungen stehen von selbst auf „Nur Kunde“. Kunden sehen weiter alle ihre Dateien, nur Arbeitsdateien für den Freelancer nicht." },
       { kind: "security", title: "Freelancer immer mit Code", text: "Freelancer bestätigen jede Anmeldung mit einem Code per E-Mail oder App, ausschalten lässt sich das nicht. Ohne bestätigten Code zeigt der Hub ihnen keine Daten ihrer Kunden." },
