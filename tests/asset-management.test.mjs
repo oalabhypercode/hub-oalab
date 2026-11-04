@@ -32,7 +32,8 @@ test("the list view is a setting of its own: minimal unless someone chose detail
 
 test("admins get the Asset Management with customers first; customers keep their files table", async () => {
   const files = await source("components/hub/screens/files.tsx");
-  assert.match(files, /return props\.admin \? <AssetManagement \{\.\.\.props\} \/> : <CustomerFiles \{\.\.\.props\} \/>;/);
+  // Freelancers work in the same Asset Management, read only (4.11.2026).
+  assert.match(files, /return props\.admin \|\| props\.freelancer \? <AssetManagement \{\.\.\.props\} \/> : <CustomerFiles \{\.\.\.props\} \/>;/);
   const screen = await source("components/hub/screens/asset-management.tsx");
   // The switch and the setting under Darstellung are one value.
   assert.match(screen, /trailing=\{<DensitySwitch view=\{listView\} onChange=\{\(next\) => update\(\{ listView: next \}\)\} \/>\}/);

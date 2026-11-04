@@ -28,9 +28,12 @@ const NO_FOLDER = "none";
 
 type FileGrouping = "folder" | "none";
 
-/** Admins work in the Asset Management (customers first); customers keep their own files table. */
+/**
+ * Admins work in the Asset Management (customers first), freelancers in their own one (their files and their
+ * customers, read only); customers keep their own files table.
+ */
 export function FilesScreen(props: ScreenProps) {
-  return props.admin ? <AssetManagement {...props} /> : <CustomerFiles {...props} />;
+  return props.admin || props.freelancer ? <AssetManagement {...props} /> : <CustomerFiles {...props} />;
 }
 
 function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {

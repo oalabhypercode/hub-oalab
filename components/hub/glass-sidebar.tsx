@@ -35,7 +35,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
   const { signOut, signingOut, logoutError, account, manageUsers } = useHubShell();
   const activePackages = account.servicePackages.map((id) => servicePackages[id].name).join(", ");
   // Under the name: the active package, for the oalab team its name.
-  const meta = activePackages || (account.admin ? "oalab-Team" : "");
+  const meta = activePackages || (account.admin ? "oalab-Team" : account.freelancer ? "Freelancer" : "");
   const [menuOpen, setMenuOpen] = useState(false);
   const corner = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -77,9 +77,9 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         ))}
         <span className="sidebar-caption">Bereiche</span>
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
-        {categoryOrder.map((id) => {
+        {categoryOrder.filter((id) => !(account.freelancer && id === "projects")).map((id) => {
           const Icon = categories[id].icon;
-          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" title={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" title={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
         })}
         {manageUsers && <>
           <span className="sidebar-caption">Verwaltung</span>

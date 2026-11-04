@@ -6,6 +6,27 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 4. November 2026: Freelancer als dritte Rolle, nur im Hub
+
+- Wunsch des Nutzers: Viele Kunden betreut neben oalab ein Freelancer. Er soll wie ein Sub-Admin seine Kunden zugeordnet bekommen (anlegen kann er keine), wie ein Kunde eigene Dateien bekommen und in seinem Asset Management die Dateien seiner Kunden sehen. oalab gibt ihm so ein Rundum-Sorglos-Paket. Freigabe nach der Planung („Ansonsten hast du es richtig verstanden“) mit allen Empfehlungen, dazu: „diese Rolle gilt wirklich nur für den Hub, der Freelancer soll nichts auf der Serviceseite machen können“.
+- Entscheidungen (Empfehlungen der Planung): Je Datei und Kunde „Sichtbar für“ (Kunde und Freelancer, Nur Kunde, Nur Freelancer), Verträge, Angebote und Rechnungen von selbst „Nur Kunde“. Freelancer nur lesend (Hochladen durch Freelancer später als eigener Schritt). Der Kunde sieht nicht, wer ihn betreut. Chat mit oalab und Termine bekommt der Freelancer wie ein Kunde, Projekte und Serviceplattform nicht. Zwei-Faktor-Schutz ist für Freelancer Pflicht. Mehrere Freelancer je Kunde möglich; Nummern „FL-“ plus Zufallszahl.
+- Datenbank: Migration `202611040002_hub_freelancers.sql` in `service-oalab` (PR #13).
+  - `hub_customers.kind` (customer/freelancer, nach dem Anlegen fest; Freelancer nie mit Service-Organisation).
+  - `hub_freelancer_customers` (Fremdschlüssel auf `(id, kind)`, schreiben nur Admins).
+  - `hub_file_assignments.audience` mit Vorbelegung nach Kategorie per Trigger; die Kundenregeln blenden „Nur Freelancer“ aus.
+  - `hub_freelancer_sees()` verlangt aktives Profil und `aal2`: Ohne bestätigten Code sieht ein Freelancer nur sich selbst.
+  - Leserechte für Kunden, Zuordnungen, Dateien, Ordner, Dateiobjekte und Logos seiner Kunden; private Chats, Termine und Logins der Kunden bleiben zu.
+  - Schutz: Freelancer-Logins nur an Freelancern, andere Logins nur an Kunden; nie eine aktive Mitgliedschaft auf der Serviceplattform (auch nicht über eine Einladung dort); `hub_handle_new_user` kennt `oalab_freelancer`.
+  - In PGlite mit den echten Hub-Migrationen geprüft.
+- Hub:
+  - Rolle `oalab_freelancer` (`lib/hub-users/rules.ts`), Zwei-Faktor fest auf Code (`secondFactorMethod`, Profil und User Management bieten kein „Aus“).
+  - User Management mit Reiter „Freelancer“, „Freelancer anlegen“, drei Rollen bei „Konto anlegen“ und „Prüfen“, „Betreut von“ im Kundendialog.
+  - Asset Management: bei Admins die Freelancer als eigene Gruppe, im Kopf des Kunden der Knopf „Betreut von“, in den Details „Sichtbar für“ (Server-Aktion mit Service-Rolle). Für Freelancer dieselbe Ansicht nur lesend, mit „Meine Dateien“, „Alle Dateien“ und „Meine Kunden“; Ordner nur in den eigenen Dateien.
+  - Meldungen über neue Dateien gehen nach „Sichtbar für“ auch an die Freelancer (`notifyFileShared`).
+  - Für Freelancer: kein Bereich Projekte, kein Knopf zur Serviceplattform, in der Übersicht „Deine Kunden“ und „Neue Dateien“.
+  - Alles liest die neuen Spalten fehlertolerant: Ohne Migration bleibt der Hub wie vorher.
+- Grenzen: Freelancer sehen auch die Kontaktdaten ihrer Kunden (Rechte gelten pro Zeile). Rechtlich braucht es mit jedem Freelancer eine Vereinbarung zu Vertraulichkeit und Auftragsverarbeitung, und die Datenschutzerklärung muss Freelancer als Empfänger nennen (vor echten Kundendaten).
+
 ### Vorgabe vom 4. November 2026: Impressum und Datenschutz im Hub
 
 - Befund: Live zeigte der Hub keine Rechtslinks, weil `NEXT_PUBLIC_IMPRINT_URL` und `NEXT_PUBLIC_PRIVACY_URL` in Vercel fehlten. Auf oalab.de öffnen „Impressum“ und „Datenschutzerklärung“ nur ein Fenster ohne eigene Adresse; der Text dort ist veraltet (§ 5 TMG, § 55 RStV, Link zur abgeschalteten OS-Plattform) und beschreibt nur die Website.

@@ -67,6 +67,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
   const fixtureFiles = useMemo(() => preview ? previewFiles : demoData?.files || [], [preview, demoData]);
   const populated = preview || Boolean(demoData);
   const admin = demoData ? demoData.role === "oalab_admin" : role === "oalab_admin";
+  const freelancer = !demoData && !preview && role === "oalab_freelancer";
   const liveFiles = filesState?.source === "supabase" && !filesState.error;
   const files = liveFiles ? filesState.files : fixtureFiles;
   const fileState: HubFilesState = useMemo(() => {
@@ -80,7 +81,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
 
   const screen: ScreenProps = {
-    model, preview, populated, asOf, projects, files, fileState, calendar, favorites, admin,
+    model, preview, populated, asOf, projects, files, fileState, calendar, favorites, admin, freelancer,
     liveProjects: !preview && !demoData ? liveProjects ?? null : null,
     firstName: demoData?.name.split(" ")[0] || (preview ? "Jana" : ""),
     company: demoData?.company,

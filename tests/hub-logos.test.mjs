@@ -40,7 +40,8 @@ test("logos are read on their own, so a missing migration never breaks the accou
   // Customers get only their own customer's logo, signed with their own session; admins keep their initials.
   assert.match(logos, /if \(identity\.publicDemo \|\| identity\.demoAccess \|\| !customerId \|\| identity\.account\?\.role === "oalab_admin"\) return null;/);
   const files = await source("lib/hub-files/server.ts");
-  assert.match(files, /canManage \? loadCustomerLogos\(supabase\) : new Map<string, CustomerLogo>\(\)/);
+  // Admins get every logo, freelancers those of their customers (RLS); customers none here.
+  assert.match(files, /canManage \|\| isFreelancer \? loadCustomerLogos\(supabase\) : new Map<string, CustomerLogo>\(\)/);
 });
 
 test("every logo action checks for an active admin in the database before anything else", async () => {

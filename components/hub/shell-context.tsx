@@ -18,6 +18,8 @@ export type HubAccount = {
   customerNumber: string | null;
   servicePackages: ServicePackageId[];
   admin: boolean;
+  /** A freelancer login: their own asset management with the customers they look after, no projects, no service platform. */
+  freelancer: boolean;
   customers: number;
   /** Real logins only: the person's own details and their customer's contact data. */
   person: { phone: string; position: string } | null;
