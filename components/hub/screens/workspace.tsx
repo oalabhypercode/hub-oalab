@@ -273,7 +273,7 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
           <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : account.admin ? "Dein Workspace ist nur nach Anmeldung erreichbar. Als Admin verwaltest du Konten und Kunden im User Management." : "Dein Workspace ist nur nach Anmeldung erreichbar und zeigt ausschließlich die Daten deines Unternehmens."}</p>
           {preview && <Link className="text-link" href="/auth/login">Zur Anmeldung</Link>}
         </GlassCard>}
-        {!preview && !publicDemo && !account.admin && <NotificationSettingsCard />}
+        {!preview && !publicDemo && <NotificationSettingsCard admin={account.admin} />}
         {!preview && !publicDemo && <WhatsAppCard />}
       </div>
       <SectionHeader title="Einstellungen" />

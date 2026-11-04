@@ -1,96 +1,102 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Check, ChevronLeft, Info, MessagesSquare, Search, SendHorizontal, SquarePen } from "lucide-react";
+import { ChevronLeft, Info, MessagesSquare, Search } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
-import { MessagesHost } from "../messages-host";
 import { PlainText, RichText } from "../rich-text";
 import { CategoryTitle } from "./workspace";
 import { LoadNotice } from "./overview";
+import { CustomerSign } from "./customer-sign";
+import { ChatTabs, PrivateChats, type ChatTab } from "./private-chat";
 import type { ScreenProps } from "./types";
-import { openConversation, refreshConversations, sendConversationMessage } from "@/lib/hub-conversations/actions";
+import { openConversation, refreshConversations } from "@/lib/hub-conversations/actions";
 import { demoConversations } from "@/lib/hub-conversations/fixtures";
-import { clockTime, listTime, MAX_MESSAGE_LENGTH, messageSide, previewText, senderLabel, threadItems } from "@/lib/hub-conversations/rules";
-import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread } from "@/lib/hub-conversations/types";
-import { SERVICE_PLATFORM_URL } from "@/lib/service-packages";
+import { clockTime, listTime, messageSide, previewText, senderLabel, threadItems } from "@/lib/hub-conversations/rules";
+import type { ConversationsState, ConversationSummary, ConversationThread } from "@/lib/hub-conversations/types";
+import { demoPrivateChats } from "@/lib/hub-private-chat/fixtures";
+import type { PrivateChatState } from "@/lib/hub-private-chat/types";
 
 const POLL_MS = 15_000;
-const newConversationUrl = `${SERVICE_PLATFORM_URL}/requests/new`;
 
-/** Two letters for the round picture: the company for admins, otherwise the topic. */
-function initialsOf(text: string) {
-  const words = text.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean);
-  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? words[0]?.[1] ?? "")).toUpperCase() || "OA";
+/**
+ * Nachrichten (4 November 2026): customers write here with oalab in their private chat; requests go to the service
+ * platform. Admins have two tabs: "Privat" with every customer's private chat to answer, and "Service" with the service
+ * platform's conversations to follow along, as before.
+ */
+export function ConversationsScreen({ preview, admin, firstName, company, asOf, conversations, privateChats }: ScreenProps & { conversations?: ConversationsState; privateChats?: PrivateChatState }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const tab: ChatTab = admin && params.get("tab") === "service" ? "service" : "private";
+  // The day labels follow the server's day, so the first render on the server and in the browser say the same.
+  const now = useMemo(() => new Date(`${asOf}T12:00:00+01:00`), [asOf]);
+  // The tab "Privat" counts what waits there, also while "Service" is open.
+  const privateUnread = useMemo(() => (privateChats ?? demoPrivateChats({ firstName, company: company ?? null, admin }).state).chats.filter((chat) => chat.unread).length, [privateChats, firstName, company, admin]);
+  const switchTab = (next: ChatTab) => { if (next !== tab) router.push(next === "service" ? `${pathname}?tab=service` : pathname, { scroll: false }); };
+  const tabs = admin ? (unread: number) => <ChatTabs tab={tab} unread={unread} onChange={switchTab} /> : undefined;
+
+  return (
+    <>
+      <LargeTitleHeader title="Nachrichten" icon={<CategoryTitle category="messages" />} actions={<HeaderActions />} />
+      {tab === "service"
+        ? <ServiceConversations key="service" now={now} state={conversations} tabs={tabs?.(privateUnread)} />
+        : <PrivateChats key="private" admin={admin} preview={preview} firstName={firstName} company={company} now={now} state={privateChats} tabs={tabs} />}
+    </>
+  );
 }
 
-/** A calm colour per conversation, always the same for the same one. */
-function hueOf(id: string) {
-  let hash = 0;
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) % 997;
-  return ["bordeaux", "blue", "green", "orange", "violet"][hash % 5];
-}
-
-function Avatar({ conversation, admin }: { conversation: ConversationSummary; admin: boolean }) {
-  return admin && conversation.company
-    ? <span className="chat-avatar is-company" aria-hidden="true">{initialsOf(conversation.company)}</span>
-    : <span className={`chat-avatar is-${hueOf(conversation.id)}`} aria-hidden="true">{initialsOf(conversation.title)}</span>;
+function ServiceAvatar({ conversation }: { conversation: ConversationSummary }) {
+  const company = conversation.company ?? conversation.title;
+  return <CustomerSign customer={{ id: conversation.customerId ?? company, company }} logo={conversation.logo} />;
 }
 
 function lastLine(conversation: ConversationSummary) {
   const last = conversation.lastMessage;
   if (!last) return "Noch keine Nachricht";
   const text = previewText(last.body);
-  if (last.sender === "system") return text;
-  const who = senderLabel(last.sender, last.own, last.name);
-  return `${who}: ${text}`;
+  return last.sender === "system" ? text : `${senderLabel(last.sender, last.name)}: ${text}`;
 }
 
 /**
- * Nachrichten as a messenger (2 November 2026): the conversations with oalab on the left under „Gespräche“, the open one
- * on the right. Real logins read the service platform's requests and answer through it; the preview, the public demo
- * and the demo logins show examples whose new messages stay in this window. Admins read along.
+ * The service platform's conversations for admins, to follow what is going on there: every customer's requests with
+ * their logo, read only. Answers and internal notes from oalab come from NoteTree Business.
  */
-export function ConversationsScreen({ preview, admin, firstName, company, asOf, conversations }: ScreenProps & { conversations?: ConversationsState }) {
-  const fixtures = useMemo(() => conversations ? null : demoConversations({ firstName, company: company ?? null, admin }), [conversations, firstName, company, admin]);
-  const initial = conversations ?? fixtures!.state;
+function ServiceConversations({ now, state, tabs }: { now: Date; state?: ConversationsState; tabs?: ReactNode }) {
+  const fixtures = useMemo(() => state ? null : demoConversations(), [state]);
+  const initial = state ?? fixtures!.state;
   const live = initial.source === "service";
-  const readOnly = initial.readOnly;
   const [list, setList] = useState<readonly ConversationSummary[]>(initial.conversations);
   const [loadError, setLoadError] = useState(initial.error);
-  const [demoMessages, setDemoMessages] = useState(() => fixtures?.messages ?? new Map<string, ConversationMessage[]>());
+  // The logos come signed with the first page; the look for news and opening a conversation keep them, so they do not load again.
+  const [logos] = useState(() => new Map(initial.conversations.map((item) => [item.id, item.logo])));
   const router = useRouter();
   const pathname = usePathname();
   const openId = useSearchParams().get("conversation");
   const [liveThread, setLiveThread] = useState<ConversationThread | null>(null);
   const [threadError, setThreadError] = useState("");
-  const [filter, setFilter] = useState<"all" | "unread">("all");
   const [query, setQuery] = useState("");
-  // The day labels follow the server's day, so the first render on the server and in the browser say the same.
-  const now = useMemo(() => new Date(`${asOf}T12:00:00+01:00`), [asOf]);
 
+  const withLogo = (item: ConversationSummary): ConversationSummary => ({ ...item, logo: logos.get(item.id) ?? item.logo });
   const conversation = list.find((item) => item.id === openId) ?? null;
   const thread: ConversationThread | null = live
     ? liveThread && liveThread.conversation.id === openId ? liveThread : null
-    : conversation ? { conversation, messages: demoMessages.get(conversation.id) ?? [] } : null;
+    : conversation ? { conversation, messages: fixtures?.messages.get(conversation.id) ?? [] } : null;
 
-  const replaceInList = useCallback((next: ConversationSummary) => setList((items) => items.map((item) => item.id === next.id ? next : item)), []);
-
-  // Opening a conversation reads it, and for clients marks it read.
   useEffect(() => {
     if (!openId || !live) return;
     let current = true;
     openConversation({ id: openId }).then((result) => {
       if (!current) return;
       setThreadError(result.ok ? "" : result.error);
-      if (result.ok) { setLiveThread(result.data); replaceInList(result.data.conversation); }
+      if (result.ok) setLiveThread(result.data);
     }).catch(() => { if (current) setThreadError("Keine Verbindung. Bitte versuche es erneut."); });
     return () => { current = false; };
-  }, [openId, live, replaceInList]);
+  }, [openId, live]);
 
-  // A messenger shows news without reloading: look every 15 seconds while the page is visible.
+  // Look for news every 15 seconds while the page is visible.
   useEffect(() => {
     if (!live) return;
     const timer = window.setInterval(() => {
@@ -98,167 +104,86 @@ export function ConversationsScreen({ preview, admin, firstName, company, asOf, 
       refreshConversations().then((result) => {
         if (!result.ok) return;
         setLoadError(null);
-        setList(result.data.conversations.map((item) => item.id === openId ? { ...item, unread: false } : item));
+        setList(result.data.conversations);
       }).catch(() => { /* the next look tries again */ });
       if (openId) openConversation({ id: openId }).then((result) => { if (result.ok) setLiveThread(result.data); }).catch(() => {});
     }, POLL_MS);
     return () => window.clearInterval(timer);
   }, [live, openId]);
 
-  const open = (id: string) => {
-    // The examples have no server to ask, so opening one only takes its "unread" away.
-    if (!live) setList((items) => items.map((item) => item.id === id ? { ...item, unread: false } : item));
-    router.push(`${pathname}?conversation=${encodeURIComponent(id)}`, { scroll: false });
-  };
-  const close = () => router.push(pathname, { scroll: false });
+  const open = (id: string) => router.push(`${pathname}?tab=service&conversation=${encodeURIComponent(id)}`, { scroll: false });
+  const close = () => router.push(`${pathname}?tab=service`, { scroll: false });
 
   const term = query.trim().toLowerCase();
-  const unreadCount = list.filter((item) => item.unread && item.id !== openId).length;
-  // The newest conversation first, as in a messenger; a sent message moves its conversation to the top.
-  const shown = [...list].sort((a, b) => Date.parse(b.lastAt) - Date.parse(a.lastAt)).filter((item) => (filter === "all" || (item.unread && item.id !== openId))
-    && (!term || [item.title, item.company, item.reference, item.lastMessage?.body].some((value) => value?.toLowerCase().includes(term))));
-
-  const appendDemo = (body: string) => {
-    if (!conversation) return;
-    const message: ConversationMessage = { id: `local-${Date.now()}`, sender: "client", own: true, name: null, body, markdown: false, at: new Date().toISOString() };
-    setDemoMessages((current) => new Map(current).set(conversation.id, [...(current.get(conversation.id) ?? []), message]));
-    replaceInList({ ...conversation, lastAt: message.at, lastMessage: { body, sender: "client", own: true, name: null } });
-  };
+  const shown = [...list].sort((a, b) => Date.parse(b.lastAt) - Date.parse(a.lastAt))
+    .filter((item) => !term || [item.title, item.company, item.reference, item.lastMessage?.body].some((value) => value?.toLowerCase().includes(term)));
 
   return (
-    <>
-      <LargeTitleHeader title="Nachrichten" icon={<CategoryTitle category="messages" />} actions={<HeaderActions />} />
-      <div className="sheet chat section-first" data-open={thread || openId ? "true" : undefined}>
-        <div className="chat-grid">
-          <section className="chat-list" aria-label="Gespräche">
-            <div className="chat-list-head">
-              <h2>Gespräche</h2>
-              {!readOnly && <a className="chat-icon-button" href={newConversationUrl} target="_blank" rel="noopener noreferrer" title="Neues Gespräch auf der Serviceplattform starten" aria-label="Neues Gespräch (öffnet die Serviceplattform in neuem Tab)"><SquarePen size={19} aria-hidden="true" /></a>}
-            </div>
-            <label className="chat-search"><Search size={16} aria-hidden="true" /><span className="visually-hidden">Gespräche durchsuchen</span>
-              <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={admin ? "Kunde, Thema oder Text" : "Gespräche durchsuchen"} /></label>
-            {!readOnly && (
-              <div className="chat-filter" role="group" aria-label="Gespräche filtern">
-                <button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>Alle</button>
-                <button type="button" aria-pressed={filter === "unread"} onClick={() => setFilter("unread")}>Ungelesen{unreadCount > 0 && <span>{unreadCount}</span>}</button>
-              </div>
-            )}
-            {loadError ? <div className="chat-list-note"><LoadNotice text={loadError} /></div>
-            : shown.length ? (
-              <ul className="chat-convs">
-                {shown.map((item) => (
-                  <li key={item.id}>
-                    <button type="button" className="chat-conv" aria-current={item.id === openId ? "true" : undefined} onClick={() => open(item.id)}>
-                      <Avatar conversation={item} admin={admin} />
-                      <span className="chat-conv-main">
-                        <span className="chat-conv-top"><strong>{item.title}</strong><time dateTime={item.lastAt} className={item.unread && item.id !== openId ? "is-new" : undefined}>{listTime(item.lastAt, now)}</time></span>
-                        {admin && item.company && <span className="chat-conv-company">{item.company}</span>}
-                        <span className="chat-conv-sub">
-                          <span className="chat-conv-last">{item.lastMessage?.own && <Check size={14} aria-hidden="true" />}{lastLine(item)}</span>
-                          {item.unread && item.id !== openId ? <span className="chat-badge"><span className="visually-hidden">Neu</span></span>
-                            : item.group !== "active" && <span className={`chat-pill tone-${item.tone}`}>{item.stateLabel}</span>}
-                        </span>
+    <div className="sheet chat section-first" data-open={thread || openId ? "true" : undefined}>
+      <div className="chat-grid">
+        <section className="chat-list" aria-label="Service-Gespräche">
+          <div className="chat-list-head"><h2>Gespräche</h2></div>
+          {tabs}
+          <label className="chat-search"><Search size={16} aria-hidden="true" /><span className="visually-hidden">Service-Gespräche durchsuchen</span>
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kunde, Thema oder Text" /></label>
+          <p className="chat-tab-note">Die Anfragen der Serviceplattform, nur zum Mitlesen.</p>
+          {loadError ? <div className="chat-list-note"><LoadNotice text={loadError} /></div>
+          : shown.length ? (
+            <ul className="chat-convs">
+              {shown.map((item) => (
+                <li key={item.id}>
+                  <button type="button" className="chat-conv" aria-current={item.id === openId ? "true" : undefined} onClick={() => open(item.id)}>
+                    <ServiceAvatar conversation={withLogo(item)} />
+                    <span className="chat-conv-main">
+                      <span className="chat-conv-top"><strong>{item.title}</strong><time dateTime={item.lastAt}>{listTime(item.lastAt, now)}</time></span>
+                      {item.company && <span className="chat-conv-company">{item.company}</span>}
+                      <span className="chat-conv-sub">
+                        <span className="chat-conv-last">{lastLine(item)}</span>
+                        {item.group !== "active" && <span className={`chat-pill tone-${item.tone}`}>{item.stateLabel}</span>}
                       </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="chat-empty">{list.length ? "Keine Gespräche für diese Suche." : readOnly ? "Noch keine Gespräche mit Kunden." : "Noch keine Gespräche. Starte eines über das Stift-Symbol oben."}</p>
-            )}
-            {!admin && <MessagesHost />}
-          </section>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="chat-empty">{list.length ? "Keine Gespräche für diese Suche." : "Noch keine Gespräche auf der Serviceplattform."}</p>
+          )}
+        </section>
 
-          <section className="chat-pane" aria-label={thread ? `Gespräch: ${thread.conversation.title}` : "Gespräch"}>
-            {thread ? (
-              <ChatThread key={thread.conversation.id} thread={thread} admin={admin} readOnly={readOnly} live={live} now={now} preview={preview}
-                onClose={close} onSent={(next) => { setLiveThread(next); replaceInList(next.conversation); }} onDemoSend={appendDemo}
-                onReload={() => openConversation({ id: thread.conversation.id }).then((result) => { if (result.ok) setLiveThread(result.data); }).catch(() => {})} />
-            ) : openId && live && !threadError ? (
-              <div className="chat-placeholder"><MiniLoader size={22} /><span>Gespräch wird geladen …</span></div>
-            ) : (
-              <div className="chat-placeholder">
-                <MessagesSquare size={30} aria-hidden="true" />
-                <span>{threadError || (list.length ? "Wähle links ein Gespräch." : "Hier erscheinen deine Gespräche mit oalab.")}</span>
-                {openId && <button type="button" className="text-link" onClick={close}>Zur Liste</button>}
-              </div>
-            )}
-          </section>
-        </div>
+        <section className="chat-pane" aria-label={thread ? `Gespräch: ${thread.conversation.title}` : "Gespräch"}>
+          {thread ? (
+            <ServiceThread key={thread.conversation.id} thread={{ ...thread, conversation: withLogo(thread.conversation) }} now={now} onClose={close} />
+          ) : openId && live && !threadError ? (
+            <div className="chat-placeholder"><MiniLoader size={22} /><span>Gespräch wird geladen …</span></div>
+          ) : (
+            <div className="chat-placeholder">
+              <MessagesSquare size={30} aria-hidden="true" />
+              <span>{threadError || (list.length ? "Wähle links ein Gespräch." : "Hier erscheinen die Gespräche der Serviceplattform.")}</span>
+              {openId && <button type="button" className="text-link" onClick={close}>Zur Liste</button>}
+            </div>
+          )}
+        </section>
       </div>
-    </>
+    </div>
   );
 }
 
-function ChatThread({ thread, admin, readOnly, live, now, preview, onClose, onSent, onDemoSend, onReload }: {
-  thread: ConversationThread; admin: boolean; readOnly: boolean; live: boolean; now: Date; preview: boolean;
-  onClose: () => void; onSent: (thread: ConversationThread) => void; onDemoSend: (body: string) => void; onReload: () => void;
-}) {
+function ServiceThread({ thread, now, onClose }: { thread: ConversationThread; now: Date; onClose: () => void }) {
   const { conversation, messages } = thread;
-  const items = useMemo(() => threadItems(messages.map((message) => ({ ...message, author: `${message.sender}:${message.own}:${message.name ?? ""}` })), now), [messages, now]);
-  const log = useRef<HTMLDivElement>(null);
-  const field = useRef<HTMLTextAreaElement>(null);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
-  // One id per draft: sending the same text twice (double click, slow network) stays one message.
-  const clientId = useRef<string | null>(null);
-
-  // New messages scroll into view, like in a messenger.
-  useEffect(() => {
-    const element = log.current;
-    if (element) element.scrollTop = element.scrollHeight;
-  }, [messages.length]);
-
-  // The field grows with the text up to a few lines.
-  useEffect(() => {
-    const element = field.current;
-    if (!element) return;
-    element.style.height = "auto";
-    element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
-  }, [draft]);
-
-  async function send() {
-    const body = draft.trim();
-    if (!body || sending) return;
-    setError("");
-    if (!live) {
-      onDemoSend(body);
-      setDraft("");
-      return;
-    }
-    clientId.current ??= crypto.randomUUID();
-    setSending(true);
-    try {
-      const result = await sendConversationMessage({ id: conversation.id, body, clientGeneratedId: clientId.current, version: conversation.version, lastMessageId: messages.at(-1)?.id ?? null });
-      if (result.ok) {
-        clientId.current = null;
-        setDraft("");
-        onSent(result.data);
-      } else {
-        setError(result.error);
-        onReload();
-      }
-    } catch {
-      setError("Keine Verbindung. Deine Nachricht ist noch hier; bitte versuche es erneut.");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  const subtitle = admin ? [conversation.company, conversation.reference].filter(Boolean).join(" · ") : `${conversation.reference} · mit oalab`;
+  const items = useMemo(() => threadItems(messages.map((message) => ({ ...message, author: `${message.sender}:${message.name ?? ""}` })), now), [messages, now]);
+  const subtitle = [conversation.company, conversation.reference].filter(Boolean).join(" · ");
   return (
     <>
       <header className="chat-pane-head">
         <button type="button" className="chat-back" onClick={onClose} aria-label="Zurück zu den Gesprächen"><ChevronLeft size={24} aria-hidden="true" /></button>
-        <Avatar conversation={conversation} admin={admin} />
+        <ServiceAvatar conversation={conversation} />
         <div className="chat-pane-title"><strong>{conversation.title}</strong><span>{subtitle}</span></div>
         <span className={`chat-pill tone-${conversation.tone}`}>{conversation.stateLabel}</span>
-        {live && !admin && <a className="chat-icon-button is-muted" href={`${SERVICE_PLATFORM_URL}/requests/${conversation.reference}/received`} target="_blank" rel="noopener noreferrer" title="Auf der Serviceplattform öffnen, mit Freigaben und Testseite" aria-label="Auf der Serviceplattform öffnen (neuer Tab)"><ArrowUpRight size={18} aria-hidden="true" /></a>}
       </header>
-      <div className="chat-log" ref={log} role="log" aria-live="polite" aria-label="Nachrichten">
+      <div className="chat-log" role="log" aria-live="polite" aria-label="Nachrichten">
         {items.length ? items.map(({ message, day, first, last }) => {
-          const side = messageSide(message.sender, message.own, admin);
+          const side = messageSide(message.sender);
           return (
             <div key={message.id} className="chat-item">
               {day && <span className="chat-day">{day}</span>}
@@ -266,10 +191,10 @@ function ChatThread({ thread, admin, readOnly, live, now, preview, onClose, onSe
                 <p className="chat-system"><Info size={14} aria-hidden="true" />{message.body}</p>
               ) : (
                 <div className={`chat-msg is-${side}${first ? " is-first" : ""}${last ? " is-last" : ""}${message.sender === "assistant" ? " is-assistant" : ""}`}>
-                  {first && side === "in" && <span className="chat-who">{senderLabel(message.sender, message.own, message.name)}</span>}
+                  {first && <span className="chat-who">{senderLabel(message.sender, message.name)}</span>}
                   <div className="chat-bubble">
                     <div className={message.markdown ? "chat-text is-rich" : "chat-text"}>{message.markdown ? <RichText text={message.body} links /> : <PlainText text={message.body} />}</div>
-                    <span className="chat-meta"><time dateTime={message.at}>{clockTime(message.at)}</time>{message.own && <Check size={14} aria-label="gesendet" />}</span>
+                    <span className="chat-meta"><time dateTime={message.at}>{clockTime(message.at)}</time></span>
                   </div>
                 </div>
               )}
@@ -277,23 +202,7 @@ function ChatThread({ thread, admin, readOnly, live, now, preview, onClose, onSe
           );
         }) : <p className="chat-system">Noch keine Nachricht in diesem Gespräch.</p>}
       </div>
-      {readOnly ? (
-        <p className="chat-readonly"><Info size={16} aria-hidden="true" />Du liest mit. Antworten und interne Notizen von oalab entstehen in NoteTree Business.</p>
-      ) : !conversation.canReply ? (
-        <p className="chat-readonly"><Info size={16} aria-hidden="true" />Dieses Gespräch ist abgeschlossen. Für etwas Neues starte ein neues Gespräch über das Stift-Symbol.</p>
-      ) : (
-        <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-          {error && <p className="form-error chat-error" role="alert">{error}</p>}
-          <div className="chat-compose-row">
-            <label className="visually-hidden" htmlFor={`chat-field-${conversation.id}`}>Nachricht</label>
-            <textarea id={`chat-field-${conversation.id}`} ref={field} rows={1} value={draft} maxLength={MAX_MESSAGE_LENGTH} placeholder="Nachricht schreiben …" disabled={sending}
-              onChange={(event) => { setDraft(event.target.value); clientId.current = null; }}
-              onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
-            <button type="submit" className="chat-send" disabled={sending || !draft.trim()} aria-label="Nachricht senden">{sending ? <MiniLoader size={18} /> : <SendHorizontal size={18} aria-hidden="true" />}</button>
-          </div>
-          {!live && <p className="chat-hint">{preview ? "Vorschau: " : "Demo: "}Neue Nachrichten bleiben in diesem Fenster und gehen an niemanden.</p>}
-        </form>
-      )}
+      <p className="chat-readonly"><Info size={16} aria-hidden="true" />Du liest mit. Antworten und interne Notizen von oalab entstehen in NoteTree Business.</p>
     </>
   );
 }

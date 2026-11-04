@@ -6,6 +6,19 @@
 **Stand:** 27. Oktober 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 4. November 2026: Privater Chat statt Service-Gespräche
+- Wunsch des Nutzers: Schreibt ein Kunde im Hub unter „Nachrichten“, landete das bisher im Service-Chat seiner Anfrage. Das verwirrte. Jetzt schreibt ein Kunde dort privat mit oalab; Admins antworten direkt im Hub. Service-Anfragen stellen Kunden nur noch auf der Serviceplattform. Freigabe nach einer Vorschau aus dem echten Hub-CSS („Ok setz das so um“), mit allen Empfehlungen:
+  - Der bisherige Verlauf bleibt in Service; der private Chat beginnt leer.
+  - Ein privater Chat pro Firma (Hub-Kunde): alle Logins der Firma sehen ihn, jede Nachricht steht mit Namen.
+  - Admins: Glocke sofort, dazu eine Mail einige Minuten nach der ersten Nachricht, nur solange niemand aus dem Team den Chat gelesen hat.
+  - Signal wird nicht angebunden: kostenlos wäre es nur mit einem vorhandenen Dauer-Server und einer freien Nummer, Signals Nutzungsbedingungen verbieten automatische Nachrichten, und das Werkzeug (signal-cli) ist inoffiziell.
+  - Zusatzwunsch: Kunden erscheinen in den Chats der Admins mit dem im Asset Management hinterlegten Logo (sonst die Anfangsbuchstaben), in beiden Reitern.
+- Kunden: links der Chat „oalab-Team“ mit „Privat“, darunter „Service-Anfragen“ mit „Anfrage stellen“ und „Meine Anfragen“ (Serviceplattform, neuer Tab), unten Ali („Hmm … was liegt dir auf dem Herzen?“). Rechts der Verlauf; oalab schreibt als „Vorname von oalab“, Kollegen mit Namen, zwei Häkchen heißen gelesen. Auf breiten Flächen ist der Chat gleich offen, am Handy öffnet ihn ein Tipp.
+- Admins: Reiter „Privat“ (Zahl ungelesener Chats, Suche, Alle/Ungelesen, Stift „Kunden anschreiben“ mit allen Kunden) und „Service“ (Gespräche der Serviceplattform nur zum Mitlesen, `?tab=service`). Ungelesen heißt: Die andere Seite schrieb nach dem eigenen Lesen und nach der letzten Nachricht der eigenen Seite; eine Antwort von Kollegen erledigt den Chat für alle.
+- Benachrichtigungen (`lib/hub-notify`): `chat.message` an alle aktiven Admins (ohne Demo-Logins), `chat.reply` an die aktiven Logins der Firma, nie an den Schreiber. Eine ungelesene Meldung desselben Chats wird aktualisiert („Neue Nachrichten von …“) statt eine zweite anzulegen. Admin-Mails warten 5 Minuten (sonst 15); gelesene Chat-Meldungen fallen aus der Mail. Öffnet ein Admin den Chat, gelten die Meldungen aller Admins als gelesen. Admins schalten die Mail im Profil ab („Benachrichtigungen“).
+- Technik: Migration `202611040001_hub_private_chat.sql` in `service-oalab` mit `hub_private_messages` (Seite, Text bis 5000 Zeichen, `client_id` gegen doppeltes Senden, Schreiber und Zeit setzt die Datenbank; Lesen und Schreiben mit der eigenen Sitzung über RLS) und `hub_private_reads` (Lesestand je Login, schreibt nur der Hub-Server mit der Service-Rolle). `hub_inbox` kennt `chat.message` und `chat.reply`. Hub: `lib/hub-private-chat/` (Regeln, Laden, Aktionen, Beispiele), `components/hub/screens/private-chat.tsx`; `conversations.tsx` hält die Reiter und die Service-Gespräche. Die Antwort-Strecke zur Serviceplattform (`sendConversationMessage`, `POST /api/hub/requests/{OA-n}/messages`) ist entfernt.
+- Grenzen: Abfrage alle 15 Sekunden statt Echtzeit; Mails über den 5-Minuten-Zeitplan; keine Anhänge; der Chat bleibt gespeichert, eine Löschfrist und ein Satz in der Datenschutzerklärung stehen noch aus.
+
 ### Vorgabe vom 3. November 2026: Asset Management, Schritt 4 (Bearbeiten und Löschen)
 
 - Freigabe des Nutzers am 3. November 2026 („Ja, so bauen“) nach der Vorschau „Asset Management V5“, Entscheidung 9, mit den Empfehlungen: endgültig löschen mit deutlicher Rückfrage (kein Papierkorb), keine Meldung an Kunden beim Bearbeiten, „Neue Fassung hochladen“ später als eigener Schritt.
@@ -85,6 +98,7 @@
   - Die Beschriftungen der Stände übernimmt der Hub von der Serviceplattform („Du bist dran“, „In Bearbeitung“, „Gelöst“ …). Abgeschlossene Anfragen (Live, Abgeschlossen) nehmen keine Nachricht mehr an.
   - Der Eintrag „Chat“ (Link zur Serviceplattform) entfällt in Seitenleiste und „Mehr“. „Neues Gespräch“ öffnet bis zu einem späteren Schritt die neue Anfrage auf der Serviceplattform.
   - Noch nicht im Hub: Anhänge, „Gefällt mir“-Freigaben und Testseiten (dafür der Pfeil zum Gespräch auf der Serviceplattform), ein neues Gespräch direkt im Hub, ein Lesestand für Nachrichten an oalab (es gibt nur „gesendet“).
+- Seit 4. November 2026 abgelöst: Kunden schreiben im privaten Chat mit oalab; die Service-Gespräche lesen nur noch Admins im Reiter „Service“ (siehe „Privater Chat statt Service-Gespräche“ oben).
 
 ### Vorgabe vom 1. November 2026: Redesign „Ein Hub, eine Sprache“
 

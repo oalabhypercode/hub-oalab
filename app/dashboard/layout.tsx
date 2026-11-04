@@ -8,7 +8,7 @@ import { getDemoData } from "@/lib/demo-data";
 import { countPendingRegistrations } from "@/lib/hub-users/server";
 import { loadProjectsForIdentity } from "@/lib/hub-projects/server";
 import { loadInbox } from "@/lib/hub-notify/server";
-import { countUnreadConversations } from "@/lib/hub-conversations/server";
+import { countUnreadPrivateChats } from "@/lib/hub-private-chat/server";
 import { countFilesForIdentity } from "@/lib/hub-files/server";
 import { loadAccountLogo } from "@/lib/hub-logos/server";
 
@@ -22,8 +22,9 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
     loadProjectsForIdentity(identity),
     // The bell of real logins; demo logins keep their example notice.
     identity.publicDemo || identity.demoAccess ? null : loadInbox(),
-    // Unread conversations for the counts in the sidebar and the tab bar; shared with the Nachrichten page.
-    countUnreadConversations(identity),
+    // Unread private chats for the counts in the sidebar and the tab bar (customers: from oalab, admins: from customers);
+    // shared with the Nachrichten page.
+    countUnreadPrivateChats(identity),
     // The sidebar count of Asset Management / Dateien for real logins (demo logins count their fixtures).
     countFilesForIdentity(identity),
     // A customer login sees its company's logo instead of the initials; admins and demo logins get null.

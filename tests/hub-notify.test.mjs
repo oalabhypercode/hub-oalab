@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  MAIL_WAIT_MINUTES, appointmentNotice, calendarRows, describeProjectChange, detectStudioNotices, dueDigests, fileNotice, mailsWanted, nextCursor, noticeAppointment,
-  projectState, readFrom, taskState,
+  CHAT_MAIL_WAIT_MINUTES, MAIL_WAIT_MINUTES, appointmentNotice, calendarRows, chatHref, chatNotice, describeProjectChange, detectStudioNotices, dueDigests, fileNotice,
+  mailsWanted, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
 } from "../lib/hub-notify/rules.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
 
@@ -243,4 +243,58 @@ test("a file notice opens its file: the link names it and the files page opens w
   assert.match(actions, /notifyCustomers\(added, fileNotice\(file\.data\.title, fileId\)\)/);
   const files = await source("components/hub/screens/files.tsx");
   assert.match(files, /const linkedFile = useSearchParams\(\)\.get\("file"\);\s+const \[openId, setOpenId\] = useState<string \| null>\(\(\) => files\.some\(\(file\) => file\.id === linkedFile\) \? linkedFile : null\);/);
+});
+
+test("chat notices: one line per chat and recipient, admins' mails after a few minutes, chats read in time stay out", () => {
+  const customerId = "5f0c2a8e-1b7d-4c3e-9a2f-6d8e1b0c7a44";
+  const message = chatNotice({ kind: "chat.message", customerId, company: "Nordlicht Studio", author: "Jana Sommer", body: "Dienstag passt.\n\nBringt ihr die Zahlen mit?" });
+  assert.deepEqual(message, { kind: "chat.message", title: "Neue Nachricht von Nordlicht Studio", body: "Jana Sommer: Dienstag passt. Bringt ihr die Zahlen mit?", href: `/dashboard/messages?chat=${customerId}` });
+  // To the customer: oalab, and its people by first name as in the chat; a second message updates the same notice.
+  const reply = chatNotice({ kind: "chat.reply", customerId, company: "Nordlicht Studio", author: "Lena Schneider", body: "Machen wir!", more: true });
+  assert.equal(reply.title, "Neue Nachrichten von oalab");
+  assert.equal(reply.body, "Lena: Machen wir!");
+  assert.equal(chatNotice({ kind: "chat.message", customerId, company: "X", author: "", body: "a".repeat(400) }).body.length, 300);
+  assert.equal(noticeChat(chatHref(customerId)), customerId);
+  assert.equal(noticeChat("/dashboard/messages?chat=../x"), null);
+
+  const now = new Date("2026-11-04T12:00:00Z");
+  const at = (minutes) => new Date(now.getTime() - minutes * 60_000).toISOString();
+  const row = (id, user, kind, minutes, read = false) => ({ id, user_id: user, kind, created_at: at(minutes), read_at: read ? at(1) : null, title: "", body: "", href: "/dashboard" });
+  assert.equal(CHAT_MAIL_WAIT_MINUTES, 5);
+  // The admin's chat message is due after five minutes, a customer's file notice only after fifteen.
+  assert.deepEqual(dueDigests([row(1, "admin", "chat.message", 6), row(2, "kunde", "file.shared", 6)], now).map((digest) => digest.userId), ["admin"]);
+  assert.deepEqual(dueDigests([row(1, "admin", "chat.message", 4)], now), []);
+  // Chat notices read in the hub stay out of the mail; every other notice goes in, read or not.
+  assert.equal(skipsMail(row(1, "admin", "chat.message", 6, true)), true);
+  assert.equal(skipsMail(row(2, "kunde", "chat.reply", 20, true)), true);
+  assert.equal(skipsMail(row(3, "kunde", "chat.reply", 20)), false);
+  assert.equal(skipsMail(row(4, "kunde", "file.shared", 20, true)), false);
+});
+
+test("chat messages notify the other side, never the writer, and the sweep drops chats read in time", async () => {
+  const server = await source("lib/hub-notify/server.ts");
+  const notify = server.slice(server.indexOf("export async function notifyChat"));
+  assert.match(notify, /input\.side === "customer" \? activeAdminLogins\(db\) : customerLogins\(db, \[input\.customerId\]\)/);
+  assert.match(notify, /const to = recipients\.filter\(\(id\) => id !== input\.authorId\);/);
+  // A waiting notice of the same chat takes the new line instead of a second one.
+  assert.match(notify, /\.in\("user_id", to\)\.is\("read_at", null\)\.eq\("mail_state", "pending"\)/);
+  assert.match(server, /roleOf\(user\) === "oalab_admin" && !isDemoUser\(user\)/);
+  assert.match(server, /const seen = \(pending\.data \?\? \[\]\)\.filter\(skipsMail\)\.map\(\(row\) => row\.id\);/);
+  assert.match(server, /update\(\{ mail_state: "skipped" \}\)\.in\("id", seen\)\.eq\("mail_state", "pending"\)/);
+});
+
+test("chat notices in the mail: the messages area, a single chat as its own mail, several as customers who wait", () => {
+  const single = noticeDigestMail({ firstName: "Lena", items: [{ kind: "chat.message", title: "Neue Nachricht von Nordlicht Studio", body: "Jana Sommer: Dienstag passt.", url: "https://hub.oalab.de/dashboard/messages?chat=1" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.equal(single.subject, "Neue Nachricht von Nordlicht Studio");
+  assert.match(single.html, /Ein Kunde hat geschrieben/);
+  assert.match(single.html, /cid:area-messages@hub\.oalab\.de/);
+  assert.match(single.html, /Chat öffnen/);
+  const several = noticeDigestMail({ items: [
+    { kind: "chat.message", title: "Neue Nachricht von Nordlicht Studio", body: "Jana Sommer: …" },
+    { kind: "chat.message", title: "Neue Nachrichten von Atelier Brandt", body: "Paul Brandt: …" },
+  ], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.match(several.html, /Im privaten Chat des Client Hub warten 2 Kunden auf eine Antwort\./);
+  const reply = noticeDigestMail({ items: [{ kind: "chat.reply", title: "Neue Nachricht von oalab", body: "Lena: Machen wir!" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.match(reply.html, /Neue Nachricht von oalab/);
+  assert.match(reply.html, /Nachricht lesen/);
 });

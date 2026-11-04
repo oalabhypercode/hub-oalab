@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { mailSettings, sendMail } from "@/lib/hub-mail/send";
 import { noticeDigestMail } from "@/lib/hub-mail/templates";
 import { calendarLinks, calendarLinkSecret } from "@/lib/hub-calendar/links";
+import { isDemoUser, listAllUsers, roleOf } from "@/lib/hub-users/server";
 import {
-  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, calendarRows, detectStudioNotices, dueDigests, mailsWanted, nextCursor, noticeAppointment, readFrom,
+  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, mailsWanted, nextCursor, noticeAppointment, readFrom, skipsMail,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow,
 } from "./rules";
 
@@ -41,6 +42,44 @@ export async function notifyCustomers(customerIds: string[], notice: Notice) {
     await insertNotices(db, await customerLogins(db, customerIds), notice);
   } catch {
     // The action succeeded; the bell simply misses this one.
+  }
+}
+
+/** Admins who can sign in and act: the admin role and an active profile; the demo logins stay out. */
+async function activeAdminLogins(db: SupabaseClient) {
+  const admins = (await listAllUsers(db)).filter((user) => roleOf(user) === "oalab_admin" && !isDemoUser(user)).map((user) => user.id);
+  if (!admins.length) return [];
+  const active = await db.from("hub_profiles").select("user_id").in("user_id", admins).eq("status", "active").returns<{ user_id: string }[]>();
+  return (active.data ?? []).map((row) => row.user_id);
+}
+
+/**
+ * A new message in a private chat: a customer's goes to every admin (chat.message), oalab's to the company's logins
+ * (chat.reply), never to the writer. While a recipient has an unread notice of this chat whose mail is still to come,
+ * that notice takes the new line instead of a second one, so a conversation fills the bell with one line.
+ */
+export async function notifyChat(input: { side: "customer" | "oalab"; customerId: string; company: string; authorId: string; body: string }) {
+  const db = createAdminClient();
+  if (!db) return;
+  try {
+    const kind = input.side === "customer" ? "chat.message" : "chat.reply";
+    const [author, recipients] = await Promise.all([
+      db.from("hub_profiles").select("first_name, last_name").eq("user_id", input.authorId).maybeSingle<{ first_name: string; last_name: string }>(),
+      input.side === "customer" ? activeAdminLogins(db) : customerLogins(db, [input.customerId]),
+    ]);
+    const to = recipients.filter((id) => id !== input.authorId);
+    if (!to.length) return;
+    const notice = { kind, customerId: input.customerId, company: input.company, author: author.data ? `${author.data.first_name} ${author.data.last_name}`.trim() : "", body: input.body } as const;
+    const open = await db.from("hub_inbox").select("id, user_id").eq("kind", kind).eq("href", chatHref(input.customerId))
+      .in("user_id", to).is("read_at", null).eq("mail_state", "pending").returns<{ id: number; user_id: string }[]>();
+    const waiting = new Map((open.data ?? []).map((row) => [row.user_id, row.id]));
+    if (waiting.size) {
+      const more = chatNotice({ ...notice, more: true });
+      await db.from("hub_inbox").update({ title: more.title, body: more.body }).in("id", [...waiting.values()]);
+    }
+    await insertNotices(db, to.filter((id) => !waiting.has(id)), chatNotice(notice));
+  } catch {
+    // The message is saved; only its notice is lost.
   }
 }
 
@@ -118,7 +157,10 @@ async function sendDueMails(db: SupabaseClient, origin: string, now: Date) {
   if (pending.error) return { error: "inbox" };
   const counts = { sent: 0, skipped: 0, failed: 0 };
   const legal = mailSettings().legal;
-  const digests = dueDigests(pending.data ?? [], now);
+  // Chat messages already read in the hub need no mail any more.
+  const seen = (pending.data ?? []).filter(skipsMail).map((row) => row.id);
+  if (seen.length) await db.from("hub_inbox").update({ mail_state: "skipped" }).in("id", seen).eq("mail_state", "pending");
+  const digests = dueDigests((pending.data ?? []).filter((row) => !skipsMail(row)), now);
   // Without the token there are no signed links, and the mails go out without calendar buttons.
   const secret = calendarLinkSecret();
   const appointments = secret ? await linkedAppointments(db, digests.flatMap((digest) => digest.rows)) : new Map();

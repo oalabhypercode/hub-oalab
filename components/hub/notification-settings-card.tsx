@@ -7,8 +7,8 @@ import { getMailNotifications, setMailNotifications } from "@/lib/hub-notify/act
 import { Switch } from "./controls";
 import { GlassCard } from "./glass";
 
-/** Profile card for customers: whether the bundled notification mails go out; the bell stays on. */
-export function NotificationSettingsCard() {
+/** Profile card: whether the notification mails go out; the bell stays on. Admins hear of customers' chat messages. */
+export function NotificationSettingsCard({ admin = false }: { admin?: boolean }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +37,9 @@ export function NotificationSettingsCard() {
         <label htmlFor="mail-notifications" className="t-body">E-Mail-Benachrichtigungen</label>
         {busy ? <MiniLoader size={20} /> : <Switch id="mail-notifications" checked={enabled} onChange={change} label="E-Mail-Benachrichtigungen" />}
       </div>}
-      <p className="t-subheadline t-secondary">Wenn eine Aufgabe bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt, zeigt die Glocke das an. {enabled === false ? "E-Mails dazu bekommst du nicht." : "Zusätzlich bekommst du eine E-Mail, die Neuigkeiten einer Viertelstunde bündelt."}</p>
+      <p className="t-subheadline t-secondary">{admin
+        ? `Schreibt dir ein Kunde im privaten Chat, zeigt die Glocke das sofort an. ${enabled === false ? "E-Mails dazu bekommst du nicht." : "Zusätzlich kommt nach einigen Minuten eine E-Mail, solange niemand aus dem Team den Chat gelesen hat."}`
+        : `Wenn oalab dir im Chat antwortet, eine Aufgabe bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt, zeigt die Glocke das an. ${enabled === false ? "E-Mails dazu bekommst du nicht." : "Zusätzlich bekommst du eine E-Mail, die Neuigkeiten einer Viertelstunde bündelt; eine Antwort im Chat, die du vorher im Hub gelesen hast, fällt heraus."}`}</p>
       {error && <p className="form-error" role="alert">{error}</p>}
     </GlassCard>
   );
