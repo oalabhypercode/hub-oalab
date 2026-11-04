@@ -1,6 +1,6 @@
 /* Ali's welcome at the top of a customer's overview (components/hub/welcome-stage.tsx). He stands on the card's lower
    edge, cut out of his video (components/hub/host-avatar.tsx); his bubble comes out towards his mouth. The stage's
-   data-phase runs ready → talking → done once per sign-in (lib/welcome-host.ts), "still" otherwise; data-cue counts
+   data-phase runs ready → talking → done each time the overview opens, "still" with reduced motion; data-cue counts
    the bubble's lines as he speaks them. */
 
 .host-avatar { position: relative; display: block; aspect-ratio: 1; }
@@ -56,10 +56,10 @@
 .speech-line { margin-top: 4px; font-size: 16px; line-height: 22px; font-weight: 500; color: var(--label-secondary); }
 :root[data-theme="dark"] .speech-bubble { background: #2c2c2e; filter: drop-shadow(0 12px 24px rgb(0 0 0 / 0.45)); }
 
-/* Entrance: hidden while due (also before hydration, from the pre-paint mark), then Ali rises and the bubble pops as he speaks. */
-:root[data-host="pending"]:not([data-reduce-motion="true"]) .welcome-stage[data-phase="still"] :is(.host-avatar, .speech-bubble),
-.welcome-stage[data-phase="ready"] :is(.host-avatar, .speech-bubble) { opacity: 0; }
-.welcome-stage[data-phase="ready"] .host-avatar { transform: translateY(22px); }
+/* Entrance: hidden until he rises (also in the server HTML, except with reduced motion, where he stands there at once),
+   then Ali rises and the bubble pops as he speaks. */
+:root:not([data-reduce-motion="true"]) .welcome-stage[data-phase="ready"] :is(.host-avatar, .speech-bubble) { opacity: 0; }
+:root:not([data-reduce-motion="true"]) .welcome-stage[data-phase="ready"] .host-avatar { transform: translateY(22px); }
 .welcome-stage[data-phase="talking"] .host-avatar { animation: host-rise 600ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 .welcome-stage[data-phase="talking"][data-cue="0"] .speech-bubble,
 .welcome-stage[data-phase="talking"]:is([data-cue="0"], [data-cue="1"]) .speech-line { opacity: 0; }
