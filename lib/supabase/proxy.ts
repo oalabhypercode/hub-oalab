@@ -6,15 +6,17 @@ import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
 import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, serviceOrigin, signedInRedirect } from "../auth-redirect";
 import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub-auth/second-factor";
+import { LEGAL_PATHS } from "../legal-links";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPreview = pathname === "/preview" || pathname.startsWith("/preview/");
   // The WhatsApp webhook is called by Meta without a session; it checks Meta's signature itself. The notification
   // schedule is called by the database without a session; it checks its token itself. The calendar links of the
-  // notification mails open on any phone without a session; each checks its own signature.
-  const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === "/api/whatsapp" || pathname === "/api/notifications/sweep"
-    || pathname.startsWith("/api/calendar/");
+  // notification mails open on any phone without a session; each checks its own signature. Imprint and privacy policy
+  // are open to everyone, signed in or not (§ 5 DDG, Art. 13 DSGVO).
+  const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === LEGAL_PATHS.imprint || pathname === LEGAL_PATHS.privacy
+    || pathname === "/api/whatsapp" || pathname === "/api/notifications/sweep" || pathname.startsWith("/api/calendar/");
   let supabaseResponse = NextResponse.next({ request });
 
   // The preview is an isolated, public UI with fictional fixtures only.

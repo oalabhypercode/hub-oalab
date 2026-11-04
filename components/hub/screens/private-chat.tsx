@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpRight, Check, CheckCheck, ChevronLeft, Info, Lock, MessagesSquare, Search, SendHorizontal, SquarePen, Wrench } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
@@ -17,6 +18,7 @@ import type { PrivateChatMessage, PrivateChatState, PrivateChatSummary, PrivateC
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { clockTime, listTime, MAX_MESSAGE_LENGTH, previewText, threadItems } from "@/lib/hub-conversations/rules";
 import { SERVICE_PLATFORM_URL } from "@/lib/service-packages";
+import { LEGAL_PATHS } from "@/lib/legal-links";
 
 const POLL_MS = 15_000;
 
@@ -333,7 +335,8 @@ function PrivateThread({ thread, admin, live, now, preview, logo, onClose, onSen
         <span className="chat-pill is-private"><Lock size={11} aria-hidden="true" />Privat</span>
       </header>
       <div className="chat-log" ref={log} role="log" aria-live="polite" aria-label="Nachrichten">
-        <p className="chat-system"><Info size={14} aria-hidden="true" />{admin ? `Privater Chat mit ${chat.company}. Nur ihr Team und oalab lesen mit.` : `Hier schreibst du direkt mit dem oalab-Team. Nur ${chat.company} und oalab lesen mit.`}</p>
+        {/* Customers learn here, where they write, that the team's Telegram group hears of new messages (Art. 13 DSGVO). */}
+        <p className="chat-system"><Info size={14} aria-hidden="true" />{admin ? `Privater Chat mit ${chat.company}. Nur ihr Team und oalab lesen mit.` : <span>Hier schreibst du direkt mit dem oalab-Team. Nur {chat.company} und oalab lesen mit; neue Nachrichten meldet der Hub unserem Team auch über Telegram, ohne den Text. <Link href={`${LEGAL_PATHS.privacy}#nachrichten`}>Mehr dazu</Link></span>}</p>
         {items.map(({ message, day, first, last }) => {
           const side = chatMessageSide({ side: message.side, own: message.own, viewer });
           // On the right only the own side; admins see there which of them wrote, unless it was themselves.
