@@ -78,7 +78,7 @@ export function SecondFactorCard() {
   });
 
   const options: { id: SecondFactorChoice; title: string; text: string }[] = [
-    { id: "off", title: "Aus", text: "Anmeldung nur mit deinem Passwort." },
+    { id: "off", title: "Aus", text: status?.required ? "Für Freelancer nicht möglich: Du siehst die Dateien mehrerer Kunden." : "Anmeldung nur mit deinem Passwort." },
     { id: "email", title: "Code per E-Mail", text: `Nach dem Passwort schicken wir dir einen sechsstelligen Code${status?.email ? ` an ${status.email}` : ""}.` },
     { id: "totp", title: "Authenticator-App", text: "Nach dem Passwort gibst du den Code aus einer App wie Google Authenticator, Microsoft Authenticator oder 1Password ein." },
   ];
@@ -95,7 +95,7 @@ export function SecondFactorCard() {
           <legend className="visually-hidden">Methode für den zweiten Faktor</legend>
           {options.map((option) => (
             <label key={option.id} className={`factor-option${choice === option.id ? " is-selected" : ""}`}>
-              <input type="radio" name="second-factor" value={option.id} checked={choice === option.id} onChange={() => pick(option.id)} disabled={option.id === "email" && !status.mailbox} />
+              <input type="radio" name="second-factor" value={option.id} checked={choice === option.id} onChange={() => pick(option.id)} disabled={(option.id === "email" && !status.mailbox) || (option.id === "off" && status.required)} />
               <span><strong>{option.title}{current === option.id && <span className="factor-current"><Check size={14} aria-hidden="true" />aktiv</span>}</strong><small>{option.text}</small></span>
             </label>
           ))}

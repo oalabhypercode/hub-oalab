@@ -30,7 +30,15 @@ export function secondFactorMethod(appMetadata: unknown, hasApp: boolean): Secon
   const chosen = chosenSecondFactor(appMetadata);
   if (chosen === "totp") return hasApp ? "totp" : "email";
   if (chosen === "email") return "email";
-  return hasApp ? "totp" : null;
+  if (hasApp) return "totp";
+  // Freelancers see the files of several customers, so they never sign in with the password alone (4.11.2026); the
+  // database shows them their customers' data only with a confirmed code (hub_freelancer_sees in service-oalab).
+  return secondFactorRequired(appMetadata) ? "email" : null;
+}
+
+/** Logins that may not switch the second factor off: the freelancers. */
+export function secondFactorRequired(appMetadata: unknown) {
+  return Boolean(appMetadata && typeof appMetadata === "object" && (appMetadata as Record<string, unknown>).app_role === "oalab_freelancer");
 }
 
 /**
