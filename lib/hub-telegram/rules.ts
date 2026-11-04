@@ -2,6 +2,11 @@
 // Telegram group, with company, name and the text itself, so the team can read it on the phone; answers stay in the
 // hub. Bot chats are not end-to-end encrypted, which the privacy policy has to say. Pure rules for the server and the
 // tests; this file imports nothing.
+//
+// INTERNAL TEST PHASE ONLY: the privacy policy (/datenschutz, section 7) and the note in the customer's chat already
+// say "company name and link only", as it is meant to run with real customers. The whole text goes out only while no
+// real customer data is in the hub (decision of 4.11.2026). Before real customers write, send company and link only
+// again (undo commit f2ec6a9) or change the privacy policy and the note first.
 
 export type TelegramConfig = { readonly token: string; readonly chatId: string };
 

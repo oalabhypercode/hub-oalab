@@ -1,7 +1,7 @@
 import "server-only";
 import nodemailer from "nodemailer";
 import { cleanEmail } from "@/lib/hub-users/rules";
-import { legalLinks } from "@/lib/legal-links";
+import { legalMailLinks } from "@/lib/legal-links";
 import { MAIL_IMAGES } from "./images";
 import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport, type InlineImage, type MailStatus, type OutgoingMail } from "./smtp";
 
@@ -25,7 +25,8 @@ export function mailSettings() {
     from: process.env.MAIL_FROM?.trim() || "oalab Client Hub <hub@oalab.de>",
     replyTo: process.env.MAIL_REPLY_TO?.trim() || "info@oalab.de",
     team,
-    legal: { imprint: legalLinks.imprint, privacy: legalLinks.privacy },
+    // Imprint and privacy policy in every footer, as absolute links to the hub's own pages.
+    legal: legalMailLinks(),
   };
 }
 

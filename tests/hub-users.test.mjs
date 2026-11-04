@@ -206,8 +206,8 @@ test("the registration form sends what the trigger reads and shows the privacy n
   assert.match(form, /Art\. 6 Abs\. 1 lit\. b DSGVO/);
   // Contract initiation, not consent: no checkbox that blocks the registration.
   assert.doesNotMatch(form, /type="checkbox"/);
-  const legal = await source("lib/legal-links.ts");
-  assert.match(legal, /\^https:\\\/\\\//);
+  // The notice links the hub's own privacy policy in a new tab, so the entries stay in the form.
+  assert.match(form, /<a href=\{LEGAL_PATHS\.privacy\} target="_blank" rel="noopener">Datenschutzerklärung<\/a>/);
 });
 
 test("a failed account read shows a load error instead of 'pending' or 'no company'", async () => {

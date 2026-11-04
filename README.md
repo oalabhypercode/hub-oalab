@@ -123,7 +123,16 @@ Einrichtung für den Livebetrieb (das Passwort nur bei Netcup, in Vercel, in Sup
 
 6. DNS: Der SPF-Eintrag von oalab.de schließt Netcup bereits ein (`include:_spf.webhosting.systems`). Damit die Mails nicht im Spam landen, sind DKIM für oalab.de (falls der Netcup-Tarif es anbietet) und ein DMARC-Eintrag `_dmarc` empfehlenswert; bisher gibt es keinen, für den Anfang reicht `v=DMARC1; p=none;`.
 
-Die Mails laufen über den Mailserver von Netcup in Deutschland. Netcup verarbeitet dabei Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag; dafür braucht es den Auftragsverarbeitungsvertrag mit Netcup und einen Absatz in der Datenschutzerklärung.
+Die Mails laufen über den Mailserver von Netcup in Deutschland. Netcup verarbeitet dabei Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag; der Auftragsverarbeitungsvertrag mit Netcup liegt vor, und die Datenschutzerklärung des Hubs nennt Netcup.
+
+## Impressum und Datenschutz
+
+Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) sind eigene, öffentliche Seiten des Hubs (`app/impressum`, `app/datenschutz`, Texte in `components/legal/`, Anbieterangaben in `lib/legal-details.ts`). In Vercel ist dafür nichts einzutragen.
+
+- Erreichbar in höchstens zwei Klicks (§ 5 DDG, Art. 13 DSGVO): Fußzeilen von Login, Registrierung, 404 und den Rechtsseiten, Menü am Zahnrad, „Mehr“ → „Rechtliches“, Profil, jede Hub-Mail und die Supabase-Vorlagen für Bestätigung und Passwort.
+- Die Mails verlinken absolut über `NEXT_PUBLIC_SITE_URL` (sonst `https://hub.oalab.de`). Nach einer Änderung an `supabase/templates/` die Vorlagen im Supabase-Dashboard unter Authentication → Emails neu einfügen.
+- Die Datenschutzerklärung beschreibt, was der Code wirklich nutzt. Kommt ein Dienst hinzu oder ändert sich einer (zum Beispiel WhatsApp live, mehr Inhalt an Telegram, ein neuer Hoster), wird der Text im selben PR angepasst und `PRIVACY_POLICY_DATE` mitgezogen. `tests/legal-pages.test.mjs` prüft die Links, die genannten Anbieter und Cookies und veraltete Angaben wie § 5 TMG.
+- Die Texte sind ein Entwurf ohne Rechtsberatung; vor dem Livegang einmal anwaltlich prüfen lassen.
 
 ## Benachrichtigungen
 
@@ -163,6 +172,8 @@ Jede Nachricht, die ein Kunde im privaten Chat schreibt, kommt auch in die Teleg
 5. Im Profil unter „Benachrichtigungen“ mit „Testmeldung senden“ prüfen.
 
 Ohne beide Werte sendet der Hub nichts an Telegram. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt, und Telegram ist kein Auftragsverarbeiter mit Vertrag: Die Datenschutzerklärung muss die Weitergabe der Chat-Nachrichten an Telegram nennen. Auf dem Sperrbildschirm lässt sich die Vorschau in Telegram unter Einstellungen → Mitteilungen abschalten. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
+
+**Nur für die interne Testphase:** Der volle Text geht an Telegram, solange keine echten Kundendaten im Hub sind (Entscheidung des Nutzers vom 4. November 2026). Die Datenschutzerklärung (`/datenschutz`, Abschnitt 7) und der Hinweis im Chat beschreiben bewusst schon den Betrieb mit echten Kunden: nur Firmenname und Link. Bevor echte Kunden schreiben, `telegramChatMessage` wieder auf Firmenname und Link stellen (Commit f2ec6a9 zurücknehmen) oder Datenschutzerklärung und Hinweis anpassen.
 
 ## KI-Assistent (Claude)
 

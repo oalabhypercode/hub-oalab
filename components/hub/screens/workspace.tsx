@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown, Bot, Building2, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, Palette, Rows3, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
+import { ArrowUpDown, Bot, Building2, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, Palette, Rows3, Scale, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, currentMilestone, deadlineHint, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
 import { servicePackages } from "@/lib/service-packages";
 import { LegalLinks } from "@/components/legal-links";
+import { LEGAL_PATHS } from "@/lib/legal-links";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
@@ -76,6 +77,12 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
         <ListRow compact href={hubHref(preview, "settings")} icon={<UserRound size={24} color="var(--system-gray)" aria-hidden="true" />} title="Profil" />
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" />
         <ListRow compact onClick={() => openPanel("help")} icon={<MessageCircleQuestion size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
+      </InsetGroupedList>
+      {/* Phones and tablets reach imprint and privacy policy from here: two taps from every page (§ 5 DDG, Art. 13 DSGVO). */}
+      <SectionHeader title="Rechtliches" />
+      <InsetGroupedList label="Rechtliches" className="list-icons">
+        <ListRow compact href={LEGAL_PATHS.imprint} icon={<Scale size={24} color="var(--system-gray)" aria-hidden="true" />} title="Impressum" />
+        <ListRow compact href={LEGAL_PATHS.privacy} icon={<ShieldCheck size={24} color="var(--system-gray)" aria-hidden="true" />} title="Datenschutz" />
       </InsetGroupedList>
     </>
   );

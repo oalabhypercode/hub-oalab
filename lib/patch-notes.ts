@@ -36,6 +36,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 14,
+    date: "2026-11-05",
+    title: "Impressum und Datenschutz im Hub",
+    summary: "Impressum und Datenschutzerklärung sind jetzt eigene, öffentliche Seiten im Hub, erreichbar von jeder Seite in höchstens zwei Klicks und aus jeder E-Mail. Die Datenschutzerklärung beschreibt die Dienste, die der Hub nutzt, auch den KI-Assistenten und Telegram, für Telegram schon so, wie es mit echten Kunden laufen soll: nur der Firmenname. Bis dahin bleibt die Testphase mit vollem Text.",
+    changes: [
+      { kind: "new", title: "Impressum und Datenschutz", text: "Impressum und Datenschutzerklärung haben jetzt eigene Seiten im Hub, auch ohne Anmeldung. Du findest sie am Rechner im Menü am Zahnrad unten links, am Handy unter „Mehr“, im Profil, unter jeder Anmeldeseite und am Ende jeder E-Mail.", customers: true },
+      { kind: "improved", title: "Hinweis im Chat", text: "Oben im Chat mit oalab steht jetzt ein kurzer Hinweis, wie unser Team von neuen Nachrichten erfährt. „Mehr dazu“ führt direkt zur passenden Stelle der Datenschutzerklärung.", customers: true },
+    ],
+  },
+  {
     number: 13,
     date: "2026-11-04",
     title: "Privater Chat, Begrüßung ohne Ton und Mitdenken",
