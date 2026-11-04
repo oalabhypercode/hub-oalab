@@ -63,3 +63,18 @@ test("on tablets the logo alone sits in the middle of the top row; phones keep l
   assert.match(tablet, /\.topbar-brand \.brand-tile \{ position: absolute; top: 4px; left: calc\(50% - 18px\); \}/);
   assert.match(tablet, /\.hub-topbar \.hub-notice \{ order: 3; flex: 1 1 100%; \}/);
 });
+
+test("on tablets signing out sits top right next to the profile; phones and computers keep their ways", async () => {
+  // Wish of 5 November 2026: tablets hide the sidebar with its gear menu, so signing out was only in Profil.
+  const shell = await source("components/hub/app-shell.tsx");
+  assert.match(shell, /<MobileAvatar href=\{hubHref\(preview, "settings"\)\} initials=\{initials\} logo=\{logo\} \/><button type="button" className="glass glass-float glass-button topbar-signout" aria-label=\{signOutLabel\} title=\{signOutLabel\} onClick=\{signOut\} disabled=\{signingOut\}>/);
+  assert.match(shell, /const signOutLabel = preview \? "Vorschau verlassen" : "Abmelden";/);
+  // A failed attempt is shown in the top row, except on Profil, which has its own message.
+  assert.match(shell, /\{logoutError && section !== "settings" && <p role="alert" className="form-error topbar-signout-error">/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\n\.topbar-actions \.topbar-signout, \.hub-topbar \.topbar-signout-error \{ display: none; \}/);
+  const start = css.indexOf("@media (min-width: 768px) and (max-width: 1023px) {");
+  const tablet = css.slice(start).split(/\r?\n\}\r?\n/)[0];
+  assert.match(tablet, /\.topbar-actions \.topbar-signout \{ display: inline-flex; \}/);
+  assert.match(tablet, /\.hub-topbar \.topbar-signout-error \{ display: block; order: 4; flex: 1 1 100%; margin: 0; \}/);
+});

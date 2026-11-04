@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, MessageCircleQuestion, MessageSquare, Search } from "lucide-react";
+import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, LogOut, MessageCircleQuestion, MessageSquare, Search } from "lucide-react";
+import { MiniLoader } from "@/components/brand-loader";
 import { signOutAction } from "@/lib/hub-auth/actions";
 import { categories } from "@/lib/categories";
 import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
@@ -157,6 +158,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const closeSearch = () => { setPanel(null); setQuery(""); };
   // The user management needs a real admin session; the preview and the public demo never show it.
   const manageUsers = account.admin && !preview && !publicDemo;
+  const signOutLabel = preview ? "Vorschau verlassen" : "Abmelden";
   const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin || account.freelancer).toLowerCase().includes(term));
   const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = hasDemo || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
@@ -184,9 +186,12 @@ export function AppShell({ children, preview = false, pending = false, email = "
             <div className="hub-topbar">
               {/* Below 1024 px the sidebar (and its logo) is hidden, so the brand sits in the top row. */}
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
-              {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. */}
-              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /></div>
+              {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. Tablets hide the
+                  sidebar with its gear menu, so there signing out sits at the far right (wish of 5 November 2026). */}
+              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="glass glass-float glass-button topbar-signout" aria-label={signOutLabel} title={signOutLabel} onClick={signOut} disabled={signingOut}>{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
+              {/* Profil shows its own message; on other pages a failed sign-out from the top row says so here. */}
+              {logoutError && section !== "settings" && <p role="alert" className="form-error topbar-signout-error">{logoutError}</p>}
             </div>
             <main className="hub-content" id="main-content">{children}</main>
           </div>

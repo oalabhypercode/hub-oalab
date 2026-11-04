@@ -236,6 +236,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .glass-sidebar .form-error { margin: 0 4px; }
 .hub-app .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--oalab-gradient-action); color: #ffffff; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tab-bar-wrap, .scroll-edge, .mobile-avatar, .topbar-actions { display: none; }
+/* Signing out from the top row exists on tablets only (see the tablet block); phones use Profil, computers the gear. */
+.topbar-actions .topbar-signout, .hub-topbar .topbar-signout-error { display: none; }
 
 /* Large title and compact bar */
 .large-title-header { margin-bottom: 4px; }
@@ -319,6 +321,9 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
   .hub-topbar { position: relative; flex-wrap: wrap; row-gap: 10px; }
   .hub-topbar .hub-notice { order: 3; flex: 1 1 100%; }
   .topbar-brand .brand-tile { position: absolute; top: 4px; left: calc(50% - 18px); }
+  /* Sidebar and gear menu are hidden here, so signing out sits right of the profile; a failed attempt gets its own row. */
+  .topbar-actions .topbar-signout { display: inline-flex; }
+  .hub-topbar .topbar-signout-error { display: block; order: 4; flex: 1 1 100%; margin: 0; }
 }
 
 /* Phone */
