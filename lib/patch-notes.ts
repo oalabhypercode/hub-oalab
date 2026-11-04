@@ -21,6 +21,7 @@ export type PatchPackage = {
   number: number;
   /** Go-live day, YYYY-MM-DD. */
   date: string;
+  /** Shown to customers as well, so it names only changes they see; internal topics belong in the summary. */
   title: string;
   /** What the package is about, for admins. */
   summary: string;
@@ -38,7 +39,7 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 14,
     date: "2026-11-05",
-    title: "Begrüßung bei jedem Besuch und Freelancer",
+    title: "Begrüßung bei jedem Besuch",
     summary: "Der Avatar oben in der Übersicht der Kunden begrüßt jetzt bei jedem Öffnen der Übersicht und nicht mehr nur einmal direkt nach der Anmeldung. Weil die Anmeldung lange gültig bleibt, war er vorher kaum in Bewegung zu sehen. Mit „Bewegung reduzieren“ steht er weiter still neben seiner Sprechblase. Neu ist außerdem die Rolle Freelancer, nur im Hub: Freelancer bekommen Kunden zugeordnet, eigene Dateien und lesen die freigegebenen Dateien ihrer Kunden, immer mit Code bei der Anmeldung.",
     changes: [
       { kind: "improved", title: "Begrüßung bei jedem Besuch", text: "Der Avatar oben in deiner Übersicht begrüßt dich jetzt jedes Mal, wenn du die Übersicht öffnest, nicht mehr nur direkt nach der Anmeldung. Mit „Bewegung reduzieren“ unter Profil › Darstellung steht er weiter still neben seiner fertigen Sprechblase.", customers: true },
