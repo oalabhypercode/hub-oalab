@@ -19,9 +19,15 @@ export function LogoImage({ logo, onError }: { logo: CustomerLogo; onError: () =
   return <img src={logo.url} alt="" draggable={false} onError={onError} />;
 }
 
-/** A customer's logo on the same rounded square as the letters; without a logo the initials stay. */
-export function LogoMark({ logo, initials, className }: { logo?: CustomerLogo | null; initials: string; className: string }) {
+/** A company's letters: the first letters of its first two words, "?" without any. */
+export const companyInitials = (company: string) => company.replace(/[^\p{L}\s&-]/gu, "").split(/[\s&-]+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
+
+/**
+ * A customer's logo on the same rounded square as the letters; without a logo the initials stay. As a plate (`plate`)
+ * the height stays and the width follows the logo, so a wordmark stays readable (`.is-plate`, app/welcome-host.css).
+ */
+export function LogoMark({ logo, initials, className, plate = false }: { logo?: CustomerLogo | null; initials: string; className: string; plate?: boolean }) {
   const { shown, onError } = useShownLogo(logo);
   if (!shown) return <span className={className} aria-hidden="true">{initials}</span>;
-  return <span className={`${className} has-logo`} style={logoTileStyle(shown)} aria-hidden="true"><LogoImage logo={shown} onError={onError} /></span>;
+  return <span className={`${className} has-logo${plate ? " is-plate" : ""}`} style={logoTileStyle(shown)} aria-hidden="true"><LogoImage logo={shown} onError={onError} /></span>;
 }

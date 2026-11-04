@@ -27,7 +27,7 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
       <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
       {account.admin
         ? <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} logo={logo} /><ServiceCard account={account} /></div>
-        : <div className="section-first welcome-row has-host"><WelcomeStage account={account} initials={initials} logo={logo} preview={preview} /><ServiceCard account={account} /></div>}
+        : <div className="section-first welcome-row has-host"><WelcomeStage account={account} logo={logo} preview={preview} /><ServiceCard account={account} /></div>}
       {populated ? <>
         {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { HOST_CUES, consumeHost, hostCue } from "@/lib/welcome-host";
 import { HostAvatar, type HostAvatarHandle } from "./host-avatar";
-import { LogoMark } from "./logo-mark";
+import { LogoMark, companyInitials } from "./logo-mark";
 import type { HubAccount } from "./shell-context";
 
 /** Ali starts a little after the page (or the greeting after sign-in) has made room, while the waterfall settles. */
@@ -31,9 +31,10 @@ const serverSnapshot = () => "||";
 /**
  * A customer's welcome at the top of the overview: Ali from oalab, cut out of his video, stands on the card's lower
  * edge and greets with a bubble. Once per sign-in (and once per tab in the design preview) he rises and talks, without
- * sound; else, and with "Bewegung reduzieren", he stands there with the finished bubble.
+ * sound; else, and with "Bewegung reduzieren", he stands there with the finished bubble. Under the bubble the company
+ * has its own row: its logo as a plate (else its letters), the name and the customer number.
  */
-export function WelcomeStage({ account, initials, logo = null, preview }: { account: HubAccount; initials: string; logo?: CustomerLogo | null; preview: boolean }) {
+export function WelcomeStage({ account, logo = null, preview }: { account: HubAccount; logo?: CustomerLogo | null; preview: boolean }) {
   const [host, greeting, reduced] = useSyncExternalStore(subscribe, snapshot, serverSnapshot).split("|");
   const armed = host === "pending" && !reduced;
   const [run, setRun] = useState<Run>("idle");
@@ -76,10 +77,13 @@ export function WelcomeStage({ account, initials, logo = null, preview }: { acco
           <p className="speech-line">Schön, dass du wieder da bist.</p>
         </div>
       </div>
-      <dl className="welcome-facts">
-        <div><dt>Unternehmen</dt><dd className="welcome-company">{logo && <LogoMark logo={logo} initials={initials} className="avatar welcome-company-logo" />}{account.company ?? "Noch nicht zugeordnet"}</dd></div>
-        <div><dt>Kundennummer</dt><dd className="numeric">{account.customerNumber ?? "–"}</dd></div>
-      </dl>
+      <div className="welcome-company-row">
+        {account.company && <LogoMark logo={logo} initials={companyInitials(account.company)} className="avatar welcome-company-logo" plate />}
+        <dl className="welcome-company-text">
+          <div><dt className="visually-hidden">Unternehmen</dt><dd className="welcome-company">{account.company ?? "Noch nicht zugeordnet"}</dd></div>
+          <div className="welcome-company-number"><dt>Kundennummer</dt><dd className="numeric">{account.customerNumber ?? "–"}</dd></div>
+        </dl>
+      </div>
       {!account.company && <p className="t-footnote t-secondary welcome-note">Dein Projektteam ordnet deinen Zugang einem Unternehmen zu. Danach siehst du hier auch deine Kundennummer.</p>}
     </section>
   );

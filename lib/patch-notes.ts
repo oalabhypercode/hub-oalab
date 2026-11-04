@@ -38,10 +38,11 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 13,
     date: "2026-11-04",
-    title: "Begrüßung ohne Ton und Mitdenken",
-    summary: "Der Avatar oben in der Übersicht der Kunden begrüßt nur noch ohne Ton; der Lautsprecher in seiner Sprechblase fällt weg. Unten in der Gesprächsliste denkt jetzt außerdem ein Avatar von oalab mit.",
+    title: "Begrüßung mit Logo und Mitdenken",
+    summary: "Der Avatar oben in der Übersicht der Kunden begrüßt nur noch ohne Ton; der Lautsprecher in seiner Sprechblase fällt weg. Darunter steht das Unternehmen jetzt in einer eigenen Zeile mit seinem Logo. Unten in der Gesprächsliste denkt außerdem ein Avatar von oalab mit.",
     changes: [
       { kind: "improved", title: "Begrüßung ohne Ton", text: "Der Avatar oben in deiner Übersicht begrüßt dich jetzt immer ohne Ton. Der Lautsprecher in seiner Sprechblase fällt weg, alles andere bleibt wie gewohnt.", customers: true },
+      { kind: "improved", title: "Euer Logo in der Begrüßung", text: "Unter der Sprechblase in deiner Übersicht hat euer Unternehmen jetzt eine eigene Zeile: euer Logo gut sichtbar, daneben Name und Kundennummer. Auch breite Schriftzüge bleiben lesbar. Ist noch kein Logo hinterlegt, stehen dort die Anfangsbuchstaben eures Unternehmens.", customers: true },
       { kind: "new", title: "Mitdenken in Nachrichten", text: "Unten in deiner Gesprächsliste steht jetzt ein Ansprechpartner von oalab als Avatar und denkt mit: In einer Gedankenblase zeigt er, wie du ein Gespräch beginnst. Er taucht bei jedem Öffnen von Nachrichten einmal auf, ohne Ton; mit „Bewegung reduzieren“ steht er still.", customers: true },
     ],
   },

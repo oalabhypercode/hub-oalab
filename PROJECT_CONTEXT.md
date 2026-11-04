@@ -384,7 +384,7 @@
 
 - Quelle ist ein sprechendes Avatar-Video von Ali (5 s) vor hellgrauem Hintergrund. Freigestellt wurde ohne KI-Modell gegen den bekannten Hintergrund. Gespeichert ist es als MP4 mit Farbe oben und Transparenz unten (`public/brand/ali-welcome.mp4`, 0,6 MB, ohne Tonspur), dazu ein Standbild (`ali-welcome.webp`).
 - `components/hub/host-avatar.tsx` setzt beide Hälften mit WebGL zusammen. Das läuft in allen Browsern, auch in Safari, das bei WebM keine Transparenz zeigt. Video und WebGL starten erst beim Abspielen; vorher und ohne WebGL steht das Standbild.
-- Kunden sehen in der Übersicht statt der bisherigen Begrüßungskarte `WelcomeStage` (`components/hub/welcome-stage.tsx`, `app/welcome-host.css`). Ali steht auf der Unterkante der Karte, rechts daneben steht seine Sprechblase: „Ali von oalab“, „Hallo Vorname!“, „Schön, dass du wieder da bist.“ Darunter folgen wie bisher Unternehmen (mit Logo, falls vorhanden) und Kundennummer. Admins behalten `WelcomeCard`.
+- Kunden sehen in der Übersicht statt der bisherigen Begrüßungskarte `WelcomeStage` (`components/hub/welcome-stage.tsx`, `app/welcome-host.css`). Ali steht auf der Unterkante der Karte, rechts daneben steht seine Sprechblase: „Ali von oalab“, „Hallo Vorname!“, „Schön, dass du wieder da bist.“ Darunter folgten zunächst Unternehmen (mit kleinem Logo, falls vorhanden) und Kundennummer; seit dem 4. November 2026 steht dort die Firmenzeile (siehe unten). Admins behalten `WelcomeCard`.
 - Abgespielt wird einmal pro Anmeldung, in der Designvorschau einmal pro Tab.
     - Das Inline-Script `lib/welcome-host.ts` läuft direkt nach dem der Begrüßung. Steht die Begrüßung nach der Anmeldung an, setzt es `data-host="pending"` vor dem ersten Paint, damit Ali bis zu seinem Auftritt verborgen bleibt.
     - Die Karte wartet, bis die Begrüßung gewichen ist. Nach 0,45 s steigt Ali auf und spricht ohne Ton. Bei 0,5 s springt die Blase heraus, bei 1,45 s folgt ihre zweite Zeile.
@@ -403,6 +403,16 @@
     - Verlässt man Nachrichten, setzt sich die Bühne zurück, auch wenn der Router die Seite verdeckt behält.
     - „Bewegung reduzieren“ zeigt das Standbild mit fertiger Blase, auch schon im Server-HTML.
 - Nur für Kunden; Admins lesen ohne Avatar mit. Kein Ton.
+
+### Vorgabe vom 4. November 2026: Firmenzeile mit Logo in der Begrüßung
+
+- Anlass: Seit Ali stand das Kundenlogo in der Übersicht nur noch mit 24 px vor dem Firmennamen. Vorher war es die Begrüßungskachel mit 56 px. Nach einer Vorschau mit drei Varianten wählte der Nutzer „C · Firmenzeile“.
+- `WelcomeStage` zeigt unter der Sprechblase statt der zwei Fakten eine Zeile `.welcome-company-row`:
+    - das Logo mit 56 px (am Handy 48 px), daneben der Firmenname und darunter „Kundennummer …“;
+    - ohne Logo die Anfangsbuchstaben der Firma im Verlauf (`companyInitials`, jetzt in `logo-mark.tsx`);
+    - ohne zugeordnetes Unternehmen keine Kachel, nur „Noch nicht zugeordnet“.
+- Das Logo steht als Plakette (`LogoMark` mit `plate`, Klasse `is-plate`): Die Höhe ist fest, die Breite folgt dem Logo bis 168 px (Handy 150 px). So bleibt ein Schriftzug lesbar. Untergrund und Ladefehler wie bei allen Logos.
+- Die anderen Logo-Stellen (Ecke unten links, Handy oben rechts, Asset Management) bleiben quadratisch. Admins behalten `WelcomeCard`. Keine Datenbankänderung.
 
 ### Backlog
 
