@@ -1707,6 +1707,11 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-served { max-width: 240px; }
 .am-served-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .am-served:not(.is-set) { color: var(--sheet-muted); }
+/* Phones: the handshake alone, so the customer's name keeps its room; the names stay in the button's title. */
+@media (max-width: 767px) {
+  .am-served-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .am-served { padding: 0 9px; }
+}
 
 /* Narrow sheets: one side at a time, the customers first, like the conversations. */
 @container sheet (max-width: 820px) {
