@@ -107,6 +107,7 @@ Der oalab Client Hub ist das Kundenportal von oalab (Agentur für Websites, Mark
 - Neue Antworten erscheinen ohne Neuladen; der Hub schaut alle 15 Sekunden nach. Wer eine Antwort im Hub liest, bekommt dazu keine Antwort-Mail der Serviceplattform mehr.
 - Ein neues Gespräch beginnt man über das Stift-Symbol neben „Gespräche“; es öffnet die neue Anfrage auf der Serviceplattform. Freigaben („Gefällt mir“), Testseiten und Bilder gibt es dort; der Pfeil oben im Gespräch öffnet es auf der Serviceplattform.
 - Am Smartphone öffnet ein Tipp das Gespräch bildschirmfüllend, „Zurück“ führt zur Liste. In der Tab-Leiste zeigt Nachrichten die Zahl ungelesener Gespräche.
+- Unten in der Gesprächsliste denkt Ali von oalab als Avatar mit einer Gedankenblase mit („Hmm … worüber möchtest du sprechen?“), nur für Kunden. Bei jedem Öffnen von Nachrichten taucht er einmal auf, ohne Ton; mit „Bewegung reduzieren“ steht er still da.
 - Admins lesen die Gespräche aller Kunden mit Firmenname mit, ohne zu antworten. Antworten und interne Notizen von oalab entstehen in NoteTree Business.
 
 ## Kalender

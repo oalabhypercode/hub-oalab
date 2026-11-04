@@ -2,9 +2,17 @@ import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
-import { HOST_CUES, HOST_PREVIEW_KEY, consumeHost, hostCue, hostInlineScript, hostPending } from "../lib/welcome-host.ts";
+import { HOST_CUES, HOST_PREVIEW_KEY, THINK_CUES, consumeHost, cueCount, hostCue, hostInlineScript, hostPending } from "../lib/welcome-host.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+/** Track handlers of an MP4 (`hdlr` box: the type sits 8 bytes after the tag). */
+async function trackKinds(path) {
+  const mp4 = await readFile(new URL(`../${path}`, import.meta.url));
+  const kinds = [];
+  for (let at = mp4.indexOf("hdlr"); at >= 0; at = mp4.indexOf("hdlr", at + 4)) kinds.push(mp4.toString("latin1", at + 12, at + 16));
+  return kinds;
+}
 
 /** Runs the pre-paint script on a page; `greeting` is what lib/greeting.ts left on <html> just before. */
 function runHost(path, { greeting, seen = false, storage = true } = {}) {
@@ -84,12 +92,31 @@ test("Ali plays without sound: no loudspeaker, a muted video, a file without aud
   const avatar = await source("components/hub/host-avatar.tsx");
   assert.match(avatar, /video\.muted = true;/);
   assert.doesNotMatch(avatar, /sound =|muted = !/);
-  // Track handlers in the MP4 (`hdlr` box: the type sits 8 bytes after the tag): picture only.
-  const mp4 = await readFile(new URL("../public/brand/ali-welcome.mp4", import.meta.url));
-  const handlers = [];
-  for (let at = mp4.indexOf("hdlr"); at >= 0; at = mp4.indexOf("hdlr", at + 4)) handlers.push(mp4.toString("latin1", at + 12, at + 16));
-  assert.ok(handlers.includes("vide"), "a video track");
-  assert.ok(!handlers.includes("soun"), "no audio track");
+  const kinds = await trackKinds("public/brand/ali-welcome.mp4");
+  assert.ok(kinds.includes("vide"), "a video track");
+  assert.ok(!kinds.includes("soun"), "no audio track");
+});
+
+test("Ali thinks along at the bottom of a customer's conversation column, on every visit", async () => {
+  assert.deepEqual(THINK_CUES, [0.6, 0.72, 0.85, 1.7]);
+  assert.deepEqual([0, 0.6, 0.72, 0.85, 1.69, 1.7, 4.96].map((seconds) => cueCount(THINK_CUES, seconds)), [0, 1, 2, 3, 3, 4, 4]);
+  assert.equal(hostCue(1.45), cueCount(HOST_CUES, 1.45));
+  const screen = await source("components/hub/screens/conversations.tsx");
+  // After the list, which scrolls by itself, inside the column; admins read along without him.
+  assert.match(screen, /<p className="chat-empty">[\s\S]*?\)\}\r?\n\s*\{!admin && <MessagesHost \/>\}\r?\n\s*<\/section>/);
+  const host = await source("components/hub/messages-host.tsx");
+  for (const file of ["ali-thinking.mp4", "ali-thinking.webp"]) {
+    assert.match(host, new RegExp(`"/brand/${file.replace(".", "\\.")}"`));
+    assert.ok((await stat(new URL(`../public/brand/${file}`, import.meta.url))).size > 10_000, `public/brand/${file}`);
+  }
+  const kinds = await trackKinds("public/brand/ali-thinking.mp4");
+  assert.ok(kinds.includes("vide") && !kinds.includes("soun"), "picture, no sound");
+  // Leaving resets him, so the next visit thinks again; with reduced motion he only stands there.
+  assert.match(host, /return \(\) => \{ window\.clearTimeout\(timer\); setRun\("idle"\); \};/);
+  assert.match(host, /const phase = reduced \? "still" :/);
+  const css = await source("app/welcome-host.css");
+  assert.match(css, /:root:not\(\[data-reduce-motion="true"\]\) \.chat-think\[data-phase="ready"\] :is\(\.host-avatar, \.think-bubble, \.think-dot\) \{ opacity: 0; \}/);
+  assert.match(css, /\.chat-list \.chat-think \{ position: relative; flex: none;/);
 });
 
 test("Ali waits hidden while due, also before hydration, but never with reduced motion", async () => {

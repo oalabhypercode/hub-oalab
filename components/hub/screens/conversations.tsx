@@ -6,6 +6,7 @@ import { ArrowUpRight, Check, ChevronLeft, Info, MessagesSquare, Search, SendHor
 import { MiniLoader } from "@/components/brand-loader";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
+import { MessagesHost } from "../messages-host";
 import { PlainText, RichText } from "../rich-text";
 import { CategoryTitle } from "./workspace";
 import { LoadNotice } from "./overview";
@@ -165,6 +166,7 @@ export function ConversationsScreen({ preview, admin, firstName, company, asOf, 
             ) : (
               <p className="chat-empty">{list.length ? "Keine Gespräche für diese Suche." : readOnly ? "Noch keine Gespräche mit Kunden." : "Noch keine Gespräche. Starte eines über das Stift-Symbol oben."}</p>
             )}
+            {!admin && <MessagesHost />}
           </section>
 
           <section className="chat-pane" aria-label={thread ? `Gespräch: ${thread.conversation.title}` : "Gespräch"}>

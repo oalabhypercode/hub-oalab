@@ -9,6 +9,8 @@
 export const HOST_PREVIEW_KEY = "oalab-host-preview";
 /** Ali's message in the bubble appears as he starts to speak, its second line with his next words (seconds). */
 export const HOST_CUES = [0.5, 1.45] as const;
+/** Ali thinking in Nachrichten (components/hub/messages-host.tsx): two small circles, his thought bubble, its last line. */
+export const THINK_CUES = [0.6, 0.72, 0.85, 1.7] as const;
 
 /** Whether this page plays the welcome: right after a sign-in, or on the design preview's first visit in this tab. */
 export function hostPending(path: string, greeting: string | undefined, previewSeen: boolean) {
@@ -16,11 +18,16 @@ export function hostPending(path: string, greeting: string | undefined, previewS
   return (path === "/preview" || path.startsWith("/preview/")) && !previewSeen;
 }
 
+/** How many of these cues the video has passed at this time. */
+export function cueCount(cues: readonly number[], seconds: number) {
+  let cue = 0;
+  while (cue < cues.length && seconds >= cues[cue]) cue++;
+  return cue;
+}
+
 /** How many cues of HOST_CUES the video has passed at this time. */
 export function hostCue(seconds: number) {
-  let cue = 0;
-  while (cue < HOST_CUES.length && seconds >= HOST_CUES[cue]) cue++;
-  return cue;
+  return cueCount(HOST_CUES, seconds);
 }
 
 /** Inline script for the root layout, after the greeting's: marks the welcome before the first paint, so Ali waits hidden. */
