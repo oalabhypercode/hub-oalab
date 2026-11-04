@@ -54,6 +54,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", title: "Impressum und Datenschutz", text: "Impressum und Datenschutzerklärung haben jetzt eigene Seiten im Hub, auch ohne Anmeldung. Du findest sie am Rechner im Menü am Zahnrad unten links, am Handy unter „Mehr“, im Profil, unter jeder Anmeldeseite und am Ende jeder E-Mail.", customers: true },
       { kind: "improved", title: "Hinweis im Chat", text: "Oben im Chat mit oalab steht jetzt ein kurzer Hinweis, wie unser Team von neuen Nachrichten erfährt. „Mehr dazu“ führt direkt zur passenden Stelle der Datenschutzerklärung.", customers: true },
       { kind: "improved", title: "Kundenlogo einfacher hochladen", text: "Das Fenster für das Logo eines Kunden ist neu: ein großes Feld zum Hineinziehen, Anklicken oder Einfügen mit Strg+V, eine Vorschau wie beim Kunden und ein passend vorgewählter Hintergrund. Es öffnet sich im Asset Management über „Logo hochladen“ und im User Management oben in „Kunde bearbeiten“; beide Wege speichern dasselbe Logo." },
+      { kind: "improved", title: "Begrüßung bei jedem Besuch", text: "Der Avatar oben in deiner Übersicht begrüßt dich jetzt jedes Mal, wenn du die Übersicht öffnest, nicht mehr nur direkt nach der Anmeldung. Mit „Bewegung reduzieren“ unter Profil › Darstellung steht er weiter still neben seiner fertigen Sprechblase.", customers: true },
     ],
   },
   {
