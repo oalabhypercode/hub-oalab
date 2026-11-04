@@ -1,5 +1,7 @@
-// Gespräche (2 November 2026): the service platform's requests with their messages for clients, shown as a chat.
-// Pure rules for the server, the screen and the tests; this file imports nothing from the app.
+// Gespräche (2 November 2026): the service platform's requests with their messages for clients, shown as a chat. Since
+// 4 November 2026 admins read them in the tab "Service"; the day and time rules and the message check also serve the
+// private chat (lib/hub-private-chat). Pure rules for the server, the screen and the tests; this file imports nothing
+// from the app.
 
 export type ConversationSender = "client" | "oalab" | "assistant" | "system";
 export type ConversationTone = "todo" | "info" | "ok" | "off";
@@ -9,15 +11,11 @@ export interface ConversationStateView {
   readonly label: string;
   readonly tone: ConversationTone;
   readonly group: ConversationGroup;
-  /** Finished requests take no more client messages on the service platform either. */
-  readonly canReply: boolean;
 }
-
-const FINISHED = new Set(["released", "rejected", "cancelled", "superseded", "archived"]);
 
 /** The labels the service platform shows its clients (packages/domain client-status), so both places say the same. */
 export function conversationState(state: string): ConversationStateView {
-  const view = (label: string, tone: ConversationTone, group: ConversationGroup) => ({ label, tone, group, canReply: !FINISHED.has(state) });
+  const view = (label: string, tone: ConversationTone, group: ConversationGroup) => ({ label, tone, group });
   switch (state) {
     case "draft": return view("Entwurf", "off", "active");
     case "submitted": case "triage_needed": case "queued": return view("Eingegangen", "info", "active");
@@ -42,28 +40,21 @@ export function isSender(value: string): value is ConversationSender {
   return value === "client" || value === "oalab" || value === "assistant" || value === "system";
 }
 
-/** A conversation is unread while the newest answer from oalab came after the person last looked. */
-export function isUnread(lastAnswerAt: string | null, seenAt: string | null): boolean {
-  if (!lastAnswerAt) return false;
-  return !seenAt || Date.parse(lastAnswerAt) > Date.parse(seenAt);
-}
-
-/** Who wrote, as the reader sees it: clients read "Du" for themselves, oalab is the team or its assistant. */
-export function senderLabel(sender: ConversationSender, own: boolean, name: string | null): string {
+/** Who wrote, as the admins read it: the customer and the team by name, otherwise the team or its assistant. */
+export function senderLabel(sender: ConversationSender, name: string | null): string {
   if (sender === "assistant") return "oalab-Assistent";
   if (sender === "oalab") return name || "oalab-Team";
   if (sender === "system") return "";
-  return own ? "Du" : name || "Kunde";
+  return name || "Kunde";
 }
 
 /**
- * Which side a message sits on. Clients see their own messages on the right; admins read along from oalab's side,
- * so the team's and the assistant's messages sit on the right for them. Notes from the system sit in the middle.
+ * Which side a message sits on. Admins read along from oalab's side, so the team's and the assistant's messages sit on
+ * the right and the customer's on the left. Notes from the system sit in the middle.
  */
-export function messageSide(sender: ConversationSender, own: boolean, admin: boolean): "out" | "in" | "center" {
+export function messageSide(sender: ConversationSender): "out" | "in" | "center" {
   if (sender === "system") return "center";
-  if (admin) return sender === "client" ? "in" : "out";
-  return own ? "out" : "in";
+  return sender === "client" ? "in" : "out";
 }
 
 /** One line for the list: Markdown marks and line breaks go, long texts end in an ellipsis. */
@@ -133,21 +124,11 @@ export function threadItems<M extends { readonly at: string; readonly author: st
   });
 }
 
-/** What a client may send: text up to the service platform's limit, never only spaces. */
+/** What a chat message may be: text up to 5000 characters (the limit of the database), never only spaces. */
 export const MAX_MESSAGE_LENGTH = 5000;
 export function readMessage(value: unknown): { ok: true; value: string } | { ok: false; error: string } {
   const text = typeof value === "string" ? value.replace(/\r\n/g, "\n").trim() : "";
   if (!text) return { ok: false, error: "Schreib zuerst eine Nachricht." };
   if (text.length > MAX_MESSAGE_LENGTH) return { ok: false, error: `Höchstens ${MAX_MESSAGE_LENGTH} Zeichen pro Nachricht.` };
   return { ok: true, value: text };
-}
-
-/** The service platform's answer to a reply, as a sentence for the person. */
-export function replyError(status: number, code: string | undefined): string {
-  if (code === "STALE_VERSION" || status === 409) return "Inzwischen kam etwas Neues in diesem Gespräch. Schau kurz drüber und sende dann noch einmal.";
-  if (code === "RATE_LIMITED" || status === 429) return "Gerade kamen sehr viele Nachrichten. Bitte warte eine Minute.";
-  if (code === "AUTHENTICATION_REQUIRED" || status === 401) return "Deine Sitzung ist abgelaufen. Bitte lade die Seite neu und melde dich an.";
-  if (code === "AUTHORIZATION_DENIED" || code === "NOT_FOUND" || status === 403 || status === 404) return "In diesem Gespräch kannst du gerade nicht schreiben.";
-  if (code === "INVALID_INPUT" || status === 400) return "Bitte prüfe deine Nachricht und versuche es erneut.";
-  return "Die Nachricht ist nicht angekommen. Bitte versuche es erneut.";
 }

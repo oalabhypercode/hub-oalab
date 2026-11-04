@@ -38,9 +38,16 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 13,
     date: "2026-11-04",
-    title: "Begrüßung ohne Ton und Mitdenken",
-    summary: "Der Avatar oben in der Übersicht der Kunden begrüßt nur noch ohne Ton; der Lautsprecher in seiner Sprechblase fällt weg. Unten in der Gesprächsliste denkt jetzt außerdem ein Avatar von oalab mit.",
+    title: "Privater Chat, Begrüßung ohne Ton und Mitdenken",
+    summary: "Unter Nachrichten schreiben Kunden jetzt privat mit oalab statt in Service-Anfragen, und Admins antworten direkt im Hub. Admins haben dafür die Reiter „Privat“ und „Service“, sehen ihre Kunden mit Logo und werden bei neuen Nachrichten in der Glocke, per E-Mail und in ihrer Telegram-Gruppe benachrichtigt; Service-Anfragen laufen nur noch über die Serviceplattform. Außerdem begrüßt der Avatar oben in der Übersicht nur noch ohne Ton, und unten in der Gesprächsliste denkt ein Avatar von oalab mit.",
     changes: [
+      { kind: "new", title: "Privater Chat mit oalab", text: "Unter Nachrichten schreibst du jetzt direkt mit deinem oalab-Team, in einem privaten Chat für deine Firma. Nur ihr und oalab lest mit; zwei Häkchen zeigen, dass deine Nachricht gelesen wurde.", customers: true },
+      { kind: "improved", title: "Service-Anfragen auf der Serviceplattform", text: "Anfragen wie Änderungen an deiner Website stellst du jetzt direkt auf der Serviceplattform. Unter dem Chat führen „Anfrage stellen“ und „Meine Anfragen“ dorthin; die Gespräche zu Anfragen stehen nicht mehr im Hub.", customers: true },
+      { kind: "new", title: "Antworten von oalab in der Glocke", text: "Antwortet dir oalab im Chat, siehst du das in der Glocke und in der gesammelten E-Mail. Hast du die Antwort vorher schon im Hub gelesen, fällt sie aus der E-Mail heraus.", customers: true },
+      { kind: "new", title: "Reiter „Privat“ und „Service“", text: "Admins sehen unter Nachrichten zwei Reiter: „Privat“ mit den Chats aller Kunden zum Antworten und „Service“ mit den Gesprächen der Serviceplattform zum Mitlesen. Über den Stift schreibt ihr auch Kunden an, die noch nichts geschrieben haben." },
+      { kind: "new", title: "Benachrichtigung bei Kundennachrichten", text: "Schreibt ein Kunde im Chat, zeigt die Glocke das jedem Admin sofort an. Nach einigen Minuten folgt eine E-Mail, aber nur, solange niemand aus dem Team den Chat gelesen hat; abschalten lässt sie sich im Profil." },
+      { kind: "new", title: "Meldung in Telegram", text: "Schreibt ein Kunde im Chat, bekommt auch die Telegram-Gruppe des Teams eine Meldung mit Firmenname und Knopf in den Hub, ohne den Text der Nachricht. Im Profil prüft ihr das mit „Testmeldung senden“." },
+      { kind: "improved", title: "Kundenlogos in den Chats", text: "In beiden Reitern steht bei jedem Kunden sein Logo aus dem Asset Management. Ohne Logo bleiben wie bisher die Anfangsbuchstaben." },
       { kind: "improved", title: "Begrüßung ohne Ton", text: "Der Avatar oben in deiner Übersicht begrüßt dich jetzt immer ohne Ton. Der Lautsprecher in seiner Sprechblase fällt weg, alles andere bleibt wie gewohnt.", customers: true },
       { kind: "new", title: "Mitdenken in Nachrichten", text: "Unten in deiner Gesprächsliste steht jetzt ein Ansprechpartner von oalab als Avatar und denkt mit: In einer Gedankenblase zeigt er, wie du ein Gespräch beginnst. Er taucht bei jedem Öffnen von Nachrichten einmal auf, ohne Ton; mit „Bewegung reduzieren“ steht er still.", customers: true },
     ],

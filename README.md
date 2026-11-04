@@ -135,6 +135,8 @@ Kunden sehen in der Glocke, was für sie neu ist, und bekommen dazu eine gebünd
 | „Projekt aktualisiert: …“ | Status oder Zieltermin eines freigegebenen Projekts ändert sich im Studio |
 | „Neue Datei: …“ | Ein Admin ordnet dem Kunden eine Datei zu |
 | Termin angelegt, bestätigt, verschoben, abgesagt, Anfrage abgelehnt | Kalender im Hub |
+| „Neue Nachricht von oalab“ | oalab antwortet im privaten Chat unter Nachrichten (an die Logins der Firma) |
+| „Neue Nachricht von …“ (an Admins) | Ein Kunde schreibt im privaten Chat; die E-Mail kommt nach 5 Minuten und nur, solange niemand aus dem Team gelesen hat |
 
 - Dateien und Termine schreibt der Hub beim Speichern in `hub_inbox`. Studio-Änderungen liest er alle fünf Minuten aus `studio_activity`; `hub_notice_marks` hält den letzten Stand je Aufgabe und Projekt, damit jede Änderung genau einmal gemeldet wird. Vorhandene Tabellen bleiben unverändert (Migration `202610300001_hub_notifications.sql` in `service-oalab`).
 - Den Takt gibt pg_cron in der Datenbank vor: Er ruft `/api/notifications/sweep` mit dem Token aus Supabase Vault auf. Die Route antwortet nur mit `HUB_NOTIFY_TOKEN`.
@@ -143,6 +145,24 @@ Kunden sehen in der Glocke, was für sie neu ist, und bekommen dazu eine gebünd
 - Neue, bestätigte und verschobene Termine bekommen in der E-Mail „In deinen Kalender eintragen“: Apple Kalender, Google Kalender, Outlook (Microsoft 365) und eine .ics-Datei für andere Apps, in der Mail zu einem einzelnen Termin als eigener Block mit vier Buttons, in Sammel-Mails als kompakte Links. Die Buttons sind signierte Links auf `/api/calendar/<Termin>/…` (HMAC mit `HUB_NOTIFY_TOKEN`, ohne Login nutzbar); die Route liest den Termin beim Öffnen neu und liefert die .ics-Datei oder leitet zu Google bzw. Outlook weiter. Abgesagte Termine landen so nie mit alter Zeit im Kalender. Die Termin-ID steckt im Link der Meldung (`/dashboard/calendar?appointment=<id>`), siehe `lib/hub-calendar/links.ts`.
 
 Einrichtung: Nach der Migration den Wert von `oalab_hub_notify_token` aus Supabase (Project Settings → Vault) als `HUB_NOTIFY_TOKEN` in Vercel (Production, „Sensitive“) eintragen, für lokale Tests auch in `.env.local`, und neu deployen.
+
+### Telegram für Admins
+
+Schreibt ein Kunde im privaten Chat, bekommt die Telegram-Gruppe des Teams eine Meldung mit Firmenname und dem Knopf „Im Hub öffnen“, nie mit dem Text der Nachricht. Bis jemand aus dem Team den Chat im Hub gelesen hat, kommt pro Chat nur eine Meldung (`lib/hub-telegram/`). Das läuft kostenlos über die offizielle Bot API von Telegram, ohne eigenen Server und ohne Webhook.
+
+1. In Telegram dem Bot @BotFather `/newbot` schicken, Namen und Benutzernamen (endet auf „bot“) wählen. BotFather antwortet mit dem Token.
+2. Eine Gruppe mit allen Admins anlegen, den Bot hinzufügen und in der Gruppe `/start@<benutzername_des_bots>` senden.
+3. Im Browser `https://api.telegram.org/bot<TOKEN>/getUpdates` öffnen. Bei `"chat"` steht die Nummer der Gruppe (beginnt mit `-100`).
+4. In Vercel (Production) eintragen und neu deployen:
+
+| Variable | Typ | Zweck |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Secret | Token des Bots von BotFather |
+| `TELEGRAM_CHAT_ID` | Config | Nummer der Gruppe der Admins |
+
+5. Im Profil unter „Benachrichtigungen“ mit „Testmeldung senden“ prüfen.
+
+Ohne beide Werte sendet der Hub nichts an Telegram. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt; deshalb geht nur der Firmenname mit. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
 
 ## KI-Assistent (Claude)
 

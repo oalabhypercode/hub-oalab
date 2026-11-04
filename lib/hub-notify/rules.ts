@@ -12,7 +12,8 @@
 
 export type NoticeKind =
   | "task.customer" | "project.changed" | "file.shared"
-  | "appointment.created" | "appointment.changed" | "appointment.confirmed" | "appointment.cancelled" | "appointment.declined";
+  | "appointment.created" | "appointment.changed" | "appointment.confirmed" | "appointment.cancelled" | "appointment.declined"
+  | "chat.message" | "chat.reply";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -27,6 +28,8 @@ export const CURSOR = "cursor:studio_activity";
 export const OVERLAP_MINUTES = 10;
 /** The first unsent notice waits this long, so a burst of changes becomes one mail. */
 export const MAIL_WAIT_MINUTES = 15;
+/** A customer's message reaches the admins sooner: a few minutes, enough for a short burst to become one mail. */
+export const CHAT_MAIL_WAIT_MINUTES = 5;
 /** Notices per mail; the rest are in the hub. */
 export const MAIL_ITEMS = 10;
 
@@ -140,17 +143,51 @@ export function nextCursor(cursor: string, activity: Pick<ActivityRow, "created_
 
 export type PendingRow = { id: number; user_id: string; created_at: string; read_at: string | null; kind: string; title: string; body: string; href: string };
 
+/** Notices of the private chat (4.11.2026): a customer wrote (to the admins) or oalab answered (to the customer). */
+export const isChatKind = (kind: string) => kind === "chat.message" || kind === "chat.reply";
+export const mailWaitMinutes = (kind: string) => kind === "chat.message" ? CHAT_MAIL_WAIT_MINUTES : MAIL_WAIT_MINUTES;
+
 /**
- * Logins whose oldest unsent notice waited long enough. Everything pending goes into one mail, also notices the
- * person already opened in the bell (decision of 30.10.2026: the mail is the record, whatever was read).
+ * Chat notices read before their mail is due stay out of it: the message was seen in the hub, as when a customer reads
+ * an answer on the service platform. Every other notice goes into the mail even if it was opened in the bell (decision
+ * of 30.10.2026: the mail is the record, whatever was read).
+ */
+export const skipsMail = (row: Pick<PendingRow, "kind" | "read_at">) => isChatKind(row.kind) && Boolean(row.read_at);
+
+/**
+ * Logins with a notice that waited long enough (chat messages to admins a few minutes, everything else a quarter of an
+ * hour). Everything pending goes into one mail.
  */
 export function dueDigests(rows: PendingRow[], now: Date) {
   const byUser = new Map<string, PendingRow[]>();
   for (const row of rows) byUser.set(row.user_id, [...(byUser.get(row.user_id) ?? []), row]);
-  const due = now.getTime() - MAIL_WAIT_MINUTES * 60_000;
   return [...byUser.entries()]
-    .filter(([, list]) => Math.min(...list.map((row) => Date.parse(row.created_at))) <= due)
+    .filter(([, list]) => list.some((row) => Date.parse(row.created_at) + mailWaitMinutes(row.kind) * 60_000 <= now.getTime()))
     .map(([userId, list]) => ({ userId, rows: [...list].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)) }));
+}
+
+/** Where a chat notice leads: the customer's private chat in Nachrichten. */
+export const chatHref = (customerId: string) => `/dashboard/messages?chat=${customerId}`;
+
+/** The customer a chat notice belongs to, or null. */
+export function noticeChat(href: string) {
+  return /^\/dashboard\/messages\?chat=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(href)?.[1] ?? null;
+}
+
+const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
+
+/**
+ * The bell's line for a new chat message. To admins: "Neue Nachricht von Nordlicht Studio" with "Jana Sommer: …"; to
+ * the customer: "Neue Nachricht von oalab" with "Lena: …" (oalab's people by first name, as in the chat). A further
+ * message before the first is read updates the same notice ("Neue Nachrichten von …"), so a conversation fills the
+ * bell with one line, not one per message.
+ */
+export function chatNotice(input: { kind: "chat.message" | "chat.reply"; customerId: string; company: string; author: string; body: string; more?: boolean }): Notice {
+  const from = input.kind === "chat.message" ? input.company : "oalab";
+  const who = oneLine(input.kind === "chat.reply" ? input.author.split(/\s+/)[0] ?? "" : input.author);
+  const title = `${input.more ? "Neue Nachrichten" : "Neue Nachricht"} von ${oneLine(from)}`;
+  const body = who ? `${who}: ${oneLine(input.body)}` : oneLine(input.body);
+  return { kind: input.kind, title: clip(title, 200), body: clip(body, 300), href: chatHref(input.customerId) };
 }
 
 /** The mail setting lives in the login's own metadata; only an explicit "off" stops mails. */
