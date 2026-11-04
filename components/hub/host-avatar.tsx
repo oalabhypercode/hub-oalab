@@ -5,12 +5,13 @@ import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type
 /**
  * A person cut out of a talking video, for the welcome in the overview. The MP4 holds the colour in its top half and
  * the alpha channel as grey in its bottom half; WebGL joins them, so the cut-out works in every browser (Safari too,
- * which shows no alpha in WebM) and keeps the original sound. The still frame stands in until the first frame is
- * drawn, and stays wherever the video does not play. The video and WebGL only start on the first play().
+ * which shows no alpha in WebM). The avatars play without sound, so the file carries none. The still frame stands in
+ * until the first frame is drawn, and stays wherever the video does not play. The video and WebGL only start on the
+ * first play().
  */
 export type HostAvatarHandle = {
-  /** Plays from the start; false if it cannot (no WebGL, blocked, missing file). Sound only works after a click. */
-  play: (options?: { sound?: boolean }) => Promise<boolean>;
+  /** Plays from the start, muted; false if it cannot (no WebGL, blocked, missing file). */
+  play: () => Promise<boolean>;
 };
 
 // Colour from the top half, alpha from the bottom half; `h` keeps the two halves from bleeding into each other.
@@ -80,7 +81,7 @@ export function HostAvatar({ src, poster, ref, onTime, onEnded, className }: {
   }, []);
 
   useImperativeHandle(ref, () => ({
-    async play({ sound = false } = {}) {
+    async play() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas) return false;
@@ -90,14 +91,11 @@ export function HostAvatar({ src, poster, ref, onTime, onEnded, className }: {
       if (!video.getAttribute("src")) video.src = src;
       video.pause();
       video.currentTime = 0;
-      video.muted = !sound;
+      video.muted = true;
       try {
         await video.play();
       } catch {
-        if (!sound) return false;
-        // Sound was refused after all: at least the picture.
-        video.muted = true;
-        try { await video.play(); } catch { return false; }
+        return false;
       }
       const tick = () => {
         draw(video);
