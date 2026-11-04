@@ -1,7 +1,9 @@
 "use server";
 
 import { after } from "next/server";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { siteOrigin } from "@/lib/site-origin";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { readMessage } from "@/lib/hub-conversations/rules";
 import { notifyChat } from "@/lib/hub-notify/server";
@@ -61,7 +63,9 @@ export async function sendPrivateMessage(input: { customerId: string; body: stri
   await markPrivateRead(viewer, input.customerId);
   if (!repeated) {
     const { company } = before.data.chat;
-    after(() => notifyChat({ side: viewer.side, customerId: input.customerId, company, authorId: viewer.userId, body: message.value }));
+    // The links in Telegram lead to this hub; the address is read now, while the request is still there.
+    const origin = siteOrigin(await headers()) ?? "https://hub.oalab.de";
+    after(() => notifyChat({ side: viewer.side, customerId: input.customerId, company, authorId: viewer.userId, body: message.value, origin }));
   }
   const fresh = await loadPrivateThread(viewer, input.customerId);
   const thread = fresh.ok ? fresh.data : before.data;

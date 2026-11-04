@@ -6,6 +6,7 @@ import {
   mailsWanted, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
 } from "../lib/hub-notify/rules.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
+import { telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -297,4 +298,42 @@ test("chat notices in the mail: the messages area, a single chat as its own mail
   const reply = noticeDigestMail({ items: [{ kind: "chat.reply", title: "Neue Nachricht von oalab", body: "Lena: Machen wir!" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
   assert.match(reply.html, /Neue Nachricht von oalab/);
   assert.match(reply.html, /Nachricht lesen/);
+});
+
+test("Telegram: only with a real token and group, the company and a button into the hub, never the message", () => {
+  const token = "123456789:AAH8sQ2-xYzAbCdEfGhIjKlMnOpQrStUvWx";
+  assert.deepEqual(telegramConfig({ TELEGRAM_BOT_TOKEN: ` ${token} `, TELEGRAM_CHAT_ID: "-1001234567890" }), { token, chatId: "-1001234567890" });
+  assert.equal(telegramConfig({ TELEGRAM_BOT_TOKEN: token }), null);
+  assert.equal(telegramConfig({ TELEGRAM_BOT_TOKEN: "abc", TELEGRAM_CHAT_ID: "-1001234567890" }), null);
+  assert.equal(telegramConfig({ TELEGRAM_BOT_TOKEN: token, TELEGRAM_CHAT_ID: "Gruppe" }), null);
+  const url = "https://hub.oalab.de/dashboard/messages?chat=5f0c2a8e-1b7d-4c3e-9a2f-6d8e1b0c7a44";
+  assert.deepEqual(telegramChatMessage({ company: "  Nordlicht\nStudio ", url }), {
+    text: "Neue Nachricht von Nordlicht Studio im privaten Chat des Client Hub.",
+    reply_markup: { inline_keyboard: [[{ text: "Im Hub öffnen", url }]] },
+  });
+  // Telegram takes no button to a local address; the link then stands in the text.
+  const local = telegramChatMessage({ company: "", url: "http://localhost:3006/dashboard/messages?chat=1" });
+  assert.equal(local.text, "Neue Nachricht von einem Kunden im privaten Chat des Client Hub.\nhttp://localhost:3006/dashboard/messages?chat=1");
+  assert.equal("reply_markup" in local, false);
+  assert.match(telegramTestMessage().text, /Testmeldung/);
+});
+
+test("Telegram is told once per chat until the team reads it, with company and link only, and never logs the token", async () => {
+  const server = await source("lib/hub-notify/server.ts");
+  const notify = server.slice(server.indexOf("export async function notifyChat"));
+  // Asked before the new notices are written; the message text never goes to Telegram.
+  assert.ok(notify.indexOf("sendTelegram(") < notify.indexOf("insertNotices("));
+  assert.match(notify, /\.eq\("kind", "chat\.message"\)\.eq\("href", chatHref\(input\.customerId\)\)\.is\("read_at", null\)\.limit\(1\)/);
+  assert.match(notify, /sendTelegram\(telegramChatMessage\(\{ company: input\.company, url: `\$\{input\.origin\}\$\{chatHref\(input\.customerId\)\}` \}\)\)/);
+  assert.doesNotMatch(notify, /telegramChatMessage\(\{[^}]*body/);
+  const telegram = await source("lib/hub-telegram/server.ts");
+  assert.match(telegram, /^import "server-only";/);
+  assert.match(telegram, /fetch\(`https:\/\/api\.telegram\.org\/bot\$\{config\.token\}\/sendMessage`/);
+  assert.doesNotMatch(telegram, /console\.\w+\([^)]*(config|token|url|message\b)/);
+  const actions = await source("lib/hub-telegram/actions.ts");
+  assert.match(actions, /^"use server";/);
+  assert.equal((actions.match(/if \(!\(await verifyHubAdmin\(\)\)\) return adminsOnly;/g) ?? []).length, 2);
+  // The setup lives in the environment, documented with the other variables.
+  assert.match(await source(".env.example"), /# TELEGRAM_BOT_TOKEN=.*\n# TELEGRAM_CHAT_ID=/);
+  assert.match(await source("README.md"), /\| `TELEGRAM_BOT_TOKEN` \| Secret \|/);
 });

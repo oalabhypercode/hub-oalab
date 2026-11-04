@@ -6,6 +6,8 @@ import { mailSettings, sendMail } from "@/lib/hub-mail/send";
 import { noticeDigestMail } from "@/lib/hub-mail/templates";
 import { calendarLinks, calendarLinkSecret } from "@/lib/hub-calendar/links";
 import { isDemoUser, listAllUsers, roleOf } from "@/lib/hub-users/server";
+import { sendTelegram } from "@/lib/hub-telegram/server";
+import { telegramChatMessage } from "@/lib/hub-telegram/rules";
 import {
   CURSOR, MAIL_ITEMS, STUDIO_EVENTS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, mailsWanted, nextCursor, noticeAppointment, readFrom, skipsMail,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow,
@@ -56,13 +58,20 @@ async function activeAdminLogins(db: SupabaseClient) {
 /**
  * A new message in a private chat: a customer's goes to every admin (chat.message), oalab's to the company's logins
  * (chat.reply), never to the writer. While a recipient has an unread notice of this chat whose mail is still to come,
- * that notice takes the new line instead of a second one, so a conversation fills the bell with one line.
+ * that notice takes the new line instead of a second one, so a conversation fills the bell with one line. A customer's
+ * message also reaches the admins' Telegram group, once per chat until someone of the team has read it in the hub,
+ * with the company and the link only.
  */
-export async function notifyChat(input: { side: "customer" | "oalab"; customerId: string; company: string; authorId: string; body: string }) {
+export async function notifyChat(input: { side: "customer" | "oalab"; customerId: string; company: string; authorId: string; body: string; origin: string }) {
   const db = createAdminClient();
   if (!db) return;
   try {
     const kind = input.side === "customer" ? "chat.message" : "chat.reply";
+    if (kind === "chat.message") {
+      // Asked before this message's notices exist: an unread one means the group already knows of this chat.
+      const unread = await db.from("hub_inbox").select("id").eq("kind", "chat.message").eq("href", chatHref(input.customerId)).is("read_at", null).limit(1);
+      if (!unread.error && !unread.data?.length) await sendTelegram(telegramChatMessage({ company: input.company, url: `${input.origin}${chatHref(input.customerId)}` }));
+    }
     const [author, recipients] = await Promise.all([
       db.from("hub_profiles").select("first_name, last_name").eq("user_id", input.authorId).maybeSingle<{ first_name: string; last_name: string }>(),
       input.side === "customer" ? activeAdminLogins(db) : customerLogins(db, [input.customerId]),

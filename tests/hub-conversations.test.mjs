@@ -171,7 +171,8 @@ test("sending a private message: checked, written as the person, once per draft,
   assert.match(send, /const before = await loadPrivateThread\(viewer, input\.customerId\);\n {2}if \(!before\.ok\) return before;/);
   assert.match(send, /supabase\.from\("hub_private_messages"\)\.insert\(\{ customer_id: input\.customerId, side: viewer\.side, body: message\.value, client_id: input\.clientId \}\)/);
   assert.match(send, /const repeated = error\?\.code === "23505";/);
-  assert.match(send, /after\(\(\) => notifyChat\(\{ side: viewer\.side, customerId: input\.customerId, company, authorId: viewer\.userId, body: message\.value \}\)\)/);
+  assert.match(send, /const origin = siteOrigin\(await headers\(\)\) \?\? "https:\/\/hub\.oalab\.de";/);
+  assert.match(send, /after\(\(\) => notifyChat\(\{ side: viewer\.side, customerId: input\.customerId, company, authorId: viewer\.userId, body: message\.value, origin \}\)\)/);
   assert.doesNotMatch(actions, /createAdminClient/);
 });
 
