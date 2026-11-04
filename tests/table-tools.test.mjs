@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { compareValues, foldText, matchesSearch, nextSort, sortRows } from "../lib/table-tools.ts";
 
-const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+// Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
+const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 
 test("keyword search ignores case and accents and needs every word", () => {
   assert.equal(foldText("Größe Übergabe"), "grosse ubergabe");

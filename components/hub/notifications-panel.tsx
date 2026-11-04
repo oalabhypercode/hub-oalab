@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bell, CalendarDays, Check, Files, FolderOpen, ListTodo, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, Check, Files, FolderOpen, ListTodo, MessageSquare, type LucideIcon } from "lucide-react";
 import { markNoticesRead } from "@/lib/hub-notify/actions";
 import type { InboxItem } from "@/lib/hub-notify/server";
 import { categories } from "@/lib/categories";
@@ -13,6 +13,7 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
   if (kind === "task.customer") return { icon: ListTodo, color: categories.projects.fill };
   if (kind === "project.changed") return { icon: FolderOpen, color: categories.projects.fill };
   if (kind === "file.shared") return { icon: Files, color: categories.files.fill };
+  if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill };
   return { icon: CalendarDays, color: categories.calendar.fill };
 }
 
@@ -25,8 +26,8 @@ export function NotificationsPanel({ items, admin, onClose }: { items: InboxItem
 
   if (!items.length) {
     return <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>{admin
-      ? "Benachrichtigungen bekommen bisher nur Kunden: wenn eine Aufgabe bei ihnen liegt, sich ihr Projekt ändert oder eine Datei oder ein Termin für sie dazukommt."
-      : "Hier erscheint, wenn eine Aufgabe bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt."}</p></div>;
+      ? "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt."
+      : "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt."}</p></div>;
   }
 
   function open(item: InboxItem) {

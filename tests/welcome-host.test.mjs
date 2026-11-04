@@ -114,9 +114,9 @@ test("Ali thinks along at the bottom of a customer's conversation column, on eve
   assert.deepEqual(THINK_CUES, [0.6, 0.72, 0.85, 1.7]);
   assert.deepEqual([0, 0.6, 0.72, 0.85, 1.69, 1.7, 4.96].map((seconds) => cueCount(THINK_CUES, seconds)), [0, 1, 2, 3, 3, 4, 4]);
   assert.equal(hostCue(1.45), cueCount(HOST_CUES, 1.45));
-  const screen = await source("components/hub/screens/conversations.tsx");
-  // After the list, which scrolls by itself, inside the column; admins read along without him.
-  assert.match(screen, /<p className="chat-empty">[\s\S]*?\)\}\r?\n\s*\{!admin && <MessagesHost \/>\}\r?\n\s*<\/section>/);
+  const screen = await source("components/hub/screens/private-chat.tsx");
+  // At the bottom of the customer's column, below the private chat and the way to the service platform; admins see no avatar.
+  assert.match(screen, /<div className="chat-service">[\s\S]*?\)\}\r?\n\s*\{!admin && <MessagesHost \/>\}\r?\n\s*<\/section>/);
   const host = await source("components/hub/messages-host.tsx");
   for (const file of ["ali-thinking.mp4", "ali-thinking.webp"]) {
     assert.match(host, new RegExp(`"/brand/${file.replace(".", "\\.")}"`));

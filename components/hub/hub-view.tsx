@@ -30,6 +30,7 @@ import type { HubRole } from "@/lib/hub-users/rules";
 import type { UserManagementState } from "@/lib/hub-users/types";
 import type { LiveProjectsState } from "@/lib/hub-projects/map";
 import type { ConversationsState } from "@/lib/hub-conversations/types";
+import type { PrivateChatState } from "@/lib/hub-private-chat/types";
 
 type HubViewProps = {
   section?: HubSection;
@@ -52,11 +53,13 @@ type HubViewProps = {
   liveProjects?: LiveProjectsState;
   /** The assistant's proposals on the admin's "KI-Protokoll" page. */
   assistantLog?: AssistantLogState;
-  /** The service platform's conversations of a real login on the Nachrichten page; examples otherwise. */
+  /** The service platform's conversations for a real admin on the Nachrichten page; examples otherwise. */
   conversations?: ConversationsState;
+  /** The private chats of a real login on the Nachrichten page; examples otherwise. */
+  privateChats?: PrivateChatState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -93,7 +96,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "discover" ? <DiscoverScreen {...screen} />
         : section === "projects" ? <ProjectsScreen {...screen} />
         : section === "files" ? <FilesScreen {...screen} />
-        : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} />
+        : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />
         : section === "calendar" ? <CalendarScreen {...screen} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />

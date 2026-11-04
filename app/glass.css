@@ -230,6 +230,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .sidebar-account-menu :is(a, button):is(:hover, :focus-visible) { background: var(--fill-tertiary); outline: none; }
 .sidebar-account-menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--separator); }
 .sidebar-account-menu .is-danger, .sidebar-account-menu .is-danger svg { color: var(--tone-bad); }
+.sidebar-account-menu .sidebar-account-legal { display: flex; align-items: center; gap: 2px; padding: 2px 4px 0; font-size: 12px; color: var(--label-secondary); }
+.sidebar-account-menu .sidebar-account-legal a { height: 30px; padding: 0 6px; font-size: 12px; color: var(--label-secondary); }
 .sidebar-account-menu small { padding: 4px 10px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .glass-sidebar .form-error { margin: 0 4px; }
 .hub-app .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--oalab-gradient-action); color: #ffffff; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
@@ -564,6 +566,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .chat-day { align-self: center; margin: 14px 0 8px; padding: 3px 11px; border-radius: 999px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line); font-size: 12px; font-weight: 600; color: var(--sheet-muted); }
 .chat-system { align-self: center; display: flex; align-items: center; gap: 6px; max-width: 80%; margin: 6px 0; font-size: 12.5px; line-height: 18px; color: var(--sheet-muted); text-align: center; }
 .chat-system svg { flex: 0 0 auto; }
+.chat-system a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .chat-msg { display: flex; flex-direction: column; max-width: min(64%, 560px); margin-top: 2px; }
 .chat-msg.is-first { margin-top: 10px; }
 .chat-msg.is-in { align-self: flex-start; }
@@ -598,6 +601,36 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .chat-readonly { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 20px 14px; background: var(--sheet); border-top: 1px solid var(--sheet-line); font-size: 13px; line-height: 18px; color: var(--sheet-muted); }
 .chat-readonly svg { flex: 0 0 auto; }
 .chat-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; font-size: 14px; color: var(--sheet-muted); }
+/* Private chat (4 November 2026). Admins: the tabs "Privat" and "Service" above the list, on the sheet like the
+   toolbar's segmented control. */
+.chat-tabs { display: flex; height: 36px; margin: 0 14px 10px 20px; padding: 2px; border-radius: 10px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.chat-tabs button { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 8px; font-size: 13.5px; font-weight: 600; color: var(--sheet-muted); }
+.chat-tabs button[aria-pressed="true"] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); }
+.chat-tabs svg { flex: 0 0 auto; }
+.chat-tab-count { min-width: 18px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: var(--on-accent); font-size: 11px; font-weight: 700; line-height: 1; }
+.chat-tab-note { margin: -4px 20px 10px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+/* Customers have one chat: it sits on top, the way to the service platform right below, Ali at the bottom. */
+.chat-list.is-single .chat-convs { flex: none; }
+.chat-list.is-single .chat-think { margin-top: auto; }
+.chat-service { display: flex; gap: 12px; margin: 10px 14px 14px 20px; padding: 12px 14px 14px; border-radius: 14px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.chat-service-icon { width: 34px; height: 34px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--tone-info-bg); color: var(--tone-info); }
+.chat-service strong { display: block; font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); }
+.chat-service p { margin: 2px 0 10px; font-size: 13px; line-height: 18px; color: var(--sheet-muted); }
+.chat-service-links { display: flex; flex-wrap: wrap; gap: 6px; }
+/* oalab as the customer's conversation partner: the logo on the brand gradient, round like a person. */
+.chat-avatar.is-oalab { padding: 8px; background: var(--oalab-gradient); }
+.chat-pane-head .chat-avatar.is-oalab { padding: 7px; }
+/* "Privat" next to a private chat. */
+.chat-pill.is-private { display: inline-flex; align-items: center; gap: 4px; background: var(--sheet-seg); color: var(--sheet-muted); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+/* Admins write to a customer first: every customer in a searchable list. */
+.chat-pick-search { display: flex; align-items: center; gap: 8px; height: 40px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px; background: var(--fill-tertiary); color: var(--label-secondary); }
+.chat-pick-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--label); font: inherit; font-size: 16px; }
+.chat-pick { list-style: none; margin: 0; padding: 0; max-height: min(56vh, 460px); overflow-y: auto; }
+.chat-pick button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--separator); text-align: left; color: var(--label-body); }
+.chat-pick li:last-child button { border-bottom: 0; }
+.chat-pick button > span:not(.chat-avatar) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-pick strong { font-size: 16px; font-weight: 600; color: var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-pick small { font-size: 13px; color: var(--label-secondary); }
 /* Narrow sheets (tablets, small windows): list or conversation, with "Zurück" in between. */
 @container sheet (max-width: 720px) {
   .chat-grid { grid-template-columns: minmax(0, 1fr); }

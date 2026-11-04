@@ -227,8 +227,10 @@ test("the Supabase templates link through /auth/confirm with the token hash and 
   for (const [name, type, next] of [["confirmation", "email", "/dashboard"], ["recovery", "recovery", "/auth/update-password"]]) {
     const html = await source(`supabase/templates/${name}.html`);
     const links = [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
-    assert.equal(links.length, 2, name);
-    for (const link of links) assert.equal(link, `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=${type}&amp;next=${next}`, name);
+    // Button and copy link, then imprint and privacy policy in the footer.
+    assert.equal(links.length, 4, name);
+    for (const link of links.slice(0, 2)) assert.equal(link, `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=${type}&amp;next=${next}`, name);
+    assert.deepEqual(links.slice(2), ["{{ .SiteURL }}/impressum", "{{ .SiteURL }}/datenschutz"], name);
     assert.equal(safeAuthRedirect(next), next);
     // No PKCE link (it works only in the browser that registered) and no scripts.
     assert.doesNotMatch(html, /ConfirmationURL|<script/i, name);

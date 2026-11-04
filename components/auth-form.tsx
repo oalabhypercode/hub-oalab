@@ -8,7 +8,7 @@ import { requestPasswordResetAction, sendSecondFactorCodeAction, signInAction, s
 import { greetsAt, noteGreeting } from "@/lib/greeting";
 import { authMessage } from "@/lib/hub-auth/messages";
 import { readRegistration } from "@/lib/hub-users/rules";
-import { legalLinks } from "@/lib/legal-links";
+import { LEGAL_PATHS } from "@/lib/legal-links";
 import { cn, hasEnvVars } from "@/lib/utils";
 
 type AuthMode = "login" | "signup" | "forgot" | "update" | "mfa";
@@ -154,7 +154,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
             </div>
           </details>
           {/* Art. 13 DSGVO: the notice at the form; the legal basis is the contract initiation, so no consent box. */}
-          <p className="auth-privacy-note">Wir verwenden deine Angaben, um deine Registrierung zu prüfen und deinen Zugang zum oalab Client Hub einzurichten (Art. 6 Abs. 1 lit. b DSGVO).{legalLinks.privacy && <> Mehr dazu in der <a href={legalLinks.privacy} target="_blank" rel="noopener noreferrer">Datenschutzerklärung</a>.</>}</p>
+          <p className="auth-privacy-note">Wir verwenden deine Angaben, um deine Registrierung zu prüfen und deinen Zugang zum oalab Client Hub einzurichten (Art. 6 Abs. 1 lit. b DSGVO). Mehr dazu in der {/* A new tab, so the entries stay in the form. */}<a href={LEGAL_PATHS.privacy} target="_blank" rel="noopener">Datenschutzerklärung</a>.</p>
         </>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="button-primary auth-submit" type="submit" disabled={loading}>{loading ? <><MiniLoader size={18} />{action.loading}</> : <>{action.label}<ArrowRight size={18} aria-hidden="true" /></>}</button>

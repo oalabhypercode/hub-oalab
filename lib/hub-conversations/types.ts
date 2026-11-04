@@ -1,6 +1,7 @@
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { ConversationGroup, ConversationSender, ConversationTone } from "./rules";
 
-/** One conversation in the list: a request of the service platform with its newest message. */
+/** One service conversation in the admins' list: a request of the service platform with its newest message. */
 export interface ConversationSummary {
   /** The request's id; `reference` ("OA-12") is how the service platform names it. */
   readonly id: string;
@@ -10,21 +11,18 @@ export interface ConversationSummary {
   readonly stateLabel: string;
   readonly tone: ConversationTone;
   readonly group: ConversationGroup;
-  readonly canReply: boolean;
-  /** The request's version; a reply must name it so nothing newer is overlooked. */
-  readonly version: number;
-  /** The customer's company; shown to admins, who read every customer's conversations. */
+  /** The customer's company. */
   readonly company: string | null;
+  /** The hub customer behind the request's organization and its logo from the Asset Management, if there is one. */
+  readonly customerId: string | null;
+  readonly logo: CustomerLogo | null;
   readonly lastAt: string;
-  readonly lastMessage: { readonly body: string; readonly sender: ConversationSender; readonly own: boolean; readonly name: string | null } | null;
-  readonly unread: boolean;
+  readonly lastMessage: { readonly body: string; readonly sender: ConversationSender; readonly name: string | null } | null;
 }
 
 export interface ConversationMessage {
   readonly id: string;
   readonly sender: ConversationSender;
-  /** Written by the signed-in person. */
-  readonly own: boolean;
   readonly name: string | null;
   readonly body: string;
   readonly markdown: boolean;
@@ -37,10 +35,8 @@ export interface ConversationThread {
 }
 
 export interface ConversationsState {
-  /** Real logins read the service platform; the preview and the demo logins show examples. */
+  /** Real admin logins read the service platform; the demo logins show examples. */
   readonly source: "service" | "fixtures";
-  /** Admins read along; answers come from NoteTree Business. */
-  readonly readOnly: boolean;
   readonly conversations: readonly ConversationSummary[];
   readonly error: string | null;
 }
