@@ -17,8 +17,8 @@ import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, TableAddRow, TableG
 import { FilterSelect, SortControl, SortHeader } from "../table-tools";
 import { CategoryTitle } from "./workspace";
 import { DeleteFilesDialog, DeleteFolderDialog, DownloadButton, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
+import { CustomerLogoDialog } from "../customer-logo-dialog";
 import { FilePanel } from "./asset-details";
-import { LogoDialog } from "./asset-logo";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
 import { CustomerSign } from "./customer-sign";
 import { CategoryDot, FileIcon } from "./files-parts";
@@ -399,15 +399,18 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const head = current ? (
     <header className="am-pane-head">
       {back}
-      {/* A click on the sign opens the logo; the badge shows on hover, and always while there is none. */}
+      {/* The logo opens from its own button and from the sign; the badge shows on hover, and always while there is none. */}
       {canUpload ? (
-        <button type="button" className="am-sign-edit" onClick={() => setLogoFor(current.id)} title={current.logo ? "Logo ändern" : "Logo hinterlegen"} aria-label={`Logo von ${current.company} ${current.logo ? "ändern" : "hinterlegen"}`}>
+        <button type="button" className="am-sign-edit" onClick={() => setLogoFor(current.id)} title={current.logo ? "Logo ändern" : "Logo hochladen"} aria-label={`Logo von ${current.company} ${current.logo ? "ändern" : "hochladen"}`}>
           <CustomerSign customer={current} logo={current.logo} size="lg" />
           <span className={`am-sign-badge${current.logo ? "" : " is-shown"}`} aria-hidden="true"><ImagePlus size={12} /></span>
         </button>
       ) : <CustomerSign customer={current} logo={current.logo} size="lg" />}
       <div className="am-pane-title"><strong>{current.company}</strong><span>{minimal ? `${plural(paneFiles.length, "Datei", "Dateien")} · ${totalSize(paneFiles)}` : `${current.customerNumber} · ${plural(paneFiles.length, "Datei", "Dateien")} · ${totalSize(paneFiles)}`}</span></div>
-      <div className="am-pane-actions">{!minimal && <button type="button" className="sheet-action am-wide" onClick={() => setDialog({ kind: "create" })}><FolderPlus size={15} aria-hidden="true" />Neuer Ordner</button>}{uploadButton}</div>
+      <div className="am-pane-actions">
+        {canUpload && <button type="button" className="sheet-action am-logo-button" onClick={() => setLogoFor(current.id)} title={`Logo von ${current.company}`}><ImagePlus size={15} aria-hidden="true" /><span className="am-logo-text">{current.logo ? "Logo ändern" : "Logo hochladen"}</span></button>}
+        {!minimal && <button type="button" className="sheet-action am-wide" onClick={() => setDialog({ kind: "create" })}><FolderPlus size={15} aria-hidden="true" />Neuer Ordner</button>}{uploadButton}
+      </div>
     </header>
   ) : view.kind === "inbox" ? (
     <header className="am-pane-head">
@@ -533,7 +536,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       )}
 
       {deleting && <DeleteFilesDialog files={deleting} onClose={() => setDeleting(null)} onDelete={() => remove(deleting)} />}
-      {logoRow && <LogoDialog customer={logoRow.customer} files={logoRow.files} onClose={() => setLogoFor(null)} onSaved={(message) => { setLogoFor(null); setNotice(message); }} />}
+      {logoRow && <CustomerLogoDialog customer={logoRow.customer} onClose={() => setLogoFor(null)} onSaved={(message) => { setLogoFor(null); setNotice(message); }} />}
       {dialog?.kind === "create" && current && (
         <FolderNameDialog title={`Neuer Ordner bei ${current.company}`} initial="" onClose={() => setDialog(null)} onSave={async (name) => {
           const result = await store.addFolder(current.id, name);

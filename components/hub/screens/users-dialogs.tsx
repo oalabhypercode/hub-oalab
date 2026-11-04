@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Ban, Check, Copy, KeyRound, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Ban, Check, Copy, ImagePlus, KeyRound, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, setHubUserActive, setHubUserSecondFactor, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
 import type { MailStatus } from "@/lib/hub-mail/smtp";
@@ -9,6 +9,8 @@ import { displayStatusLabels, roleLabels, servicePackageIds, suggestCustomer, ty
 import type { ManagedCustomer, ManagedEvent, ManagedUser } from "@/lib/hub-users/types";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import { servicePackages, type ServicePackageId } from "@/lib/service-packages";
+import { CustomerLogoDialog } from "../customer-logo-dialog";
+import { LogoMark, companyInitials } from "../logo-mark";
 import { Modal } from "../modal";
 
 export const fullName = (user: Pick<ManagedUser, "firstName" | "lastName" | "email">) => `${user.firstName} ${user.lastName}`.trim() || user.email;
@@ -394,13 +396,25 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
 
 // Customers ---------------------------------------------------------------------------------------------------------
 
-/** Creates or edits a customer (company) with packages, contact and address; lists the logins assigned to it. */
+/**
+ * Creates or edits a customer (company) with packages, contact and address; lists the logins assigned to it. An
+ * existing customer shows its logo on top: the button opens the same window as in the asset management.
+ */
 export function CustomerDialog({ customer, users, nextNumber, events, onClose, onNotice }: { customer?: ManagedCustomer; users: ManagedUser[]; nextNumber: string; events: ManagedEvent[]; onClose: () => void; onNotice: (message: string) => void }) {
   const [draft, setDraft] = useState<CustomerDraft>(customer ? draftOf(customer) : emptyDraft(nextNumber));
+  const [logoOpen, setLogoOpen] = useState(false);
   const { busy, error, run } = useAction();
   const members = customer ? users.filter((user) => customer.memberIds.includes(user.id)) : [];
   return (
     <Modal title={customer ? customer.company : "Kunde anlegen"} onClose={onClose} className="users-modal">
+      {customer && (
+        <div className="customer-logo-row">
+          <LogoMark logo={customer.logo} initials={companyInitials(customer.company)} className="avatar customer-logo-mark" plate />
+          <span className="customer-logo-text"><strong>Logo</strong><small>{customer.logo ? "Sehen die Kunden in der Übersicht, unten links und am Handy." : "Noch keins hinterlegt, es stehen die Buchstaben."}</small></span>
+          <button type="button" className="sheet-action" onClick={() => setLogoOpen(true)}><ImagePlus size={15} aria-hidden="true" />{customer.logo ? "Logo ändern" : "Logo hochladen"}</button>
+        </div>
+      )}
+      {customer && logoOpen && <CustomerLogoDialog customer={customer} onClose={() => setLogoOpen(false)} onSaved={(message) => { setLogoOpen(false); onNotice(message); }} />}
       <form onSubmit={(event) => { event.preventDefault(); run("save", () => saveCustomer({ ...draft, id: customer?.id }), () => { onNotice(customer ? `${draft.company} gespeichert.` : `Kunde ${draft.company} angelegt.`); onClose(); }); }}>
         <CustomerFields draft={draft} onChange={setDraft} disabled={busy !== null} />
         <p className="field-hint">Die Kundinnen und Kunden sehen Unternehmen, Kundennummer, Servicepakete und Kontaktdaten nach dem Login in ihrem Profil.</p>

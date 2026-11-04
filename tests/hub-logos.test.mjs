@@ -48,8 +48,9 @@ test("every logo action checks for an active admin in the database before anythi
   assert.match(actions, /^"use server";/);
   assert.match(actions, /const admin = await verifyHubAdmin\(\);/);
   const bodies = actions.split("\nexport async function ").slice(1);
-  assert.equal(bodies.length, 3);
-  assert.equal((actions.match(/^export /gm) ?? []).length, 3);
+  // listLogoCandidates (the customer's images for the logo window), prepare, save, remove.
+  assert.equal(bodies.length, 4);
+  assert.equal((actions.match(/^export /gm) ?? []).length, 4);
   for (const body of bodies) assert.match(body, /^\w+\([\s\S]*?\{\n {2}const session = await adminSession\(\);\n {2}if \(!session\) return denied;/, body.slice(0, 30));
   // A file becomes a logo only if it belongs to that customer, and keeps the type it was saved with.
   assert.match(actions, /\.eq\("hub_file_assignments\.customer_id", customerId\)/);

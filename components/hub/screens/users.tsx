@@ -11,6 +11,7 @@ import { HeaderActions } from "../app-shell";
 import { SegmentedControl } from "../controls";
 import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
+import { LogoMark } from "../logo-mark";
 import { sectionIcons } from "../navigation";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
@@ -133,7 +134,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         </td>
         <td className="cell-number col-number">{customer ? <NumberChip value={customer.customerNumber} /> : <span className="cell-none">–</span>}</td>
         <td className="cell-company">
-          {customer ? <span className="company-cell"><span className="company-mark" aria-hidden="true">{companyMark(customer.company)}</span><span className="company-name" title={customer.company}>{customer.company}</span></span>
+          {customer ? <span className="company-cell"><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><span className="company-name" title={customer.company}>{customer.company}</span></span>
             : user.role === "oalab_admin" ? <span className="company-cell"><span className="company-mark" aria-hidden="true">OA</span>oalab<span className="role-tag">Admin</span></span>
             : user.companyName ? <span className="company-cell is-hint" title="Angabe aus der Registrierung"><span className="company-name">{user.companyName}</span><span className="role-tag">Angabe</span></span>
             : <span className="cell-none">–</span>}
@@ -228,7 +229,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                 {shownCustomers.map((customer) => (
                   <tr key={customer.id} className="data-row">
                     <td className="cell-person">
-                      <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><span className="company-mark" aria-hidden="true">{companyMark(customer.company)}</span><strong>{customer.company}</strong></button>
+                      <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
                     </td>
                     <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
                     <td className="cell-packages">{customer.servicePackages.length ? customer.servicePackages.map((id) => servicePackages[id].name).join(", ") : <span className="cell-none">–</span>}</td>

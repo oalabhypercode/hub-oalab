@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { ServicePackageId } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { newCustomerNumber } from "@/lib/hub-assistant/customers";
+import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import { displayStatus, isAccountStatus, isHubRole, servicePackageIds, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
 import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/hub-auth/second-factor";
@@ -123,7 +124,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Konten verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events, notifications, organizations] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications, organizations, logos] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
@@ -133,6 +134,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       db.from("hub_notifications").select("id, created_at, kind, user_id, status").order("created_at", { ascending: false }).limit(300).returns<NotificationRow[]>(),
       // Numbers taken in Service count too: a new customer becomes a Service organization.
       db.from("organizations").select("customer_number").returns<{ customer_number: string }[]>(),
+      // The customers' logos, the same as in the asset management; a failure only leaves the letters.
+      loadCustomerLogos(db).catch(() => new Map<string, never>()),
     ]);
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
@@ -188,6 +191,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         inService: Boolean(row.organization_id),
         createdAt: row.created_at,
         memberIds: memberships.filter((member) => member.customer_id === row.id).map((member) => member.user_id),
+        logo: logos.get(row.id) ?? null,
       })),
       events: [
         ...(events.data ?? []).map((row): ManagedEvent => ({

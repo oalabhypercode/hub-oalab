@@ -414,6 +414,19 @@
 - Das Logo steht als Plakette (`LogoMark` mit `plate`, Klasse `is-plate`): Die Höhe ist fest, die Breite folgt dem Logo bis 168 px (Handy 150 px). So bleibt ein Schriftzug lesbar. Untergrund und Ladefehler wie bei allen Logos.
 - Die anderen Logo-Stellen (Ecke unten links, Handy oben rechts, Asset Management) bleiben quadratisch. Admins behalten `WelcomeCard`. Keine Datenbankänderung.
 
+### Vorgabe vom 4. November 2026: Logo-Fenster, zwei Wege
+
+- Anlass: Der Nutzer fand das Logo-Fenster im Asset Management schwer zu finden (nur ein Klick aufs Kundenzeichen) und zu kompliziert. Er wollte es einfacher und dasselbe Logo auch im User Management hochladen können. Nach einer Vorschau mit beiden Wegen hat er freigegeben.
+- `CustomerLogoDialog` (`components/hub/customer-logo-dialog.tsx`) ersetzt `asset-logo.tsx`. Beide Wege öffnen dieses Fenster und speichern über dieselben Server-Aktionen am Kunden.
+    - Oben steht die Vorschau der Firmenzeile, so wie der Kunde sie sieht (`LogoMark plate`).
+    - Darunter ein großes Feld zum Hineinziehen, Anklicken oder Einfügen mit Strg+V (`paste` am Dokument, solange das Fenster offen ist). Mit Logo ist das Feld einzeilig.
+    - Die Bilder des Kunden holt das Fenster selbst über `listLogoCandidates` (nur Admins, höchstens 12, Vorschau-Links für eine Minute).
+    - „Hintergrund“ erscheint erst mit Logo und ist passend vorgewählt: `groundForPixels` in `lib/hub-logos/ground.ts` gibt einem hellen Logo mit durchsichtigem Grund Dunkel. Lässt sich ein Bild nicht lesen (Link ohne CORS), bleibt die bisherige Wahl.
+    - Unten nur „Abbrechen“ und „Speichern“; „Logo entfernen“ steht nur da, wenn es ein Logo gibt und nichts Neues gewählt ist.
+- Asset Management: Knopf „Logo hochladen“ bzw. „Logo ändern“ im Kopf des Kunden vor „Neuer Ordner“, in schmalen Ansichten nur das Symbol. Das Zeichen bleibt anklickbar.
+- User Management: In „Kunde bearbeiten“ steht oben die Zeile „Logo“ mit Knopf. Das Logo-Fenster öffnet sich über dem Kundenfenster. `loadUserManagement` lädt die Logos aller Kunden mit (`loadCustomerLogos`); ein Fehler lässt nur die Buchstaben stehen. Die Unternehmenszeichen in beiden Tabellen zeigen das Logo.
+- Keine Datenbankänderung.
+
 ### Backlog
 
 - Detail-Tabelle „Vorher → Nachher“ in Benachrichtigungs-Mails (z. B. Status Aktiv → Pausiert): braucht eine Spalte mit Einzelwerten in `hub_inbox`; beim Mail-Redesign am 30. Oktober 2026 bewusst zurückgestellt.
