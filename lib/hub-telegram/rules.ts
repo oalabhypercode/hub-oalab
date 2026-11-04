@@ -1,6 +1,7 @@
-// Telegram for admins (4 November 2026): when a customer writes in the private chat, the admins' Telegram group hears
-// of it too, with the company and a way into the hub, never with the text itself (bot chats are not end-to-end
-// encrypted). Pure rules for the server and the tests; this file imports nothing.
+// Telegram for admins (4 November 2026): every message a customer writes in the private chat also reaches the admins'
+// Telegram group, with company, name and the text itself, so the team can read it on the phone; answers stay in the
+// hub. Bot chats are not end-to-end encrypted, which the privacy policy has to say. Pure rules for the server and the
+// tests; this file imports nothing.
 
 export type TelegramConfig = { readonly token: string; readonly chatId: string };
 
@@ -15,19 +16,31 @@ export function telegramConfig(env: Readonly<Record<string, string | undefined>>
   return { token, chatId };
 }
 
+/** Telegram takes up to 4096 characters per message; longer chat messages (up to 5000 in the hub) are cut. */
+export const TELEGRAM_TEXT_LIMIT = 3500;
+
+const oneLine = (text: string, max: number) => text.replace(/\s+/g, " ").trim().slice(0, max);
+
 /**
- * The message for a new chat: the company and a button into the hub. Telegram takes only public https addresses for
- * buttons; elsewhere (a local test) the address stands in the text.
+ * A customer's message for the group: company and writer in bold on top, the text below, a button into the hub.
+ * The bold line comes as an entity, so the customer's text needs no escaping and is never read as formatting.
+ * Telegram takes only public https addresses for buttons; elsewhere (a local test) the address stands in the text.
  */
-export function telegramChatMessage(input: { company: string; url: string }) {
-  const company = input.company.replace(/\s+/g, " ").trim().slice(0, 120) || "einem Kunden";
+export function telegramChatMessage(input: { company: string; author: string; body: string; url: string }) {
+  const company = oneLine(input.company, 120) || "Kunde";
+  const author = oneLine(input.author, 120);
+  const head = author ? `${company} · ${author}` : company;
+  const body = input.body.replace(/\r\n/g, "\n").trim();
+  const text = body.length > TELEGRAM_TEXT_LIMIT ? `${body.slice(0, TELEGRAM_TEXT_LIMIT).trimEnd()} …\n\n(gekürzt, die ganze Nachricht steht im Hub)` : body;
   const button = /^https:\/\/[^\s/]+\.[^\s/]+\//.test(input.url);
   return {
-    text: `Neue Nachricht von ${company} im privaten Chat des Client Hub.${button ? "" : `\n${input.url}`}`,
+    text: `${head}\n${text}${button ? "" : `\n\n${input.url}`}`,
+    // Offsets count UTF-16 code units, as JavaScript strings do.
+    entities: [{ type: "bold", offset: 0, length: head.length }],
     ...(button ? { reply_markup: { inline_keyboard: [[{ text: "Im Hub öffnen", url: input.url }]] } } : {}),
   };
 }
 
 export const telegramTestMessage = () => ({
-  text: "Testmeldung aus dem oalab Client Hub: Telegram ist eingerichtet. Schreibt ein Kunde im privaten Chat, kommt hier eine Meldung an.",
+  text: "Testmeldung aus dem oalab Client Hub: Telegram ist eingerichtet. Schreibt ein Kunde im privaten Chat, kommt seine Nachricht hier an.",
 });

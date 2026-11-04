@@ -148,7 +148,7 @@ Einrichtung: Nach der Migration den Wert von `oalab_hub_notify_token` aus Supaba
 
 ### Telegram für Admins
 
-Schreibt ein Kunde im privaten Chat, bekommt die Telegram-Gruppe des Teams eine Meldung mit Firmenname und dem Knopf „Im Hub öffnen“, nie mit dem Text der Nachricht. Bis jemand aus dem Team den Chat im Hub gelesen hat, kommt pro Chat nur eine Meldung (`lib/hub-telegram/`). Das läuft kostenlos über die offizielle Bot API von Telegram, ohne eigenen Server und ohne Webhook.
+Jede Nachricht, die ein Kunde im privaten Chat schreibt, kommt auch in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text (über 3.500 Zeichen gekürzt), dazu der Knopf „Im Hub öffnen“. Geantwortet wird im Hub (`lib/hub-telegram/`). Das läuft kostenlos über die offizielle Bot API von Telegram, ohne eigenen Server und ohne Webhook.
 
 1. In Telegram dem Bot @BotFather `/newbot` schicken, Namen und Benutzernamen (endet auf „bot“) wählen. BotFather antwortet mit dem Token.
 2. Eine Gruppe mit allen Admins anlegen, den Bot hinzufügen und in der Gruppe `/start@<benutzername_des_bots>` senden.
@@ -162,7 +162,7 @@ Schreibt ein Kunde im privaten Chat, bekommt die Telegram-Gruppe des Teams eine 
 
 5. Im Profil unter „Benachrichtigungen“ mit „Testmeldung senden“ prüfen.
 
-Ohne beide Werte sendet der Hub nichts an Telegram. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt; deshalb geht nur der Firmenname mit. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
+Ohne beide Werte sendet der Hub nichts an Telegram. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt, und Telegram ist kein Auftragsverarbeiter mit Vertrag: Die Datenschutzerklärung muss die Weitergabe der Chat-Nachrichten an Telegram nennen. Auf dem Sperrbildschirm lässt sich die Vorschau in Telegram unter Einstellungen → Mitteilungen abschalten. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
 
 ## KI-Assistent (Claude)
 
