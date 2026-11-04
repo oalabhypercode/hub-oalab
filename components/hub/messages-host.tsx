@@ -63,8 +63,8 @@ export function MessagesHost() {
       <div className="think-wrap">
         <div className="think-bubble">
           <p className="think-from">Ali von oalab</p>
-          <p className="think-main">Hmm … worüber möchtest du sprechen?</p>
-          <p className="think-line">Wähle ein Gespräch oder starte über den Stift ein neues.</p>
+          <p className="think-main">Hmm … was liegt dir auf dem Herzen?</p>
+          <p className="think-line">Schreib uns einfach hier. Wir antworten dir persönlich.</p>
         </div>
         <span className="think-dot is-2" aria-hidden="true" />
         <span className="think-dot is-1" aria-hidden="true" />

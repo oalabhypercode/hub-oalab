@@ -123,7 +123,16 @@ Einrichtung für den Livebetrieb (das Passwort nur bei Netcup, in Vercel, in Sup
 
 6. DNS: Der SPF-Eintrag von oalab.de schließt Netcup bereits ein (`include:_spf.webhosting.systems`). Damit die Mails nicht im Spam landen, sind DKIM für oalab.de (falls der Netcup-Tarif es anbietet) und ein DMARC-Eintrag `_dmarc` empfehlenswert; bisher gibt es keinen, für den Anfang reicht `v=DMARC1; p=none;`.
 
-Die Mails laufen über den Mailserver von Netcup in Deutschland. Netcup verarbeitet dabei Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag; dafür braucht es den Auftragsverarbeitungsvertrag mit Netcup und einen Absatz in der Datenschutzerklärung.
+Die Mails laufen über den Mailserver von Netcup in Deutschland. Netcup verarbeitet dabei Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag; der Auftragsverarbeitungsvertrag mit Netcup liegt vor, und die Datenschutzerklärung des Hubs nennt Netcup.
+
+## Impressum und Datenschutz
+
+Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) sind eigene, öffentliche Seiten des Hubs (`app/impressum`, `app/datenschutz`, Texte in `components/legal/`, Anbieterangaben in `lib/legal-details.ts`). In Vercel ist dafür nichts einzutragen.
+
+- Erreichbar in höchstens zwei Klicks (§ 5 DDG, Art. 13 DSGVO): Fußzeilen von Login, Registrierung, 404 und den Rechtsseiten, Menü am Zahnrad, „Mehr“ → „Rechtliches“, Profil, jede Hub-Mail und die Supabase-Vorlagen für Bestätigung und Passwort.
+- Die Mails verlinken absolut über `NEXT_PUBLIC_SITE_URL` (sonst `https://hub.oalab.de`). Nach einer Änderung an `supabase/templates/` die Vorlagen im Supabase-Dashboard unter Authentication → Emails neu einfügen.
+- Die Datenschutzerklärung beschreibt, was der Code wirklich nutzt. Kommt ein Dienst hinzu oder ändert sich einer (zum Beispiel WhatsApp live, mehr Inhalt an Telegram, ein neuer Hoster), wird der Text im selben PR angepasst und `PRIVACY_POLICY_DATE` mitgezogen. `tests/legal-pages.test.mjs` prüft die Links, die genannten Anbieter und Cookies und veraltete Angaben wie § 5 TMG.
+- Die Texte sind ein Entwurf ohne Rechtsberatung; vor dem Livegang einmal anwaltlich prüfen lassen.
 
 ## Benachrichtigungen
 
@@ -135,6 +144,8 @@ Kunden sehen in der Glocke, was für sie neu ist, und bekommen dazu eine gebünd
 | „Projekt aktualisiert: …“ | Status oder Zieltermin eines freigegebenen Projekts ändert sich im Studio |
 | „Neue Datei: …“ | Ein Admin ordnet dem Kunden eine Datei zu |
 | Termin angelegt, bestätigt, verschoben, abgesagt, Anfrage abgelehnt | Kalender im Hub |
+| „Neue Nachricht von oalab“ | oalab antwortet im privaten Chat unter Nachrichten (an die Logins der Firma) |
+| „Neue Nachricht von …“ (an Admins) | Ein Kunde schreibt im privaten Chat; die E-Mail kommt nach 5 Minuten und nur, solange niemand aus dem Team gelesen hat |
 
 - Dateien und Termine schreibt der Hub beim Speichern in `hub_inbox`. Studio-Änderungen liest er alle fünf Minuten aus `studio_activity`; `hub_notice_marks` hält den letzten Stand je Aufgabe und Projekt, damit jede Änderung genau einmal gemeldet wird. Vorhandene Tabellen bleiben unverändert (Migration `202610300001_hub_notifications.sql` in `service-oalab`).
 - Den Takt gibt pg_cron in der Datenbank vor: Er ruft `/api/notifications/sweep` mit dem Token aus Supabase Vault auf. Die Route antwortet nur mit `HUB_NOTIFY_TOKEN`.
@@ -143,6 +154,26 @@ Kunden sehen in der Glocke, was für sie neu ist, und bekommen dazu eine gebünd
 - Neue, bestätigte und verschobene Termine bekommen in der E-Mail „In deinen Kalender eintragen“: Apple Kalender, Google Kalender, Outlook (Microsoft 365) und eine .ics-Datei für andere Apps, in der Mail zu einem einzelnen Termin als eigener Block mit vier Buttons, in Sammel-Mails als kompakte Links. Die Buttons sind signierte Links auf `/api/calendar/<Termin>/…` (HMAC mit `HUB_NOTIFY_TOKEN`, ohne Login nutzbar); die Route liest den Termin beim Öffnen neu und liefert die .ics-Datei oder leitet zu Google bzw. Outlook weiter. Abgesagte Termine landen so nie mit alter Zeit im Kalender. Die Termin-ID steckt im Link der Meldung (`/dashboard/calendar?appointment=<id>`), siehe `lib/hub-calendar/links.ts`.
 
 Einrichtung: Nach der Migration den Wert von `oalab_hub_notify_token` aus Supabase (Project Settings → Vault) als `HUB_NOTIFY_TOKEN` in Vercel (Production, „Sensitive“) eintragen, für lokale Tests auch in `.env.local`, und neu deployen.
+
+### Telegram für Admins
+
+Jede Nachricht, die ein Kunde im privaten Chat schreibt, kommt auch in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text (über 3.500 Zeichen gekürzt), dazu der Knopf „Im Hub öffnen“. Geantwortet wird im Hub (`lib/hub-telegram/`). Das läuft kostenlos über die offizielle Bot API von Telegram, ohne eigenen Server und ohne Webhook.
+
+1. In Telegram dem Bot @BotFather `/newbot` schicken, Namen und Benutzernamen (endet auf „bot“) wählen. BotFather antwortet mit dem Token.
+2. Eine Gruppe mit allen Admins anlegen, den Bot hinzufügen und in der Gruppe `/start@<benutzername_des_bots>` senden.
+3. Im Browser `https://api.telegram.org/bot<TOKEN>/getUpdates` öffnen. Bei `"chat"` steht die Nummer der Gruppe (beginnt mit `-100`).
+4. In Vercel (Production) eintragen und neu deployen:
+
+| Variable | Typ | Zweck |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Secret | Token des Bots von BotFather |
+| `TELEGRAM_CHAT_ID` | Config | Nummer der Gruppe der Admins |
+
+5. Im Profil unter „Benachrichtigungen“ mit „Testmeldung senden“ prüfen.
+
+Ohne beide Werte sendet der Hub nichts an Telegram. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt, und Telegram ist kein Auftragsverarbeiter mit Vertrag: Die Datenschutzerklärung muss die Weitergabe der Chat-Nachrichten an Telegram nennen. Auf dem Sperrbildschirm lässt sich die Vorschau in Telegram unter Einstellungen → Mitteilungen abschalten. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
+
+**Nur für die interne Testphase:** Der volle Text geht an Telegram, solange keine echten Kundendaten im Hub sind (Entscheidung des Nutzers vom 4. November 2026). Die Datenschutzerklärung (`/datenschutz`, Abschnitt 7) und der Hinweis im Chat beschreiben bewusst schon den Betrieb mit echten Kunden: nur Firmenname und Link. Bevor echte Kunden schreiben, `telegramChatMessage` wieder auf Firmenname und Link stellen (Commit f2ec6a9 zurücknehmen) oder Datenschutzerklärung und Hinweis anpassen.
 
 ## KI-Assistent (Claude)
 

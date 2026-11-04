@@ -49,7 +49,7 @@ async function mark(name, color, size = 16) {
 }
 
 // Area colours as in the hub; account, security and users in a lighter bordeaux, so the symbol stays visible on a dark card.
-const areas = { projects: ["folder-open", "#FF9500"], files: ["files", "#5856D6"], calendar: ["calendar-days", "#FF3B30"], account: ["user-round", "#B5236F"], security: ["shield-check", "#B5236F"], users: ["user-cog", "#B5236F"], news: ["bell", "#F37222"] };
+const areas = { projects: ["folder-open", "#FF9500"], files: ["files", "#5856D6"], calendar: ["calendar-days", "#FF3B30"], messages: ["message-square", "#007AFF"], account: ["user-round", "#B5236F"], security: ["shield-check", "#B5236F"], users: ["user-cog", "#B5236F"], news: ["bell", "#F37222"] };
 const GREY = "#8A7E85";
 
 const images = {

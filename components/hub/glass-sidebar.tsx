@@ -6,6 +6,7 @@ import { Bot, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound 
 import { MiniLoader } from "@/components/brand-loader";
 import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
+import { LEGAL_PATHS } from "@/lib/legal-links";
 import { servicePackages } from "@/lib/service-packages";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { LogoMark } from "./logo-mark";
@@ -106,7 +107,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
             {meta && <span className="sidebar-account-meta" title={activePackages ? `Aktives Servicepaket: ${activePackages}` : undefined}><i aria-hidden="true" /><span>{activePackages && <span className="visually-hidden">Aktives Servicepaket: </span>}{meta}</span></span>}
           </span>
         </Link>
-        <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung und ${preview ? "Vorschau verlassen" : "Abmelden"}`} title="Konto" onClick={() => setMenuOpen((open) => !open)}>
+        <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung, ${preview ? "Vorschau verlassen" : "Abmelden"}, Impressum und Datenschutz`} title="Konto" onClick={() => setMenuOpen((open) => !open)}>
           {signingOut ? <MiniLoader size={18} /> : <Settings size={18} strokeWidth={2.2} aria-hidden="true" />}
         </button>
         {menuOpen && (
@@ -116,6 +117,12 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
             <Link role="menuitem" href={appearanceHref(preview)} onClick={() => setMenuOpen(false)}><Palette size={18} aria-hidden="true" />Darstellung</Link>
             <hr />
             <button type="button" role="menuitem" className="is-danger" onClick={() => { setMenuOpen(false); signOut(); }} disabled={signingOut}><LogOut size={18} aria-hidden="true" />{preview ? "Vorschau verlassen" : "Abmelden"}</button>
+            {/* Imprint and privacy policy two clicks from every hub page (§ 5 DDG, Art. 13 DSGVO). */}
+            <div className="sidebar-account-legal">
+              <Link role="menuitem" href={LEGAL_PATHS.imprint} onClick={() => setMenuOpen(false)}>Impressum</Link>
+              <span aria-hidden="true">·</span>
+              <Link role="menuitem" href={LEGAL_PATHS.privacy} onClick={() => setMenuOpen(false)}>Datenschutz</Link>
+            </div>
           </div>
         )}
       </div>

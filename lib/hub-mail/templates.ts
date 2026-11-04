@@ -68,11 +68,12 @@ const C = {
 // the very bottom, so the mail meets the plain body without an edge. Outlook for Windows shows the base colour.
 const CANVAS = `background-color:${C.canvas};background-image:linear-gradient(180deg,rgba(58,6,36,0) 78%,rgba(58,6,36,1) 100%),radial-gradient(circle at 0% 0%,rgba(126,0,75,0.95) 0%,rgba(126,0,75,0) 52%),radial-gradient(circle at 100% 42%,rgba(143,29,33,0.85) 0%,rgba(143,29,33,0) 50%),radial-gradient(circle at 35% 100%,rgba(180,64,15,0.9) 0%,rgba(180,64,15,0) 55%);`;
 
-type Area = "projects" | "files" | "calendar" | "account" | "security" | "users" | "news";
+type Area = "projects" | "files" | "calendar" | "messages" | "account" | "security" | "users" | "news";
 const AREAS: Record<Area, { label: string; text: string; dark: string }> = {
   projects: { label: "Projekte", text: "#7F2100", dark: "#FFC680" },
   files: { label: "Dateien", text: "#3533A1", dark: "#BDBCFF" },
   calendar: { label: "Kalender", text: "#800F0B", dark: "#FFB3AD" },
+  messages: { label: "Nachrichten", text: "#004285", dark: "#9CC7FF" },
   account: { label: "Konto", text: C.bordeaux, dark: "#F6A9CE" },
   security: { label: "Sicherheit", text: C.bordeaux, dark: "#F6A9CE" },
   users: { label: "User Management", text: C.bordeaux, dark: "#F6A9CE" },
@@ -685,6 +686,9 @@ const NOTICE_VIEWS: Record<string, NoticeView> = {
   "appointment.changed": { area: "calendar", label: "Termin", prefix: "Termin verschoben: ", heading: "Dein Termin wurde verschoben", lead: "Ein Termin findet zu einer neuen Zeit statt.", cta: "Termin im Hub ansehen", link: "Termin ansehen", chip: ["Neue Zeit", "todo"], note: { tone: "todo", text: "Trag dir die neue Zeit ein. Passt sie nicht, antworte einfach auf diese E-Mail." } },
   "appointment.cancelled": { area: "calendar", label: "Termin", prefix: "Termin abgesagt: ", heading: "Dein Termin wurde abgesagt", lead: "Ein Termin fällt aus.", cta: "Neuen Termin anfragen", link: "Kalender öffnen", chip: ["Abgesagt", "bad"], note: { tone: "info", text: "Du musst nichts tun. Einen neuen Termin kannst du jederzeit im Kalender anfragen." } },
   "appointment.declined": { area: "calendar", label: "Terminanfrage", prefix: "Terminanfrage abgelehnt: ", heading: "Deine Terminanfrage wurde abgelehnt", lead: "Dein oalab-Team kann den angefragten Termin leider nicht wahrnehmen.", cta: "Neuen Termin anfragen", link: "Kalender öffnen", chip: ["Abgelehnt", "off"], note: { tone: "info", text: "Frag gern einen anderen Termin im Kalender an oder antworte einfach auf diese E-Mail." } },
+  // The private chat (4.11.2026): to the admins when a customer writes, to the customer when oalab answers.
+  "chat.message": { area: "messages", label: "Privater Chat", prefix: "", heading: "Ein Kunde hat geschrieben", lead: "Im privaten Chat des Client Hub wartet eine Nachricht auf euch.", cta: "Chat öffnen", link: "Chat öffnen", chip: ["Wartet auf Antwort", "todo"], note: { tone: "team", text: "Antworte direkt im Client Hub unter Nachrichten. Diese E-Mail kommt nur, solange niemand aus dem Team den Chat gelesen hat." } },
+  "chat.reply": { area: "messages", label: "Nachricht", prefix: "", heading: "Neue Nachricht von oalab", lead: "Dein oalab-Team hat dir im Client Hub geschrieben.", cta: "Nachricht lesen", link: "Nachricht lesen", note: { tone: "info", text: "Antworte einfach im Client Hub unter Nachrichten." } },
 };
 const OTHER_NOTICE: NoticeView = { area: "news", label: "Neuigkeit", prefix: "", heading: "Neu im Client Hub", lead: "Im Client Hub gibt es etwas Neues für dich.", cta: "Im Client Hub ansehen", link: "Ansehen", note: { tone: "info", text: "Mehr dazu findest du im Client Hub." } };
 const NOTICE_REASON = "Du bekommst diese E-Mail, weil im oalab Client Hub etwas für dich neu ist. Abschalten kannst du sie im Hub unter „Profil“.";
@@ -721,13 +725,17 @@ export function noticeDigestMail(input: { firstName?: string; items: MailNotice[
 
   const tasks = input.items.filter((item) => item.kind === "task.customer").length;
   const waiting = tasks === 1 ? "Eine Aufgabe wartet auf dich" : `${tasks} Aufgaben warten auf dich`;
+  // Admins get only chat messages: several customers who wait for an answer.
+  const chats = input.items.filter((item) => item.kind === "chat.message").length;
   const first = input.items[0]?.title ?? "";
   return render({
     subject: `Neu im Client Hub: ${count} Neuigkeiten`,
     preheader: `${first} – und ${count - 1} weitere`,
     area: "news",
     heading: `${count} Neuigkeiten für dich`,
-    lead: `Im Client Hub hat sich einiges getan.${tasks ? ` ${waiting}${tasks < count ? ", der Rest ist zur Info." : "."}` : " Alles hier ist zur Info."}`,
+    lead: chats
+      ? `Im privaten Chat des Client Hub ${chats === 1 ? "wartet ein Kunde" : `warten ${chats} Kunden`} auf eine Antwort.`
+      : `Im Client Hub hat sich einiges getan.${tasks ? ` ${waiting}${tasks < count ? ", der Rest ist zur Info." : "."}` : " Alles hier ist zur Info."}`,
     list: input.items.map((item) => {
       const view = viewOf(item);
       const url = safeUrl(item.url ?? "");
