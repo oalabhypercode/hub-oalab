@@ -72,8 +72,10 @@ function lastLine(chat: PrivateChatSummary) {
  * from the Asset Management, answer in it and write to a customer first through the pen. Real logins read the
  * database; the preview, the public demo and the demo logins show examples whose new messages stay in this window.
  */
-export function PrivateChats({ admin, preview, firstName, company, now, state, tabs }: {
+export function PrivateChats({ admin, freelancer = false, preview, firstName, company, now, state, tabs }: {
   admin: boolean; preview: boolean; firstName: string; company?: string; now: Date; state?: PrivateChatState; tabs?: (unread: number) => ReactNode;
+  /** Freelancers write with oalab like a customer, but have nothing to ask on the service platform. */
+  freelancer?: boolean;
 }) {
   const fixtures = useMemo(() => state ? null : demoPrivateChats({ firstName, company: company ?? null, admin }), [state, firstName, company, admin]);
   const initial = state ?? fixtures!.state;
@@ -196,7 +198,7 @@ export function PrivateChats({ admin, preview, firstName, company, now, state, t
               ? list.some((item) => item.lastAt) ? "Keine Chats für diese Suche." : "Noch keine privaten Chats. Über den Stift oben schreibst du einen Kunden an."
               : "Dein Login gehört noch zu keiner Firma. Sobald oalab ihn zuordnet, steht hier euer Chat."}</p>
           )}
-          {!admin && (
+          {!admin && !freelancer && (
             <div className="chat-service">
               <span className="chat-service-icon" aria-hidden="true"><Wrench size={18} /></span>
               <div>

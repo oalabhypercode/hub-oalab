@@ -1,6 +1,6 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { ServicePackageId } from "@/lib/service-packages";
-import type { AccountStatus, DisplayStatus, HubRole } from "./rules";
+import type { AccountStatus, CustomerKind, DisplayStatus, HubRole } from "./rules";
 
 /** A login as the user management lists it: Supabase Auth data merged with its profile and customers. */
 export type ManagedUser = {
@@ -52,6 +52,10 @@ export type ManagedCustomer = {
   memberIds: string[];
   /** The same logo as in the asset management; without one the letters stand there. */
   logo?: CustomerLogo | null;
+  /** A customer or a freelancer; "customer" while the freelancer migration is missing. */
+  kind: CustomerKind;
+  /** Customers: the freelancers who look after them. Freelancers: the customers they look after. */
+  linkedIds: string[];
 };
 
 export type ManagedEvent = {
@@ -70,6 +74,9 @@ export type UserManagementState = {
   /** Admin actions and sent mails, newest first. */
   events: ManagedEvent[];
   nextCustomerNumber: string;
+  nextFreelancerNumber: string;
+  /** Freelancers can be managed: the database knows them (migration 202611040002 in service-oalab). */
+  freelancers: boolean;
   /** False while the SMTP access is missing: mails are only logged (test mode). */
   mailConfigured: boolean;
   error?: string;

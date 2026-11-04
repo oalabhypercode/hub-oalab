@@ -3,10 +3,37 @@
  * status a login shows. Self-contained (no imports), so the browser form, the server and `node --test` share it.
  */
 
-export const hubRoles = ["oalab_customer", "oalab_admin"] as const;
+export const hubRoles = ["oalab_customer", "oalab_freelancer", "oalab_admin"] as const;
 export type HubRole = (typeof hubRoles)[number];
-export const roleLabels: Record<HubRole, string> = { oalab_customer: "Kunde", oalab_admin: "Admin" };
+export const roleLabels: Record<HubRole, string> = { oalab_customer: "Kunde", oalab_freelancer: "Freelancer", oalab_admin: "Admin" };
 export const isHubRole = (value: unknown): value is HubRole => hubRoles.includes(value as HubRole);
+
+/**
+ * hub_customers.kind (since 4.11.2026): a customer, or a freelancer who looks after customers of oalab. A freelancer
+ * lives only in the hub: no Service organization, no access to the service platform. Its logins have the role
+ * oalab_freelancer, a customer's logins never (the database checks both).
+ */
+export const customerKinds = ["customer", "freelancer"] as const;
+export type CustomerKind = (typeof customerKinds)[number];
+export const isCustomerKind = (value: unknown): value is CustomerKind => customerKinds.includes(value as CustomerKind);
+/** The role a login gets at an entry of this kind. */
+export const roleForKind = (kind: CustomerKind): HubRole => kind === "freelancer" ? "oalab_freelancer" : "oalab_customer";
+/** The kind of entry a login with this role belongs to; admins belong to none. */
+export const kindForRole = (role: HubRole): CustomerKind | null => role === "oalab_freelancer" ? "freelancer" : role === "oalab_customer" ? "customer" : null;
+
+/** Freelancer numbers are "FL-" and 4 to 20 capitals or digits, so they never look like a customer's "OA-". Null when it fits. */
+export function freelancerNumberRefusal(number: string) {
+  return /^FL-[A-Z0-9]{4,20}$/.test(number) ? null : "Freelancer-Nummern beginnen mit „FL-“ und haben danach 4 bis 20 Großbuchstaben oder Ziffern, z. B. FL-48213.";
+}
+
+/** A free number with the prefix and a random number from 10000 to 99999 (the rule of 29.10.2026), null after 50 tries. */
+export function randomFreeNumber(prefix: "OA" | "FL", taken: ReadonlySet<string>, random: () => number = Math.random) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const number = `${prefix}-${10000 + Math.floor(random() * 90000)}`;
+    if (!taken.has(number)) return number;
+  }
+  return null;
+}
 
 /** Stored in hub_profiles.status. */
 export const accountStatuses = ["pending", "active", "disabled", "rejected"] as const;

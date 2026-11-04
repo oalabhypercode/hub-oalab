@@ -25,7 +25,7 @@ test("the bubble's lines follow Ali's words", () => {
 
 test("customers get Ali in the welcome card, admins keep their card", async () => {
   const overview = await source("components/hub/screens/overview.tsx");
-  assert.match(overview, /\{account\.admin\s+\? <div className="section-first welcome-row"><WelcomeCard account=\{account\} initials=\{initials\} logo=\{logo\} \/><ServiceCard account=\{account\} \/><\/div>\s+: <div className="section-first welcome-row has-host"><WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/><ServiceCard account=\{account\} \/><\/div>\}/);
+  assert.match(overview, /\{account\.admin\s+\? <div className="section-first welcome-row"><WelcomeCard account=\{account\} initials=\{initials\} logo=\{logo\} \/><ServiceCard account=\{account\} \/><\/div>\s+: <div className="section-first welcome-row has-host"><WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/>\{account\.freelancer\s+\? <FreelancerCard [^\n]+\s+: <ServiceCard account=\{account\} \/>\}<\/div>\}/);
   const layout = await source("app/layout.tsx");
   assert.doesNotMatch(layout, /hostInlineScript/, "no pre-paint mark: Ali plays on every visit");
   assert.match(layout, /import "\.\/glass\.css";\r?\nimport "\.\/welcome-host\.css";/);
@@ -40,7 +40,7 @@ test("the company has its own row under Ali's bubble, with its logo as a plate o
   const stage = await source("components/hub/welcome-stage.tsx");
   assert.match(stage, /<div className="welcome-company-row">\r?\n\s*\{account\.company && <LogoMark logo=\{logo\} initials=\{companyInitials\(account\.company\)\} className="avatar welcome-company-logo" plate \/>\}/);
   assert.match(stage, /<dt className="visually-hidden">Unternehmen<\/dt><dd className="welcome-company">\{account\.company \?\? "Noch nicht zugeordnet"\}<\/dd>/);
-  assert.match(stage, /<div className="welcome-company-number"><dt>Kundennummer<\/dt><dd className="numeric">\{account\.customerNumber \?\? "–"\}<\/dd><\/div>/);
+  assert.match(stage, /<div className="welcome-company-number"><dt>\{account\.freelancer \? "Freelancer-Nr\." : "Kundennummer"\}<\/dt><dd className="numeric">\{account\.customerNumber \?\? "–"\}<\/dd><\/div>/);
   const mark = await source("components/hub/logo-mark.tsx");
   assert.match(mark, /className=\{`\$\{className\} has-logo\$\{plate \? " is-plate" : ""\}`\}/, "a plate keeps the tile's ground");
   const css = await source("app/welcome-host.css");

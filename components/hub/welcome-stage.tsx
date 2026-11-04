@@ -85,7 +85,7 @@ export function WelcomeStage({ account, logo = null }: { account: HubAccount; lo
         {account.company && <LogoMark logo={logo} initials={companyInitials(account.company)} className="avatar welcome-company-logo" plate />}
         <dl className="welcome-company-text">
           <div><dt className="visually-hidden">Unternehmen</dt><dd className="welcome-company">{account.company ?? "Noch nicht zugeordnet"}</dd></div>
-          <div className="welcome-company-number"><dt>Kundennummer</dt><dd className="numeric">{account.customerNumber ?? "–"}</dd></div>
+          <div className="welcome-company-number"><dt>{account.freelancer ? "Freelancer-Nr." : "Kundennummer"}</dt><dd className="numeric">{account.customerNumber ?? "–"}</dd></div>
         </dl>
       </div>
       {!account.company && <p className="t-footnote t-secondary welcome-note">Dein Projektteam ordnet deinen Zugang einem Unternehmen zu. Danach siehst du hier auch deine Kundennummer.</p>}

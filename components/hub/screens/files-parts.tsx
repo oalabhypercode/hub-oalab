@@ -22,14 +22,14 @@ export function CategoryDot({ category }: { category: FileCategory }) {
 }
 
 /** Checkbox list of customers, searchable by customer number or company. */
-export function CustomerPicker({ customers, selected, onChange, idPrefix, emptyHint = "Ohne Zuordnung landet die Datei in der Ablage" }: { customers: HubFileCustomer[]; selected: string[]; onChange: (ids: string[]) => void; idPrefix: string; emptyHint?: string }) {
+export function CustomerPicker({ customers, selected, onChange, idPrefix, emptyHint = "Ohne Zuordnung landet die Datei in der Ablage", legend = "Kunden zuordnen" }: { customers: HubFileCustomer[]; selected: string[]; onChange: (ids: string[]) => void; idPrefix: string; emptyHint?: string; legend?: string }) {
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
   const shown = customers.filter((customer) => `${customer.customerNumber} ${customer.company}`.toLowerCase().includes(term));
   const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
   return (
     <fieldset className="customer-picker">
-      <legend>Kunden zuordnen <span>{selected.length ? `${selected.length} ausgewählt` : emptyHint}</span></legend>
+      <legend>{legend} <span>{selected.length ? `${selected.length} ausgewählt` : emptyHint}</span></legend>
       {customers.length > 6 && <label className="search-input customer-picker-search"><Search size={16} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kundennummer oder Firma" aria-label="Kunden durchsuchen" /></label>}
       <ul>
         {shown.map((customer) => (

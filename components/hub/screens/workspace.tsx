@@ -35,11 +35,11 @@ export function CategoryMetrics({ model, category }: Pick<ScreenProps, "model"> 
   return <div className="metric-grid section-first">{metrics.map((id) => <MetricCard key={id} metric={model.metrics[id]} />)}</div>;
 }
 
-export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps) {
+export function DiscoverScreen({ model, preview, populated, admin, freelancer }: ScreenProps) {
   const { openPanel, manageUsers } = useHubShell();
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
-  const shownCategories = categoryOrder.filter((id) => categoryLabel(id, admin).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
+  const shownCategories = categoryOrder.filter((id) => !(freelancer && id === "projects")).filter((id) => categoryLabel(id, admin || freelancer).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
   const shownMetrics = term && populated ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const showInsights = sectionLabels.insights.toLowerCase().includes(term);
   return (
@@ -61,7 +61,7 @@ export function DiscoverScreen({ model, preview, populated, admin }: ScreenProps
       <SectionHeader title="Bereiche" />
       {shownCategories.length ? (
         <InsetGroupedList label="Bereiche" className="list-icons">
-          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin)} />)}
+          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />)}
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}
       {/* The tab bar has no room for them, so phones reach the user management and the AI log from here. */}

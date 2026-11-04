@@ -47,6 +47,33 @@ export async function notifyCustomers(customerIds: string[], notice: Notice) {
   }
 }
 
+/**
+ * A file at these customers: their logins get the notice unless it is only for the freelancers, and the freelancers
+ * who look after a customer unless it is only for the customer. `only` narrows it to the side that newly sees the
+ * file (a changed "Sichtbar für"). Without the freelancer migration everything goes to the customers, as before.
+ */
+export async function notifyFileShared(fileId: string, customerIds: string[], notice: Notice, only: { customer: boolean; freelancer: boolean } = { customer: true, freelancer: true }) {
+  const db = createAdminClient();
+  if (!db || !customerIds.length) return;
+  try {
+    const [assignments, links] = await Promise.all([
+      db.from("hub_file_assignments").select("customer_id, audience").eq("file_id", fileId).in("customer_id", customerIds).returns<{ customer_id: string; audience: string }[]>(),
+      db.from("hub_freelancer_customers").select("freelancer_id, customer_id").in("customer_id", customerIds).returns<{ freelancer_id: string; customer_id: string }[]>(),
+    ]);
+    if (assignments.error || links.error) {
+      if (only.customer) await insertNotices(db, await customerLogins(db, customerIds), notice);
+      return;
+    }
+    const audienceOf = new Map((assignments.data ?? []).map((row) => [row.customer_id, row.audience]));
+    const forCustomers = only.customer ? customerIds.filter((id) => audienceOf.get(id) !== "freelancer") : [];
+    const freelancers = only.freelancer ? [...new Set((links.data ?? []).filter((link) => audienceOf.get(link.customer_id) !== "customer").map((link) => link.freelancer_id))] : [];
+    const recipients = new Set([...(await customerLogins(db, forCustomers)), ...(await customerLogins(db, freelancers))]);
+    await insertNotices(db, [...recipients], notice);
+  } catch {
+    // The action succeeded; the bell simply misses this one.
+  }
+}
+
 /** Admins who can sign in and act: the admin role and an active profile; the demo logins stay out. */
 async function activeAdminLogins(db: SupabaseClient) {
   const admins = (await listAllUsers(db)).filter((user) => roleOf(user) === "oalab_admin" && !isDemoUser(user)).map((user) => user.id);

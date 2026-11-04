@@ -7,7 +7,7 @@ import type { ServicePackageId } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { newCustomerNumber } from "@/lib/hub-assistant/customers";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
-import { displayStatus, isAccountStatus, isHubRole, servicePackageIds, type HubRole } from "./rules";
+import { displayStatus, isAccountStatus, isCustomerKind, isHubRole, randomFreeNumber, servicePackageIds, type CustomerKind, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
 import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
@@ -101,7 +101,29 @@ export async function listAllUsers(db: SupabaseClient) {
   }
 }
 
-const emptyState: UserManagementState = { users: [], customers: [], events: [], nextCustomerNumber: "", mailConfigured: false };
+const emptyState: UserManagementState = { users: [], customers: [], events: [], nextCustomerNumber: "", nextFreelancerNumber: "", freelancers: false, mailConfigured: false };
+
+type LinkRow = { freelancer_id: string; customer_id: string };
+
+/**
+ * Kinds of all entries and the freelancer links, read on their own: before the freelancer migration both are missing,
+ * and the user management then simply knows no freelancers instead of failing.
+ */
+export async function loadFreelancerLinks(db: SupabaseClient) {
+  const [kinds, links] = await Promise.all([
+    db.from("hub_customers").select("id, kind").returns<{ id: string; kind: string }[]>(),
+    db.from("hub_freelancer_customers").select("freelancer_id, customer_id").returns<LinkRow[]>(),
+  ]);
+  const ready = !kinds.error && !links.error;
+  const kindById = new Map<string, CustomerKind>(ready ? (kinds.data ?? []).map((row) => [row.id, isCustomerKind(row.kind) ? row.kind : "customer"]) : []);
+  const rows = ready ? links.data ?? [] : [];
+  return {
+    ready,
+    kindOf: (id: string): CustomerKind => kindById.get(id) ?? "customer",
+    /** Customers: their freelancers; freelancers: their customers. */
+    linkedIds: (id: string) => kindById.get(id) === "freelancer" ? rows.filter((row) => row.freelancer_id === id).map((row) => row.customer_id) : rows.filter((row) => row.customer_id === id).map((row) => row.freelancer_id),
+  };
+}
 
 type NotificationRow = { id: number; created_at: string; kind: string; user_id: string | null; status: string };
 const mailKinds: Record<string, string> = {
@@ -124,7 +146,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Konten verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events, notifications, organizations, logos] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
@@ -136,6 +158,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       db.from("organizations").select("customer_number").returns<{ customer_number: string }[]>(),
       // The customers' logos, the same as in the asset management; a failure only leaves the letters.
       loadCustomerLogos(db).catch(() => new Map<string, never>()),
+      loadFreelancerLinks(db),
     ]);
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
@@ -192,6 +215,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         createdAt: row.created_at,
         memberIds: memberships.filter((member) => member.customer_id === row.id).map((member) => member.user_id),
         logo: logos.get(row.id) ?? null,
+        kind: freelancerLinks.kindOf(row.id),
+        linkedIds: freelancerLinks.linkedIds(row.id),
       })),
       events: [
         ...(events.data ?? []).map((row): ManagedEvent => ({
@@ -216,6 +241,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       ].sort((a, b) => b.at.localeCompare(a.at)),
       // The rule of 29.10.2026: "OA-" and a random free number, so customers cannot tell how many there are.
       nextCustomerNumber: newCustomerNumber(new Set([...customerRows, ...(organizations.data ?? [])].map((row) => row.customer_number))) ?? "",
+      nextFreelancerNumber: randomFreeNumber("FL", new Set(customerRows.map((row) => row.customer_number))) ?? "",
+      freelancers: freelancerLinks.ready,
       mailConfigured: mailSettings().configured,
     };
   } catch {

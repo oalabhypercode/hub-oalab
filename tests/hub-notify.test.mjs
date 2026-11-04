@@ -235,13 +235,18 @@ test("the schedule needs its token, rows are written by the server and read only
   const actions = await source("lib/hub-notify/actions.ts");
   assert.match(actions, /^"use server";/);
   assert.doesNotMatch(actions, /createAdminClient/);
-  for (const file of ["lib/hub-calendar/actions.ts", "lib/hub-files/actions.ts"]) assert.match(await source(file), /await notifyCustomers\(/, file);
+  assert.match(await source("lib/hub-calendar/actions.ts"), /await notifyCustomers\(/);
+  // Files reach the customers and the freelancers who look after them, each as "Sichtbar für" allows.
+  assert.match(await source("lib/hub-files/actions.ts"), /await notifyFileShared\(/);
+  assert.match(server, /export async function notifyFileShared\(fileId: string, customerIds: string\[\], notice: Notice/);
+  assert.match(server, /const forCustomers = only\.customer \? customerIds\.filter\(\(id\) => audienceOf\.get\(id\) !== "freelancer"\) : \[\];/);
+  assert.match(server, /filter\(\(link\) => audienceOf\.get\(link\.customer_id\) !== "customer"\)/);
 });
 
 test("a file notice opens its file: the link names it and the files page opens what a link names", async () => {
   const actions = await source("lib/hub-files/actions.ts");
-  assert.match(actions, /notifyCustomers\(customerIds, fileNotice\(title, data\.id\)\)/);
-  assert.match(actions, /notifyCustomers\(added, fileNotice\(file\.data\.title, fileId\)\)/);
+  assert.match(actions, /notifyFileShared\(data\.id, customerIds, fileNotice\(title, data\.id\)\)/);
+  assert.match(actions, /notifyFileShared\(fileId, added, fileNotice\(file\.data\.title, fileId\)\)/);
   const files = await source("components/hub/screens/files.tsx");
   assert.match(files, /const linkedFile = useSearchParams\(\)\.get\("file"\);\s+const \[openId, setOpenId\] = useState<string \| null>\(\(\) => files\.some\(\(file\) => file\.id === linkedFile\) \? linkedFile : null\);/);
 });

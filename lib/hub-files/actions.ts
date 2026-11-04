@@ -1,11 +1,14 @@
 "use server";
 
 import { refreshWorkspace } from "@/lib/refresh-workspace";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName } from "./catalog";
+import { isFileAudience, type FileAudience } from "./types";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { fileNotice } from "@/lib/hub-notify/rules";
-import { notifyCustomers } from "@/lib/hub-notify/server";
+import { notifyFileShared } from "@/lib/hub-notify/server";
+import { verifyHubAdmin } from "@/lib/hub-users/server";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
 // Row Level Security in Supabase enforces the same rules a second time.
@@ -102,7 +105,7 @@ export async function finalizeUpload(input: FinalizeInput): Promise<ActionResult
       refreshWorkspace();
       return { ok: false, error: "Die Datei ist gespeichert, aber die Zuordnung ist fehlgeschlagen. Bitte die Zuordnung erneut setzen." };
     }
-    await notifyCustomers(customerIds, fileNotice(title, data.id));
+    await notifyFileShared(data.id, customerIds, fileNotice(title, data.id));
   }
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
@@ -127,10 +130,33 @@ export async function setFileAssignments(fileId: string, customerIds: string[]):
     const { error } = await supabase.from("hub_file_assignments").insert(added.map((customerId) => ({ file_id: fileId, customer_id: customerId })));
     if (error) return { ok: false, error: "Die Zuordnung konnte nicht geändert werden." };
     const file = await supabase.from("hub_files").select("title").eq("id", fileId).maybeSingle<{ title: string }>();
-    if (file.data) await notifyCustomers(added, fileNotice(file.data.title, fileId));
+    if (file.data) await notifyFileShared(fileId, added, fileNotice(file.data.title, fileId));
   }
   refreshWorkspace();
   return { ok: true, data: { count: wanted.length } };
+}
+
+/**
+ * Admin: who sees a file at one customer: the customer and their freelancers, only the customer or only the
+ * freelancers. Browsers may not write this column, so the server does it with the service role after checking the
+ * admin. Whoever newly sees the file gets a notice.
+ */
+export async function setFileAudience(fileId: string, customerId: string, audience: FileAudience): Promise<ActionResult<null>> {
+  if (!uuid.test(String(fileId ?? "")) || !uuid.test(String(customerId ?? "")) || !isFileAudience(audience)) return { ok: false, error: "Unbekannte Datei oder Auswahl." };
+  const db = await verifyHubAdmin() ? createAdminClient() : null;
+  if (!db) return denied;
+  const current = await db.from("hub_file_assignments").select("audience").eq("file_id", fileId).eq("customer_id", customerId).maybeSingle<{ audience: string }>();
+  if (current.error || !current.data) return { ok: false, error: current.error?.code === "42703" ? "„Sichtbar für“ ist in der Datenbank noch nicht eingerichtet." : "Die Datei liegt nicht mehr bei diesem Kunden." };
+  const { error } = await db.from("hub_file_assignments").update({ audience }).eq("file_id", fileId).eq("customer_id", customerId);
+  if (error) return { ok: false, error: "Die Sichtbarkeit konnte nicht gespeichert werden." };
+  const before = current.data.audience;
+  const newly = { customer: before === "freelancer" && audience !== "freelancer", freelancer: before === "customer" && audience !== "customer" };
+  if (newly.customer || newly.freelancer) {
+    const file = await db.from("hub_files").select("title").eq("id", fileId).maybeSingle<{ title: string }>();
+    if (file.data) await notifyFileShared(fileId, [customerId], fileNotice(file.data.title, fileId), newly);
+  }
+  refreshWorkspace();
+  return { ok: true, data: null };
 }
 
 /** Admin: a file's title, category and description. Customers get no notice for this. */

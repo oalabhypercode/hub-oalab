@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Ellipsis, Folder, Inbox, Link2, Pencil, Trash2, UserPlus } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Ellipsis, Eye, Folder, Inbox, Link2, Pencil, Trash2, UserPlus } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { createDownloadUrls, setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileCategory } from "@/lib/hub-files/catalog";
-import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
+import { fileAudiences, isFileAudience, type FileAudience, type HubFileCustomer, type HubFolder, type HubStoredFile } from "@/lib/hub-files/types";
+import { audienceLabels } from "./asset-freelancers";
 import { saveCustomerLogo } from "@/lib/hub-logos/actions";
 import { canBeLogo } from "@/lib/hub-logos/rules";
 import { AssetPanel } from "./asset-panel";
@@ -29,6 +30,12 @@ type DetailProps = {
   live: boolean;
   /** An admin with real data: edit, delete, change the customers, make an image the logo. */
   canAssign: boolean;
+  /** Whether the viewer files the file into a folder at this customer: admins everywhere, freelancers only at home. */
+  canFile: (customerId: string) => boolean;
+  /** A freelancer's view: only the customers they see, with "Nur für dich" at working files. */
+  freelancerView?: boolean;
+  /** Admins with freelancers in the database: who sees the file at a customer that has freelancers. */
+  onAudience?: (customerId: string, audience: FileAudience) => Promise<ActionResult<null>>;
   startAssigning: boolean;
   onMove: (customerId: string, folderId: string | null) => Promise<ActionResult<{ count: number }>>;
   /** Asks to delete this file; the Asset Management confirms it first. */
@@ -57,10 +64,10 @@ export function FilePanel({ onClose, ...props }: DetailProps & { onClose: () => 
   );
 }
 
-function FileDetails({ file, customers, folders, here, live, canAssign, startAssigning, onMove, onDelete, onNotice, editingDetails, onEditDetails }: DetailProps & { editingDetails: boolean; onEditDetails: (on: boolean) => void }) {
+function FileDetails({ file, customers, folders, here, live, canAssign, canFile, freelancerView = false, onAudience, startAssigning, onMove, onDelete, onNotice, editingDetails, onEditDetails }: DetailProps & { editingDetails: boolean; onEditDetails: (on: boolean) => void }) {
   const [editing, setEditing] = useState(startAssigning && canAssign);
   const [selected, setSelected] = useState(file.customers.map((customer) => customer.id));
-  const [busy, setBusy] = useState<"assign" | "move" | "logo" | null>(null);
+  const [busy, setBusy] = useState<"assign" | "move" | "logo" | "audience" | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const signOf = (customer: HubFileCustomer) => customers.find((item) => item.id === customer.id) ?? customer;
@@ -92,6 +99,15 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
     onNotice(`„${file.title}“ liegt bei ${customer.company} jetzt in „${folders.find((folder) => folder.id === folderId)?.name ?? "Ohne Ordner"}“.`);
   }
 
+  async function changeAudience(customer: HubFileCustomer, value: string) {
+    if (!onAudience || !isFileAudience(value)) return;
+    setBusy("audience");
+    setError("");
+    const result = await onAudience(customer.id, value);
+    setBusy(null);
+    if (!result.ok) setError(result.error);
+  }
+
   async function makeLogo(customer: HubFileCustomer) {
     setBusy("logo");
     setError("");
@@ -115,7 +131,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
     <FilePreview file={file} live={live} />
     <div className="am-panel-actions">
       <DownloadButton file={file} onError={setError} label className="sheet-action is-primary" />
-      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" title={copied ? "Link kopiert" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
+      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" title={copied ? "Link kopiert" : freelancerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
       {canAssign && <MoreMenu onDelete={onDelete} disabled={busy !== null} />}
     </div>
     {copied && <p className="am-help" role="status">Link kopiert. Wer ihn öffnet, sieht die Datei, wenn sein Login sie sehen darf.</p>}
@@ -131,7 +147,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
     )}
 
     <div className="am-field">
-      <span className="am-label">Freigegeben für
+      <span className="am-label">{freelancerView ? "Liegt bei" : "Freigegeben für"}
         {canAssign && !editing && <button type="button" className="am-label-action" onClick={() => setEditing(true)} disabled={busy !== null}><UserPlus size={13} aria-hidden="true" />Zuordnung ändern</button>}
       </span>
       {editing ? (
@@ -149,11 +165,28 @@ function FileDetails({ file, customers, folders, here, live, canAssign, startAss
             const sign = signOf(customer);
             const own = folders.filter((folder) => folder.customerId === customer.id);
             const folderId = file.folderIds[customer.id] ?? "";
+            const audience = file.audiences?.[customer.id] ?? "both";
+            // "Sichtbar für" matters only at customers that freelancers look after.
+            const served = Boolean(onAudience && sign.kind !== "freelancer" && sign.freelancerIds?.length);
+            const folderName = own.find((folder) => folder.id === folderId)?.name ?? "Ohne Ordner";
             return (
               <div key={customer.id} className="am-share-row">
                 <CustomerSign customer={sign} logo={sign.logo} />
-                <span className="am-share-name"><strong>{customer.company}</strong><span>{customer.customerNumber}{customer.id === here?.id ? " · hier geöffnet" : ""}</span></span>
-                {own.length ? (
+                <span className="am-share-name">
+                  <strong>{customer.company}</strong>
+                  <span>{customer.customerNumber}{customer.id === here?.id ? " · hier geöffnet" : ""}{freelancerView && audience === "freelancer" ? " · nur für dich" : ""}</span>
+                  {served && (
+                    <span className="am-mini am-audience">
+                      <Eye size={14} aria-hidden="true" />
+                      <select value={audience} onChange={(event) => changeAudience(customer, event.target.value)} disabled={busy !== null} aria-label={`Bei ${customer.company} sichtbar für`}>
+                        {fileAudiences.map((value) => <option key={value} value={value}>{audienceLabels[value]}</option>)}
+                      </select>
+                      <ChevronDown size={14} aria-hidden="true" />
+                    </span>
+                  )}
+                </span>
+                {!canFile(customer.id) ? <span className="am-mini is-static" title={`Ordner bei ${customer.company}`}><Folder size={14} aria-hidden="true" />{folderName}</span>
+                : own.length ? (
                   <span className="am-mini">
                     <Folder size={14} aria-hidden="true" />
                     <select value={folderId} onChange={(event) => move(customer, event.target.value)} disabled={busy !== null} aria-label={`Ordner bei ${customer.company}`}>

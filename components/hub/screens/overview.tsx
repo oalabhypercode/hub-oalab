@@ -5,19 +5,21 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, Check, CircleMinus, CirclePlus } from "lucide-react";
 import { categories, categoryLabel } from "@/lib/categories";
 import { formatDeadline, hubHref, type HubSection } from "@/lib/hub-data";
+import { formatFileDay } from "@/lib/hub-files/catalog";
 import { customerSteps } from "@/lib/hub-projects/map";
 import { metricOrder, type MetricId } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
-import { HighlightCard, InsightsCard, MetricCard, MetricCardStatic, ServiceCard, WelcomeCard } from "../cards";
+import { FreelancerCard, HighlightCard, InsightsCard, MetricCard, MetricCardStatic, ServiceCard, WelcomeCard } from "../cards";
 import { CategoryIcon, GlassCard, SectionHeader, SectionLink, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
 import { WelcomeStage } from "../welcome-stage";
+import { FileIcon } from "./files-parts";
 import type { ScreenProps } from "./types";
 
-export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin, projects, liveProjects }: ScreenProps) {
+export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin, projects, liveProjects, fileState, asOf }: ScreenProps) {
   const { account, initials, logo } = useHubShell();
   const [editing, setEditing] = useState(false);
   const available = metricOrder.filter((id) => !favorites.isFavorite(id));
@@ -27,7 +29,9 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
       <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
       {account.admin
         ? <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} logo={logo} /><ServiceCard account={account} /></div>
-        : <div className="section-first welcome-row has-host"><WelcomeStage account={account} logo={logo} preview={preview} /><ServiceCard account={account} /></div>}
+        : <div className="section-first welcome-row has-host"><WelcomeStage account={account} logo={logo} preview={preview} />{account.freelancer
+          ? <FreelancerCard customers={fileState.customers.filter((customer) => customer.kind !== "freelancer").length} href={hubHref(preview, "files")} />
+          : <ServiceCard account={account} />}</div>}
       {populated ? <>
         {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
 
@@ -83,11 +87,30 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
             {model.activity.map((item) => <ListRow key={item.id} href={item.href} compact icon={<CategoryIcon category={item.category} size={22} />} title={item.title} subtitle={item.detail} />)}
           </InsetGroupedList>
         </>}
-      </> : liveProjects?.error ? <LoadNotice text={liveProjects.error} />
+      </> : account.freelancer ? <FreelancerOverview preview={preview} fileState={fileState} asOf={asOf} />
+      : liveProjects?.error ? <LoadNotice text={liveProjects.error} />
       : projects.length ? <LiveOverview preview={preview} admin={admin} model={model} projects={projects} />
       : <EmptyState section="overview" />}
     </>
   );
+}
+
+/**
+ * Freelancers have no projects: their overview shows the newest files at their customers and from oalab, each with
+ * where it lies, and leads into their asset management.
+ */
+function FreelancerOverview({ preview, fileState, asOf }: Pick<ScreenProps, "preview" | "fileState" | "asOf">) {
+  const ownId = fileState.freelancer?.ownId ?? null;
+  const recent = fileState.files.slice(0, 6);
+  const where = (customerIds: string[]) => customerIds.includes(ownId ?? "") ? "Meine Dateien" : fileState.customers.find((customer) => customerIds.includes(customer.id))?.company ?? "";
+  return <>
+    <SectionHeader title="Neue Dateien" action={<SectionLink href={hubHref(preview, "files")}>Alle anzeigen</SectionLink>} />
+    {fileState.error ? <LoadNotice text={fileState.error} /> : recent.length ? (
+      <InsetGroupedList label="Neue Dateien">
+        {recent.map((file) => <ListRow key={file.id} href={`${hubHref(preview, "files")}?file=${encodeURIComponent(file.id)}`} compact icon={<FileIcon file={file} size={20} />} title={file.title} subtitle={[where(file.customers.map((customer) => customer.id)), formatFileDay(file.createdAt, asOf)].filter(Boolean).join(" · ")} />)}
+      </InsetGroupedList>
+    ) : <GlassCard className="empty-card"><p className="t-headline">Noch keine Dateien.</p><p className="t-subheadline t-secondary">Sobald oalab dir Kunden zuordnet oder Dateien für dich bereitstellt, erscheinen sie hier und im Asset Management.</p></GlassCard>}
+  </>;
 }
 
 /** Real logins with Studio projects: what waits for the customer and how the running projects stand. */

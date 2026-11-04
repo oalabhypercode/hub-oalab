@@ -26,7 +26,7 @@ const POLL_MS = 15_000;
  * platform. Admins have two tabs: "Privat" with every customer's private chat to answer, and "Service" with the service
  * platform's conversations to follow along, as before.
  */
-export function ConversationsScreen({ preview, admin, firstName, company, asOf, conversations, privateChats }: ScreenProps & { conversations?: ConversationsState; privateChats?: PrivateChatState }) {
+export function ConversationsScreen({ preview, admin, freelancer, firstName, company, asOf, conversations, privateChats }: ScreenProps & { conversations?: ConversationsState; privateChats?: PrivateChatState }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -43,7 +43,7 @@ export function ConversationsScreen({ preview, admin, firstName, company, asOf, 
       <LargeTitleHeader title="Nachrichten" icon={<CategoryTitle category="messages" />} actions={<HeaderActions />} />
       {tab === "service"
         ? <ServiceConversations key="service" now={now} state={conversations} tabs={tabs?.(privateUnread)} />
-        : <PrivateChats key="private" admin={admin} preview={preview} firstName={firstName} company={company} now={now} state={privateChats} tabs={tabs} />}
+        : <PrivateChats key="private" admin={admin} freelancer={freelancer} preview={preview} firstName={firstName} company={company} now={now} state={privateChats} tabs={tabs} />}
     </>
   );
 }

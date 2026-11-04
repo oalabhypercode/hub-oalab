@@ -5,14 +5,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { authMessage } from "./messages";
 import { hasMailbox, maskEmail, readMailCode } from "./mail-code";
-import { hasConfirmedApp, secondFactorMethod, type SecondFactorChoice } from "./second-factor";
+import { hasConfirmedApp, secondFactorMethod, secondFactorRequired, type SecondFactorChoice } from "./second-factor";
 
 // The profile card „Zwei-Faktor-Schutz“: every login picks off, the code by e-mail or an authenticator app. Changes
 // need a session that has passed the login's current second factor, so a password alone never weakens it. The choice
 // lives in app_metadata (only the service role writes it); the app is a Supabase MFA factor. Leaving the app removes
 // it, or Supabase Auth would keep asking for it (e.g. for a new password).
 
-export type SecondFactorStatus = { choice: SecondFactorChoice; email: string; mailbox: boolean };
+/** `required`: the login may not switch the protection off (freelancers). */
+export type SecondFactorStatus = { choice: SecondFactorChoice; email: string; mailbox: boolean; required: boolean };
 export type AppSetup = { mode: "confirm" } | { mode: "enroll"; factorId: string; qrCode: string; secret: string };
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -48,7 +49,7 @@ export async function getSecondFactorStatus(): Promise<Result<SecondFactorStatus
   const login = await confirmedLogin();
   if (!login) return failed("Der Zwei-Faktor-Schutz lässt sich nur mit einem echten Konto einstellen.");
   const email = login.user.email ?? "";
-  return { ok: true, data: { choice: login.method ?? "off", email: maskEmail(email), mailbox: hasMailbox(email) } };
+  return { ok: true, data: { choice: login.method ?? "off", email: maskEmail(email), mailbox: hasMailbox(email), required: secondFactorRequired(login.user.app_metadata) } };
 }
 
 /** Off or the code by e-mail. A set-up app is removed. */
@@ -58,6 +59,7 @@ export async function chooseSecondFactor(input: { choice: "off" | "email" }): Pr
   if (!login.confirmed) return notConfirmed;
   const choice = input?.choice === "email" ? "email" : input?.choice === "off" ? "off" : null;
   if (!choice) return failed("Bitte wähle eine Methode.");
+  if (choice === "off" && secondFactorRequired(login.user.app_metadata)) return failed("Als Freelancer meldest du dich immer mit einem Code an, weil du die Dateien mehrerer Kunden siehst.");
   if (choice === "email" && !hasMailbox(login.user.email)) return failed("An deine Adresse kann kein Code zugestellt werden.");
   return (await saveChoice(login.user, choice)) ? { ok: true, data: null } : failed("Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.");
 }

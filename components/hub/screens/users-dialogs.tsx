@@ -3,17 +3,21 @@
 import { useState } from "react";
 import { AlertTriangle, Ban, Check, Copy, ImagePlus, KeyRound, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, setHubUserActive, setHubUserSecondFactor, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
+import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, saveFreelancer, setHubUserActive, setHubUserSecondFactor, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
 import type { MailStatus } from "@/lib/hub-mail/smtp";
-import { displayStatusLabels, roleLabels, servicePackageIds, suggestCustomer, type HubRole } from "@/lib/hub-users/rules";
+import { displayStatusLabels, kindForRole, roleLabels, servicePackageIds, suggestCustomer, type CustomerKind, type HubRole } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedEvent, ManagedUser } from "@/lib/hub-users/types";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import { servicePackages, type ServicePackageId } from "@/lib/service-packages";
 import { CustomerLogoDialog } from "../customer-logo-dialog";
 import { LogoMark, companyInitials } from "../logo-mark";
 import { Modal } from "../modal";
+import { CustomerPicker } from "./files-parts";
 
 export const fullName = (user: Pick<ManagedUser, "firstName" | "lastName" | "email">) => `${user.firstName} ${user.lastName}`.trim() || user.email;
+
+/** Entries for the tick list (number and name only). */
+const pickable = (entries: ManagedCustomer[]) => entries.map(({ id, customerNumber, company }) => ({ id, customerNumber, company }));
 
 /** One sentence for a mail that did not go out (or "" when it did). */
 export function mailStatusText(status: MailStatus | null) {
@@ -85,18 +89,23 @@ export const emptyDraft = (customerNumber: string, preset: Partial<CustomerDraft
   company: "", customerNumber, servicePackages: [], contactEmail: "", phone: "", website: "", street: "", postalCode: "", city: "", country: "Deutschland", ...preset,
 });
 
-/** Company, customer number, service packages, contact and address of one customer. */
-function CustomerFields({ draft, onChange, disabled, compact = false }: { draft: CustomerDraft; onChange: (draft: CustomerDraft) => void; disabled: boolean; compact?: boolean }) {
+/**
+ * Company, customer number, service packages, contact and address of one customer. A freelancer has a name (person or
+ * company) and an "FL-" number, but no service packages: they have no access to the service platform.
+ */
+function CustomerFields({ draft, onChange, disabled, compact = false, freelancer = false }: { draft: CustomerDraft; onChange: (draft: CustomerDraft) => void; disabled: boolean; compact?: boolean; freelancer?: boolean }) {
   const set = (key: keyof CustomerDraft) => (event: React.ChangeEvent<HTMLInputElement>) => onChange({ ...draft, [key]: event.target.value });
   const togglePackage = (id: ServicePackageId) => onChange({ ...draft, servicePackages: draft.servicePackages.includes(id) ? draft.servicePackages.filter((item) => item !== id) : [...draft.servicePackages, id] });
   return (
     <div className="upload-fields">
-      <label className="upload-field"><span>Unternehmen</span><input value={draft.company} onChange={set("company")} maxLength={200} required disabled={disabled} autoComplete="organization" /></label>
-      <label className="upload-field"><span>Kundennummer</span><input value={draft.customerNumber} onChange={set("customerNumber")} maxLength={40} required disabled={disabled} className="numeric" /></label>
-      <fieldset className="upload-field upload-field-wide package-checks" disabled={disabled}>
-        <legend>Servicepakete</legend>
-        {servicePackageIds.map((id) => <label key={id}><input type="checkbox" checked={draft.servicePackages.includes(id)} onChange={() => togglePackage(id)} />{servicePackages[id].name}</label>)}
-      </fieldset>
+      <label className="upload-field"><span>{freelancer ? "Name oder Firma" : "Unternehmen"}</span><input value={draft.company} onChange={set("company")} maxLength={200} required disabled={disabled} autoComplete="organization" /></label>
+      <label className="upload-field"><span>{freelancer ? "Freelancer-Nr." : "Kundennummer"}</span><input value={draft.customerNumber} onChange={set("customerNumber")} maxLength={40} required disabled={disabled} className="numeric" /></label>
+      {freelancer ? (compact && <label className="upload-field upload-field-wide"><span>Kontakt-E-Mail</span><input type="email" value={draft.contactEmail} onChange={set("contactEmail")} maxLength={254} disabled={disabled} placeholder="info@beispiel.de" /></label>) : (
+        <fieldset className="upload-field upload-field-wide package-checks" disabled={disabled}>
+          <legend>Servicepakete</legend>
+          {servicePackageIds.map((id) => <label key={id}><input type="checkbox" checked={draft.servicePackages.includes(id)} onChange={() => togglePackage(id)} />{servicePackages[id].name}</label>)}
+        </fieldset>
+      )}
       {!compact && <>
         <label className="upload-field"><span>Kontakt-E-Mail</span><input type="email" value={draft.contactEmail} onChange={set("contactEmail")} maxLength={254} disabled={disabled} placeholder="info@beispiel.de" /></label>
         <label className="upload-field"><span>Telefon</span><input type="tel" value={draft.phone} onChange={set("phone")} maxLength={40} disabled={disabled} /></label>
@@ -111,41 +120,76 @@ function CustomerFields({ draft, onChange, disabled, compact = false }: { draft:
 }
 
 type Choice = { mode: "existing" | "new"; customerId: string; draft: CustomerDraft };
-const choicePayload = (role: HubRole, choice: Choice) => role === "oalab_admin" ? { mode: "none" } : choice.mode === "existing" ? { mode: "existing", customerId: choice.customerId } : { mode: "new", customer: choice.draft };
+/** One choice per kind of entry, so switching between the roles keeps what was picked for each. */
+type Choices = Record<CustomerKind, Choice>;
 
-/** Role and, for customers, the customer: an existing one or a new one created on the spot. */
-function RoleAndCustomer({ role, onRole, choice, onChoice, customers, disabled, roleLocked = false }: {
-  role: HubRole; onRole: (role: HubRole) => void; choice: Choice; onChoice: (choice: Choice) => void; customers: ManagedCustomer[]; disabled: boolean; roleLocked?: boolean;
+/** Starts both choices: the login's own entry if it has one of that kind, else the first one, else a new one. */
+function startChoices(entries: ManagedCustomer[], numbers: Record<CustomerKind, string>, presets: Partial<Record<CustomerKind, Partial<CustomerDraft>>>, own?: string | null, preferNew = false): Choices {
+  const make = (kind: CustomerKind): Choice => {
+    const options = entries.filter((entry) => entry.kind === kind);
+    const current = own && options.some((entry) => entry.id === own) ? own : null;
+    return { mode: current || (options.length && !preferNew) ? "existing" : "new", customerId: current ?? options[0]?.id ?? "", draft: emptyDraft(numbers[kind], presets[kind]) };
+  };
+  return { customer: make("customer"), freelancer: make("freelancer") };
+}
+
+const choicePayload = (role: HubRole, choices: Choices) => {
+  const kind = kindForRole(role);
+  if (!kind) return { mode: "none" };
+  const choice = choices[kind];
+  return choice.mode === "existing" ? { mode: "existing", customerId: choice.customerId } : { mode: "new", customer: choice.draft };
+};
+
+const roleHints: Record<HubRole, string> = {
+  oalab_customer: "Sieht nur die Daten des zugeordneten Kunden.",
+  oalab_freelancer: "Sieht seine eigenen Dateien und die Dateien seiner Kunden, nur lesend. Kein Zugang zur Serviceplattform.",
+  oalab_admin: "Sieht alle Kunden und verwaltet Konten, Dateien und Termine.",
+};
+
+/** Role and, for customers and freelancers, the entry they belong to: an existing one or a new one created on the spot. */
+function RoleAndCustomer({ role, onRole, choices, onChoices, customers, disabled, roleLocked = false, freelancers }: {
+  role: HubRole; onRole: (role: HubRole) => void; choices: Choices; onChoices: (choices: Choices) => void; customers: ManagedCustomer[]; disabled: boolean; roleLocked?: boolean;
+  /** The database knows freelancers (their migration is applied). */
+  freelancers: boolean;
 }) {
+  const kind = kindForRole(role);
+  const roles: HubRole[] = freelancers || role === "oalab_freelancer" ? ["oalab_customer", "oalab_freelancer", "oalab_admin"] : ["oalab_customer", "oalab_admin"];
+  const options = kind ? customers.filter((entry) => entry.kind === kind) : [];
+  const choice = kind ? choices[kind] : null;
+  const setChoice = (next: Choice) => { if (kind) onChoices({ ...choices, [kind]: next }); };
+  const isFreelancer = kind === "freelancer";
   return (
     <div className="role-customer">
       <fieldset className="choice-group" disabled={disabled || roleLocked}>
         <legend>Rolle</legend>
-        {(["oalab_customer", "oalab_admin"] as const).map((item) => (
+        {roles.map((item) => (
           <label key={item} className="choice-option"><input type="radio" name="role" checked={role === item} onChange={() => onRole(item)} />
-            <span><strong>{roleLabels[item]}</strong><small>{item === "oalab_admin" ? "Sieht alle Kunden und verwaltet Konten, Dateien und Termine." : "Sieht nur die Daten des zugeordneten Kunden."}</small></span>
+            <span><strong>{roleLabels[item]}</strong><small>{roleHints[item]}</small></span>
           </label>
         ))}
       </fieldset>
       {role === "oalab_admin" && !roleLocked && <p className="field-warning"><AlertTriangle size={16} aria-hidden="true" />Admins sehen alle Kunden und dürfen Konten verwalten. Vergib diese Rolle nur an das oalab-Team.</p>}
-      {role === "oalab_customer" && <>
+      {isFreelancer && <p className="field-hint">Freelancer bestätigen jede Anmeldung mit einem Code per E-Mail. Welche Kunden sie betreuen, legst du im Reiter „Freelancer“ fest.</p>}
+      {kind && choice && <>
         <fieldset className="choice-group" disabled={disabled}>
-          <legend>Kunde</legend>
-          <label className="choice-option"><input type="radio" name="customer-mode" checked={choice.mode === "existing"} onChange={() => onChoice({ ...choice, mode: "existing" })} disabled={!customers.length} />
-            <span><strong>Bestehendem Kunden zuordnen</strong><small>{customers.length ? "Die Person sieht die Dateien, Termine und Projekte dieses Kunden." : "Es gibt noch keine Kunden."}</small></span>
+          <legend>{isFreelancer ? "Freelancer" : "Kunde"}</legend>
+          <label className="choice-option"><input type="radio" name="customer-mode" checked={choice.mode === "existing"} onChange={() => setChoice({ ...choice, mode: "existing" })} disabled={!options.length} />
+            <span><strong>{isFreelancer ? "Bestehendem Freelancer zuordnen" : "Bestehendem Kunden zuordnen"}</strong><small>{options.length
+              ? isFreelancer ? "Die Person sieht die Dateien dieses Freelancers und seiner Kunden." : "Die Person sieht die Dateien, Termine und Projekte dieses Kunden."
+              : isFreelancer ? "Es gibt noch keine Freelancer." : "Es gibt noch keine Kunden."}</small></span>
           </label>
-          <label className="choice-option"><input type="radio" name="customer-mode" checked={choice.mode === "new"} onChange={() => onChoice({ ...choice, mode: "new" })} />
-            <span><strong>Neuen Kunden anlegen</strong><small>Auch in Service, mit einer freien Kundennummer.</small></span>
+          <label className="choice-option"><input type="radio" name="customer-mode" checked={choice.mode === "new"} onChange={() => setChoice({ ...choice, mode: "new" })} />
+            <span><strong>{isFreelancer ? "Neuen Freelancer anlegen" : "Neuen Kunden anlegen"}</strong><small>{isFreelancer ? "Nur im Hub, mit einer freien FL-Nummer." : "Auch in Service, mit einer freien Kundennummer."}</small></span>
           </label>
         </fieldset>
-        {choice.mode === "existing" && customers.length > 0 && (
-          <label className="upload-field"><span>Kunde</span>
-            <select value={choice.customerId} onChange={(event) => onChoice({ ...choice, customerId: event.target.value })} disabled={disabled}>
-              {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customerNumber} · {customer.company}</option>)}
+        {choice.mode === "existing" && options.length > 0 && (
+          <label className="upload-field"><span>{isFreelancer ? "Freelancer" : "Kunde"}</span>
+            <select value={choice.customerId} onChange={(event) => setChoice({ ...choice, customerId: event.target.value })} disabled={disabled}>
+              {options.map((customer) => <option key={customer.id} value={customer.id}>{customer.customerNumber} · {customer.company}</option>)}
             </select>
           </label>
         )}
-        {choice.mode === "new" && <CustomerFields draft={choice.draft} onChange={(draft) => onChoice({ ...choice, draft })} disabled={disabled} compact />}
+        {choice.mode === "new" && <CustomerFields draft={choice.draft} onChange={(draft) => setChoice({ ...choice, draft })} disabled={disabled} compact freelancer={isFreelancer} />}
       </>}
     </div>
   );
@@ -186,14 +230,13 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 // Registration ------------------------------------------------------------------------------------------------------
 
 /** All details of a registration and the decision: approve with role and customer, or reject with a note. */
-export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }: { user: ManagedUser; customers: ManagedCustomer[]; nextNumber: string; onClose: () => void; onNotice: (message: string) => void }) {
-  const suggestion = suggestCustomer(user, customers);
+export function ReviewDialog({ user, customers, nextNumber, nextFreelancerNumber, freelancers, onClose, onNotice }: { user: ManagedUser; customers: ManagedCustomer[]; nextNumber: string; nextFreelancerNumber: string; freelancers: boolean; onClose: () => void; onNotice: (message: string) => void }) {
+  const suggestion = suggestCustomer(user, customers.filter((entry) => entry.kind === "customer"));
   const [role, setRole] = useState<HubRole>("oalab_customer");
-  const [choice, setChoice] = useState<Choice>({
-    mode: suggestion || (!user.companyName && customers.length) ? "existing" : "new",
-    customerId: suggestion?.id ?? customers[0]?.id ?? "",
-    draft: emptyDraft(nextNumber, { company: user.companyName, website: user.website, contactEmail: user.email, phone: user.phone }),
-  });
+  const [choices, setChoices] = useState<Choices>(() => startChoices(customers, { customer: nextNumber, freelancer: nextFreelancerNumber }, {
+    customer: { company: user.companyName, website: user.website, contactEmail: user.email, phone: user.phone },
+    freelancer: { company: user.companyName, website: user.website, contactEmail: user.email, phone: user.phone },
+  }, suggestion?.id, Boolean(user.companyName) && !suggestion));
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
   const [approved, setApproved] = useState<{ customerNumber: string | null; mail: MailStatus } | null>(null);
@@ -254,12 +297,12 @@ export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }:
         </div>
       ) : (
         <div className="decision">
-          <RoleAndCustomer role={role} onRole={setRole} choice={choice} onChoice={setChoice} customers={customers} disabled={busy !== null} />
+          <RoleAndCustomer role={role} onRole={setRole} choices={choices} onChoices={setChoices} customers={customers} disabled={busy !== null} freelancers={freelancers} />
           {!user.emailConfirmed && <p className="field-hint">Die E-Mail-Adresse ist noch nicht bestätigt. Anmelden kann sich die Person erst nach der Bestätigung.</p>}
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="file-assign-actions">
             {user.status === "pending" && <button type="button" className="sheet-button" onClick={() => setRejecting(true)} disabled={busy !== null}><X size={18} aria-hidden="true" />Ablehnen</button>}
-            <button type="button" className="sheet-button sheet-button-primary" disabled={busy !== null} onClick={() => run("approve", () => approveRegistration({ userId: user.id, role, customer: choicePayload(role, choice) }), (data) => { setApproved(data); onNotice(`${name} ist freigegeben.`); })}>{busy === "approve" ? <Spinner /> : <Check size={18} aria-hidden="true" />}Freigeben</button>
+            <button type="button" className="sheet-button sheet-button-primary" disabled={busy !== null} onClick={() => run("approve", () => approveRegistration({ userId: user.id, role, customer: choicePayload(role, choices) }), (data) => { setApproved(data); onNotice(`${name} ist freigegeben.`); })}>{busy === "approve" ? <Spinner /> : <Check size={18} aria-hidden="true" />}Freigeben</button>
           </div>
         </div>
       )}
@@ -270,16 +313,12 @@ export function ReviewDialog({ user, customers, nextNumber, onClose, onNotice }:
 // Logins ------------------------------------------------------------------------------------------------------------
 
 /** Creates a login (with activation link) or edits one: person data, role, customer, link, status and deletion. */
-export function UserDialog({ user, customers, nextNumber, events, mailConfigured, onClose, onNotice, onReview }: {
-  user?: ManagedUser; customers: ManagedCustomer[]; nextNumber: string; events: ManagedEvent[]; mailConfigured: boolean; onClose: () => void; onNotice: (message: string) => void; onReview: (userId: string) => void;
+export function UserDialog({ user, customers, nextNumber, nextFreelancerNumber, freelancers, events, mailConfigured, onClose, onNotice, onReview }: {
+  user?: ManagedUser; customers: ManagedCustomer[]; nextNumber: string; nextFreelancerNumber: string; freelancers: boolean; events: ManagedEvent[]; mailConfigured: boolean; onClose: () => void; onNotice: (message: string) => void; onReview: (userId: string) => void;
 }) {
   const [person, setPerson] = useState({ email: user?.email ?? "", firstName: user?.firstName ?? "", lastName: user?.lastName ?? "", phone: user?.phone ?? "", position: user?.position ?? "" });
   const [role, setRole] = useState<HubRole>(user?.role ?? "oalab_customer");
-  const [choice, setChoice] = useState<Choice>({
-    mode: user?.customerIds[0] || customers.length ? "existing" : "new",
-    customerId: user?.customerIds[0] ?? customers[0]?.id ?? "",
-    draft: emptyDraft(nextNumber, { company: user?.companyName ?? "" }),
-  });
+  const [choices, setChoices] = useState<Choices>(() => startChoices(customers, { customer: nextNumber, freelancer: nextFreelancerNumber }, { customer: { company: user?.companyName ?? "" } }, user?.customerIds[0]));
   // New logins get their activation link by mail unless the admin unticks it (or mail is not set up).
   const [mailLink, setMailLink] = useState(mailConfigured);
   const [link, setLink] = useState<{ link: string | null; activation: boolean; mail: MailStatus | null } | null>(null);
@@ -316,8 +355,9 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
   }
 
   const save = () => user
-    ? run("save", () => updateHubUser({ userId: user.id, ...person, role, customer: choicePayload(role, choice) }), () => { onNotice(`Änderungen an ${fullName({ ...user, ...person })} gespeichert.`); onClose(); })
-    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choice), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Konto für ${person.firstName} ${person.lastName} angelegt.`); });
+    ? run("save", () => updateHubUser({ userId: user.id, ...person, role, customer: choicePayload(role, choices) }), () => { onNotice(`Änderungen an ${fullName({ ...user, ...person })} gespeichert.`); onClose(); })
+    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choices), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Konto für ${person.firstName} ${person.lastName} angelegt.`); });
+  const freelancerLogin = (user?.role ?? role) === "oalab_freelancer";
 
   return (
     <Modal title={user ? fullName(user) : "Konto anlegen"} onClose={onClose} className="users-modal">
@@ -331,7 +371,7 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
           <label className="upload-field"><span>Telefon</span><input type="tel" value={person.phone} onChange={set("phone")} maxLength={40} disabled={disabled} autoComplete="off" /></label>
           <label className="upload-field"><span>Position</span><input value={person.position} onChange={set("position")} maxLength={80} disabled={disabled} autoComplete="off" /></label>
         </div>
-        <RoleAndCustomer role={role} onRole={setRole} choice={choice} onChoice={setChoice} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} />
+        <RoleAndCustomer role={role} onRole={setRole} choices={choices} onChoices={setChoices} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} freelancers={freelancers} />
         {user?.self && <p className="field-hint">Deine eigene Rolle kannst du nicht ändern.</p>}
         {!user && <>
           <label className="check-row"><input type="checkbox" checked={mailConfigured && mailLink} onChange={(event) => setMailLink(event.target.checked)} disabled={disabled || !mailConfigured} />Aktivierungslink per E-Mail an die Person senden</label>
@@ -348,14 +388,16 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
               const choice = event.target.value === "email" ? "email" : "off";
               run("secondFactor", () => setHubUserSecondFactor({ userId: user.id, choice }), () => { setSecondFactor(choice); onNotice(choice === "email" ? `${fullName(user)} bestätigt jede Anmeldung jetzt mit einem Code per E-Mail.` : `Zwei-Faktor-Schutz für ${fullName(user)} ausgeschaltet.`); });
             }}>
-              <option value="off">Aus</option>
+              {!freelancerLogin && <option value="off">Aus</option>}
               <option value="email">Code per E-Mail</option>
               {secondFactor === "totp" && <option value="totp" disabled>Authenticator-App (von der Person eingerichtet)</option>}
             </select>
           </label>
-          <p className="field-hint">{secondFactor === "totp"
-            ? "Die Person bestätigt jede Anmeldung mit ihrer Authenticator-App. Stellst du auf E-Mail oder Aus, wird die App entfernt, etwa nach einem verlorenen Handy."
-            : `Die Person wählt die Methode selbst im Profil, auch eine Authenticator-App. Der Code per E-Mail geht an ${user.email} und gilt ab der nächsten Seite, auch auf der Serviceplattform. Team-Konten fragt die Serviceplattform ohnehin nach einem Code.`}</p>
+          <p className="field-hint">{freelancerLogin
+            ? `Freelancer bestätigen jede Anmeldung mit einem Code, weil sie die Dateien mehrerer Kunden sehen; ohne bestätigten Code zeigt die Datenbank ihnen keine Kundendaten. Der Code per E-Mail geht an ${user.email}.${secondFactor === "totp" ? " Stellst du auf E-Mail, wird die Authenticator-App entfernt." : ""}`
+            : secondFactor === "totp"
+              ? "Die Person bestätigt jede Anmeldung mit ihrer Authenticator-App. Stellst du auf E-Mail oder Aus, wird die App entfernt, etwa nach einem verlorenen Handy."
+              : `Die Person wählt die Methode selbst im Profil, auch eine Authenticator-App. Der Code per E-Mail geht an ${user.email} und gilt ab der nächsten Seite, auch auf der Serviceplattform. Team-Konten fragt die Serviceplattform ohnehin nach einem Code.`}</p>
         </div>
         {user.status === "active" && (link?.link ?<LinkPanel link={link.link} activation={link.activation} user={user} /> : (
           <div className="user-link-actions">
@@ -400,8 +442,14 @@ export function UserDialog({ user, customers, nextNumber, events, mailConfigured
  * Creates or edits a customer (company) with packages, contact and address; lists the logins assigned to it. An
  * existing customer shows its logo on top: the button opens the same window as in the asset management.
  */
-export function CustomerDialog({ customer, users, nextNumber, events, onClose, onNotice }: { customer?: ManagedCustomer; users: ManagedUser[]; nextNumber: string; events: ManagedEvent[]; onClose: () => void; onNotice: (message: string) => void }) {
+export function CustomerDialog({ customer, users, nextNumber, events, freelancers, freelancersEnabled, onClose, onNotice }: {
+  customer?: ManagedCustomer; users: ManagedUser[]; nextNumber: string; events: ManagedEvent[];
+  /** The freelancers who can look after a customer; freelancersEnabled once the database knows them. */
+  freelancers: ManagedCustomer[]; freelancersEnabled: boolean;
+  onClose: () => void; onNotice: (message: string) => void;
+}) {
   const [draft, setDraft] = useState<CustomerDraft>(customer ? draftOf(customer) : emptyDraft(nextNumber));
+  const [servedBy, setServedBy] = useState<string[]>(customer?.linkedIds ?? []);
   const [logoOpen, setLogoOpen] = useState(false);
   const { busy, error, run } = useAction();
   const members = customer ? users.filter((user) => customer.memberIds.includes(user.id)) : [];
@@ -415,9 +463,13 @@ export function CustomerDialog({ customer, users, nextNumber, events, onClose, o
         </div>
       )}
       {customer && logoOpen && <CustomerLogoDialog customer={customer} onClose={() => setLogoOpen(false)} onSaved={(message) => { setLogoOpen(false); onNotice(message); }} />}
-      <form onSubmit={(event) => { event.preventDefault(); run("save", () => saveCustomer({ ...draft, id: customer?.id }), () => { onNotice(customer ? `${draft.company} gespeichert.` : `Kunde ${draft.company} angelegt.`); onClose(); }); }}>
+      <form onSubmit={(event) => { event.preventDefault(); run("save", () => saveCustomer({ ...draft, id: customer?.id, freelancerIds: freelancersEnabled ? servedBy : undefined }), () => { onNotice(customer ? `${draft.company} gespeichert.` : `Kunde ${draft.company} angelegt.`); onClose(); }); }}>
         <CustomerFields draft={draft} onChange={setDraft} disabled={busy !== null} />
         <p className="field-hint">Die Kundinnen und Kunden sehen Unternehmen, Kundennummer, Servicepakete und Kontaktdaten nach dem Login in ihrem Profil.</p>
+        {freelancersEnabled && freelancers.length > 0 && <>
+          <CustomerPicker customers={pickable(freelancers)} selected={servedBy} onChange={setServedBy} idPrefix="served-by" legend="Betreut von" emptyHint="nur vom oalab-Team" />
+          <p className="field-hint">Ein Freelancer sieht Namen, Logo, Kontaktdaten und die freigegebenen Dateien dieses Kunden, nur lesend; Verträge, Angebote und Rechnungen nicht, außer du gibst sie frei. Chats, Termine und Logins des Kunden sieht er nicht. Der Kunde sieht nicht, wer ihn betreut.</p>
+        </>}
         <p className="field-hint">{!customer || customer.inService
           ? "Unternehmen, Kundennummer und Kontaktdaten gelten auch in Service: Was du hier änderst, steht dort und umgekehrt. Die Logins dieses Kunden kommen mit demselben Zugang in Service."
           : "Diesen Kunden gibt es nur im Hub, nicht in Service."}</p>
@@ -428,6 +480,51 @@ export function CustomerDialog({ customer, users, nextNumber, events, onClose, o
         <div className="member-list">
           <h3>Logins ({members.length})</h3>
           {members.length ? <ul>{members.map((user) => <li key={user.id}><strong>{fullName(user)}</strong><small>{user.email} · {displayStatusLabels[user.displayStatus]}</small></li>)}</ul> : <p className="field-hint">Noch kein Login zugeordnet.</p>}
+        </div>
+      )}
+      <History events={events} />
+    </Modal>
+  );
+}
+
+// Freelancers -------------------------------------------------------------------------------------------------------
+
+/**
+ * Creates or edits a freelancer: name, "FL-" number, contact and the customers they look after. A freelancer lives
+ * only in the hub; their logins are created with "Konto anlegen" and the role Freelancer.
+ */
+export function FreelancerDialog({ freelancer, customers, users, nextNumber, events, onClose, onNotice }: {
+  freelancer?: ManagedCustomer;
+  /** The customers that can be assigned (entries of the kind customer). */
+  customers: ManagedCustomer[];
+  users: ManagedUser[]; nextNumber: string; events: ManagedEvent[]; onClose: () => void; onNotice: (message: string) => void;
+}) {
+  const [draft, setDraft] = useState<CustomerDraft>(freelancer ? draftOf(freelancer) : emptyDraft(nextNumber));
+  const [customerIds, setCustomerIds] = useState<string[]>(freelancer?.linkedIds ?? []);
+  const [logoOpen, setLogoOpen] = useState(false);
+  const { busy, error, run } = useAction();
+  const members = freelancer ? users.filter((user) => freelancer.memberIds.includes(user.id)) : [];
+  return (
+    <Modal title={freelancer ? freelancer.company : "Freelancer anlegen"} onClose={onClose} className="users-modal">
+      {freelancer && (
+        <div className="customer-logo-row">
+          <LogoMark logo={freelancer.logo} initials={companyInitials(freelancer.company)} className="avatar customer-logo-mark" plate />
+          <span className="customer-logo-text"><strong>Logo</strong><small>{freelancer.logo ? "Sieht der Freelancer unten links, in der Übersicht und am Handy." : "Noch keins hinterlegt, es stehen die Buchstaben."}</small></span>
+          <button type="button" className="sheet-action" onClick={() => setLogoOpen(true)}><ImagePlus size={15} aria-hidden="true" />{freelancer.logo ? "Logo ändern" : "Logo hochladen"}</button>
+        </div>
+      )}
+      {freelancer && logoOpen && <CustomerLogoDialog customer={freelancer} onClose={() => setLogoOpen(false)} onSaved={(message) => { setLogoOpen(false); onNotice(message); }} />}
+      <form onSubmit={(event) => { event.preventDefault(); run("save", () => saveFreelancer({ ...draft, id: freelancer?.id, customerIds }), () => { onNotice(freelancer ? `${draft.company} gespeichert.` : `Freelancer ${draft.company} angelegt.`); onClose(); }); }}>
+        <CustomerFields draft={draft} onChange={setDraft} disabled={busy !== null} freelancer />
+        <CustomerPicker customers={pickable(customers)} selected={customerIds} onChange={setCustomerIds} idPrefix="freelancer-customers" legend="Betreute Kunden" emptyHint="noch keine" />
+        <p className="field-hint">Der Freelancer sieht im Asset Management seine eigenen Dateien und die Dateien dieser Kunden, nur lesend. Verträge, Angebote und Rechnungen der Kunden sieht er nicht, außer du gibst sie frei. Chats, Termine und Logins der Kunden bleiben ihm verborgen. Kunden anlegen kann er nicht, und auf der Serviceplattform hat er keinen Zugang.</p>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button type="submit" className="sheet-button sheet-button-primary" disabled={busy !== null}>{busy === "save" ? <Spinner /> : <Save size={18} aria-hidden="true" />}{freelancer ? "Änderungen speichern" : "Freelancer anlegen"}</button>
+      </form>
+      {freelancer && (
+        <div className="member-list">
+          <h3>Logins ({members.length})</h3>
+          {members.length ? <ul>{members.map((user) => <li key={user.id}><strong>{fullName(user)}</strong><small>{user.email} · {displayStatusLabels[user.displayStatus]}</small></li>)}</ul> : <p className="field-hint">Noch kein Login. Lege ihn über „Konto anlegen“ mit der Rolle Freelancer an.</p>}
         </div>
       )}
       <History events={events} />

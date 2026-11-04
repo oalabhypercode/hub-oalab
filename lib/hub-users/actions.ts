@@ -10,7 +10,7 @@ import { mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/no
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
-import { cleanEmail, cleanText, isHubRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type HubRole } from "./rules";
+import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole } from "./rules";
 import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
@@ -115,24 +115,91 @@ const customerDetails = (input: CustomerInput) => ({
 
 type ResolvedCustomer = { customerId: string | null; customerNumber: string | null; company: string | null; organizationId: string | null; created: boolean };
 
+/** The kind of an entry; "customer" while the freelancer migration is missing (the column is not there yet). */
+async function kindOf(ctx: Context, customerId: string): Promise<CustomerKind | null> {
+  const { data, error } = await ctx.db.from("hub_customers").select("kind").eq("id", customerId).maybeSingle<{ kind: string }>();
+  if (error) return error.code === "42703" ? "customer" : null;
+  return data ? (isCustomerKind(data.kind) ? data.kind : "customer") : null;
+}
+
+const pickMessage = (kind: CustomerKind) => kind === "freelancer" ? "Bitte einen Freelancer auswählen oder neu anlegen." : "Bitte einen Kunden auswählen oder neu anlegen.";
+
 /**
- * Resolves the customer a login is assigned to: an existing one, a new one (created here) or none (admins).
- * `created` tells the caller which customer to remove again if a later step fails.
+ * Resolves the entry a login belongs to: a customer for customer logins, a freelancer for freelancer logins (an
+ * existing one or a new one created here), none for admins. `created` tells the caller which entry to remove again
+ * if a later step fails. The database refuses a login at an entry of the other kind anyway.
  */
 async function resolveCustomer(ctx: Context, role: HubRole, value: unknown): Promise<ActionResult<ResolvedCustomer>> {
   const choice = readChoice(value);
-  if (role === "oalab_admin") return { ok: true, data: { customerId: null, customerNumber: null, company: null, organizationId: null, created: false } };
-  if (!choice || choice.mode === "none") return failed("Bitte einen Kunden auswählen oder neu anlegen.");
+  const kind = kindForRole(role);
+  if (!kind) return { ok: true, data: { customerId: null, customerNumber: null, company: null, organizationId: null, created: false } };
+  if (!choice || choice.mode === "none") return failed(pickMessage(kind));
   if (choice.mode === "existing") {
     const { data } = await ctx.db.from("hub_customers").select("id, customer_number, company").eq("id", choice.customerId).maybeSingle<{ id: string; customer_number: string; company: string }>();
-    return data ? { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, organizationId: null, created: false } } : failed("Dieser Kunde existiert nicht mehr.");
+    if (!data) return failed(kind === "freelancer" ? "Diesen Freelancer gibt es nicht mehr." : "Dieser Kunde existiert nicht mehr.");
+    if (await kindOf(ctx, data.id) !== kind) return failed(kind === "freelancer" ? "Freelancer-Konten gehören zu einem Freelancer, nicht zu einem Kunden." : "Kunden-Konten gehören zu einem Kunden, nicht zu einem Freelancer.");
+    return { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, organizationId: null, created: false } };
   }
   const input = readCustomer(choice.customer);
   if (!input.ok) return input;
-  const created = await createServiceCustomer(ctx, input.value);
+  const created = kind === "freelancer" ? await createFreelancerEntry(ctx, input.value) : await createServiceCustomer(ctx, input.value);
   if (!created.ok) return created;
-  await log(ctx, "customer.created", "Kunde angelegt", { customerId: created.data.customerId });
+  await log(ctx, kind === "freelancer" ? "freelancer.created" : "customer.created", kind === "freelancer" ? "Freelancer angelegt" : "Kunde angelegt", { customerId: created.data.customerId });
   return { ok: true, data: { ...created.data, created: true } };
+}
+
+/**
+ * A freelancer lives only in the hub: no Service organization and no service packages, so its logins never reach the
+ * service platform. Its number is "FL-" and a free random number.
+ */
+async function createFreelancerEntry(ctx: Context, input: CustomerInput): Promise<ActionResult<{ customerId: string; customerNumber: string; company: string; organizationId: null }>> {
+  const refused = freelancerNumberRefusal(input.customerNumber);
+  if (refused) return failed(refused);
+  const { data, error } = await ctx.db.from("hub_customers")
+    .insert({ ...customerRow({ ...input, servicePackages: [] }), kind: "freelancer", updated_by: ctx.actorId })
+    .select("id, customer_number, company").single<{ id: string; customer_number: string; company: string }>();
+  if (error || !data) {
+    if (error?.code === "23505") return failed("Diese Nummer ist schon vergeben.");
+    if (error?.code === "42703" || error?.code === "PGRST204") return failed("Freelancer sind in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus.");
+    return failed("Der Freelancer konnte nicht angelegt werden.");
+  }
+  return { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, organizationId: null } };
+}
+
+type LinkSide = { customerId: string; freelancerIds: string[] } | { freelancerId: string; customerIds: string[] };
+
+/**
+ * Who looks after whom, as the admin ticked it: the freelancers of one customer or the customers of one freelancer.
+ * Only differences are written. The database checks the kind of both sides (a wrong id fails, nothing else changes).
+ */
+async function replaceLinks(ctx: Context, side: LinkSide): Promise<ActionResult<{ added: number; removed: number }>> {
+  const byCustomer = "customerId" in side;
+  const fixed = byCustomer ? side.customerId : side.freelancerId;
+  const wanted = Array.from(new Set((byCustomer ? side.freelancerIds : side.customerIds).filter((id) => typeof id === "string" && uuid.test(id)))).slice(0, 500);
+  const [own, other] = byCustomer ? ["customer_id", "freelancer_id"] as const : ["freelancer_id", "customer_id"] as const;
+  const current = await ctx.db.from("hub_freelancer_customers").select("freelancer_id, customer_id").eq(own, fixed).returns<{ freelancer_id: string; customer_id: string }[]>();
+  if (current.error) return failed("Die Zuordnung der Freelancer konnte nicht gelesen werden.");
+  const existing = new Set((current.data ?? []).map((row) => row[other]));
+  const removed = [...existing].filter((id) => !wanted.includes(id));
+  const added = wanted.filter((id) => !existing.has(id));
+  if (removed.length) {
+    const { error } = await ctx.db.from("hub_freelancer_customers").delete().eq(own, fixed).in(other, removed);
+    if (error) return failed("Die Zuordnung der Freelancer konnte nicht geändert werden.");
+  }
+  if (added.length) {
+    const { error } = await ctx.db.from("hub_freelancer_customers").insert(added.map((id) => ({ [own]: fixed, [other]: id, assigned_by: ctx.actorId })));
+    if (error) return failed(error.code === "23503" ? "Freelancer betreuen nur Kunden, keine anderen Freelancer." : "Die Zuordnung der Freelancer konnte nicht geändert werden.");
+  }
+  if (added.length || removed.length) {
+    await log(ctx, byCustomer ? "customer.freelancers" : "freelancer.customers", byCustomer ? `Betreuung durch Freelancer geändert (${wanted.length})` : `Kunden des Freelancers geändert (${wanted.length})`, { customerId: fixed });
+  }
+  return { ok: true, data: { added: added.length, removed: removed.length } };
+}
+
+/** Logins with team access to the service platform never become freelancers: freelancers have no access there. */
+async function hasServiceTeamAccess(ctx: Context, userId: string) {
+  const { data, error } = await ctx.db.from("memberships").select("status, organization:organizations(kind)").eq("user_id", userId).eq("status", "active").returns<{ status: string; organization: { kind: string } | null }[]>();
+  return Boolean(error) || (data ?? []).some((row) => row.organization?.kind === "oalab");
 }
 
 type ServiceCustomer = { customerId: string; customerNumber: string; company: string; organizationId: string };
@@ -204,6 +271,8 @@ async function setRole(ctx: Context, user: User, role: HubRole | null) {
   const metadata = { ...(user.app_metadata ?? {}) } as Record<string, unknown>;
   if (role) metadata.app_role = role;
   else delete metadata.app_role;
+  // Freelancers always confirm their sign-in with a code: by e-mail, unless they set up an app.
+  if (role === "oalab_freelancer" && metadata.second_factor !== "totp") metadata.second_factor = "email";
   const { error } = await ctx.db.auth.admin.updateUserById(user.id, { app_metadata: metadata });
   return !error;
 }
@@ -221,6 +290,8 @@ async function passwordLink(ctx: Context, email: string) {
   return `${origin}/auth/confirm?token_hash=${encodeURIComponent(token)}&type=recovery&next=${encodeURIComponent("/auth/update-password")}`;
 }
 
+const noCodeAddress = "Freelancer melden sich immer mit einem Code per E-Mail an. An diese Adresse kann kein Code zugestellt werden (Testadresse ohne Postfach).";
+
 // Registrations ------------------------------------------------------------------------------------------------------
 
 /** Approves a waiting (or earlier rejected) registration: role, customer and finally the active status; then mails the person. */
@@ -234,6 +305,7 @@ export async function approveRegistration(input: { userId: string; role: string;
   if (status !== "pending" && status !== "rejected") return failed("Diese Registrierung ist bereits entschieden.");
   if (!isHubRole(input?.role)) return failed("Bitte eine Rolle wählen.");
   const role = input.role;
+  if (role === "oalab_freelancer" && !hasMailbox(user.email)) return failed(noCodeAddress);
 
   const customer = await resolveCustomer(ctx, role, input.customer);
   if (!customer.ok) return customer;
@@ -282,13 +354,16 @@ export async function createHubUser(input: { email: string; firstName: string; l
   if (!person.ok) return person;
   if (!isHubRole(input?.role)) return failed("Bitte eine Rolle wählen.");
   const role = input.role;
-  if (role === "oalab_customer" && !readChoice(input.customer)) return failed("Bitte einen Kunden auswählen oder neu anlegen.");
+  const kind = kindForRole(role);
+  if (kind && !readChoice(input.customer)) return failed(pickMessage(kind));
+  if (role === "oalab_freelancer" && !hasMailbox(email.value)) return failed(noCodeAddress);
 
-  // The login exists before anything else, so a taken address stops here without leftovers.
+  // The login exists before anything else, so a taken address stops here without leftovers. Freelancers start with the
+  // code by e-mail: they see the files of several customers.
   const created = await ctx.db.auth.admin.createUser({
     email: email.value,
     email_confirm: true,
-    app_metadata: { app_role: role },
+    app_metadata: role === "oalab_freelancer" ? { app_role: role, second_factor: "email" } : { app_role: role },
     user_metadata: { first_name: person.value.firstName, last_name: person.value.lastName, full_name: `${person.value.firstName} ${person.value.lastName}` },
   });
   if (created.error || !created.data.user) {
@@ -357,6 +432,10 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
   if (roleChanged) {
     const refused = await guardAccountChange(ctx, user, "role");
     if (refused) return failed(refused);
+    if (role === "oalab_freelancer") {
+      if (!hasMailbox(user.email)) return failed(noCodeAddress);
+      if (await hasServiceTeamAccess(ctx, user.id)) return failed("Dieses Konto hat Team-Zugang zur Serviceplattform. Freelancer haben dort keinen Zugang; lege für den Freelancer ein eigenes Konto an.");
+    }
   }
 
   const customer = await resolveCustomer(ctx, role, input.customer);
@@ -407,6 +486,7 @@ export async function setHubUserSecondFactor(input: { userId: string; choice: "o
   if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet und lassen sich hier nicht ändern.");
   const choice = input?.choice === "email" ? "email" : input?.choice === "off" ? "off" : null;
   if (!choice) return failed("Bitte eine Methode wählen.");
+  if (choice === "off" && roleOf(user) === "oalab_freelancer") return failed("Freelancer melden sich immer mit einem Code an, weil sie die Dateien mehrerer Kunden sehen.");
   if (choice === "email" && !hasMailbox(user.email)) return failed("An diese Adresse kann kein Code zugestellt werden (Testadresse ohne Postfach).");
   const { data: factors } = await ctx.db.auth.admin.mfa.listFactors({ userId: user.id });
   const apps = (factors?.factors ?? []).filter((factor) => factor.factor_type === "totp");
@@ -446,23 +526,30 @@ export async function deleteHubUser(input: { userId: string; confirmEmail: strin
  * company and number go to its organization and come back through Service's trigger; the contact data the Hub saves
  * reaches Service's customer profile through the Hub's own trigger. Hub-only customers (the demo ones) stay as they are.
  */
-export async function saveCustomer(input: { id?: string } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
+export async function saveCustomer(input: { id?: string; freelancerIds?: unknown } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const customer = readCustomer(input ?? {});
   if (!customer.ok) return customer;
   const id = typeof input?.id === "string" && uuid.test(input.id) ? input.id : null;
+  // The freelancers who look after the customer, when the dialog sends them (only once the database knows freelancers).
+  const freelancerIds = Array.isArray(input?.freelancerIds) ? input.freelancerIds.filter((value): value is string => typeof value === "string") : null;
   if (!id) {
     const created = await createServiceCustomer(ctx, customer.value);
     if (!created.ok) return created;
     await noteServiceCustomer(ctx, created.data);
     await log(ctx, "customer.created", "Kunde angelegt", { customerId: created.data.customerId });
+    if (freelancerIds?.length) {
+      const linked = await replaceLinks(ctx, { customerId: created.data.customerId, freelancerIds });
+      if (!linked.ok) { refreshWorkspace(); return failed(`Der Kunde ist angelegt, aber: ${linked.error}`); }
+    }
     refreshWorkspace();
     return { ok: true, data: { id: created.data.customerId } };
   }
 
   const current = await ctx.db.from("hub_customers").select("organization_id").eq("id", id).maybeSingle<{ organization_id: string | null }>();
   if (current.error || !current.data) return failed("Diesen Kunden gibt es nicht mehr.");
+  if (await kindOf(ctx, id) === "freelancer") return failed("Das ist ein Freelancer. Bitte über „Freelancer“ bearbeiten.");
   const organizationId = current.data.organization_id;
   if (organizationId) {
     const refused = serviceCustomerRefusal(customer.value);
@@ -474,6 +561,54 @@ export async function saveCustomer(input: { id?: string } & Record<string, unkno
   const { data, error } = await ctx.db.from("hub_customers").update({ ...row, updated_by: ctx.actorId }).eq("id", id).select("id").single<{ id: string }>();
   if (error || !data) return failed(error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
   await log(ctx, "customer.updated", "Kunde bearbeitet", { customerId: data.id });
+  if (freelancerIds) {
+    const linked = await replaceLinks(ctx, { customerId: data.id, freelancerIds });
+    if (!linked.ok) { refreshWorkspace(); return failed(`Der Kunde ist gespeichert, aber: ${linked.error}`); }
+  }
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
+}
+
+// Freelancers --------------------------------------------------------------------------------------------------------
+
+/**
+ * Creates or edits a freelancer (only in the hub) with the customers they look after. The number keeps its "FL-"
+ * form; there are no service packages. Customers are only ever assigned here, a freelancer creates none.
+ */
+export async function saveFreelancer(input: { id?: string; customerIds?: unknown } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const freelancer = readCustomer({ ...(input ?? {}), servicePackages: [] });
+  if (!freelancer.ok) return freelancer;
+  const customerIds = Array.isArray(input?.customerIds) ? input.customerIds.filter((value): value is string => typeof value === "string") : [];
+  let id = typeof input?.id === "string" && uuid.test(input.id) ? input.id : null;
+  if (!id) {
+    const created = await createFreelancerEntry(ctx, freelancer.value);
+    if (!created.ok) return created;
+    id = created.data.customerId;
+    await log(ctx, "freelancer.created", "Freelancer angelegt", { customerId: id });
+  } else {
+    if (await kindOf(ctx, id) !== "freelancer") return failed("Diesen Freelancer gibt es nicht mehr.");
+    const refused = freelancerNumberRefusal(freelancer.value.customerNumber);
+    if (refused) return failed(refused);
+    const { error } = await ctx.db.from("hub_customers").update({ ...customerRow(freelancer.value), updated_by: ctx.actorId }).eq("id", id);
+    if (error) return failed(error.code === "23505" ? "Diese Nummer ist schon vergeben." : "Der Freelancer konnte nicht gespeichert werden.");
+    await log(ctx, "freelancer.updated", "Freelancer bearbeitet", { customerId: id });
+  }
+  const linked = await replaceLinks(ctx, { freelancerId: id, customerIds });
+  refreshWorkspace();
+  return linked.ok ? { ok: true, data: { id } } : failed(`Der Freelancer ist gespeichert, aber: ${linked.error}`);
+}
+
+/** The freelancers who look after one customer, e.g. from the head of the customer in the asset management. */
+export async function setCustomerFreelancers(input: { customerId: string; freelancerIds: string[] }): Promise<ActionResult<{ count: number }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const customerId = typeof input?.customerId === "string" && uuid.test(input.customerId) ? input.customerId : null;
+  if (!customerId || await kindOf(ctx, customerId) !== "customer") return failed("Diesen Kunden gibt es nicht mehr.");
+  const freelancerIds = Array.isArray(input?.freelancerIds) ? input.freelancerIds.filter((value): value is string => typeof value === "string") : [];
+  const linked = await replaceLinks(ctx, { customerId, freelancerIds });
+  if (!linked.ok) return linked;
+  refreshWorkspace();
+  return { ok: true, data: { count: freelancerIds.length } };
 }

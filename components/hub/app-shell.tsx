@@ -91,6 +91,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
     customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? liveCustomer?.customerNumber ?? null,
     servicePackages: preview ? previewAccount.servicePackages : demoData?.servicePackages ?? liveCustomer?.servicePackages ?? [],
     admin: demoData ? demoData.role === "oalab_admin" : live?.role === "oalab_admin",
+    freelancer: !demoData && live?.role === "oalab_freelancer",
     customers: new Set(projects.map((project) => project.company).filter(Boolean)).size,
     person: live ? { phone: live.phone, position: live.position } : null,
     customerDetails: liveCustomer ? { street: liveCustomer.street, postalCode: liveCustomer.postalCode, city: liveCustomer.city, country: liveCustomer.country, website: liveCustomer.website, phone: liveCustomer.phone, contactEmail: liveCustomer.contactEmail } : null,
@@ -156,7 +157,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const closeSearch = () => { setPanel(null); setQuery(""); };
   // The user management needs a real admin session; the preview and the public demo never show it.
   const manageUsers = account.admin && !preview && !publicDemo;
-  const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin).toLowerCase().includes(term));
+  const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin || account.freelancer).toLowerCase().includes(term));
   const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = hasDemo || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
   const assistantDocked = assistantOpen && assistantMode === "dock";
@@ -195,7 +196,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
           <Modal title="Wonach suchst du?" onClose={closeSearch}>
             <label className="search-field"><Search size={18} aria-hidden="true" /><input autoFocus aria-label="Suchbegriff" placeholder="Seiten, Kennzahlen und Projekte" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
             <div className="search-results">
-              {sectionResults.map((key) => <Link key={key} href={hubHref(preview, key)} onClick={closeSearch}><LayoutGrid size={18} aria-hidden="true" /><span>{sectionLabel(key, account.admin)}</span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
+              {sectionResults.map((key) => <Link key={key} href={hubHref(preview, key)} onClick={closeSearch}><LayoutGrid size={18} aria-hidden="true" /><span>{sectionLabel(key, account.admin || account.freelancer)}</span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {metricResults.map((id) => <Link key={id} href={metricHref(preview, id)} onClick={closeSearch}><CategoryIcon category={metricMeta[id].category} size={18} /><span>{metricMeta[id].name}<small>Kennzahl</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {projectResults.map((project) => <Link key={project.id} href={`${hubHref(preview, "projects")}?project=${project.id}`} onClick={closeSearch}><FolderOpen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{project.category || project.name}<small>{project.company ? `${project.company} · ` : ""}{project.category ? project.name : "Projekt"}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {term && !sectionResults.length && !metricResults.length && !projectResults.length && <p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p>}

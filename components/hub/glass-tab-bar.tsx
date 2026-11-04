@@ -24,7 +24,7 @@ export function GlassTabBar({ preview, section, badges = {} }: { preview: boolea
             return (
               <Link key={target} href={hubHref(preview, target)} className="tab" aria-current={section === target ? "page" : target === "discover" && !inTabs.has(section) ? "true" : undefined}>
                 {/* "Asset Management" does not fit under an icon; the short form keeps the label whole. */}
-                <Icon size={22} strokeWidth={2} aria-hidden="true" /><span>{target === "files" && account.admin ? "Assets" : label}</span>
+                <Icon size={22} strokeWidth={2} aria-hidden="true" /><span>{target === "files" && (account.admin || account.freelancer) ? "Assets" : label}</span>
                 {badge > 0 && <span className="tab-badge"><span className="visually-hidden">Ungelesen: </span>{badge > 99 ? "99+" : badge}</span>}
               </Link>
             );

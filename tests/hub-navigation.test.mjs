@@ -49,7 +49,7 @@ test("the profile corner shows sign, name and package, and one gear opens Profil
   assert.match(sidebar, /role="menu" aria-label="Konto"/);
   for (const label of [">Profil<", ">Darstellung<"]) assert.ok(sidebar.includes(label), label);
   assert.match(sidebar, /\{preview \? "Vorschau verlassen" : "Abmelden"\}<\/button>/);
-  assert.match(sidebar, /const meta = activePackages \|\| \(account\.admin \? "oalab-Team" : ""\);/);
+  assert.match(sidebar, /const meta = activePackages \|\| \(account\.admin \? "oalab-Team" : account\.freelancer \? "Freelancer" : ""\);/);
   assert.match(await source("app/glass.css"), /\.sidebar-account-gear::before \{ content: ""; position: absolute; left: -7px;/);
 });
 

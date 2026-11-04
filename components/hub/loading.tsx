@@ -35,7 +35,7 @@ function SectionTitle({ section }: { section: HubSection }) {
   // Before the login is known, a name that differs for admins stays blank instead of switching later.
   const title = !category ? sectionLabels[section]
     : pending && categoryLabel(category, true) !== categoryLabel(category, false) ? " "
-    : categoryLabel(category, account.admin);
+    : categoryLabel(category, account.admin || account.freelancer);
   const plainIcon = sectionIcons[section];
   const icon = category ? <CategoryTitle category={category} /> : plainIcon ? <TitleIcon icon={plainIcon} /> : undefined;
   const dated = section === "overview" || section === "insights";
