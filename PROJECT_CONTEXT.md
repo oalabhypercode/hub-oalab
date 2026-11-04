@@ -392,6 +392,18 @@
 - „Bewegung reduzieren“ zeigt nur das Standbild mit fertiger Blase.
 - Am 4. November 2026 nahm der Nutzer den Ton auf allen Plattformen heraus. Den Lautsprecher in der Blase gibt es nicht mehr, und die MP4 hat keine Tonspur.
 
+### Vorgabe vom 4. November 2026: Ali denkt in Nachrichten mit
+
+- Quelle ist ein zweites Video von Ali, nachdenklich (5 s), freigestellt wie die Begrüßung. Dateien: `public/brand/ali-thinking.mp4` (0,5 MB, ohne Ton) und `ali-thinking.webp`.
+- Nach der Vorschau entschied der Nutzer: Ali steht unten links in der Gesprächsspalte, nicht im leeren Gesprächsfeld (`MessagesHost` in `components/hub/messages-host.tsx`, Stile in `app/welcome-host.css`).
+    - Er steht auf der unteren Kante der Spalte, hinter `.chat-convs`, die in sich scrollt; er bleibt deshalb unten stehen.
+    - Rechts neben seinem Kopf erscheint eine Gedankenblase mit zwei kleinen Kreisen statt Spitze: „Ali von oalab · Hmm … worüber möchtest du sprechen? · Wähle ein Gespräch oder starte über den Stift ein neues.“
+    - Am Handy folgt er dem letzten Gespräch.
+- Bei jedem Öffnen von Nachrichten steigt er auf. Zuerst erscheinen die Kreise (0,6 und 0,72 s), dann die Blase (0,85 s), dann ihre letzte Zeile (1,7 s).
+    - Verlässt man Nachrichten, setzt sich die Bühne zurück, auch wenn der Router die Seite verdeckt behält.
+    - „Bewegung reduzieren“ zeigt das Standbild mit fertiger Blase, auch schon im Server-HTML.
+- Nur für Kunden; Admins lesen ohne Avatar mit. Kein Ton.
+
 ### Backlog
 
 - Detail-Tabelle „Vorher → Nachher“ in Benachrichtigungs-Mails (z. B. Status Aktiv → Pausiert): braucht eine Spalte mit Einzelwerten in `hub_inbox`; beim Mail-Redesign am 30. Oktober 2026 bewusst zurückgestellt.
