@@ -63,12 +63,21 @@ function toMailServer(row: MailServerRow, admin: boolean): MailServer {
   return admin ? { ...server, provider: row.provider ?? "" } : server;
 }
 
+/** info@xn--mller-kva.de → info@müller.de; several targets stay separated with „, “. */
+const readableAddresses = (value: string) => value.split(", ").map((address) => {
+  const at = address.lastIndexOf("@");
+  return at > 0 ? `${address.slice(0, at)}@${readable(address.slice(at + 1))}` : address;
+}).join(", ");
+
 const toMailbox = (row: MailboxRow): Mailbox | null => isMailboxKind(row.kind)
-  ? { id: row.id, customerId: row.customer_id, address: row.address, person: row.person, kind: row.kind, target: row.target }
+  ? {
+    id: row.id, customerId: row.customer_id, address: row.address, display: readableAddresses(row.address), person: row.person, kind: row.kind,
+    target: row.target, targetDisplay: row.target ? readableAddresses(row.target) : "",
+  }
   : null;
 
 const byDomain = (a: CustomerDomain, b: CustomerDomain) => a.display.localeCompare(b.display, "de");
-const byAddress = (a: Mailbox, b: Mailbox) => a.address.localeCompare(b.address, "de");
+const byAddress = (a: Mailbox, b: Mailbox) => a.display.localeCompare(b.display, "de");
 
 /**
  * Everything for a real admin, read with the service role after the admin check. Of the vault only which mailboxes and

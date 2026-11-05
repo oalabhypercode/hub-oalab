@@ -96,10 +96,10 @@ export function DomainMailTab({ customer, domainMail, canManage, today, onNotice
             {mailboxes.map((mailbox) => (
               <li key={mailbox.id} className="dm-item">
                 <div className="dm-item-main">
-                  <div className="dm-item-top"><strong>{mailbox.address}</strong><span className={`chat-pill ${mailbox.kind === "mailbox" ? "tone-info" : "tone-off"}`}>{mailboxKinds[mailbox.kind].label}</span></div>
-                  <p className="dm-item-sub">{mailbox.kind === "mailbox" ? (mailbox.person || "Ohne Person") : `${mailboxKinds[mailbox.kind].target} ${mailbox.target}`}{mailbox.kind !== "mailbox" && mailbox.person ? ` · ${mailbox.person}` : ""}</p>
+                  <div className="dm-item-top"><strong>{mailbox.display}</strong><span className={`chat-pill ${mailbox.kind === "mailbox" ? "tone-info" : "tone-off"}`}>{mailboxKinds[mailbox.kind].label}</span></div>
+                  <p className="dm-item-sub">{mailbox.kind === "mailbox" ? (mailbox.person || "Ohne Person") : `${mailboxKinds[mailbox.kind].target} ${mailbox.targetDisplay}`}{mailbox.kind !== "mailbox" && mailbox.person ? ` · ${mailbox.person}` : ""}</p>
                 </div>
-                {canManage && <button type="button" className="row-action" onClick={() => setDialog({ kind: "mailbox", entry: mailbox })} aria-label={`${mailbox.address} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+                {canManage && <button type="button" className="row-action" onClick={() => setDialog({ kind: "mailbox", entry: mailbox })} aria-label={`${mailbox.display} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
               </li>
             ))}
           </ul>
@@ -273,7 +273,7 @@ function MailServerForm({ customerId, server, canManage, onSaved }: { customerId
 
 /** Enters a mailbox, forward or alias or edits one. */
 function MailboxDialog({ customer, entry, domains, onClose, onSaved }: { customer: ContractCustomer; entry?: Mailbox; domains: readonly CustomerDomain[]; onClose: () => void; onSaved: (message: string) => void }) {
-  const [draft, setDraft] = useState({ address: entry?.address ?? "", kind: entry?.kind ?? ("mailbox" as MailboxKind), person: entry?.person ?? "", target: entry?.target ?? "" });
+  const [draft, setDraft] = useState({ address: entry?.display ?? "", kind: entry?.kind ?? ("mailbox" as MailboxKind), person: entry?.person ?? "", target: entry?.targetDisplay ?? "" });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
   const kindName = useId();
@@ -354,8 +354,8 @@ export function CustomerDomainCard({ customer, domainMail }: { customer: Contrac
           <ul className="dm-plain">
             {mailboxes.map((mailbox) => (
               <li key={mailbox.id}>
-                <strong>{mailbox.address}</strong>
-                <small>{mailbox.kind === "mailbox" ? [mailboxKinds.mailbox.label, mailbox.person].filter(Boolean).join(" · ") : `${mailboxKinds[mailbox.kind].target} ${mailbox.target}`}</small>
+                <strong>{mailbox.display}</strong>
+                <small>{mailbox.kind === "mailbox" ? [mailboxKinds.mailbox.label, mailbox.person].filter(Boolean).join(" · ") : `${mailboxKinds[mailbox.kind].target} ${mailbox.targetDisplay}`}</small>
               </li>
             ))}
           </ul>

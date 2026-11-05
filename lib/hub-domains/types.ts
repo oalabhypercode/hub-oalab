@@ -40,11 +40,16 @@ export type MailServer = {
 export type Mailbox = {
   id: string;
   customerId: string;
+  /** As stored: lower case, umlaut domains as xn--…. */
   address: string;
+  /** The address the way people read it, with umlauts. */
+  display: string;
   person: string;
   kind: MailboxKind;
   /** Forward targets („a@x.de, b@y.de“) or the mailbox of an alias; empty for a mailbox. */
   target: string;
+  /** The targets the way people read them. */
+  targetDisplay: string;
   /** Admins only: whether a password is stored. The password itself never reaches the page this way. */
   hasPassword?: boolean;
 };

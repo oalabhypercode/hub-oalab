@@ -144,7 +144,7 @@ function mailFixtures(numbers: string[], customers: ContractCustomer[], admin: b
     return [admin ? { ...shown, provider: server.provider } : shown];
   });
   const mailboxes = numbers.flatMap((number) => fixtures[number].mail.mailboxes.map(([address, kind, person, target, stored], index): Mailbox => {
-    const shown: Mailbox = { id: `${number}-m${index}`, customerId: number, address, person, kind, target };
+    const shown: Mailbox = { id: `${number}-m${index}`, customerId: number, address, display: address, person, kind, target, targetDisplay: target };
     return admin ? { ...shown, hasPassword: stored } : shown;
   }));
   const logins = admin ? numbers.flatMap((number) => fixtures[number].mail.logins.map(([kind, label, loginUrl, username, stored], index): ProviderLogin => ({

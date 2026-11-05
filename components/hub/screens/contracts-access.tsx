@@ -64,11 +64,11 @@ export function AccessTab({ customer, domainMail, fixtures, preview, onNotice }:
           <ul className="dm-list">
             {mailboxes.map((mailbox) => {
               const owner: VaultOwner = { kind: "mailbox", id: mailbox.id };
-              const name = `Postfach ${mailbox.address}`;
+              const name = `Postfach ${mailbox.display}`;
               return (
                 <li key={mailbox.id} className="dm-item dm-access">
                   <div className="dm-item-main">
-                    <div className="dm-item-top"><strong>{mailbox.address}</strong></div>
+                    <div className="dm-item-top"><strong>{mailbox.display}</strong></div>
                     {mailbox.person && <p className="dm-item-sub">{mailbox.person}</p>}
                   </div>
                   <SecretControl key={`${mailbox.id}-${mailbox.hasPassword}`} owner={owner} name={name} stored={Boolean(mailbox.hasPassword)} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
