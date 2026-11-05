@@ -11,17 +11,20 @@ import { siteOrigin } from "@/lib/site-origin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
-import { isMailCodeCheck, MAIL_CODE_MINUTES, mailCodeHash, newMailCode, readMailCode } from "./mail-code";
+import { codeTimes, isMailCodeCheck, MAIL_CODE_MINUTES, mailCodeHash, newMailCode, readMailCode, type CodeTimes } from "./mail-code";
 import { authMessage, authRateLimits, clientAddress, type AuthRateAction } from "./messages";
-import { codeMethod, hasConfirmedApp, secondFactorMethod } from "./second-factor";
+import { codeMethod, hasConfirmedApp, isFreelancerLogin, secondFactorMethod } from "./second-factor";
 import { sessionOf, tokenClaims, type CodeSession } from "./session-token";
 
 // Login, registration, password link, new password and sign-out run on the server: the session cookie that Hub and
 // Service share is HTTP-only, so browser code can neither read nor write it. Each action is a public POST endpoint
 // (Next.js checks its origin); inputs are validated here again, whatever the form already checked.
 
-/** `greeting`: first name for the greeting when a sign-in opens the hub (lib/greeting.ts); may be empty. */
-export type AuthResult = { ok: true; redirect?: string; greeting?: string } | { ok: false; error: string };
+/**
+ * `greeting`: first name for the greeting when a sign-in opens the hub (lib/greeting.ts); may be empty. `code`: when a
+ * new e-mail code went out and until when it counts, so the code page names that mail.
+ */
+export type AuthResult = { ok: true; redirect?: string; greeting?: string; code?: CodeTimes } | { ok: false; error: string };
 
 const failure = (code?: string | null): AuthResult => ({ ok: false, error: authMessage(code) });
 const passwordOk = (value: unknown, min: number): value is string => typeof value === "string" && value.length >= min && value.length <= 512;
@@ -76,7 +79,7 @@ export async function signInAction(input: { email: string; password: string; nex
   const method = secondFactorMethod(data.user?.app_metadata, hasConfirmedApp(data.user?.factors));
   if (method) {
     const session = method === "email" && data.session ? sessionOf(data.session.access_token) : null;
-    if (session) await issueMailCode(session);
+    if (session) await issueMailCode(session, isFreelancerLogin(data.user?.app_metadata));
     return { ok: true, redirect: `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(next)}` };
   }
   return { ok: true, redirect: next, greeting: await greetingFor(supabase, data.user?.id, next) };
@@ -102,21 +105,26 @@ async function currentSession(supabase: Awaited<ReturnType<typeof createClient>>
 /**
  * Issues a new code for the session (an older one expires) and mails it to the login's own address. Counted per
  * address and account; the database keeps only the hash and the hub_notifications row only kind and outcome.
- * "sent", or the error code for authMessage.
+ * `status` is "sent" or the error code for authMessage; `issuedAt` is the database's time of issue, so mail, code page
+ * and stored code name the same minute. Freelancers (`hubOnly`) read nothing about the service platform.
  */
-async function issueMailCode(session: CodeSession): Promise<string> {
-  if (!(await withinRate("login_code", session.email))) return "over_email_send_rate_limit";
+async function issueMailCode(session: CodeSession, hubOnly: boolean): Promise<{ status: string; issuedAt?: Date }> {
+  if (!(await withinRate("login_code", session.email))) return { status: "over_email_send_rate_limit" };
   const db = createAdminClient();
-  if (!db) return "setup";
+  if (!db) return { status: "setup" };
   const code = newMailCode();
   const { error } = await db.rpc("oalab_mail_code_issue", { p_user_id: session.userId, p_session_id: session.sessionId, p_code_hash: mailCodeHash(session.sessionId, code) });
   if (error) {
     console.error("[hub-auth] Sicherheitscode nicht ausstellbar", error.code ?? "unbekannt");
-    return "setup";
+    return { status: "setup" };
   }
-  const { data: profile } = await db.from("hub_profiles").select("first_name").eq("user_id", session.userId).maybeSingle<{ first_name: string }>();
-  const mail = await mailLoginCode(db, { id: session.userId, email: session.email }, { firstName: profile?.first_name ?? "", code, minutes: MAIL_CODE_MINUTES });
-  return mail === "sent" ? "sent" : "mail_failed";
+  const [{ data: issued }, { data: profile }] = await Promise.all([
+    db.from("oalab_mail_codes").select("created_at").eq("session_id", session.sessionId).maybeSingle<{ created_at: string }>(),
+    db.from("hub_profiles").select("first_name").eq("user_id", session.userId).maybeSingle<{ first_name: string }>(),
+  ]);
+  const issuedAt = issued?.created_at ? new Date(issued.created_at) : new Date();
+  const mail = await mailLoginCode(db, { id: session.userId, email: session.email }, { firstName: profile?.first_name ?? "", code, minutes: MAIL_CODE_MINUTES, issuedAt, hubOnly });
+  return { status: mail === "sent" ? "sent" : "mail_failed", issuedAt };
 }
 
 /**
@@ -130,8 +138,8 @@ export async function sendSecondFactorCodeAction(input?: { next?: string | null 
   const state = session ? await secondFactorOf(supabase) : null;
   if (!session || !state) return failure("session_not_found");
   if (codeMethod(state.method, state.hasApp, input?.next) !== "email") return failure("mfa_use_app");
-  const result = await issueMailCode(session);
-  return result === "sent" ? { ok: true } : failure(result);
+  const issued = await issueMailCode(session, isFreelancerLogin(state.user.app_metadata));
+  return issued.status === "sent" ? { ok: true, code: codeTimes(issued.issuedAt ?? new Date()) } : failure(issued.status);
 }
 
 /**

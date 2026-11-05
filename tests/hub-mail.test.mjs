@@ -58,7 +58,7 @@ test("every mail names the pictures it shows, and each of them exists", () => {
   const mails = [
     teamRegistrationMail(registration, "https://hub.oalab.de/dashboard/users", legal),
     registrationReceivedMail({ firstName: "Jana", contact: "info@oalab.de" }),
-    loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10 }),
+    loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10, issuedAt: new Date("2026-11-05T00:04:30Z") }),
   ];
   for (const mail of mails) {
     const shown = [...new Set([...mail.html.matchAll(/src="cid:([a-z0-9-]+)@hub\.oalab\.de"/g)].map((match) => match[1]))];
@@ -119,14 +119,21 @@ test("activation and password links go out as a button with a copyable fallback"
 });
 
 test("the sign-in code mail shows the six digits large in the body and keeps them out of subject and preheader", () => {
-  const mail = loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10 }, legal);
-  assert.equal(mail.subject, "Dein Sicherheitscode für oalab");
+  // 00:04:30 UTC is 01:04 in Berlin (winter time).
+  const issuedAt = new Date("2026-11-05T00:04:30Z");
+  const mail = loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10, issuedAt }, legal);
+  // The time of the request, never the code: every code mail is a thread of its own (5.11.2026).
+  assert.equal(mail.subject, "Dein Sicherheitscode für oalab · 01:04 Uhr");
   // Large and in two groups of three; the gap is spacing, so a copied code has no blank in it.
   assert.equal(mail.html.match(/letter-spacing:12px;[^>]*><span>042<\/span><span style="padding-left:14px;">917<\/span><\/div>/g).length, 1);
   assert.doesNotMatch(mail.html, /042917|042 917/);
-  assert.match(mail.text, /^Dein Sicherheitscode\n\nHallo Jana, gib diesen Code ein[\s\S]*\n042917\n[\s\S]*10 Minuten/);
-  assert.doesNotMatch(mail.html.match(/<div style="display:none[^>]*>([^<]*)<\/div>/)[1], /042|917/);
-  assert.match(loginCodeMail({ firstName: "", code: "000001", minutes: 10 }).text, /^Dein Sicherheitscode\n\nGib diesen Code ein/);
+  assert.match(mail.text, /^Dein Sicherheitscode\n\nHallo Jana, gib diesen Code ein, um deine Anmeldung im oalab Client Hub und auf der Serviceplattform zu bestätigen\.[\s\S]*\n042917\n[\s\S]*Gilt 10 Minuten, bis 01:14 Uhr/);
+  const preheader = mail.html.match(/<div style="display:none[^>]*>([^<]*)<\/div>/)[1];
+  assert.match(preheader, /^Angefordert um 01:04 Uhr, gültig bis 01:14 Uhr\./);
+  assert.doesNotMatch(preheader, /042|917/);
+  assert.match(loginCodeMail({ firstName: "", code: "000001", minutes: 10, issuedAt }).text, /^Dein Sicherheitscode\n\nGib diesen Code ein/);
+  // Summer time is counted as well.
+  assert.equal(loginCodeMail({ firstName: "", code: "000001", minutes: 10, issuedAt: new Date("2026-07-01T10:00:00Z") }).subject, "Dein Sicherheitscode für oalab · 12:00 Uhr");
 });
 
 test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {

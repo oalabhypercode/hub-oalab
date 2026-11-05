@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { freelancerNumberRefusal, hubRoles, isHubRole, kindForRole, randomFreeNumber, roleForKind, roleLabels } from "../lib/hub-users/rules.ts";
-import { secondFactorMethod, secondFactorPending, secondFactorRequired } from "../lib/hub-auth/second-factor.ts";
+import { isFreelancerLogin, secondFactorMethod, secondFactorPending, secondFactorRequired } from "../lib/hub-auth/second-factor.ts";
+import { loginCodeMail } from "../lib/hub-mail/templates.ts";
 
 // Freelancers (decision of 4.11.2026): a third role, only in the hub. A freelancer entry gets customers assigned by the
 // oalab team, gets files like a customer and reads the files its customers share with it.
@@ -100,4 +101,23 @@ test("freelancers have no projects and no way to the service platform in the hub
   const cards = await source("components/hub/cards.tsx");
   const card = cards.slice(cards.indexOf("export function FreelancerCard"), cards.indexOf("/** Rule-based summary"));
   assert.doesNotMatch(card, /SERVICE_PLATFORM_URL/);
+});
+
+test("code mail and code page leave the service platform out for freelancers", async () => {
+  // 5.11.2026: both said "im Hub und auf der Serviceplattform", where freelancers never get in.
+  assert.equal(isFreelancerLogin({ app_role: "oalab_freelancer" }), true);
+  assert.equal(isFreelancerLogin({ app_role: "oalab_customer" }), false);
+  const issuedAt = new Date("2026-11-05T00:04:30Z");
+  const freelancer = loginCodeMail({ firstName: "Fiona", code: "042917", minutes: 10, issuedAt, hubOnly: true });
+  assert.match(freelancer.text, /um deine Anmeldung im oalab Client Hub zu bestätigen\./);
+  assert.doesNotMatch(freelancer.text, /Serviceplattform/);
+  assert.match(loginCodeMail({ firstName: "Jana", code: "042917", minutes: 10, issuedAt }).text, /im oalab Client Hub und auf der Serviceplattform/);
+  const actions = await source("lib/hub-auth/actions.ts");
+  assert.match(actions, /if \(session\) await issueMailCode\(session, isFreelancerLogin\(data\.user\?\.app_metadata\)\);/);
+  assert.match(actions, /const issued = await issueMailCode\(session, isFreelancerLogin\(state\.user\.app_metadata\)\);/);
+  assert.match(await source("app/auth/mfa/page.tsx"), /hubOnly: isFreelancerLogin\(user\?\.app_metadata\)/);
+  const form = await source("components/auth-form.tsx");
+  assert.match(form, /const place = secondFactor\?\.hubOnly \? "im Hub" : "im Hub und auf der Serviceplattform";/);
+  const description = form.slice(form.indexOf("const description = mode"), form.indexOf("const action = mode"));
+  assert.doesNotMatch(description, /Serviceplattform/);
 });

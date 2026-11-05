@@ -12,7 +12,7 @@ export function authMessage(code: string | undefined | null) {
   if (value === "weak_password") return "Bitte wähle ein stärkeres Passwort mit mindestens acht Zeichen.";
   if (value === "same_password") return "Dein neues Passwort muss sich vom bisherigen unterscheiden.";
   if (value === "session_not_found" || value === "refresh_token_not_found") return "Der Link ist abgelaufen. Fordere bitte einen neuen Passwort-Link an.";
-  if (value === "mail_code_wrong") return "Der Code stimmt nicht. Bitte gib den sechsstelligen Code aus deiner letzten E-Mail ein.";
+  if (value === "mail_code_wrong") return "Der Code stimmt nicht. Nimm den Code aus der neuesten Mail, ältere Codes gelten nicht mehr.";
   if (value === "mail_code_locked") return "Der Code wurde zu oft falsch eingegeben. Fordere bitte einen neuen Code an.";
   if (value === "mail_code_expired" || value === "mail_code_missing") return "Der Code ist abgelaufen. Fordere bitte einen neuen Code an.";
   if (value === "mfa_verification_failed" || value === "mfa_challenge_expired") return "Der Code stimmt nicht. Bitte gib den aktuellen Code aus deiner Authenticator-App ein.";

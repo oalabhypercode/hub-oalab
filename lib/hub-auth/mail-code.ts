@@ -7,6 +7,22 @@ import { createHash, randomInt } from "node:crypto";
 /** How long a code stays valid; the database function uses the same 10 minutes. */
 export const MAIL_CODE_MINUTES = 10;
 
+/** When a code went out and until when it counts, as "01:04" in Europe/Berlin: the code page names the mail that counts. */
+export type CodeTimes = { sentAt: string; until: string };
+
+const clock = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+
+/** The time of day in Europe/Berlin, "01:04", as code mails (lib/hub-mail/templates.ts) and the code page show it. */
+export function codeClock(at: Date | string | number) {
+  return clock.format(new Date(at));
+}
+
+/** Sent and valid-until time of a code issued at `issuedAt`. */
+export function codeTimes(issuedAt: Date | string | number): CodeTimes {
+  const sent = new Date(issuedAt);
+  return { sentAt: codeClock(sent), until: codeClock(sent.getTime() + MAIL_CODE_MINUTES * 60_000) };
+}
+
 /** A uniformly random code from 000000 to 999999. */
 export function newMailCode() {
   return randomInt(0, 1_000_000).toString().padStart(6, "0");
