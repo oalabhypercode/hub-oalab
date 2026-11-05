@@ -13,6 +13,7 @@ import {
   activateTemplateUpload, checkTemplateUpload, discardTemplateUpload, downloadContractTemplate, downloadTemplateVersion, listContractTemplates,
   prepareTemplateUpload, restoreTemplateVersion, type TemplateOverview,
 } from "@/lib/contract-templates/actions";
+import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { formatStamp, saveDownload, useContractRunner } from "./contract-actions";
 
@@ -31,6 +32,16 @@ export function ContractTemplatesSection({ canManage }: { canManage: boolean }) 
   const [historyFor, setHistoryFor] = useState<ContractTemplateId | null>(null);
   const [notice, setNotice] = useState("");
   const { busy, error, run } = useContractRunner();
+  const info = useInfo("So funktionieren die Vertragsvorlagen", (
+    <ul>
+      <li>„Blanko“ lädt den Vertrag mit Linien statt Kundendaten, zum Ausdrucken und Ausfüllen von Hand.</li>
+      <li>„Vorlage“ lädt die aktive Word-Datei mit Platzhaltern wie <code>{"{{kunde_firma}}"}</code>, zum Bearbeiten in Word.</li>
+      <li>„Neue Fassung“ lädt deine geänderte Vorlage hoch. Der Hub prüft vorher jeden Platzhalter.</li>
+      <li>„Fassungen“ zeigt alle bisherigen Fassungen. Eine ältere oder die Standardfassung kannst du wieder verwenden; gelöscht wird nichts.</li>
+      <li>Neue Verträge nutzen immer die aktive Fassung. Schon erstellte oder abgelegte Verträge ändern sich nicht.</li>
+      <li>Einen Vertrag für einen Kunden erstellst du bei ihm im Reiter „Vertrag“.</li>
+    </ul>
+  ));
 
   useEffect(() => {
     if (!canManage) return;
@@ -55,7 +66,8 @@ export function ContractTemplatesSection({ canManage }: { canManage: boolean }) 
 
   return (
     <section className="cdm-section" aria-labelledby="cdm-templates">
-      <h3 id="cdm-templates"><FileSignature size={16} aria-hidden="true" />Vertragsvorlagen</h3>
+      <h3 id="cdm-templates"><FileSignature size={16} aria-hidden="true" />Vertragsvorlagen{info.button}</h3>
+      {info.box}
       {notice && <p className="calendar-notice" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
       <ul className="cdm-rows contract-templates">
         {contractTemplateIds.map((id) => (
@@ -111,6 +123,15 @@ function TemplateUploadDialog({ templateId, onClose, onActivated }: { templateId
   const [check, setCheck] = useState<TemplateCheck | null>(null);
   const activated = useRef(false);
   const { busy, error, run } = useContractRunner();
+  const info = useInfo("Was der Hub vor dem Übernehmen prüft", (
+    <ul>
+      <li>Nur Word-Dateien (.docx) bis 10 MB, ohne Makros.</li>
+      <li>Jeder Platzhalter muss bekannt sein. Ein Tippfehler wie <code>{"{{kunde_frima}}"}</code> blockiert, sonst stünde er in jedem Vertrag.</li>
+      <li>Halbe Platzhalter, etwa mit vergessenem <code>{"}}"}</code>, blockieren ebenfalls.</li>
+      <li>Fehlt ein Platzhalter im Text, warnt der Hub nur: Das Feld wird weiter abgefragt, steht dann aber nicht im Vertrag.</li>
+      <li>Aktiv wird die Fassung erst mit „Als aktive Fassung übernehmen“. Schließt du das Fenster vorher, wird der Upload gelöscht.</li>
+    </ul>
+  ));
 
   // An upload that was replaced by another one, or not taken over when the window closes, is dropped.
   useEffect(() => () => {
@@ -141,8 +162,9 @@ function TemplateUploadDialog({ templateId, onClose, onActivated }: { templateId
   }
 
   return (
-    <Modal title={`Neue Fassung: ${template.name}`} onClose={onClose} className="users-modal contract-modal">
+    <Modal title={`Neue Fassung: ${template.name}`} onClose={onClose} className="users-modal contract-modal" actions={info.button}>
       <div className="cdm-dialog">
+        {info.box}
         <ol className="contract-steps">
           <li>Im Überblick unter „Vorlage“ die aktive Word-Datei mit Platzhaltern herunterladen.</li>
           <li>In Word ändern. Platzhalter wie {"{{kunde_firma}}"} genau so stehen lassen oder aus der Liste unten neu einfügen.</li>
@@ -176,9 +198,19 @@ function TemplateVersionsDialog({ templateId, versions, onClose, onChanged }: { 
   const template = contractTemplates[templateId];
   const { busy, error, run } = useContractRunner();
   const standardActive = isStandard(versions[0]);
+  const info = useInfo("So funktionieren Fassungen", (
+    <ul>
+      <li>Die oberste Fassung ist aktiv. Neue Verträge, „Blanko“ und „Vorlage“ nutzen sie.</li>
+      <li>„Wieder verwenden“ legt eine Kopie der älteren Fassung oben drauf. Die Liste bleibt vollständig, gelöscht wird nichts.</li>
+      <li>Die Standardfassung ist die Vorlage, die mit dem Hub ausgeliefert wird.</li>
+      <li>„Herunterladen“ gibt dir jede Fassung als Word-Datei mit Platzhaltern, zum Vergleichen oder Weiterbearbeiten.</li>
+      <li>Schon erstellte Verträge ändern sich nicht, wenn du die Fassung wechselst.</li>
+    </ul>
+  ));
   return (
-    <Modal title={`Fassungen: ${template.name}`} onClose={onClose} className="users-modal contract-modal">
+    <Modal title={`Fassungen: ${template.name}`} onClose={onClose} className="users-modal contract-modal" actions={info.button}>
       <div className="cdm-dialog">
+        {info.box}
         <p className="field-hint">Die oberste Fassung ist aktiv. Gelöscht wird nichts: „Wieder verwenden“ legt eine ältere Fassung als neue oben drauf.</p>
         <ul className="cdm-rows contract-versions">
           {!versions.length && (

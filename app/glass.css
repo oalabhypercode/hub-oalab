@@ -2055,6 +2055,23 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .cdm-dialog .field-hint { margin: 0; }
 .cdm-switch-row { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--label-body); }
 
+/* ⓘ next to a feature and its explanation box (components/hub/info-box.tsx), used wherever a feature needs one. */
+.info-button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / calc(0.2 * var(--tint-k))); color: var(--accent-text); vertical-align: middle; }
+.info-button:hover { background: rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k))); }
+.info-button[aria-expanded="true"] { background: var(--accent-gradient); box-shadow: none; color: #ffffff; }
+.info-box { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 13.5px; line-height: 19px; font-weight: 400; text-align: left; }
+.info-box-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.info-box-head strong { font-size: 14px; line-height: 20px; font-weight: 700; color: var(--label); }
+.info-box-close { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; color: var(--label-secondary); }
+.info-box-close:hover { background: var(--fill-tertiary); }
+.info-box-body { display: flex; flex-direction: column; gap: 6px; }
+.info-box-body p { margin: 0; }
+.info-box-body ul, .info-box-body ol { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; list-style: disc; }
+.info-box-body ol { list-style: decimal; }
+.hub-modal .modal-heading .info-button { margin-right: auto; }
+.cdm-section h3 .info-button { margin-left: 2px; }
+.cdm-section h3 .info-button svg { color: inherit; }
+
 /* Contract generator: the dialog „Vertrag erstellen“ and the templates in the overview. */
 .hub-modal.contract-modal { width: min(680px, calc(100% - 32px)); }
 .contract-form .cdm-group legend { float: none; }
@@ -2066,6 +2083,8 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .contract-fields input[aria-invalid] { box-shadow: inset 0 0 0 2px var(--danger); }
 .contract-summary { padding: 8px 10px; border-radius: 10px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); }
 .contract-file-box { gap: 6px; }
+.contract-file-box legend { display: flex; align-items: center; gap: 8px; }
+.contract-file-box > .info-box { margin: 0 2px 4px; }
 .contract-file-box .cdm-switch-row { padding: 4px 10px; }
 .contract-file-box .field-hint { padding: 0 10px; }
 .contract-file-box .sheet-button { margin-top: 4px; }
