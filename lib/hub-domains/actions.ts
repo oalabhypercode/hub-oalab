@@ -118,6 +118,19 @@ export async function saveMailServer(input: { customerId?: unknown } & Record<st
   return { ok: true, data: null };
 }
 
+/** Removes the mail server of a customer, for example once the package OALAB Domain & Mail ends. */
+export async function deleteMailServer(input: { customerId?: unknown }): Promise<ActionResult<null>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!isUuid(input?.customerId)) return failed("Diesen Kunden gibt es nicht mehr.");
+  const { data, error } = await ctx.db.from("hub_customer_mail_servers").delete().eq("customer_id", input.customerId).select("customer_id").maybeSingle<{ customer_id: string }>();
+  if (error) return failed(writeError(error, tryAgain));
+  if (!data) return failed("Für diesen Kunden ist kein Mail-Server gespeichert.");
+  await log(ctx, "customer.mail_server_deleted", "Mail-Server entfernt", data.customer_id);
+  refreshWorkspace();
+  return { ok: true, data: null };
+}
+
 /* ---------- Mailboxes, forwards and aliases ---------- */
 
 /** Creates a mailbox, forward or alias of a customer or updates one of the same customer. */

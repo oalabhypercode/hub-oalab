@@ -73,8 +73,11 @@ export type DomainMailState = {
   mailboxes: Mailbox[];
   /** Admins only. */
   logins: ProviderLogin[];
-  /** Admins only: whether the server holds the key and this session confirmed its second factor (aal2). */
-  vault: { keyReady: boolean; confirmed: boolean } | null;
+  /**
+   * Admins only: whether the server holds the key (with its short name, never the key) and this session confirmed its
+   * second factor (aal2).
+   */
+  vault: { keyReady: boolean; keyId: string | null; confirmed: boolean } | null;
   error?: string;
 };
 

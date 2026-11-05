@@ -101,7 +101,8 @@ export async function revealSecret(input: { owner?: unknown; purpose?: unknown }
   const secret = openSecret(ctx.key, owner, { keyVersion: data.key_version, iv: data.iv, authTag: data.auth_tag, ciphertext: data.ciphertext });
   if (secret === null) return failed("Dieses Passwort lässt sich mit dem Schlüssel auf dem Server nicht öffnen. Wurde HUB_VAULT_KEY geändert?");
   const copy = input?.purpose === "copy";
-  if (!await log(ctx, copy ? "vault.copied" : "vault.revealed", `Passwort ${copy ? "kopiert" : "angezeigt"}: ${target.name}`, target.customerId)) return failed(tryAgain);
+  // The server cannot see the clipboard: a copy is logged as the password handed out for copying.
+  if (!await log(ctx, copy ? "vault.copied" : "vault.revealed", `Passwort ${copy ? "zum Kopieren abgerufen" : "angezeigt"}: ${target.name}`, target.customerId)) return failed(tryAgain);
   return { ok: true, data: { secret } };
 }
 

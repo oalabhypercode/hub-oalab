@@ -83,7 +83,7 @@ const byAddress = (a: Mailbox, b: Mailbox) => a.display.localeCompare(b.display,
  * Everything for a real admin, read with the service role after the admin check. Of the vault only which mailboxes and
  * logins have a password, nothing sealed: a password only travels through revealSecret.
  */
-export async function loadDomainMailForAdmin(db: SupabaseClient, confirmed: boolean, keyReady: boolean): Promise<DomainMailState> {
+export async function loadDomainMailForAdmin(db: SupabaseClient, confirmed: boolean, keyId: string | null): Promise<DomainMailState> {
   const [domains, servers, mailboxes, logins, secrets] = await Promise.all([
     db.from("hub_customer_domains").select(ADMIN_DOMAIN_COLUMNS).returns<DomainRow[]>(),
     db.from("hub_customer_mail_servers").select(ADMIN_MAIL_SERVER_COLUMNS).returns<MailServerRow[]>(),
@@ -108,7 +108,7 @@ export async function loadDomainMailForAdmin(db: SupabaseClient, confirmed: bool
     logins: (logins.data ?? []).flatMap((row): ProviderLogin[] => isLoginKind(row.kind)
       ? [{ id: row.id, customerId: row.customer_id, kind: row.kind, label: row.label, loginUrl: row.login_url, username: row.username, hasPassword: stored.has(row.id) }]
       : []).sort((a, b) => a.label.localeCompare(b.label, "de")),
-    vault: { keyReady, confirmed },
+    vault: { keyReady: keyId !== null, keyId, confirmed },
   };
 }
 

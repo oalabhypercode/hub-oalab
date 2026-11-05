@@ -150,5 +150,5 @@ function mailFixtures(numbers: string[], customers: ContractCustomer[], admin: b
   const logins = admin ? numbers.flatMap((number) => fixtures[number].mail.logins.map(([kind, label, loginUrl, username, stored], index): ProviderLogin => ({
     id: `${number}-l${index}`, customerId: number, kind, label, loginUrl, username, hasPassword: stored,
   }))) : [];
-  return { ready: true, domains, mailServers, mailboxes, logins, vault: admin ? { keyReady: false, confirmed: false } : null };
+  return { ready: true, domains, mailServers, mailboxes, logins, vault: admin ? { keyReady: false, keyId: null, confirmed: false } : null };
 }

@@ -5,7 +5,7 @@ import {
   LOOK_LIMIT, LOOK_WINDOW_MINUTES, REVEAL_SECONDS, domainCheckIds, domainStatusIds, loginKindIds, mailboxKindIds, mailSecurities, normalizeDomain, normalizeEmail, normalizeHost,
   normalizeUrl, readDomain, readLogin, readMailbox, readMailServer, readSecret, readVaultOwner, renewalPassed, renewingSoon,
 } from "../lib/hub-domains/rules.ts";
-import { openSecret, parseVaultKey, sealSecret, VAULT_KEY_VERSION } from "../lib/hub-vault/crypto.ts";
+import { keyFingerprint, openSecret, parseVaultKey, sealSecret, VAULT_KEY_VERSION } from "../lib/hub-vault/crypto.ts";
 import { contractFixtures } from "../lib/hub-contracts/fixtures.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -137,13 +137,19 @@ test("vault: AES-256-GCM bound to its owner; a wrong key, owner or byte opens no
   assert.equal(openSecret(key, owner, { ...sealed, keyVersion: 2 }), null);
   // The longest password still fits the database's 3000 characters.
   assert.ok(sealSecret(key, owner, "😀".repeat(500)).ciphertext.length <= 3000);
+  // The key's short name compares Vercel with .env.local: stable, short, different per key, no part of the key.
+  const id = keyFingerprint(key);
+  assert.match(id, /^[0-9A-F]{4}-[0-9A-F]{4}$/);
+  assert.equal(keyFingerprint(parseVaultKey(raw.toString("base64"))), id);
+  assert.notEqual(keyFingerprint(parseVaultKey(Buffer.alloc(32, 8).toString("base64"))), id);
+  assert.ok(!raw.toString("hex").toUpperCase().includes(id.replace("-", "")), "not a piece of the key");
 });
 
 test("the examples: admins see everything but no password, customers only names, addresses and server settings", () => {
   const admin = contractFixtures({ admin: true, customerNumber: null }).domainMail;
   assert.ok(admin.domains.every((domain) => domain.details), "admins see the details");
   assert.ok(admin.logins.length > 0 && admin.mailboxes.some((mailbox) => mailbox.hasPassword));
-  assert.deepEqual(admin.vault, { keyReady: false, confirmed: false }, "examples never open a password");
+  assert.deepEqual(admin.vault, { keyReady: false, keyId: null, confirmed: false }, "examples never open a password");
   assert.ok(admin.mailServers.every((server) => typeof server.provider === "string"));
   const customer = contractFixtures({ admin: false, customerNumber: "KD-24017" }).domainMail;
   assert.ok(customer.domains.length > 0 && customer.domains.every((domain) => domain.customerId === "KD-24017" && !("details" in domain)));

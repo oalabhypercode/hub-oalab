@@ -7,7 +7,7 @@ import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { loadDomainMailForAdmin, loadDomainMailForCustomer } from "@/lib/hub-domains/server";
 import { emptyDomainMail } from "@/lib/hub-domains/types";
-import { vaultKey } from "@/lib/hub-vault/key";
+import { vaultKeyId } from "@/lib/hub-vault/key";
 import { isTimelineKind } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "./types";
@@ -52,7 +52,7 @@ async function loadForAdmin(): Promise<ContractsState> {
     db.from("hub_customer_timeline").select(ADMIN_TIMELINE_COLUMNS).order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(3000).returns<TimelineRow[]>(),
     db.from("hub_profiles").select("user_id, first_name, last_name").returns<{ user_id: string; first_name: string; last_name: string }[]>(),
     loadCustomerLogos(db).catch(() => new Map<string, CustomerLogo>()),
-    loadDomainMailForAdmin(db, confirmed, vaultKey() !== null).catch(domainMailFailed),
+    loadDomainMailForAdmin(db, confirmed, vaultKeyId()).catch(domainMailFailed),
   ]);
   if (customers.error) return empty("admin", "Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   if (timeline.error && !isMissingContractTables(timeline.error)) return empty("admin", "Pakete und Verlauf konnten gerade nicht geladen werden. Bitte versuche es erneut.");

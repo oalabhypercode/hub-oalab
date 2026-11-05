@@ -5,7 +5,7 @@ import { Check, Copy, ExternalLink, Globe, Mail, Minus, Pencil, Plus, Save, Serv
 import { MiniLoader } from "@/components/brand-loader";
 import { formatDay } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
-import { deleteDomain, deleteMailbox, saveDomain, saveMailbox, saveMailServer } from "@/lib/hub-domains/actions";
+import { deleteDomain, deleteMailbox, deleteMailServer, saveDomain, saveMailbox, saveMailServer } from "@/lib/hub-domains/actions";
 import {
   domainCheckIds, domainChecks, domainOwners, domainStatuses, domainStatusIds, mailboxKindIds, mailboxKinds, mailSecurities, MAX_NOTE, MAX_PERSON, MAX_PROVIDER,
   normalizeEmail, providerSuggestions, renewalPassed, type DomainCheck, type DomainOwner, type DomainStatus, type MailboxKind, type MailSecurity,
@@ -83,7 +83,10 @@ export function DomainMailTab({ customer, domainMail, canManage, today, onNotice
         <div className="dm-section-head"><h3 id="dm-server"><Server size={16} aria-hidden="true" />Mail-Server</h3></div>
         {withMail
           ? <MailServerForm key={`${customer.id}-${JSON.stringify(server)}`} customerId={customer.id} server={server} canManage={canManage} onSaved={onNotice} />
-          : <p className="cdm-empty">Einen Mail-Server gibt es nur mit dem Paket OALAB Domain & Mail; festlegen lässt es sich im Reiter „Vertrag“.{server ? " Die gespeicherten Angaben bleiben, der Kunde sieht sie aber erst wieder mit diesem Paket." : ""}</p>}
+          : <>
+            <p className="cdm-empty">Einen Mail-Server gibt es nur mit dem Paket OALAB Domain & Mail; festlegen lässt es sich im Reiter „Vertrag“.{server ? " Die gespeicherten Angaben bleiben, der Kunde sieht sie aber erst wieder mit diesem Paket." : ""}</p>
+            {server && canManage && <div className="dm-form-acts"><RemoveMailServer customerId={customer.id} onRemoved={onNotice} /></div>}
+          </>}
       </section>
 
       <section className="cdm-section" aria-labelledby="dm-mailboxes">
@@ -264,10 +267,27 @@ function MailServerForm({ customerId, server, canManage, onSaved }: { customerId
       {canManage && (
         <div className="cdm-form-foot">
           <p className="field-hint">Der Kunde sieht Server, Ports, Verschlüsselung und Webmail unter „Vertrag & Domain“, den Anbieter nicht.</p>
-          <button type="submit" className="sheet-action is-primary" disabled={!changed || busy !== null}>{busy ? <Spinner /> : <Save size={15} aria-hidden="true" />}Mail-Server speichern</button>
+          <div className="dm-form-acts">
+            {server && <RemoveMailServer customerId={customerId} onRemoved={onSaved} />}
+            <button type="submit" className="sheet-action is-primary" disabled={!changed || busy !== null}>{busy ? <Spinner /> : <Save size={15} aria-hidden="true" />}Mail-Server speichern</button>
+          </div>
         </div>
       )}
     </form>
+  );
+}
+
+/** Removes a saved mail server after asking once more. */
+function RemoveMailServer({ customerId, onRemoved }: { customerId: string; onRemoved: (message: string) => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const { busy, error, run } = useContractAction();
+  return (
+    <>
+      {confirm
+        ? <button type="button" className="sheet-action is-danger" disabled={busy !== null} onClick={() => run("remove", () => deleteMailServer({ customerId }), () => onRemoved("Mail-Server entfernt."))}>{busy ? <Spinner /> : <Trash2 size={15} aria-hidden="true" />}Wirklich entfernen</button>
+        : <button type="button" className="sheet-action" onClick={() => setConfirm(true)}><Trash2 size={15} aria-hidden="true" />Entfernen</button>}
+      {error && <p className="form-error" role="alert">{error}</p>}
+    </>
   );
 }
 

@@ -109,6 +109,14 @@ export function AccessTab({ customer, domainMail, fixtures, preview, onNotice }:
         ) : <p className="cdm-empty">Noch keine Logins für Domain-Anbieter, DNS oder Hosting.</p>}
       </section>
 
+      {live && vault && (
+        <p className="field-hint">
+          {vault.keyId
+            ? <>Schlüssel auf diesem Server: Kennung <span className="dm-mono" translate="no">{vault.keyId}</span>. Lokal und in Vercel muss dieselbe Kennung stehen.</>
+            : "Auf diesem Server ist kein Schlüssel für die Zugänge eingetragen."}
+        </p>
+      )}
+
       {dialog && <LoginDialog customer={customer} entry={dialog.entry} canStoreSecret={usable} onClose={() => setDialog(null)} onSaved={onNotice} />}
       {secretFor && <SecretDialog owner={secretFor.owner} name={secretFor.name} replace={secretFor.replace} onClose={() => setSecretFor(null)} onSaved={onNotice} />}
     </div>

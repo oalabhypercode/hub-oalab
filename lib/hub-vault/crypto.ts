@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 /**
  * AES-256-GCM for the passwords under „Zugänge“. The hub server seals a password with the key from HUB_VAULT_KEY before
@@ -19,6 +19,15 @@ export function parseVaultKey(value: string | null | undefined): Buffer | null {
   if (!/^[A-Za-z0-9+/]{43}=$/.test(text)) return null;
   const key = Buffer.from(text, "base64");
   return key.length === 32 ? key : null;
+}
+
+/**
+ * A short name of the key, „3F9A-1C2E“: the first four bytes of its SHA-256. It tells whether Vercel and .env.local
+ * hold the same key and says nothing usable about the key itself.
+ */
+export function keyFingerprint(key: Buffer): string {
+  const hex = createHash("sha256").update(key).digest("hex").slice(0, 8).toUpperCase();
+  return `${hex.slice(0, 4)}-${hex.slice(4)}`;
 }
 
 const additionalData = (owner: VaultOwnerRef, version: number) => Buffer.from(`oalab-hub-vault:v${version}:${owner.kind}:${owner.id}`, "utf8");

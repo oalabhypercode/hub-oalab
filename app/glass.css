@@ -2180,6 +2180,8 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .dm-setting dd { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; font-size: 14px; color: var(--label); }
 .dm-setting dd > span { overflow-wrap: anywhere; }
 .dm-webmail { align-self: flex-start; }
+.dm-form-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dm-form-acts .sheet-action.is-danger { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
 
 @container sheet (max-width: 820px) {
   .cdm-entry { grid-template-columns: 76px minmax(0, 1fr); }
