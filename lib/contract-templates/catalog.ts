@@ -117,6 +117,23 @@ export const computedKeys = ["preis_jahr_regulaer", "rabatt_betrag", "preis_jahr
 /** Every placeholder a template may contain: its fields plus the computed ones. */
 export const knownPlaceholders = (template: ContractTemplate) => [...template.fields, ...computedKeys];
 
+export const computedLabels: Record<(typeof computedKeys)[number], string> = {
+  preis_jahr_regulaer: "Regulärer Jahrespreis (12 × Monatspreis), berechnet",
+  rabatt_betrag: "Rabatt in Euro, berechnet",
+  preis_jahr: "Jahrespreis nach Rabatt, berechnet",
+  minuten_stufe_1: "Inklusive Minuten + 60, berechnet",
+  minuten_stufe_2: "Inklusive Minuten + 120, berechnet",
+  oalab_strasse: "Straße von oalab, aus dem Impressum",
+  oalab_plz_ort: "PLZ und Ort von oalab, aus dem Impressum",
+};
+
+/** What a placeholder stands for, for the help list next to the upload. */
+export function placeholderLabel(key: string) {
+  const field = contractFields[key];
+  if (field) return `${contractGroupLabels[field.group]}: ${field.label}`;
+  return (computedLabels as Record<string, string>)[key] ?? key;
+}
+
 /** The template that fits a customer's domain package: oalab hosts → Website, Domain & Mail; otherwise Website-Pflege. */
 export function suggestedTemplate(packageIds: readonly (string | null)[]): ContractTemplateId {
   return packageIds.some((id) => id && contractTemplates["website-domain-mail"].packages.includes(id)) ? "website-domain-mail" : "website-pflege";
@@ -287,3 +304,56 @@ export function contractFileName(template: ContractTemplate, company: string, ex
 }
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/* ---------- Versions the admins upload ---------- */
+
+/**
+ * Uploaded versions live in the private bucket of the asset management, which only admins may read: one folder per
+ * template, plus a staging folder for uploads until their check passed. The newest version is the active one; without
+ * any, the template that ships with the hub is.
+ */
+export const TEMPLATE_VERSIONS_PREFIX = "templates/contracts";
+export const TEMPLATE_STAGING_PREFIX = "templates/staging";
+export const MAX_TEMPLATE_BYTES = 10 * 1024 * 1024;
+
+/** upload: a new Word file; restore: an older version used again; standard: back to the template that ships with the hub. */
+export type TemplateVersionKind = "upload" | "restore" | "standard";
+export type TemplateVersion = { name: string; kind: TemplateVersionKind; createdAt: string };
+
+export const versionKindLabels: Record<TemplateVersionKind, string> = { upload: "Hochgeladen", restore: "Wieder verwendet", standard: "Standardfassung" };
+
+/** "20261105-130512-upload-k3x9.docx": UTC, so the names sort by time. */
+export function versionFileName(kind: TemplateVersionKind, date: Date, random: string) {
+  const iso = date.toISOString();
+  return `${iso.slice(0, 10).replace(/-/g, "")}-${iso.slice(11, 19).replace(/:/g, "")}-${kind}-${random}.docx`;
+}
+
+export function parseVersionName(name: string): TemplateVersion | null {
+  const match = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-(upload|restore|standard)-[a-z0-9]{4,12}\.docx$/.exec(name);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second, kind] = match;
+  return { name, kind: kind as TemplateVersionKind, createdAt: `${year}-${month}-${day}T${hour}:${minute}:${second}Z` };
+}
+
+/** Newest first; names that are not versions are left out. */
+export const sortedVersions = (names: readonly string[]) => names.flatMap((name) => parseVersionName(name) ?? []).sort((a, b) => b.name.localeCompare(a.name));
+
+export type TemplateCheck = {
+  /** Every placeholder in the file. */
+  keys: string[];
+  /** Placeholders the hub does not know, e.g. a typo such as {{kunde_frima}}: they would stay in every contract. */
+  unknown: string[];
+  /** Fields of the form the text no longer uses; their input has no effect. */
+  missing: string[];
+  /** Pieces like "{{kunde_" without their end. */
+  broken: string[];
+  ok: boolean;
+};
+
+/** Unknown or broken placeholders, or none at all, block a new version; fields the text no longer uses only warn. */
+export function checkTemplateScan(template: ContractTemplate, scan: { keys: readonly string[]; broken: readonly string[] }): TemplateCheck {
+  const known = knownPlaceholders(template);
+  const unknown = scan.keys.filter((key) => !known.includes(key));
+  const missing = template.fields.filter((key) => !scan.keys.includes(key));
+  return { keys: [...scan.keys], unknown, missing, broken: [...scan.broken], ok: scan.keys.length > 0 && !unknown.length && !scan.broken.length };
+}
