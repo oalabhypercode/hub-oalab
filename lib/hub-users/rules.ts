@@ -54,9 +54,6 @@ export function displayStatus(status: AccountStatus, lastSignInAt: string | null
   return status === "active" && !lastSignInAt ? "invited" : status;
 }
 
-/** Must match lib/service-packages.ts and the check constraint on hub_customers (the tests compare them). */
-export const servicePackageIds = ["website-mail", "website-lite", "website-extra", "website-max"] as const;
-
 export type Check<T> = { ok: true; value: T } | { ok: false; error: string };
 
 /** Single-line text: control characters and runs of whitespace become one space, at most `max` characters. */
@@ -200,7 +197,6 @@ export function readPerson(input: Record<string, unknown>): Check<PersonInput> {
 export type CustomerInput = {
   company: string;
   customerNumber: string;
-  servicePackages: string[];
   contactEmail: string;
   phone: string;
   website: string;
@@ -216,9 +212,6 @@ export function readCustomer(input: Record<string, unknown>): Check<CustomerInpu
   if (!company) return { ok: false, error: "Bitte den Namen des Unternehmens angeben." };
   const customerNumber = cleanCustomerNumber(input.customerNumber, true);
   if (!customerNumber.ok) return customerNumber;
-  const known: readonly string[] = servicePackageIds;
-  const packages = Array.isArray(input.servicePackages) ? input.servicePackages : [];
-  if (packages.some((id) => typeof id !== "string" || !known.includes(id))) return { ok: false, error: "Unbekanntes Servicepaket." };
   const contactEmail = cleanLine(input.contactEmail, 254) ? cleanEmail(input.contactEmail) : { ok: true as const, value: "" };
   if (!contactEmail.ok) return { ok: false, error: "Bitte eine gültige Kontakt-E-Mail angeben." };
   const phone = cleanPhone(input.phone, false);
@@ -232,7 +225,6 @@ export function readCustomer(input: Record<string, unknown>): Check<CustomerInpu
     value: {
       company,
       customerNumber: customerNumber.value,
-      servicePackages: Array.from(new Set(packages as string[])).sort((a, b) => known.indexOf(a) - known.indexOf(b)),
       contactEmail: contactEmail.value,
       phone: phone.value,
       website: website.value,

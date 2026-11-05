@@ -32,7 +32,7 @@ const themes = async () => {
 };
 const token = (block, name) => block.match(new RegExp(`--${name}: (#[0-9a-f]{6})`, "i"))[1];
 const channels = (block, name) => block.match(new RegExp(`--${name}: (\\d+) (\\d+) (\\d+);`)).slice(1).map(Number);
-const textTokens = ["label-body", "label-secondary", "insights-text", "system-gray", "cat-projects-text", "cat-files-text", "cat-messages-text", "cat-calendar-text"];
+const textTokens = ["label-body", "label-secondary", "insights-text", "system-gray", "cat-projects-text", "cat-files-text", "cat-contracts-text", "cat-messages-text", "cat-calendar-text"];
 
 test("text colours on glass keep 4.5:1 at 70 % opacity over any background", async () => {
   const { light } = await themes();
@@ -41,7 +41,7 @@ test("text colours on glass keep 4.5:1 at 70 % opacity over any background", asy
   tokens["accent-text (bordeaux)"] = brand.match(/--oalab-bordeaux: (#[0-9a-f]{6})/i)[1];
   // Categories colour their text with these tokens, so the dark theme can swap them.
   const categories = [...(await source("lib/categories.ts")).matchAll(/text: "var\(--cat-(\w+)-text\)"/g)];
-  assert.deepEqual(categories.map((match) => match[1]), ["projects", "files", "messages", "calendar"]);
+  assert.deepEqual(categories.map((match) => match[1]), ["projects", "files", "contracts", "messages", "calendar"]);
   for (const [name, hex] of Object.entries(tokens)) {
     assert.ok(contrast(rgb(hex), worstGlass) >= 4.5, `${name} ${hex}: ${contrast(rgb(hex), worstGlass).toFixed(2)}:1`);
   }

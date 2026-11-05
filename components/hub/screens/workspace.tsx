@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpDown, Bot, Building2, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, Palette, Rows3, Scale, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
-import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
+import { categories, categoriesFor, categoryLabel, type CategoryId } from "@/lib/categories";
 import { appearanceHref, currentMilestone, deadlineHint, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
-import { servicePackages } from "@/lib/service-packages";
+import { packageCatalog } from "@/lib/service-packages";
 import { LegalLinks } from "@/components/legal-links";
 import { LEGAL_PATHS } from "@/lib/legal-links";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
@@ -39,7 +39,7 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
   const { openPanel, manageUsers } = useHubShell();
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
-  const shownCategories = categoryOrder.filter((id) => !(freelancer && id === "projects")).filter((id) => categoryLabel(id, admin || freelancer).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
+  const shownCategories = categoriesFor(freelancer).filter((id) => categoryLabel(id, admin || freelancer).toLowerCase().includes(term) || (term && metricOrder.some((metric) => metricMeta[metric].category === id && metricMeta[metric].name.toLowerCase().includes(term))));
   const shownMetrics = term && populated ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const showInsights = sectionLabels.insights.toLowerCase().includes(term);
   return (
@@ -247,7 +247,7 @@ function AccountDetailsCard() {
     ["Telefon", account.person?.phone],
     ["Unternehmen", account.company],
     ["Kundennummer", account.customerNumber],
-    ["Servicepakete", account.servicePackages.map((id) => servicePackages[id].name).join(", ")],
+    ["Pakete", account.packages.map((id) => packageCatalog[id].name).join(", ")],
     ["Anschrift", address],
     ["Kontakt", [details?.contactEmail, details?.phone].filter(Boolean).join(" · ")],
     ["Website", details?.website.replace(/^https?:\/\//, "")],

@@ -6,7 +6,7 @@ import { assistantSystem } from "../lib/hub-assistant/knowledge.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const ids = { abc: "11111111-1111-4111-8111-111111111111", mueller: "22222222-2222-4222-8222-222222222222", mueller2: "33333333-3333-4333-8333-333333333333", hubOnly: "44444444-4444-4444-8444-444444444444", web: "55555555-5555-4555-8555-555555555555", logo: "66666666-6666-4666-8666-666666666666" };
-const customer = (id, company, number, organizationId) => ({ id, organizationId, company, customerNumber: number, servicePackages: ["website-extra"], city: "Leipzig", website: "", contactEmail: "" });
+const customer = (id, company, number, organizationId) => ({ id, organizationId, company, customerNumber: number, packages: ["OALAB Domain & Mail", "OALAB Service Max"], city: "Leipzig", website: "", contactEmail: "" });
 const task = (number, status, extra = {}) => ({ id: `t${number}`, number, title: `Aufgabe ${number}`, status, dueOn: null, customer: false, visible: false, ...extra });
 const data = {
   customers: [customer(ids.abc, "ABC GmbH", "KD-1", "org-abc"), customer(ids.mueller, "Müller Bau", "KD-2", "org-m1"), customer(ids.mueller2, "Müller Design", "KD-3", "org-m2"), customer(ids.hubOnly, "Nur Hub AG", "KD-4", null)],

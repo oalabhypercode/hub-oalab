@@ -103,7 +103,6 @@ const customerRow = (input: CustomerInput) => ({ company: input.company, custome
 
 /** What the Hub keeps itself; company and number of a customer in Service belong to its organization. */
 const customerDetails = (input: CustomerInput) => ({
-  service_packages: input.servicePackages,
   contact_email: input.contactEmail,
   phone: input.phone,
   website: input.website,
@@ -156,7 +155,7 @@ async function createFreelancerEntry(ctx: Context, input: CustomerInput): Promis
   const refused = freelancerNumberRefusal(input.customerNumber);
   if (refused) return failed(refused);
   const { data, error } = await ctx.db.from("hub_customers")
-    .insert({ ...customerRow({ ...input, servicePackages: [] }), kind: "freelancer", updated_by: ctx.actorId })
+    .insert({ ...customerRow(input), kind: "freelancer", updated_by: ctx.actorId })
     .select("id, customer_number, company").single<{ id: string; customer_number: string; company: string }>();
   if (error || !data) {
     if (error?.code === "23505") return failed("Diese Nummer ist schon vergeben.");
@@ -578,7 +577,7 @@ export async function saveCustomer(input: { id?: string; freelancerIds?: unknown
 export async function saveFreelancer(input: { id?: string; customerIds?: unknown } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
   const ctx = await context();
   if (!ctx) return denied;
-  const freelancer = readCustomer({ ...(input ?? {}), servicePackages: [] });
+  const freelancer = readCustomer(input ?? {});
   if (!freelancer.ok) return freelancer;
   const customerIds = Array.isArray(input?.customerIds) ? input.customerIds.filter((value): value is string => typeof value === "string") : [];
   let id = typeof input?.id === "string" && uuid.test(input.id) ? input.id : null;

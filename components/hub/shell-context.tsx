@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { ServicePackageId } from "@/lib/service-packages";
+import type { PackageId } from "@/lib/service-packages";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 
 export type ShellPanel = "search" | "notifications" | "help";
@@ -16,7 +16,8 @@ export type HubAccount = {
   firstName: string;
   company: string | null;
   customerNumber: string | null;
-  servicePackages: ServicePackageId[];
+  /** The packages of the customer the login belongs to, in group order. */
+  packages: PackageId[];
   admin: boolean;
   /** A freelancer login: their own asset management with the customers they look after, no projects, no service platform. */
   freelancer: boolean;

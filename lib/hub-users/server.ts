@@ -3,11 +3,12 @@ import { cache } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ServicePackageId } from "@/lib/service-packages";
+import { heldPackages, type PackageId } from "@/lib/service-packages";
+import { packagesOf, readCustomerPackages } from "@/lib/hub-contracts/packages";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { newCustomerNumber } from "@/lib/hub-assistant/customers";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
-import { displayStatus, isAccountStatus, isCustomerKind, isHubRole, randomFreeNumber, servicePackageIds, type CustomerKind, type HubRole } from "./rules";
+import { displayStatus, isAccountStatus, isCustomerKind, isHubRole, randomFreeNumber, type CustomerKind, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
 import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
@@ -31,7 +32,6 @@ type CustomerRow = {
   id: string;
   customer_number: string;
   company: string;
-  service_packages: string[] | null;
   contact_email: string;
   phone: string;
   website: string;
@@ -44,11 +44,11 @@ type CustomerRow = {
 };
 type EventRow = { id: number; created_at: string; actor_id: string | null; target_user_id: string | null; target_customer_id: string | null; action: string; summary: string };
 
-const CUSTOMER_COLUMNS = "id, customer_number, company, service_packages, contact_email, phone, website, street, postal_code, city, country, organization_id, created_at";
+const CUSTOMER_COLUMNS = "id, customer_number, company, contact_email, phone, website, street, postal_code, city, country, organization_id, created_at";
 
 /** The user management tables are missing until its migration is applied. */
 export function isMissingUserTables(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || error.code === "42703" || /hub_profiles|hub_admin_events|service_packages|schema cache/i.test(error.message ?? "")));
+  return Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || error.code === "42703" || /hub_profiles|hub_admin_events|schema cache/i.test(error.message ?? "")));
 }
 
 export const roleOf = (user: Pick<User, "app_metadata">): HubRole | null => {
@@ -57,14 +57,12 @@ export const roleOf = (user: Pick<User, "app_metadata">): HubRole | null => {
 };
 export const isDemoUser = (user: Pick<User, "app_metadata">) => (user.app_metadata as Record<string, unknown> | undefined)?.demo_account === true;
 
-const packagesOf = (value: string[] | null): ServicePackageId[] => (value ?? []).filter((id): id is ServicePackageId => (servicePackageIds as readonly string[]).includes(id));
-
-function toCustomer(row: CustomerRow) {
+function toCustomer(row: CustomerRow, packages: PackageId[]) {
   return {
     id: row.id,
     customerNumber: row.customer_number,
     company: row.company,
-    servicePackages: packagesOf(row.service_packages),
+    packages,
     contactEmail: row.contact_email ?? "",
     phone: row.phone ?? "",
     website: row.website ?? "",
@@ -146,7 +144,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Konten verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, packageRows] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
@@ -159,6 +157,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       // The customers' logos, the same as in the asset management; a failure only leaves the letters.
       loadCustomerLogos(db).catch(() => new Map<string, never>()),
       loadFreelancerLinks(db),
+      // The packages of „Vertrag & Domain“; without their migration the list simply shows none.
+      readCustomerPackages(db),
     ]);
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
@@ -210,7 +210,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
     return {
       users,
       customers: customerRows.map((row): ManagedCustomer => ({
-        ...toCustomer(row),
+        ...toCustomer(row, heldPackages(packagesOf(packageRows.byCustomer, row.id))),
         inService: Boolean(row.organization_id),
         createdAt: row.created_at,
         memberIds: memberships.filter((member) => member.customer_id === row.id).map((member) => member.user_id),
@@ -272,6 +272,8 @@ export const getHubAccount = cache(async (): Promise<HubAccountData | null> => {
   ]);
   const failed = ([p, m]: Awaited<ReturnType<typeof read>>) =>
     Boolean((p.error && !isMissingUserTables(p.error)) || (m.error && !isMissingUserTables(m.error)));
+  // RLS gives a login the packages of its own customers only; without their migration there are none.
+  const packageRead = readCustomerPackages(supabase);
   let [profile, memberships] = await read();
   // A failed read is no answer: retry once, then show the load error instead of "pending" or "no company".
   if (failed([profile, memberships])) [profile, memberships] = await read();
@@ -284,6 +286,7 @@ export const getHubAccount = cache(async (): Promise<HubAccountData | null> => {
   if (isMissingUserTables(profile.error) || isMissingUserTables(memberships.error)) return { ...base, status: "unknown" };
   // Without a profile the login counts as waiting: access is granted only by an active profile.
   if (!profile.data) return { ...base, status: "pending" };
+  const packageRows = await packageRead;
   return {
     ...base,
     status: isAccountStatus(profile.data.status) ? profile.data.status : "pending",
@@ -292,6 +295,6 @@ export const getHubAccount = cache(async (): Promise<HubAccountData | null> => {
     phone: profile.data.phone,
     position: profile.data.position,
     decisionNote: profile.data.decision_note,
-    customers: (memberships.data ?? []).flatMap((row) => row.customer ? [toCustomer(row.customer)] : []).sort((a, b) => a.customerNumber.localeCompare(b.customerNumber)),
+    customers: (memberships.data ?? []).flatMap((row) => row.customer ? [toCustomer(row.customer, heldPackages(packagesOf(packageRows.byCustomer, row.customer.id)))] : []).sort((a, b) => a.customerNumber.localeCompare(b.customerNumber)),
   };
 });

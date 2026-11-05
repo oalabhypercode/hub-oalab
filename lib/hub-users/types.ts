@@ -1,5 +1,5 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
-import type { ServicePackageId } from "@/lib/service-packages";
+import type { PackageId } from "@/lib/service-packages";
 import type { AccountStatus, CustomerKind, DisplayStatus, HubRole } from "./rules";
 
 /** A login as the user management lists it: Supabase Auth data merged with its profile and customers. */
@@ -38,7 +38,8 @@ export type ManagedCustomer = {
   id: string;
   customerNumber: string;
   company: string;
-  servicePackages: ServicePackageId[];
+  /** The packages the customer holds (both groups); they are edited under „Vertrag & Domain“. */
+  packages: PackageId[];
   contactEmail: string;
   phone: string;
   website: string;
@@ -98,7 +99,7 @@ export type HubAccountData = {
     id: string;
     customerNumber: string;
     company: string;
-    servicePackages: ServicePackageId[];
+    packages: PackageId[];
     contactEmail: string;
     phone: string;
     website: string;

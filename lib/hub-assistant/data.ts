@@ -2,6 +2,8 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { listAllUsers } from "@/lib/hub-users/server";
+import { packagesOf, readCustomerPackages } from "@/lib/hub-contracts/packages";
+import { heldPackages, packageCatalog } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
 import type { AssistantData } from "./tools";
 import type { CustomerContext } from "./customers";
@@ -11,7 +13,6 @@ type CustomerRow = {
   organization_id: string | null;
   company: string;
   customer_number: string;
-  service_packages: string[] | null;
   city: string | null;
   website: string | null;
   contact_email: string | null;
@@ -25,9 +26,10 @@ type CustomerRow = {
 export async function loadAssistantData(): Promise<AssistantData | null> {
   const db = createAdminClient();
   if (!db) return null;
-  const [projects, customers] = await Promise.all([
+  const [projects, customers, packageRows] = await Promise.all([
     loadLiveProjects(),
-    db.from("hub_customers").select("id, organization_id, company, customer_number, service_packages, city, website, contact_email").order("company").returns<CustomerRow[]>(),
+    db.from("hub_customers").select("id, organization_id, company, customer_number, city, website, contact_email").order("company").returns<CustomerRow[]>(),
+    readCustomerPackages(db),
   ]);
   if (projects.error || customers.error) return null;
   return {
@@ -37,7 +39,7 @@ export async function loadAssistantData(): Promise<AssistantData | null> {
       organizationId: row.organization_id,
       company: row.company,
       customerNumber: row.customer_number,
-      servicePackages: row.service_packages ?? [],
+      packages: heldPackages(packagesOf(packageRows.byCustomer, row.id)).map((id) => packageCatalog[id].name),
       city: row.city ?? "",
       website: row.website ?? "",
       contactEmail: row.contact_email ?? "",

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, ChevronRight, Handshake, Package, Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
 import type { Highlight, Insight, MetricSnapshot } from "@/lib/hub-metrics";
-import { SERVICE_PLATFORM_URL, servicePackages } from "@/lib/service-packages";
+import { SERVICE_PLATFORM_URL, packageCatalog } from "@/lib/service-packages";
 import { ComparisonBars, MiniChart, WeekBars } from "./charts";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { HubAccount } from "./shell-context";
@@ -26,10 +26,10 @@ export function WelcomeCard({ account, initials, logo = null }: { account: HubAc
   );
 }
 
-/** Active service package(s) next to the welcome card, with the way to the service platform. */
+/** The customer's packages next to the welcome card, with the way to the service platform. */
 export function ServiceCard({ account }: { account: HubAccount }) {
-  const packages = account.servicePackages.map((id) => servicePackages[id].name);
-  const title = account.admin ? "Serviceplattform" : packages.length > 1 ? "Aktive Servicepakete" : "Aktives Servicepaket";
+  const packages = account.packages.map((id) => packageCatalog[id].name);
+  const title = account.admin ? "Serviceplattform" : packages.length > 1 ? "Aktive Pakete" : "Aktives Paket";
   return (
     <section className="glass glass-card-feature service-card" aria-labelledby="service-title">
       <div className="card-head">
@@ -37,7 +37,7 @@ export function ServiceCard({ account }: { account: HubAccount }) {
         <h2 className="card-head-title service-title" id="service-title">{title}</h2>
       </div>
       {account.admin
-        ? <p className="t-subheadline t-secondary">Servicepakete und Anfragen deiner Kunden verwaltest du auf der Serviceplattform.</p>
+        ? <p className="t-subheadline t-secondary">Die Pakete deiner Kunden pflegst du unter Vertrag & Domain, ihre Anfragen auf der Serviceplattform.</p>
         : packages.length
           ? <ul className="service-packages">{packages.map((name) => <li key={name}><span className="service-package-name">{name}</span><span className="service-status">Aktiv</span></li>)}</ul>
           : <p className="service-package-name service-pending">Wird zugeordnet</p>}

@@ -1,7 +1,7 @@
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
-import type { ServicePackageId } from "./service-packages";
+import type { PackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "patch-notes"] as const;
+export const hubSections = ["projects", "files", "contracts", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "patch-notes"] as const;
 /** Sections only admins may open. */
 export const adminSections: readonly HubSection[] = ["users", "ai-log"];
 export type HubSection = "overview" | (typeof hubSections)[number];
@@ -10,6 +10,7 @@ export const sectionLabels: Record<HubSection, string> = {
   overview: "Übersicht",
   projects: "Projekte",
   files: "Dateien",
+  contracts: "Vertrag & Domain",
   messages: "Nachrichten",
   calendar: "Kalender",
   settings: "Profil",
@@ -85,15 +86,15 @@ export type HubDemoData = {
   company: string;
   /** Fictional fixture value; null for the OALAB admin, who represents no customer. */
   customerNumber: string | null;
-  /** Active service packages (fictional fixtures); empty for the OALAB admin. */
-  servicePackages: ServicePackageId[];
+  /** The packages (fictional fixtures); empty for the OALAB admin. */
+  packages: PackageId[];
   role: "oalab_admin" | "oalab_customer";
   projects: Project[];
   files: HubStoredFile[];
 };
 
 /** Account shown in the explicitly labelled /preview routes (fictional). */
-export const previewAccount = { name: "Jana Sommer", initials: "JS", company: "Nordlicht Studio", customerNumber: "KD-24017", servicePackages: ["website-extra"] as ServicePackageId[], email: "jana@example.com" };
+export const previewAccount = { name: "Jana Sommer", initials: "JS", company: "Nordlicht Studio", customerNumber: "KD-24017", packages: ["domain-mail", "service-max"] as PackageId[], email: "jana@example.com" };
 
 // Fictional content is used exclusively by the explicitly labelled /preview routes.
 export const previewProjects: Project[] = [
@@ -160,12 +161,12 @@ const sampleFileSizes: Record<string, { contract: number; logo: number }> = {
 };
 
 /** The fictional example files ("Servicevertrag", "Logo-Datei") of one demo customer, downloadable as static samples. */
-export function sampleFileFixtures(slug: keyof typeof sampleFileSizes, company: string, customerNumber: string, servicePackage: string): HubStoredFile[] {
+export function sampleFileFixtures(slug: keyof typeof sampleFileSizes, company: string, customerNumber: string, packageName: string): HubStoredFile[] {
   const customers = [{ id: customerNumber, customerNumber, company }];
   return [
     {
       id: `${slug}-servicevertrag`, title: "Servicevertrag", fileName: `Servicevertrag ${company}.pdf`, category: "contract",
-      description: `Fiktiver Beispielvertrag zum Servicepaket ${servicePackage}: Laufzeit, Leistungen und Konditionen.`,
+      description: `Fiktiver Beispielvertrag zum Paket ${packageName}: Laufzeit, Leistungen und Konditionen.`,
       mimeType: "application/pdf", sizeBytes: sampleFileSizes[slug].contract, sha256: null, createdAt: "2026-10-01T10:00", customers,
       folderIds: { [customerNumber]: `${customerNumber}-vertraege` },
       sampleHref: `/demo-files/${slug}/servicevertrag.pdf`,
@@ -187,7 +188,7 @@ export function sampleFolders(customers: HubFileCustomer[]): HubFolder[] {
   ]);
 }
 
-export const previewFiles: HubStoredFile[] = sampleFileFixtures("nordlicht", "Nordlicht Studio", "KD-24017", "Oalab-Website extra");
+export const previewFiles: HubStoredFile[] = sampleFileFixtures("nordlicht", "Nordlicht Studio", "KD-24017", "OALAB Service Max");
 
 /** Steps for the customer; projectIndex points into the workspace's project list. */
 export const demoNextSteps: NextStep[] = [

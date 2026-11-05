@@ -22,7 +22,7 @@ const ranges: { id: RangeId; label: string; name: string }[] = [
   { id: "J", label: "J", name: "Jahr" },
 ];
 
-const primaryAction: Record<CategoryId, string> = { projects: "Projekte öffnen", files: "Dateien öffnen", messages: "Zum Gespräch", calendar: "Kalender öffnen" };
+const primaryAction: Record<CategoryId, string> = { projects: "Projekte öffnen", files: "Dateien öffnen", contracts: "Vertrag & Domain öffnen", messages: "Zum Gespräch", calendar: "Kalender öffnen" };
 
 export function MetricDetailScreen({ model, preview, populated, favorites, metricId, admin }: ScreenProps & { metricId: MetricId }) {
   const [range, setRange] = useState<RangeId>("W");

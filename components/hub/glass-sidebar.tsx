@@ -4,10 +4,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Bot, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { categories, categoryLabel, categoryOrder, type CategoryId } from "@/lib/categories";
+import { categories, categoriesFor, categoryLabel, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
 import { LEGAL_PATHS } from "@/lib/legal-links";
-import { servicePackages } from "@/lib/service-packages";
+import { packageCatalog } from "@/lib/service-packages";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { LogoMark } from "./logo-mark";
 import { useHubShell } from "./shell-context";
@@ -33,8 +33,8 @@ type SidebarProps = {
 /** Floating glass sidebar from 1024 px; below that the tab bar takes over its entries. */
 export function GlassSidebar({ onSearch, preview, section, counts, name, accountLabel, initials, logo, pendingRegistrations }: SidebarProps) {
   const { signOut, signingOut, logoutError, account, manageUsers } = useHubShell();
-  const activePackages = account.servicePackages.map((id) => servicePackages[id].name).join(", ");
-  // Under the name: the active package, for the oalab team its name.
+  const activePackages = account.packages.map((id) => packageCatalog[id].short).join(" · ");
+  // Under the name: the packages in short, for the oalab team its name.
   const meta = activePackages || (account.admin ? "oalab-Team" : account.freelancer ? "Freelancer" : "");
   const [menuOpen, setMenuOpen] = useState(false);
   const corner = useRef<HTMLDivElement>(null);
@@ -77,7 +77,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         ))}
         <span className="sidebar-caption">Bereiche</span>
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
-        {categoryOrder.filter((id) => !(account.freelancer && id === "projects")).map((id) => {
+        {categoriesFor(account.freelancer).map((id) => {
           const Icon = categories[id].icon;
           return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" title={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
         })}
@@ -104,7 +104,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           <span className="sidebar-account-text">
             {/* Blank while the loading shell waits for the login. */}
             <strong>{name || <span className="skeleton-bar sidebar-name-skeleton" aria-hidden="true" />}</strong>
-            {meta && <span className="sidebar-account-meta" title={activePackages ? `Aktives Servicepaket: ${activePackages}` : undefined}><i aria-hidden="true" /><span>{activePackages && <span className="visually-hidden">Aktives Servicepaket: </span>}{meta}</span></span>}
+            {meta && <span className="sidebar-account-meta" title={activePackages ? `Pakete: ${account.packages.map((id) => packageCatalog[id].name).join(", ")}` : undefined}><i aria-hidden="true" /><span>{activePackages && <span className="visually-hidden">Pakete: </span>}{meta}</span></span>}
           </span>
         </Link>
         <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung, ${preview ? "Vorschau verlassen" : "Abmelden"}, Impressum und Datenschutz`} title="Konto" onClick={() => setMenuOpen((open) => !open)}>

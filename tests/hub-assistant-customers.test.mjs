@@ -7,7 +7,7 @@ import {
 import * as rules from "../lib/hub-users/rules.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const customer = (company, customerNumber, contactEmail = "") => ({ id: customerNumber, organizationId: null, company, customerNumber, servicePackages: [], city: "", website: "", contactEmail });
+const customer = (company, customerNumber, contactEmail = "") => ({ id: customerNumber, organizationId: null, company, customerNumber, packages: [], city: "", website: "", contactEmail });
 const data = { projects: [], customers: [customer("Nordlicht Studio GmbH", "KD-24017"), customer("KalaClo", "OA-KALACLO", "hallo@kalaclo.com")] };
 const plans = [
   { id: "p-fixture", code: "fixture_standard", name: "Test", createdAt: "2026-08-01T00:00:00Z" },
