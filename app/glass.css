@@ -2078,6 +2078,7 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .chat-list > .info-box { margin: 0 12px 10px 20px; }
 .proposal-head .info-button { margin-top: -3px; }
 .proposal-card > .info-box { margin-bottom: 10px; }
+.dm-block h3 .info-button { width: 22px; height: 22px; margin-left: 6px; vertical-align: -6px; }
 
 /* Contract generator: the dialog „Vertrag erstellen“ and the templates in the overview. */
 .hub-modal.contract-modal { width: min(680px, calc(100% - 32px)); }

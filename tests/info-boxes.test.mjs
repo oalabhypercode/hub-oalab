@@ -23,6 +23,12 @@ const places = [
   { file: "components/hub/screens/users-dialogs.tsx", title: "So funktioniert ein Freelancer", button: /<Modal title=\{freelancer \? freelancer\.company : "Freelancer anlegen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", title: "So funktionieren Pakete", button: /\{info\.button\}\s*<button type="submit" className="sheet-action is-primary"/, box: "{canManage && info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", title: "So funktioniert der Verlauf", button: /"Zeitpunkt eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-domains.tsx", title: "So funktionieren Domains", button: /"Domain eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-domains.tsx", title: "So funktioniert der Mail-Server", button: /Mail-Server\{serverInfo\.button\}<\/h3>/, box: "{serverInfo.box}" },
+  { file: "components/hub/screens/contracts-domains.tsx", title: "So funktionieren E-Mail-Adressen", button: /"E-Mail-Adresse eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-domains.tsx", title: "So richtest du dein Mailprogramm ein", button: /<h3>Für dein Mailprogramm\{info\.button\}<\/h3>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-access.tsx", title: "So funktionieren die Zugänge", button: /Postfächer\{info\.button\}<\/h3>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-access.tsx", title: "So funktioniert ein Anbieter-Login", button: /"Login anlegen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/private-chat.tsx", title: "So funktioniert der Chat", button: /<h2>Gespräche\{info\.button\}<\/h2>/, box: "{info.box}" },
   { file: "components/hub/screens/private-chat.tsx", title: "So funktionieren die privaten Chats", button: /useInfo\(admin \? "So funktionieren die privaten Chats" : "So funktioniert der Chat"/, box: "{info.box}" },
   { file: "components/hub/screens/calendar-dialogs.tsx", title: "So funktioniert eine Terminanfrage", button: /<Modal title="Termin anfragen" onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
@@ -73,6 +79,12 @@ test("the boxes say what the code does", async () => {
   const calendar = await source("components/hub/screens/calendar-dialogs.tsx");
   assert.match(calendar, /von \{WORKDAY\.start\} bis \{WORKDAY\.end\} Uhr/, "working hours come from the rules");
   assert.match(calendar, /Höchstens \{MAX_OPEN_REQUESTS\} Anfragen/, "open requests come from the rules");
+  const domains = await source("components/hub/screens/contracts-domains.tsx");
+  assert.match(domains, /\{mailSecurities\.ssl\.ports\.imap\} und \{mailSecurities\.ssl\.ports\.smtp\}/, "mail ports come from the rules");
+  assert.match(domains, /\{server\?\.webmailUrl && <li>„Webmail öffnen“/, "the customer's box names the webmail button only when there is one");
+  const access = await source("components/hub/screens/contracts-access.tsx");
+  assert.match(access, /\{REVEAL_SECONDS\} Sekunden lang/, "reveal time comes from the rules");
+  assert.match(access, /Mehr als \{LOOK_LIMIT\} Passwörter in \{LOOK_WINDOW_MINUTES\} Minuten/, "look limit comes from the rules");
 
   // Freelancers never reach the service platform; their texts name the hub only.
   const factor = await source("components/hub/second-factor-card.tsx");
@@ -91,4 +103,5 @@ test("the ⓘ sits beside labels, list heads and proposals without pushing them 
   assert.match(css, /\.am-label \.info-button \{[^}]*margin-right: auto;/, "the label's own action stays on the right");
   assert.match(css, /\.chat-list > \.info-box \{/);
   assert.match(css, /\.proposal-card > \.info-box \{/);
+  assert.match(css, /\.dm-block h3 \.info-button \{/, "the customer's small heading gets the small ⓘ");
 });
