@@ -98,7 +98,8 @@ test("the small logo turns white on filled buttons and in the dark theme, and re
   const motion = await source("app/motion.css");
   const still = /\{ --loader: url\("\/brand\/oalab-loader-still\.png"\); --loader-greeting: url\("\/brand\/oalab-loader-still\.png"\); --loader-mini-bordeaux: url\("\/brand\/oalab-loader-mini-bordeaux\.png"\); --loader-mini-white: url\("\/brand\/oalab-loader-mini-white\.png"\); \}/;
   assert.match(motion, new RegExp(`:root\\[data-reduce-motion="true"\\] ${still.source}`));
-  assert.match(motion, new RegExp(`:root:not\\(\\[data-reduce-motion\\]\\) ${still.source}`));
+  // Only the switch stills the logo, not the device's own setting (5.11.2026).
+  assert.doesNotMatch(motion, /:root:not\(\[data-reduce-motion\]\)/);
   assert.match(motion, /:root\[data-greeting="on"\] \.hub-content \* \{ animation-play-state: paused; \}/);
   assert.match(await source("app/layout.tsx"), /import "\.\/loader\.css";\r?\nimport "\.\/motion\.css";/);
 });

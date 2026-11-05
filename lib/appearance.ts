@@ -66,7 +66,7 @@ export const DARK_BACKGROUND_SHADE = 0.62;
  * Must not reference anything outside its own body: it is serialised into the
  * inline script that runs before the first paint.
  */
-export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], systemReducedTransparency: boolean, systemReducedMotion = false, systemDark = false): AppearanceDom {
+export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], systemReducedTransparency: boolean, systemDark = false): AppearanceDom {
   const input = (stored && typeof stored === "object" ? stored : {}) as Record<string, unknown>;
   const clamp = (value: unknown, min: number, max: number, fallback: number) => {
     const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -100,14 +100,15 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
       "--glass-blur": `${clamp(input.glassBlur, 8, 40, 24)}px`,
     },
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
-    reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : systemReducedMotion,
+    // Animations run until the person switches them off, whatever the device says (decision of 5.11.2026).
+    reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : false,
     onBackground,
     theme,
   };
 }
 
 /** Normalises a stored value for React state; mirrors the ranges used by resolveAppearance. */
-export function normalizeAppearance(stored: unknown, systemReducedTransparency = false, systemReducedMotion = false): Appearance {
+export function normalizeAppearance(stored: unknown, systemReducedTransparency = false): Appearance {
   const input = (stored && typeof stored === "object" ? stored : {}) as Partial<Record<keyof Appearance, unknown>>;
   const preset = backgroundPresets.find((item) => item.id === input.backgroundPreset)?.id ?? defaultAppearance.backgroundPreset;
   const number = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -119,7 +120,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     glassAlpha: Math.min(GLASS_ALPHA_RANGE.max, Math.max(GLASS_ALPHA_RANGE.min, number(input.glassAlpha, defaultAppearance.glassAlpha))),
     glassBlur: Math.min(GLASS_BLUR_RANGE.max, Math.max(GLASS_BLUR_RANGE.min, number(input.glassBlur, defaultAppearance.glassBlur))),
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
-    reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : systemReducedMotion,
+    reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : defaultAppearance.reduceMotion,
     listView: input.listView === "detail" ? "detail" : "minimal",
   };
 }
@@ -137,5 +138,20 @@ export function applyAppearanceToDocument(dom: AppearanceDom, root: HTMLElement)
 
 /** Inline script for the root layout: applies the stored appearance before the first paint. */
 export function appearanceInlineScript() {
-  return `(function(){try{var r=(${resolveAppearance.toString()});var a=(${applyAppearanceToDocument.toString()});var s=null;try{s=JSON.parse(localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)})||"null")}catch(e){}var q=function(x){return !!(window.matchMedia&&window.matchMedia(x).matches)};a(r(s,${JSON.stringify(backgroundPresets)},q("(prefers-reduced-transparency: reduce)"),q("(prefers-reduced-motion: reduce)"),q("(prefers-color-scheme: dark)")),document.documentElement)}catch(e){}})()`;
+  return `(function(){try{var r=(${resolveAppearance.toString()});var a=(${applyAppearanceToDocument.toString()});var s=null;try{s=JSON.parse(localStorage.getItem(${JSON.stringify(APPEARANCE_STORAGE_KEY)})||"null")}catch(e){}var q=function(x){return !!(window.matchMedia&&window.matchMedia(x).matches)};a(r(s,${JSON.stringify(backgroundPresets)},q("(prefers-reduced-transparency: reduce)"),q("(prefers-color-scheme: dark)")),document.documentElement)}catch(e){}})()`;
+}
+
+/** Carries "Bewegung reduzieren" to Service OALab (service-oalab: app/layout.tsx reads it), where it counts as well. */
+export const REDUCE_MOTION_COOKIE = "oalab_reduce_motion";
+
+/**
+ * The cookie for `document.cookie`: set while "Bewegung reduzieren" is on, removed while it is off, so without a
+ * choice there is none. Under oalab.de it carries `Domain=oalab.de` like the shared login (lib/supabase/cookies.ts),
+ * elsewhere (previews, localhost) it stays with the host. It holds nothing but the choice.
+ */
+export function reduceMotionCookie(reduce: boolean, hostname: string, secure: boolean) {
+  const host = hostname.toLowerCase();
+  const domain = host === "oalab.de" || host.endsWith(".oalab.de") ? "; Domain=oalab.de" : "";
+  const flags = `; Path=/; SameSite=Lax${secure ? "; Secure" : ""}${domain}`;
+  return reduce ? `${REDUCE_MOTION_COOKIE}=1; Max-Age=31536000${flags}` : `${REDUCE_MOTION_COOKIE}=; Max-Age=0${flags}`;
 }

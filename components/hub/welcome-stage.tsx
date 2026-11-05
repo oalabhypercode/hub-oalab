@@ -15,7 +15,7 @@ const START_TIMEOUT = 5000;
 type Run = "idle" | "starting" | "talking" | "done";
 
 // One snapshot of <html>: data-greeting (the greeting after sign-in still covers the hub) and whether motion is
-// reduced ("Bewegung reduzieren" in data-reduce-motion, lib/appearance.ts; the system setting stands in without it).
+// reduced ("Bewegung reduzieren" in data-reduce-motion, lib/appearance.ts; without a choice he moves, 5.11.2026).
 // The server renders him due; app/welcome-host.css keeps him hidden there unless motion is reduced.
 const subscribe = (change: () => void) => {
   const observer = new MutationObserver(change);
@@ -24,7 +24,7 @@ const subscribe = (change: () => void) => {
 };
 const snapshot = () => {
   const { greeting = "", reduceMotion } = document.documentElement.dataset;
-  const reduced = reduceMotion ? reduceMotion === "true" : window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced = reduceMotion === "true";
   return `${greeting}|${reduced ? "reduced" : ""}`;
 };
 const serverSnapshot = () => "|";

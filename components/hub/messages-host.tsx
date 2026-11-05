@@ -11,16 +11,13 @@ const START_TIMEOUT = 5000;
 
 type Run = "idle" | "starting" | "talking" | "done";
 
-// "Bewegung reduzieren" lives on <html data-reduce-motion> (lib/appearance.ts); the system setting stands in without it.
+// "Bewegung reduzieren" lives on <html data-reduce-motion> (lib/appearance.ts); without a choice he moves (5.11.2026).
 const subscribe = (change: () => void) => {
   const observer = new MutationObserver(change);
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-reduce-motion"] });
   return () => observer.disconnect();
 };
-const reducedSnapshot = () => {
-  const flag = document.documentElement.dataset.reduceMotion;
-  return flag ? flag === "true" : window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-};
+const reducedSnapshot = () => document.documentElement.dataset.reduceMotion === "true";
 
 /**
  * Ali from oalab thinks along at the bottom of a customer's conversation column. Each time Nachrichten opens he

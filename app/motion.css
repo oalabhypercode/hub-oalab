@@ -1,12 +1,10 @@
 /* Motion: the waterfall fade-in on every page and "Bewegung reduzieren" (Profil › Darstellung).
-   The pre-paint script in lib/appearance.ts sets data-reduce-motion on <html> from the stored choice,
-   which defaults to the system setting. The media queries only cover pages where the script did not run. */
+   The pre-paint script in lib/appearance.ts sets data-reduce-motion on <html> from the stored choice. Without one,
+   animations run on every device, whatever its own setting: whoever does not want them switches them off
+   (decision of 5.11.2026), so no rule here follows the device's reduced-motion media query. */
 
 :root { --waterfall: waterfall-in; --waterfall-stagger: 70ms; }
 :root[data-reduce-motion="true"] { --waterfall: none; }
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-reduce-motion]) { --waterfall: none; }
-}
 
 /* Waterfall: page content fades in block by block from top to bottom, out of a blur and slightly from above.
    Pure CSS on the server HTML, so nothing waits for JavaScript. Background, sidebar, tab bar, the auth frame,
@@ -66,12 +64,3 @@
 :root[data-reduce-motion="true"] .sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: none; }
 /* The loading logo rests instead of turning (app/loader.css). */
 :root[data-reduce-motion="true"] { --loader: url("/brand/oalab-loader-still.png"); --loader-greeting: url("/brand/oalab-loader-still.png"); --loader-mini-bordeaux: url("/brand/oalab-loader-mini-bordeaux.png"); --loader-mini-white: url("/brand/oalab-loader-mini-white.png"); }
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-reduce-motion]),
-  :root:not([data-reduce-motion]) *,
-  :root:not([data-reduce-motion]) *::before,
-  :root:not([data-reduce-motion]) *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
-  :root:not([data-reduce-motion]) :is(.pressable, .glass-button, .service-cta, .sidebar-account-gear, .button-secondary, .button-primary:not(:disabled)):active,
-  :root:not([data-reduce-motion]) .sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: none; }
-  :root:not([data-reduce-motion]) { --loader: url("/brand/oalab-loader-still.png"); --loader-greeting: url("/brand/oalab-loader-still.png"); --loader-mini-bordeaux: url("/brand/oalab-loader-mini-bordeaux.png"); --loader-mini-white: url("/brand/oalab-loader-mini-white.png"); }
-}

@@ -408,8 +408,9 @@
     - `components/page-waterfall.tsx` markiert die Seite nach dem Einblenden als fertig. So erscheinen später eingeblendete Elemente (Favoriten bearbeiten, Upload-Listen, Fehlermeldungen) ohne Animation.
     - Glaskarten blenden selbst ein, nicht ihr Rahmen-Element: Unschärfe und Deckkraft auf einem Vorfahren würden den Glaseffekt während der Animation abschneiden.
 - Profil › Darstellung hat den Schalter **„Bewegung reduzieren“**. Er schaltet die Einblend-Animation und alle übrigen Übergänge und Animationen ab, wie die Systemeinstellung.
-    - Vorgabe ist die Systemeinstellung „Bewegung reduzieren“; eine eigene Wahl im Hub hat Vorrang.
+    - ~~Vorgabe ist die Systemeinstellung „Bewegung reduzieren“~~ Seit 5. November 2026 (Wunsch des Nutzers, Variante „Ein Schalter für beide“): Der Schalter steht ohne eigene Wahl auf Aus, auf jedem Gerät, auch wenn das Gerät Bewegung reduziert. Wer keine Animationen will, schaltet ihn selbst ein. Keine Regel in Hub und Service fragt mehr `prefers-reduced-motion` ab. Hinweis an den Nutzer: übliche Barrierefreiheits-Empfehlungen raten zur Systemeinstellung.
     - Gespeichert im Browser wie die übrige Darstellung. Das Inline-Script setzt `data-reduce-motion` vor dem ersten Paint, dadurch blitzt keine Animation auf.
+    - Seit 5. November 2026 gilt der Schalter auch in Service OALab: Der Hub spiegelt ihn in das Cookie `oalab_reduce_motion` (Wert `1`, `Domain=oalab.de`, ein Jahr; ohne Wahl kein Cookie, `reduceMotionCookie` in `lib/appearance.ts`). Service liest es im Root-Layout und setzt `data-reduce-motion="true"` auf `<html>` (`service-oalab/apps/web/lib/reduce-motion.ts`). Steht in der Datenschutzerklärung unter Cookies.
 - Im Browser geprüft (Vorschau, Login, Passwort vergessen, 404): Reihenfolge der Kaskade, Seitenwechsel, keine Animation beim Bearbeiten der Favoriten, Schalter an und aus.
 
 ### Vorgabe vom 3. November 2026: Ladeanimation und Begrüßung
