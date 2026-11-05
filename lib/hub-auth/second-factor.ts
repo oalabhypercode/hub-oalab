@@ -36,9 +36,14 @@ export function secondFactorMethod(appMetadata: unknown, hasApp: boolean): Secon
   return secondFactorRequired(appMetadata) ? "email" : null;
 }
 
+/** Freelancer logins (app_role oalab_freelancer, since 4.11.2026): hub only, so code mail and code page leave Service out. */
+export function isFreelancerLogin(appMetadata: unknown) {
+  return Boolean(appMetadata && typeof appMetadata === "object" && (appMetadata as Record<string, unknown>).app_role === "oalab_freelancer");
+}
+
 /** Logins that may not switch the second factor off: the freelancers. */
 export function secondFactorRequired(appMetadata: unknown) {
-  return Boolean(appMetadata && typeof appMetadata === "object" && (appMetadata as Record<string, unknown>).app_role === "oalab_freelancer");
+  return isFreelancerLogin(appMetadata);
 }
 
 /**

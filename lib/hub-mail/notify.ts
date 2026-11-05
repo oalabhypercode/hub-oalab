@@ -87,7 +87,7 @@ export function mailPasswordLink(db: SupabaseClient, user: User, input: { firstN
 }
 
 /** The six-digit code of a sign-in with second factor, to the login's own address only. The log keeps no code. */
-export function mailLoginCode(db: SupabaseClient, user: Pick<User, "id" | "email">, input: { firstName: string; code: string; minutes: number }) {
+export function mailLoginCode(db: SupabaseClient, user: Pick<User, "id" | "email">, input: { firstName: string; code: string; minutes: number; issuedAt: Date; hubOnly: boolean }) {
   const settings = mailSettings();
   return sendTracked(db, "user.login_code", user.id, mailOf([user.email ?? ""], loginCodeMail(input, settings.legal)));
 }

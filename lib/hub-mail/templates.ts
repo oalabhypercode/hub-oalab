@@ -640,19 +640,26 @@ export function passwordLinkMail(input: { firstName: string; link: string; activ
   });
 }
 
+const codeClock = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+
 /**
  * To the person, right after the password: the six-digit code that confirms this sign-in (second factor). The code
- * stays out of subject and preheader, so it never shows on a lock screen.
+ * stays out of subject and preheader, so it never shows on a lock screen. The time of the request is in both: every
+ * code mail is a thread of its own, and the code page names the mail that counts (5.11.2026: mail apps stacked the
+ * mails under one subject and showed an older code first). Freelancers work in the hub only (`hubOnly`).
  */
-export function loginCodeMail(input: { firstName: string; code: string; minutes: number }, legal?: MailLegal): MailContent {
+export function loginCodeMail(input: { firstName: string; code: string; minutes: number; issuedAt: Date; hubOnly?: boolean }, legal?: MailLegal): MailContent {
   const first = firstNameOf(input.firstName);
+  const sentAt = codeClock.format(input.issuedAt);
+  const until = codeClock.format(new Date(input.issuedAt.getTime() + input.minutes * 60_000));
+  const where = input.hubOnly ? "im oalab Client Hub" : "im oalab Client Hub und auf der Serviceplattform";
   return render({
-    subject: "Dein Sicherheitscode für oalab",
-    preheader: `Er gilt ${input.minutes} Minuten für deine Anmeldung.`,
+    subject: `Dein Sicherheitscode für oalab · ${sentAt} Uhr`,
+    preheader: `Angefordert um ${sentAt} Uhr, gültig bis ${until} Uhr.`,
     area: "security",
     heading: "Dein Sicherheitscode",
-    lead: `${first ? `Hallo ${first}, gib` : "Gib"} diesen Code ein, um deine Anmeldung im oalab Client Hub und auf der Serviceplattform zu bestätigen.`,
-    code: { value: input.code, note: `Gilt ${input.minutes} Minuten · nur für diese Anmeldung` },
+    lead: `${first ? `Hallo ${first}, gib` : "Gib"} diesen Code ein, um deine Anmeldung ${where} zu bestätigen.`,
+    code: { value: input.code, note: `Gilt ${input.minutes} Minuten, bis ${until} Uhr · nur für diese Anmeldung` },
     note: { tone: "security", text: "Gib den Code nie weiter, auch nicht an dein oalab-Team. Du hast dich gerade nicht angemeldet? Dann kennt jemand dein Passwort: Ändere es über „Passwort vergessen“ und sag deinem oalab-Team Bescheid." },
     reason: ACCOUNT_REASON,
     legal,

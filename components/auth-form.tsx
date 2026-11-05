@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LogOut, Mail, RotateCcw, Shi
 import { MiniLoader } from "@/components/brand-loader";
 import { requestPasswordResetAction, sendSecondFactorCodeAction, signInAction, signOutAction, signUpAction, updatePasswordAction, verifySecondFactorAction, type AuthResult } from "@/lib/hub-auth/actions";
 import { greetsAt, noteGreeting } from "@/lib/greeting";
+import type { CodeTimes } from "@/lib/hub-auth/mail-code";
 import { authMessage } from "@/lib/hub-auth/messages";
 import { readRegistration } from "@/lib/hub-users/rules";
 import { LEGAL_PATHS } from "@/lib/legal-links";
@@ -21,10 +22,10 @@ const copy = {
 };
 
 /**
- * Code page only: the login's method, the (masked) address an e-mail code goes to and whether one for this session is
- * already on its way.
+ * Code page only: the login's method, the (masked) address an e-mail code goes to, whether one for this session is
+ * already on its way and from which mail (`times`), and whether the login works in the hub only (freelancers).
  */
-type SecondFactorState = { method: "email" | "totp"; email: string; codeSent: boolean };
+type SecondFactorState = { method: "email" | "totp"; email: string; codeSent: boolean; times?: CodeTimes | null; hubOnly?: boolean };
 
 export function AuthForm({ mode, secondFactor, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode; secondFactor?: SecondFactorState }) {
   const [email, setEmail] = useState("");
@@ -32,6 +33,8 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
   const [repeatPassword, setRepeatPassword] = useState("");
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(secondFactor?.codeSent ?? true);
+  // The mail whose code counts: several code mails look alike, and mail apps may show an older one first.
+  const [times, setTimes] = useState<CodeTimes | null>(secondFactor?.times ?? null);
   const [notice, setNotice] = useState("");
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState("");
@@ -42,10 +45,13 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
   const content = copy[mode];
   const byApp = secondFactor?.method === "totp";
   const codeTo = secondFactor?.email ? ` an ${secondFactor.email}` : "";
+  // Freelancers work in the hub only; everyone else is signed in on the service platform as well.
+  const place = secondFactor?.hubOnly ? "im Hub" : "im Hub und auf der Serviceplattform";
   const description = mode !== "mfa" ? content.description
-    : byApp ? "Gib den sechsstelligen Code aus deiner Authenticator-App ein. Danach bist du im Hub und auf der Serviceplattform angemeldet."
-    : codeSent ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Gib ihn hier ein; danach bist du im Hub und auf der Serviceplattform angemeldet.`
-    : `Wir schicken dir einen sechsstelligen Code${codeTo}. Damit bestätigst du deine Anmeldung im Hub und auf der Serviceplattform.`;
+    : byApp ? `Gib den sechsstelligen Code aus deiner Authenticator-App ein. Danach bist du ${place} angemeldet.`
+    : codeSent && times ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Nimm den aus der Mail von ${times.sentAt} Uhr, er gilt bis ${times.until} Uhr. Danach bist du ${place} angemeldet.`
+    : codeSent ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Gib ihn hier ein; danach bist du ${place} angemeldet.`
+    : `Wir schicken dir einen sechsstelligen Code${codeTo}. Damit bestätigst du deine Anmeldung ${place}.`;
   const action = mode === "mfa" && !codeSent ? { label: "Code per E-Mail senden", loading: "Code wird gesendet …" } : { label: content.action, loading: content.loading };
   const field =(key: keyof typeof registration) => ({
     value: registration[key],
@@ -102,7 +108,9 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
     try {
       const result = await sendSecondFactorCodeAction({ next: new URLSearchParams(window.location.search).get("next") });
       if (!result.ok) { setError(result.error); return; }
-      setNotice(codeSent ? "Ein neuer Code ist unterwegs. Der vorherige gilt nicht mehr." : "Der Code ist unterwegs. Schau auch im Spam-Ordner nach.");
+      const mail = result.code ? `, in der Mail von ${result.code.sentAt} Uhr` : "";
+      setTimes(result.code ?? null);
+      setNotice(codeSent ? `Ein neuer Code ist unterwegs${mail}. Der vorherige gilt nicht mehr.` : `Der Code ist unterwegs${mail}. Schau auch im Spam-Ordner nach.`);
       setCode("");
       setCodeSent(true);
     } catch {

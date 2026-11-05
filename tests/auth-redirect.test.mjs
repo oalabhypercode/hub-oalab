@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { safeAuthRedirect, secondFactorDestination, secondFactorPageRedirect, secondFactorRedirect, serviceDestination, serviceOrigin, signedInRedirect } from "../lib/auth-redirect.ts";
-import { hasMailbox, isMailCodeCheck, mailCodeHash, maskEmail, newMailCode, readMailCode } from "../lib/hub-auth/mail-code.ts";
+import { codeClock, codeTimes, hasMailbox, isMailCodeCheck, mailCodeHash, maskEmail, newMailCode, readMailCode } from "../lib/hub-auth/mail-code.ts";
 import { authMessage } from "../lib/hub-auth/messages.ts";
 import { chosenSecondFactor, codeMethod, hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../lib/hub-auth/second-factor.ts";
 import { sessionOf } from "../lib/hub-auth/session-token.ts";
@@ -155,4 +155,24 @@ test("wrong, used-up and expired codes each get one clear message", () => {
   assert.match(authMessage("over_email_send_rate_limit"), /Zu viele Versuche/);
   assert.match(authMessage("mfa_verification_failed"), /Authenticator-App/);
   assert.match(authMessage("mfa_use_app"), /Authenticator-App, nicht per E-Mail/);
+  // A wrong code usually is an older one: the message points to the newest mail.
+  assert.match(authMessage("mail_code_wrong"), /neuesten Mail, ältere Codes gelten nicht mehr/);
+});
+
+test("the code page names the mail that counts by its time in Berlin", async () => {
+  // 5.11.2026: mail apps stacked the code mails under one subject and showed an older code first.
+  assert.equal(codeClock("2026-11-05T00:04:30Z"), "01:04");
+  assert.equal(codeClock(new Date("2026-07-01T10:00:00Z")), "12:00");
+  assert.deepEqual(codeTimes("2026-11-05T00:04:30Z"), { sentAt: "01:04", until: "01:14" });
+  assert.deepEqual(codeTimes("2026-11-05T22:55:00Z"), { sentAt: "23:55", until: "00:05" });
+  const page = (await readFile(new URL("../app/auth/mfa/page.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(page, /select\("created_at, expires_at"\)/);
+  assert.match(page, /const times = open\?\.data \? \{ sentAt: codeClock\(open\.data\.created_at\), until: codeClock\(open\.data\.expires_at\) \} : null;/);
+  const form = (await readFile(new URL("../components/auth-form.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(form, /Nimm den aus der Mail von \$\{times\.sentAt\} Uhr, er gilt bis \$\{times\.until\} Uhr\./);
+  assert.match(form, /Ein neuer Code ist unterwegs\$\{mail\}\. Der vorherige gilt nicht mehr\./);
+  // Mail, page and stored code name the same minute: the database's time of issue.
+  const actions = (await readFile(new URL("../lib/hub-auth/actions.ts", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(actions, /db\.from\("oalab_mail_codes"\)\.select\("created_at"\)\.eq\("session_id", session\.sessionId\)/);
+  assert.match(actions, /return issued\.status === "sent" \? \{ ok: true, code: codeTimes\(issued\.issuedAt \?\? new Date\(\)\) \} : failure\(issued\.status\);/);
 });
