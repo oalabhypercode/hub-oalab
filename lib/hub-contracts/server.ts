@@ -5,6 +5,9 @@ import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { HubAccountData } from "@/lib/hub-users/types";
+import { loadDomainMailForAdmin, loadDomainMailForCustomer } from "@/lib/hub-domains/server";
+import { emptyDomainMail } from "@/lib/hub-domains/types";
+import { vaultKeyId } from "@/lib/hub-vault/key";
 import { isTimelineKind } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "./types";
@@ -32,19 +35,24 @@ function toEntry(row: TimelineRow, nameOf?: (id: string | null) => string): Time
   return nameOf ? { ...entry, note: row.note ?? "", source: row.source === "package" ? "package" : "manual", authorName: nameOf(row.created_by ?? null) } : entry;
 }
 
-const empty = (view: ContractsState["view"], error?: string): ContractsState => ({ view, source: "supabase", customers: [], timeline: [], ready: false, canManage: false, error });
+const empty = (view: ContractsState["view"], error?: string): ContractsState => ({ view, source: "supabase", customers: [], timeline: [], ready: false, canManage: false, domainMail: emptyDomainMail(false), error });
+const domainMailFailed = () => emptyDomainMail(false, "Domains und Mail konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
 /** Every customer with its packages and the whole timeline for a real admin, read with the service role after the check. */
 async function loadForAdmin(): Promise<ContractsState> {
   if (!await verifyHubAdmin()) return empty("admin", "Vertrag & Domain ist nur für Admins mit bestätigtem zweitem Faktor verfügbar.");
   const db = createAdminClient();
   if (!db) return empty("admin", "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY).");
-  const [customers, packages, timeline, profiles, logos] = await Promise.all([
+  // Passwords need this session's confirmed second factor; verifyHubAdmin alone also lets admins without one in.
+  const { data: claims } = await (await createClient()).auth.getClaims();
+  const confirmed = claims?.claims?.aal === "aal2";
+  const [customers, packages, timeline, profiles, logos, domainMail] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number, kind").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
     db.from("hub_customer_timeline").select(ADMIN_TIMELINE_COLUMNS).order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(3000).returns<TimelineRow[]>(),
     db.from("hub_profiles").select("user_id, first_name, last_name").returns<{ user_id: string; first_name: string; last_name: string }[]>(),
     loadCustomerLogos(db).catch(() => new Map<string, CustomerLogo>()),
+    loadDomainMailForAdmin(db, confirmed, vaultKeyId()).catch(domainMailFailed),
   ]);
   if (customers.error) return empty("admin", "Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   if (timeline.error && !isMissingContractTables(timeline.error)) return empty("admin", "Pakete und Verlauf konnten gerade nicht geladen werden. Bitte versuche es erneut.");
@@ -61,6 +69,7 @@ async function loadForAdmin(): Promise<ContractsState> {
     timeline: ready ? (timeline.data ?? []).flatMap((row) => toEntry(row, nameOf) ?? []) : [],
     ready,
     canManage: ready,
+    domainMail,
   };
 }
 
@@ -68,12 +77,13 @@ async function loadForAdmin(): Promise<ContractsState> {
 async function loadForCustomer(account: HubAccountData): Promise<ContractsState> {
   const supabase = await createClient();
   const ids = account.customers.map((customer) => customer.id);
-  const [packages, timeline] = await Promise.all([
+  const [packages, timeline, domainMail] = await Promise.all([
     readCustomerPackages(supabase, ids),
     ids.length
       ? supabase.from("hub_customer_timeline").select(CUSTOMER_TIMELINE_COLUMNS).in("customer_id", ids).eq("customer_visible", true)
         .order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(500).returns<TimelineRow[]>()
       : Promise.resolve({ data: [] as TimelineRow[], error: null }),
+    loadDomainMailForCustomer(supabase, ids).catch(domainMailFailed),
   ]);
   if (timeline.error && !isMissingContractTables(timeline.error)) return empty("customer", "Deine Angaben konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   return {
@@ -85,6 +95,7 @@ async function loadForCustomer(account: HubAccountData): Promise<ContractsState>
     timeline: (timeline.data ?? []).flatMap((row) => toEntry(row) ?? []),
     ready: packages.ready && !timeline.error,
     canManage: false,
+    domainMail,
   };
 }
 
