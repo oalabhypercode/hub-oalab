@@ -2055,6 +2055,51 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .cdm-dialog .field-hint { margin: 0; }
 .cdm-switch-row { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--label-body); }
 
+/* Contract generator: the dialog „Vertrag erstellen“ and the templates in the overview. */
+.hub-modal.contract-modal { width: min(680px, calc(100% - 32px)); }
+.contract-form .cdm-group legend { float: none; }
+.cdm-option .contract-pill { display: inline-block; margin-left: 8px; vertical-align: 1px; }
+.contract-fields { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 4px 0 0; padding: 0; border: 0; }
+.contract-fields legend { float: left; width: 100%; margin-bottom: 2px; font-size: 15px; line-height: 20px; font-weight: 700; color: var(--label); }
+.contract-fields .upload-field small { font-size: 12px; line-height: 16px; }
+.contract-field-error { color: var(--danger); font-weight: 600; }
+.contract-fields input[aria-invalid] { box-shadow: inset 0 0 0 2px var(--danger); }
+.contract-summary { padding: 8px 10px; border-radius: 10px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); }
+.contract-file-box { gap: 6px; }
+.contract-file-box .cdm-switch-row { padding: 4px 10px; }
+.contract-file-box .field-hint { padding: 0 10px; }
+.contract-file-box .sheet-button { margin-top: 4px; }
+.contract-upload { padding: 0 10px; }
+.contract-upload input[type="file"] { min-height: 0; padding: 10px 12px; font-size: 15px; }
+.contract-templates li { flex-wrap: nowrap; align-items: center; justify-content: space-between; }
+.contract-template-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.contract-template-name strong { font-weight: 600; color: var(--label); }
+.contract-template-name small { font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
+.contract-template-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.contract-template-active { color: var(--accent-text); font-weight: 600; }
+.contract-count { margin-left: 2px; padding: 0 6px; border-radius: 999px; background: var(--sheet-seg); font-size: 11.5px; line-height: 16px; }
+.contract-steps { margin: 0; padding-left: 20px; font-size: 14px; line-height: 20px; color: var(--label-body); list-style: decimal; }
+.contract-steps li + li { margin-top: 4px; }
+.contract-busy { display: flex; align-items: center; gap: 8px; }
+.contract-check { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; line-height: 19px; }
+.contract-check p { margin: 0; }
+.contract-check.is-ok { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.contract-check.is-bad { background: var(--tone-todo-bg); color: var(--tone-todo); }
+.contract-check .contract-check-warn { color: var(--label-body); }
+.contract-placeholders { border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.contract-placeholders summary { padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--label); cursor: pointer; }
+.contract-placeholders dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; padding: 0 12px 12px; font-size: 13px; line-height: 18px; }
+.contract-placeholders dl > div { display: contents; }
+.contract-placeholders code { font-size: 12.5px; color: var(--accent-text); }
+.contract-placeholders dd { margin: 0; color: var(--label-body); }
+.contract-versions li { flex-wrap: nowrap; align-items: center; justify-content: space-between; }
+@media (max-width: 520px) {
+  .contract-templates li, .contract-versions li { flex-wrap: wrap; }
+  .contract-template-actions { justify-content: flex-start; }
+  .contract-form .upload-fields { grid-template-columns: minmax(0, 1fr); }
+  .contract-placeholders dl { grid-template-columns: minmax(0, 1fr); }
+}
+
 .cdm-next-company { margin-top: 28px; }
 .cdm-packages-list dd { display: flex; flex-direction: column; }
 .cdm-packages-list dd strong { font-weight: 600; }
