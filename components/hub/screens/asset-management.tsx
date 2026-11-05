@@ -12,6 +12,7 @@ import { matchesSearch, sortRows, type SortState } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
 import { useAppearance } from "../appearance-provider";
 import { GlassCard } from "../glass";
+import { useInfo } from "../info-box";
 import { LargeTitleHeader } from "../large-title-header";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, TableAddRow, TableGroup, ToolbarMenu, useCollapsedGroups } from "../sheet";
 import { FilterSelect, SortControl, SortHeader } from "../table-tools";
@@ -109,6 +110,16 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const [busy, setBusy] = useState<"download" | "move" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // Freelancers read here what they see and what not; admins have an ⓘ at each feature instead.
+  const freelancerInfo = useInfo("Was du hier siehst", (
+    <ul>
+      <li>„Meine Dateien“ stellt oalab für dich bereit. Dort legst du auch eigene Ordner an und sortierst ein.</li>
+      <li>Unter „Meine Kunden“ stehen die Kunden, die du für oalab betreust, mit ihren Dateien. Du kannst sie ansehen und herunterladen, mehrere auf einmal als ZIP; ändern kannst du dort nichts.</li>
+      <li>„Nur für dich“ an einer Datei heißt: Der Kunde sieht sie nicht.</li>
+      <li>Verträge, Angebote und Rechnungen deiner Kunden siehst du nur, wenn oalab sie für dich freigibt. Chats, Termine und Logins der Kunden bleiben dir verborgen.</li>
+      <li>Neue Dateien für dich oder deine Kunden meldet die Glocke.</li>
+    </ul>
+  ));
 
   const current = view.kind === "customer" ? customers.find((customer) => customer.id === view.id) ?? null : null;
   const paneFiles = current ? rows.find((row) => row.customer.id === current.id)?.files ?? [] : view.kind === "inbox" ? inbox : files;
@@ -497,9 +508,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const customerList = (
     <div className="chat-list">
       <div className="chat-list-head">
-        <h2>{freelancerView ? "Meine Kunden" : "Kunden"}<span>{customerCount}</span></h2>
+        <h2>{freelancerView ? "Meine Kunden" : "Kunden"}<span>{customerCount}</span>{freelancerView && freelancerInfo.button}</h2>
         {canUpload && <button type="button" className="chat-icon-button" onClick={() => startUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" title="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
       </div>
+      {freelancerView && freelancerInfo.box}
       <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder={minimal ? "Kunde suchen" : "Kunde oder Kundennummer"} aria-label="Kunden durchsuchen" /></label>
       {!minimal && (
         <div className="chat-filter" role="group" aria-label="Reihenfolge">

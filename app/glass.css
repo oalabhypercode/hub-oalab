@@ -2071,6 +2071,13 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .hub-modal .modal-heading .info-button { margin-right: auto; }
 .cdm-section h3 .info-button { margin-left: 2px; }
 .cdm-section h3 .info-button svg { color: inherit; }
+/* The ⓘ at the older features: in window headings, field labels, list heads, card titles and the assistant's proposals. */
+.hub-modal > .info-box { margin-bottom: 14px; }
+.am-label .info-button { width: 22px; height: 22px; margin-right: auto; }
+.chat-list-head h2 .info-button { margin-left: 8px; vertical-align: -4px; }
+.chat-list > .info-box { margin: 0 12px 10px 20px; }
+.proposal-head .info-button { margin-top: -3px; }
+.proposal-card > .info-box { margin-bottom: 10px; }
 
 /* Contract generator: the dialog „Vertrag erstellen“ and the templates in the overview. */
 .hub-modal.contract-modal { width: min(680px, calc(100% - 32px)); }

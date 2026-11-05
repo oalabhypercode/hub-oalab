@@ -5,6 +5,7 @@ import { Check, MessageCircle, RefreshCw, Unlink } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { createWhatsAppLinkCode, getWhatsAppStatus, unlinkWhatsApp, type WhatsAppLinkCode, type WhatsAppStatus } from "@/lib/hub-whatsapp/actions";
 import { GlassCard } from "./glass";
+import { useInfo } from "./info-box";
 
 const timeFormat = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
 
@@ -14,6 +15,16 @@ export function WhatsAppCard() {
   const [code, setCode] = useState<WhatsAppLinkCode | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const usable = Boolean(status?.available || status?.linkedPhone);
+  const info = useInfo("So funktioniert WhatsApp", (
+    <ul>
+      <li>„Code erzeugen“ gibt dir einen sechsstelligen Code, der 15 Minuten gilt.</li>
+      <li>Schick „VERBINDEN“ mit dem Code von deiner Nummer an die WhatsApp-Nummer von oalab. „In WhatsApp öffnen“ füllt die Nachricht vor; danach klickst du „Ich habe gesendet“.</li>
+      {/* 30 a day and two days of history: DAILY_QUESTION_LIMIT and RETENTION_HOURS in lib/hub-whatsapp/messages.ts (server code). */}
+      <li>Dann beantwortet der KI-Assistent deine Fragen zum Client Hub auch dort, bis zu 30 am Tag. Mit „TEAM“ erfährst du, wie du das oalab-Team direkt erreichst.</li>
+      <li>Den WhatsApp-Verlauf löscht der Hub nach zwei Tagen. „Trennen“ hebt die Verbindung auf.</li>
+    </ul>
+  ));
 
   async function refresh() {
     const result = await getWhatsAppStatus();
@@ -48,7 +59,9 @@ export function WhatsAppCard() {
 
   return (
     <GlassCard className="settings-card whatsapp-card">
-      <h2 className="t-headline settings-card-title"><MessageCircle size={20} color="#128c4a" aria-hidden="true" />WhatsApp verbinden</h2>
+      {/* The ⓘ explains a channel one can use: hidden while WhatsApp is not set up for the hub. */}
+      <h2 className="t-headline settings-card-title"><MessageCircle size={20} color="#128c4a" aria-hidden="true" />WhatsApp verbinden{usable && info.button}</h2>
+      {usable && info.box}
       {!status && !error && <p className="t-subheadline t-secondary"><MiniLoader size={16} /> Wird geladen …</p>}
       {status?.linkedPhone ? <>
         <p className="t-subheadline whatsapp-linked"><Check size={18} aria-hidden="true" />Verbunden mit <strong className="numeric">{status.linkedPhone}</strong></p>

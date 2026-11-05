@@ -9,6 +9,7 @@ import { fileAudiences, isFileAudience, type FileAudience, type HubFileCustomer,
 import { audienceLabels } from "./asset-freelancers";
 import { saveCustomerLogo } from "@/lib/hub-logos/actions";
 import { canBeLogo } from "@/lib/hub-logos/rules";
+import { useInfo } from "../info-box";
 import { AssetPanel } from "./asset-panel";
 import { CustomerSign } from "./customer-sign";
 import { DownloadButton } from "./files-dialogs";
@@ -73,6 +74,15 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
   const signOf = (customer: HubFileCustomer) => customers.find((item) => item.id === customer.id) ?? customer;
   // An image of the customer whose files are open can become that customer's logo in one click.
   const logoFor = here && canAssign && canBeLogo(file) && file.customers.some((customer) => customer.id === here.id) ? here : null;
+  const shareInfo = useInfo("Freigabe, Ordner und Sichtbarkeit", (
+    <ul>
+      <li>Hier stehen alle Kunden, die die Datei sehen. „Zuordnung ändern“ fügt Kunden hinzu oder nimmt die Datei bei einem Kunden weg; neu zugeordnete Kunden bekommen eine Meldung.</li>
+      <li>Den Ordner wählst du je Kunde. Der Kunde sieht dieselben Ordner und kann die Datei auch selbst einsortieren.</li>
+      <li>„Sichtbar für“ steht nur bei Kunden, die ein Freelancer betreut: Kunde und Freelancer, nur der Kunde oder nur der Freelancer. Verträge, Angebote und Rechnungen stehen von selbst auf „Nur Kunde“. Wer die Datei dadurch neu sieht, bekommt eine Meldung.</li>
+      <li>Das Ketten-Symbol kopiert den Link zur Datei. Er öffnet sie nur für Logins, die sie sehen dürfen.</li>
+      <li>„…“ › „Datei löschen“ entfernt die Datei bei allen Kunden. Soll sie nur bei einem verschwinden, nimm „Zuordnung ändern“.</li>
+    </ul>
+  ));
 
   useEffect(() => {
     if (!copied) return;
@@ -148,8 +158,10 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
 
     <div className="am-field">
       <span className="am-label">{freelancerView ? "Liegt bei" : "Freigegeben für"}
+        {canAssign && shareInfo.button}
         {canAssign && !editing && <button type="button" className="am-label-action" onClick={() => setEditing(true)} disabled={busy !== null}><UserPlus size={13} aria-hidden="true" />Zuordnung ändern</button>}
       </span>
+      {canAssign && shareInfo.box}
       {editing ? (
         <div className="am-pick">
           <CustomerPicker customers={customers} selected={selected} onChange={setSelected} idPrefix={`am-assign-${file.id}`} />

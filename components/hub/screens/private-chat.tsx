@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpRight, Check, CheckCheck, ChevronLeft, Info, Lock, MessagesSquare, Search, SendHorizontal, SquarePen, Wrench } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { BrandLogo } from "../wordmark";
+import { useInfo } from "../info-box";
 import { MessagesHost } from "../messages-host";
 import { Modal } from "../modal";
 import { PlainText } from "../rich-text";
@@ -98,6 +99,23 @@ export function PrivateChats({ admin, freelancer = false, preview, firstName, co
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [query, setQuery] = useState("");
   const [picking, setPicking] = useState(false);
+  const info = useInfo(admin ? "So funktionieren die privaten Chats" : "So funktioniert der Chat", admin ? (
+    <ul>
+      <li>„Privat“ sind die Chats mit den Kunden, einer je Firma; hier antwortest du direkt. „Service“ zeigt die Gespräche der Serviceplattform nur zum Mitlesen.</li>
+      <li>Über den Stift schreibst du einen Kunden an, der noch nichts geschrieben hat. Unter dem Eingabefeld steht, welche Logins der Firma deine Antwort sehen.</li>
+      <li>Schreibt ein Kunde, zeigt die Glocke das allen Admins sofort. Nach einigen Minuten kommt eine E-Mail, aber nur, solange niemand aus dem Team den Chat gelesen hat.</li>
+      <li>Ist die Telegram-Gruppe eingerichtet, meldet der Hub neue Kundennachrichten auch dort; geantwortet wird im Hub. Prüfen kannst du das im Profil unter „Benachrichtigungen“.</li>
+      <li>Der Kunde bekommt deine Antwort in die Glocke und in seine gebündelte E-Mail. Liest er sie vorher im Hub, fällt sie aus der E-Mail.</li>
+    </ul>
+  ) : (
+    <ul>
+      <li>{freelancer ? "Hier schreibst du direkt mit dem oalab-Team. Mitlesen können nur oalab und die Logins deines Zugangs." : "Hier schreibt deine Firma direkt mit dem oalab-Team. Alle Logins deiner Firma sehen den Chat, jede Nachricht steht mit Namen."}</li>
+      <li>Ein Häkchen heißt gesendet, zwei heißen gelesen. Enter sendet, Umschalt + Enter macht eine neue Zeile.</li>
+      <li>Antworten erscheinen ohne Neuladen. Zusätzlich zeigt die Glocke sie an, und eine E-Mail bündelt die Neuigkeiten; abschalten lässt sie sich im Profil unter „Benachrichtigungen“.</li>
+      {!freelancer && <li>Aufträge und Änderungen an deiner Website stellst du als Anfrage auf der Serviceplattform, über „Anfrage stellen“ unter dem Chat.</li>}
+      <li>Dateien lassen sich im Chat noch nicht anhängen.</li>
+    </ul>
+  ));
 
   const chat = list.find((item) => item.customerId === selectedId) ?? null;
   const thread: PrivateChatThread | null = live
@@ -160,9 +178,10 @@ export function PrivateChats({ admin, freelancer = false, preview, firstName, co
       <div className="chat-grid">
         <section className={`chat-list${admin ? "" : " is-single"}`} aria-label="Gespräche">
           <div className="chat-list-head">
-            <h2>Gespräche</h2>
+            <h2>Gespräche{info.button}</h2>
             {admin && <button type="button" className="chat-icon-button" onClick={() => setPicking(true)} title="Kunden anschreiben" aria-label="Kunden anschreiben"><SquarePen size={19} aria-hidden="true" /></button>}
           </div>
+          {info.box}
           {tabs?.(unreadCount)}
           {admin && (
             <>
