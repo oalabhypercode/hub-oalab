@@ -1,64 +1,31 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { Download, FilePlus2, FileSignature, FolderInput } from "lucide-react";
+import { Download, FilePlus2, FolderInput } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { createClient } from "@/lib/supabase/client";
 import { checkUpload, HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { prepareUpload } from "@/lib/hub-files/actions";
 import { OPERATOR } from "@/lib/legal-details";
 import {
-  computedValues, contractFields, contractGroupLabels, contractTemplateIds, contractTemplates, contractValues, DOCX_MIME, formatMoney, initialInput,
+  computedValues, contractFields, contractGroupLabels, contractTemplateIds, contractTemplates, contractValues, formatMoney, initialInput,
   parseMoney, parsePercent, suggestedTemplate, type ContractCustomerData, type ContractFieldGroup, type ContractTemplateId,
 } from "@/lib/contract-templates/catalog";
-import { createContractDocument, downloadContractTemplate, fileContract, loadContractCustomer, type ContractActionResult, type ContractDownload } from "@/lib/contract-templates/actions";
+import { createContractDocument, fileContract, loadContractCustomer, type ContractActionResult } from "@/lib/contract-templates/actions";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
 import { Switch } from "../controls";
 import { Modal } from "../modal";
+import { saveDownload, useContractRunner } from "./contract-actions";
+
+export { ContractTemplatesSection } from "./contract-template-versions";
 
 const operator = { street: OPERATOR.street, city: OPERATOR.city, partners: OPERATOR.partners };
 const groupOrder: ContractFieldGroup[] = ["customer", "terms", "provider", "signature"];
 const Spinner = () => <MiniLoader size={16} />;
 
-/** Hands a generated file to the browser's download. */
-function saveDownload({ fileName, base64 }: ContractDownload) {
-  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type: DOCX_MIME }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-
 async function sha256Hex(file: Blob) {
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/** Runs one action at a time and keeps its message. */
-function useRunner() {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  async function run<T>(key: string, action: () => Promise<ContractActionResult<T>>, onDone: (data: T) => void, onFields?: (errors: Record<string, string>) => void) {
-    setBusy(key);
-    setError("");
-    try {
-      const result = await action();
-      if (result.ok) onDone(result.data);
-      else {
-        setError(result.error);
-        if (result.fieldErrors) onFields?.(result.fieldErrors);
-      }
-    } catch (caught) {
-      setError(caught instanceof Error && caught.message ? caught.message : "Das hat gerade nicht geklappt. Bitte versuche es erneut.");
-    } finally {
-      setBusy(null);
-    }
-  }
-  return { busy, error, setError, run };
 }
 
 /** „Jahrespreis 324,00 € netto (12 × 30,00 € = 360,00 € abzüglich 10 % = 36,00 €)“ and the minute steps, as the contract will say. */
@@ -93,7 +60,7 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
   const [source, setSource] = useState<"generated" | "upload">("generated");
   const [upload, setUpload] = useState<File | null>(null);
   const [notify, setNotify] = useState(true);
-  const { busy, error, setError, run } = useRunner();
+  const { busy, error, setError, run } = useContractRunner();
   const formId = useId();
   const template = contractTemplates[templateId];
   const suggested = suggestedTemplate(customer.packages.map((item) => item.packageId));
@@ -254,29 +221,3 @@ export function ContractGeneratorButton({ onOpen }: { onOpen: () => void }) {
   return <button type="button" className="sheet-action is-primary" onClick={onOpen}><FilePlus2 size={15} aria-hidden="true" />Vertrag erstellen</button>;
 }
 
-/** The overview's list of templates: each as a blank to print and fill in, or as the Word file with its placeholders. */
-export function ContractTemplatesSection({ canManage }: { canManage: boolean }) {
-  const { busy, error, run } = useRunner();
-  return (
-    <section className="cdm-section" aria-labelledby="cdm-templates">
-      <h3 id="cdm-templates"><FileSignature size={16} aria-hidden="true" />Vertragsvorlagen</h3>
-      <ul className="cdm-rows contract-templates">
-        {contractTemplateIds.map((id) => (
-          <li key={id}>
-            <span className="contract-template-name"><strong>{contractTemplates[id].name}</strong><small>{contractTemplates[id].description}</small></span>
-            <span className="contract-template-actions">
-              <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-blank`, () => downloadContractTemplate(id, "blank"), saveDownload)} title="Mit Linien zum Ausfüllen von Hand">
-                {busy === `${id}-blank` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Blanko
-              </button>
-              <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-placeholders`, () => downloadContractTemplate(id, "placeholders"), saveDownload)} title="Die Word-Vorlage mit Platzhaltern wie {{kunde_firma}}">
-                {busy === `${id}-placeholders` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Vorlage
-              </button>
-            </span>
-          </li>
-        ))}
-      </ul>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <p className="cdm-empty">{canManage ? "Einen Vertrag für einen Kunden erstellst du bei ihm im Reiter „Vertrag“." : "Herunterladen geht nur mit echtem Admin-Login."}</p>
-    </section>
-  );
-}

@@ -4,8 +4,9 @@ import test from "node:test";
 import { strFromU8 } from "fflate";
 import { decodeXml, docxPlaceholders, fillDocx, fillXml, looksLikeDocx, readDocx, scanPlaceholders } from "../lib/contract-templates/docx.ts";
 import {
-  blankValues, computedValues, contractFields, contractFileName, contractTemplateIds, contractTemplates, contractValues, domainFromWebsite, formatMoney,
-  initialInput, knownPlaceholders, nextMonthStart, parseDay, parseMoney, parsePercent, suggestedTemplate,
+  blankValues, checkTemplateScan, computedValues, contractFields, contractFileName, contractTemplateIds, contractTemplates, contractValues, domainFromWebsite,
+  formatMoney, initialInput, knownPlaceholders, nextMonthStart, parseDay, parseMoney, parsePercent, parseVersionName, placeholderLabel, sortedVersions,
+  suggestedTemplate, versionFileName,
 } from "../lib/contract-templates/catalog.ts";
 import { OPERATOR } from "../lib/legal-details.ts";
 
@@ -141,6 +142,44 @@ test("a filled or blank contract keeps the template's other parts byte for byte 
   }
 });
 
+test("uploaded versions are named by time, read back and sorted newest first", () => {
+  const name = versionFileName("upload", new Date("2026-11-05T12:05:09.500Z"), "k3x9ab");
+  assert.equal(name, "20261105-120509-upload-k3x9ab.docx");
+  assert.deepEqual(parseVersionName(name), { name, kind: "upload", createdAt: "2026-11-05T12:05:09Z" });
+  assert.equal(parseVersionName("../../evil.docx"), null);
+  assert.equal(parseVersionName("20261105-120509-hack-k3x9ab.docx"), null);
+  const older = versionFileName("standard", new Date("2026-11-04T08:00:00Z"), "aaaa");
+  const newer = versionFileName("restore", new Date("2026-11-06T08:00:00Z"), "bbbb");
+  assert.deepEqual(sortedVersions([older, ".emptyFolderPlaceholder", name, newer]).map((version) => version.kind), ["restore", "upload", "standard"]);
+});
+
+test("a new version needs known, complete placeholders; fields the text dropped only warn", () => {
+  const template = contractTemplates["website-pflege"];
+  const all = { keys: knownPlaceholders(template), broken: [] };
+  assert.deepEqual(checkTemplateScan(template, all), { keys: all.keys, unknown: [], missing: [], broken: [], ok: true });
+  const typo = checkTemplateScan(template, { keys: ["kunde_frima", ...template.fields.slice(1)], broken: [] });
+  assert.equal(typo.ok, false);
+  assert.deepEqual(typo.unknown, ["kunde_frima"]);
+  assert.deepEqual(typo.missing, ["kunde_firma"]);
+  const dropped = checkTemplateScan(template, { keys: template.fields.filter((key) => key !== "ag_funktion"), broken: [] });
+  assert.equal(dropped.ok, true, "a field the text no longer uses does not block");
+  assert.deepEqual(dropped.missing, ["ag_funktion"]);
+  assert.equal(checkTemplateScan(template, { keys: template.fields, broken: ["Preis {{preis_mon"] }).ok, false);
+  assert.equal(checkTemplateScan(template, { keys: [], broken: [] }).ok, false, "a file without placeholders is no template");
+  assert.equal(placeholderLabel("dienstleister_name"), "Externer IT-Dienstleister: Name");
+  assert.match(placeholderLabel("preis_jahr"), /berechnet/);
+});
+
+test("versions live in the admins-only bucket, uploads are checked twice and macros are refused", async () => {
+  const actions = await source("lib/contract-templates/actions.ts");
+  assert.match(actions, /vbaProject\\\.bin/, "Word files with macros are refused");
+  const activate = actions.slice(actions.indexOf("export async function activateTemplateUpload"));
+  assert.match(activate.slice(0, activate.indexOf("\n}\n")), /checkStaged\(/, "the check runs again before a version becomes active");
+  const server = await source("lib/contract-templates/server.ts");
+  assert.match(server, /if \(!versions\) return null;/, "no silent fallback to the default text when the storage cannot be read");
+  assert.match(server, /HUB_FILES_BUCKET/);
+});
+
 test("file names are safe on every system", () => {
   assert.equal(contractFileName(contractTemplates["website-pflege"], "Nalbach & Hinkel GmbH"), "Servicevertrag Website-Pflege – Nalbach & Hinkel GmbH.docx");
   assert.equal(contractFileName(contractTemplates["website-domain-mail"], "A/B: C*D?", "pdf"), "Servicevereinbarung Website, Domain & Mail – A-B- C-D-.pdf");
@@ -152,9 +191,11 @@ test("the generator lives in Vertrag & Domain, for admins only, and its template
   assert.match(screen, /<ContractTemplatesSection canManage=\{state\.canManage\} \/>/);
   assert.doesNotMatch(screen.slice(screen.indexOf("function ContractsCustomer")), /ContractGenerator|ContractTemplatesSection/, "customers never see the generator");
   const actions = await source("lib/contract-templates/actions.ts");
-  for (const name of ["loadContractCustomer", "createContractDocument", "downloadContractTemplate", "fileContract"]) {
+  const exported = [...actions.matchAll(/export async function (\w+)/g)].map((match) => match[1]);
+  assert.ok(exported.length >= 11, "every action is listed");
+  for (const name of exported) {
     const body = actions.slice(actions.indexOf(`export async function ${name}`));
-    assert.match(body.slice(0, body.indexOf("\n}\n")), /verifyHubAdmin\(\)|adminSession\(\)/, `${name} checks the admin`);
+    assert.match(body.slice(0, body.indexOf("\n}\n")), /adminSession\(\)/, `${name} checks the admin`);
   }
   assert.match(actions, /category: "contract"/, "filed contracts are contracts, which the database shows to the customer only");
   assert.match(await source("next.config.ts"), /outputFileTracingIncludes: \{ "\/dashboard\/\*\*": \["\.\/lib\/contract-templates\/templates\/\*\.docx"\] \}/);
