@@ -90,7 +90,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
     firstName: (preview ? previewAccount.name.split(" ")[0] : pending ? "" : demoData ? demoData.name.split(" ")[0] : live?.firstName.trim()) ?? "",
     company: preview ? previewAccount.company : demoData?.company ?? liveCustomer?.company ?? null,
     customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? liveCustomer?.customerNumber ?? null,
-    servicePackages: preview ? previewAccount.servicePackages : demoData?.servicePackages ?? liveCustomer?.servicePackages ?? [],
+    packages: preview ? previewAccount.packages : demoData?.packages ?? liveCustomer?.packages ?? [],
     admin: demoData ? demoData.role === "oalab_admin" : live?.role === "oalab_admin",
     freelancer: !demoData && live?.role === "oalab_freelancer",
     customers: new Set(projects.map((project) => project.company).filter(Boolean)).size,

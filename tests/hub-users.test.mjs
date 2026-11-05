@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, normalizeCompany,
-  readCustomer, readPerson, readRegistration, serviceCustomerRefusal, servicePackageIds, suggestCustomer,
+  readCustomer, readPerson, readRegistration, serviceCustomerRefusal, suggestCustomer,
 } from "../lib/hub-users/rules.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -49,12 +49,11 @@ test("single fields reject what an admin form or a crafted request could send", 
   assert.equal(readPerson({ firstName: "Ben", lastName: "" }).ok, false);
 });
 
-test("customers keep a unique-looking number and only known service packages", () => {
-  const customer = readCustomer({ company: " Form & Feld ", customerNumber: "kd-24023", servicePackages: ["website-max", "website-lite", "website-lite"], website: "formfeld.example", postalCode: "10115" });
+test("customers keep a unique-looking number; their packages are no longer part of the master data", () => {
+  const customer = readCustomer({ company: " Form & Feld ", customerNumber: "kd-24023", servicePackages: ["website-max"], website: "formfeld.example", postalCode: "10115" });
   assert.equal(customer.ok, true);
-  assert.deepEqual(customer.value.servicePackages, ["website-lite", "website-max"]);
+  assert.equal("servicePackages" in customer.value, false);
   assert.equal(customer.value.country, "Deutschland");
-  assert.equal(readCustomer({ company: "X", customerNumber: "KD-1", servicePackages: ["gold"] }).ok, false);
   assert.equal(readCustomer({ company: "", customerNumber: "KD-1" }).ok, false);
   assert.equal(readCustomer({ company: "X", customerNumber: "KD-1", contactEmail: "kein-mail" }).ok, false);
 });
@@ -109,13 +108,14 @@ test("an active login that never signed in still waits for its activation", () =
   assert.equal(displayStatus("disabled", "2026-10-22T10:00:00Z"), "disabled");
 });
 
-test("service package ids agree between rules, catalogue and database", async () => {
-  const catalogue = await source("lib/service-packages.ts");
-  const ids = [...catalogue.match(/export type ServicePackageId = ([^;]+);/)[1].matchAll(/"([a-z-]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(ids, [...servicePackageIds]);
-  const sql = await migration();
-  const allowed = [...sql.match(/service_packages <@ array\[([^\]]+)\]/)[1].matchAll(/'([a-z-]+)'/g)].map((match) => match[1]);
-  assert.deepEqual(allowed, [...servicePackageIds]);
+test("the hub no longer reads or writes the old package column; packages come from hub_customer_packages", async () => {
+  for (const path of ["lib/hub-users/server.ts", "lib/hub-users/actions.ts", "lib/hub-assistant/data.ts"]) {
+    assert.doesNotMatch(await source(path), /service_packages/, path);
+  }
+  const server = await source("lib/hub-users/server.ts");
+  assert.match(server, /readCustomerPackages\(db\),\n {4}\]\);/);
+  // A customer login reads its packages with its own session (RLS: its own customers only).
+  assert.match(server, /const packageRead = readCustomerPackages\(supabase\);/);
 });
 
 test("the migration lets only active logins reach data and keeps writes on the server", async () => {

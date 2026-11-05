@@ -23,7 +23,8 @@ export type AssistantCustomer = {
   organizationId: string | null;
   company: string;
   customerNumber: string;
-  servicePackages: string[];
+  /** Names of the packages the customer holds, e.g. „OALAB Domain & Mail“ and „OALAB Service Max“. */
+  packages: string[];
   city: string;
   website: string;
   contactEmail: string;
@@ -63,7 +64,7 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
   },
   {
     name: "get_customer",
-    description: "Stammdaten eines Kunden (Unternehmen, Kundennummer, Servicepakete, Ort, Website, Kontakt-E-Mail) und seine Projekte mit Status und Fortschritt.",
+    description: "Stammdaten eines Kunden (Unternehmen, Kundennummer, Pakete, Ort, Website, Kontakt-E-Mail) und seine Projekte mit Status und Fortschritt.",
     input_schema: {
       type: "object",
       properties: { customer_id: { type: "string", description: "ID aus search." } },
@@ -172,7 +173,7 @@ export function runAssistantTool(name: string, input: unknown, data: AssistantDa
       customer_id: customer.id,
       company: customer.company,
       customer_number: customer.customerNumber,
-      service_packages: customer.servicePackages,
+      packages: customer.packages,
       city: customer.city || null,
       website: customer.website || null,
       contact_email: customer.contactEmail || null,

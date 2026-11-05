@@ -24,6 +24,9 @@ import { ConversationsScreen } from "./screens/conversations";
 import { UserManagementScreen } from "./screens/users";
 import { PatchNotesScreen } from "./screens/patch-notes";
 import { AssistantLogScreen } from "./screens/assistant-log";
+import { ContractsScreen } from "./screens/contracts";
+import type { ContractsState } from "@/lib/hub-contracts/types";
+import { contractFixtures } from "@/lib/hub-contracts/fixtures";
 import type { AssistantLogState } from "@/lib/hub-assistant/log";
 import type { ScreenProps } from "./screens/types";
 import type { HubRole } from "@/lib/hub-users/rules";
@@ -57,9 +60,11 @@ type HubViewProps = {
   conversations?: ConversationsState;
   /** The private chats of a real login on the Nachrichten page; examples otherwise. */
   privateChats?: PrivateChatState;
+  /** Packages and timeline on the page „Vertrag & Domain“ for real logins; examples otherwise. */
+  contracts?: ContractsState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -77,6 +82,13 @@ export function HubView({ section = "overview", detail, preview = false, email =
   }, [filesState, fixtureFiles]);
   const calendar = useMemo(() => calendarState ?? calendarFixtures({ admin, customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null }), [calendarState, admin, preview, demoData]);
   const favorites = useFavorites(userKey);
+  // Without real data (preview, demos) the examples: every demo customer for admins, the own one for customers. The
+  // example contracts of the asset management link up with them.
+  const contractState = useMemo(() => contracts ?? contractFixtures({
+    admin,
+    customerNumber: populated ? (preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null) : null,
+    contractFiles: Object.fromEntries(fileState.files.filter((file) => file.category === "contract").flatMap((file) => file.customers.map((customer) => [customer.id, file.id]))),
+  }), [contracts, admin, populated, preview, demoData, fileState.files]);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
 
@@ -97,6 +109,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "discover" ? <DiscoverScreen {...screen} />
         : section === "projects" ? <ProjectsScreen {...screen} />
         : section === "files" ? <FilesScreen {...screen} />
+        : section === "contracts" ? <ContractsScreen {...screen} state={contractState} />
         : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />
         : section === "calendar" ? <CalendarScreen {...screen} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />

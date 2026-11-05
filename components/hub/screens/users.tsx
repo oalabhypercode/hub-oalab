@@ -5,7 +5,7 @@ import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, ListFilter, M
 import { displayStatusLabels, roleLabels, type DisplayStatus } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
 import { formatFileDate, formatFileDateTime } from "@/lib/hub-files/catalog";
-import { servicePackages } from "@/lib/service-packages";
+import { packageCatalog, packageIds } from "@/lib/service-packages";
 import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
 import { SegmentedControl } from "../controls";
@@ -117,8 +117,8 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
     city: (customer) => customer.city,
   };
   const shownCustomers = sortRows(customers.filter((customer) =>
-    (packageFilter === ALL || (customer.servicePackages as string[]).includes(packageFilter))
-    && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website, ...customer.servicePackages.map((id) => servicePackages[id].name)]),
+    (packageFilter === ALL || (customer.packages as string[]).includes(packageFilter))
+    && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website, ...customer.packages.map((id) => packageCatalog[id].name)]),
   ), customerSortValue[customerSort.key], customerSort.dir, { tieBreak: (customer) => customer.company });
   const customersNarrowed = customerQuery.trim() !== "" || packageFilter !== ALL;
 
@@ -198,10 +198,10 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         ) : tab === "freelancers" ? (
           <SheetToolbar query={freelancerQuery} onQuery={setFreelancerQuery} placeholder="Name, FL-Nr., Ort, betreuter Kunde …" label="Freelancer durchsuchen" compact leading={switcher} trailing={manage} />
         ) : (
-          <SheetToolbar query={customerQuery} onQuery={setCustomerQuery} placeholder="Unternehmen, Kunden-Nr., Ort, Servicepaket …" label="Kunden durchsuchen" compact
+          <SheetToolbar query={customerQuery} onQuery={setCustomerQuery} placeholder="Unternehmen, Kunden-Nr., Ort, Paket …" label="Kunden durchsuchen" compact
             leading={switcher} trailing={manage}>
             <ToolbarMenu icon={ListFilter} label="Filter" badge={packageFilter === ALL ? 0 : 1}>
-              <FilterSelect icon={Activity} name="Nach Servicepaket filtern" value={packageFilter} onChange={setPackageFilter} options={[{ value: ALL, label: "Alle Servicepakete" }, ...Object.entries(servicePackages).map(([id, item]) => ({ value: id, label: item.name }))]} />
+              <FilterSelect icon={Activity} name="Nach Paket filtern" value={packageFilter} onChange={setPackageFilter} options={[{ value: ALL, label: "Alle Pakete" }, ...packageIds.map((id) => ({ value: id, label: packageCatalog[id].name }))]} />
             </ToolbarMenu>
             <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={customerSorts[customerSort.key].label}><SortControl options={Object.values(customerSorts)} sort={customerSort} onChange={setCustomerSort} /></ToolbarMenu>
           </SheetToolbar>
@@ -268,12 +268,12 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         ) : shownCustomers.length ? (
           <div className="sheet-scroll">
             <table className="data-table customer-table">
-              <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Servicepaketen, Konten und Ort</caption>
+              <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Paketen, Konten und Ort</caption>
               <thead>
                 <tr>
                   <SortHeader option={customerSorts.company} sort={customerSort} onChange={setCustomerSort} />
                   <SortHeader option={customerSorts.number} sort={customerSort} onChange={setCustomerSort} />
-                  <th scope="col">Servicepakete</th>
+                  <th scope="col">Pakete</th>
                   <SortHeader option={customerSorts.logins} label="Konten" className="col-count" sort={customerSort} onChange={setCustomerSort} />
                   <SortHeader option={customerSorts.city} sort={customerSort} onChange={setCustomerSort} />
                   <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
@@ -287,7 +287,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                       {customer.linkedIds.length > 0 && <span className="role-tag" title={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
                     </td>
                     <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
-                    <td className="cell-packages">{customer.servicePackages.length ? customer.servicePackages.map((id) => servicePackages[id].name).join(", ") : <span className="cell-none">–</span>}</td>
+                    <td className="cell-packages">{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].short).join(" · ") : <span className="cell-none">–</span>}</td>
                     <td className="cell-logins numeric">{customer.memberIds.length}</td>
                     <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
                     <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>

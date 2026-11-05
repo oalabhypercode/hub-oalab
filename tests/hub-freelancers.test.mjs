@@ -53,7 +53,9 @@ test("freelancers live only in the hub: no Service organization, no team access,
   // A new freelancer is a hub entry of its own kind, never a Service organization.
   const create = actions.slice(actions.indexOf("async function createFreelancerEntry"), actions.indexOf("type LinkSide"));
   assert.match(create, /kind: "freelancer"/);
-  assert.match(create, /servicePackages: \[\]/);
+  assert.match(create, /customerRow\(input\)/);
+  // Packages and the timeline of „Vertrag & Domain“ belong to customers only.
+  assert.match(await source("lib/hub-contracts/actions.ts"), /\(data\?\.kind \?\? "customer"\) === "customer"/);
   assert.doesNotMatch(create, /organizations/);
   // An existing entry must be of the role's kind; logins with Service team access never become freelancers.
   assert.match(actions, /if \(await kindOf\(ctx, data\.id\) !== kind\) return failed\(/);
@@ -93,7 +95,8 @@ test("the asset management: freelancers read, admins set who looks after a custo
 
 test("freelancers have no projects and no way to the service platform in the hub", async () => {
   const sidebar = await source("components/hub/glass-sidebar.tsx");
-  assert.match(sidebar, /categoryOrder\.filter\(\(id\) => !\(account\.freelancer && id === "projects"\)\)/);
+  assert.match(sidebar, /categoriesFor\(account\.freelancer\)\.map/);
+  assert.match(await source("lib/categories.ts"), /!\(freelancer && \(id === "projects" \|\| id === "contracts"\)\)/);
   const chat = await source("components/hub/screens/private-chat.tsx");
   assert.match(chat, /\{!admin && !freelancer && \(/);
   const overview = await source("components/hub/screens/overview.tsx");

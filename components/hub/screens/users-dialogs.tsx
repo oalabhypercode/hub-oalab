@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Ban, Check, Copy, ImagePlus, KeyRound, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Ban, Check, Copy, FileBadge, ImagePlus, KeyRound, Mail, MailCheck, MailX, RotateCcw, Save, Send, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { approveRegistration, createHubUser, createPasswordLink, deleteHubUser, rejectRegistration, saveCustomer, saveFreelancer, setHubUserActive, setHubUserSecondFactor, updateHubUser, type ActionResult } from "@/lib/hub-users/actions";
 import type { MailStatus } from "@/lib/hub-mail/smtp";
-import { displayStatusLabels, kindForRole, roleLabels, servicePackageIds, suggestCustomer, type CustomerKind, type HubRole } from "@/lib/hub-users/rules";
+import { displayStatusLabels, kindForRole, roleLabels, suggestCustomer, type CustomerKind, type HubRole } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedEvent, ManagedUser } from "@/lib/hub-users/types";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
-import { servicePackages, type ServicePackageId } from "@/lib/service-packages";
+import { hubHref } from "@/lib/hub-data";
+import { packageCatalog } from "@/lib/service-packages";
 import { CustomerLogoDialog } from "../customer-logo-dialog";
 import { LogoMark, companyInitials } from "../logo-mark";
 import { Modal } from "../modal";
@@ -62,7 +64,6 @@ const Spinner = () => <MiniLoader size={18} />;
 export type CustomerDraft = {
   company: string;
   customerNumber: string;
-  servicePackages: ServicePackageId[];
   contactEmail: string;
   phone: string;
   website: string;
@@ -75,7 +76,6 @@ export type CustomerDraft = {
 export const draftOf = (customer: ManagedCustomer): CustomerDraft => ({
   company: customer.company,
   customerNumber: customer.customerNumber,
-  servicePackages: customer.servicePackages,
   contactEmail: customer.contactEmail,
   phone: customer.phone,
   website: customer.website,
@@ -86,26 +86,20 @@ export const draftOf = (customer: ManagedCustomer): CustomerDraft => ({
 });
 
 export const emptyDraft = (customerNumber: string, preset: Partial<CustomerDraft> = {}): CustomerDraft => ({
-  company: "", customerNumber, servicePackages: [], contactEmail: "", phone: "", website: "", street: "", postalCode: "", city: "", country: "Deutschland", ...preset,
+  company: "", customerNumber, contactEmail: "", phone: "", website: "", street: "", postalCode: "", city: "", country: "Deutschland", ...preset,
 });
 
 /**
- * Company, customer number, service packages, contact and address of one customer. A freelancer has a name (person or
- * company) and an "FL-" number, but no service packages: they have no access to the service platform.
+ * Company, customer number, contact and address of one customer; its packages live under „Vertrag & Domain“. A freelancer
+ * has a name (person or company) and an "FL-" number, and no packages: they have no access to the service platform.
  */
 function CustomerFields({ draft, onChange, disabled, compact = false, freelancer = false }: { draft: CustomerDraft; onChange: (draft: CustomerDraft) => void; disabled: boolean; compact?: boolean; freelancer?: boolean }) {
   const set = (key: keyof CustomerDraft) => (event: React.ChangeEvent<HTMLInputElement>) => onChange({ ...draft, [key]: event.target.value });
-  const togglePackage = (id: ServicePackageId) => onChange({ ...draft, servicePackages: draft.servicePackages.includes(id) ? draft.servicePackages.filter((item) => item !== id) : [...draft.servicePackages, id] });
   return (
     <div className="upload-fields">
       <label className="upload-field"><span>{freelancer ? "Name oder Firma" : "Unternehmen"}</span><input value={draft.company} onChange={set("company")} maxLength={200} required disabled={disabled} autoComplete="organization" /></label>
       <label className="upload-field"><span>{freelancer ? "Freelancer-Nr." : "Kundennummer"}</span><input value={draft.customerNumber} onChange={set("customerNumber")} maxLength={40} required disabled={disabled} className="numeric" /></label>
-      {freelancer ? (compact && <label className="upload-field upload-field-wide"><span>Kontakt-E-Mail</span><input type="email" value={draft.contactEmail} onChange={set("contactEmail")} maxLength={254} disabled={disabled} placeholder="info@beispiel.de" /></label>) : (
-        <fieldset className="upload-field upload-field-wide package-checks" disabled={disabled}>
-          <legend>Servicepakete</legend>
-          {servicePackageIds.map((id) => <label key={id}><input type="checkbox" checked={draft.servicePackages.includes(id)} onChange={() => togglePackage(id)} />{servicePackages[id].name}</label>)}
-        </fieldset>
-      )}
+      {freelancer && compact && <label className="upload-field upload-field-wide"><span>Kontakt-E-Mail</span><input type="email" value={draft.contactEmail} onChange={set("contactEmail")} maxLength={254} disabled={disabled} placeholder="info@beispiel.de" /></label>}
       {!compact && <>
         <label className="upload-field"><span>Kontakt-E-Mail</span><input type="email" value={draft.contactEmail} onChange={set("contactEmail")} maxLength={254} disabled={disabled} placeholder="info@beispiel.de" /></label>
         <label className="upload-field"><span>Telefon</span><input type="tel" value={draft.phone} onChange={set("phone")} maxLength={40} disabled={disabled} /></label>
@@ -463,9 +457,15 @@ export function CustomerDialog({ customer, users, nextNumber, events, freelancer
         </div>
       )}
       {customer && logoOpen && <CustomerLogoDialog customer={customer} onClose={() => setLogoOpen(false)} onSaved={(message) => { setLogoOpen(false); onNotice(message); }} />}
+      {customer && (
+        <div className="customer-logo-row customer-packages-row">
+          <span className="customer-logo-text"><strong>Pakete</strong><small>{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].name).join(", ") : "Noch keine Pakete"}</small></span>
+          <Link className="sheet-action" href={`${hubHref(false, "contracts")}?customer=${customer.id}`}><FileBadge size={15} aria-hidden="true" />Pakete bearbeiten</Link>
+        </div>
+      )}
       <form onSubmit={(event) => { event.preventDefault(); run("save", () => saveCustomer({ ...draft, id: customer?.id, freelancerIds: freelancersEnabled ? servedBy : undefined }), () => { onNotice(customer ? `${draft.company} gespeichert.` : `Kunde ${draft.company} angelegt.`); onClose(); }); }}>
         <CustomerFields draft={draft} onChange={setDraft} disabled={busy !== null} />
-        <p className="field-hint">Die Kundinnen und Kunden sehen Unternehmen, Kundennummer, Servicepakete und Kontaktdaten nach dem Login in ihrem Profil.</p>
+        <p className="field-hint">Die Kundinnen und Kunden sehen Unternehmen, Kundennummer und Kontaktdaten nach dem Login in ihrem Profil.{customer ? "" : " Die Pakete legst du nach dem Anlegen unter Vertrag & Domain fest."}</p>
         {freelancersEnabled && freelancers.length > 0 && <>
           <CustomerPicker customers={pickable(freelancers)} selected={servedBy} onChange={setServedBy} idPrefix="served-by" legend="Betreut von" emptyHint="nur vom oalab-Team" />
           <p className="field-hint">Ein Freelancer sieht Namen, Logo, Kontaktdaten und die freigegebenen Dateien dieses Kunden, nur lesend; Verträge, Angebote und Rechnungen nicht, außer du gibst sie frei. Chats, Termine und Logins des Kunden sieht er nicht. Der Kunde sieht nicht, wer ihn betreut.</p>
