@@ -14,6 +14,7 @@ import {
 import { createContractDocument, fileContract, loadContractCustomer, type ContractActionResult } from "@/lib/contract-templates/actions";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
 import { Switch } from "../controls";
+import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { saveDownload, useContractRunner } from "./contract-actions";
 
@@ -64,6 +65,25 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
   const formId = useId();
   const template = contractTemplates[templateId];
   const suggested = suggestedTemplate(customer.packages.map((item) => item.packageId));
+  const generatorInfo = useInfo("So funktioniert der Vertragsgenerator", (
+    <ul>
+      <li>Wähle die Vorlage. „passt zu den Paketen“ markiert die, die zum Domain-Paket des Kunden passt.</li>
+      <li>Firma, Anschrift und Domain kommen aus dem Kundenstamm. Änderst du sie hier, gilt das nur für diesen Vertrag; dauerhaft änderst du sie im User Management.</li>
+      <li>Jahrespreis, Rabatt und Minutenstaffel rechnet der Hub selbst. oalabs Anschrift kommt aus dem Impressum.</li>
+      <li>Leere Felder unter „Unterschriften“ werden im Vertrag zu Linien zum Ausfüllen von Hand.</li>
+      <li>„Word-Datei herunterladen“ speichert nichts im Hub. Die PDF machst du in Word mit „Speichern unter“ → PDF.</li>
+      <li>Der Text kommt immer aus der aktiven Fassung der Vorlage, siehe Überblick → Vertragsvorlagen.</li>
+    </ul>
+  ));
+  const fileInfo = useInfo("So funktioniert „Beim Kunden ablegen“", (
+    <ul>
+      <li>Der Vertrag kommt ins Asset Management des Kunden, in den Ordner „Verträge“, mit der Kategorie Vertrag. Den Ordner legt der Hub beim ersten Mal an.</li>
+      <li>Der Kunde sieht ihn unter Dateien und unter Vertrag & Domain, seine Freelancer nicht.</li>
+      <li>„Diesen Vertrag als Word-Datei“ legt den Vertrag so ab, wie er oben ausgefüllt ist. „Fertige Datei hochladen“ nimmt deine PDF aus Word oder die unterschriebene Fassung (PDF oder Word).</li>
+      <li>Mit „Kunden benachrichtigen“ sieht der Kunde die neue Datei in der Glocke. Hat er E-Mails nicht abgeschaltet, kommt zusätzlich eine E-Mail, die die Neuigkeiten einer Viertelstunde bündelt.</li>
+      <li>Umbenennen oder löschen kannst du den Vertrag danach im Asset Management.</li>
+    </ul>
+  ));
 
   // The customer master (address, website) comes from the server; without a real admin login there is none.
   useEffect(() => {
@@ -130,9 +150,10 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
   }
 
   return (
-    <Modal title="Vertrag erstellen" onClose={onClose} className="users-modal contract-modal">
+    <Modal title="Vertrag erstellen" onClose={onClose} className="users-modal contract-modal" actions={generatorInfo.button}>
       <form className="cdm-dialog contract-form" onSubmit={download} noValidate>
         <p className="field-hint">{customer.company} · {customer.customerNumber}</p>
+        {generatorInfo.box}
 
         <fieldset className="cdm-group" disabled={busy !== null}>
           <legend>Vorlage</legend>
@@ -189,7 +210,9 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
         <button type="submit" className="sheet-button sheet-button-primary" disabled={disabled}>{busy === "download" ? <Spinner /> : <Download size={18} aria-hidden="true" />}Word-Datei herunterladen</button>
 
         <fieldset className="cdm-group contract-file-box" disabled={disabled}>
-          <legend>Beim Kunden ablegen</legend>
+          {/* Controls in a fieldset's first legend stay usable while the fieldset is disabled: the ⓘ always opens. */}
+          <legend>Beim Kunden ablegen{fileInfo.button}</legend>
+          {fileInfo.box}
           <label className="cdm-option">
             <input type="radio" name={`${formId}-source`} checked={source === "generated"} onChange={() => setSource("generated")} />
             <span><strong>Diesen Vertrag als Word-Datei</strong><small>So, wie er oben ausgefüllt ist.</small></span>
