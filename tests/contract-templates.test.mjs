@@ -180,6 +180,16 @@ test("versions live in the admins-only bucket, uploads are checked twice and mac
   assert.match(server, /HUB_FILES_BUCKET/);
 });
 
+test("every contract feature explains itself with an ⓘ right where it is used", async () => {
+  const generator = await source("components/hub/screens/contract-generator.tsx");
+  assert.match(generator, /<Modal title="Vertrag erstellen"[^>]*actions=\{generatorInfo\.button\}/);
+  assert.match(generator, /<legend>Beim Kunden ablegen\{fileInfo\.button\}<\/legend>/, "the ⓘ sits in the first legend, so a disabled fieldset keeps it usable");
+  const versions = await source("components/hub/screens/contract-template-versions.tsx");
+  assert.match(versions, /Vertragsvorlagen\{info\.button\}<\/h3>/);
+  assert.equal((versions.match(/actions=\{info\.button\}/g) ?? []).length, 2, "both template dialogs carry an ⓘ");
+  assert.match(await source("components/hub/info-box.tsx"), /aria-expanded=\{open\}/);
+});
+
 test("file names are safe on every system", () => {
   assert.equal(contractFileName(contractTemplates["website-pflege"], "Nalbach & Hinkel GmbH"), "Servicevertrag Website-Pflege – Nalbach & Hinkel GmbH.docx");
   assert.equal(contractFileName(contractTemplates["website-domain-mail"], "A/B: C*D?", "pdf"), "Servicevereinbarung Website, Domain & Mail – A-B- C-D-.pdf");
