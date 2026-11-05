@@ -9,12 +9,15 @@ import type { HubFilesState } from "@/lib/hub-files/types";
 import { packageCatalog, packageGroups, packageIds } from "@/lib/service-packages";
 import { endingSoon, formatCents, formatDay, lastPayment } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "@/lib/hub-contracts/types";
+import { renewingSoon } from "@/lib/hub-domains/rules";
 import { HeaderActions } from "../app-shell";
 import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { CustomerSign } from "./customer-sign";
 import { CategoryTitle } from "./workspace";
 import { ContractFiles, PackagesForm, TimelineDialog, TimelineList, packageDates, packagesLine } from "./contracts-parts";
+import { CustomerDomainCard, DomainMailTab } from "./contracts-domains";
+import { AccessTab } from "./contracts-access";
 import type { ScreenProps } from "./types";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -39,7 +42,19 @@ function Notes({ state }: { state: ContractsState }) {
 }
 
 type Pane = { kind: "overview" } | { kind: "customer"; id: string };
-type Tab = "contract" | "timeline";
+type Tab = "contract" | "domains" | "access" | "timeline";
+
+/** Package endings and domain renewals of the next 60 days, soonest first. */
+function upcoming(state: ContractsState, today: string) {
+  const company = (id: string) => state.customers.find((customer) => customer.id === id);
+  const packages = endingSoon(state.customers, today, 60).map(({ customer, packageId, until }) => ({ key: `${customer.id}-${packageId}`, day: until, customer, text: `${packageCatalog[packageId].name} endet` }));
+  const domains = renewingSoon(state.domainMail.domains.flatMap((domain) => domain.details ? [{ ...domain, status: domain.details.status, renewsOn: domain.details.renewsOn }] : []), today, 60)
+    .flatMap((domain) => {
+      const customer = company(domain.customerId);
+      return customer ? [{ key: domain.id, day: domain.renewsOn, customer, text: `${domain.display} ${domain.status === "cancelled" ? "läuft aus" : "verlängert sich"}` }] : [];
+    });
+  return [...packages, ...domains].sort((a, b) => a.day.localeCompare(b.day));
+}
 
 function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsState; asOf: string; preview: boolean; fileState: HubFilesState }) {
   // „Pakete bearbeiten“ in the user management links a customer (?customer=<id>): the page opens with it.
@@ -69,16 +84,17 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
 
   const missing = state.customers.filter((customer) => !hasService(customer));
   const term = query.trim().toLowerCase();
+  const domainsOf = (id: string) => state.domainMail.domains.filter((domain) => domain.customerId === id).flatMap((domain) => [domain.display, domain.domain]);
   const listed = state.customers
     .filter((customer) => !onlyMissing || !hasService(customer))
-    .filter((customer) => !term || [customer.company, customer.customerNumber, packagesLine(customer.packages)].some((value) => value.toLowerCase().includes(term)));
+    .filter((customer) => !term || [customer.company, customer.customerNumber, packagesLine(customer.packages), ...domainsOf(customer.id)].some((value) => value.toLowerCase().includes(term)));
   const timelineOf = useMemo(() => (id: string) => state.timeline.filter((entry) => entry.customerId === id), [state.timeline]);
 
   /* ---------- Customers ---------- */
   const list = (
     <div className="chat-list">
       <div className="chat-list-head"><h2>Kunden<span>{state.customers.length}</span></h2></div>
-      <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kunde, Nummer oder Paket" aria-label="Kunden durchsuchen" /></label>
+      <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kunde, Paket oder Domain" aria-label="Kunden durchsuchen" /></label>
       <div className="chat-filter" role="group" aria-label="Kunden zeigen">
         <button type="button" aria-pressed={!onlyMissing} onClick={() => setOnlyMissing(false)}>Alle</button>
         <button type="button" aria-pressed={onlyMissing} onClick={() => setOnlyMissing(true)}>Ohne Servicepaket{missing.length > 0 && <span>{missing.length}</span>}</button>
@@ -110,7 +126,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   );
 
   /* ---------- Overview ---------- */
-  const soon = endingSoon(state.customers, asOf, 60);
+  const soon = upcoming(state, asOf);
   const overview = (
     <div className="cdm-body">
       <div className="cdm-tiles">
@@ -127,15 +143,15 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
         <h3 id="cdm-soon"><CalendarClock size={16} aria-hidden="true" />Demnächst</h3>
         {soon.length ? (
           <ul className="cdm-rows">
-            {soon.map(({ customer, packageId, until }) => (
-              <li key={`${customer.id}-${packageId}`}>
-                <time className="numeric" dateTime={until}>{formatDay(until)}</time>
+            {soon.map(({ key, day, customer, text }) => (
+              <li key={key}>
+                <time className="numeric" dateTime={day}>{formatDay(day)}</time>
                 <button type="button" className="cdm-link" onClick={() => openCustomer(customer.id)}>{customer.company}</button>
-                <span className="cdm-muted">{packageCatalog[packageId].name} endet</span>
+                <span className="cdm-muted">{text}</span>
               </li>
             ))}
           </ul>
-        ) : <p className="cdm-empty">In den nächsten 60 Tagen endet kein Paket.</p>}
+        ) : <p className="cdm-empty">In den nächsten 60 Tagen endet kein Paket, und keine Domain verlängert sich.</p>}
       </section>
 
       <section className="cdm-section" aria-labelledby="cdm-recent">
@@ -192,9 +208,15 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
     <>
       <div className="chat-filter cdm-tabs" role="group" aria-label="Ansicht">
         <button type="button" aria-pressed={tab === "contract"} onClick={() => setTab("contract")}>Vertrag</button>
+        <button type="button" aria-pressed={tab === "domains"} onClick={() => setTab("domains")}>Domain & Mail</button>
+        <button type="button" aria-pressed={tab === "access"} onClick={() => setTab("access")}>Zugänge</button>
         <button type="button" aria-pressed={tab === "timeline"} onClick={() => setTab("timeline")}>Verlauf{entries.length > 0 && <span>{entries.length}</span>}</button>
       </div>
-      {tab === "contract" ? (
+      {tab === "domains" ? (
+        <DomainMailTab key={current.id} customer={current} domainMail={state.domainMail} canManage={state.canManage && state.domainMail.ready} today={asOf} onNotice={setNotice} />
+      ) : tab === "access" ? (
+        <AccessTab key={current.id} customer={current} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} onNotice={setNotice} />
+      ) : tab === "contract" ? (
         <div className="cdm-body">
           <PackagesForm key={current.id} customer={current} canManage={state.canManage} onSaved={setNotice} />
           <section className="cdm-section" aria-labelledby="cdm-files">
@@ -255,6 +277,7 @@ function ContractsCustomer({ state, preview, fileState }: { state: ContractsStat
               </dl>
               <p className="t-footnote t-secondary">Fragen zu deinen Paketen? Schreib deinem oalab-Team unter <Link href={hubHref(preview, "messages")}>Nachrichten</Link>.</p>
             </GlassCard>
+            <CustomerDomainCard customer={customer} domainMail={state.domainMail} />
             <GlassCard className="settings-card">
               <h2 className="t-headline settings-card-title"><CalendarClock size={20} color="var(--cat-contracts-text)" aria-hidden="true" />Verlauf</h2>
               <TimelineList entries={state.timeline.filter((entry) => entry.customerId === customer.id)} files={fileState.files} preview={preview} admin={false} canManage={false} empty="Noch keine Einträge. Hier stehen zum Beispiel bezahlte Rechnungen und Änderungen an deinen Paketen." />

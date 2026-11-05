@@ -1,4 +1,5 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import type { DomainMailState } from "@/lib/hub-domains/types";
 import type { CustomerPackage } from "@/lib/service-packages";
 import type { TimelineKind } from "./rules";
 
@@ -42,5 +43,7 @@ export type ContractsState = {
   ready: boolean;
   /** A real admin with the migration applied may save. */
   canManage: boolean;
+  /** Domains, mail server, mailboxes and (admins only) provider logins of stage 2. */
+  domainMail: DomainMailState;
   error?: string;
 };
