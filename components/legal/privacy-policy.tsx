@@ -74,12 +74,13 @@ export function PrivacyPolicy() {
         <h3>Server-Protokolle</h3>
         <p>Bei jedem Aufruf verarbeitet der Server technische Daten: IP-Adresse, Datum und Uhrzeit, die aufgerufene Adresse, Browser und Betriebssystem, die zuvor besuchte Seite und das Ergebnis der Anfrage. Wir brauchen sie, um den Hub auszuliefern, Fehler zu finden und Angriffe abzuwehren (Art. 6 Abs. 1 lit. f DSGVO). Die Protokolle bleiben nur kurz gespeichert und werden nicht mit anderen Daten zusammengeführt.</p>
         <h3>Cookies</h3>
-        <p>Der Hub setzt nur Cookies, die für die Anmeldung unbedingt nötig sind:</p>
+        <p>Der Hub setzt nur Cookies, die für die Anmeldung oder eine von dir gewählte Einstellung unbedingt nötig sind:</p>
         <ul>
           <li><strong>sb-oalab-auth-token</strong> hält dich angemeldet, auf hub.oalab.de und service.oalab.de zugleich. Skripte können ihn nicht lesen. Er wird beim Abmelden gelöscht, sonst spätestens nach 400 Tagen.</li>
+          <li><strong>oalab_reduce_motion</strong> gibt es nur, wenn du unter Darstellung „Bewegung reduzieren“ einschaltest. Er enthält nur diese Wahl, damit sie auch auf service.oalab.de gilt. Er wird gelöscht, wenn du die Einstellung wieder ausschaltest, sonst nach einem Jahr.</li>
           <li><strong>__Host-oalab-demo</strong> gibt es nur in der öffentlichen Demo mit Beispieldaten; er gilt 12 Stunden.</li>
         </ul>
-        <p>Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, weil der Hub ohne diese Cookies nicht funktioniert, für die Anmeldedaten selbst Art. 6 Abs. 1 lit. b DSGVO.</p>
+        <p>Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, weil der Hub ohne diese Cookies die Anmeldung und deine gewählte Einstellung nicht umsetzen kann, für die Anmeldedaten selbst Art. 6 Abs. 1 lit. b DSGVO.</p>
         <h3>Speicher im Browser</h3>
         <p>Einige Einstellungen merkt sich der Hub nur auf deinem Gerät (Local Storage und Session Storage):</p>
         <ul>

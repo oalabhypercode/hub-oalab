@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
-import { appearanceInlineScript, backgroundPresets, DARK_BACKGROUND_SHADE, normalizeAppearance, resolveAppearance } from "../lib/appearance.ts";
+import { appearanceInlineScript, backgroundPresets, DARK_BACKGROUND_SHADE, defaultAppearance, normalizeAppearance, REDUCE_MOTION_COOKIE, reduceMotionCookie, resolveAppearance } from "../lib/appearance.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const rgb = (hex) => hex.replace("#", "").match(/../g).map((part) => parseInt(part, 16));
@@ -92,7 +92,7 @@ test("tones, sheets and text on fills keep 4.5:1 in both themes", async () => {
 });
 
 test("the colour scheme follows the device until the user picks light or dark", () => {
-  const theme = (stored, systemDark) => resolveAppearance(stored, backgroundPresets, false, false, systemDark).theme;
+  const theme = (stored, systemDark) => resolveAppearance(stored, backgroundPresets, false, systemDark).theme;
   assert.equal(theme(null, true), "dark");
   assert.equal(theme(null, false), "light");
   assert.equal(theme({ colorScheme: "light" }, true), "light", "an explicit choice wins over the device");
@@ -115,23 +115,40 @@ test("stored appearance values are clamped and validated", () => {
   assert.equal(resolveAppearance({ backgroundPreset: "custom", customColor: "javascript:alert(1)" }, backgroundPresets, false).variables["--bg-base"], backgroundPresets.at(-1).base);
 });
 
-test("reduce motion follows the system until the user decides", () => {
+test("animations run until the user switches them off, whatever the device says", () => {
+  // Decision of 5.11.2026: "Bewegung reduzieren" starts off on every device; only an explicit choice turns it on.
   assert.equal(resolveAppearance(null, backgroundPresets, false).reduceMotion, false);
-  assert.equal(resolveAppearance(null, backgroundPresets, false, true).reduceMotion, true, "system preference preselects the switch");
-  assert.equal(resolveAppearance({ reduceMotion: false }, backgroundPresets, false, true).reduceMotion, false, "an explicit choice wins over the system");
-  assert.equal(resolveAppearance({ reduceMotion: "yes" }, backgroundPresets, false, false).reduceMotion, false);
+  assert.equal(resolveAppearance({ reduceMotion: true }, backgroundPresets, false).reduceMotion, true);
+  assert.equal(resolveAppearance({ reduceMotion: "yes" }, backgroundPresets, false).reduceMotion, false);
+  assert.equal(normalizeAppearance(null, true).reduceMotion, false);
+  assert.equal(normalizeAppearance({ reduceMotion: true }).reduceMotion, true);
+  assert.equal(defaultAppearance.reduceMotion, false);
 });
 
-test("the waterfall stylesheet is loaded everywhere and switches off with reduce motion", async () => {
+test("the waterfall stylesheet is loaded everywhere and switches off with reduce motion only", async () => {
   const layout = await source("app/layout.tsx");
   const motion = await source("app/motion.css");
   assert.match(layout, /import "\.\/motion\.css";/);
   assert.match(layout, /<PageWaterfall \/>/);
   assert.match(motion, /:root\[data-reduce-motion="true"\] \{ --waterfall: none; \}/);
-  assert.match(motion, /@media \(prefers-reduced-motion: reduce\) \{\s*:root:not\(\[data-reduce-motion\]\) \{ --waterfall: none; \}/);
-  for (const path of ["app/globals.css", "app/hub.css", "app/glass.css"]) {
-    assert.doesNotMatch(await source(path), /prefers-reduced-motion/, `${path}: motion rules live in app/motion.css`);
+  // No rule follows the device's own setting any more, neither in the styles nor in the avatars.
+  for (const path of ["app/motion.css", "app/globals.css", "app/hub.css", "app/glass.css", "app/loader.css", "app/welcome-host.css", "components/hub/welcome-stage.tsx", "components/hub/messages-host.tsx", "components/hub/appearance-provider.tsx", "lib/appearance.ts"]) {
+    assert.doesNotMatch(await source(path), /prefers-reduced-motion/, path);
   }
+});
+
+test("the switch reaches Service OALab through a cookie for oalab.de, and only while it is on", async () => {
+  assert.equal(REDUCE_MOTION_COOKIE, "oalab_reduce_motion");
+  assert.equal(reduceMotionCookie(true, "hub.oalab.de", true), "oalab_reduce_motion=1; Max-Age=31536000; Path=/; SameSite=Lax; Secure; Domain=oalab.de");
+  assert.equal(reduceMotionCookie(false, "hub.oalab.de", true), "oalab_reduce_motion=; Max-Age=0; Path=/; SameSite=Lax; Secure; Domain=oalab.de");
+  // Previews and local development keep the cookie with their own host.
+  assert.equal(reduceMotionCookie(true, "localhost", false), "oalab_reduce_motion=1; Max-Age=31536000; Path=/; SameSite=Lax");
+  assert.equal(reduceMotionCookie(true, "hub-oalab-git-main.vercel.app", true), "oalab_reduce_motion=1; Max-Age=31536000; Path=/; SameSite=Lax; Secure");
+  assert.doesNotMatch(reduceMotionCookie(true, "evil-oalab.de", true), /Domain=/);
+  const provider = await source("components/hub/appearance-provider.tsx");
+  assert.match(provider, /document\.cookie = reduceMotionCookie\(dom\.reduceMotion, window\.location\.hostname, window\.location\.protocol === "https:"\)/);
+  // The privacy policy names it.
+  assert.match(await source("components/legal/privacy-policy.tsx"), /<strong>oalab_reduce_motion<\/strong> gibt es nur, wenn du unter Darstellung „Bewegung reduzieren“ einschaltest\./);
 });
 
 test("text on a very light custom background switches to black", () => {
@@ -150,7 +167,7 @@ test("the pre-paint script applies the stored appearance without outside referen
   assert.equal(variables["--bg-base"], "#0A2A6B");
   assert.equal(variables["--glass-alpha"], "0.9");
   assert.equal(root.dataset.reduceTransparency, "true");
-  assert.equal(root.dataset.reduceMotion, "true", "the system setting applies before the first paint");
+  assert.equal(root.dataset.reduceMotion, "false", "a device that reduces motion still gets the animations");
   assert.equal(root.dataset.theme, "dark", "a dark device gets the dark theme before the first paint");
   assert.equal(root.style.colorScheme, "dark");
 });

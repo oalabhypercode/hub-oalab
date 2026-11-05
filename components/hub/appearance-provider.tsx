@@ -7,6 +7,7 @@ import {
   backgroundPresets,
   defaultAppearance,
   normalizeAppearance,
+  reduceMotionCookie,
   resolveAppearance,
   type Appearance,
 } from "@/lib/appearance";
@@ -42,10 +43,10 @@ function subscribe(listener: () => void) {
   };
 }
 
-// System preferences preselect the switches until the user sets them in Darstellung;
-// "Automatisch" follows the device's light or dark mode, also when it changes while the hub is open.
+// The system's reduced transparency preselects its switch until the user sets it in Darstellung; "Bewegung
+// reduzieren" starts off on every device (5.11.2026). "Automatisch" follows the device's light or dark mode, also
+// when it changes while the hub is open.
 const reducedTransparencyQuery = "(prefers-reduced-transparency: reduce)";
-const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
 const darkQuery = "(prefers-color-scheme: dark)";
 function subscribeQuery(query: string) {
   return (listener: () => void) => {
@@ -55,7 +56,6 @@ function subscribeQuery(query: string) {
   };
 }
 const subscribeTransparency = subscribeQuery(reducedTransparencyQuery);
-const subscribeMotion = subscribeQuery(reducedMotionQuery);
 const subscribeDark = subscribeQuery(darkQuery);
 const matches = (query: string) => window.matchMedia(query).matches;
 
@@ -73,17 +73,19 @@ const AppearanceContext = createContext<AppearanceContextValue>({ appearance: de
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const raw = useSyncExternalStore(subscribe, readStored, () => "");
   const systemTransparency = useSyncExternalStore(subscribeTransparency, () => window.matchMedia(reducedTransparencyQuery).matches, () => false);
-  const systemMotion = useSyncExternalStore(subscribeMotion, () => window.matchMedia(reducedMotionQuery).matches, () => false);
   const systemDark = useSyncExternalStore(subscribeDark, () => matches(darkQuery), () => false);
-  const appearance = useMemo(() => normalizeAppearance(parse(raw), systemTransparency, systemMotion), [raw, systemTransparency, systemMotion]);
+  const appearance = useMemo(() => normalizeAppearance(parse(raw), systemTransparency), [raw, systemTransparency]);
 
   // The pre-paint script covers full page loads; this keeps <html> in sync after changes
   // and re-applies the values after React's development remount resets <html>.
   // It reads storage and media queries directly: while hydrating, the hook values above are still the
   // server's (no preference, light), and applying those would flash the light theme for a frame.
+  // "Bewegung reduzieren" also goes into a cookie that Service OALab reads, so one switch counts in both apps.
   useLayoutEffect(() => {
-    applyAppearanceToDocument(resolveAppearance(parse(readStored()), backgroundPresets, matches(reducedTransparencyQuery), matches(reducedMotionQuery), matches(darkQuery)), document.documentElement);
-  }, [raw, systemTransparency, systemMotion, systemDark]);
+    const dom = resolveAppearance(parse(readStored()), backgroundPresets, matches(reducedTransparencyQuery), matches(darkQuery));
+    applyAppearanceToDocument(dom, document.documentElement);
+    try { document.cookie = reduceMotionCookie(dom.reduceMotion, window.location.hostname, window.location.protocol === "https:"); } catch { /* cookies blocked: the hub still follows the switch */ }
+  }, [raw, systemTransparency, systemDark]);
 
   const update = useCallback((patch: Partial<Appearance>) => {
     writeStored(JSON.stringify({ ...appearance, ...patch }));
