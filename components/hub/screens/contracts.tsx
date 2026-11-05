@@ -15,6 +15,7 @@ import { LargeTitleHeader } from "../large-title-header";
 import { CustomerSign } from "./customer-sign";
 import { CategoryTitle } from "./workspace";
 import { ContractFiles, PackagesForm, TimelineDialog, TimelineList, packageDates, packagesLine } from "./contracts-parts";
+import { ContractGenerator, ContractGeneratorButton, ContractTemplatesSection } from "./contract-generator";
 import type { ScreenProps } from "./types";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -50,6 +51,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   const [query, setQuery] = useState("");
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [dialog, setDialog] = useState<{ entry?: TimelineEntry } | null>(null);
+  const [generator, setGenerator] = useState(false);
   const [notice, setNotice] = useState("");
   const files = fileState.files;
   const current = pane.kind === "customer" ? state.customers.find((customer) => customer.id === pane.id) ?? null : null;
@@ -168,6 +170,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
           </div>
         ) : <p className="cdm-empty">Es sind noch keine Kunden angelegt.</p>}
       </section>
+
+      <ContractTemplatesSection canManage={state.canManage} />
     </div>
   );
 
@@ -180,6 +184,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       <CustomerSign customer={current} logo={current.logo} size="lg" />
       <div className="am-pane-title"><strong>{current.company}</strong><span>{[current.customerNumber, packagesLine(current.packages) || "noch keine Pakete"].join(" · ")}</span></div>
       {tab === "timeline" && state.canManage && <div className="am-pane-actions"><button type="button" className="sheet-action is-primary" onClick={() => setDialog({})}><Plus size={15} aria-hidden="true" />Zeitpunkt</button></div>}
+      {tab === "contract" && state.canManage && <div className="am-pane-actions"><ContractGeneratorButton onOpen={() => setGenerator(true)} /></div>}
     </header>
   ) : (
     <header className="am-pane-head">
@@ -227,6 +232,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
         </div>
       )}
       {dialog && current && <TimelineDialog customer={current} entry={dialog.entry} files={files} today={asOf} onClose={() => setDialog(null)} onSaved={setNotice} />}
+      {generator && current && <ContractGenerator customer={current} canManage={state.canManage} today={asOf} onClose={() => setGenerator(false)} onFiled={setNotice} />}
     </>
   );
 }
