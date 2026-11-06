@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Check, Copy, Globe, Mail, Minus, Pencil, Plus, Save, Server, Trash2 } from "lucide-react";
+import { ArrowUpRight, AtSign, Check, Copy, Forward, Globe, Inbox, Mail, Pencil, Plus, Save, Send, Server, StickyNote, Trash2, type LucideIcon } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { formatDay } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
@@ -13,7 +13,8 @@ import {
 import type { CustomerDomain, DomainMailState, Mailbox, MailServer } from "@/lib/hub-domains/types";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
-import { useContractAction } from "./contracts-parts";
+import { SheetFooter, StatusGlyph, TableGroup, useCollapsedGroups, type GlyphKind } from "../sheet";
+import { ADMIN_COLUMNS, tableHit, useContractAction } from "./contracts-parts";
 
 const Spinner = () => <MiniLoader size={16} />;
 const hasMailPackage = (customer: ContractCustomer) => customer.packages.some((item) => item.packageId === "domain-mail");
@@ -47,17 +48,27 @@ function ProviderList({ id }: { id: string }) {
 
 /* ---------- Admin: tab „Domain & Mail“ ---------- */
 
-type Dialog = { kind: "domain"; entry?: CustomerDomain } | { kind: "mailbox"; entry?: Mailbox } | null;
+type Dialog = { kind: "domain"; entry?: CustomerDomain } | { kind: "mailbox"; entry?: Mailbox } | { kind: "server" } | null;
 
-/** The domains, the mail server and the addresses of one customer, for admins. Passwords live under „Zugänge“. */
-export function DomainMailTab({ customer, domainMail, canManage, today, onNotice }: {
+const kindIcons: Record<MailboxKind, LucideIcon> = { mailbox: Inbox, forward: Forward, alias: AtSign };
+const daysUntil = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+const statusGlyphs: Record<DomainStatus, GlyphKind> = { active: "active", setup: "progress", transfer: "progress", cancelled: "pending", ended: "rejected" };
+
+/**
+ * The domains, the mail server and the addresses of one customer, for admins, as one table in groups. The server is
+ * changed in a dialog behind the pencil; passwords live under „Zugänge“.
+ */
+export function DomainMailTab({ customer, domainMail, canManage, today, query, onNotice }: {
   customer: ContractCustomer;
   domainMail: DomainMailState;
   canManage: boolean;
   today: string;
+  query: string;
   onNotice: (message: string) => void;
 }) {
   const [dialog, setDialog] = useState<Dialog>(null);
+  const groups = useCollapsedGroups();
+  const term = query.trim().toLocaleLowerCase("de");
   const domains = domainMail.domains.filter((item) => item.customerId === customer.id);
   const server = domainMail.mailServers.find((item) => item.customerId === customer.id) ?? null;
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id);
@@ -70,94 +81,131 @@ export function DomainMailTab({ customer, domainMail, canManage, today, onNotice
     ],
     ask: "Wie richte ich den Mail-Server eines Kunden ein?",
   });
+  const shownDomains = domains.filter((domain) => tableHit(term, domain.display, domain.domain, domain.details?.registrar, domain.details?.dnsProvider, domain.details?.websiteHost, domain.details?.note));
+  const shownMailboxes = mailboxes.filter((mailbox) => tableHit(term, mailbox.display, mailbox.person, mailbox.targetDisplay, mailboxKinds[mailbox.kind].label));
+  const serverRows = server ? [
+    ...(["imap", "smtp"] as const).filter((side) => server[`${side}Host`]).map((side) => ({
+      key: side, icon: side === "imap" ? Inbox : Send, title: side === "imap" ? "Posteingang" : "Postausgang", sub: server[`${side}Host`], kind: side.toUpperCase(),
+      detail: `${server[`${side}Port`] ?? "–"} · ${mailSecurities[server[`${side}Security`]].label}`,
+      action: <CopyButton value={server[`${side}Host`]} label={side === "imap" ? "Server Posteingang" : "Server Postausgang"} />,
+    })),
+    ...(server.webmailUrl ? [{
+      key: "webmail", icon: Globe, title: "Webmail", sub: server.webmailUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""), kind: "Browser", detail: "",
+      action: <a className="am-icon-btn is-accent" href={server.webmailUrl} target="_blank" rel="noopener noreferrer" aria-label="Webmail öffnen (neuer Tab)" title="Webmail öffnen"><ArrowUpRight size={16} aria-hidden="true" /></a>,
+    }] : []),
+    ...(server.provider ? [{ key: "provider", icon: Server, title: "Anbieter", sub: server.provider, kind: "intern", detail: "", action: null }] : []),
+  ].filter((row) => tableHit(term, row.title, row.sub)) : [];
+
   return (
-    <div className="cdm-body">
-      {domainMail.error && <p className="form-error" role="alert">{domainMail.error}</p>}
-      {!domainMail.ready && !domainMail.error && <p className="cdm-empty">Domains und Mail sind in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus; bis dahin lässt sich nichts speichern.</p>}
-
-      <section className="cdm-section" aria-labelledby="dm-domains">
-        <div className="dm-section-head">
-          <h3 id="dm-domains"><Globe size={16} aria-hidden="true" />Domains</h3>
-          {canManage && <button type="button" className="sheet-action" onClick={() => setDialog({ kind: "domain" })}><Plus size={15} aria-hidden="true" />Domain</button>}
-        </div>
-        {domains.length ? (
-          <ul className="dm-list">
-            {domains.map((domain) => <DomainItem key={domain.id} domain={domain} today={today} onEdit={canManage ? () => setDialog({ kind: "domain", entry: domain }) : undefined} />)}
-          </ul>
-        ) : <p className="cdm-empty">Noch keine Domain eingetragen.</p>}
-      </section>
-
-      <section className="cdm-section" aria-labelledby="dm-server">
-        <div className="dm-section-head"><h3 id="dm-server"><Server size={16} aria-hidden="true" />Mail-Server{serverInfo.button}</h3></div>
-        {serverInfo.box}
-        {withMail
-          ? <MailServerForm key={`${customer.id}-${JSON.stringify(server)}`} customerId={customer.id} server={server} canManage={canManage} onSaved={onNotice} />
-          : <>
-            <p className="cdm-empty">Einen Mail-Server gibt es nur mit dem Paket OALAB Domain & Mail; festlegen lässt es sich im Reiter „Vertrag“.{server ? " Die gespeicherten Angaben bleiben, der Kunde sieht sie aber erst wieder mit diesem Paket." : ""}</p>
-            {server && canManage && <div className="dm-form-acts"><RemoveMailServer customerId={customer.id} onRemoved={onNotice} /></div>}
-          </>}
-      </section>
-
-      <section className="cdm-section" aria-labelledby="dm-mailboxes">
-        <div className="dm-section-head">
-          <h3 id="dm-mailboxes"><Mail size={16} aria-hidden="true" />E-Mail-Adressen</h3>
-          {canManage && <button type="button" className="sheet-action" onClick={() => setDialog({ kind: "mailbox" })}><Plus size={15} aria-hidden="true" />Adresse</button>}
-        </div>
-        {mailboxes.length ? (
-          <ul className="dm-list">
-            {mailboxes.map((mailbox) => (
-              <li key={mailbox.id} className="dm-item">
-                <div className="dm-item-main">
-                  <div className="dm-item-top"><strong>{mailbox.display}</strong><span className={`chat-pill ${mailbox.kind === "mailbox" ? "tone-info" : "tone-off"}`}>{mailboxKinds[mailbox.kind].label}</span></div>
-                  <p className="dm-item-sub">{mailbox.kind === "mailbox" ? (mailbox.person || "Ohne Person") : `${mailboxKinds[mailbox.kind].target} ${mailbox.targetDisplay}`}{mailbox.kind !== "mailbox" && mailbox.person ? ` · ${mailbox.person}` : ""}</p>
-                </div>
-                {canManage && <button type="button" className="row-action" onClick={() => setDialog({ kind: "mailbox", entry: mailbox })} aria-label={`${mailbox.display} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
-              </li>
+    <>
+      {domainMail.error && <p className="form-error cdm-tab-error" role="alert">{domainMail.error}</p>}
+      {!domainMail.ready && !domainMail.error && <p className="cdm-tab-note">Domains und Mail sind in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus; bis dahin lässt sich nichts speichern.</p>}
+      <div className="am-scroll">
+        <table className="file-table cdm-table cdm-admin-table">
+          <caption className="visually-hidden">Domains, Mail-Server und E-Mail-Adressen von {customer.company}</caption>
+          <TableGroup
+            colSpan={ADMIN_COLUMNS}
+            label="Domains"
+            count={shownDomains.length}
+            glyph={<Globe size={16} aria-hidden="true" />}
+            collapsed={groups.isCollapsed("domains")}
+            onToggle={() => groups.toggle("domains")}
+            actions={canManage && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({ kind: "domain" })} title="Domain eintragen" aria-label="Domain eintragen"><Plus size={15} aria-hidden="true" /></button>}
+            empty={term ? "Keine Domain passt zur Suche." : "Noch keine Domain eingetragen."}
+          >
+            {shownDomains.map((domain) => <DomainRow key={domain.id} domain={domain} today={today} onEdit={canManage ? () => setDialog({ kind: "domain", entry: domain }) : undefined} />)}
+          </TableGroup>
+          <TableGroup
+            colSpan={ADMIN_COLUMNS}
+            label="Mail-Server"
+            count={serverRows.length}
+            glyph={<Server size={16} aria-hidden="true" />}
+            collapsed={groups.isCollapsed("server")}
+            onToggle={() => groups.toggle("server")}
+            actions={<>{serverInfo.button}{canManage && (withMail || server) && <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "server" })} title={server ? "Mail-Server bearbeiten" : "Mail-Server eintragen"} aria-label={server ? "Mail-Server bearbeiten" : "Mail-Server eintragen"}>{server ? <Pencil size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}</button>}</>}
+            empty={withMail ? "Noch kein Mail-Server eingetragen." : "Einen Mail-Server gibt es nur mit dem Paket OALAB Domain & Mail; festlegen lässt es sich im Reiter „Vertrag“."}
+          >
+            {serverRows.map((row) => (
+              <tr key={row.key} className="file-row">
+                <td className="cell-file"><span className="am-file"><span className="am-file-icon cdm-file-icon"><row.icon size={16} aria-hidden="true" /></span><span className="am-file-text"><strong>{row.title}</strong><small className={row.key === "provider" ? undefined : "dm-mono"}>{row.sub}</small></span></span></td>
+                <td className="cell-category"><span className={`file-dot cdm-dot-${row.key === "provider" ? "off" : "mailbox"}`}><i aria-hidden="true" />{row.kind}</span></td>
+                <td className="cell-date numeric">{row.detail}</td>
+                <td className="cell-action">{row.action}</td>
+              </tr>
             ))}
-          </ul>
-        ) : <p className="cdm-empty">Noch keine Postfächer, Weiterleitungen oder Aliase.</p>}
-        <p className="field-hint">Die Passwörter der Postfächer liegen verschlüsselt unter „Zugänge“.</p>
-      </section>
-
+            {server && !withMail && <tr className="table-empty-row"><td colSpan={ADMIN_COLUMNS}>Ohne das Paket OALAB Domain & Mail sieht der Kunde diese Angaben nicht; sie bleiben gespeichert.</td></tr>}
+          </TableGroup>
+          <TableGroup
+            colSpan={ADMIN_COLUMNS}
+            label="E-Mail-Adressen"
+            count={shownMailboxes.length}
+            glyph={<Mail size={16} aria-hidden="true" />}
+            collapsed={groups.isCollapsed("addresses")}
+            onToggle={() => groups.toggle("addresses")}
+            actions={canManage && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({ kind: "mailbox" })} title="Adresse eintragen" aria-label="Adresse eintragen"><Plus size={15} aria-hidden="true" /></button>}
+            empty={term ? "Keine Adresse passt zur Suche." : "Noch keine Postfächer, Weiterleitungen oder Aliase."}
+          >
+            {shownMailboxes.map((mailbox) => {
+              const Icon = kindIcons[mailbox.kind];
+              return (
+                <tr key={mailbox.id} className="file-row">
+                  <td className="cell-file"><span className="am-file"><span className="am-file-icon cdm-file-icon"><Icon size={16} aria-hidden="true" /></span><span className="am-file-text"><strong>{mailbox.display}</strong><small>{mailbox.kind === "mailbox" ? (mailbox.person || "Ohne Person") : `${mailboxKinds[mailbox.kind].target} ${mailbox.targetDisplay}${mailbox.person ? ` · ${mailbox.person}` : ""}`}</small></span></span></td>
+                  <td className="cell-category"><span className={`file-dot cdm-dot-${mailbox.kind}`}><i aria-hidden="true" />{mailboxKinds[mailbox.kind].label}</span></td>
+                  <td className="cell-date">{mailbox.kind === "mailbox" && <span className="status-cell"><StatusGlyph kind={mailbox.hasPassword ? "active" : "invited"} />{mailbox.hasPassword ? "Passwort hinterlegt" : "kein Passwort"}</span>}</td>
+                  <td className="cell-action">{canManage && <button type="button" className="am-icon-btn" onClick={() => setDialog({ kind: "mailbox", entry: mailbox })} aria-label={`${mailbox.display} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}</td>
+                </tr>
+              );
+            })}
+          </TableGroup>
+        </table>
+        {serverInfo.box}
+      </div>
+      <SheetFooter hint="Passwörter der Postfächer liegen unter „Zugänge“">
+        {[domains.length === 1 ? "1 Domain" : `${domains.length} Domains`, server ? "Mail-Server eingetragen" : "kein Mail-Server", mailboxes.length === 1 ? "1 Adresse" : `${mailboxes.length} Adressen`].join(" · ")}
+      </SheetFooter>
       {dialog?.kind === "domain" && <DomainDialog customer={customer} entry={dialog.entry} onClose={() => setDialog(null)} onSaved={onNotice} />}
       {dialog?.kind === "mailbox" && <MailboxDialog customer={customer} entry={dialog.entry} domains={domains} onClose={() => setDialog(null)} onSaved={onNotice} />}
-    </div>
+      {dialog?.kind === "server" && (
+        <Modal title={server ? "Mail-Server bearbeiten" : "Mail-Server eintragen"} onClose={() => setDialog(null)} className="users-modal">
+          <MailServerForm customerId={customer.id} server={server} canManage={canManage} onSaved={(message) => { onNotice(message); setDialog(null); }} />
+        </Modal>
+      )}
+    </>
   );
 }
 
-function DomainItem({ domain, today, onEdit }: { domain: CustomerDomain; today: string; onEdit?: () => void }) {
+/** One domain: where it lives, its status, the renewal day and its six checks as dots. */
+function DomainRow({ domain, today, onEdit }: { domain: CustomerDomain; today: string; onEdit?: () => void }) {
   const details = domain.details;
   if (!details) return null;
-  const status = domainStatuses[details.status];
+  const done = domainCheckIds.filter((id) => details.checks[id]).length;
+  const passed = renewalPassed(details, today);
+  const days = details.renewsOn ? daysUntil(today, details.renewsOn) : null;
+  const where = [details.registrar, details.dnsProvider, details.websiteHost].map((value) => value || "–").join(" · ");
   return (
-    <li className="dm-item">
-      <div className="dm-item-main">
-        <div className="dm-item-top">
-          <strong>{domain.display}</strong>
-          <span className={`chat-pill tone-${status.tone}`}>{status.label}</span>
-          {renewalPassed(details, today) && <span className="chat-pill tone-todo" title="Das Datum der Verlängerung liegt in der Vergangenheit.">Verlängerung prüfen</span>}
-        </div>
-        {domain.display !== domain.domain && <p className="dm-item-sub">{domain.domain}</p>}
-        <dl className="dm-facts">
-          <div><dt>Registriert bei</dt><dd>{details.registrar || "–"}</dd></div>
-          <div><dt>DNS bei</dt><dd>{details.dnsProvider || "–"}</dd></div>
-          <div><dt>Website läuft bei</dt><dd>{details.websiteHost || "–"}</dd></div>
-          <div><dt>Inhaber</dt><dd>{domainOwners[details.owner]}</dd></div>
-          <div><dt>Verlängerung am</dt><dd className="numeric">{details.renewsOn ? formatDay(details.renewsOn) : "–"}</dd></div>
-        </dl>
-        <ul className="dm-checks" aria-label="Einträge und Prüfungen">
-          {domainCheckIds.map((id) => (
-            <li key={id} className={details.checks[id] ? "is-ok" : undefined} title={domainChecks[id].hint}>
-              {details.checks[id] ? <Check size={13} aria-hidden="true" /> : <Minus size={13} aria-hidden="true" />}
-              {domainChecks[id].label}
-              <span className="visually-hidden">{details.checks[id] ? ": erledigt" : ": offen"}</span>
-            </li>
-          ))}
-        </ul>
-        {details.note && <p className="cdm-note">{details.note}</p>}
-      </div>
-      {onEdit && <button type="button" className="row-action" onClick={onEdit} aria-label={`${domain.display} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
-    </li>
+    <tr className="file-row">
+      <td className="cell-file">
+        <span className="am-file" title={[domain.display !== domain.domain ? domain.domain : "", details.note].filter(Boolean).join("\n") || undefined}>
+          <span className="am-file-icon cdm-file-icon is-domain"><Globe size={16} aria-hidden="true" /></span>
+          <span className="am-file-text">
+            <strong>{domain.display}{details.note && <StickyNote size={13} className="cdm-note-mark" aria-label="Mit Notiz" />}</strong>
+            <small>{where}{details.owner === "oalab" ? ` · gehört ${domainOwners.oalab}` : ""}</small>
+          </span>
+        </span>
+      </td>
+      <td className="cell-category"><span className="status-cell"><StatusGlyph kind={statusGlyphs[details.status]} />{domainStatuses[details.status].label}</span></td>
+      <td className="cell-date numeric">
+        {details.renewsOn && <time dateTime={details.renewsOn}>{formatDay(details.renewsOn)}</time>}
+        {passed ? <small className="is-overdue">prüfen</small> : days !== null && days >= 0 && days <= 60 ? <small>in {days} {days === 1 ? "Tag" : "Tagen"}</small> : null}
+      </td>
+      <td className="cell-action">
+        <span className="cdm-checks" aria-label={`${done} von ${domainCheckIds.length} Prüfungen erledigt`} title={domainCheckIds.map((id) => `${domainChecks[id].label}: ${details.checks[id] ? "erledigt" : "offen"}`).join("\n")}>
+          {domainCheckIds.map((id) => <i key={id} className={details.checks[id] ? "is-ok" : undefined} aria-hidden="true" />)}
+          <b className="numeric" aria-hidden="true">{done}/{domainCheckIds.length}</b>
+        </span>
+        {onEdit && <button type="button" className="am-icon-btn" onClick={onEdit} aria-label={`${domain.display} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+      </td>
+    </tr>
   );
 }
 

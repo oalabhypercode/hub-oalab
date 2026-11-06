@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Eye, EyeOff, KeyRound, LockKeyhole, Mail, Pencil, Plus, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Inbox, KeyRound, LockKeyhole, Mail, Pencil, Plus, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { hubHref } from "@/lib/hub-data";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
@@ -11,8 +11,9 @@ import type { DomainMailState, ProviderLogin } from "@/lib/hub-domains/types";
 import { deleteLogin, removeSecret, revealSecret, saveLogin, saveSecret, type VaultResult } from "@/lib/hub-vault/actions";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { SheetFooter, TableGroup, useCollapsedGroups } from "../sheet";
 import { CopyButton } from "./contracts-domains";
-import { useContractAction } from "./contracts-parts";
+import { ADMIN_COLUMNS, tableHit, useContractAction } from "./contracts-parts";
 
 const Spinner = () => <MiniLoader size={16} />;
 const tryAgain = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
@@ -24,21 +25,26 @@ const DOTS = "••••••••••";
  * hosting. The page only knows whether a password is stored; showing or copying asks the server each time, which
  * checks the confirmed second factor and logs the look first. A shown password hides itself after 30 seconds.
  */
-export function AccessTab({ customer, domainMail, fixtures, preview, onNotice }: {
+export function AccessTab({ customer, domainMail, fixtures, preview, query, onNotice }: {
   customer: ContractCustomer;
   domainMail: DomainMailState;
   fixtures: boolean;
   preview: boolean;
+  query: string;
   onNotice: (message: string) => void;
 }) {
   const [dialog, setDialog] = useState<{ entry?: ProviderLogin } | null>(null);
   const [secretFor, setSecretFor] = useState<{ owner: VaultOwner; name: string; replace: boolean } | null>(null);
+  const groups = useCollapsedGroups();
   const vault = domainMail.vault;
   const live = !fixtures && domainMail.ready;
   const confirmed = live && Boolean(vault?.confirmed);
   const usable = confirmed && Boolean(vault?.keyReady);
+  const term = query.trim().toLocaleLowerCase("de");
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id && item.kind === "mailbox");
   const logins = domainMail.logins.filter((item) => item.customerId === customer.id);
+  const shownMailboxes = mailboxes.filter((mailbox) => tableHit(term, mailbox.display, mailbox.person));
+  const shownLogins = logins.filter((login) => tableHit(term, login.label, loginKinds[login.kind], login.loginUrl, login.username));
   const info = useInfo("Zugänge", {
     steps: [
       <><b>Nur mit zweitem Faktor</b> sichtbar.</>,
@@ -56,81 +62,73 @@ export function AccessTab({ customer, domainMail, fixtures, preview, onNotice }:
           : null;
 
   return (
-    <div className="cdm-body">
-      {domainMail.error && <p className="form-error" role="alert">{domainMail.error}</p>}
+    <>
+      {domainMail.error && <p className="form-error cdm-tab-error" role="alert">{domainMail.error}</p>}
+      {/* What the vault allows right now, as one bar above the table. */}
       {live && !confirmed && (
-        <div className="dm-notice is-todo" role="status">
+        <div className="cdm-lock is-todo" role="status">
           <LockKeyhole size={18} aria-hidden="true" />
-          <p>Passwörter siehst und änderst du nur mit bestätigtem zweitem Faktor. Melde dich mit deinem Code neu an; hast du noch keinen zweiten Faktor, richte ihn im <Link href={hubHref(preview, "settings")}>Profil</Link> ein.</p>
+          <p><strong>Tresor gesperrt.</strong> Passwörter siehst und änderst du nur mit bestätigtem zweitem Faktor. Melde dich mit deinem Code neu an; hast du noch keinen zweiten Faktor, richte ihn im <Link href={hubHref(preview, "settings")}>Profil</Link> ein.</p>
         </div>
       )}
-      {note && <div className="dm-notice" role="status"><LockKeyhole size={18} aria-hidden="true" /><p>{note}</p></div>}
-      {usable && <div className="dm-notice is-ok"><ShieldCheck size={18} aria-hidden="true" /><p>Passwörter liegen verschlüsselt. Ein angezeigtes Passwort ist nach {REVEAL_SECONDS} Sekunden wieder verdeckt, und jeder Blick und jede Änderung steht im Admin-Protokoll.</p></div>}
-
-      <section className="cdm-section" aria-labelledby="dm-access-mailboxes">
-        {/* The tab's ⓘ sits at its first heading and explains both lists. */}
-        <div className="dm-section-head"><h3 id="dm-access-mailboxes"><Mail size={16} aria-hidden="true" />Postfächer{info.button}</h3></div>
-        {info.box}
-        {mailboxes.length ? (
-          <ul className="dm-list">
-            {mailboxes.map((mailbox) => {
+      {note && <div className="cdm-lock" role="status"><LockKeyhole size={18} aria-hidden="true" /><p>{note}</p></div>}
+      {usable && <div className="cdm-lock is-ok"><ShieldCheck size={18} aria-hidden="true" /><p>Passwörter liegen verschlüsselt. Ein angezeigtes Passwort ist nach {REVEAL_SECONDS} Sekunden wieder verdeckt, und jeder Blick und jede Änderung steht im Admin-Protokoll.</p></div>}
+      <div className="am-scroll">
+        <table className="file-table cdm-table cdm-admin-table cdm-access-table">
+          <caption className="visually-hidden">Passwörter und Logins von {customer.company}</caption>
+          {/* The tab's ⓘ sits at its first group and explains both. */}
+          <TableGroup colSpan={ADMIN_COLUMNS} label="Postfächer" count={shownMailboxes.length} glyph={<Mail size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("mailboxes")} onToggle={() => groups.toggle("mailboxes")} actions={info.button} empty={term ? "Kein Postfach passt zur Suche." : "Noch keine Postfächer. Leg sie im Reiter „Domain & Mail“ an; Weiterleitungen und Aliase haben kein Passwort."}>
+            {shownMailboxes.map((mailbox) => {
               const owner: VaultOwner = { kind: "mailbox", id: mailbox.id };
               const name = `Postfach ${mailbox.display}`;
               return (
-                <li key={mailbox.id} className="dm-item dm-access">
-                  <div className="dm-item-main">
-                    <div className="dm-item-top"><strong>{mailbox.display}</strong></div>
-                    {mailbox.person && <p className="dm-item-sub">{mailbox.person}</p>}
-                  </div>
-                  <SecretControl key={`${mailbox.id}-${mailbox.hasPassword}`} owner={owner} name={name} stored={Boolean(mailbox.hasPassword)} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
-                </li>
+                <tr key={mailbox.id} className="file-row">
+                  <td className="cell-file"><span className="am-file"><span className="am-file-icon cdm-file-icon"><Inbox size={16} aria-hidden="true" /></span><span className="am-file-text"><strong>{mailbox.display}</strong><small>{mailbox.person || "Ohne Person"}</small></span></span></td>
+                  <td className="cell-secret" colSpan={ADMIN_COLUMNS - 1}>
+                    <SecretControl key={`${mailbox.id}-${mailbox.hasPassword}`} owner={owner} name={name} stored={Boolean(mailbox.hasPassword)} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
+                  </td>
+                </tr>
               );
             })}
-          </ul>
-        ) : <p className="cdm-empty">Noch keine Postfächer. Leg sie im Reiter „Domain & Mail“ an; Weiterleitungen und Aliase haben kein Passwort.</p>}
-      </section>
-
-      <section className="cdm-section" aria-labelledby="dm-access-logins">
-        <div className="dm-section-head">
-          <h3 id="dm-access-logins"><KeyRound size={16} aria-hidden="true" />Anbieter-Logins</h3>
-          {confirmed && <button type="button" className="sheet-action" onClick={() => setDialog({})}><Plus size={15} aria-hidden="true" />Login</button>}
-        </div>
-        {logins.length ? (
-          <ul className="dm-list">
-            {logins.map((login) => {
+          </TableGroup>
+          <TableGroup colSpan={ADMIN_COLUMNS} label="Anbieter-Logins" count={shownLogins.length} glyph={<KeyRound size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("logins")} onToggle={() => groups.toggle("logins")} actions={confirmed && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({})} title="Login anlegen" aria-label="Login anlegen"><Plus size={15} aria-hidden="true" /></button>} empty={term ? "Kein Login passt zur Suche." : "Noch keine Logins für Domain-Anbieter, DNS oder Hosting."}>
+            {shownLogins.map((login) => {
               const owner: VaultOwner = { kind: "login", id: login.id };
               const name = `Login ${login.label}`;
               return (
-                <li key={login.id} className="dm-item dm-access">
-                  <div className="dm-item-main">
-                    <div className="dm-item-top"><span className="chat-pill tone-info">{loginKinds[login.kind]}</span><strong>{login.label}</strong></div>
-                    <div className="dm-login-meta">
-                      {login.loginUrl && <a href={login.loginUrl} target="_blank" rel="noopener noreferrer">{login.loginUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}<span className="visually-hidden"> (öffnet in neuem Tab)</span></a>}
+                <tr key={login.id} className="file-row">
+                  <td className="cell-file">
+                    <span className="am-file">
+                      <span className="am-file-icon cdm-file-icon"><KeyRound size={16} aria-hidden="true" /></span>
+                      <span className="am-file-text">
+                        <strong>{login.label}</strong>
+                        <small>{loginKinds[login.kind]}{login.loginUrl && <> · <a href={login.loginUrl} target="_blank" rel="noopener noreferrer">{login.loginUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}<span className="visually-hidden"> (öffnet in neuem Tab)</span></a></>}</small>
+                      </span>
+                    </span>
+                  </td>
+                  <td className="cell-secret" colSpan={ADMIN_COLUMNS - 1}>
+                    <span className="cdm-secret-line">
                       {login.username && <span className="dm-login-user"><span className="dm-mono">{login.username}</span><CopyButton value={login.username} label="Benutzername" /></span>}
-                    </div>
-                  </div>
-                  <div className="dm-access-acts">
-                    <SecretControl key={`${login.id}-${login.hasPassword}`} owner={owner} name={name} stored={login.hasPassword} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
-                    {confirmed && <button type="button" className="row-action" onClick={() => setDialog({ entry: login })} aria-label={`${login.label} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
-                  </div>
-                </li>
+                      <SecretControl key={`${login.id}-${login.hasPassword}`} owner={owner} name={name} stored={login.hasPassword} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
+                      {confirmed && <button type="button" className="am-icon-btn" onClick={() => setDialog({ entry: login })} aria-label={`${login.label} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+                    </span>
+                  </td>
+                </tr>
               );
             })}
-          </ul>
-        ) : <p className="cdm-empty">Noch keine Logins für Domain-Anbieter, DNS oder Hosting.</p>}
-      </section>
-
-      {live && vault && (
-        <p className="field-hint">
-          {vault.keyId
-            ? <>Schlüssel auf diesem Server: Kennung <span className="dm-mono" translate="no">{vault.keyId}</span>. Lokal und in Vercel muss dieselbe Kennung stehen.</>
-            : "Auf diesem Server ist kein Schlüssel für die Zugänge eingetragen."}
-        </p>
-      )}
+          </TableGroup>
+        </table>
+        {info.box}
+      </div>
+      <SheetFooter hint="Jeder Blick auf ein Passwort steht im Verlauf">
+        {live && vault
+          ? vault.keyId ? <>Schlüssel auf diesem Server: <span className="dm-mono" translate="no">{vault.keyId}</span>; lokal und in Vercel muss dieselbe Kennung stehen.</> : "Auf diesem Server ist kein Schlüssel für die Zugänge eingetragen."
+          : [mailboxes.length === 1 ? "1 Postfach" : `${mailboxes.length} Postfächer`, logins.length === 1 ? "1 Anbieter-Login" : `${logins.length} Anbieter-Logins`].join(" · ")}
+      </SheetFooter>
 
       {dialog && <LoginDialog customer={customer} entry={dialog.entry} canStoreSecret={usable} onClose={() => setDialog(null)} onSaved={onNotice} />}
       {secretFor && <SecretDialog owner={secretFor.owner} name={secretFor.name} replace={secretFor.replace} onClose={() => setSecretFor(null)} onSaved={onNotice} />}
-    </div>
+    </>
   );
 }
 

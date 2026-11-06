@@ -188,3 +188,32 @@ test("the admins' overview is one table in the asset management's frame: what ne
   assert.match(css, /\.am \.cdm-admin-table \.cell-file \{ width: 100%; max-width: 0; \}/, "long names shorten, nothing scrolls sideways");
   assert.match(css, /@container sheet \(max-width: 1099px\) \{\n  \.am \.cdm-table tbody tr\.file-row > td:first-child \{ padding-left: 20px; \}/);
 });
+
+test("the customer's tabs are tables: tabs in the toolbar, packages chosen in their row, a save bar only for changes", async () => {
+  const screen = await source("components/hub/screens/contracts.tsx");
+  assert.match(screen, /<SheetToolbar\s+leading=\{<SegmentedControl label="Ansicht"/, "the tabs sit in the toolbar, the search beside them");
+  assert.match(screen, /paid \? `bezahlt \$\{formatDay\(paid\.occurredOn\)\}` : ""/, "the head names the newest payment");
+  assert.doesNotMatch(screen, /chat-filter cdm-tabs|cdm-body/);
+  const parts = await source("components/hub/screens/contracts-parts.tsx");
+  // „Kein | Domain | Domain & Mail“ and „Kein | Lite | Max“ as radios inside the row.
+  assert.match(parts, /role="radiogroup" aria-label=\{`\$\{name\}-Paket`\}/);
+  assert.match(parts, /\[null, \.\.\.packageGroups\[item\.group\]\.packages\]\.map/);
+  assert.match(parts, /const pickLabel = \(id: PackageId \| null\) => id \? packageCatalog\[id\]\.short\.replace\(\/\^Service \/, ""\) : "Kein";/);
+  // The bar appears only with a change, names it and saves through the same action as before.
+  assert.match(parts, /\{canManage && changes\.length > 0 && \(\s*<div className="sheet-selection cdm-savebar"/);
+  assert.match(parts, /saveCustomerPackages\(\{ customerId: customer\.id, packages: draft \}\)/);
+  assert.match(parts, /title="Kündigung eintragen"/);
+  // The timeline by month, each entry with its release chip.
+  assert.match(parts, /const months = \[\.\.\.new Set\(shown\.map\(\(entry\) => entry\.occurredOn\.slice\(0, 7\)\)\)\];/);
+  assert.match(parts, /setTimelineVisible\(\{ id: entry\.id, visible: !entry\.customerVisible \}\)/);
+  assert.match(parts, /\{entry\.customerVisible \? "Kunde" : "Intern"\}/);
+  // Domains with their six checks as dots, the mail server changed in a dialog behind the pencil.
+  const domains = await source("components/hub/screens/contracts-domains.tsx");
+  assert.match(domains, /domainCheckIds\.map\(\(id\) => <i key=\{id\} className=\{details\.checks\[id\] \? "is-ok" : undefined\}/);
+  assert.match(domains, /<MailServerForm customerId=\{customer\.id\} server=\{server\} canManage=\{canManage\} onSaved=\{\(message\) => \{ onNotice\(message\); setDialog\(null\); \}\} \/>/);
+  // The vault: its state as a bar above the table, the password control unchanged in each row.
+  const access = await source("components/hub/screens/contracts-access.tsx");
+  assert.match(access, /<div className="cdm-lock is-todo" role="status">/);
+  assert.equal((access.match(/<SecretControl key=/g) ?? []).length, 2);
+  for (const file of [parts, domains, access]) assert.doesNotMatch(file, /className="cdm-body"|className="dm-list"|className="cdm-entries"/, "the old lists are gone");
+});

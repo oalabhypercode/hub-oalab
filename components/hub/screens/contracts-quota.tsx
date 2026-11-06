@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Gauge, MinusCircle, PlusCircle, Power, Save } from "lucide-react";
+import { ArrowRight, Gauge, MessageSquare, MinusCircle, PlusCircle, Power, Save } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { packageCatalog, serviceRequestLimits } from "@/lib/service-packages";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
@@ -178,8 +178,9 @@ function statusText(row: QuotaRow, month: Month | null, enforced: boolean) {
 }
 
 /**
- * Kunde → Vertrag: the state of this month and every request that counts, newest first, with „Nicht mitzählen“ (a
- * short internal reason) and „Wieder mitzählen“. The list loads when the card opens; the examples use fixtures.
+ * Kunde → Vertrag: the group „Service-Anfragen im <Monat>“ of the tab's table: the state of this month as its first
+ * row, then every request that counts, newest first, with „Nicht mitzählen“ (a short internal reason) and „Wieder
+ * mitzählen“. The list loads when the tab opens; the examples use fixtures.
  */
 export function CustomerQuotaCard({ customer, quota, fixtures, onNotice }: { customer: ContractCustomer; quota: ServiceQuotaState; fixtures: boolean; onNotice: (message: string) => void }) {
   const row = quota.customers.find((item) => item.customerId === customer.id) ?? null;
@@ -188,6 +189,7 @@ export function CustomerQuotaCard({ customer, quota, fixtures, onNotice }: { cus
   const [loadError, setLoadError] = useState("");
   const [version, setVersion] = useState(0);
   const [dialog, setDialog] = useState<QuotaRequest | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const { busy, error, run } = useContractAction();
   const info = useInfo("Service-Anfragen", {
     steps: [
@@ -213,56 +215,72 @@ export function CustomerQuotaCard({ customer, quota, fixtures, onNotice }: { cus
   if (!quota.ready) return null;
   const month = quota.window ? quotaMonth(quota.window) : null;
   const changed = (message: string) => { setVersion((value) => value + 1); onNotice(message); };
+  const note = (text: string) => <tr className="table-empty-row"><td colSpan={QUOTA_COLUMNS}>{text}</td></tr>;
   return (
-    <section className="cdm-section" aria-labelledby="cdm-quota-customer">
-      <h3 id="cdm-quota-customer"><Gauge size={16} aria-hidden="true" />Service-Anfragen{month ? ` im ${month.month}` : ""}{info.button}</h3>
-      {info.box}
-      {!row ? <p className="cdm-empty">Dieser Kunde hat keinen Zugang zur Serviceplattform. Dort gibt es nichts zu zählen.</p> : (
+    <TableGroup
+      colSpan={QUOTA_COLUMNS}
+      label={`Service-Anfragen${month ? ` im ${month.month}` : ""}`}
+      count={requests?.length ?? 0}
+      glyph={<Gauge size={16} aria-hidden="true" />}
+      collapsed={collapsed}
+      onToggle={() => setCollapsed(!collapsed)}
+      actions={info.button}
+
+    >
+      {!row ? note("Dieser Kunde hat keinen Zugang zur Serviceplattform. Dort gibt es nichts zu zählen.") : (
         <>
-          <QuotaMeter row={row} />
-          <p className="cdm-empty">{statusText(row, month, quota.enforced)}</p>
-          {error && <p className="form-error" role="alert">{error}</p>}
-          {loadError ? <p className="form-error" role="alert">{loadError}</p> : requests === null ? <Spinner /> : requests.length ? (
-            <ol className="cdm-entries">
-              {requests.map((request) => (
-                <li key={request.requestId} className={`cdm-entry${request.exemption ? " is-exempt" : ""}`}>
-                  <time className="cdm-entry-day numeric" dateTime={request.submittedAt}>{formatBerlinDay(request.submittedAt)}</time>
-                  <div className="cdm-entry-main">
-                    <div className="cdm-entry-top">
-                      <span className="chat-pill tone-info">{request.reference}</span>
-                      <strong>{request.title || "Ohne Titel"}</strong>
-                      {request.exemption && <span className="chat-pill tone-off">zählt nicht</span>}
-                      {request.trashed && <span className="chat-pill tone-off">im Papierkorb</span>}
-                    </div>
-                    {request.exemption && <small className="cdm-entry-by">„{request.exemption.reason}“ · {request.exemption.byName}, {formatBerlinDay(request.exemption.createdAt)}</small>}
-                  </div>
-                  {quota.canManage && (
-                    <div className="cdm-entry-acts">
-                      {request.exemption ? (
-                        <button
-                          type="button"
-                          className="cdm-visibility"
-                          disabled={busy !== null}
-                          aria-label={`${request.reference} wieder mitzählen`}
-                          onClick={() => run(request.requestId, () => setServiceRequestExempt({ customerId: customer.id, requestId: request.requestId, exempt: false }), () => changed(`${request.reference} zählt wieder mit.`))}
-                        >
-                          {busy === request.requestId ? <Spinner /> : <PlusCircle size={14} aria-hidden="true" />}<span>Wieder mitzählen</span>
-                        </button>
-                      ) : (
-                        <button type="button" className="cdm-visibility" disabled={busy !== null} aria-label={`${request.reference} nicht mitzählen`} onClick={() => setDialog(request)}>
-                          <MinusCircle size={14} aria-hidden="true" /><span>Nicht mitzählen</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ol>
-          ) : <p className="cdm-empty">In diesem Monat hat der Kunde noch keine neue Anfrage gestellt.</p>}
+          <tr className="file-row cdm-quota-meter">
+            <td className="cell-file">
+              <span className="am-file">
+                <span className="am-file-icon cdm-file-icon is-service"><Gauge size={16} aria-hidden="true" /></span>
+                <span className="am-file-text"><strong>Diesen Monat</strong><small>{statusText(row, month, quota.enforced)}</small></span>
+              </span>
+            </td>
+            <td className="cell-category" colSpan={2}><QuotaMeter row={row} /></td>
+            <td className="cell-action" />
+          </tr>
+          {error && note(error)}
+          {loadError ? note(loadError) : requests === null ? <tr className="table-empty-row"><td colSpan={QUOTA_COLUMNS}><Spinner /></td></tr> : requests.length ? requests.map((request) => (
+            <tr key={request.requestId} className={`file-row${request.exemption ? " is-exempt" : ""}`}>
+              <td className="cell-file">
+                <span className="am-file">
+                  <span className="am-file-icon cdm-file-icon"><MessageSquare size={16} aria-hidden="true" /></span>
+                  <span className="am-file-text">
+                    <strong>{request.title || "Ohne Titel"}</strong>
+                    <small>{[request.reference, request.trashed ? "im Papierkorb" : "", request.exemption ? `„${request.exemption.reason}“ · ${request.exemption.byName}, ${formatBerlinDay(request.exemption.createdAt)}` : ""].filter(Boolean).join(" · ")}</small>
+                  </span>
+                </span>
+              </td>
+              <td className="cell-category"><span className="status-cell"><StatusGlyph kind={request.exemption ? "rejected" : "active"} />{request.exemption ? "zählt nicht" : "zählt"}</span></td>
+              <td className="cell-date numeric"><time dateTime={request.submittedAt}>{formatBerlinDay(request.submittedAt)}</time></td>
+              <td className="cell-action">
+                {quota.canManage && (request.exemption ? (
+                  <button
+                    type="button"
+                    className="cdm-release"
+                    disabled={busy !== null}
+                    aria-label={`${request.reference} wieder mitzählen`}
+                    onClick={() => run(request.requestId, () => setServiceRequestExempt({ customerId: customer.id, requestId: request.requestId, exempt: false }), () => changed(`${request.reference} zählt wieder mit.`))}
+                  >
+                    {busy === request.requestId ? <Spinner /> : <PlusCircle size={14} aria-hidden="true" />}<span>Wieder mitzählen</span>
+                  </button>
+                ) : (
+                  <button type="button" className="cdm-release" disabled={busy !== null} aria-label={`${request.reference} nicht mitzählen`} onClick={() => setDialog(request)}>
+                    <MinusCircle size={14} aria-hidden="true" /><span>Nicht mitzählen</span>
+                  </button>
+                ))}
+              </td>
+            </tr>
+          )) : note("In diesem Monat hat der Kunde noch keine neue Anfrage gestellt.")}
         </>
       )}
-      {dialog && <ExemptDialog customer={customer} request={dialog} onClose={() => setDialog(null)} onDone={() => { setDialog(null); changed(`${dialog.reference} zählt nicht mehr mit.`); }} />}
-    </section>
+      <tr className="cdm-quota-slot">
+        <td colSpan={QUOTA_COLUMNS}>
+          {info.box}
+          {dialog && <ExemptDialog customer={customer} request={dialog} onClose={() => setDialog(null)} onDone={() => { setDialog(null); changed(`${dialog.reference} zählt nicht mehr mit.`); }} />}
+        </td>
+      </tr>
+    </TableGroup>
   );
 }
 

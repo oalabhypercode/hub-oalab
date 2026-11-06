@@ -224,10 +224,10 @@ test("the page knows only whether a password exists; customers read with their o
 
 test("„Domain & Mail“ and „Zugänge“ sit between „Vertrag“ and „Verlauf“; the overview lists domain renewals", async () => {
   const screen = await source("components/hub/screens/contracts.tsx");
-  const tabs = [...screen.matchAll(/aria-pressed=\{tab === "(\w+)"\}/g)].map((match) => match[1]);
+  const tabs = [...screen.matchAll(/\{ id: "(\w+)", label: "[^"]+", name: /g)].map((match) => match[1]);
   assert.deepEqual(tabs, ["contract", "domains", "access", "timeline"]);
-  assert.match(screen, />Domain & Mail<\/button>/);
-  assert.match(screen, />Zugänge<\/button>/);
+  assert.match(screen, /label: "Domain & Mail"/);
+  assert.match(screen, /label: "Zugänge"/);
   const overview = await source("components/hub/screens/contracts-overview.tsx");
   assert.match(overview, /const soon = upcoming\(state, asOf\)/);
   assert.match(overview, /renewingSoon\(state\.domainMail\.domains/);
