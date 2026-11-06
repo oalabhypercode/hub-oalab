@@ -29,6 +29,9 @@ const places = [
   { file: "components/hub/screens/contracts-domains.tsx", title: "So richtest du dein Mailprogramm ein", button: /<h3>Für dein Mailprogramm\{info\.button\}<\/h3>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-access.tsx", title: "So funktionieren die Zugänge", button: /Postfächer\{info\.button\}<\/h3>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-access.tsx", title: "So funktioniert ein Anbieter-Login", button: /"Login anlegen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-quota.tsx", title: "So funktionieren die Service-Kontingente", button: /Service-Kontingente\{info\.button\}<\/h3>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-quota.tsx", title: "So zählen die Anfragen", button: /Service-Anfragen\{month \? ` im \$\{month\.month\}` : ""\}\{info\.button\}<\/h3>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-quota.tsx", title: "So zählen deine Anfragen", button: /<span>\{text\}<\/span>\{info\.button\}<\/p>/, box: "{info.box}" },
   { file: "components/hub/screens/private-chat.tsx", title: "So funktioniert der Chat", button: /<h2>Gespräche\{info\.button\}<\/h2>/, box: "{info.box}" },
   { file: "components/hub/screens/private-chat.tsx", title: "So funktionieren die privaten Chats", button: /useInfo\(admin \? "So funktionieren die privaten Chats" : "So funktioniert der Chat"/, box: "{info.box}" },
   { file: "components/hub/screens/calendar-dialogs.tsx", title: "So funktioniert eine Terminanfrage", button: /<Modal title="Termin anfragen" onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
@@ -84,6 +87,14 @@ test("the boxes say what the code does", async () => {
   assert.match(domains, /\{server\?\.webmailUrl && <li>„Webmail öffnen“/, "the customer's box names the webmail button only when there is one");
   const access = await source("components/hub/screens/contracts-access.tsx");
   assert.match(access, /\{REVEAL_SECONDS\} Sekunden lang/, "reveal time comes from the rules");
+  // The request limits of the Service packages come from the catalog, in every box that names them.
+  const quota = await source("components/hub/screens/contracts-quota.tsx");
+  assert.match(quota, /const LITE = serviceRequestLimits\["service-lite"\];\r?\nconst MAX = serviceRequestLimits\["service-max"\];/);
+  assert.match(quota, /Service Lite erlaubt \{LITE\}, Service Max \{MAX\} neue Anfragen je Kalendermonat/);
+  assert.match(quota, /Service Lite enthält \{LITE\}, Service Max \{MAX\} neue Anfragen je Kalendermonat/);
+  const packages = await source("components/hub/screens/contracts-parts.tsx");
+  assert.match(packages, /Service Lite \{serviceRequestLimits\["service-lite"\]\}, Service Max \{serviceRequestLimits\["service-max"\]\}/);
+  assert.doesNotMatch(packages, /noch nicht verbunden/, "the packages are connected to the service platform now");
   assert.match(access, /Mehr als \{LOOK_LIMIT\} Passwörter in \{LOOK_WINDOW_MINUTES\} Minuten/, "look limit comes from the rules");
 
   // Freelancers never reach the service platform; their texts name the hub only.

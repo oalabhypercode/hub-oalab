@@ -7,7 +7,7 @@ import { MiniLoader } from "@/components/brand-loader";
 import { hubHref } from "@/lib/hub-data";
 import { fileCategories } from "@/lib/hub-files/catalog";
 import type { HubStoredFile } from "@/lib/hub-files/types";
-import { packageCatalog, packageGroups, type CustomerPackage, type PackageGroup } from "@/lib/service-packages";
+import { packageCatalog, packageGroups, serviceRequestLimits, type CustomerPackage, type PackageGroup } from "@/lib/service-packages";
 import { centsToInput, formatCents, formatDay, MAX_NOTE, MAX_TITLE, timelineKindIds, timelineKinds, type TimelineKind } from "@/lib/hub-contracts/rules";
 import { deleteTimelineEntry, saveCustomerPackages, saveTimelineEntry, setTimelineVisible, type ActionResult } from "@/lib/hub-contracts/actions";
 import type { ContractCustomer, TimelineEntry } from "@/lib/hub-contracts/types";
@@ -71,7 +71,7 @@ export function PackagesForm({ customer, canManage, onSaved }: { customer: Contr
       <li>„Seit“ ist der Beginn. „Gekündigt zum“ trägst du ein, sobald gekündigt ist; endet ein Paket in den nächsten 60 Tagen, steht es im Überblick unter „Demnächst“.</li>
       <li>„Pakete speichern“ trägt jede Änderung selbst in den Verlauf ein, zuerst nur intern. Dort gibst du den Eintrag für den Kunden frei.</li>
       <li>Der Kunde sieht seine Pakete unter Vertrag & Domain, im Profil und unten links neben seinem Namen.</li>
-      <li>Mit den Paketen der Serviceplattform sind sie noch nicht verbunden.</li>
+      <li>Das Servicepaket bestimmt, wie viele neue Anfragen der Kunde im Monat auf der Serviceplattform stellen darf: Service Lite {serviceRequestLimits["service-lite"]}, Service Max {serviceRequestLimits["service-max"]}. Gesperrt wird erst, wenn die Sperre im Überblick unter „Service-Kontingente“ eingeschaltet ist.</li>
     </ul>
   ));
   const changed = JSON.stringify(draft) !== JSON.stringify(customer.packages);
