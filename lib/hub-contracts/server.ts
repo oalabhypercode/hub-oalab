@@ -7,6 +7,8 @@ import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { loadDomainMailForAdmin, loadDomainMailForCustomer } from "@/lib/hub-domains/server";
 import { emptyDomainMail } from "@/lib/hub-domains/types";
+import { loadServiceQuotaForAdmin, loadServiceQuotaForCustomer } from "@/lib/hub-service-quota/server";
+import { emptyServiceQuota } from "@/lib/hub-service-quota/types";
 import { vaultKeyId } from "@/lib/hub-vault/key";
 import { isTimelineKind } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
@@ -35,8 +37,9 @@ function toEntry(row: TimelineRow, nameOf?: (id: string | null) => string): Time
   return nameOf ? { ...entry, note: row.note ?? "", source: row.source === "package" ? "package" : "manual", authorName: nameOf(row.created_by ?? null) } : entry;
 }
 
-const empty = (view: ContractsState["view"], error?: string): ContractsState => ({ view, source: "supabase", customers: [], timeline: [], ready: false, canManage: false, domainMail: emptyDomainMail(false), error });
+const empty = (view: ContractsState["view"], error?: string): ContractsState => ({ view, source: "supabase", customers: [], timeline: [], ready: false, canManage: false, domainMail: emptyDomainMail(false), serviceQuota: emptyServiceQuota(), error });
 const domainMailFailed = () => emptyDomainMail(false, "Domains und Mail konnten gerade nicht geladen werden. Bitte versuche es erneut.");
+const quotaFailed = () => emptyServiceQuota("Die Service-Kontingente konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
 /** Every customer with its packages and the whole timeline for a real admin, read with the service role after the check. */
 async function loadForAdmin(): Promise<ContractsState> {
@@ -46,13 +49,14 @@ async function loadForAdmin(): Promise<ContractsState> {
   // Passwords need this session's confirmed second factor; verifyHubAdmin alone also lets admins without one in.
   const { data: claims } = await (await createClient()).auth.getClaims();
   const confirmed = claims?.claims?.aal === "aal2";
-  const [customers, packages, timeline, profiles, logos, domainMail] = await Promise.all([
+  const [customers, packages, timeline, profiles, logos, domainMail, serviceQuota] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number, kind").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
     db.from("hub_customer_timeline").select(ADMIN_TIMELINE_COLUMNS).order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(3000).returns<TimelineRow[]>(),
     db.from("hub_profiles").select("user_id, first_name, last_name").returns<{ user_id: string; first_name: string; last_name: string }[]>(),
     loadCustomerLogos(db).catch(() => new Map<string, CustomerLogo>()),
     loadDomainMailForAdmin(db, confirmed, vaultKeyId()).catch(domainMailFailed),
+    loadServiceQuotaForAdmin(db).catch(quotaFailed),
   ]);
   if (customers.error) return empty("admin", "Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   if (timeline.error && !isMissingContractTables(timeline.error)) return empty("admin", "Pakete und Verlauf konnten gerade nicht geladen werden. Bitte versuche es erneut.");
@@ -70,6 +74,7 @@ async function loadForAdmin(): Promise<ContractsState> {
     ready,
     canManage: ready,
     domainMail,
+    serviceQuota: { ...serviceQuota, switchedBy: serviceQuota.switchedBy ? nameOf(serviceQuota.switchedBy) : null },
   };
 }
 
@@ -77,13 +82,15 @@ async function loadForAdmin(): Promise<ContractsState> {
 async function loadForCustomer(account: HubAccountData): Promise<ContractsState> {
   const supabase = await createClient();
   const ids = account.customers.map((customer) => customer.id);
-  const [packages, timeline, domainMail] = await Promise.all([
+  const [packages, timeline, domainMail, serviceQuota] = await Promise.all([
     readCustomerPackages(supabase, ids),
     ids.length
       ? supabase.from("hub_customer_timeline").select(CUSTOMER_TIMELINE_COLUMNS).in("customer_id", ids).eq("customer_visible", true)
         .order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(500).returns<TimelineRow[]>()
       : Promise.resolve({ data: [] as TimelineRow[], error: null }),
     loadDomainMailForCustomer(supabase, ids).catch(domainMailFailed),
+    // Only while the switch is on; until then the customer sees nothing of the quota.
+    ids.length ? loadServiceQuotaForCustomer(supabase).catch(quotaFailed) : Promise.resolve(emptyServiceQuota()),
   ]);
   if (timeline.error && !isMissingContractTables(timeline.error)) return empty("customer", "Deine Angaben konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   return {
@@ -96,6 +103,7 @@ async function loadForCustomer(account: HubAccountData): Promise<ContractsState>
     ready: packages.ready && !timeline.error,
     canManage: false,
     domainMail,
+    serviceQuota,
   };
 }
 
