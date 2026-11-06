@@ -15,6 +15,7 @@ import {
 } from "@/lib/contract-templates/actions";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { TableGroup } from "../sheet";
 import { formatStamp, saveDownload, useContractRunner } from "./contract-actions";
 
 const Spinner = () => <MiniLoader size={16} />;
@@ -31,6 +32,7 @@ export function ContractTemplatesSection({ canManage }: { canManage: boolean }) 
   const [uploadFor, setUploadFor] = useState<ContractTemplateId | null>(null);
   const [historyFor, setHistoryFor] = useState<ContractTemplateId | null>(null);
   const [notice, setNotice] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
   const { busy, error, run } = useContractRunner();
   const info = useInfo("Vertragsvorlagen", {
     steps: [
@@ -62,38 +64,44 @@ export function ContractTemplatesSection({ canManage }: { canManage: boolean }) 
     return isStandard(active) ? "Aktiv: Standardfassung" : `Aktiv: Fassung vom ${formatStamp(active.createdAt)}`;
   };
 
+  // A group of rows like the overview above it: name and active version, the four actions on the right.
   return (
-    <section className="cdm-section" aria-labelledby="cdm-templates">
-      <h3 id="cdm-templates"><FileSignature size={16} aria-hidden="true" />Vertragsvorlagen{info.button}</h3>
+    <section className="cdm-templates" aria-label="Vertragsvorlagen">
+      <table className="file-table cdm-table cdm-admin-table">
+        <caption className="visually-hidden">Vertragsvorlagen</caption>
+        <TableGroup colSpan={2} label="Vertragsvorlagen" count={contractTemplateIds.length} glyph={<FileSignature size={16} aria-hidden="true" />} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} actions={info.button}>
+          {contractTemplateIds.map((id) => (
+            <tr key={id} className="file-row">
+              <td className="cell-file">
+                <span className="am-file">
+                  <span className="am-file-icon cdm-file-icon"><FileSignature size={16} aria-hidden="true" /></span>
+                  <span className="am-file-text"><strong>{contractTemplates[id].name}</strong><small>{canManage ? activeLine(id) : contractTemplates[id].description}</small></span>
+                </span>
+              </td>
+              <td className="cell-action">
+                <span className="cdm-template-acts">
+                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-blank`, () => downloadContractTemplate(id, "blank"), saveDownload)} title="Mit Linien zum Ausfüllen von Hand">
+                    {busy === `${id}-blank` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Blanko
+                  </button>
+                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-placeholders`, () => downloadContractTemplate(id, "placeholders"), saveDownload)} title="Die aktive Word-Vorlage mit Platzhaltern wie {{kunde_firma}}, zum Bearbeiten in Word">
+                    {busy === `${id}-placeholders` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Vorlage
+                  </button>
+                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null || !overview} onClick={() => { setNotice(""); setUploadFor(id); }}>
+                    <Upload size={14} aria-hidden="true" />Neue Fassung
+                  </button>
+                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null || !overview} onClick={() => { setNotice(""); setHistoryFor(id); }} title="Alle Fassungen dieser Vorlage">
+                    <History size={14} aria-hidden="true" />Fassungen{versionsOf(id).length > 0 && <span className="contract-count">{versionsOf(id).length}</span>}
+                  </button>
+                </span>
+              </td>
+            </tr>
+          ))}
+          <tr className="table-empty-row"><td colSpan={2}>{canManage ? "Einen Vertrag erstellst du beim Kunden im Reiter „Vertrag“; er nutzt immer die aktive Fassung." : "Vorlagen gibt es nur mit echtem Admin-Login."}</td></tr>
+        </TableGroup>
+      </table>
       {info.box}
-      {notice && <p className="calendar-notice" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
-      <ul className="cdm-rows contract-templates">
-        {contractTemplateIds.map((id) => (
-          <li key={id}>
-            <span className="contract-template-name">
-              <strong>{contractTemplates[id].name}</strong>
-              <small>{contractTemplates[id].description}</small>
-              {canManage && <small className="contract-template-active">{activeLine(id)}</small>}
-            </span>
-            <span className="contract-template-actions">
-              <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-blank`, () => downloadContractTemplate(id, "blank"), saveDownload)} title="Mit Linien zum Ausfüllen von Hand">
-                {busy === `${id}-blank` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Blanko
-              </button>
-              <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-placeholders`, () => downloadContractTemplate(id, "placeholders"), saveDownload)} title="Die aktive Word-Vorlage mit Platzhaltern wie {{kunde_firma}}, zum Bearbeiten in Word">
-                {busy === `${id}-placeholders` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Vorlage
-              </button>
-              <button type="button" className="sheet-action" disabled={!canManage || busy !== null || !overview} onClick={() => { setNotice(""); setUploadFor(id); }}>
-                <Upload size={14} aria-hidden="true" />Neue Fassung
-              </button>
-              <button type="button" className="sheet-action" disabled={!canManage || busy !== null || !overview} onClick={() => { setNotice(""); setHistoryFor(id); }} title="Alle Fassungen dieser Vorlage">
-                <History size={14} aria-hidden="true" />Fassungen{versionsOf(id).length > 0 && <span className="contract-count">{versionsOf(id).length}</span>}
-              </button>
-            </span>
-          </li>
-        ))}
-      </ul>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <p className="cdm-empty">{canManage ? "Einen Vertrag für einen Kunden erstellst du bei ihm im Reiter „Vertrag“. Er nutzt immer die aktive Fassung." : "Vorlagen gibt es nur mit echtem Admin-Login."}</p>
+      {notice && <p className="calendar-notice cdm-templates-note" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
+      {error && <p className="form-error cdm-templates-note" role="alert">{error}</p>}
       {uploadFor && <TemplateUploadDialog templateId={uploadFor} onClose={() => setUploadFor(null)} onActivated={changed} />}
       {historyFor && <TemplateVersionsDialog templateId={historyFor} versions={versionsOf(historyFor)} onClose={() => setHistoryFor(null)} onChanged={(message) => { setHistoryFor(null); changed(message); }} />}
     </section>

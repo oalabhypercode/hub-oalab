@@ -1988,27 +1988,16 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .cdm-tile-icon { color: var(--cat-contracts-text); }
 .cdm-body { display: flex; flex-direction: column; gap: 22px; padding: 16px 20px 24px; }
 .cdm .chat-filter.cdm-tabs { margin: 12px 0 0 20px; }
-.cdm-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.cdm-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); text-align: left; color: var(--label-body); }
-.cdm-tile strong { font-size: 24px; line-height: 30px; font-weight: 700; color: var(--label); }
-.cdm-tile span { font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
-.cdm-tile.is-todo { background: var(--tone-todo-bg); box-shadow: none; }
-.cdm-tile.is-todo strong, .cdm-tile.is-todo span { color: var(--tone-todo); }
-button.cdm-tile:hover { filter: brightness(0.97); }
 .cdm-section { display: flex; flex-direction: column; gap: 8px; }
 .cdm-section h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 14px; line-height: 20px; font-weight: 700; color: var(--label); }
 .cdm-section h3 svg { color: var(--cat-contracts-text); }
 .cdm-empty { margin: 0; font-size: 13.5px; line-height: 19px; color: var(--sheet-muted); }
-.cdm-muted { color: var(--sheet-muted); }
 .cdm-link { padding: 0; color: var(--accent-text); font: inherit; font-weight: 600; text-align: left; }
 .cdm-link:hover { text-decoration: underline; }
 .cdm-rows { display: flex; flex-direction: column; }
 .cdm-rows li { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--sheet-divider); font-size: 13.5px; line-height: 19px; }
 .cdm-rows li:first-child { border-top: 0; }
 .cdm-rows time { min-width: 84px; color: var(--label-body); }
-.cdm-table-wrap { overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.cdm-table :is(td, th) { white-space: nowrap; }
-.cdm-inline-pill { margin-left: 6px; }
 
 .cdm-packages { display: flex; flex-direction: column; gap: 12px; }
 .cdm-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
@@ -2110,12 +2099,10 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .contract-file-box .sheet-button { margin-top: 4px; }
 .contract-upload { padding: 0 10px; }
 .contract-upload input[type="file"] { min-height: 0; padding: 10px 12px; font-size: 15px; }
-.contract-templates li { flex-wrap: nowrap; align-items: center; justify-content: space-between; }
 .contract-template-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .contract-template-name strong { font-weight: 600; color: var(--label); }
 .contract-template-name small { font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
 .contract-template-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.contract-template-active { color: var(--accent-text); font-weight: 600; }
 .contract-count { margin-left: 2px; padding: 0 6px; border-radius: 999px; background: var(--sheet-seg); font-size: 11.5px; line-height: 16px; }
 .contract-steps { margin: 0; padding-left: 20px; font-size: 14px; line-height: 20px; color: var(--label-body); list-style: decimal; }
 .contract-steps li + li { margin-top: 4px; }
@@ -2133,7 +2120,7 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .contract-placeholders dd { margin: 0; color: var(--label-body); }
 .contract-versions li { flex-wrap: nowrap; align-items: center; justify-content: space-between; }
 @media (max-width: 520px) {
-  .contract-templates li, .contract-versions li { flex-wrap: wrap; }
+  .contract-versions li { flex-wrap: wrap; }
   .contract-template-actions { justify-content: flex-start; }
   .contract-form .upload-fields { grid-template-columns: minmax(0, 1fr); }
   .contract-placeholders dl { grid-template-columns: minmax(0, 1fr); }
@@ -2177,6 +2164,50 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 }
 :root[data-theme="dark"] .cdm-table .cdm-row-icon { color: rgb(48, 209, 88); }
 :root[data-theme="dark"] .cdm-badge.is-service, :root[data-theme="dark"] .cdm-dot-service i { background: rgb(94, 92, 230); }
+
+/* Contract & Domain Management (admins): overview and tabs as tables inside the asset management's frame. Rows lead
+   with a tile or the customer's sign and a small second line, like „Asset Management“. */
+.cdm-file-icon { background: rgb(52 199 89 / 0.1); color: rgb(31, 157, 72); }
+.cdm-file-icon.is-domain { background: rgb(48 176 199 / 0.12); color: rgb(28, 140, 160); }
+.cdm-file-icon.is-service { background: rgb(88 86 214 / 0.1); color: rgb(88, 86, 214); }
+.cdm-file-icon.is-none { background: var(--tone-bad-bg); color: var(--tone-bad); }
+:root[data-theme="dark"] .cdm-file-icon { background: rgb(48 209 88 / 0.14); color: rgb(48, 209, 88); }
+:root[data-theme="dark"] .cdm-file-icon.is-domain { background: rgb(48 176 199 / 0.16); color: rgb(110, 214, 232); }
+:root[data-theme="dark"] .cdm-file-icon.is-service { background: rgb(94 92 230 / 0.2); color: rgb(169, 167, 255); }
+:root[data-theme="dark"] .cdm-file-icon.is-none { background: var(--tone-bad-bg); color: var(--tone-bad); }
+.cdm-group-alert .table-group-glyph { color: var(--tone-bad-bar); }
+.cdm-admin-table .cell-date small { margin-left: 6px; color: var(--sheet-muted); font-size: 12px; }
+.cdm-row-link { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 8px; color: var(--accent-text); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.cdm-row-link:hover { background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); }
+.cdm-share { display: inline-flex; align-items: center; gap: 10px; }
+.cdm-share .list-progress { display: inline-block; width: 140px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cdm-share .list-progress span { background: rgb(52, 199, 89); }
+.cdm-share .list-progress.is-domain span { background: rgb(48, 176, 199); }
+.cdm-share .list-progress.is-service span { background: rgb(88, 86, 214); }
+.cdm-share b { color: var(--sheet-muted); font-size: 12px; font-weight: 500; }
+.cdm-visibility-state { color: var(--sheet-muted); font-size: 12.5px; }
+.cdm-templates { margin-top: 12px; }
+.cdm-template-acts { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; white-space: normal; }
+.cdm-template-acts .sheet-action { height: 28px; padding: 0 9px; font-size: 12.5px; }
+.cdm-templates-note { margin: 8px 16px 12px 20px; }
+@media (min-width: 768px) {
+  .am .cdm-admin-table .cell-file { width: 100%; max-width: 0; }
+  .am .cdm-admin-table :is(.cell-category, .cell-date, .cell-action) { width: auto; white-space: nowrap; }
+  .am .cdm-admin-table .cell-category { min-width: 150px; }
+}
+/* A narrower sheet (laptop, browser with a sidebar): relative days, dots and link texts step back, nothing scrolls sideways. */
+@container sheet (max-width: 1099px) {
+  .am .cdm-table tbody tr.file-row > td:first-child { padding-left: 20px; }
+  .am .cdm-admin-table .cell-file { min-width: 130px; }
+  .cdm-admin-table .cell-date small { display: none; }
+  .cdm-row-link { gap: 0; padding: 0 8px; font-size: 0; }
+  .cdm-row-link svg { width: 16px; height: 16px; }
+  .cdm-share .list-progress { width: 90px; }
+}
+@media (max-width: 767px) {
+  .cdm-template-acts { justify-content: flex-start; }
+  .cdm-admin-table .cell-date small { margin-left: 4px; }
+}
 
 /* „Mailprogramm einrichten“: three steps with the servers to copy. */
 .hub-modal.cdm-setup { width: min(620px, calc(100% - 32px)); }

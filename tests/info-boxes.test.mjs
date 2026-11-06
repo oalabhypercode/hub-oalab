@@ -39,7 +39,7 @@ const places = [
   { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Termin und Teams-Link"', button: /"Neuer Termin"\} onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Vertragsgenerator"', button: /<Modal title="Vertrag erstellen"[^>]*actions=\{generatorInfo\.button\}/, box: "{generatorInfo.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Beim Kunden ablegen"', button: /<legend>Beim Kunden ablegen\{fileInfo\.button\}<\/legend>/, box: "{fileInfo.box}" },
-  { file: "components/hub/screens/contract-template-versions.tsx", call: 'useInfo("Vertragsvorlagen"', button: /Vertragsvorlagen\{info\.button\}<\/h3>/, box: "{info.box}" },
+  { file: "components/hub/screens/contract-template-versions.tsx", call: 'useInfo("Vertragsvorlagen"', button: /label="Vertragsvorlagen"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contract-template-versions.tsx", call: 'useInfo("Prüfung vor dem Übernehmen"', button: /actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/contract-template-versions.tsx", call: 'useInfo("Fassungen"', button: /actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/assistant-panel.tsx", call: "useInfo(help.title, help.card)", button: /\{info\.button\}\s*<span className=\{`proposal-status/, box: "{info.box}" },

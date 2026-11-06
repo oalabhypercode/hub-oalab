@@ -166,3 +166,25 @@ test("customers read „Vertrag & Domain“ like „Dateien“: two figures, one
   assert.doesNotMatch(screen, /settings-grid|CustomerDomainCard/, "the old cards are gone");
   assert.doesNotMatch(await source("components/hub/screens/contracts-domains.tsx"), /export function CustomerDomainCard/);
 });
+
+test("the admins' overview is one table in the asset management's frame: what needs a hand first", async () => {
+  const overview = await source("components/hub/screens/contracts-overview.tsx");
+  const groups = [...overview.matchAll(/<TableGroup colSpan=\{COLUMNS\} label="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(groups, ["Handlungsbedarf", "Demnächst", "Pakete", "Zuletzt im Verlauf"]);
+  // Customers without packages or service, passed renewals and open checks of running domains.
+  for (const reason of ['"Keine Pakete"', '"Kein Servicepaket"', '"Verlängerung prüfen"', '"Prüfung" : "Prüfungen"']) assert.ok(overview.includes(reason), reason);
+  assert.match(overview, /renewalPassed\(details, today\)/);
+  assert.match(overview, /details\.status === "active" && open\.length/);
+  // A row opens its customer on the fitting tab; „Ohne Servicepaket“ filters the list on the left.
+  assert.match(overview, /onOpenCustomer\(row\.customer\.id, row\.tab\)/);
+  assert.match(overview, /onClick=\{onShowMissing\}/);
+  assert.match(overview, /<SheetToolbar query=\{query\} onQuery=\{setQuery\}/);
+  const screen = await source("components/hub/screens/contracts.tsx");
+  assert.match(screen, /const openCustomer = \(id: string, nextTab: Tab = "contract"\) => choose\(\{ kind: "customer", id \}, nextTab\);/);
+  assert.doesNotMatch(screen, /cdm-tiles|cdm-all|function upcoming/, "the tiles and the table of all customers are gone");
+  // The templates join as a group of rows below.
+  assert.match(await source("components/hub/screens/contract-template-versions.tsx"), /<TableGroup colSpan=\{2\} label="Vertragsvorlagen"/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.am \.cdm-admin-table \.cell-file \{ width: 100%; max-width: 0; \}/, "long names shorten, nothing scrolls sideways");
+  assert.match(css, /@container sheet \(max-width: 1099px\) \{\n  \.am \.cdm-table tbody tr\.file-row > td:first-child \{ padding-left: 20px; \}/);
+});
