@@ -2,15 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronLeft, FileText, Inbox, LayoutGrid, Plus, Search } from "lucide-react";
+import { Check, ChevronLeft, Inbox, LayoutGrid, Plus, Search } from "lucide-react";
 import type { HubFilesState } from "@/lib/hub-files/types";
+import { formatDay, lastPayment } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "@/lib/hub-contracts/types";
 import { HeaderActions } from "../app-shell";
+import { SegmentedControl } from "../controls";
 import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
+import { SheetToolbar } from "../sheet";
 import { CustomerSign } from "./customer-sign";
 import { CategoryTitle } from "./workspace";
-import { ContractFiles, PackagesForm, TimelineDialog, TimelineList, packagesLine } from "./contracts-parts";
+import { ContractTab, TimelineDialog, TimelineTab, packagesLine } from "./contracts-parts";
 import { ContractGenerator, ContractGeneratorButton } from "./contract-generator";
 import { ContractsOverview } from "./contracts-overview";
 import { DomainMailTab } from "./contracts-domains";
@@ -49,6 +52,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   const [paneOpen, setPaneOpen] = useState(pane.kind === "customer");
   const [tab, setTab] = useState<Tab>("contract");
   const [query, setQuery] = useState("");
+  /** The search inside the open customer's tab. */
+  const [tabQuery, setTabQuery] = useState("");
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [dialog, setDialog] = useState<{ entry?: TimelineEntry } | null>(null);
   const [generator, setGenerator] = useState(false);
@@ -60,6 +65,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
     setPane(next);
     setPaneOpen(true);
     setTab(nextTab);
+    setTabQuery("");
     setNotice("");
     const url = new URL(window.location.href);
     if (next.kind === "customer") url.searchParams.set("customer", next.id);
@@ -117,11 +123,12 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   /* ---------- One customer ---------- */
   const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
   const entries = current ? timelineOf(current.id) : [];
+  const paid = current ? lastPayment(state.timeline, current.id) : null;
   const head = current ? (
     <header className="am-pane-head">
       {back}
       <CustomerSign customer={current} logo={current.logo} size="lg" />
-      <div className="am-pane-title"><strong>{current.company}</strong><span>{[current.customerNumber, packagesLine(current.packages) || "noch keine Pakete"].join(" · ")}</span></div>
+      <div className="am-pane-title"><strong>{current.company}</strong><span>{[current.customerNumber, packagesLine(current.packages) || "noch keine Pakete", paid ? `bezahlt ${formatDay(paid.occurredOn)}` : ""].filter(Boolean).join(" · ")}</span></div>
       {tab === "timeline" && state.canManage && <div className="am-pane-actions"><button type="button" className="sheet-action is-primary" onClick={() => setDialog({})}><Plus size={15} aria-hidden="true" />Zeitpunkt</button></div>}
       {tab === "contract" && state.canManage && <div className="am-pane-actions"><ContractGeneratorButton onOpen={() => setGenerator(true)} /></div>}
     </header>
@@ -132,30 +139,33 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       <div className="am-pane-title"><strong>Überblick</strong><span>{plural(state.customers.length, "Kunde", "Kunden")} · {plural(missing.length, "ohne Servicepaket", "ohne Servicepaket")}</span></div>
     </header>
   );
+  const counts = current ? {
+    domains: state.domainMail.domains.filter((item) => item.customerId === current.id).length + state.domainMail.mailboxes.filter((item) => item.customerId === current.id).length,
+    access: state.domainMail.mailboxes.filter((item) => item.customerId === current.id && item.kind === "mailbox").length + state.domainMail.logins.filter((item) => item.customerId === current.id).length,
+  } : { domains: 0, access: 0 };
+  // Like the asset management: the tabs as a segmented control in the toolbar, the search next to it.
   const customerBody = current && (
     <>
-      <div className="chat-filter cdm-tabs" role="group" aria-label="Ansicht">
-        <button type="button" aria-pressed={tab === "contract"} onClick={() => setTab("contract")}>Vertrag</button>
-        <button type="button" aria-pressed={tab === "domains"} onClick={() => setTab("domains")}>Domain & Mail</button>
-        <button type="button" aria-pressed={tab === "access"} onClick={() => setTab("access")}>Zugänge</button>
-        <button type="button" aria-pressed={tab === "timeline"} onClick={() => setTab("timeline")}>Verlauf{entries.length > 0 && <span>{entries.length}</span>}</button>
-      </div>
+      <SheetToolbar
+        leading={<SegmentedControl label="Ansicht" value={tab} onChange={(next) => { setTab(next); setTabQuery(""); }} options={[
+          { id: "contract", label: "Vertrag", name: "Vertrag" },
+          { id: "domains", label: "Domain & Mail", name: "Domain & Mail", count: counts.domains },
+          { id: "access", label: "Zugänge", name: "Zugänge", count: counts.access },
+          { id: "timeline", label: "Verlauf", name: "Verlauf", count: entries.length },
+        ]} />}
+        query={tabQuery}
+        onQuery={setTabQuery}
+        placeholder="Suchen …"
+        label={`In ${current.company} suchen`}
+      />
       {tab === "domains" ? (
-        <DomainMailTab key={current.id} customer={current} domainMail={state.domainMail} canManage={state.canManage && state.domainMail.ready} today={asOf} onNotice={setNotice} />
+        <DomainMailTab key={current.id} customer={current} domainMail={state.domainMail} canManage={state.canManage && state.domainMail.ready} today={asOf} query={tabQuery} onNotice={setNotice} />
       ) : tab === "access" ? (
-        <AccessTab key={current.id} customer={current} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} onNotice={setNotice} />
+        <AccessTab key={current.id} customer={current} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} query={tabQuery} onNotice={setNotice} />
       ) : tab === "contract" ? (
-        <div className="cdm-body">
-          <PackagesForm key={current.id} customer={current} canManage={state.canManage} onSaved={setNotice} />
-          <section className="cdm-section" aria-labelledby="cdm-files">
-            <h3 id="cdm-files"><FileText size={16} aria-hidden="true" />Verträge und Rechnungen</h3>
-            <ContractFiles files={files} customerId={current.id} preview={preview} empty="Im Asset Management liegen bei diesem Kunden noch keine Verträge oder Rechnungen." />
-          </section>
-        </div>
+        <ContractTab key={current.id} customer={current} files={files} preview={preview} canManage={state.canManage} query={tabQuery} onSaved={setNotice} onError={setNotice} />
       ) : (
-        <div className="cdm-body">
-          <TimelineList entries={entries} files={files} preview={preview} admin canManage={state.canManage} onEdit={(entry) => setDialog({ entry })} onNotice={setNotice} empty="Noch keine Zeitpunkte. Trag zum Beispiel ein, wann eine Rechnung gestellt oder bezahlt wurde." />
-        </div>
+        <TimelineTab key={current.id} customer={current} entries={entries} files={files} preview={preview} canManage={state.canManage} query={tabQuery} onEdit={(entry) => setDialog({ entry })} onNotice={setNotice} />
       )}
     </>
   );
@@ -171,7 +181,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
             {list}
             <section className="am-pane" aria-label={current ? current.company : "Überblick"}>
               {head}
-              {current ? <div className="am-scroll">{customerBody}</div> : overview}
+              {current ? customerBody : overview}
             </section>
           </div>
         </div>

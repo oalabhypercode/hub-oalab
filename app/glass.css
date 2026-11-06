@@ -1986,12 +1986,6 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 
 /* Vertrag & Domain: the asset management's two panes with tiles, package groups and the timeline. */
 .cdm-tile-icon { color: var(--cat-contracts-text); }
-.cdm-body { display: flex; flex-direction: column; gap: 22px; padding: 16px 20px 24px; }
-.cdm .chat-filter.cdm-tabs { margin: 12px 0 0 20px; }
-.cdm-section { display: flex; flex-direction: column; gap: 8px; }
-.cdm-section h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 14px; line-height: 20px; font-weight: 700; color: var(--label); }
-.cdm-section h3 svg { color: var(--cat-contracts-text); }
-.cdm-empty { margin: 0; font-size: 13.5px; line-height: 19px; color: var(--sheet-muted); }
 .cdm-link { padding: 0; color: var(--accent-text); font: inherit; font-weight: 600; text-align: left; }
 .cdm-link:hover { text-decoration: underline; }
 .cdm-rows { display: flex; flex-direction: column; }
@@ -2000,7 +1994,6 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .cdm-rows time { min-width: 84px; color: var(--label-body); }
 
 .cdm-packages { display: flex; flex-direction: column; gap: 12px; }
-.cdm-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
 .cdm-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; padding: 12px 12px 14px; border: 0; border-radius: 14px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
 .cdm-group legend { float: left; width: 100%; margin-bottom: 4px; padding: 0 2px; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--label-secondary); }
 .cdm-option { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
@@ -2011,34 +2004,10 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .cdm-option small { font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
 .cdm-group:disabled .cdm-option { cursor: default; }
 /* Side by side only where both dates fit in full (a date field needs about 150 px with its calendar button). */
-.cdm-dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 6px; padding: 0 2px; }
-.cdm-dates input { min-width: 0; }
 .cdm-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
 .cdm-form-foot .field-hint { flex: 1 1 260px; margin: 0; }
 
-.cdm-files { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.cdm-files li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 8px; padding: 7px 0; border-top: 1px solid var(--sheet-divider); }
-.cdm-files li:first-child { border-top: 0; }
-.cdm-files svg { color: var(--sheet-muted); }
-.cdm-files a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--accent-text); }
-.cdm-files small { grid-column: 2; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
 
-.cdm-entries { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.cdm-entry { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; border-top: 1px solid var(--sheet-divider); }
-.cdm-entry:first-child { border-top: 0; }
-.cdm-entry-day { font-size: 13px; line-height: 20px; color: var(--sheet-muted); }
-.cdm-entry-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.cdm-entry-top { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; }
-.cdm-entry-top strong { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--label); }
-.cdm-amount { font-size: 13.5px; font-weight: 600; color: var(--label-body); }
-.cdm-entry-meta { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
-.cdm-entry-meta a { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-text); }
-.cdm-note { margin: 2px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 12.5px; line-height: 17px; color: var(--label-body); white-space: pre-wrap; }
-.cdm-entry-by { font-size: 11.5px; line-height: 15px; color: var(--sheet-muted); }
-.cdm-entry-acts { display: flex; align-items: flex-start; gap: 4px; }
-.cdm-visibility { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 12px; font-weight: 600; color: var(--sheet-muted); white-space: nowrap; }
-.cdm-visibility.is-on { background: var(--tone-ok-bg); box-shadow: none; color: var(--tone-ok); }
-.cdm-visibility:disabled { cursor: default; }
 
 .cdm-dialog { display: flex; flex-direction: column; gap: 12px; }
 .cdm-dialog .field-hint { margin: 0; }
@@ -2076,8 +2045,6 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .info-card[popover]::before { display: none; }
 }
 .hub-modal .modal-heading .info-button { margin-right: auto; }
-.cdm-section h3 .info-button { margin-left: 2px; }
-.cdm-section h3 .info-button svg { color: inherit; }
 .am-label .info-button { width: 22px; height: 22px; margin-right: auto; }
 .chat-list-head h2 .info-button { margin-left: 8px; vertical-align: -4px; }
 .proposal-head .info-button { margin-top: -3px; }
@@ -2209,6 +2176,68 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .cdm-admin-table .cell-date small { margin-left: 4px; }
 }
 
+/* The customer's tabs (admins): package choice inside the row, a save bar only while something changed, the six domain
+   checks as dots, release chips in the timeline and the vault's state as a bar above the table. */
+.cdm-savebar strong { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px; }
+.cdm-savebar strong::before { content: ""; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--tone-todo-bar); }
+.cdm-tab-error, .cdm-tab-note { margin: 10px 16px 0 20px; }
+.cdm-tab-note { color: var(--sheet-muted); font-size: 13px; line-height: 18px; }
+.cdm-package-row.is-changed td { background-color: var(--sheet-select); }
+.cdm-picker { display: inline-flex; height: 30px; padding: 2px; border-radius: 8px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cdm-pick { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 6px; color: var(--sheet-muted); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.cdm-pick:hover:not(:disabled) { color: var(--label); }
+.cdm-pick[aria-checked="true"] { background: var(--sheet-seg-on); box-shadow: 0 1px 2px #0000001a, 0 0 0 1px var(--sheet-line); color: var(--accent-text); font-weight: 600; }
+.cdm-pick:disabled { cursor: default; }
+.cdm-date-in { display: inline-flex; align-items: center; gap: 6px; color: var(--sheet-muted); font-size: 12px; white-space: nowrap; }
+.cdm-date-in input { height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cdm-date-in input:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k))); }
+.cdm-quiet { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 7px; color: var(--sheet-muted); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.cdm-quiet:hover { background: var(--sheet-hover); color: var(--accent-text); }
+.cdm-checks { display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; vertical-align: middle; }
+.cdm-checks i { width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--sheet-icon); }
+.cdm-checks i.is-ok { background: var(--tone-ok-bar); box-shadow: none; }
+.cdm-checks b { margin-left: 6px; color: var(--sheet-muted); font-size: 12px; font-weight: 600; }
+.cdm-note-mark { display: inline-block; margin-left: 6px; color: var(--sheet-muted); vertical-align: -1px; }
+.cdm-admin-table .cell-date small.is-overdue { color: var(--danger); font-weight: 600; }
+.cdm-admin-table .cell-action > :is(.am-icon-btn, .cdm-release, .cdm-checks) { vertical-align: middle; }
+.cdm-release { display: inline-flex; align-items: center; gap: 5px; height: 26px; margin-right: 2px; padding: 0 10px 0 8px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 12px; font-weight: 600; }
+.cdm-release.is-on { background: var(--tone-ok-bg); box-shadow: none; color: var(--tone-ok); }
+.cdm-release:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--accent-text); }
+.cdm-release:disabled { cursor: default; }
+.cdm-lock { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px 10px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-sunken); }
+.cdm-lock p { margin: 0; color: var(--label-body); font-size: 13px; line-height: 18px; }
+.cdm-lock svg { flex: 0 0 auto; margin-top: 1px; color: var(--sheet-muted); }
+.cdm-lock a { color: inherit; font-weight: 600; text-decoration: underline; }
+.cdm-lock strong { color: var(--label); font-weight: 600; }
+.cdm-lock.is-todo { background: rgb(var(--accent-rgb) / calc(0.04 * var(--tint-k))); }
+.cdm-lock.is-todo svg { color: var(--accent-text); }
+.cdm-lock.is-ok svg { color: var(--tone-ok); }
+.cdm-access-table .cell-secret { text-align: right; }
+.cdm-access-table .cell-secret .dm-secret { display: inline-flex; vertical-align: middle; }
+.cdm-secret-line { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; }
+.cdm-secret-line .dm-login-user { display: inline-flex; align-items: center; gap: 2px; color: var(--sheet-muted); }
+@media (min-width: 768px) {
+  .cdm-access-table :is(.cell-secret .dm-secret, .cdm-secret-line) { flex-wrap: nowrap; }
+  .cdm-access-table .cell-secret .dm-secret:has(.dm-secret-error) { flex-wrap: wrap; }
+}
+@container sheet (max-width: 1099px) {
+  .cdm-checks i { display: none; }
+  .cdm-checks b { margin-left: 0; }
+  .cdm-pick { padding: 0 9px; }
+  .cdm-quiet { gap: 0; padding: 0 7px; font-size: 0; }
+  .cdm-quiet svg { width: 15px; height: 15px; }
+}
+@media (max-width: 767px) {
+  .sheet .cdm-admin-table .cdm-package-row .cell-category { flex-basis: 100%; }
+  .sheet .cdm-admin-table .cdm-package-row .cell-action { order: 5; }
+  .cdm-access-table .cell-secret { order: 4; flex-basis: 100%; text-align: left; }
+  .cdm-secret-line { justify-content: flex-start; }
+  .cdm-lock { padding: 10px 14px; }
+  .cdm .sheet-toolbar .segmented-control { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .cdm .sheet-toolbar .segment-count { display: none; }
+  .sheet .cdm-admin-table .cell-date { margin-left: auto; }
+}
+
 /* „Mailprogramm einrichten“: three steps with the servers to copy. */
 .hub-modal.cdm-setup { width: min(620px, calc(100% - 32px)); }
 .cdm-setup-lead { margin: -4px 0 18px; color: var(--label-secondary); font-size: 15px; line-height: 21px; }
@@ -2235,23 +2264,6 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .customer-packages-row .sheet-action { flex: 0 0 auto; }
 
 /* Vertrag & Domain, stage 2: „Domain & Mail“ and „Zugänge“. */
-.cdm .chat-filter.cdm-tabs { max-width: calc(100% - 40px); overflow-x: auto; scrollbar-width: none; }
-.cdm .chat-filter.cdm-tabs button { flex: 0 0 auto; }
-.dm-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
-.dm-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.dm-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 12px; padding: 12px 0; border-top: 1px solid var(--sheet-divider); }
-.dm-item:first-child { border-top: 0; }
-.dm-item-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.dm-item-top { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; }
-.dm-item-top strong { font-size: 14.5px; line-height: 20px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
-.dm-item-sub { margin: 0; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); overflow-wrap: anywhere; }
-.dm-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px 16px; margin: 0; }
-.dm-facts div { min-width: 0; }
-.dm-facts dt { font-size: 11.5px; line-height: 15px; color: var(--sheet-muted); }
-.dm-facts dd { margin: 0; font-size: 13px; line-height: 18px; color: var(--label-body); overflow-wrap: anywhere; }
-.dm-checks { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.dm-checks li { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 999px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 12px; font-weight: 600; color: var(--sheet-muted); }
-.dm-checks li.is-ok { background: var(--tone-ok-bg); box-shadow: none; color: var(--tone-ok); }
 .dm-check-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 2px 12px; margin: 0; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--fill-tertiary); }
 .dm-check-fields legend { float: left; width: 100%; margin-bottom: 4px; padding: 0 2px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
 .dm-check-field { display: flex; align-items: flex-start; gap: 9px; padding: 6px 2px; cursor: pointer; }
@@ -2266,17 +2278,6 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .dm-server-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border-radius: 14px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
 .dm-server-title { margin: 0; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--label-secondary); }
 .dm-server-row { display: grid; grid-template-columns: minmax(72px, 0.55fr) minmax(0, 1fr); gap: 8px; }
-.dm-notice { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.dm-notice p { margin: 0; font-size: 13.5px; line-height: 19px; color: var(--label-body); }
-.dm-notice svg { flex: 0 0 auto; margin-top: 1px; color: var(--sheet-muted); }
-.dm-notice a { color: inherit; font-weight: 600; text-decoration: underline; }
-.dm-notice.is-todo { background: var(--tone-todo-bg); box-shadow: none; }
-.dm-notice.is-todo :is(p, svg) { color: var(--tone-todo); }
-.dm-notice.is-ok svg { color: var(--tone-ok); }
-.dm-access { align-items: center; }
-.dm-access-acts { display: flex; align-items: center; gap: 4px; }
-.dm-login-meta { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
-.dm-login-meta a { color: var(--accent-text); overflow-wrap: anywhere; }
 .dm-login-user { display: inline-flex; align-items: center; gap: 2px; color: var(--label-body); }
 .dm-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
 .dm-copy { width: 28px; height: 28px; flex: 0 0 auto; }
@@ -2297,19 +2298,9 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .dm-form-acts .sheet-action.is-danger { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
 
 @container sheet (max-width: 820px) {
-  .cdm-entry { grid-template-columns: 76px minmax(0, 1fr); }
-  .cdm-entry-acts { grid-column: 2; }
-  .dm-access { grid-template-columns: minmax(0, 1fr); }
-  .dm-access .dm-secret, .dm-access-acts { justify-content: flex-start; }
   .dm-secret-error { text-align: left; }
 }
 @media (max-width: 767px) {
-  .cdm-body { padding: 14px 12px 20px; }
-  .cdm .chat-filter.cdm-tabs { margin-left: 12px; max-width: calc(100% - 24px); }
   .dm-server { grid-template-columns: minmax(0, 1fr); }
-  .dm-access { grid-template-columns: minmax(0, 1fr); }
-  .dm-access .dm-secret, .dm-access-acts { justify-content: flex-start; }
   .dm-secret-error { text-align: left; }
-  .cdm-dates { grid-template-columns: minmax(0, 1fr); }
-  .settings-card .cdm-entry { grid-template-columns: minmax(0, 1fr); }
 }
