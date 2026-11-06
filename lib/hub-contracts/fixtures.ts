@@ -88,8 +88,9 @@ const groups = ["domain", "service"] as const;
 /**
  * The example data the area shows without real data: every demo customer for admins, the own one for customers
  * (released entries only, without notes). `contractFiles` maps a customer number to its example contract's file id.
+ * The quota examples join in hub-view (lib/hub-service-quota/fixtures.ts), so this file keeps no imports at run time.
  */
-export function contractFixtures({ admin, customerNumber, contractFiles = {} }: { admin: boolean; customerNumber: string | null; contractFiles?: Record<string, string> }): ContractsState {
+export function contractFixtures({ admin, customerNumber, contractFiles = {} }: { admin: boolean; customerNumber: string | null; contractFiles?: Record<string, string> }): Omit<ContractsState, "serviceQuota"> {
   const numbers = admin ? Object.keys(fixtures) : customerNumber && fixtures[customerNumber] ? [customerNumber] : [];
   const customers: ContractCustomer[] = numbers.map((number) => ({
     id: number,

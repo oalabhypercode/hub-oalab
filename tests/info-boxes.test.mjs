@@ -5,6 +5,7 @@ import { DAILY_QUESTION_LIMIT, RETENTION_HOURS } from "../lib/hub-whatsapp/messa
 import { MAX_FILE_BYTES, MAX_UPLOAD_BATCH } from "../lib/hub-files/catalog.ts";
 import { MAX_OPEN_REQUESTS, WORKDAY } from "../lib/hub-calendar/rules.ts";
 import { LOOK_LIMIT, LOOK_WINDOW_MINUTES, mailSecurities, REVEAL_SECONDS } from "../lib/hub-domains/rules.ts";
+import { serviceRequestLimits } from "../lib/service-packages.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -33,6 +34,9 @@ const places = [
   { file: "components/hub/screens/contracts-customer.tsx", call: 'useInfo("Deine Adressen"', button: /label="E-Mail-Adressen"[^\n]*actions=\{addressesInfo\.button\}>/, box: "{addressesInfo.box}" },
   { file: "components/hub/screens/contracts-access.tsx", call: 'useInfo("Zugänge"', button: /Postfächer\{info\.button\}<\/h3>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-access.tsx", call: 'useInfo("Anbieter-Login"', button: /"Login anlegen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Service-Kontingente"', button: /Service-Kontingente\{info\.button\}<\/h3>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Service-Anfragen"', button: /Service-Anfragen\{month \? ` im \$\{month\.month\}` : ""\}\{info\.button\}<\/h3>/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Deine Anfragen"', button: /<td className="cell-action">\{info\.button\}\{info\.box\}<\/td>/, box: "{info.box}" },
   { file: "components/hub/screens/private-chat.tsx", call: 'useInfo(admin ? "Private Chats" : "Chat"', button: /<h2>Gespräche\{info\.button\}<\/h2>/, box: "{info.box}" },
   { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Termin anfragen"', button: /<Modal title="Termin anfragen" onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Anfrage beantworten"', button: /<Modal title=\{appointment\.title\} onClose=\{onClose\} actions=\{answering \? info\.button : undefined\}>/, box: "{answering && info.box}" },
@@ -118,6 +122,13 @@ test("the cards and the assistant's details say what the code does", async () =>
   const whatsapp = await source("components/hub/whatsapp-card.tsx");
   assert.ok(whatsapp.includes(`Bis zu ${DAILY_QUESTION_LIMIT} Fragen`), "WhatsApp: questions per day");
   assert.doesNotMatch(whatsapp, /lib\/hub-whatsapp\/messages"/, "the card stays free of the server's node:crypto");
+  // The request limits of the Service packages come from the catalog, in every card that names them.
+  const quota = await source("components/hub/screens/contracts-quota.tsx");
+  assert.match(quota, /const LITE = serviceRequestLimits\["service-lite"\];\r?\nconst MAX = serviceRequestLimits\["service-max"\];/);
+  assert.equal((quota.match(/<b>Service Lite \{LITE\}, Max \{MAX\}<\/b>/g) ?? []).length, 2, "the admins' and the customers' card");
+  const packages = await source("components/hub/screens/contracts-parts.tsx");
+  assert.match(packages, /<b>Service Lite \{serviceRequestLimits\["service-lite"\]\}, Max \{serviceRequestLimits\["service-max"\]\}<\/b>/);
+  assert.doesNotMatch(packages, /noch nicht (mit der Serviceplattform )?verbunden/i, "the packages are connected to the service platform now");
 
   // The details moved into the assistant's knowledge, with the numbers of the code.
   const knowledge = await source("lib/hub-assistant/knowledge.ts");
@@ -130,6 +141,7 @@ test("the cards and the assistant's details say what the code does", async () =>
   assert.ok(details.includes(`${REVEAL_SECONDS} Sekunden lang`));
   assert.ok(details.includes(`mehr als ${LOOK_LIMIT} Passwörter in ${LOOK_WINDOW_MINUTES} Minuten`));
   assert.ok(details.includes(`bis zu ${DAILY_QUESTION_LIMIT} am Tag`));
+  assert.ok(details.includes(`Service Lite erlaubt ${serviceRequestLimits["service-lite"]}, Service Max ${serviceRequestLimits["service-max"]} neue Anfragen je Kalendermonat`));
   assert.equal(RETENTION_HOURS, 48, "WhatsApp: the details say two days of history");
   assert.match(details, /nach zwei Tagen/);
   // Every card's question lands where the details are: one bullet per feature.

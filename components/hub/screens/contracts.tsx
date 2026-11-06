@@ -18,6 +18,8 @@ import { ContractGenerator, ContractGeneratorButton, ContractTemplatesSection } 
 import { DomainMailTab } from "./contracts-domains";
 import { CustomerContractSheet } from "./contracts-customer";
 import { AccessTab } from "./contracts-access";
+import { CustomerQuotaCard, QuotaCell, ServiceQuotaSection } from "./contracts-quota";
+import { quotaMonth } from "@/lib/hub-service-quota/rules";
 import type { ScreenProps } from "./types";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -128,6 +130,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
 
   /* ---------- Overview ---------- */
   const soon = upcoming(state, asOf);
+  const quotaReady = state.serviceQuota.ready;
+  const quotaHead = state.serviceQuota.window ? ` im ${quotaMonth(state.serviceQuota.window).month}` : "";
   const overview = (
     <div className="cdm-body">
       <div className="cdm-tiles">
@@ -139,6 +143,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
           <strong className="numeric">{missing.length}</strong><span>Ohne Servicepaket</span>
         </button>
       </div>
+
+      <ServiceQuotaSection quota={state.serviceQuota} companyOf={companyOf} onOpenCustomer={openCustomer} onNotice={setNotice} />
 
       <section className="cdm-section" aria-labelledby="cdm-soon">
         <h3 id="cdm-soon"><CalendarClock size={16} aria-hidden="true" />Demnächst</h3>
@@ -165,8 +171,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
         {state.customers.length ? (
           <div className="cdm-table-wrap">
             <table className="data-table cdm-table">
-              <caption className="visually-hidden">Kunden mit Domain-Paket, Servicepaket und letzter Zahlung</caption>
-              <thead><tr><th scope="col">Kunde</th><th scope="col">{packageGroups.domain.name}</th><th scope="col">{packageGroups.service.name}</th><th scope="col">Letzte Zahlung</th></tr></thead>
+              <caption className="visually-hidden">Kunden mit Domain-Paket, Servicepaket, Anfragen in diesem Monat und letzter Zahlung</caption>
+              <thead><tr><th scope="col">Kunde</th><th scope="col">{packageGroups.domain.name}</th><th scope="col">{packageGroups.service.name}</th>{quotaReady && <th scope="col">Anfragen{quotaHead}</th>}<th scope="col">Letzte Zahlung</th></tr></thead>
               <tbody>
                 {state.customers.map((customer) => {
                   const paid = lastPayment(state.timeline, customer.id);
@@ -176,6 +182,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
                       {customer.packages.map((item) => (
                         <td key={item.group}>{item.packageId ? <>{packageCatalog[item.packageId].short}{item.until && <span className="chat-pill tone-todo cdm-inline-pill">bis {formatDay(item.until)}</span>}</> : <span className="cell-none">–</span>}</td>
                       ))}
+                      {quotaReady && <td><QuotaCell quota={state.serviceQuota} customerId={customer.id} /></td>}
                       <td className="cdm-muted numeric">{paid ? `${formatDay(paid.occurredOn)}${paid.amountCents !== null ? ` · ${formatCents(paid.amountCents)}` : ""}` : <span className="cell-none">–</span>}</td>
                     </tr>
                   );
@@ -223,6 +230,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       ) : tab === "contract" ? (
         <div className="cdm-body">
           <PackagesForm key={current.id} customer={current} canManage={state.canManage} onSaved={setNotice} />
+          <CustomerQuotaCard key={`quota-${current.id}`} customer={current} quota={state.serviceQuota} fixtures={state.source === "fixtures"} onNotice={setNotice} />
           <section className="cdm-section" aria-labelledby="cdm-files">
             <h3 id="cdm-files"><FileText size={16} aria-hidden="true" />Verträge und Rechnungen</h3>
             <ContractFiles files={files} customerId={current.id} preview={preview} empty="Im Asset Management liegen bei diesem Kunden noch keine Verträge oder Rechnungen." />

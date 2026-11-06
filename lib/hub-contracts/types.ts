@@ -1,5 +1,6 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { DomainMailState } from "@/lib/hub-domains/types";
+import type { ServiceQuotaState } from "@/lib/hub-service-quota/types";
 import type { CustomerPackage } from "@/lib/service-packages";
 import type { TimelineKind } from "./rules";
 
@@ -45,5 +46,7 @@ export type ContractsState = {
   canManage: boolean;
   /** Domains, mail server, mailboxes and (admins only) provider logins of stage 2. */
   domainMail: DomainMailState;
+  /** Stage 3: new requests a month on the service platform per Service package, the switch and the block list. */
+  serviceQuota: ServiceQuotaState;
   error?: string;
 };
