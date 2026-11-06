@@ -286,14 +286,18 @@ function ExemptDialog({ customer, request, onClose, onDone }: { customer: Contra
   );
 }
 
-/** The table „Alle Kunden“: this month's count, „–“ for customers without access to the service platform. */
+/**
+ * The table „Alle Kunden“: this month's count, also without a package („1 Anfrage · kein Paket“); amber where the
+ * switch blocks or would block; „–“ for customers without access to the service platform.
+ */
 export function QuotaCell({ quota, customerId }: { quota: ServiceQuotaState; customerId: string }) {
   const row = quota.customers.find((item) => item.customerId === customerId);
   if (!row) return <span className="cell-none">–</span>;
   const status = quotaStatus(row);
+  const text = status === "none" ? `${usageLine(row)} · kein Paket` : usageLine(row);
   return status === "none" || status === "full"
-    ? <span className="chat-pill tone-todo">{status === "none" ? "kein Paket" : usageLine(row)}</span>
-    : <span className="numeric">{usageLine(row)}</span>;
+    ? <span className="chat-pill tone-todo numeric">{text}</span>
+    : <span className="numeric">{text}</span>;
 }
 
 /**

@@ -134,6 +134,9 @@ test("the customer's line and the service platform's hints appear only while the
   const screen = await source("components/hub/screens/contracts-quota.tsx");
   assert.match(screen, /const row = quota\.enforced \? quota\.customers\.find\(\(item\) => item\.customerId === customerId\) : undefined;/);
   assert.match(screen, /if \(!quota\.ready\) return null;/, "without the migration the customer card stays away");
+  // The table names the count also for customers without a package (seen live on 6.11.: only „kein Paket“ before).
+  assert.match(screen, /const text = status === "none" \? `\$\{usageLine\(row\)\} · kein Paket` : usageLine\(row\);/);
+  assert.equal(usageLine({ packageId: null, monthlyLimit: 0, monthlyUsed: 1 }), "1 Anfrage");
   const contracts = await source("components/hub/screens/contracts.tsx");
   assert.match(contracts, /<ServiceQuotaSection quota=\{state\.serviceQuota\}/);
   assert.match(contracts, /<CustomerQuotaCard key=\{`quota-\$\{current\.id\}`\} customer=\{current\} quota=\{state\.serviceQuota\} fixtures=\{state\.source === "fixtures"\}/);
