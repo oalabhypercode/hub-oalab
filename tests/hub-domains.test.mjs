@@ -230,5 +230,5 @@ test("„Domain & Mail“ and „Zugänge“ sit between „Vertrag“ and „Ve
   assert.match(screen, />Zugänge<\/button>/);
   assert.match(screen, /const soon = upcoming\(state, asOf\);/);
   assert.match(screen, /renewingSoon\(state\.domainMail\.domains/);
-  assert.match(screen, /<CustomerDomainCard customer=\{customer\} domainMail=\{state\.domainMail\} \/>/);
+  assert.match(screen, /<CustomerContractSheet customer=\{customer\} state=\{state\} files=\{fileState\.files\} preview=\{preview\} \/>/);
 });

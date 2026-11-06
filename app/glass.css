@@ -2092,7 +2092,6 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .am-label .info-button { width: 22px; height: 22px; margin-right: auto; }
 .chat-list-head h2 .info-button { margin-left: 8px; vertical-align: -4px; }
 .proposal-head .info-button { margin-top: -3px; }
-.dm-block h3 .info-button { width: 22px; height: 22px; margin-left: 6px; vertical-align: -6px; }
 
 /* Contract generator: the dialog „Vertrag erstellen“ and the templates in the overview. */
 .hub-modal.contract-modal { width: min(680px, calc(100% - 32px)); }
@@ -2141,13 +2140,70 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 }
 
 .cdm-next-company { margin-top: 28px; }
-.cdm-packages-list dd { display: flex; flex-direction: column; }
-.cdm-packages-list dd strong { font-weight: 600; }
-.cdm-packages-list dd small { font-size: 12.5px; line-height: 17px; color: var(--label-secondary); }
-.settings-card .cdm-entry { grid-template-columns: 84px minmax(0, 1fr); }
+
+/* Vertrag & Domain for customers (contracts-customer.tsx), in the language of „Dateien“: two glass figures, then one
+   sheet whose groups line up symbol over symbol (54 px, as with the checkbox column of „Dateien“). */
+.cdm-badges { display: flex; flex: 0 0 auto; padding-bottom: 2px; }
+.cdm-badge { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; box-shadow: 0 0 0 2px var(--glass-solid); color: #ffffff; }
+.cdm-badge + .cdm-badge { margin-left: -6px; }
+.cdm-badge.is-domain { background: rgb(48, 176, 199); }
+.cdm-badge.is-service { background: rgb(88, 86, 214); }
+.cdm-table .cdm-row-icon { flex: 0 0 auto; color: rgb(52, 199, 89); }
+.cdm-table .cell-state { color: var(--sheet-muted); white-space: nowrap; }
+.cdm-table .cell-description .cdm-link { font-weight: 500; }
+.cdm-table .file-download, .cdm-table .dm-copy { width: 34px; height: 34px; vertical-align: middle; }
+.cdm-dot-domain i { background: rgb(48, 176, 199); }
+.cdm-dot-service i { background: rgb(88, 86, 214); }
+.cdm-dot-mailbox i, .cdm-dot-info i { background: var(--tone-info-bar); }
+.cdm-dot-forward i, .cdm-dot-todo i { background: var(--tone-todo-bar); }
+.cdm-dot-alias i, .cdm-dot-off i { background: var(--tone-off-bar); }
+.cdm-dot-ok i { background: var(--tone-ok-bar); }
+.cdm-add-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
+.table-add.is-primary { color: var(--accent-text); font-weight: 600; }
+.cdm-more[aria-expanded="true"] svg { transform: rotate(180deg); }
+.cdm-sheet-notice { margin: 10px 16px 0 20px; }
+@media (min-width: 768px) {
+  .cdm-table thead th:first-child, .cdm-table tbody tr.file-row > td:first-child { padding-left: 54px; }
+  .cdm-sheet .cdm-table tbody tr.file-row td { height: 46px; }
+  .cdm-sheet .cdm-table .cell-file { min-width: 240px; max-width: 360px; }
+  .cdm-sheet .cdm-table .cell-category { width: 150px; }
+  .cdm-sheet .cdm-table .cell-date { width: 150px; }
+  .cdm-sheet .cdm-table .cell-state { width: 130px; }
+  .cdm-sheet .cdm-table .cell-action { width: 56px; }
+}
+@media (max-width: 767px) {
+  .sheet .cdm-table .cell-state { order: 4; font-size: 12.5px; }
+  .sheet .cdm-table td:is(.cell-state, .cell-date, .cell-action):empty { display: none; }
+}
+:root[data-theme="dark"] .cdm-table .cdm-row-icon { color: rgb(48, 209, 88); }
+:root[data-theme="dark"] .cdm-badge.is-service, :root[data-theme="dark"] .cdm-dot-service i { background: rgb(94, 92, 230); }
+
+/* „Mailprogramm einrichten“: three steps with the servers to copy. */
+.hub-modal.cdm-setup { width: min(620px, calc(100% - 32px)); }
+.cdm-setup-lead { margin: -4px 0 18px; color: var(--label-secondary); font-size: 15px; line-height: 21px; }
+.cdm-steps { display: grid; margin: 0 0 4px; padding: 0; list-style: none; }
+.cdm-step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 14px; padding-bottom: 20px; }
+.cdm-step:not(:last-child)::before { content: ""; position: absolute; top: 36px; bottom: 4px; left: 15px; width: 2px; border-radius: 2px; background: var(--separator); }
+.cdm-step-no { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 11px; background: var(--accent-gradient); color: #ffffff; font-size: 14px; font-weight: 700; }
+.cdm-step h3 { margin: 4px 0 2px; color: var(--label); font-size: 16px; line-height: 21px; font-weight: 700; }
+.cdm-step p { color: var(--label-secondary); font-size: 14px; line-height: 19px; }
+.cdm-step b { color: var(--label); font-weight: 650; }
+.cdm-servers { display: grid; gap: 8px; margin-top: 10px; }
+.cdm-server { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cdm-server-label { color: var(--label-secondary); font-size: 12px; font-weight: 700; }
+.cdm-server-host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); }
+.cdm-login-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 10px 0 0; font-size: 14px; line-height: 19px; }
+.cdm-login-facts dt { color: var(--label-secondary); }
+.cdm-login-facts dd { margin: 0; color: var(--label); font-weight: 600; }
+.cdm-setup-note { margin-top: 10px; }
+@media (max-width: 767px) {
+  .cdm-server { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+  .cdm-server-label { grid-column: 1 / -1; }
+  .cdm-server .chat-pill { grid-column: 1 / -1; justify-self: start; }
+}
 .customer-packages-row .sheet-action { flex: 0 0 auto; }
 
-/* Vertrag & Domain, stage 2: „Domain & Mail“, „Zugänge“ and the customers' card „Domain & E-Mail“. */
+/* Vertrag & Domain, stage 2: „Domain & Mail“ and „Zugänge“. */
 .cdm .chat-filter.cdm-tabs { max-width: calc(100% - 40px); overflow-x: auto; scrollbar-width: none; }
 .cdm .chat-filter.cdm-tabs button { flex: 0 0 auto; }
 .dm-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
@@ -2206,20 +2262,6 @@ button.cdm-tile:hover { filter: brightness(0.97); }
 .dm-secret-field { display: flex; align-items: center; gap: 6px; }
 .dm-secret-field input { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .dm-secret-field input.is-masked { -webkit-text-security: disc; }
-.dm-block { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--separator); }
-.dm-block h3 { margin: 0; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--label-secondary); }
-.dm-plain { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.dm-plain li { display: flex; flex-direction: column; min-width: 0; }
-.dm-plain strong { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
-.dm-plain small { font-size: 12.5px; line-height: 17px; color: var(--label-secondary); overflow-wrap: anywhere; }
-.dm-settings { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--separator); }
-.dm-settings dl { margin: 0; }
-.dm-settings-title { margin: 0 0 2px; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--label); }
-.dm-setting { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 30px; }
-.dm-setting dt { font-size: 13px; color: var(--label-secondary); }
-.dm-setting dd { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; font-size: 14px; color: var(--label); }
-.dm-setting dd > span { overflow-wrap: anywhere; }
-.dm-webmail { align-self: flex-start; }
 .dm-form-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dm-form-acts .sheet-action.is-danger { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
 

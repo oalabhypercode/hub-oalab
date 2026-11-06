@@ -144,3 +144,25 @@ test("„Vertrag & Domain“ sits below the asset management, freelancers have n
   // The user management keeps master data and logins and links to the packages.
   assert.match(await source("components/hub/screens/users-dialogs.tsx"), /href=\{`\$\{hubHref\(false, "contracts"\)\}\?customer=\$\{customer\.id\}`\}/);
 });
+
+test("customers read „Vertrag & Domain“ like „Dateien“: two figures, one sheet in groups, nothing internal", async () => {
+  const sheet = await source("components/hub/screens/contracts-customer.tsx");
+  assert.match(sheet, /<div className="metric-grid section-first">/);
+  assert.equal((sheet.match(/className="glass glass-card metric-card"/g) ?? []).length, 2, "Pakete and Zahlungen");
+  assert.match(sheet, /<div className="sheet section-first cdm-sheet">\s*<SheetToolbar/);
+  const groups = [...sheet.matchAll(/<TableGroup colSpan=\{COLUMNS\} label="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(groups, ["Pakete", "Domains", "E-Mail-Adressen", "Dokumente", "Verlauf"]);
+  assert.match(sheet, /\{ id: "all", label: "Alles"[^}]*\},\s*\{ id: "contract", label: "Vertrag"[^}]*\},\s*\{ id: "domain", label: "Domain & E-Mail"/);
+  // What only admins see of domains and addresses never shows: no status, provider, renewal, checks, password state.
+  assert.doesNotMatch(sheet, /\.details|hasPassword|\.provider|renewsOn|\.checks|\.note\b|authorName/);
+  // Mail settings in three steps, servers and ports to copy, never a password.
+  assert.deepEqual([...sheet.matchAll(/<h3>([^<]+)<\/h3>/g)].map((match) => match[1]), ["Konto hinzufügen", "Server eintragen", "Anmelden"]);
+  assert.match(sheet, /<CopyButton value=\{host\}/);
+  assert.match(sheet, /Passwörter zeigt der Hub nicht an\./);
+  // Documents download like in „Dateien“; the newest three entries first.
+  assert.match(sheet, /<DownloadButton file=\{file\} onError=\{setNotice\} \/>/);
+  assert.match(sheet, /const RECENT = 3;/);
+  const screen = await source("components/hub/screens/contracts.tsx");
+  assert.doesNotMatch(screen, /settings-grid|CustomerDomainCard/, "the old cards are gone");
+  assert.doesNotMatch(await source("components/hub/screens/contracts-domains.tsx"), /export function CustomerDomainCard/);
+});
