@@ -71,6 +71,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantMode, setAssistantMode] = useState<AssistantMode>(() => typeof window !== "undefined" && readStored(() => localStorage.getItem(MODE_KEY), null) === "dock" ? "dock" : "window");
   const [assistantProject, setAssistantProject] = useState<{ id: string; name: string } | null>(null);
+  /** A question an ⓘ hands over; the key tells the panel a new one arrived, also when the text repeats. */
+  const [assistantQuestion, setAssistantQuestion] = useState<{ text: string; key: number } | null>(null);
   const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
   const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
   // Real logins take their name, company and packages from the user management; demo logins keep the fixtures.
@@ -167,6 +169,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
     preview, pending, initials, logo, account, manageUsers,
     openPanel: (next) => next === "help" ? setAssistantOpen(true) : setPanel(next),
     askAboutProject: (project) => { setAssistantProject(project); setAssistantOpen(true); },
+    askAssistant: (question) => { setAssistantQuestion((current) => ({ text: question, key: (current?.key ?? 0) + 1 })); setAssistantOpen(true); },
     assistantDocked: assistantMode === "dock",
     unread: hasDemo ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError,
   };
@@ -220,7 +223,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
         {assistantOpen && (
           <AssistantPanel turns={assistantTurns} setTurns={setAssistantTurns} admin={account.admin} available={!preview && !publicDemo}
             mode={assistantMode} onModeChange={changeAssistantMode}
-            project={assistantProject} onClearProject={() => setAssistantProject(null)}
+            project={assistantProject} onClearProject={() => setAssistantProject(null)} question={assistantQuestion}
             onClose={() => setAssistantOpen(false)} />
         )}
       </ShellContext.Provider>

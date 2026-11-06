@@ -74,15 +74,14 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
   const signOf = (customer: HubFileCustomer) => customers.find((item) => item.id === customer.id) ?? customer;
   // An image of the customer whose files are open can become that customer's logo in one click.
   const logoFor = here && canAssign && canBeLogo(file) && file.customers.some((customer) => customer.id === here.id) ? here : null;
-  const shareInfo = useInfo("Freigabe, Ordner und Sichtbarkeit", (
-    <ul>
-      <li>Hier stehen alle Kunden, die die Datei sehen. „Zuordnung ändern“ fügt Kunden hinzu oder nimmt die Datei bei einem Kunden weg; neu zugeordnete Kunden bekommen eine Meldung.</li>
-      <li>Den Ordner wählst du je Kunde. Der Kunde sieht dieselben Ordner und kann die Datei auch selbst einsortieren.</li>
-      <li>„Sichtbar für“ steht nur bei Kunden, die ein Freelancer betreut: Kunde und Freelancer, nur der Kunde oder nur der Freelancer. Verträge, Angebote und Rechnungen stehen von selbst auf „Nur Kunde“. Wer die Datei dadurch neu sieht, bekommt eine Meldung.</li>
-      <li>Das Ketten-Symbol kopiert den Link zur Datei. Er öffnet sie nur für Logins, die sie sehen dürfen.</li>
-      <li>„…“ › „Datei löschen“ entfernt die Datei bei allen Kunden. Soll sie nur bei einem verschwinden, nimm „Zuordnung ändern“.</li>
-    </ul>
-  ));
+  const shareInfo = useInfo("Freigabe und Sichtbarkeit", {
+    steps: [
+      <><b>Zuordnung ändern:</b> Kunden dazunehmen oder entfernen.</>,
+      <><b>Den Ordner</b> wählst du je Kunde.</>,
+      <><b>Sichtbar für</b> gilt bei Kunden mit Freelancer.</>,
+    ],
+    ask: "Wie funktionieren Freigabe, Ordner und „Sichtbar für“ einer Datei?",
+  });
 
   useEffect(() => {
     if (!copied) return;

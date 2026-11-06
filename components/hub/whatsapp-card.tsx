@@ -16,15 +16,15 @@ export function WhatsAppCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const usable = Boolean(status?.available || status?.linkedPhone);
-  const info = useInfo("So funktioniert WhatsApp", (
-    <ul>
-      <li>„Code erzeugen“ gibt dir einen sechsstelligen Code, der 15 Minuten gilt.</li>
-      <li>Schick „VERBINDEN“ mit dem Code von deiner Nummer an die WhatsApp-Nummer von oalab. „In WhatsApp öffnen“ füllt die Nachricht vor; danach klickst du „Ich habe gesendet“.</li>
-      {/* 30 a day and two days of history: DAILY_QUESTION_LIMIT and RETENTION_HOURS in lib/hub-whatsapp/messages.ts (server code). */}
-      <li>Dann beantwortet der KI-Assistent deine Fragen zum Client Hub auch dort, bis zu 30 am Tag. Mit „TEAM“ erfährst du, wie du das oalab-Team direkt erreichst.</li>
-      <li>Den WhatsApp-Verlauf löscht der Hub nach zwei Tagen. „Trennen“ hebt die Verbindung auf.</li>
-    </ul>
-  ));
+  const info = useInfo("WhatsApp", {
+    steps: [
+      <><b>Code erzeugen:</b> sechs Ziffern, 15 Minuten gültig.</>,
+      <><b>„VERBINDEN“ mit dem Code</b> an oalab schicken.</>,
+      // 30 a day: DAILY_QUESTION_LIMIT in lib/hub-whatsapp/messages.ts (server code).
+      <><b>Bis zu 30 Fragen</b> am Tag beantwortet der Assistent dort.</>,
+    ],
+    ask: "Wie verbinde ich WhatsApp mit dem Hub?",
+  });
 
   async function refresh() {
     const result = await getWhatsAppStatus();

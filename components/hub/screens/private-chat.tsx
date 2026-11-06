@@ -99,23 +99,21 @@ export function PrivateChats({ admin, freelancer = false, preview, firstName, co
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [query, setQuery] = useState("");
   const [picking, setPicking] = useState(false);
-  const info = useInfo(admin ? "So funktionieren die privaten Chats" : "So funktioniert der Chat", admin ? (
-    <ul>
-      <li>„Privat“ sind die Chats mit den Kunden, einer je Firma; hier antwortest du direkt. „Service“ zeigt die Gespräche der Serviceplattform nur zum Mitlesen.</li>
-      <li>Über den Stift schreibst du einen Kunden an, der noch nichts geschrieben hat. Unter dem Eingabefeld steht, welche Logins der Firma deine Antwort sehen.</li>
-      <li>Schreibt ein Kunde, zeigt die Glocke das allen Admins sofort. Nach einigen Minuten kommt eine E-Mail, aber nur, solange niemand aus dem Team den Chat gelesen hat.</li>
-      <li>Ist die Telegram-Gruppe eingerichtet, meldet der Hub neue Kundennachrichten auch dort; geantwortet wird im Hub. Prüfen kannst du das im Profil unter „Benachrichtigungen“.</li>
-      <li>Der Kunde bekommt deine Antwort in die Glocke und in seine gebündelte E-Mail. Liest er sie vorher im Hub, fällt sie aus der E-Mail.</li>
-    </ul>
-  ) : (
-    <ul>
-      <li>{freelancer ? "Hier schreibst du direkt mit dem oalab-Team. Mitlesen können nur oalab und die Logins deines Zugangs." : "Hier schreibt deine Firma direkt mit dem oalab-Team. Alle Logins deiner Firma sehen den Chat, jede Nachricht steht mit Namen."}</li>
-      <li>Ein Häkchen heißt gesendet, zwei heißen gelesen. Enter sendet, Umschalt + Enter macht eine neue Zeile.</li>
-      <li>Antworten erscheinen ohne Neuladen. Zusätzlich zeigt die Glocke sie an, und eine E-Mail bündelt die Neuigkeiten; abschalten lässt sie sich im Profil unter „Benachrichtigungen“.</li>
-      {!freelancer && <li>Aufträge und Änderungen an deiner Website stellst du als Anfrage auf der Serviceplattform, über „Anfrage stellen“ unter dem Chat.</li>}
-      <li>Dateien lassen sich im Chat noch nicht anhängen.</li>
-    </ul>
-  ));
+  const info = useInfo(admin ? "Private Chats" : "Chat", admin ? {
+    steps: [
+      <><b>Privat:</b> ein Chat je Firma, hier antwortest du.</>,
+      <><b>Service</b> zeigt die Serviceplattform zum Mitlesen.</>,
+      <><b>Neue Nachrichten</b> meldet die Glocke sofort.</>,
+    ],
+    ask: "Wie funktionieren die privaten Chats mit Kunden?",
+  } : {
+    steps: [
+      freelancer ? <><b>Direkt mit oalab;</b> nur oalab und dein Zugang lesen mit.</> : <><b>Ein Chat</b> für deine ganze Firma.</>,
+      <><b>Zwei Häkchen</b> heißen gelesen.</>,
+      freelancer ? <><b>Antworten</b> erscheinen ohne Neuladen.</> : <><b>Aufträge</b> bitte über die Serviceplattform.</>,
+    ],
+    ask: "Wie funktioniert der Chat mit oalab?",
+  });
 
   const chat = list.find((item) => item.customerId === selectedId) ?? null;
   const thread: PrivateChatThread | null = live

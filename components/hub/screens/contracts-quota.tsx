@@ -36,15 +36,15 @@ export function ServiceQuotaSection({ quota, companyOf, onOpenCustomer, onNotice
   onNotice: (message: string) => void;
 }) {
   const [dialog, setDialog] = useState(false);
-  const info = useInfo("So funktionieren die Service-Kontingente", (
-    <ul>
-      <li>Service Lite erlaubt {LITE}, Service Max {MAX} neue Anfragen je Kalendermonat auf der Serviceplattform, gezählt nach deutscher Zeit. Ohne Servicepaket gehen keine neuen Anfragen.</li>
-      <li>Jede abgeschickte neue Anfrage zählt. Antworten in einem Gespräch und Anfragen, die oalab selbst aus Mail oder WhatsApp anlegt, zählen nie.</li>
-      <li>Solange die Sperre aus ist, zählt der Hub nur mit, und Kunden sehen davon nichts. Die Sperrliste zeigt, wer beim Einschalten sofort keine neue Anfrage mehr stellen könnte.</li>
-      <li>Mit eingeschalteter Sperre sieht der Kunde beim Schreiben ab 80 % eine Vorwarnung, am Limit einen Hinweis mit dem Tag, ab dem es wieder geht, und den Weg zu Nachrichten.</li>
-      <li>Einzelne Anfragen nimmst du beim Kunden unter „Vertrag“ aus der Zählung, etwa wenn oalab einen Fehler verursacht hat. Jedes Umschalten steht im Admin-Protokoll.</li>
-    </ul>
-  ));
+  const info = useInfo("Service-Kontingente", {
+    steps: [
+      <><b>Service Lite {LITE}, Max {MAX}</b> neue Anfragen im Monat.</>,
+      <><b>Antworten</b> in einem Gespräch zählen nie.</>,
+      <><b>Sperre aus:</b> Der Hub zählt nur mit.</>,
+    ],
+    warn: "Einschalten sperrt sofort, wer am Limit ist.",
+    ask: "Wie funktionieren die Service-Kontingente?",
+  });
   if (!quota.ready) {
     return quota.error ? (
       <section className="cdm-section" aria-labelledby="cdm-quota">
@@ -185,15 +185,14 @@ export function CustomerQuotaCard({ customer, quota, fixtures, onNotice }: { cus
   const [version, setVersion] = useState(0);
   const [dialog, setDialog] = useState<QuotaRequest | null>(null);
   const { busy, error, run } = useContractAction();
-  const info = useInfo("So zählen die Anfragen", (
-    <ul>
-      <li>Hier stehen die neuen Anfragen dieses Kunden auf der Serviceplattform im laufenden Kalendermonat (deutsche Zeit), neueste zuerst. Antworten in einem Gespräch zählen nie.</li>
-      <li>„Nicht mitzählen“ nimmt eine Anfrage aus dem Kontingent, etwa bei einem Fehler, den oalab verursacht hat. Der kurze Grund ist nur für das oalab-Team.</li>
-      <li>„Wieder mitzählen“ macht das rückgängig. Beides steht im Admin-Protokoll.</li>
-      <li>Der Kunde sieht nur die Zahl, nicht welche Anfrage ausgenommen ist und warum.</li>
-      <li>Am 1. des nächsten Monats beginnt die Zählung neu. Ein Paketwechsel gilt für den ganzen laufenden Monat.</li>
-    </ul>
-  ));
+  const info = useInfo("Service-Anfragen", {
+    steps: [
+      <><b>Neue Anfragen</b> dieses Monats, neueste zuerst.</>,
+      <><b>Nicht mitzählen</b> mit kurzem internen Grund.</>,
+      <><b>Der Kunde</b> sieht nur die Zahl.</>,
+    ],
+    ask: "Wie nehme ich eine Anfrage aus der Zählung?",
+  });
 
   useEffect(() => {
     if (fixtures || !listed) return;
@@ -305,14 +304,14 @@ export function QuotaCell({ quota, customerId }: { quota: ServiceQuotaState; cus
  * when all are free again.
  */
 export function CustomerQuotaLine({ quota, customerId }: { quota: ServiceQuotaState; customerId: string }) {
-  const info = useInfo("So zählen deine Anfragen", (
-    <ul>
-      <li>Service Lite enthält {LITE}, Service Max {MAX} neue Anfragen je Kalendermonat auf der Serviceplattform. Ohne Servicepaket kannst du dort keine neuen Anfragen stellen.</li>
-      <li>Jede abgeschickte neue Anfrage zählt. Antworten in einem bestehenden Gespräch zählen nicht.</li>
-      <li>Am 1. des nächsten Monats um Mitternacht (deutsche Zeit) beginnt die Zählung neu.</li>
-      <li>Ab 80 % siehst du beim Schreiben eine Vorwarnung. Sind alle aufgebraucht, geht bis zum Monatswechsel keine neue Anfrage; bei etwas Dringendem schreib uns unter Nachrichten.</li>
-    </ul>
-  ));
+  const info = useInfo("Deine Anfragen", {
+    steps: [
+      <><b>Service Lite {LITE}, Max {MAX}</b> neue Anfragen im Monat.</>,
+      <><b>Antworten</b> in einem Gespräch zählen nicht.</>,
+      <><b>Am 1. des Monats</b> beginnt die Zählung neu.</>,
+    ],
+    ask: "Wie zählen meine Anfragen auf der Serviceplattform?",
+  });
   const row = quota.enforced ? quota.customers.find((item) => item.customerId === customerId) : undefined;
   if (!row || !quota.window) return null;
   const month = quotaMonth(quota.window);

@@ -38,15 +38,14 @@ export function CustomerLogoDialog({ customer, onClose, onSaved }: { customer: L
   const [busy, setBusy] = useState<"save" | "remove" | null>(null);
   const [error, setError] = useState("");
   const latest = useRef("");
-  const info = useInfo("So funktioniert das Kundenlogo", (
-    <ul>
-      <li>Als Logo gehen SVG, PNG, JPG oder WebP bis 2 MB: ins Feld ziehen, eine Datei wählen oder ein kopiertes Bild mit Strg+V einfügen. Oder du nimmst ein Bild aus den Dateien des Kunden.</li>
-      <li>Den Hintergrund wählt der Hub passend vor, ein weißes Logo bekommt Dunkel; ein Klick ändert ihn. Ein quadratisches Bildzeichen wirkt in den kleinen Kacheln am besten.</li>
-      <li>Nach „Speichern“ steht das Logo statt der Anfangsbuchstaben in den Kundenlisten des Hubs, und der Kunde sieht es in seinem Login, so wie in der Vorschau oben.</li>
-      <li>„Logo entfernen“ bringt die Buchstaben zurück.</li>
-      <li>Schneller geht es aus einer Bilddatei des Kunden: die Datei im Asset Management öffnen und in den Details „Als Logo von … verwenden“ klicken.</li>
-    </ul>
-  ));
+  const info = useInfo("Kundenlogo", {
+    steps: [
+      <><b>SVG, PNG, JPG oder WebP</b> bis 2 MB, auch per Strg+V.</>,
+      <><b>Den Hintergrund</b> wählt der Hub vor, ein Klick ändert ihn.</>,
+      <><b>Gespeichert</b> ersetzt es die Buchstaben, auch beim Kunden.</>,
+    ],
+    ask: "Wie funktioniert das Kundenlogo?",
+  });
 
   // The customer's images, with preview links for a minute.
   useEffect(() => {

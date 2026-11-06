@@ -111,15 +111,14 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   // Freelancers read here what they see and what not; admins have an ⓘ at each feature instead.
-  const freelancerInfo = useInfo("Was du hier siehst", (
-    <ul>
-      <li>„Meine Dateien“ stellt oalab für dich bereit. Dort legst du auch eigene Ordner an und sortierst ein.</li>
-      <li>Unter „Meine Kunden“ stehen die Kunden, die du für oalab betreust, mit ihren Dateien. Du kannst sie ansehen und herunterladen, mehrere auf einmal als ZIP; ändern kannst du dort nichts.</li>
-      <li>„Nur für dich“ an einer Datei heißt: Der Kunde sieht sie nicht.</li>
-      <li>Verträge, Angebote und Rechnungen deiner Kunden siehst du nur, wenn oalab sie für dich freigibt. Chats, Termine und Logins der Kunden bleiben dir verborgen.</li>
-      <li>Neue Dateien für dich oder deine Kunden meldet die Glocke.</li>
-    </ul>
-  ));
+  const freelancerInfo = useInfo("Was du hier siehst", {
+    steps: [
+      <><b>Meine Dateien</b> stellt oalab für dich bereit.</>,
+      <><b>Meine Kunden:</b> ansehen und laden, nichts ändern.</>,
+      <><b>„Nur für dich“</b> heißt: Der Kunde sieht es nicht.</>,
+    ],
+    ask: "Was sehe ich als Freelancer im Asset Management?",
+  });
 
   const current = view.kind === "customer" ? customers.find((customer) => customer.id === view.id) ?? null : null;
   const paneFiles = current ? rows.find((row) => row.customer.id === current.id)?.files ?? [] : view.kind === "inbox" ? inbox : files;

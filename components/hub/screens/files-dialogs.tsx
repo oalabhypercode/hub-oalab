@@ -84,14 +84,14 @@ export function FolderNameDialog({ title, initial, onSave, onClose }: { title: s
   const [name, setName] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const info = useInfo("So funktionieren Ordner", (
-    <ul>
-      <li>Ordner gibt es je Firma, in einer Ebene ohne Unterordner. Jeder Name kommt dort nur einmal vor.</li>
-      <li>Das oalab-Team und alle Logins der Firma sehen dieselben Ordner und können Dateien darin einsortieren.</li>
-      <li>Zum Einsortieren Dateien ankreuzen und in der Leiste über der Liste „Verschieben nach …“ wählen.</li>
-      <li>Umbenennen und Löschen gehen über Stift und Papierkorb am Ordner. Beim Löschen landen die Dateien in „Ohne Ordner“; gelöscht wird keine Datei.</li>
-    </ul>
-  ));
+  const info = useInfo("Ordner", {
+    steps: [
+      <><b>Eine Ebene</b> je Firma, jeder Name einmal.</>,
+      <><b>Alle Logins der Firma</b> sehen dieselben Ordner.</>,
+      <><b>Löschen</b> schiebt die Dateien nach „Ohne Ordner“.</>,
+    ],
+    ask: "Wie funktionieren Ordner in den Dateien?",
+  });
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();

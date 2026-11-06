@@ -40,6 +40,8 @@ export type ShellContextValue = {
   openPanel: (panel: ShellPanel) => void;
   /** Opens the assistant about this project; it keeps the project as its reference, also when docked. */
   askAboutProject: (project: { id: string; name: string }) => void;
+  /** Opens the assistant with this question in its input, ready to send („Mehr dazu im Assistenten“ of an ⓘ). */
+  askAssistant: (question: string) => void;
   /** The assistant opens as a sidebar next to the page (a dialog on top of it would block that sidebar). */
   assistantDocked: boolean;
   unread: boolean;

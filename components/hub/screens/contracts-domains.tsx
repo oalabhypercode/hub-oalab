@@ -63,15 +63,14 @@ export function DomainMailTab({ customer, domainMail, canManage, today, onNotice
   const server = domainMail.mailServers.find((item) => item.customerId === customer.id) ?? null;
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id);
   const withMail = hasMailPackage(customer);
-  const serverInfo = useInfo("So funktioniert der Mail-Server", (
-    <ul>
-      <li>Einen Mail-Server gibt es nur mit dem Paket OALAB Domain & Mail; das Paket legst du im Reiter „Vertrag“ fest.</li>
-      <li>Posteingang (IMAP) und Postausgang (SMTP) brauchen Server, Port und Verschlüsselung. Wechselst du die Verschlüsselung, setzt der Hub den üblichen Port: {mailSecurities.ssl.label} {mailSecurities.ssl.ports.imap} und {mailSecurities.ssl.ports.smtp}, {mailSecurities.starttls.label} {mailSecurities.starttls.ports.imap} und {mailSecurities.starttls.ports.smtp}.</li>
-      <li>Die Webmail-Adresse läuft immer über https://; trägst du sie ohne ein, ergänzt der Hub es.</li>
-      <li>Der Kunde sieht Server, Ports, Verschlüsselung und Webmail unter „Vertrag & Domain“, mit Knöpfen zum Kopieren; den Anbieter nicht. Als Benutzername nennt ihm der Hub seine vollständige E-Mail-Adresse.</li>
-      <li>Passwörter stehen nie hier, sondern verschlüsselt unter „Zugänge“. „Entfernen“ löscht die Angaben zum Server.</li>
-    </ul>
-  ));
+  const serverInfo = useInfo("Mail-Server", {
+    steps: [
+      <><b>Nur mit dem Paket</b> Domain & Mail.</>,
+      <><b>Verschlüsselung</b> wählen, der Port folgt von selbst.</>,
+      <><b>Der Kunde sieht</b> Server und Ports, nie Passwörter.</>,
+    ],
+    ask: "Wie richte ich den Mail-Server eines Kunden ein?",
+  });
   return (
     <div className="cdm-body">
       {domainMail.error && <p className="form-error" role="alert">{domainMail.error}</p>}
@@ -182,15 +181,14 @@ function DomainDialog({ customer, entry, onClose, onSaved }: { customer: Contrac
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
   const listId = useId();
-  const info = useInfo("So funktionieren Domains", (
-    <ul>
-      <li>Die Domain darfst du auch mit https:// oder einem Pfad eintragen; der Hub macht daraus den reinen Namen. Umlaut-Domains bleiben lesbar.</li>
-      <li>„Status“ zeigt, wo die Domain steht: Aktiv, In Einrichtung, Umzug läuft, Gekündigt oder Beendet. „Inhaber“ ist, wem sie gehört: dem Kunden oder oalab.</li>
-      <li>„Registriert bei“, „DNS bei“ und „Website läuft bei“ halten fest, wo was liegt. Die Logins bei diesen Anbietern gehören unter „Zugänge“.</li>
-      <li>Liegt „Verlängerung am“ in den nächsten 60 Tagen, steht die Domain im Überblick unter „Demnächst“. Ist der Tag vorbei, zeigt die Liste „Verlängerung prüfen“.</li>
-      <li>Die Häkchen setzt du selbst, sobald Website, SSL, MX, SPF, DKIM und DMARC eingerichtet und geprüft sind; der Hub prüft das nicht von sich aus.</li>
-    </ul>
-  ));
+  const info = useInfo("Domains", {
+    steps: [
+      <><b>Sechs Häkchen</b> setzt du nach der Prüfung selbst.</>,
+      <><b>Verlängerung</b> in 60 Tagen steht unter „Demnächst“.</>,
+      <><b>Logins</b> der Anbieter gehören unter „Zugänge“.</>,
+    ],
+    ask: "Wie trage ich eine Domain ein?",
+  });
   const disabled = busy !== null;
   const set = (key: "domain" | "status" | "owner" | "registrar" | "dnsProvider" | "websiteHost" | "renewsOn" | "note") =>
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setDraft({ ...draft, [key]: event.target.value });
@@ -318,14 +316,14 @@ function MailboxDialog({ customer, entry, domains, onClose, onSaved }: { custome
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
   const kindName = useId();
-  const info = useInfo("So funktionieren E-Mail-Adressen", (
-    <ul>
-      <li>Ein Postfach ist eine eigene Adresse mit Passwort. Eine Weiterleitung schickt die Mails an eine oder mehrere Adressen weiter, ein Alias ist eine zweite Adresse für ein Postfach.</li>
-      <li>Das Passwort eines Postfachs hinterlegst du unter „Zugänge“. Hat ein Postfach eins, wird es erst zur Weiterleitung oder zum Alias, wenn du das Passwort dort entfernt hast.</li>
-      <li>Gehört die Domain der Adresse nicht zu den Domains des Kunden, weist der Hub darauf hin; speichern lässt sie sich trotzdem. An sich selbst weiterleiten kann eine Adresse nicht.</li>
-      <li>„Löschen“ entfernt die Adresse samt ihrem Passwort.</li>
-    </ul>
-  ));
+  const info = useInfo("E-Mail-Adressen", {
+    steps: [
+      <><b>Postfach:</b> eigene Adresse mit Passwort.</>,
+      <><b>Weiterleitung:</b> schickt Mails an andere Adressen.</>,
+      <><b>Alias:</b> zweiter Name für ein Postfach.</>,
+    ],
+    ask: "Was ist der Unterschied zwischen Postfach, Weiterleitung und Alias?",
+  });
   const disabled = busy !== null;
   const set = (key: "address" | "person" | "target") => (event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, [key]: event.target.value });
   const address = normalizeEmail(draft.address);
@@ -388,15 +386,14 @@ export function CustomerDomainCard({ customer, domainMail }: { customer: Contrac
   const domains = domainMail.domains.filter((item) => item.customerId === customer.id);
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id);
   const server = domainMail.mailServers.find((item) => item.customerId === customer.id && (item.imapHost || item.smtpHost || item.webmailUrl)) ?? null;
-  const info = useInfo("So richtest du dein Mailprogramm ein", (
-    <ul>
-      <li>Leg in deinem Mailprogramm ein neues Konto an und wähle die Einrichtung von Hand mit IMAP.</li>
-      <li>Übernimm Server, Port und Verschlüsselung für Posteingang und Postausgang von hier; die Knöpfe daneben kopieren die Werte.</li>
-      <li>Benutzername ist jeweils deine vollständige E-Mail-Adresse, das Passwort ist das deines Postfachs. Der Postausgang nutzt dieselben Zugangsdaten.</li>
-      <li>Passwörter zeigt der Hub nicht an. Brauchst du ein neues, schreib deinem oalab-Team unter „Nachrichten“.</li>
-      {server?.webmailUrl && <li>„Webmail öffnen“ zeigt deine Mails ohne Einrichtung direkt im Browser.</li>}
-    </ul>
-  ));
+  const info = useInfo("Mailprogramm einrichten", {
+    steps: [
+      <><b>Neues Konto</b> anlegen und IMAP wählen.</>,
+      <><b>Server und Ports</b> von hier kopieren.</>,
+      <><b>Benutzername</b> ist deine E-Mail-Adresse.</>,
+    ],
+    ask: "Wie richte ich mein Mailprogramm ein?",
+  });
   if (!domains.length && !mailboxes.length && !server) return null;
   return (
     <GlassCard className="settings-card">
