@@ -185,8 +185,8 @@ test("every contract feature explains itself with an ⓘ right where it is used"
   assert.match(generator, /<Modal title="Vertrag erstellen"[^>]*actions=\{generatorInfo\.button\}/);
   assert.match(generator, /<legend>Beim Kunden ablegen\{fileInfo\.button\}<\/legend>/, "the ⓘ sits in the first legend, so a disabled fieldset keeps it usable");
   const versions = await source("components/hub/screens/contract-template-versions.tsx");
-  assert.match(versions, /Vertragsvorlagen\{info\.button\}<\/h3>/);
-  assert.equal((versions.match(/actions=\{info\.button\}/g) ?? []).length, 2, "both template dialogs carry an ⓘ");
+  assert.match(versions, /label="Vertragsvorlagen"[^\n]*actions=\{info\.button\}>/, "the templates are a group of rows with the ⓘ at its heading");
+  assert.equal((versions.match(/<Modal [^>]*actions=\{info\.button\}/g) ?? []).length, 2, "both template dialogs carry an ⓘ");
   assert.match(await source("components/hub/info-box.tsx"), /aria-expanded=\{open\}/);
 });
 
@@ -198,7 +198,7 @@ test("file names are safe on every system", () => {
 test("the generator lives in Vertrag & Domain, for admins only, and its templates reach the server bundle", async () => {
   const screen = await source("components/hub/screens/contracts.tsx");
   assert.match(screen, /tab === "contract" && state\.canManage && <div className="am-pane-actions"><ContractGeneratorButton/);
-  assert.match(screen, /<ContractTemplatesSection canManage=\{state\.canManage\} \/>/);
+  assert.match(await source("components/hub/screens/contracts-overview.tsx"), /<ContractTemplatesSection canManage=\{state\.canManage\} \/>/);
   assert.doesNotMatch(screen.slice(screen.indexOf("function ContractsCustomer")), /ContractGenerator|ContractTemplatesSection/, "customers never see the generator");
   const actions = await source("lib/contract-templates/actions.ts");
   const exported = [...actions.matchAll(/export async function (\w+)/g)].map((match) => match[1]);

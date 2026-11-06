@@ -2,24 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarClock, Check, ChevronLeft, FileText, Inbox, LayoutGrid, Package, Plus, Search } from "lucide-react";
+import { Check, ChevronLeft, FileText, Inbox, LayoutGrid, Plus, Search } from "lucide-react";
 import type { HubFilesState } from "@/lib/hub-files/types";
-import { packageCatalog, packageGroups, packageIds } from "@/lib/service-packages";
-import { endingSoon, formatCents, formatDay, lastPayment } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "@/lib/hub-contracts/types";
-import { renewingSoon } from "@/lib/hub-domains/rules";
 import { HeaderActions } from "../app-shell";
 import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { CustomerSign } from "./customer-sign";
 import { CategoryTitle } from "./workspace";
 import { ContractFiles, PackagesForm, TimelineDialog, TimelineList, packagesLine } from "./contracts-parts";
-import { ContractGenerator, ContractGeneratorButton, ContractTemplatesSection } from "./contract-generator";
+import { ContractGenerator, ContractGeneratorButton } from "./contract-generator";
+import { ContractsOverview } from "./contracts-overview";
 import { DomainMailTab } from "./contracts-domains";
 import { CustomerContractSheet } from "./contracts-customer";
 import { AccessTab } from "./contracts-access";
-import { CustomerQuotaCard, QuotaCell, ServiceQuotaSection } from "./contracts-quota";
-import { quotaMonth } from "@/lib/hub-service-quota/rules";
+import { CustomerQuotaCard } from "./contracts-quota";
 import type { ScreenProps } from "./types";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -46,18 +43,6 @@ function Notes({ state }: { state: ContractsState }) {
 type Pane = { kind: "overview" } | { kind: "customer"; id: string };
 type Tab = "contract" | "domains" | "access" | "timeline";
 
-/** Package endings and domain renewals of the next 60 days, soonest first. */
-function upcoming(state: ContractsState, today: string) {
-  const company = (id: string) => state.customers.find((customer) => customer.id === id);
-  const packages = endingSoon(state.customers, today, 60).map(({ customer, packageId, until }) => ({ key: `${customer.id}-${packageId}`, day: until, customer, text: `${packageCatalog[packageId].name} endet` }));
-  const domains = renewingSoon(state.domainMail.domains.flatMap((domain) => domain.details ? [{ ...domain, status: domain.details.status, renewsOn: domain.details.renewsOn }] : []), today, 60)
-    .flatMap((domain) => {
-      const customer = company(domain.customerId);
-      return customer ? [{ key: domain.id, day: domain.renewsOn, customer, text: `${domain.display} ${domain.status === "cancelled" ? "läuft aus" : "verlängert sich"}` }] : [];
-    });
-  return [...packages, ...domains].sort((a, b) => a.day.localeCompare(b.day));
-}
-
 function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsState; asOf: string; preview: boolean; fileState: HubFilesState }) {
   // „Pakete bearbeiten“ in the user management links a customer (?customer=<id>): the page opens with it.
   const linked = useSearchParams().get("customer");
@@ -71,19 +56,18 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   const [notice, setNotice] = useState("");
   const files = fileState.files;
   const current = pane.kind === "customer" ? state.customers.find((customer) => customer.id === pane.id) ?? null : null;
-  const companyOf = (id: string) => state.customers.find((customer) => customer.id === id)?.company ?? "";
 
-  function choose(next: Pane) {
+  function choose(next: Pane, nextTab: Tab = "contract") {
     setPane(next);
     setPaneOpen(true);
-    setTab("contract");
+    setTab(nextTab);
     setNotice("");
     const url = new URL(window.location.href);
     if (next.kind === "customer") url.searchParams.set("customer", next.id);
     else url.searchParams.delete("customer");
     window.history.replaceState(null, "", url);
   }
-  const openCustomer = (id: string) => choose({ kind: "customer", id });
+  const openCustomer = (id: string, nextTab: Tab = "contract") => choose({ kind: "customer", id }, nextTab);
 
   const missing = state.customers.filter((customer) => !hasService(customer));
   const term = query.trim().toLowerCase();
@@ -107,7 +91,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
           <li>
             <button type="button" className="chat-conv" aria-current={pane.kind === "overview" ? "true" : undefined} onClick={() => choose({ kind: "overview" })}>
               <span className="am-tile cdm-tile-icon"><LayoutGrid size={20} aria-hidden="true" /></span>
-              <span className="chat-conv-main"><span className="chat-conv-top"><strong>Überblick</strong></span><span className="chat-conv-sub"><span className="chat-conv-last">Pakete, Fristen und Zahlungen</span></span></span>
+              <span className="chat-conv-main"><span className="chat-conv-top"><strong>Überblick</strong></span><span className="chat-conv-sub"><span className="chat-conv-last">Handlungsbedarf, Fristen und Pakete</span></span></span>
             </button>
           </li>
         )}
@@ -129,73 +113,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   );
 
   /* ---------- Overview ---------- */
-  const soon = upcoming(state, asOf);
-  const quotaReady = state.serviceQuota.ready;
-  const quotaHead = state.serviceQuota.window ? ` im ${quotaMonth(state.serviceQuota.window).month}` : "";
-  const overview = (
-    <div className="cdm-body">
-      <div className="cdm-tiles">
-        {packageIds.map((id) => {
-          const count = state.customers.filter((customer) => customer.packages.some((item) => item.packageId === id)).length;
-          return <div key={id} className="cdm-tile"><strong className="numeric">{count}</strong><span>{packageCatalog[id].name}</span></div>;
-        })}
-        <button type="button" className={`cdm-tile${missing.length ? " is-todo" : ""}`} onClick={() => setOnlyMissing(true)} title="In der Liste zeigen">
-          <strong className="numeric">{missing.length}</strong><span>Ohne Servicepaket</span>
-        </button>
-      </div>
-
-      <ServiceQuotaSection quota={state.serviceQuota} companyOf={companyOf} onOpenCustomer={openCustomer} onNotice={setNotice} />
-
-      <section className="cdm-section" aria-labelledby="cdm-soon">
-        <h3 id="cdm-soon"><CalendarClock size={16} aria-hidden="true" />Demnächst</h3>
-        {soon.length ? (
-          <ul className="cdm-rows">
-            {soon.map(({ key, day, customer, text }) => (
-              <li key={key}>
-                <time className="numeric" dateTime={day}>{formatDay(day)}</time>
-                <button type="button" className="cdm-link" onClick={() => openCustomer(customer.id)}>{customer.company}</button>
-                <span className="cdm-muted">{text}</span>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="cdm-empty">In den nächsten 60 Tagen endet kein Paket, und keine Domain verlängert sich.</p>}
-      </section>
-
-      <section className="cdm-section" aria-labelledby="cdm-recent">
-        <h3 id="cdm-recent"><Package size={16} aria-hidden="true" />Zuletzt im Verlauf</h3>
-        <TimelineList entries={state.timeline.slice(0, 8)} files={files} preview={preview} admin canManage={false} companyOf={companyOf} onOpenCustomer={openCustomer} empty="Noch keine Zeitpunkte. Trag beim Kunden zum Beispiel ein, wann eine Rechnung bezahlt wurde." />
-      </section>
-
-      <section className="cdm-section" aria-labelledby="cdm-all">
-        <h3 id="cdm-all"><LayoutGrid size={16} aria-hidden="true" />Alle Kunden</h3>
-        {state.customers.length ? (
-          <div className="cdm-table-wrap">
-            <table className="data-table cdm-table">
-              <caption className="visually-hidden">Kunden mit Domain-Paket, Servicepaket, Anfragen in diesem Monat und letzter Zahlung</caption>
-              <thead><tr><th scope="col">Kunde</th><th scope="col">{packageGroups.domain.name}</th><th scope="col">{packageGroups.service.name}</th>{quotaReady && <th scope="col">Anfragen{quotaHead}</th>}<th scope="col">Letzte Zahlung</th></tr></thead>
-              <tbody>
-                {state.customers.map((customer) => {
-                  const paid = lastPayment(state.timeline, customer.id);
-                  return (
-                    <tr key={customer.id} className="data-row">
-                      <td className="cell-person"><button type="button" className="row-open" onClick={() => openCustomer(customer.id)}><CustomerSign customer={customer} logo={customer.logo} size="sm" /><strong>{customer.company}</strong></button></td>
-                      {customer.packages.map((item) => (
-                        <td key={item.group}>{item.packageId ? <>{packageCatalog[item.packageId].short}{item.until && <span className="chat-pill tone-todo cdm-inline-pill">bis {formatDay(item.until)}</span>}</> : <span className="cell-none">–</span>}</td>
-                      ))}
-                      {quotaReady && <td><QuotaCell quota={state.serviceQuota} customerId={customer.id} /></td>}
-                      <td className="cdm-muted numeric">{paid ? `${formatDay(paid.occurredOn)}${paid.amountCents !== null ? ` · ${formatCents(paid.amountCents)}` : ""}` : <span className="cell-none">–</span>}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : <p className="cdm-empty">Es sind noch keine Kunden angelegt.</p>}
-      </section>
-
-      <ContractTemplatesSection canManage={state.canManage} />
-    </div>
-  );
+  const overview = <ContractsOverview state={state} asOf={asOf} onOpenCustomer={(id, next) => openCustomer(id, next)} onShowMissing={() => setOnlyMissing(true)} onNotice={setNotice} />;
 
   /* ---------- One customer ---------- */
   const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
@@ -255,7 +173,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
             {list}
             <section className="am-pane" aria-label={current ? current.company : "Überblick"}>
               {head}
-              <div className="am-scroll">{current ? customerBody : overview}</div>
+              {current ? <div className="am-scroll">{customerBody}</div> : overview}
             </section>
           </div>
         </div>

@@ -138,7 +138,8 @@ test("the customer's line and the service platform's hints appear only while the
   assert.match(screen, /const text = status === "none" \? `\$\{usageLine\(row\)\} · kein Paket` : usageLine\(row\);/);
   assert.equal(usageLine({ packageId: null, monthlyLimit: 0, monthlyUsed: 1 }), "1 Anfrage");
   const contracts = await source("components/hub/screens/contracts.tsx");
-  assert.match(contracts, /<ServiceQuotaSection quota=\{state\.serviceQuota\}/);
+  // The quota is a group of the overview's table.
+  assert.match(await source("components/hub/screens/contracts-overview.tsx"), /<ServiceQuotaSection quota=\{state\.serviceQuota\}/);
   assert.match(contracts, /<CustomerQuotaCard key=\{`quota-\$\{current\.id\}`\} customer=\{current\} quota=\{state\.serviceQuota\} fixtures=\{state\.source === "fixtures"\}/);
   // The customer's row sits in the group „Pakete“ of their sheet.
   assert.match(await source("components/hub/screens/contracts-customer.tsx"), /<CustomerQuotaLine quota=\{state\.serviceQuota\} customerId=\{customer\.id\} \/>/);

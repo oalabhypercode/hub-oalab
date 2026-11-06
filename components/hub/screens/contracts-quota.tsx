@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Gauge, MinusCircle, PlusCircle, Power, Save } from "lucide-react";
+import { ArrowRight, Gauge, MinusCircle, PlusCircle, Power, Save } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { packageCatalog, serviceRequestLimits } from "@/lib/service-packages";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
@@ -11,7 +11,8 @@ import { quotaRequestFixtures } from "@/lib/hub-service-quota/fixtures";
 import type { QuotaRequest, ServiceQuotaState } from "@/lib/hub-service-quota/types";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
-import { StatusGlyph } from "../sheet";
+import { StatusGlyph, TableGroup, useCollapsedGroups, type GlyphKind } from "../sheet";
+import { CustomerSign } from "./customer-sign";
 import { useContractAction } from "./contracts-parts";
 
 // Vertrag & Domain, stage 3: the Service package sets how many new requests a customer may make on the service
@@ -22,6 +23,8 @@ import { useContractAction } from "./contracts-parts";
 const Spinner = () => <MiniLoader size={16} />;
 const LITE = serviceRequestLimits["service-lite"];
 const MAX = serviceRequestLimits["service-max"];
+/** Columns of the overview table it joins: Eintrag, Art, Datum, Aktion. */
+const QUOTA_COLUMNS = 4;
 
 type Month = ReturnType<typeof quotaMonth>;
 type Named = QuotaRow & { company: string };
@@ -29,14 +32,18 @@ type Named = QuotaRow & { company: string };
 const packageLine = (row: QuotaRow, month: Month | null) =>
   row.packageId ? `${packageCatalog[row.packageId].short} · ${usageLine(row)} im ${month?.month ?? "Monat"}` : "Kein Servicepaket";
 
-/** The overview's card: switch, whom it blocks (or would block) and who is from 80 % on. Nothing without the migration. */
-export function ServiceQuotaSection({ quota, companyOf, onOpenCustomer, onNotice }: {
+/**
+ * The overview's group „Service-Kontingente“: the switch as the first row, then whom it blocks (or would block) and
+ * who is from 80 % on, each opening the customer. Nothing without the migration, the error with it.
+ */
+export function ServiceQuotaSection({ quota, customers, onOpenCustomer, onNotice }: {
   quota: ServiceQuotaState;
-  companyOf: (customerId: string) => string;
+  customers: readonly ContractCustomer[];
   onOpenCustomer: (customerId: string) => void;
   onNotice: (message: string) => void;
 }) {
   const [dialog, setDialog] = useState(false);
+  const groups = useCollapsedGroups();
   const info = useInfo("Service-Kontingente", {
     steps: [
       <><b>Service Lite {LITE}, Max {MAX}</b> neue Anfragen im Monat.</>,
@@ -47,75 +54,71 @@ export function ServiceQuotaSection({ quota, companyOf, onOpenCustomer, onNotice
     ask: "Wie funktionieren die Service-Kontingente?",
   });
   if (!quota.ready) {
-    return quota.error ? (
-      <section className="cdm-section" aria-labelledby="cdm-quota">
-        <h3 id="cdm-quota"><Gauge size={16} aria-hidden="true" />Service-Kontingente</h3>
-        <p className="cdm-empty">{quota.error}</p>
-      </section>
-    ) : null;
+    return quota.error
+      ? <TableGroup colSpan={QUOTA_COLUMNS} label="Service-Kontingente" count={0} glyph={<Gauge size={16} aria-hidden="true" />} collapsed={false} onToggle={() => undefined} empty={quota.error} />
+      : null;
   }
   const month = quota.window ? quotaMonth(quota.window) : null;
   const named: Named[] = quota.customers.flatMap((row) => {
-    const company = companyOf(row.customerId);
-    return company ? [{ ...row, company }] : [];
+    const customer = customers.find((item) => item.id === row.customerId);
+    return customer ? [{ ...row, company: customer.company }] : [];
   });
   const blocked = blockList(named);
   const warned = warnList(named);
-  return (
-    <section className="cdm-section" aria-labelledby="cdm-quota">
-      <h3 id="cdm-quota"><Gauge size={16} aria-hidden="true" />Service-Kontingente{info.button}</h3>
-      {info.box}
-      <div className="cdm-quota-switch">
-        <span className={`chat-pill tone-${quota.enforced ? "ok" : "off"}`}>{quota.enforced ? "Sperre an" : "Sperre aus"}</span>
-        <p>
-          {quota.enforced
-            ? `Am Limit und ohne Servicepaket gehen keine neuen Anfragen${month ? `, bis zum ${month.resetDay}` : ""}.`
-            : "Kunden stellen weiter unbegrenzt neue Anfragen. Gezählt wird schon, Kunden sehen davon noch nichts."}
-        </p>
-        {quota.canManage && (
-          <button type="button" className={`sheet-action${quota.enforced ? "" : " is-primary"}`} onClick={() => setDialog(true)}>
-            <Power size={15} aria-hidden="true" />{quota.enforced ? "Sperre ausschalten" : "Sperre einschalten"}
+  const customerRow = (row: Named, glyph: GlyphKind, label: string) => {
+    const customer = customers.find((item) => item.id === row.customerId);
+    if (!customer) return null;
+    return (
+      <tr key={`${label}-${row.customerId}`} className="file-row">
+        <td className="cell-file">
+          <button type="button" className="am-file" onClick={() => onOpenCustomer(row.customerId)}>
+            <CustomerSign customer={customer} logo={customer.logo} size="md" />
+            <span className="am-file-text"><strong>{customer.company}</strong><small>{packageLine(row, month)}</small></span>
           </button>
-        )}
-      </div>
-      {quota.switchedBy && quota.switchedAt && (
-        <p className="cdm-empty">Zuletzt {quota.enforced ? "eingeschaltet" : "ausgeschaltet"} am {formatBerlinDay(quota.switchedAt)} von {quota.switchedBy}.</p>
-      )}
-      <div className="cdm-quota-group">
-        <h4>{quota.enforced ? "Gesperrt" : "Beim Einschalten gesperrt"}<span className="numeric">{blocked.length}</span></h4>
-        {blocked.length ? (
-          <ul className="cdm-rows">
-            {blocked.map((row) => (
-              <li key={row.customerId}>
-                <button type="button" className="cdm-link" onClick={() => onOpenCustomer(row.customerId)}>{row.company}</button>
-                <span className="cdm-muted">{packageLine(row, month)}</span>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="cdm-empty">Niemand: Alle Kunden mit Zugang zur Serviceplattform haben ein Servicepaket und noch Anfragen frei.</p>}
-      </div>
-      {warned.length > 0 && (
-        <div className="cdm-quota-group">
-          <h4>Ab 80 %<span className="numeric">{warned.length}</span></h4>
-          <ul className="cdm-rows">
-            {warned.map((row) => (
-              <li key={row.customerId}>
-                <button type="button" className="cdm-link" onClick={() => onOpenCustomer(row.customerId)}>{row.company}</button>
-                <span className="cdm-muted">{packageLine(row, month)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {dialog && (
-        <QuotaSwitchDialog
-          enforce={!quota.enforced}
-          blocked={blocked}
-          onClose={() => setDialog(false)}
-          onDone={(on) => { setDialog(false); onNotice(on ? "Die Anfragen-Sperre ist eingeschaltet." : "Die Anfragen-Sperre ist ausgeschaltet."); }}
-        />
-      )}
-    </section>
+        </td>
+        <td className="cell-category"><span className="status-cell"><StatusGlyph kind={glyph} />{label}</span></td>
+        <td className="cell-date"><QuotaCell quota={quota} customerId={row.customerId} /></td>
+        <td className="cell-action"><button type="button" className="cdm-row-link" onClick={() => onOpenCustomer(row.customerId)}>Öffnen<ArrowRight size={14} aria-hidden="true" /></button></td>
+      </tr>
+    );
+  };
+  return (
+    <TableGroup colSpan={QUOTA_COLUMNS} label="Service-Kontingente" count={blocked.length + warned.length} glyph={<Gauge size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("quota")} onToggle={() => groups.toggle("quota")} actions={info.button}>
+      <tr className="file-row cdm-quota-switch-row">
+        <td className="cell-file">
+          <span className="am-file">
+            <span className={`am-file-icon cdm-file-icon${quota.enforced ? "" : " is-off"}`}><Power size={16} aria-hidden="true" /></span>
+            <span className="am-file-text">
+              <strong>Anfragen-Sperre</strong>
+              <small>{quota.enforced
+                ? `Am Limit und ohne Servicepaket gehen keine neuen Anfragen${month ? `, bis zum ${month.resetDay}` : ""}.`
+                : "Kunden stellen weiter unbegrenzt neue Anfragen; gezählt wird schon."}</small>
+            </span>
+          </span>
+        </td>
+        <td className="cell-category"><span className="status-cell"><StatusGlyph kind={quota.enforced ? "active" : "invited"} />{quota.enforced ? "Sperre an" : "Sperre aus"}</span></td>
+        <td className="cell-date" title={quota.switchedBy ? `von ${quota.switchedBy}` : undefined}>{quota.switchedAt ? `${quota.enforced ? "an" : "aus"} seit ${formatBerlinDay(quota.switchedAt)}` : ""}</td>
+        <td className="cell-action">
+          {quota.canManage && (
+            <button type="button" className={`sheet-action${quota.enforced ? "" : " is-primary"}`} onClick={() => setDialog(true)}>
+              <Power size={15} aria-hidden="true" />{quota.enforced ? "Ausschalten" : "Einschalten"}
+            </button>
+          )}
+          {info.box}
+          {dialog && (
+            <QuotaSwitchDialog
+              enforce={!quota.enforced}
+              blocked={blocked}
+              onClose={() => setDialog(false)}
+              onDone={(on) => { setDialog(false); onNotice(on ? "Die Anfragen-Sperre ist eingeschaltet." : "Die Anfragen-Sperre ist ausgeschaltet."); }}
+            />
+          )}
+        </td>
+      </tr>
+      {blocked.map((row) => customerRow(row, "disabled", quota.enforced ? "Gesperrt" : "Beim Einschalten gesperrt"))}
+      {warned.map((row) => customerRow(row, "pending", "Ab 80 %"))}
+      {!blocked.length && <tr className="table-empty-row"><td colSpan={QUOTA_COLUMNS}>Niemand gesperrt: Alle Kunden mit Zugang zur Serviceplattform haben ein Servicepaket und noch Anfragen frei.</td></tr>}
+    </TableGroup>
   );
 }
 

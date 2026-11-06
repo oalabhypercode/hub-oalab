@@ -228,7 +228,8 @@ test("„Domain & Mail“ and „Zugänge“ sit between „Vertrag“ and „Ve
   assert.deepEqual(tabs, ["contract", "domains", "access", "timeline"]);
   assert.match(screen, />Domain & Mail<\/button>/);
   assert.match(screen, />Zugänge<\/button>/);
-  assert.match(screen, /const soon = upcoming\(state, asOf\);/);
-  assert.match(screen, /renewingSoon\(state\.domainMail\.domains/);
+  const overview = await source("components/hub/screens/contracts-overview.tsx");
+  assert.match(overview, /const soon = upcoming\(state, asOf\)/);
+  assert.match(overview, /renewingSoon\(state\.domainMail\.domains/);
   assert.match(screen, /<CustomerContractSheet customer=\{customer\} state=\{state\} files=\{fileState\.files\} preview=\{preview\} \/>/);
 });
