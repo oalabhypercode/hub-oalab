@@ -65,15 +65,15 @@ export function PackagesForm({ customer, canManage, onSaved }: { customer: Contr
   const [draft, setDraft] = useState<CustomerPackage[]>(customer.packages);
   const { busy, error, run } = useContractAction();
   const formId = useId();
-  const info = useInfo("So funktionieren Pakete", (
-    <ul>
-      <li>Je Gruppe hat ein Kunde höchstens ein Paket: Domain (OALAB Domain oder Domain & Mail) und Service (Service Lite oder Max). Eine Gruppe darf leer bleiben.</li>
-      <li>„Seit“ ist der Beginn. „Gekündigt zum“ trägst du ein, sobald gekündigt ist; endet ein Paket in den nächsten 60 Tagen, steht es im Überblick unter „Demnächst“.</li>
-      <li>„Pakete speichern“ trägt jede Änderung selbst in den Verlauf ein, zuerst nur intern. Dort gibst du den Eintrag für den Kunden frei.</li>
-      <li>Der Kunde sieht seine Pakete unter Vertrag & Domain, im Profil und unten links neben seinem Namen.</li>
-      <li>Mit den Paketen der Serviceplattform sind sie noch nicht verbunden.</li>
-    </ul>
-  ));
+  const info = useInfo("Pakete", {
+    steps: [
+      <><b>Ein Paket je Gruppe:</b> Domain und Service.</>,
+      <><b>Speichern</b> schreibt es in den Verlauf, erst intern.</>,
+      <><b>„Gekündigt zum“</b> setzen: steht dann unter „Demnächst“.</>,
+    ],
+    warn: "Noch nicht mit der Serviceplattform verbunden.",
+    ask: "Wie funktionieren die Pakete unter Vertrag & Domain?",
+  });
   const changed = JSON.stringify(draft) !== JSON.stringify(customer.packages);
   const set = (group: PackageGroup, patch: Partial<CustomerPackage>) => setDraft((items) => items.map((item) => {
     if (item.group !== group) return item;
@@ -236,15 +236,14 @@ export function TimelineDialog({ customer, entry, files, today, onClose, onSaved
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
   const switchId = useId();
-  const info = useInfo("So funktioniert der Verlauf", (
-    <ul>
-      <li>Ein Zeitpunkt hat Datum, Art und Titel, dazu nach Wunsch einen Betrag und eine Datei, die bei diesem Kunden im Asset Management liegt.</li>
-      <li>Die Notiz ist nur für das oalab-Team. Der Kunde sieht sie nie, auch nicht bei freigegebenen Einträgen.</li>
-      <li>Neue Einträge sind „Nur intern“. Freigeben kannst du sie hier mit dem Schalter oder später in der Liste mit einem Klick auf „Nur intern“.</li>
-      <li>Freigegebene Einträge sieht der Kunde unter Vertrag & Domain im Verlauf, mit Link zur Datei.</li>
-      <li>„Rechnung bezahlt“ zählt im Überblick als letzte Zahlung. Paketwechsel und Kündigungen trägt der Hub beim Speichern der Pakete selbst ein.</li>
-    </ul>
-  ));
+  const info = useInfo("Verlauf", {
+    steps: [
+      <><b>Neue Einträge</b> sind erst intern.</>,
+      <><b>Freigeben</b> mit dem Schalter oder „Nur intern“ in der Liste.</>,
+      <><b>Die Notiz</b> sieht der Kunde nie.</>,
+    ],
+    ask: "Wie funktioniert der Verlauf eines Kunden?",
+  });
   const set = (key: "occurredOn" | "kind" | "title" | "amount" | "fileId" | "note") => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setDraft({ ...draft, [key]: event.target.value });
   const own = filesOf(files, customer.id);
   const disabled = busy !== null;

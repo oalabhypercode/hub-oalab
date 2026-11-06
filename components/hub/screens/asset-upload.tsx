@@ -121,15 +121,15 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
   const chosen = queue.customerIds.flatMap((id) => customers.filter((customer) => customer.id === id));
   const one = chosen.length === 1 ? chosen[0] : null;
   const subtitle = working ? `${queue.done} von ${items.length} fertig` : ready.length ? `${plural(ready.length, "Datei", "Dateien")} bereit` : "Dateien wählen oder hierher ziehen";
-  const info = useInfo("So funktioniert das Hochladen", (
-    <ul>
-      <li>Bis zu {MAX_UPLOAD_BATCH} Dateien auf einmal, jede bis {formatBytes(MAX_FILE_BYTES)}. Programme und Skripte (etwa .exe oder .js) markiert der Hub rot und lädt sie nicht hoch.</li>
-      <li>Jede Datei bekommt einen Titel und eine Kategorie. Die Kategorie schlägt der Hub nach dem Dateinamen vor, „Kategorie für alle“ setzt alle auf einmal.</li>
-      <li>Unter „Für“ wählst du einen oder mehrere Kunden. Einen Ordner gibt es nur bei genau einem Kunden; ohne Kunden landen die Dateien in der Ablage und lassen sich dort später zuordnen.</li>
-      <li>Du kannst Dateien auch direkt vom Computer auf einen Ordner in der Liste ziehen. Dann sind Kunde und Ordner schon eingetragen.</li>
-      <li>Zugeordnete Kunden sehen die Dateien sofort und bekommen eine Meldung in der Glocke und per E-Mail. Betreut ein Freelancer den Kunden, sieht er sie auch, außer Verträgen, Angeboten und Rechnungen.</li>
-    </ul>
-  ));
+  const info = useInfo("Hochladen", {
+    steps: [
+      <><b>Bis {MAX_UPLOAD_BATCH} Dateien,</b> je höchstens {formatBytes(MAX_FILE_BYTES)}.</>,
+      <><b>Ohne Kunde</b> landet alles in der Ablage.</>,
+      <><b>Zugeordnete Kunden</b> sehen es sofort, mit Meldung.</>,
+    ],
+    warn: "Programme und Skripte lädt der Hub nicht hoch.",
+    ask: "Wie lade ich Dateien für einen Kunden hoch?",
+  });
 
   async function submit() {
     const message = await queue.upload();

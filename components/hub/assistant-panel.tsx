@@ -12,7 +12,7 @@ import { confirmCustomerProposal, confirmProjectUpdate, confirmTaskProposal, con
 import { changeNote, projectChangeLine, taskChangeLines, type ChangeLine, type ChangeView } from "@/lib/hub-assistant/updates";
 import { contactLines, customerNote, type CustomerChoice, type CustomerView } from "@/lib/hub-assistant/customers";
 import { formatDeadline } from "@/lib/hub-data";
-import { useInfo } from "./info-box";
+import { useInfo, type InfoCard } from "./info-box";
 import { Modal } from "./modal";
 
 /** New tasks (Schritt 3/4), a change to a project or to existing tasks (Schritt 5) or a new customer (Schritt 6). */
@@ -76,14 +76,26 @@ type PanelProps = {
   /** The project "Assistent zu diesem Projekt fragen" was opened from; it stays the reference until removed. */
   project: { id: string; name: string } | null;
   onClearProject: () => void;
+  /** A question from „Mehr dazu im Assistenten“ of an ⓘ: it lands in the input, ready to send or change. */
+  question?: { text: string; key: number } | null;
   onClose: () => void;
 };
 
 /** Chat with the hub assistant (Claude); the conversation lives in the shell (and the browser) so it survives page changes. */
-export function AssistantPanel({ turns, setTurns, admin, available, mode, onModeChange, project, onClearProject, onClose }: PanelProps) {
+export function AssistantPanel({ turns, setTurns, admin, available, mode, onModeChange, project, onClearProject, question, onClose }: PanelProps) {
   // Admins paste meeting transcripts; the server applies the same limit by role.
   const limit = admin ? MAX_ADMIN_QUESTION_CHARS : MAX_QUESTION_CHARS;
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(question?.text ?? "");
+  const input = useRef<HTMLTextAreaElement>(null);
+  // A new question from an ⓘ replaces the draft, also while the panel is already open.
+  const [questionKey, setQuestionKey] = useState(question?.key);
+  if (question && question.key !== questionKey) {
+    setQuestionKey(question.key);
+    setDraft(question.text);
+  }
+  useEffect(() => {
+    if (question) input.current?.focus();
+  }, [question]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   /** What the assistant is looking up right now, e.g. "Suche „Müller“ …". */
@@ -275,6 +287,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
       {available && (
         <form className="assistant-input" onSubmit={(event) => { event.preventDefault(); ask(draft); }}>
           <textarea
+            ref={input}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
@@ -317,29 +330,24 @@ const statusLabels: Record<ProposalState["state"], string> = {
   open: "Offen", saving: "Wird gespeichert …", saved: "Gespeichert", discarded: "Verworfen", failed: "Fehler", expired: "Abgelaufen",
 };
 
-const expiryPoint = "Der Vorschlag gilt 30 Minuten; danach lass ihn neu vorschlagen. Jeder Vorschlag und was daraus wurde, steht im KI-Protokoll.";
-const changePoints = [
-  "Die Karte zeigt jede Änderung als alt → neu. Gespeichert wird nur, was angehakt ist, und erst mit „Speichern“.",
-  "Hat inzwischen jemand im Studio dasselbe geändert, speichert der Hub diese Änderung nicht.",
-  expiryPoint,
-];
+const expiryStep = <><b>30 Minuten</b> gültig, danach neu vorschlagen lassen.</>;
+const changeCard: InfoCard = {
+  steps: [<><b>Alt → neu</b> zeigt jede Änderung einzeln.</>, <><b>Gespeichert</b> wird nur, was angehakt ist.</>, expiryStep],
+  ask: "Wie funktionieren die Änderungs-Vorschläge des Assistenten?",
+};
 
-/** The ⓘ of every proposal card, per kind: what saving does and what to watch out for. */
-const proposalHelp: Record<keyof typeof kinds, { title: string; points: string[] }> = {
-  "tasks.create": { title: "So funktionieren Aufgaben-Vorschläge", points: [
-    "Angelegt wird erst mit „Speichern“, dann direkt im Studio im genannten Projekt.",
-    "Ein Haken weg nimmt eine Aufgabe heraus. Je Aufgabe stellst du ein, ob oalab oder der Kunde dran ist und ob der Kunde sie sieht.",
-    "Gibt es schon eine offene Aufgabe mit diesem Titel oder steht ein Zitat nicht im eingefügten Text, warnt die Karte.",
-    expiryPoint,
-  ] },
-  "tasks.update": { title: "So funktionieren Änderungs-Vorschläge", points: changePoints },
-  "project.update": { title: "So funktionieren Änderungs-Vorschläge", points: changePoints },
-  "customer.create": { title: "So funktioniert der Kunden-Vorschlag", points: [
-    "Angelegt wird erst mit „Kunde anlegen“, dann in Service und im Hub, mit einer neuen Kundennummer.",
-    "Das Service-Paket wählst du in der Karte. Ähnliche Kunden oder dieselbe Kontakt-E-Mail zeigt sie als Warnung.",
-    "Nennt der Vorschlag einen Ansprechpartner, kann er gleich einen Login bekommen. Die Einladungs-Mail geht nur, wenn du sie eigens anhakst.",
-    expiryPoint,
-  ] },
+/** The ⓘ of every proposal card, per kind: what saving does and how long the proposal holds. */
+const proposalHelp: Record<keyof typeof kinds, { title: string; card: InfoCard }> = {
+  "tasks.create": { title: "Aufgaben-Vorschlag", card: {
+    steps: [<><b>Speichern</b> legt sie im Studio an.</>, <><b>Haken weg</b> nimmt eine Aufgabe heraus.</>, expiryStep],
+    ask: "Wie funktionieren die Aufgaben-Vorschläge des Assistenten?",
+  } },
+  "tasks.update": { title: "Änderungs-Vorschlag", card: changeCard },
+  "project.update": { title: "Änderungs-Vorschlag", card: changeCard },
+  "customer.create": { title: "Kunden-Vorschlag", card: {
+    steps: [<><b>Kunde anlegen</b> legt ihn in Service und Hub an.</>, <><b>Das Service-Paket</b> wählst du in der Karte.</>, <><b>Die Einladungs-Mail</b> geht nur, wenn angehakt.</>],
+    ask: "Wie funktioniert der Kunden-Vorschlag des Assistenten?",
+  } },
 };
 
 /** Rows of a card: from six on only the first five show, until "Alle zeigen". */
@@ -376,7 +384,7 @@ function CardFrame({ item, kind, count, context, label, link, children, actions,
   const open = expanded ?? !decided;
   const { icon: Icon, label: kindLabel } = kinds[kind];
   const help = proposalHelp[kind];
-  const info = useInfo(help.title, <ul>{help.points.map((point) => <li key={point}>{point}</li>)}</ul>);
+  const info = useInfo(help.title, help.card);
   const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(item.view.expiresAt));
   const summary = item.message ?? (state === "expired" ? "Abgelaufen (30 Minuten), nichts gespeichert. Bitte den Assistenten neu vorschlagen lassen." : state === "discarded" ? "Verworfen, nichts gespeichert." : "");
   return (

@@ -32,14 +32,14 @@ export function ServedByDialog({ customer, freelancers, onClose, onSaved }: { cu
   const [selected, setSelected] = useState(customer.freelancerIds ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const info = useInfo("So funktioniert „Betreut von“", (
-    <ul>
-      <li>Hak die Freelancer an, die diesen Kunden für oalab mitbetreuen, und speichere. Dasselbe geht im User Management: beim Kunden unter „Betreut von“, beim Freelancer unter „Betreute Kunden“.</li>
-      <li>Ab dann sieht der Freelancer den Kunden im Asset Management und bekommt eine Meldung, wenn eine Datei für ihn dazukommt.</li>
-      <li>Welche Datei er sieht, legst du je Datei in ihren Details mit „Sichtbar für“ fest.</li>
-      <li>Nimmst du den Haken weg, sieht der Freelancer den Kunden und dessen Dateien nicht mehr.</li>
-    </ul>
-  ));
+  const info = useInfo("Betreut von", {
+    steps: [
+      <><b>Anhaken und speichern:</b> der Freelancer betreut mit.</>,
+      <><b>Er sieht</b> den Kunden dann im Asset Management.</>,
+      <><b>Welche Datei,</b> legst du je Datei unter „Sichtbar für“ fest.</>,
+    ],
+    ask: "Wie funktioniert „Betreut von“?",
+  });
   async function save() {
     setBusy(true);
     setError("");

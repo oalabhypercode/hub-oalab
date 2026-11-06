@@ -23,17 +23,16 @@ export function SecondFactorCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const info = useInfo("So funktioniert der zweite Faktor", (
-    <ul>
-      {/* Freelancers never reach the service platform, so their text names the hub only. */}
-      <li>{status?.required ? "Die Methode, die du hier wählst, fragt der Hub bei jeder Anmeldung nach dem Passwort ab." : "Die Methode, die du hier wählst, fragen Hub und Serviceplattform bei jeder Anmeldung nach dem Passwort ab."}</li>
-      <li>Code per E-Mail: sechs Ziffern, 10 Minuten gültig. Es gilt nur der Code aus der neuesten E-Mail; ihr Betreff nennt die Uhrzeit, „Neuen Code senden“ schickt einen frischen.</li>
-      <li>Authenticator-App: QR-Code scannen und mit dem ersten Code bestätigen. Wechselst du später zu E-Mail oder Aus, wird die App aus deinem Konto entfernt.</li>
-      <li>„Passwort vergessen“: Mit Code per E-Mail reicht der Link aus der E-Mail, mit der App brauchst du zusätzlich ihren Code.</li>
-      <li>Handy verloren? Das oalab-Team setzt deinen Schutz auf Code per E-Mail zurück.</li>
-      {status?.required && <li>Für Freelancer lässt sich der Schutz nicht ausschalten, weil sie die Dateien mehrerer Kunden sehen.</li>}
-    </ul>
-  ));
+  const info = useInfo("Zweiter Faktor", {
+    steps: [
+      // Freelancers never reach the service platform, so their text names the hub only.
+      status?.required ? <><b>Bei jeder Anmeldung</b> fragt der Hub danach.</> : <><b>Bei jeder Anmeldung</b> in Hub und Serviceplattform.</>,
+      <><b>Code per E-Mail:</b> sechs Ziffern, 10 Minuten gültig.</>,
+      <><b>Handy verloren?</b> oalab setzt auf Code per E-Mail zurück.</>,
+    ],
+    warn: status?.required ? "Für Freelancer lässt er sich nicht ausschalten." : undefined,
+    ask: "Wie funktioniert der zweite Faktor?",
+  });
 
   async function load() {
     const result = await getSecondFactorStatus();

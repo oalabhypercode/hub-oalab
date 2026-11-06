@@ -65,25 +65,22 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
   const formId = useId();
   const template = contractTemplates[templateId];
   const suggested = suggestedTemplate(customer.packages.map((item) => item.packageId));
-  const generatorInfo = useInfo("So funktioniert der Vertragsgenerator", (
-    <ul>
-      <li>Wähle die Vorlage. „passt zu den Paketen“ markiert die, die zum Domain-Paket des Kunden passt.</li>
-      <li>Firma, Anschrift und Domain kommen aus dem Kundenstamm. Änderst du sie hier, gilt das nur für diesen Vertrag; dauerhaft änderst du sie im User Management.</li>
-      <li>Jahrespreis, Rabatt und Minutenstaffel rechnet der Hub selbst. oalabs Anschrift kommt aus dem Impressum.</li>
-      <li>Leere Felder unter „Unterschriften“ werden im Vertrag zu Linien zum Ausfüllen von Hand.</li>
-      <li>„Word-Datei herunterladen“ speichert nichts im Hub. Die PDF machst du in Word mit „Speichern unter“ → PDF.</li>
-      <li>Der Text kommt immer aus der aktiven Fassung der Vorlage, siehe Überblick → Vertragsvorlagen.</li>
-    </ul>
-  ));
-  const fileInfo = useInfo("So funktioniert „Beim Kunden ablegen“", (
-    <ul>
-      <li>Der Vertrag kommt ins Asset Management des Kunden, in den Ordner „Verträge“, mit der Kategorie Vertrag. Den Ordner legt der Hub beim ersten Mal an.</li>
-      <li>Der Kunde sieht ihn unter Dateien und unter Vertrag & Domain, seine Freelancer nicht.</li>
-      <li>„Diesen Vertrag als Word-Datei“ legt den Vertrag so ab, wie er oben ausgefüllt ist. „Fertige Datei hochladen“ nimmt deine PDF aus Word oder die unterschriebene Fassung (PDF oder Word).</li>
-      <li>Mit „Kunden benachrichtigen“ sieht der Kunde die neue Datei in der Glocke. Hat er E-Mails nicht abgeschaltet, kommt zusätzlich eine E-Mail, die die Neuigkeiten einer Viertelstunde bündelt.</li>
-      <li>Umbenennen oder löschen kannst du den Vertrag danach im Asset Management.</li>
-    </ul>
-  ));
+  const generatorInfo = useInfo("Vertragsgenerator", {
+    steps: [
+      <><b>Vorlage wählen;</b> „passt zu den Paketen“ hilft.</>,
+      <><b>Kundendaten</b> kommen aus dem Kundenstamm.</>,
+      <><b>Leere Felder</b> werden Linien zum Ausfüllen.</>,
+    ],
+    ask: "Wie funktioniert der Vertragsgenerator?",
+  });
+  const fileInfo = useInfo("Beim Kunden ablegen", {
+    steps: [
+      <><b>Ablage</b> im Ordner „Verträge“ des Kunden.</>,
+      <><b>Der Kunde</b> sieht ihn, seine Freelancer nicht.</>,
+      <><b>Benachrichtigen</b> meldet es per Glocke und E-Mail.</>,
+    ],
+    ask: "Wie lege ich einen Vertrag beim Kunden ab?",
+  });
 
   // The customer master (address, website) comes from the server; without a real admin login there is none.
   useEffect(() => {

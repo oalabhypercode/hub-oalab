@@ -6,7 +6,7 @@ import { Check, Copy, Eye, EyeOff, KeyRound, LockKeyhole, Mail, Pencil, Plus, Sa
 import { MiniLoader } from "@/components/brand-loader";
 import { hubHref } from "@/lib/hub-data";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
-import { LOOK_LIMIT, LOOK_WINDOW_MINUTES, loginKindIds, loginKinds, MAX_LABEL, MAX_SECRET, MAX_USERNAME, providerSuggestions, REVEAL_SECONDS, type LoginKind, type VaultOwner } from "@/lib/hub-domains/rules";
+import { loginKindIds, loginKinds, MAX_LABEL, MAX_SECRET, MAX_USERNAME, providerSuggestions, REVEAL_SECONDS, type LoginKind, type VaultOwner } from "@/lib/hub-domains/rules";
 import type { DomainMailState, ProviderLogin } from "@/lib/hub-domains/types";
 import { deleteLogin, removeSecret, revealSecret, saveLogin, saveSecret, type VaultResult } from "@/lib/hub-vault/actions";
 import { useInfo } from "../info-box";
@@ -39,15 +39,14 @@ export function AccessTab({ customer, domainMail, fixtures, preview, onNotice }:
   const usable = confirmed && Boolean(vault?.keyReady);
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id && item.kind === "mailbox");
   const logins = domainMail.logins.filter((item) => item.customerId === customer.id);
-  const info = useInfo("So funktionieren die Zugänge", (
-    <ul>
-      <li>Hier liegen die Passwörter der Postfächer und die Logins des Kunden bei Domain-Anbieter, DNS und Hosting. Gespeichert wird verschlüsselt; die Seite selbst kennt kein Passwort.</li>
-      <li>Anzeigen, Kopieren und Ändern gehen nur mit einem zweiten Faktor, den du bei der Anmeldung bestätigt hast.</li>
-      <li>Das Auge zeigt ein Passwort {REVEAL_SECONDS} Sekunden lang, dann ist es wieder verdeckt, ebenso wenn du den Tab wechselst. „Kopieren“ legt es in die Zwischenablage, ohne es anzuzeigen.</li>
-      <li>Jeder Blick und jede Änderung steht im Verlauf des Kunden im User Management, nie mit dem Passwort. Mehr als {LOOK_LIMIT} Passwörter in {LOOK_WINDOW_MINUTES} Minuten lässt der Hub nicht zu.</li>
-      <li>Postfächer legst du im Reiter „Domain & Mail“ an. Nur Postfächer haben ein Passwort, Weiterleitungen und Aliase nicht.</li>
-    </ul>
-  ));
+  const info = useInfo("Zugänge", {
+    steps: [
+      <><b>Nur mit zweitem Faktor</b> sichtbar.</>,
+      <><b>{REVEAL_SECONDS} Sekunden</b> lesbar, dann wieder verdeckt.</>,
+      <><b>Jeder Blick</b> steht im Verlauf des Kunden.</>,
+    ],
+    ask: "Wie funktionieren die Zugänge unter Vertrag & Domain?",
+  });
 
   const note = fixtures
     ? "Fiktive Beispieldaten: Hier gibt es keine Passwörter. Anzeigen und Speichern gehen nur mit echtem Admin-Login."
@@ -340,14 +339,14 @@ function LoginDialog({ customer, entry, canStoreSecret, onClose, onSaved }: { cu
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
   const listId = useId();
-  const info = useInfo("So funktioniert ein Anbieter-Login", (
-    <ul>
-      <li>Ein Login gehört zu einem Anbieter: Domain-Anbieter, DNS, Hosting oder Sonstiges. Anbieter, Login-Adresse und Benutzername stehen offen in der Liste, der Benutzername mit Knopf zum Kopieren.</li>
-      <li>Das Passwort gibst du beim Anlegen gleich mit ein, sobald der Schlüssel auf dem Server eingetragen ist. Später änderst du es in der Liste mit dem Stift neben den Punkten.</li>
-      <li>Das Eingabefeld ist bewusst kein Passwortfeld: So bietet dein Browser nicht an, das Passwort des Kunden als dein eigenes zu speichern.</li>
-      <li>„Löschen“ entfernt den Login samt Passwort. Anlegen, Ändern und Löschen stehen im Verlauf des Kunden.</li>
-    </ul>
-  ));
+  const info = useInfo("Anbieter-Login", {
+    steps: [
+      <><b>Anbieter, Adresse, Benutzername</b> stehen offen.</>,
+      <><b>Das Passwort</b> gibst du gleich beim Anlegen ein.</>,
+      <><b>Löschen</b> entfernt den Login samt Passwort.</>,
+    ],
+    ask: "Wie lege ich einen Anbieter-Login an?",
+  });
   const disabled = busy !== null;
   const set = (key: "label" | "loginUrl" | "username") => (event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, [key]: event.target.value });
   // A div, not a form: the browser shall not take the password for a sign-in of its own.

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Pencil, Send, Trash2, Undo2, Video, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import {
-  addDays, addMonths, APPOINTMENT_DURATIONS, appointmentStatuses, calendarWindow, dayOf, formatDayLong, formatTimeRange, isClock, isDay, MAX_OPEN_REQUESTS, overlaps,
+  addDays, addMonths, APPOINTMENT_DURATIONS, appointmentStatuses, calendarWindow, dayOf, formatDayLong, formatTimeRange, isClock, isDay, overlaps,
   REQUEST_DURATIONS, slotStarts, timeOf, wallTimeToUtc, WORKDAY, type AppointmentStatus,
 } from "@/lib/hub-calendar/rules";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
@@ -42,15 +42,14 @@ export function AppointmentDetailDialog({ appointment, store, onClose, onEdit }:
   const upcoming = appointment.end > store.now;
   // Admins answer requests here, so an open request explains how.
   const answering = canManage && appointment.status === "requested";
-  const info = useInfo("So beantwortest du eine Anfrage", (
-    <ul>
-      <li>„Annehmen“ öffnet den Termin zum Bestätigen: Zeit und Angaben lassen sich anpassen, den Teams-Link trägst du dort ein.</li>
-      <li>„Ablehnen“ fragt nach einem Grund, den du auch leer lassen kannst. Der Kunde liest ihn in der Glocke und in der E-Mail, etwa mit einem Gegenvorschlag.</li>
-      <li>Eine Anfrage hält die Zeit noch nicht frei: Für andere Kunden ist sie erst belegt, wenn du bestätigst.</li>
-      <li>Der Kunde bekommt jede Antwort in die Glocke und per E-Mail, eine Bestätigung mit Knöpfen für seinen Kalender.</li>
-      <li>Neue Anfragen meldet die Glocke Admins noch nicht. Sie stehen im Kalender unter „Offene Anfragen“.</li>
-    </ul>
-  ));
+  const info = useInfo("Anfrage beantworten", {
+    steps: [
+      <><b>Annehmen</b> öffnet den Termin zum Bestätigen.</>,
+      <><b>Ablehnen</b> mit Grund, gern mit Gegenvorschlag.</>,
+      <><b>Belegt</b> ist die Zeit erst nach deiner Bestätigung.</>,
+    ],
+    ask: "Wie beantworte ich eine Terminanfrage?",
+  });
 
   async function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     setBusy(true);
@@ -133,15 +132,14 @@ export function AppointmentFormDialog({ store, appointment, day: initialDay, sta
   const [description, setDescription] = useState(appointment?.description ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const info = useInfo("Termin und Teams-Link", (
-    <ul>
-      <li>Für den Teams-Link legst du in Teams oder Outlook ein Meeting an und fügst den Link „An der Besprechung teilnehmen“ hier ein. Andere Links nimmt der Hub nicht an.</li>
-      <li>„Intern“ heißt ohne Kunde. Kunden sehen diese Zeit wie alle fremden Termine nur als „Belegt“, ohne Titel.</li>
-      <li>Überschneidet sich der Termin mit einem bestätigten, zeigt das Formular das an; speichern lässt er sich trotzdem.</li>
-      <li>Der Kunde bekommt eine Meldung in der Glocke und per E-Mail, wenn ein Termin für ihn angelegt, bestätigt oder verschoben wird; die E-Mail hat Knöpfe für seinen Kalender.</li>
-      <li>Ändert sich nur Titel, Beschreibung oder Link, meldet der Hub das dem Kunden nicht.</li>
-    </ul>
-  ));
+  const info = useInfo("Termin und Teams-Link", {
+    steps: [
+      <><b>Teams-Link</b> aus Teams oder Outlook einfügen.</>,
+      <><b>Intern</b> heißt ohne Kunde; Kunden sehen nur „Belegt“.</>,
+      <><b>Der Kunde</b> bekommt eine Meldung mit Kalenderknöpfen.</>,
+    ],
+    ask: "Wie lege ich einen Termin mit Teams-Link an?",
+  });
   const durations = (APPOINTMENT_DURATIONS as readonly number[]).includes(minutes) ? APPOINTMENT_DURATIONS : [...APPOINTMENT_DURATIONS, minutes].sort((a, b) => a - b);
 
   const interval = isDay(day) && isClock(start) ? { start: wallTimeToUtc(day, start), end: wallTimeToUtc(day, start) + minutes * MINUTE } : null;
@@ -203,15 +201,14 @@ export function RequestDialog({ store, day: initialDay, start: initialStart, onC
   const [description, setDescription] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const info = useInfo("So funktioniert eine Terminanfrage", (
-    <ul>
-      <li>Termine gibt es montags bis freitags von {WORKDAY.start} bis {WORKDAY.end} Uhr (deutsche Zeit). Angeboten werden nur Uhrzeiten, die im oalab-Kalender frei sind.</li>
-      <li>Wähle Dauer, Uhrzeit und Thema; eine Nachricht hilft dem Team bei der Vorbereitung. Höchstens {MAX_OPEN_REQUESTS} Anfragen dürfen gleichzeitig offen sein.</li>
-      <li>Fest ist der Termin erst, wenn oalab ihn bestätigt, vielleicht zu einer angepassten Zeit. Bis dahin steht er als „Angefragt“ in deinem Kalender; den Teams-Link ergänzt oalab.</li>
-      <li>Die Antwort siehst du in der Glocke und per E-Mail, bei einer Bestätigung mit „In deinen Kalender eintragen“.</li>
-      <li>Eine offene Anfrage ziehst du in ihren Details mit „Anfrage zurückziehen“ zurück.</li>
-    </ul>
-  ));
+  const info = useInfo("Termin anfragen", {
+    steps: [
+      <><b>Mo–Fr, {WORKDAY.start}–{WORKDAY.end} Uhr,</b> nur freie Zeiten.</>,
+      <><b>Fest</b> ist der Termin, wenn oalab bestätigt.</>,
+      <><b>Die Antwort</b> kommt per Glocke und E-Mail.</>,
+    ],
+    ask: "Wie frage ich einen Termin an?",
+  });
   const lastDay = addDays(`${addMonths(calendarWindow(store.today).lastMonth, 1)}-01`, -1);
   const slots = isDay(day) ? slotStarts(day, store.blocked, minutes, store.now) : [];
   const chosen = slots.includes(start) ? start : slots[0] ?? "";
