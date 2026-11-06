@@ -1,7 +1,8 @@
 /**
  * The oalab packages in two groups. A customer holds at most one package per group, and a group may stay empty
  * (table hub_customer_packages, migration 202611050001 in service-oalab; its function hub_package_name carries the
- * same names, the tests compare them). The service platform keeps its own packages until both are connected.
+ * same names, the tests compare them). Since stage 3 (202611060001) the Service package sets how many new requests a
+ * customer may make on the service platform each month, once the switch in the hub is on.
  */
 export type PackageGroup = "domain" | "service";
 export type PackageId = "domain" | "domain-mail" | "service-lite" | "service-max";
@@ -13,11 +14,21 @@ export const packageGroups: Record<PackageGroup, { name: string; packages: reado
   service: { name: "Service", packages: ["service-lite", "service-max"] },
 };
 
+export type ServicePackageId = "service-lite" | "service-max";
+export const isServicePackageId = (value: unknown): value is ServicePackageId => value === "service-lite" || value === "service-max";
+
+/**
+ * New requests a month on the service platform, counted by the calendar month in German time; without a Service
+ * package none (the database's hub_service_request_limit in 202611060001 carries the same numbers).
+ */
+export const serviceRequestLimits: Record<ServicePackageId, number> = { "service-lite": 5, "service-max": 20 };
+export const serviceRequestLimit = (id: string | null | undefined) => isServicePackageId(id) ? serviceRequestLimits[id] : 0;
+
 export const packageCatalog: Record<PackageId, { name: string; short: string; group: PackageGroup; description: string }> = {
   domain: { name: "OALAB Domain", short: "Domain", group: "domain", description: "Hosting der Website" },
   "domain-mail": { name: "OALAB Domain & Mail", short: "Domain & Mail", group: "domain", description: "Hosting der Website und der E-Mail" },
-  "service-lite": { name: "OALAB Service Lite", short: "Service Lite", group: "service", description: "Anfragen über die Serviceplattform" },
-  "service-max": { name: "OALAB Service Max", short: "Service Max", group: "service", description: "Anfragen über die Serviceplattform" },
+  "service-lite": { name: "OALAB Service Lite", short: "Service Lite", group: "service", description: `${serviceRequestLimits["service-lite"]} neue Anfragen im Monat über die Serviceplattform` },
+  "service-max": { name: "OALAB Service Max", short: "Service Max", group: "service", description: `${serviceRequestLimits["service-max"]} neue Anfragen im Monat über die Serviceplattform` },
 };
 
 export const packageIds = Object.keys(packageCatalog) as PackageId[];
