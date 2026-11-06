@@ -27,6 +27,7 @@ import { AssistantLogScreen } from "./screens/assistant-log";
 import { ContractsScreen } from "./screens/contracts";
 import type { ContractsState } from "@/lib/hub-contracts/types";
 import { contractFixtures } from "@/lib/hub-contracts/fixtures";
+import { quotaFixtures } from "@/lib/hub-service-quota/fixtures";
 import type { AssistantLogState } from "@/lib/hub-assistant/log";
 import type { ScreenProps } from "./screens/types";
 import type { HubRole } from "@/lib/hub-users/rules";
@@ -83,12 +84,16 @@ export function HubView({ section = "overview", detail, preview = false, email =
   const calendar = useMemo(() => calendarState ?? calendarFixtures({ admin, customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null }), [calendarState, admin, preview, demoData]);
   const favorites = useFavorites(userKey);
   // Without real data (preview, demos) the examples: every demo customer for admins, the own one for customers. The
-  // example contracts of the asset management link up with them.
-  const contractState = useMemo(() => contracts ?? contractFixtures({
-    admin,
-    customerNumber: populated ? (preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null) : null,
-    contractFiles: Object.fromEntries(fileState.files.filter((file) => file.category === "contract").flatMap((file) => file.customers.map((customer) => [customer.id, file.id]))),
-  }), [contracts, admin, populated, preview, demoData, fileState.files]);
+  // example contracts of the asset management link up with them, the example quota with their Service packages.
+  const contractState = useMemo((): ContractsState => {
+    if (contracts) return contracts;
+    const examples = contractFixtures({
+      admin,
+      customerNumber: populated ? (preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null) : null,
+      contractFiles: Object.fromEntries(fileState.files.filter((file) => file.category === "contract").flatMap((file) => file.customers.map((customer) => [customer.id, file.id]))),
+    });
+    return { ...examples, serviceQuota: quotaFixtures({ admin, customerIds: examples.customers.map((customer) => customer.id) }) };
+  }, [contracts, admin, populated, preview, demoData, fileState.files]);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
 

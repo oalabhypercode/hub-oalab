@@ -7,7 +7,7 @@ import { MiniLoader } from "@/components/brand-loader";
 import { hubHref } from "@/lib/hub-data";
 import { fileCategories } from "@/lib/hub-files/catalog";
 import type { HubStoredFile } from "@/lib/hub-files/types";
-import { packageCatalog, packageGroups, type CustomerPackage, type PackageGroup, type PackageId } from "@/lib/service-packages";
+import { packageCatalog, packageGroups, serviceRequestLimits, type CustomerPackage, type PackageGroup, type PackageId } from "@/lib/service-packages";
 import { centsToInput, formatCents, formatDay, MAX_NOTE, MAX_TITLE, timelineKindIds, timelineKinds, type TimelineKind } from "@/lib/hub-contracts/rules";
 import { deleteTimelineEntry, saveCustomerPackages, saveTimelineEntry, setTimelineVisible, type ActionResult } from "@/lib/hub-contracts/actions";
 import type { ContractCustomer, TimelineEntry } from "@/lib/hub-contracts/types";
@@ -65,11 +65,13 @@ const packageName = (id: PackageId | null) => id ? packageCatalog[id].short : "K
  * „bis“; a bar above the table saves or discards what changed (the database adds it to the timeline). Below, the
  * customer's contracts and invoices from the asset management, linked rather than stored twice.
  */
-export function ContractTab({ customer, files, preview, canManage, query, onSaved, onError }: {
+export function ContractTab({ customer, files, preview, canManage, quotaGroup, query, onSaved, onError }: {
   customer: ContractCustomer;
   files: readonly HubStoredFile[];
   preview: boolean;
   canManage: boolean;
+  /** The group „Service-Anfragen“ of this customer (contracts-quota.tsx), between packages and documents. */
+  quotaGroup?: React.ReactNode;
   query: string;
   onSaved: (message: string) => void;
   onError: (message: string) => void;
@@ -82,9 +84,8 @@ export function ContractTab({ customer, files, preview, canManage, query, onSave
     steps: [
       <><b>Ein Paket je Gruppe:</b> Domain und Service.</>,
       <><b>Speichern</b> schreibt es in den Verlauf, erst intern.</>,
-      <><b>Kündigung eintragen:</b> steht dann unter „Demnächst“.</>,
+      <><b>Service Lite {serviceRequestLimits["service-lite"]}, Max {serviceRequestLimits["service-max"]}</b> Anfragen im Monat.</>,
     ],
-    warn: "Noch nicht mit der Serviceplattform verbunden.",
     ask: "Wie funktionieren die Pakete unter Vertrag & Domain?",
   });
   const term = query.trim().toLocaleLowerCase("de");
@@ -150,6 +151,7 @@ export function ContractTab({ customer, files, preview, canManage, query, onSave
               );
             })}
           </TableGroup>
+          {!term && quotaGroup}
           <TableGroup
             colSpan={ADMIN_COLUMNS}
             label="Verträge und Rechnungen"

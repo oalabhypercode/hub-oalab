@@ -19,6 +19,7 @@ import { ContractsOverview } from "./contracts-overview";
 import { DomainMailTab } from "./contracts-domains";
 import { CustomerContractSheet } from "./contracts-customer";
 import { AccessTab } from "./contracts-access";
+import { CustomerQuotaCard } from "./contracts-quota";
 import type { ScreenProps } from "./types";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -118,7 +119,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   );
 
   /* ---------- Overview ---------- */
-  const overview = <ContractsOverview state={state} asOf={asOf} onOpenCustomer={(id, next) => openCustomer(id, next)} onShowMissing={() => setOnlyMissing(true)} />;
+  const overview = <ContractsOverview state={state} asOf={asOf} onOpenCustomer={(id, next) => openCustomer(id, next)} onShowMissing={() => setOnlyMissing(true)} onNotice={setNotice} />;
 
   /* ---------- One customer ---------- */
   const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
@@ -163,7 +164,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       ) : tab === "access" ? (
         <AccessTab key={current.id} customer={current} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} query={tabQuery} onNotice={setNotice} />
       ) : tab === "contract" ? (
-        <ContractTab key={current.id} customer={current} files={files} preview={preview} canManage={state.canManage} query={tabQuery} onSaved={setNotice} onError={setNotice} />
+        <ContractTab key={current.id} customer={current} files={files} preview={preview} canManage={state.canManage} query={tabQuery} onSaved={setNotice} onError={setNotice}
+          quotaGroup={<CustomerQuotaCard key={`quota-${current.id}`} customer={current} quota={state.serviceQuota} fixtures={state.source === "fixtures"} onNotice={setNotice} />} />
       ) : (
         <TimelineTab key={current.id} customer={current} entries={entries} files={files} preview={preview} canManage={state.canManage} query={tabQuery} onEdit={(entry) => setDialog({ entry })} onNotice={setNotice} />
       )}

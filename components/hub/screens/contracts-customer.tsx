@@ -17,6 +17,7 @@ import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, useCollapsedGroups } from "../sheet";
 import { CopyButton } from "./contracts-domains";
+import { CustomerQuotaLine } from "./contracts-quota";
 import { DownloadButton } from "./files-dialogs";
 import { CategoryDot } from "./files-parts";
 
@@ -189,6 +190,7 @@ export function CustomerContractSheet({ customer, state, files, preview }: { cus
                       </tr>
                     );
                   })}
+                  {!term && <CustomerQuotaLine quota={state.serviceQuota} customerId={customer.id} />}
                 </TableGroup>
               )}
 
