@@ -6,6 +6,7 @@ import { MiniLoader } from "@/components/brand-loader";
 import { chooseSecondFactor, confirmAppSetup, getSecondFactorStatus, startAppSetup, type AppSetup, type SecondFactorStatus } from "@/lib/hub-auth/second-factor-actions";
 import type { SecondFactorChoice } from "@/lib/hub-auth/second-factor";
 import { GlassCard } from "./glass";
+import { useInfo } from "./info-box";
 
 /** The app's key in groups of four, easier to type by hand. */
 const grouped = (secret: string) => secret.replace(/(.{4})/g, "$1 ").trim();
@@ -22,6 +23,17 @@ export function SecondFactorCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const info = useInfo("So funktioniert der zweite Faktor", (
+    <ul>
+      {/* Freelancers never reach the service platform, so their text names the hub only. */}
+      <li>{status?.required ? "Die Methode, die du hier wählst, fragt der Hub bei jeder Anmeldung nach dem Passwort ab." : "Die Methode, die du hier wählst, fragen Hub und Serviceplattform bei jeder Anmeldung nach dem Passwort ab."}</li>
+      <li>Code per E-Mail: sechs Ziffern, 10 Minuten gültig. Es gilt nur der Code aus der neuesten E-Mail; ihr Betreff nennt die Uhrzeit, „Neuen Code senden“ schickt einen frischen.</li>
+      <li>Authenticator-App: QR-Code scannen und mit dem ersten Code bestätigen. Wechselst du später zu E-Mail oder Aus, wird die App aus deinem Konto entfernt.</li>
+      <li>„Passwort vergessen“: Mit Code per E-Mail reicht der Link aus der E-Mail, mit der App brauchst du zusätzlich ihren Code.</li>
+      <li>Handy verloren? Das oalab-Team setzt deinen Schutz auf Code per E-Mail zurück.</li>
+      {status?.required && <li>Für Freelancer lässt sich der Schutz nicht ausschalten, weil sie die Dateien mehrerer Kunden sehen.</li>}
+    </ul>
+  ));
 
   async function load() {
     const result = await getSecondFactorStatus();
@@ -87,7 +99,8 @@ export function SecondFactorCard() {
 
   return (
     <GlassCard className="settings-card second-factor-card">
-      <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--switch-on)" aria-hidden="true" />Zwei-Faktor-Schutz</h2>
+      <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--switch-on)" aria-hidden="true" />Zwei-Faktor-Schutz{info.button}</h2>
+      {info.box}
       {!status && !error && <p className="t-subheadline t-secondary"><MiniLoader size={16} /> Wird geladen …</p>}
       {status && <>
         <p className="t-subheadline t-secondary">Wähle, womit du deine Anmeldung im Hub und auf der Serviceplattform zusätzlich bestätigst. Gefragt wird genau diese Methode.</p>

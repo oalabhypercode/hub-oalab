@@ -7,6 +7,7 @@ import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/
 import { fileCategories, fileFormat, formatBytes, formatFileDateTime, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
 import type { SortValue } from "@/lib/table-tools";
+import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { alphabetical, type SortOption } from "../table-tools";
 import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
@@ -78,11 +79,19 @@ export function FileDetailDialog({ file, customers, folders, canManage, onClose,
   );
 }
 
-/** Name a new folder or rename one. */
+/** Name a new folder or rename one; the same window for admins, customers and freelancers. */
 export function FolderNameDialog({ title, initial, onSave, onClose }: { title: string; initial: string; onSave: (name: string) => Promise<ActionResult<unknown>>; onClose: () => void }) {
   const [name, setName] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const info = useInfo("So funktionieren Ordner", (
+    <ul>
+      <li>Ordner gibt es je Firma, in einer Ebene ohne Unterordner. Jeder Name kommt dort nur einmal vor.</li>
+      <li>Das oalab-Team und alle Logins der Firma sehen dieselben Ordner und können Dateien darin einsortieren.</li>
+      <li>Zum Einsortieren Dateien ankreuzen und in der Leiste über der Liste „Verschieben nach …“ wählen.</li>
+      <li>Umbenennen und Löschen gehen über Stift und Papierkorb am Ordner. Beim Löschen landen die Dateien in „Ohne Ordner“; gelöscht wird keine Datei.</li>
+    </ul>
+  ));
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -93,7 +102,8 @@ export function FolderNameDialog({ title, initial, onSave, onClose }: { title: s
   }
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={onClose} actions={info.button}>
+      {info.box}
       <form onSubmit={submit} className="upload-form">
         <label className="upload-field"><span>Name des Ordners</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={MAX_FOLDER_NAME} placeholder="z. B. Verträge, Logos, Briefings" autoFocus required disabled={saving} /></label>
         {error && <p className="form-error" role="alert">{error}</p>}

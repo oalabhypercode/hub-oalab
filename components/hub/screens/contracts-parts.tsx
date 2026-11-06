@@ -12,6 +12,7 @@ import { centsToInput, formatCents, formatDay, MAX_NOTE, MAX_TITLE, timelineKind
 import { deleteTimelineEntry, saveCustomerPackages, saveTimelineEntry, setTimelineVisible, type ActionResult } from "@/lib/hub-contracts/actions";
 import type { ContractCustomer, TimelineEntry } from "@/lib/hub-contracts/types";
 import { Switch } from "../controls";
+import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 
 const Spinner = () => <MiniLoader size={16} />;
@@ -64,6 +65,15 @@ export function PackagesForm({ customer, canManage, onSaved }: { customer: Contr
   const [draft, setDraft] = useState<CustomerPackage[]>(customer.packages);
   const { busy, error, run } = useContractAction();
   const formId = useId();
+  const info = useInfo("So funktionieren Pakete", (
+    <ul>
+      <li>Je Gruppe hat ein Kunde höchstens ein Paket: Domain (OALAB Domain oder Domain & Mail) und Service (Service Lite oder Max). Eine Gruppe darf leer bleiben.</li>
+      <li>„Seit“ ist der Beginn. „Gekündigt zum“ trägst du ein, sobald gekündigt ist; endet ein Paket in den nächsten 60 Tagen, steht es im Überblick unter „Demnächst“.</li>
+      <li>„Pakete speichern“ trägt jede Änderung selbst in den Verlauf ein, zuerst nur intern. Dort gibst du den Eintrag für den Kunden frei.</li>
+      <li>Der Kunde sieht seine Pakete unter Vertrag & Domain, im Profil und unten links neben seinem Namen.</li>
+      <li>Mit den Paketen der Serviceplattform sind sie noch nicht verbunden.</li>
+    </ul>
+  ));
   const changed = JSON.stringify(draft) !== JSON.stringify(customer.packages);
   const set = (group: PackageGroup, patch: Partial<CustomerPackage>) => setDraft((items) => items.map((item) => {
     if (item.group !== group) return item;
@@ -99,9 +109,11 @@ export function PackagesForm({ customer, canManage, onSaved }: { customer: Contr
         ))}
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
+      {canManage && info.box}
       {canManage && (
         <div className="cdm-form-foot">
           <p className="field-hint">Jede Änderung trägt sich selbst in den Verlauf ein, zunächst nur für das oalab-Team sichtbar.</p>
+          {info.button}
           <button type="submit" className="sheet-action is-primary" disabled={!changed || busy !== null}>{busy ? <Spinner /> : <Save size={15} aria-hidden="true" />}Pakete speichern</button>
         </div>
       )}
@@ -224,11 +236,21 @@ export function TimelineDialog({ customer, entry, files, today, onClose, onSaved
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
   const switchId = useId();
+  const info = useInfo("So funktioniert der Verlauf", (
+    <ul>
+      <li>Ein Zeitpunkt hat Datum, Art und Titel, dazu nach Wunsch einen Betrag und eine Datei, die bei diesem Kunden im Asset Management liegt.</li>
+      <li>Die Notiz ist nur für das oalab-Team. Der Kunde sieht sie nie, auch nicht bei freigegebenen Einträgen.</li>
+      <li>Neue Einträge sind „Nur intern“. Freigeben kannst du sie hier mit dem Schalter oder später in der Liste mit einem Klick auf „Nur intern“.</li>
+      <li>Freigegebene Einträge sieht der Kunde unter Vertrag & Domain im Verlauf, mit Link zur Datei.</li>
+      <li>„Rechnung bezahlt“ zählt im Überblick als letzte Zahlung. Paketwechsel und Kündigungen trägt der Hub beim Speichern der Pakete selbst ein.</li>
+    </ul>
+  ));
   const set = (key: "occurredOn" | "kind" | "title" | "amount" | "fileId" | "note") => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setDraft({ ...draft, [key]: event.target.value });
   const own = filesOf(files, customer.id);
   const disabled = busy !== null;
   return (
-    <Modal title={entry ? "Zeitpunkt bearbeiten" : "Zeitpunkt eintragen"} onClose={onClose} className="users-modal">
+    <Modal title={entry ? "Zeitpunkt bearbeiten" : "Zeitpunkt eintragen"} onClose={onClose} className="users-modal" actions={info.button}>
+      {info.box}
       <form className="cdm-dialog" onSubmit={(event) => {
         event.preventDefault();
         run("save", () => saveTimelineEntry({ ...draft, id: entry?.id, customerId: customer.id }), () => { onSaved(entry ? "Zeitpunkt gespeichert." : "Zeitpunkt eingetragen."); onClose(); });

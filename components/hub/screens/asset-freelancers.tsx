@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { setCustomerFreelancers } from "@/lib/hub-users/actions";
 import type { FileAudience, HubFileCustomer } from "@/lib/hub-files/types";
+import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { CustomerPicker } from "./files-parts";
 
@@ -31,6 +32,14 @@ export function ServedByDialog({ customer, freelancers, onClose, onSaved }: { cu
   const [selected, setSelected] = useState(customer.freelancerIds ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const info = useInfo("So funktioniert „Betreut von“", (
+    <ul>
+      <li>Hak die Freelancer an, die diesen Kunden für oalab mitbetreuen, und speichere. Dasselbe geht im User Management: beim Kunden unter „Betreut von“, beim Freelancer unter „Betreute Kunden“.</li>
+      <li>Ab dann sieht der Freelancer den Kunden im Asset Management und bekommt eine Meldung, wenn eine Datei für ihn dazukommt.</li>
+      <li>Welche Datei er sieht, legst du je Datei in ihren Details mit „Sichtbar für“ fest.</li>
+      <li>Nimmst du den Haken weg, sieht der Freelancer den Kunden und dessen Dateien nicht mehr.</li>
+    </ul>
+  ));
   async function save() {
     setBusy(true);
     setError("");
@@ -45,7 +54,8 @@ export function ServedByDialog({ customer, freelancers, onClose, onSaved }: { cu
     }
   }
   return (
-    <Modal title={`Betreut von · ${customer.company}`} onClose={onClose} className="users-modal">
+    <Modal title={`Betreut von · ${customer.company}`} onClose={onClose} className="users-modal" actions={info.button}>
+      {info.box}
       <CustomerPicker customers={freelancers.map(({ id, customerNumber, company }) => ({ id, customerNumber, company }))} selected={selected} onChange={setSelected} idPrefix={`served-${customer.id}`} legend="Freelancer" emptyHint="nur vom oalab-Team" />
       <p className="field-hint">Ein Freelancer sieht Namen, Logo, Kontaktdaten und die freigegebenen Dateien dieses Kunden, nur lesend. Verträge, Angebote und Rechnungen sieht er nicht, außer du stellst sie in den Details auf „Kunde und Freelancer“. Chats, Termine und Logins des Kunden bleiben ihm verborgen; der Kunde sieht nicht, wer ihn betreut.</p>
       {error && <p className="form-error" role="alert">{error}</p>}

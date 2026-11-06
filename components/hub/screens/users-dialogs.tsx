@@ -12,6 +12,7 @@ import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import { hubHref } from "@/lib/hub-data";
 import { packageCatalog } from "@/lib/service-packages";
 import { CustomerLogoDialog } from "../customer-logo-dialog";
+import { useInfo } from "../info-box";
 import { LogoMark, companyInitials } from "../logo-mark";
 import { Modal } from "../modal";
 import { CustomerPicker } from "./files-parts";
@@ -236,6 +237,15 @@ export function ReviewDialog({ user, customers, nextNumber, nextFreelancerNumber
   const [approved, setApproved] = useState<{ customerNumber: string | null; mail: MailStatus } | null>(null);
   const [copied, setCopied] = useState(false);
   const { busy, error, run } = useAction();
+  const info = useInfo("So funktioniert die Freigabe", (
+    <ul>
+      <li>Prüfe die Angaben. Passt die Person zu einem bestehenden Kunden, schlägt der Hub ihn über Kundennummer oder Firmennamen vor.</li>
+      <li>Wähle Rolle und Kunde: einen bestehenden oder einen neuen. Ein neuer Kunde entsteht auch in Service, mit der nächsten freien Kundennummer; seine Pakete legst du danach unter Vertrag & Domain fest.</li>
+      <li>„Freigeben“ schaltet den Zugang sofort frei und schickt der Person eine E-Mail mit dem Link zum Login. Geht die E-Mail nicht raus, bekommst du die Nachricht zum Weitergeben.</li>
+      <li>„Ablehnen“ fragt nach einer Begründung, die die Person per E-Mail bekommt und nach dem Login sieht. Abgelehnte Registrierungen lassen sich später mit „Doch freigeben“ freischalten.</li>
+      <li>Anmelden kann sich die Person erst, wenn sie ihre E-Mail-Adresse bestätigt hat.</li>
+    </ul>
+  ));
   const name = fullName(user);
   const loginUrl = typeof window === "undefined" ? "" : `${window.location.origin}/auth/login`;
   const message = `Hallo ${user.firstName},\n\ndein Zugang zum oalab Client Hub ist freigeschaltet. Du kannst dich ab sofort mit deiner E-Mail-Adresse ${user.email} und deinem Passwort anmelden:\n\n${loginUrl}\n\nViele Grüße\nDein oalab-Team`;
@@ -263,7 +273,8 @@ export function ReviewDialog({ user, customers, nextNumber, nextFreelancerNumber
   }
 
   return (
-    <Modal title="Registrierung prüfen" onClose={onClose} className="users-modal">
+    <Modal title="Registrierung prüfen" onClose={onClose} className="users-modal" actions={info.button}>
+      {info.box}
       <dl className="detail-list">
         <Detail label="Name">{name}</Detail>
         <Detail label="Position">{user.position}</Detail>
@@ -320,6 +331,23 @@ export function UserDialog({ user, customers, nextNumber, nextFreelancerNumber, 
   const [confirmEmail, setConfirmEmail] = useState("");
   const [secondFactor, setSecondFactor] = useState(user?.secondFactor ?? "off");
   const { busy, error, run } = useAction();
+  const info = useInfo(user ? "Zugang verwalten" : "So funktioniert ein neues Konto", user ? (
+    <ul>
+      <li>„Passwort-Link erzeugen“ (vor der ersten Anmeldung „Aktivierungslink erzeugen“) gibt dir einen neuen Link zum Kopieren, „Link per E-Mail senden“ schickt ihn direkt an die Person.</li>
+      <li>Beim Zwei-Faktor-Schutz setzt du die Methode auf Code per E-Mail oder Aus zurück (Freelancer nur E-Mail), etwa nach einem verlorenen Handy. Eine Authenticator-App richtet die Person selbst im Profil ein.</li>
+      <li>„Deaktivieren“ sperrt Anmeldung und Datenzugriff sofort; „Wieder aktivieren“ hebt das auf.</li>
+      <li>„Löschen …“ fragt die E-Mail-Adresse ab und lässt sich nicht rückgängig machen. Verweisen auf der Serviceplattform noch Anfragen oder Nachrichten auf das Konto, geht nur Deaktivieren.</li>
+      <li>Dein eigenes Konto, der letzte aktive Admin und die Demo-Konten sind geschützt. Unter „Verlauf“ steht, wer wann was geändert hat und welche E-Mails der Hub verschickt hat.</li>
+    </ul>
+  ) : (
+    <ul>
+      <li>Die Person bekommt einen persönlichen Aktivierungslink: per E-Mail vom Hub, wenn das Häkchen unten gesetzt ist, oder von dir weitergegeben. Angezeigt wird er dir in jedem Fall.</li>
+      <li>Mit dem Link setzt sie ihr Passwort. Bis dahin steht das Konto auf „Aktivierung offen“.</li>
+      <li>Der Link gilt einmal und nur begrenzte Zeit. Einen neuen erzeugst du im Konto mit „Aktivierungslink erzeugen“.</li>
+      <li>Kunden und Freelancer gehören zu einem Eintrag, einem bestehenden oder einem neuen. Ein neuer Kunde entsteht auch in Service, ein neuer Freelancer nur im Hub.</li>
+      <li>Freelancer bestätigen jede Anmeldung mit einem Code. Welche Kunden sie betreuen, legst du im Reiter „Freelancer“ fest.</li>
+    </ul>
+  ));
   const set = (key: keyof typeof person) => (event: React.ChangeEvent<HTMLInputElement>) => setPerson((value) => ({ ...value, [key]: event.target.value }));
   const locked = Boolean(user?.demo);
   const disabled = busy !== null || locked;
@@ -354,7 +382,8 @@ export function UserDialog({ user, customers, nextNumber, nextFreelancerNumber, 
   const freelancerLogin = (user?.role ?? role) === "oalab_freelancer";
 
   return (
-    <Modal title={user ? fullName(user) : "Konto anlegen"} onClose={onClose} className="users-modal">
+    <Modal title={user ? fullName(user) : "Konto anlegen"} onClose={onClose} className="users-modal" actions={info.button}>
+      {info.box}
       {user && <p className="modal-description">{user.email} · <span className={`project-status status-${user.displayStatus}`}><i aria-hidden="true" />{displayStatusLabels[user.displayStatus]}</span>{user.lastSignInAt ? ` · zuletzt angemeldet ${formatFileDateTime(user.lastSignInAt)}` : " · noch nie angemeldet"}</p>}
       {locked && <p className="field-warning"><AlertTriangle size={16} aria-hidden="true" />Demo-Konto: wird per Seed verwaltet und ist hier schreibgeschützt.</p>}
       <form className="user-form" onSubmit={(event) => { event.preventDefault(); save(); }}>
@@ -446,9 +475,19 @@ export function CustomerDialog({ customer, users, nextNumber, events, freelancer
   const [servedBy, setServedBy] = useState<string[]>(customer?.linkedIds ?? []);
   const [logoOpen, setLogoOpen] = useState(false);
   const { busy, error, run } = useAction();
+  const info = useInfo("So funktioniert der Kundenstamm", (
+    <ul>
+      <li>Unternehmen, Kundennummer und Kontaktdaten gelten im Hub und in Service. Was du hier änderst, steht auch dort, und umgekehrt.</li>
+      <li>Ein neuer Kunde bekommt die nächste freie Kundennummer (OA- und Ziffern) und entsteht auch in Service.</li>
+      <li>Pakete legst du unter Vertrag & Domain fest, das Logo über den Knopf oben in diesem Fenster; beides geht nach dem Anlegen.</li>
+      <li>Logins bekommt der Kunde über „Konto anlegen“ oder beim Freigeben einer Registrierung. Sie kommen mit demselben Zugang auch in Service.</li>
+      <li>Der Kunde sieht Unternehmen, Kundennummer und Kontaktdaten nach dem Login in seinem Profil; ändern kann er sie in Service unter „Profil und Firma“.</li>
+    </ul>
+  ));
   const members = customer ? users.filter((user) => customer.memberIds.includes(user.id)) : [];
   return (
-    <Modal title={customer ? customer.company : "Kunde anlegen"} onClose={onClose} className="users-modal">
+    <Modal title={customer ? customer.company : "Kunde anlegen"} onClose={onClose} className="users-modal" actions={info.button}>
+      {info.box}
       {customer && (
         <div className="customer-logo-row">
           <LogoMark logo={customer.logo} initials={companyInitials(customer.company)} className="avatar customer-logo-mark" plate />
@@ -503,9 +542,18 @@ export function FreelancerDialog({ freelancer, customers, users, nextNumber, eve
   const [customerIds, setCustomerIds] = useState<string[]>(freelancer?.linkedIds ?? []);
   const [logoOpen, setLogoOpen] = useState(false);
   const { busy, error, run } = useAction();
+  const info = useInfo("So funktioniert ein Freelancer", (
+    <ul>
+      <li>Ein Freelancer betreut Kunden im Auftrag von oalab. Ihn gibt es nur im Hub, mit einer Nummer, die mit FL- beginnt; auf die Serviceplattform kommt er nicht.</li>
+      <li>Die betreuten Kunden hakst du hier an. Dasselbe geht beim Kunden unter „Betreut von“ und im Asset Management über den Knopf mit dem Handschlag.</li>
+      <li>Seine Logins legst du über „Konto anlegen“ mit der Rolle Freelancer an. Jede Anmeldung bestätigt er mit einem Code.</li>
+      <li>Was er bei einem Kunden sieht, legst du je Datei mit „Sichtbar für“ fest. Dateien nur für ihn lädst du im Asset Management bei ihm selbst hoch, unter „Freelancer“ in der Kundenliste.</li>
+    </ul>
+  ));
   const members = freelancer ? users.filter((user) => freelancer.memberIds.includes(user.id)) : [];
   return (
-    <Modal title={freelancer ? freelancer.company : "Freelancer anlegen"} onClose={onClose} className="users-modal">
+    <Modal title={freelancer ? freelancer.company : "Freelancer anlegen"} onClose={onClose} className="users-modal" actions={info.button}>
+      {info.box}
       {freelancer && (
         <div className="customer-logo-row">
           <LogoMark logo={freelancer.logo} initials={companyInitials(freelancer.company)} className="avatar customer-logo-mark" plate />

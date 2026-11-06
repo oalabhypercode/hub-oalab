@@ -6,9 +6,10 @@ import { Check, Copy, Eye, EyeOff, KeyRound, LockKeyhole, Mail, Pencil, Plus, Sa
 import { MiniLoader } from "@/components/brand-loader";
 import { hubHref } from "@/lib/hub-data";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
-import { loginKindIds, loginKinds, MAX_LABEL, MAX_SECRET, MAX_USERNAME, providerSuggestions, REVEAL_SECONDS, type LoginKind, type VaultOwner } from "@/lib/hub-domains/rules";
+import { LOOK_LIMIT, LOOK_WINDOW_MINUTES, loginKindIds, loginKinds, MAX_LABEL, MAX_SECRET, MAX_USERNAME, providerSuggestions, REVEAL_SECONDS, type LoginKind, type VaultOwner } from "@/lib/hub-domains/rules";
 import type { DomainMailState, ProviderLogin } from "@/lib/hub-domains/types";
 import { deleteLogin, removeSecret, revealSecret, saveLogin, saveSecret, type VaultResult } from "@/lib/hub-vault/actions";
+import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { CopyButton } from "./contracts-domains";
 import { useContractAction } from "./contracts-parts";
@@ -38,6 +39,15 @@ export function AccessTab({ customer, domainMail, fixtures, preview, onNotice }:
   const usable = confirmed && Boolean(vault?.keyReady);
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id && item.kind === "mailbox");
   const logins = domainMail.logins.filter((item) => item.customerId === customer.id);
+  const info = useInfo("So funktionieren die Zugänge", (
+    <ul>
+      <li>Hier liegen die Passwörter der Postfächer und die Logins des Kunden bei Domain-Anbieter, DNS und Hosting. Gespeichert wird verschlüsselt; die Seite selbst kennt kein Passwort.</li>
+      <li>Anzeigen, Kopieren und Ändern gehen nur mit einem zweiten Faktor, den du bei der Anmeldung bestätigt hast.</li>
+      <li>Das Auge zeigt ein Passwort {REVEAL_SECONDS} Sekunden lang, dann ist es wieder verdeckt, ebenso wenn du den Tab wechselst. „Kopieren“ legt es in die Zwischenablage, ohne es anzuzeigen.</li>
+      <li>Jeder Blick und jede Änderung steht im Verlauf des Kunden im User Management, nie mit dem Passwort. Mehr als {LOOK_LIMIT} Passwörter in {LOOK_WINDOW_MINUTES} Minuten lässt der Hub nicht zu.</li>
+      <li>Postfächer legst du im Reiter „Domain & Mail“ an. Nur Postfächer haben ein Passwort, Weiterleitungen und Aliase nicht.</li>
+    </ul>
+  ));
 
   const note = fixtures
     ? "Fiktive Beispieldaten: Hier gibt es keine Passwörter. Anzeigen und Speichern gehen nur mit echtem Admin-Login."
@@ -59,7 +69,9 @@ export function AccessTab({ customer, domainMail, fixtures, preview, onNotice }:
       {usable && <div className="dm-notice is-ok"><ShieldCheck size={18} aria-hidden="true" /><p>Passwörter liegen verschlüsselt. Ein angezeigtes Passwort ist nach {REVEAL_SECONDS} Sekunden wieder verdeckt, und jeder Blick und jede Änderung steht im Admin-Protokoll.</p></div>}
 
       <section className="cdm-section" aria-labelledby="dm-access-mailboxes">
-        <div className="dm-section-head"><h3 id="dm-access-mailboxes"><Mail size={16} aria-hidden="true" />Postfächer</h3></div>
+        {/* The tab's ⓘ sits at its first heading and explains both lists. */}
+        <div className="dm-section-head"><h3 id="dm-access-mailboxes"><Mail size={16} aria-hidden="true" />Postfächer{info.button}</h3></div>
+        {info.box}
         {mailboxes.length ? (
           <ul className="dm-list">
             {mailboxes.map((mailbox) => {
@@ -328,12 +340,21 @@ function LoginDialog({ customer, entry, canStoreSecret, onClose, onSaved }: { cu
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
   const listId = useId();
+  const info = useInfo("So funktioniert ein Anbieter-Login", (
+    <ul>
+      <li>Ein Login gehört zu einem Anbieter: Domain-Anbieter, DNS, Hosting oder Sonstiges. Anbieter, Login-Adresse und Benutzername stehen offen in der Liste, der Benutzername mit Knopf zum Kopieren.</li>
+      <li>Das Passwort gibst du beim Anlegen gleich mit ein, sobald der Schlüssel auf dem Server eingetragen ist. Später änderst du es in der Liste mit dem Stift neben den Punkten.</li>
+      <li>Das Eingabefeld ist bewusst kein Passwortfeld: So bietet dein Browser nicht an, das Passwort des Kunden als dein eigenes zu speichern.</li>
+      <li>„Löschen“ entfernt den Login samt Passwort. Anlegen, Ändern und Löschen stehen im Verlauf des Kunden.</li>
+    </ul>
+  ));
   const disabled = busy !== null;
   const set = (key: "label" | "loginUrl" | "username") => (event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, [key]: event.target.value });
   // A div, not a form: the browser shall not take the password for a sign-in of its own.
   const save = () => run("save", () => saveLogin({ ...draft, id: entry?.id, customerId: customer.id, secret: entry ? undefined : secret }), () => { onSaved(entry ? "Login gespeichert." : "Login angelegt."); onClose(); });
   return (
-    <Modal title={entry ? "Login bearbeiten" : "Login anlegen"} onClose={onClose} className="users-modal">
+    <Modal title={entry ? "Login bearbeiten" : "Login anlegen"} onClose={onClose} className="users-modal" actions={info.button}>
+      {info.box}
       <div className="cdm-dialog" onKeyDown={(event) => { if (event.key === "Enter" && event.target instanceof HTMLInputElement && !disabled && draft.label.trim()) { event.preventDefault(); save(); } }}>
         <p className="field-hint">{customer.company} · {customer.customerNumber}</p>
         <datalist id={listId}>{providerSuggestions.map((item) => <option key={item} value={item} />)}</datalist>

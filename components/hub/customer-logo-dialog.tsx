@@ -8,6 +8,7 @@ import { formatBytes } from "@/lib/hub-files/catalog";
 import { listLogoCandidates, prepareLogoUpload, removeCustomerLogo, saveCustomerLogo } from "@/lib/hub-logos/actions";
 import { detectLogoGround } from "@/lib/hub-logos/ground";
 import { checkLogoFile, cleanLogoColor, DEFAULT_BRAND_COLOR, LOGO_ACCEPT, LOGO_BUCKET, logoBackgrounds, type CustomerLogo, type LogoBackground, type LogoType } from "@/lib/hub-logos/rules";
+import { useInfo } from "./info-box";
 import { LogoMark, companyInitials } from "./logo-mark";
 import { Modal } from "./modal";
 
@@ -37,6 +38,15 @@ export function CustomerLogoDialog({ customer, onClose, onSaved }: { customer: L
   const [busy, setBusy] = useState<"save" | "remove" | null>(null);
   const [error, setError] = useState("");
   const latest = useRef("");
+  const info = useInfo("So funktioniert das Kundenlogo", (
+    <ul>
+      <li>Als Logo gehen SVG, PNG, JPG oder WebP bis 2 MB: ins Feld ziehen, eine Datei wählen oder ein kopiertes Bild mit Strg+V einfügen. Oder du nimmst ein Bild aus den Dateien des Kunden.</li>
+      <li>Den Hintergrund wählt der Hub passend vor, ein weißes Logo bekommt Dunkel; ein Klick ändert ihn. Ein quadratisches Bildzeichen wirkt in den kleinen Kacheln am besten.</li>
+      <li>Nach „Speichern“ steht das Logo statt der Anfangsbuchstaben in den Kundenlisten des Hubs, und der Kunde sieht es in seinem Login, so wie in der Vorschau oben.</li>
+      <li>„Logo entfernen“ bringt die Buchstaben zurück.</li>
+      <li>Schneller geht es aus einer Bilddatei des Kunden: die Datei im Asset Management öffnen und in den Details „Als Logo von … verwenden“ klicken.</li>
+    </ul>
+  ));
 
   // The customer's images, with preview links for a minute.
   useEffect(() => {
@@ -124,8 +134,9 @@ export function CustomerLogoDialog({ customer, onClose, onSaved }: { customer: L
   const fileInput = <input type="file" accept={LOGO_ACCEPT} className="visually-hidden" disabled={busy !== null} onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ""; }} />;
 
   return (
-    <Modal title={`Logo von ${customer.company}`} onClose={onClose} className="logo-window">
+    <Modal title={`Logo von ${customer.company}`} onClose={onClose} className="logo-window" actions={info.button}>
       <div className="logo-window-body">
+        {info.box}
         <figure className="logo-window-preview">
           <div className="logo-window-row">
             <LogoMark logo={preview} initials={companyInitials(customer.company)} className="avatar welcome-company-logo" plate />

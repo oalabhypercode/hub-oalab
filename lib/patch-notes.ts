@@ -37,6 +37,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 15,
+    date: "2026-11-06",
+    title: "Erklärungen per i",
+    summary: "Die Sonderfunktionen des Hubs erklären sich jetzt mit einem kleinen i-Knopf an der Stelle, an der man sie nutzt: für Admins im Asset Management, im User Management, unter Vertrag & Domain samt Domain & Mail und Zugängen, im Kalender, im Chat und an den Vorschlägen des Assistenten; für Kunden bei Terminanfragen, im Chat, bei Ordnern, beim Zwei-Faktor-Schutz, bei WhatsApp und bei den Einstellungen für ihr Mailprogramm; für Freelancer zusätzlich in ihrem Asset Management. Jede Erklärung hat drei bis sechs Punkte, die sichtbaren Hinweistexte bleiben stehen.",
+    changes: [
+      { kind: "improved", title: "Kurze Erklärungen per i", text: "Bei Terminanfragen, im Chat, bei Ordnern, beim Zwei-Faktor-Schutz, bei WhatsApp und bei den Einstellungen für dein Mailprogramm steht jetzt ein kleines i neben der Überschrift. Ein Klick darauf erklärt direkt an Ort und Stelle, wie die Funktion arbeitet und worauf du achten solltest; ein zweiter Klick schließt die Erklärung wieder.", customers: true },
+      { kind: "improved", title: "i-Knopf an weiteren Sonderfunktionen", text: "Nach dem Vertragsgenerator erklären sich jetzt auch die älteren Sonderfunktionen mit einem kleinen i-Knopf an Ort und Stelle: beim Hochladen, bei Freigabe und Sichtbarkeit einer Datei, beim Kundenlogo und bei „Betreut von“, im User Management, bei Paketen und Verlauf, bei Domain & Mail und den Zugängen, bei Terminen und Anfragen und in den Vorschlägen des Assistenten. Ein Klick öffnet die Erklärung, ein zweiter schließt sie." },
+    ],
+  },
+  {
     number: 14,
     date: "2026-11-05",
     title: "Vertrag & Domain, Begrüßung, Animationen, Abmelden auf dem Tablet und Code-Mails mit Uhrzeit",

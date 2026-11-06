@@ -12,6 +12,7 @@ import { confirmCustomerProposal, confirmProjectUpdate, confirmTaskProposal, con
 import { changeNote, projectChangeLine, taskChangeLines, type ChangeLine, type ChangeView } from "@/lib/hub-assistant/updates";
 import { contactLines, customerNote, type CustomerChoice, type CustomerView } from "@/lib/hub-assistant/customers";
 import { formatDeadline } from "@/lib/hub-data";
+import { useInfo } from "./info-box";
 import { Modal } from "./modal";
 
 /** New tasks (Schritt 3/4), a change to a project or to existing tasks (Schritt 5) or a new customer (Schritt 6). */
@@ -316,6 +317,31 @@ const statusLabels: Record<ProposalState["state"], string> = {
   open: "Offen", saving: "Wird gespeichert …", saved: "Gespeichert", discarded: "Verworfen", failed: "Fehler", expired: "Abgelaufen",
 };
 
+const expiryPoint = "Der Vorschlag gilt 30 Minuten; danach lass ihn neu vorschlagen. Jeder Vorschlag und was daraus wurde, steht im KI-Protokoll.";
+const changePoints = [
+  "Die Karte zeigt jede Änderung als alt → neu. Gespeichert wird nur, was angehakt ist, und erst mit „Speichern“.",
+  "Hat inzwischen jemand im Studio dasselbe geändert, speichert der Hub diese Änderung nicht.",
+  expiryPoint,
+];
+
+/** The ⓘ of every proposal card, per kind: what saving does and what to watch out for. */
+const proposalHelp: Record<keyof typeof kinds, { title: string; points: string[] }> = {
+  "tasks.create": { title: "So funktionieren Aufgaben-Vorschläge", points: [
+    "Angelegt wird erst mit „Speichern“, dann direkt im Studio im genannten Projekt.",
+    "Ein Haken weg nimmt eine Aufgabe heraus. Je Aufgabe stellst du ein, ob oalab oder der Kunde dran ist und ob der Kunde sie sieht.",
+    "Gibt es schon eine offene Aufgabe mit diesem Titel oder steht ein Zitat nicht im eingefügten Text, warnt die Karte.",
+    expiryPoint,
+  ] },
+  "tasks.update": { title: "So funktionieren Änderungs-Vorschläge", points: changePoints },
+  "project.update": { title: "So funktionieren Änderungs-Vorschläge", points: changePoints },
+  "customer.create": { title: "So funktioniert der Kunden-Vorschlag", points: [
+    "Angelegt wird erst mit „Kunde anlegen“, dann in Service und im Hub, mit einer neuen Kundennummer.",
+    "Das Service-Paket wählst du in der Karte. Ähnliche Kunden oder dieselbe Kontakt-E-Mail zeigt sie als Warnung.",
+    "Nennt der Vorschlag einen Ansprechpartner, kann er gleich einen Login bekommen. Die Einladungs-Mail geht nur, wenn du sie eigens anhakst.",
+    expiryPoint,
+  ] },
+};
+
 /** Rows of a card: from six on only the first five show, until "Alle zeigen". */
 const SHORT_LIST = 5;
 
@@ -349,6 +375,8 @@ function CardFrame({ item, kind, count, context, label, link, children, actions,
   const [expanded, setExpanded] = useState<boolean | null>(null);
   const open = expanded ?? !decided;
   const { icon: Icon, label: kindLabel } = kinds[kind];
+  const help = proposalHelp[kind];
+  const info = useInfo(help.title, <ul>{help.points.map((point) => <li key={point}>{point}</li>)}</ul>);
   const until = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(item.view.expiresAt));
   const summary = item.message ?? (state === "expired" ? "Abgelaufen (30 Minuten), nichts gespeichert. Bitte den Assistenten neu vorschlagen lassen." : state === "discarded" ? "Verworfen, nichts gespeichert." : "");
   return (
@@ -359,8 +387,10 @@ function CardFrame({ item, kind, count, context, label, link, children, actions,
           <strong>{kindLabel}{count ? ` · ${count}` : ""}</strong>
           {context && <span>{context}</span>}
         </span>
+        {info.button}
         <span className={`proposal-status is-${state}`}>{state === "open" ? `${statusLabels.open} · bis ${until}` : statusLabels[state]}</span>
       </header>
+      {info.box}
       {open && children}
       {summary && <p className={state === "saved" ? "proposal-done" : state === "discarded" || state === "expired" ? "proposal-hint" : "form-error"} role="status">{state === "saved" && <Check size={15} aria-hidden="true" />} {summary}</p>}
       {state === "saved" && link && <Link className="proposal-link" href={link.href}>{link.text}</Link>}
