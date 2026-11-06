@@ -2044,6 +2044,22 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .cdm-dialog .field-hint { margin: 0; }
 .cdm-switch-row { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--label-body); }
 
+/* Service-Kontingente (Vertrag & Domain, stage 3): the switch row, the block list, the usage bar, the customer's line. */
+.cdm-quota-switch { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cdm-quota-switch p { flex: 1 1 240px; margin: 0; font-size: 13.5px; line-height: 19px; color: var(--label-body); }
+.cdm-quota-group { display: flex; flex-direction: column; gap: 2px; }
+.cdm-quota-group h4 { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--label-secondary); }
+.cdm-quota-group h4 span { padding: 0 7px; border-radius: 999px; background: var(--sheet-seg); font-size: 11.5px; line-height: 18px; color: var(--sheet-muted); }
+.cdm-meter-row { display: flex; align-items: center; gap: 10px; }
+.cdm-meter { position: relative; flex: 1 1 auto; height: 8px; border-radius: 999px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); overflow: hidden; }
+.cdm-meter > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--tone-ok); }
+.cdm-meter:is(.is-warn, .is-full) > span { background: var(--tone-todo); }
+.cdm-meter-row strong, .cdm-quota-count strong { font-size: 14px; line-height: 20px; color: var(--label); white-space: nowrap; }
+.cdm-quota-count { margin: 0; font-size: 13.5px; line-height: 19px; color: var(--label-body); }
+.cdm-entry.is-exempt .cdm-entry-top strong { color: var(--sheet-muted); text-decoration: line-through; }
+.cdm-quota-line p { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; margin: 0; font-size: 13.5px; line-height: 19px; color: var(--label-body); }
+
+
 /* ⓘ next to a feature and its card „Kurz erklärt“ (components/hub/info-box.tsx): at most three short lines, floating
    above the page as a popover next to the ⓘ, on phones a sheet at the bottom. Older browsers show it inline below. */
 .info-button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / calc(0.2 * var(--tint-k))); color: var(--accent-text); vertical-align: middle; }
@@ -2171,6 +2187,7 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .cdm-file-icon.is-domain { background: rgb(48 176 199 / 0.12); color: rgb(28, 140, 160); }
 .cdm-file-icon.is-service { background: rgb(88 86 214 / 0.1); color: rgb(88, 86, 214); }
 .cdm-file-icon.is-none { background: var(--tone-bad-bg); color: var(--tone-bad); }
+.cdm-file-icon.is-off { background: var(--fill-tertiary); color: var(--sheet-muted); }
 :root[data-theme="dark"] .cdm-file-icon { background: rgb(48 209 88 / 0.14); color: rgb(48, 209, 88); }
 :root[data-theme="dark"] .cdm-file-icon.is-domain { background: rgb(48 176 199 / 0.16); color: rgb(110, 214, 232); }
 :root[data-theme="dark"] .cdm-file-icon.is-service { background: rgb(94 92 230 / 0.2); color: rgb(169, 167, 255); }

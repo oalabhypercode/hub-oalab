@@ -10,6 +10,7 @@ import { SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, useColl
 import { CustomerSign } from "./customer-sign";
 import { ContractTemplatesSection } from "./contract-generator";
 import { packagesLine } from "./contracts-parts";
+import { ServiceQuotaSection } from "./contracts-quota";
 
 /** Columns of the admin tables: Eintrag, Art, Datum, Aktion. */
 const COLUMNS = 4;
@@ -69,11 +70,12 @@ function CustomerCell({ customer, title, sub, onOpen }: { customer: ContractCust
  * The overview of the Contract & Domain Management in the language of the asset management: one table with what needs
  * a hand, what comes up in the next 60 days, the packages and the newest timeline entries; the templates below.
  */
-export function ContractsOverview({ state, asOf, onOpenCustomer, onShowMissing }: {
+export function ContractsOverview({ state, asOf, onOpenCustomer, onShowMissing, onNotice }: {
   state: ContractsState;
   asOf: string;
   onOpenCustomer: (id: string, tab: OverviewTab) => void;
   onShowMissing: () => void;
+  onNotice: (message: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const groups = useCollapsedGroups();
@@ -147,6 +149,7 @@ export function ContractsOverview({ state, asOf, onOpenCustomer, onShowMissing }
                 )}
               </TableGroup>
             )}
+            {!term && <ServiceQuotaSection quota={state.serviceQuota} customers={state.customers} onOpenCustomer={(id) => onOpenCustomer(id, "contract")} onNotice={onNotice} />}
             {(!term || recent.length > 0) && (
               <TableGroup colSpan={COLUMNS} label="Zuletzt im Verlauf" count={recent.length} glyph={<History size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("recent")} onToggle={() => groups.toggle("recent")} empty="Noch keine Zeitpunkte. Trag beim Kunden zum Beispiel ein, wann eine Rechnung bezahlt wurde.">
                 {recent.map(({ entry, customer }) => (

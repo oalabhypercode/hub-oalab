@@ -16,6 +16,7 @@ import { ContractsOverview } from "./contracts-overview";
 import { DomainMailTab } from "./contracts-domains";
 import { CustomerContractSheet } from "./contracts-customer";
 import { AccessTab } from "./contracts-access";
+import { CustomerQuotaCard } from "./contracts-quota";
 import type { ScreenProps } from "./types";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -112,7 +113,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   );
 
   /* ---------- Overview ---------- */
-  const overview = <ContractsOverview state={state} asOf={asOf} onOpenCustomer={(id, next) => openCustomer(id, next)} onShowMissing={() => setOnlyMissing(true)} />;
+  const overview = <ContractsOverview state={state} asOf={asOf} onOpenCustomer={(id, next) => openCustomer(id, next)} onShowMissing={() => setOnlyMissing(true)} onNotice={setNotice} />;
 
   /* ---------- One customer ---------- */
   const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
@@ -147,6 +148,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       ) : tab === "contract" ? (
         <div className="cdm-body">
           <PackagesForm key={current.id} customer={current} canManage={state.canManage} onSaved={setNotice} />
+          <CustomerQuotaCard key={`quota-${current.id}`} customer={current} quota={state.serviceQuota} fixtures={state.source === "fixtures"} onNotice={setNotice} />
           <section className="cdm-section" aria-labelledby="cdm-files">
             <h3 id="cdm-files"><FileText size={16} aria-hidden="true" />Verträge und Rechnungen</h3>
             <ContractFiles files={files} customerId={current.id} preview={preview} empty="Im Asset Management liegen bei diesem Kunden noch keine Verträge oder Rechnungen." />
