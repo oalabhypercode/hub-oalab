@@ -1,10 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarClock, Check, ChevronLeft, FileText, Inbox, LayoutGrid, Package, Plus, Search } from "lucide-react";
-import { hubHref } from "@/lib/hub-data";
 import type { HubFilesState } from "@/lib/hub-files/types";
 import { packageCatalog, packageGroups, packageIds } from "@/lib/service-packages";
 import { endingSoon, formatCents, formatDay, lastPayment } from "@/lib/hub-contracts/rules";
@@ -15,11 +13,12 @@ import { GlassCard, SectionHeader } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { CustomerSign } from "./customer-sign";
 import { CategoryTitle } from "./workspace";
-import { ContractFiles, PackagesForm, TimelineDialog, TimelineList, packageDates, packagesLine } from "./contracts-parts";
+import { ContractFiles, PackagesForm, TimelineDialog, TimelineList, packagesLine } from "./contracts-parts";
 import { ContractGenerator, ContractGeneratorButton, ContractTemplatesSection } from "./contract-generator";
-import { CustomerDomainCard, DomainMailTab } from "./contracts-domains";
+import { DomainMailTab } from "./contracts-domains";
+import { CustomerContractSheet } from "./contracts-customer";
 import { AccessTab } from "./contracts-access";
-import { CustomerQuotaCard, CustomerQuotaLine, QuotaCell, ServiceQuotaSection } from "./contracts-quota";
+import { CustomerQuotaCard, QuotaCell, ServiceQuotaSection } from "./contracts-quota";
 import { quotaMonth } from "@/lib/hub-service-quota/rules";
 import type { ScreenProps } from "./types";
 
@@ -275,33 +274,11 @@ function ContractsCustomer({ state, preview, fileState }: { state: ContractsStat
       <LargeTitleHeader title="Vertrag & Domain" icon={<CategoryTitle category="contracts" />} actions={<HeaderActions />} />
       {state.error && <GlassCard className="section-first"><p className="t-headline">Gerade nicht verfügbar</p><p className="t-subheadline t-secondary">{state.error}</p></GlassCard>}
       {!state.error && !state.customers.length && <GlassCard className="section-first"><p className="t-subheadline t-secondary">Sobald dein Zugang einem Unternehmen zugeordnet ist, siehst du hier deine Pakete und wichtige Zeitpunkte.</p></GlassCard>}
+      {/* Like „Dateien“: the figures in glass on top, one sheet with groups of rows below; one block per company. */}
       {!state.error && state.customers.map((customer, index) => (
-        <section key={customer.id} className={index === 0 ? "section-first" : "cdm-next-company"} aria-label={customer.company}>
+        <section key={customer.id} className={index === 0 ? undefined : "cdm-next-company"} aria-label={customer.company}>
           {state.customers.length > 1 && <SectionHeader title={customer.company} />}
-          <div className="settings-grid">
-            <GlassCard className="settings-card">
-              <h2 className="t-headline settings-card-title"><Package size={20} color="var(--cat-contracts-text)" aria-hidden="true" />Deine Pakete</h2>
-              <dl className="account-details cdm-packages-list">
-                {customer.packages.map((item) => (
-                  <div key={item.group}>
-                    <dt>{packageGroups[item.group].name}</dt>
-                    <dd>{item.packageId ? <><strong>{packageCatalog[item.packageId].name}</strong>{packageDates(item) && <small>{packageDates(item)}</small>}</> : <span className="t-secondary">Kein Paket</span>}</dd>
-                  </div>
-                ))}
-              </dl>
-              <CustomerQuotaLine quota={state.serviceQuota} customerId={customer.id} />
-              <p className="t-footnote t-secondary">Fragen zu deinen Paketen? Schreib deinem oalab-Team unter <Link href={hubHref(preview, "messages")}>Nachrichten</Link>.</p>
-            </GlassCard>
-            <CustomerDomainCard customer={customer} domainMail={state.domainMail} />
-            <GlassCard className="settings-card">
-              <h2 className="t-headline settings-card-title"><CalendarClock size={20} color="var(--cat-contracts-text)" aria-hidden="true" />Verlauf</h2>
-              <TimelineList entries={state.timeline.filter((entry) => entry.customerId === customer.id)} files={fileState.files} preview={preview} admin={false} canManage={false} empty="Noch keine Einträge. Hier stehen zum Beispiel bezahlte Rechnungen und Änderungen an deinen Paketen." />
-            </GlassCard>
-            <GlassCard className="settings-card">
-              <h2 className="t-headline settings-card-title"><FileText size={20} color="var(--cat-contracts-text)" aria-hidden="true" />Verträge und Rechnungen</h2>
-              <ContractFiles files={fileState.files} customerId={customer.id} preview={preview} empty="In deinen Dateien liegen noch keine Verträge oder Rechnungen." />
-            </GlassCard>
-          </div>
+          <CustomerContractSheet customer={customer} state={state} files={fileState.files} preview={preview} />
         </section>
       ))}
     </>

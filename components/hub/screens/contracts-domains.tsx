@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Check, Copy, ExternalLink, Globe, Mail, Minus, Pencil, Plus, Save, Server, Trash2 } from "lucide-react";
+import { Check, Copy, Globe, Mail, Minus, Pencil, Plus, Save, Server, Trash2 } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { formatDay } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
@@ -11,7 +11,6 @@ import {
   normalizeEmail, providerSuggestions, renewalPassed, type DomainCheck, type DomainOwner, type DomainStatus, type MailboxKind, type MailSecurity,
 } from "@/lib/hub-domains/rules";
 import type { CustomerDomain, DomainMailState, Mailbox, MailServer } from "@/lib/hub-domains/types";
-import { GlassCard } from "../glass";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { useContractAction } from "./contracts-parts";
@@ -364,77 +363,5 @@ function MailboxDialog({ customer, entry, domains, onClose, onSaved }: { custome
           : <button type="button" className="sheet-button" disabled={disabled} onClick={() => setConfirmDelete(true)}><Trash2 size={18} aria-hidden="true" />Löschen</button>)}
       </form>
     </Modal>
-  );
-}
-
-/* ---------- Customers: card „Domain & E-Mail“ ---------- */
-
-function Setting({ label, value, copy }: { label: string; value: string; copy?: boolean }) {
-  return (
-    <div className="dm-setting">
-      <dt>{label}</dt>
-      <dd><span className={copy ? "dm-mono" : undefined}>{value}</span>{copy && <CopyButton value={value} label={label} />}</dd>
-    </div>
-  );
-}
-
-/**
- * What a customer sees of its domains and mail: the running domain names, its addresses and, with OALAB Domain & Mail,
- * the settings for a mail program. Never passwords, providers, deadlines or notes. Nothing at all while there is nothing.
- */
-export function CustomerDomainCard({ customer, domainMail }: { customer: ContractCustomer; domainMail: DomainMailState }) {
-  const domains = domainMail.domains.filter((item) => item.customerId === customer.id);
-  const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id);
-  const server = domainMail.mailServers.find((item) => item.customerId === customer.id && (item.imapHost || item.smtpHost || item.webmailUrl)) ?? null;
-  const info = useInfo("Mailprogramm einrichten", {
-    steps: [
-      <><b>Neues Konto</b> anlegen und IMAP wählen.</>,
-      <><b>Server und Ports</b> von hier kopieren.</>,
-      <><b>Benutzername</b> ist deine E-Mail-Adresse.</>,
-    ],
-    ask: "Wie richte ich mein Mailprogramm ein?",
-  });
-  if (!domains.length && !mailboxes.length && !server) return null;
-  return (
-    <GlassCard className="settings-card">
-      <h2 className="t-headline settings-card-title"><Globe size={20} color="var(--cat-contracts-text)" aria-hidden="true" />Domain & E-Mail</h2>
-      {domains.length > 0 && (
-        <div className="dm-block">
-          <h3>Domains</h3>
-          <ul className="dm-plain">{domains.map((domain) => <li key={domain.id}><strong>{domain.display}</strong></li>)}</ul>
-        </div>
-      )}
-      {mailboxes.length > 0 && (
-        <div className="dm-block">
-          <h3>E-Mail-Adressen</h3>
-          <ul className="dm-plain">
-            {mailboxes.map((mailbox) => (
-              <li key={mailbox.id}>
-                <strong>{mailbox.display}</strong>
-                <small>{mailbox.kind === "mailbox" ? [mailboxKinds.mailbox.label, mailbox.person].filter(Boolean).join(" · ") : `${mailboxKinds[mailbox.kind].target} ${mailbox.targetDisplay}`}</small>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {server && (
-        <div className="dm-block">
-          <h3>Für dein Mailprogramm{info.button}</h3>
-          {info.box}
-          {(["imap", "smtp"] as const).filter((side) => server[`${side}Host`]).map((side) => (
-            <div key={side} className="dm-settings">
-              <p className="dm-settings-title">{side === "imap" ? "Posteingang (IMAP)" : "Postausgang (SMTP)"}</p>
-              <dl>
-                <Setting label="Server" value={server[`${side}Host`]} copy />
-                {server[`${side}Port`] !== null && <Setting label="Port" value={String(server[`${side}Port`])} copy />}
-                <Setting label="Verschlüsselung" value={mailSecurities[server[`${side}Security`]].label} />
-              </dl>
-            </div>
-          ))}
-          <p className="t-footnote t-secondary">Benutzername ist jeweils deine vollständige E-Mail-Adresse. Passwörter zeigt der Hub aus Sicherheitsgründen nicht an; brauchst du ein neues, hilft dir dein oalab-Team.</p>
-          {server.webmailUrl && <a className="sheet-action dm-webmail" href={server.webmailUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} aria-hidden="true" />Webmail öffnen<span className="visually-hidden"> (öffnet in neuem Tab)</span></a>}
-        </div>
-      )}
-    </GlassCard>
   );
 }

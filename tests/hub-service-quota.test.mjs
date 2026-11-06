@@ -140,5 +140,6 @@ test("the customer's line and the service platform's hints appear only while the
   const contracts = await source("components/hub/screens/contracts.tsx");
   assert.match(contracts, /<ServiceQuotaSection quota=\{state\.serviceQuota\}/);
   assert.match(contracts, /<CustomerQuotaCard key=\{`quota-\$\{current\.id\}`\} customer=\{current\} quota=\{state\.serviceQuota\} fixtures=\{state\.source === "fixtures"\}/);
-  assert.match(contracts, /<CustomerQuotaLine quota=\{state\.serviceQuota\} customerId=\{customer\.id\} \/>/);
+  // The customer's row sits in the group „Pakete“ of their sheet.
+  assert.match(await source("components/hub/screens/contracts-customer.tsx"), /<CustomerQuotaLine quota=\{state\.serviceQuota\} customerId=\{customer\.id\} \/>/);
 });

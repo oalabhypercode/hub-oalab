@@ -11,6 +11,7 @@ import { quotaRequestFixtures } from "@/lib/hub-service-quota/fixtures";
 import type { QuotaRequest, ServiceQuotaState } from "@/lib/hub-service-quota/types";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { StatusGlyph } from "../sheet";
 import { useContractAction } from "./contracts-parts";
 
 // Vertrag & Domain, stage 3: the Service package sets how many new requests a customer may make on the service
@@ -300,8 +301,8 @@ export function QuotaCell({ quota, customerId }: { quota: ServiceQuotaState; cus
 }
 
 /**
- * The customer's own line under „Deine Pakete“, only while the switch is on: how many requests this month, and from
- * when all are free again.
+ * The customer's own row in the group „Pakete“ of their sheet, only while the switch is on: how many requests this
+ * month, and from when all are free again.
  */
 export function CustomerQuotaLine({ quota, customerId }: { quota: ServiceQuotaState; customerId: string }) {
   const info = useInfo("Deine Anfragen", {
@@ -316,15 +317,16 @@ export function CustomerQuotaLine({ quota, customerId }: { quota: ServiceQuotaSt
   if (!row || !quota.window) return null;
   const month = quotaMonth(quota.window);
   const status = quotaStatus(row);
-  const text = status === "none"
-    ? "Ohne Servicepaket kannst du auf der Serviceplattform keine neuen Anfragen stellen."
-    : status === "full"
-      ? `Im ${month.month} sind alle ${row.monthlyLimit} Anfragen genutzt. Neue Anfragen gehen wieder ab dem ${month.resetDay}.`
-      : `Im ${month.month} ${row.monthlyUsed} von ${row.monthlyLimit} Anfragen genutzt, ab dem ${month.resetDay} wieder ${row.monthlyLimit}.`;
+  const glyph = status === "ok" ? "active" : status === "warn" ? "pending" : "disabled";
+  const state = status === "ok" ? "frei" : status === "warn" ? "ab 80 %" : status === "full" ? "aufgebraucht" : "kein Paket";
   return (
-    <div className="cdm-quota-line">
-      <p>{status !== "ok" && <span className="chat-pill tone-todo">{status === "none" ? "Kein Servicepaket" : status === "full" ? "Aufgebraucht" : "Ab 80 %"}</span>}<span>{text}</span>{info.button}</p>
-      {info.box}
-    </div>
+    <tr className="file-row cdm-quota-row">
+      <td className="cell-file"><span className="file-open"><Gauge size={16} strokeWidth={1.9} className="cdm-row-icon" aria-hidden="true" /><strong>Anfragen im {month.month}</strong></span></td>
+      <td className="cell-category"><span className="file-dot cdm-dot-service"><i aria-hidden="true" />Service</span></td>
+      <td className="cell-description col-description">{status === "none" ? "Ohne Servicepaket gehen keine neuen Anfragen." : `${row.monthlyUsed} von ${row.monthlyLimit} genutzt`}</td>
+      <td className="cell-date">{status === "none" ? "" : `ab dem ${month.resetDay} wieder ${row.monthlyLimit}`}</td>
+      <td className="cell-state"><span className="status-cell"><StatusGlyph kind={glyph} />{state}</span></td>
+      <td className="cell-action">{info.button}{info.box}</td>
+    </tr>
   );
 }
