@@ -4,9 +4,7 @@ import { OPERATOR } from "@/lib/legal-details";
 /**
  * Checked on 4.11.2026 against what the hub really uses: Vercel (fra1, Hobby plan, so no processing agreement yet),
  * Supabase (eu-central-1), netcup (mail, agreement in place), Anthropic (assistant), only necessary cookies and
- * browser storage, no trackers, fonts served by the hub itself. Telegram is described as it is meant to run with real
- * customers (company name and link only); during the internal test phase without real customer data lib/hub-telegram
- * still sends the whole message (decision of 4.11.2026). Switch that back before real customer data arrives.
+ * browser storage, no trackers, fonts served by the hub itself. Telegram gets the company name and link only.
  * Change this text whenever one of these changes, and move PRIVACY_POLICY_DATE (lib/legal-details.ts) with it.
  */
 export const PRIVACY_SECTIONS = [

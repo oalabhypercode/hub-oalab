@@ -6,7 +6,7 @@ import {
   mailsWanted, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
 } from "../lib/hub-notify/rules.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
-import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
+import { telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -305,41 +305,32 @@ test("chat notices in the mail: the messages area, a single chat as its own mail
   assert.match(reply.html, /Nachricht lesen/);
 });
 
-test("Telegram: only with a real token and group; company and name in bold, the text below, a button into the hub", () => {
+test("Telegram: only with a real token and group, the company and a button into the hub, never the message", () => {
   const token = "123456789:AAH8sQ2-xYzAbCdEfGhIjKlMnOpQrStUvWx";
   assert.deepEqual(telegramConfig({ TELEGRAM_BOT_TOKEN: ` ${token} `, TELEGRAM_CHAT_ID: "-1001234567890" }), { token, chatId: "-1001234567890" });
   assert.equal(telegramConfig({ TELEGRAM_BOT_TOKEN: token }), null);
   assert.equal(telegramConfig({ TELEGRAM_BOT_TOKEN: "abc", TELEGRAM_CHAT_ID: "-1001234567890" }), null);
   assert.equal(telegramConfig({ TELEGRAM_BOT_TOKEN: token, TELEGRAM_CHAT_ID: "Gruppe" }), null);
-  assert.ok(telegramConfig({ TELEGRAM_BOT_TOKEN: token, TELEGRAM_CHAT_ID: "-5521501477" }), "the number of a plain group");
   const url = "https://hub.oalab.de/dashboard/messages?chat=5f0c2a8e-1b7d-4c3e-9a2f-6d8e1b0c7a44";
-  const message = telegramChatMessage({ company: "  Nordlicht\nStudio ", author: "Jana Sommer", body: "Dienstag passt.\r\nBringt ihr die <Zahlen> & *Folien* mit?", url });
-  assert.deepEqual(message, {
-    text: "Nordlicht Studio · Jana Sommer\nDienstag passt.\nBringt ihr die <Zahlen> & *Folien* mit?",
-    entities: [{ type: "bold", offset: 0, length: "Nordlicht Studio · Jana Sommer".length }],
+  assert.deepEqual(telegramChatMessage({ company: "  Nordlicht\nStudio ", url }), {
+    text: "Neue Nachricht von Nordlicht Studio im privaten Chat des Client Hub.",
     reply_markup: { inline_keyboard: [[{ text: "Im Hub öffnen", url }]] },
   });
-  // The text is never read as formatting: no parse mode, the bold line is an entity.
-  assert.equal("parse_mode" in message, false);
-  // Long messages are cut below the limit of Telegram, with a note; the head stays.
-  const long = telegramChatMessage({ company: "X", author: "", body: "a".repeat(5000), url });
-  assert.ok(long.text.length < 4096);
-  assert.match(long.text, /^X\na{3500} …\n\n\(gekürzt, die ganze Nachricht steht im Hub\)$/);
-  assert.equal(TELEGRAM_TEXT_LIMIT, 3500);
   // Telegram takes no button to a local address; the link then stands in the text.
-  const local = telegramChatMessage({ company: "", author: "", body: "Hallo", url: "http://localhost:3006/dashboard/messages?chat=1" });
-  assert.equal(local.text, "Kunde\nHallo\n\nhttp://localhost:3006/dashboard/messages?chat=1");
+  const local = telegramChatMessage({ company: "", url: "http://localhost:3006/dashboard/messages?chat=1" });
+  assert.equal(local.text, "Neue Nachricht von einem Kunden im privaten Chat des Client Hub.\nhttp://localhost:3006/dashboard/messages?chat=1");
   assert.equal("reply_markup" in local, false);
   assert.match(telegramTestMessage().text, /Testmeldung/);
 });
 
-test("every customer message goes to the Telegram group with name and text, answers do not, and the token is never logged", async () => {
+test("Telegram is told once per chat until the team reads it, with company and link only, and never logs the token", async () => {
   const server = await source("lib/hub-notify/server.ts");
   const notify = server.slice(server.indexOf("export async function notifyChat"));
-  assert.match(notify, /if \(kind === "chat\.message"\) await sendTelegram\(telegramChatMessage\(\{ company: input\.company, author: name, body: input\.body, url: `\$\{input\.origin\}\$\{chatHref\(input\.customerId\)\}` \}\)\);/);
-  // Sent before the early return, so the group hears of it even without an admin login to notify.
-  assert.ok(notify.indexOf("sendTelegram(") < notify.indexOf("if (!to.length) return;"));
-  assert.doesNotMatch(notify, /\.is\("read_at", null\)\.limit\(1\)/);
+  // Asked before the new notices are written; the message text never goes to Telegram.
+  assert.ok(notify.indexOf("sendTelegram(") < notify.indexOf("insertNotices("));
+  assert.match(notify, /\.eq\("kind", "chat\.message"\)\.eq\("href", chatHref\(input\.customerId\)\)\.is\("read_at", null\)\.limit\(1\)/);
+  assert.match(notify, /sendTelegram\(telegramChatMessage\(\{ company: input\.company, url: `\$\{input\.origin\}\$\{chatHref\(input\.customerId\)\}` \}\)\)/);
+  assert.doesNotMatch(notify, /telegramChatMessage\(\{[^}]*body/);
   const telegram = await source("lib/hub-telegram/server.ts");
   assert.match(telegram, /^import "server-only";/);
   assert.match(telegram, /fetch\(`https:\/\/api\.telegram\.org\/bot\$\{config\.token\}\/sendMessage`/);
@@ -347,9 +338,7 @@ test("every customer message goes to the Telegram group with name and text, answ
   const actions = await source("lib/hub-telegram/actions.ts");
   assert.match(actions, /^"use server";/);
   assert.equal((actions.match(/if \(!\(await verifyHubAdmin\(\)\)\) return adminsOnly;/g) ?? []).length, 2);
-  // The setup lives in the environment, documented with the other variables and the privacy note.
+  // The setup lives in the environment, documented with the other variables.
   assert.match(await source(".env.example"), /# TELEGRAM_BOT_TOKEN=.*\n# TELEGRAM_CHAT_ID=/);
-  const readme = await source("README.md");
-  assert.match(readme, /\| `TELEGRAM_BOT_TOKEN` \| Secret \|/);
-  assert.match(readme, /Die Datenschutzerklärung muss die Weitergabe der Chat-Nachrichten an Telegram nennen\./);
+  assert.match(await source("README.md"), /\| `TELEGRAM_BOT_TOKEN` \| Secret \|/);
 });
