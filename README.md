@@ -41,7 +41,9 @@ Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite ze
 
 ## Vercel und öffentliche Demo
 
-Bestehendes Projekt: `oalabs-projects/oalab-client-hub`, Hauptdomain: [hub.oalab.de](https://hub.oalab.de/) (zeigt auf Vercel), weiterhin erreichbar unter [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/), Git-Branch: `main`. Supabase nutzt `https://hub.oalab.de` als Site URL; `NEXT_PUBLIC_SITE_URL` in Vercel sollte ebenfalls darauf zeigen.
+Seit 08.11.2026 läuft [hub.oalab.de](https://hub.oalab.de/) auf der eigenen OALab-Plattform: Coolify-App `oalab-hub` auf Server 2, gebaut aus `main` (jeder Push geht in 2–4 Minuten live), Daten in PostgreSQL und Garage statt Supabase (siehe `lib/platform/` und im Service-Repo `docs/operations/eigener-server.md`).
+
+Das Vercel-Projekt `oalabs-projects/oalab-client-hub` bleibt als Weg zurück bis mindestens 22.11.2026 bestehen, baut aber nichts mehr (Ignored Build Step `exit 0`); sein letztes Production-Deployment ist weiter unter [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/) erreichbar. Der folgende Abschnitt beschreibt diesen alten Supabase-Weg.
 
 In Vercel sind ausschließlich für **Production** konfiguriert:
 
