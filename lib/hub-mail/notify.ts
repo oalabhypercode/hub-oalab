@@ -81,7 +81,7 @@ export function mailRejection(db: SupabaseClient, user: User, input: { firstName
 }
 
 /** A one-time link to set the first or a new password, sent to the login's own address only. */
-export function mailPasswordLink(db: SupabaseClient, user: User, input: { firstName: string; link: string; activation: boolean }) {
+export function mailPasswordLink(db: SupabaseClient, user: User, input: { firstName: string; link: string; activation: boolean; validUntil?: Date | null }) {
   const settings = mailSettings();
   return sendTracked(db, input.activation ? "user.activation" : "user.password", user.id, mailOf([user.email ?? ""], passwordLinkMail({ ...input, email: user.email ?? "" }, settings.legal)));
 }

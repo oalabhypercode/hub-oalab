@@ -981,6 +981,19 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .import-status.is-error { color: var(--tone-bad); }
 .import-empty { padding: 14px; }
 .import-failures { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 18px; }
+/* „Konten anlegen“: names and address editable in the row. */
+.login-input input { width: 100%; min-width: 110px; min-height: 34px; padding: 6px 10px; border: 0; border-radius: 8px; background: var(--fill-tertiary); color: var(--label-body); font: inherit; font-size: 13px; }
+.login-input.login-mail input { min-width: 190px; }
+.login-input input:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
+.import-table .import-company small.numeric { color: var(--label-secondary); }
+/* The tab switch of the User Management with its ⓘ. */
+.users-switch { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.data-table .cell-login-state { text-align: left; white-space: nowrap; }
+.sheet-action .sheet-menu-badge { margin-left: 2px; }
+@media (max-width: 767px) {
+  .login-table .login-input { grid-column: 2 / -1; }
+  .sheet .customer-table .cell-login::before { content: "Letzter Login: "; }
+}
 @media (max-width: 767px) {
   /* Phones: tick on the left, company and line on top, number, place and what happens below. */
   .import-table thead { display: none; }

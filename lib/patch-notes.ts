@@ -37,6 +37,18 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 17,
+    date: "2026-11-09",
+    title: "Einladung eine Woche gültig",
+    summary: "Admins legen jetzt für alle Kunden ohne Konto in einem Rutsch Konten an, mit den Ansprechpartnern aus der Sevdesk-Datei, und schicken die Einladungen später gesammelt los, auch als Erinnerung. Der Link in der Einladung gilt jetzt eine Woche statt eines Tages, und die E-Mail nennt das Ablaufdatum. Das User Management zeigt bei den Konten die Rolle und bei den Kunden den Stand der Konten und den letzten Login; ein i erklärt den Unterschied zwischen Konten, Kunden und Freelancern.",
+    changes: [
+      { kind: "improved", title: "Einladung eine Woche gültig", text: "Der Link in der E-Mail, mit der du deinen Zugang zum Hub aktivierst, gilt jetzt eine Woche statt eines Tages. Die E-Mail nennt dir genau, bis wann; ist er abgelaufen, schickt dir dein oalab-Team einen neuen.", customers: true },
+      { kind: "new", title: "Konten für viele Kunden anlegen", text: "Unter „Kunden“ legt „Konten anlegen“ für jeden Kunden ohne Konto eines mit der Rolle Kunde an. Namen und Adressen kommen aus der Kontakt-E-Mail oder, mit der Sevdesk-Datei, von den Ansprechpartnern; die Vorschau zeigt vorher, was nicht passt. Eine Mail geht dabei noch nicht raus." },
+      { kind: "new", title: "Einladungen gesammelt senden", text: "Unter „Konten“ schickt „Einladungen senden“ den Aktivierungslink an alle Konten, die sich noch nie angemeldet haben. Wer schon eingeladen wurde, lässt sich bewusst erneut einladen; die Liste zeigt, wann die letzte Einladung rausging." },
+      { kind: "improved", title: "Rolle, Konto-Status und letzter Login", text: "Die Konten zeigen jetzt ihre Rolle in einer eigenen Spalte. Bei den Kunden stehen Zahl und Stand der Konten (kein Konto, angelegt, eingeladen, aktiv) und der letzte Login, mit Filter und Sortierung; ein i erklärt Konten, Kunden und Freelancer." },
+    ],
+  },
+  {
     number: 16,
     date: "2026-11-08",
     title: "Datenschutzerklärung aktualisiert",

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { hashPassword, symmetricDecrypt, symmetricEncrypt, verifyPassword } from "better-auth/crypto";
 import QRCode from "qrcode";
 import { secondFactorMethod } from "@/lib/hub-auth/second-factor";
-import { banUntil, betterAuthSecret, isRecord, mergeMetadata, REST_TOKEN_SECONDS, restJwtSecret, SESSION_SECONDS, SESSION_UPDATE_SECONDS, sessionCookieName } from "./config";
+import { banUntil, betterAuthSecret, isRecord, linkHours, mergeMetadata, REST_TOKEN_SECONDS, restJwtSecret, SESSION_SECONDS, SESSION_UPDATE_SECONDS, sessionCookieName } from "./config";
 import { sql, type Claims } from "./db";
 import { signJwt } from "./jwt";
 import { newSessionToken, signSessionToken, verifiedSessionToken } from "./session-cookie";
@@ -42,7 +42,6 @@ type Current = { session: SessionRow; user: UserRow };
 export type Factor = { id: string; factor_type: "totp"; status: "verified" | "unverified"; friendly_name: string; created_at: string; updated_at: string };
 
 const USER_COLUMNS = "u.id, u.email, u.email_confirmed_at, u.last_sign_in_at, u.banned_until, u.created_at, u.updated_at, u.raw_app_meta_data, u.raw_user_meta_data";
-const LINK_HOURS = 24;
 const ENROLL_MINUTES = 30;
 
 type AuthErrorShape = { name: "AuthApiError"; code: string; message: string; status: number; __isAuthError: true };
@@ -560,7 +559,7 @@ export const ownAdminAuth = {
       if (!user) return fail(authError("user_not_found", "User with this email not found", 404));
       const token = randomBytes(32).toString("hex");
       await sql("insert into auth.verifications (id, identifier, value, expires_at) values (gen_random_uuid(), $1, $2, now() + make_interval(hours => $3))", [
-        linkIdentifier(kind, token), JSON.stringify({ userId: user.id }), LINK_HOURS,
+        linkIdentifier(kind, token), JSON.stringify({ userId: user.id }), linkHours(kind, Boolean(user.last_sign_in_at)),
       ]);
       return {
         data: { properties: { action_link: "", email_otp: "", hashed_token: token, redirect_to: input.options?.redirectTo ?? "", verification_type: kind }, user: supabaseUser(user) },

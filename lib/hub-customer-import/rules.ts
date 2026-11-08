@@ -282,6 +282,35 @@ export function readRows(table: readonly string[][], mapping: ColumnMapping, nor
   return rows.sort((a, b) => a.line - b.line);
 }
 
+export type ImportContact = { firstName: string; lastName: string; email: string; line: number };
+
+/**
+ * The contact persons of the export, for the logins of „Konten anlegen“: every row with a first or last name, found by
+ * the customer number it carries ("OA-" form) and by its company (or, without one, the person's own name, the way the
+ * import named such a customer). A person with an address wins over one without; otherwise the first one counts.
+ */
+export function readContacts(table: readonly string[][], mapping: ColumnMapping, normalize: (company: string) => string) {
+  const cell = (row: readonly string[], field: ImportField) => {
+    const column = mapping[field];
+    return column === null ? "" : line(row[column]);
+  };
+  const byNumber = new Map<string, ImportContact>();
+  const byCompany = new Map<string, ImportContact>();
+  const keep = (map: Map<string, ImportContact>, key: string, contact: ImportContact) => {
+    const current = map.get(key);
+    if (key && (!current || (!current.email && contact.email))) map.set(key, contact);
+  };
+  table.slice(1, MAX_IMPORT_ROWS + 1).forEach((cells, index) => {
+    const firstName = cell(cells, "firstName");
+    const lastName = cell(cells, "lastName");
+    if (!firstName && !lastName) return;
+    const contact = { firstName, lastName, email: cell(cells, "contactEmail").toLowerCase(), line: index + 2 };
+    keep(byNumber, customerNumberFrom(cell(cells, "customerNumber")), contact);
+    keep(byCompany, normalize(cell(cells, "company") || [firstName, lastName].join(" ")), contact);
+  });
+  return { byNumber, byCompany, count: new Set([...byNumber.values(), ...byCompany.values()]).size };
+}
+
 /**
  * Optional values the hub would refuse (an e-mail without domain, a phone with letters) are left empty with a note
  * instead of losing the whole customer. `check` is the hub's own check of a complete draft, returning its error.

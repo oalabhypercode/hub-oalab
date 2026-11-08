@@ -608,17 +608,26 @@ export function registrationRejectedMail(input: { firstName: string; note: strin
   });
 }
 
-/** To the person: a one-time link to set the first (activation) or a new password. */
-export function passwordLinkMail(input: { firstName: string; link: string; activation: boolean; email?: string }, legal?: MailLegal): MailContent {
+const linkUntil = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** „Mittwoch, 18. November 2026, 20:15 Uhr“, in German time. */
+export const formatLinkUntil = (until: Date) => `${linkUntil.format(until).replace(" um ", ", ")} Uhr`;
+
+/**
+ * To the person: a one-time link to set the first (activation) or a new password. `validUntil` names the end of an
+ * activation link when the hub knows it (own platform: a week, see lib/platform/config.ts).
+ */
+export function passwordLinkMail(input: { firstName: string; link: string; activation: boolean; email?: string; validUntil?: Date | null }, legal?: MailLegal): MailContent {
   const first = firstNameOf(input.firstName);
   if (input.activation) {
+    const validity: Row = input.validUntil ? { label: "Link gültig bis", value: formatLinkUntil(input.validUntil) } : LINK_VALIDITY;
     return render({
       subject: "Dein Zugang zum oalab Client Hub",
-      preheader: "Lege dein Passwort fest, dann bist du direkt angemeldet.",
+      preheader: input.validUntil ? `Lege dein Passwort fest. Der Link gilt bis ${formatLinkUntil(input.validUntil)}.` : "Lege dein Passwort fest, dann bist du direkt angemeldet.",
       area: "account",
       heading: "Dein Zugang ist eingerichtet",
       lead: `Dein oalab-Team hat dir einen Zugang zum oalab Client Hub angelegt${first ? `, ${first}` : ""}.`,
-      details: [...(input.email ? [{ label: "Anmeldung mit", value: input.email }] : []), LINK_VALIDITY],
+      details: [...(input.email ? [{ label: "Anmeldung mit", value: input.email }] : []), validity],
       note: { tone: "todo", text: "Lege über den Button dein Passwort fest. Danach bist du direkt angemeldet." },
       cta: { label: "Passwort festlegen", url: input.link },
       small: "Ist der Link abgelaufen, schickt dir dein oalab-Team gern einen neuen.",

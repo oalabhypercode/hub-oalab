@@ -11,7 +11,10 @@ import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
 import { fillsFor, IMPORT_BATCH } from "@/lib/hub-customer-import/rules";
-import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole } from "./rules";
+import { INVITE_BATCH, LOGIN_BATCH } from "@/lib/hub-invitations/rules";
+import { mailSettings } from "@/lib/hub-mail/send";
+import { ACTIVATION_LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
+import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
 import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
@@ -373,15 +376,31 @@ export async function createHubUser(input: { email: string; firstName: string; l
   const role = input.role;
   const kind = kindForRole(role);
   if (kind && !readChoice(input.customer)) return failed(pickMessage(kind));
-  if (role === "oalab_freelancer" && !hasMailbox(email.value)) return failed(noCodeAddress);
 
-  // The login exists before anything else, so a taken address stops here without leftovers. Freelancers start with the
-  // code by e-mail: they see the files of several customers.
+  const added = await addLogin(ctx, { email: email.value, person: person.value, role, customer: input.customer, withLink: true });
+  if (!added.ok) return added;
+  const { user, link, customerId } = added.data;
+  if (!link) return failed("Das Konto konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
+  await log(ctx, "user.created", `Konto angelegt als ${roleLabels[role]}`, { userId: user.id, customerId });
+  const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true, validUntil: activationUntil() }) : null;
+  refreshWorkspace();
+  return { ok: true, data: { userId: user.id, link, mail } };
+}
+
+/**
+ * The steps of a new login, for „Konto anlegen“ and „Konten anlegen“: the login first, so a taken address stops here
+ * without leftovers, then its entry (an existing one or a new one), profile and membership. With `withLink` it also
+ * makes the activation link and counts as failed without one. Whatever fails is taken back; the caller logs.
+ */
+async function addLogin(ctx: Context, input: { email: string; person: PersonInput; role: HubRole; customer: unknown; withLink: boolean }): Promise<ActionResult<{ user: User; link: string | null; customerId: string | null }>> {
+  const { email, person, role } = input;
+  if (role === "oalab_freelancer" && !hasMailbox(email)) return failed(noCodeAddress);
+  // Freelancers start with the code by e-mail: they see the files of several customers.
   const created = await ctx.db.auth.admin.createUser({
-    email: email.value,
+    email,
     email_confirm: true,
     app_metadata: role === "oalab_freelancer" ? { app_role: role, second_factor: "email" } : { app_role: role },
-    user_metadata: { first_name: person.value.firstName, last_name: person.value.lastName, full_name: `${person.value.firstName} ${person.value.lastName}` },
+    user_metadata: { first_name: person.firstName, last_name: person.lastName, full_name: `${person.firstName} ${person.lastName}` },
   });
   if (created.error || !created.data.user) {
     const taken = created.error?.code === "email_exists" || /already|registered|exists/i.test(created.error?.message ?? "");
@@ -396,20 +415,85 @@ export async function createHubUser(input: { email: string; firstName: string; l
   const customer = await resolveCustomer(ctx, role, input.customer);
   if (!customer.ok) { await undo(); return customer; }
   const saved = !(await ctx.db.from("hub_profiles").upsert({
-    user_id: user.id, first_name: person.value.firstName, last_name: person.value.lastName, phone: person.value.phone, position: person.value.position,
+    user_id: user.id, first_name: person.firstName, last_name: person.lastName, phone: person.phone, position: person.position,
     status: "active", source: "admin", decided_at: new Date().toISOString(), decided_by: ctx.actorId,
   }, { onConflict: "user_id" })).error && await assignCustomer(ctx, user.id, customer.data.customerId);
-  const link = saved ? await passwordLink(ctx, email.value) : null;
-  if (!link) {
+  const link = saved && input.withLink ? await passwordLink(ctx, email) : null;
+  if (!saved || (input.withLink && !link)) {
     await undo(customer.data.created ? customer.data.customerId : null);
     return failed("Das Konto konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
   }
   if (customer.data.created) await noteServiceCustomer(ctx, customer.data);
-  await log(ctx, "user.created", `Konto angelegt als ${roleLabels[role]}`, { userId: user.id, customerId: customer.data.customerId });
-  const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true }) : null;
-  refreshWorkspace();
-  return { ok: true, data: { userId: user.id, link, mail } };
+  return { ok: true, data: { user, link, customerId: customer.data.customerId } };
 }
+
+/** The end of an activation link when the hub knows it: on the own platform a week (lib/platform/config.ts). */
+const activationUntil = () => usesOwnPlatform() ? new Date(Date.now() + ACTIVATION_LINK_HOURS * 60 * 60 * 1000) : null;
+
+// Logins and invitations in bulk ---------------------------------------------------------------------------------------
+
+export type LoginCreationResult = { customerId: string; outcome: "created" | "failed"; email: string; userId?: string; error?: string };
+
+/**
+ * „Konten anlegen“ (lib/hub-invitations): one login with the role Kunde per row, at an existing customer, at most
+ * LOGIN_BATCH per call; the dialog sends them in batches. No mail goes out: the invitations follow with
+ * „Einladungen senden“, so the logins can be prepared and checked first.
+ */
+export async function createCustomerLogins(input: { rows?: unknown }): Promise<ActionResult<LoginCreationResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const rows = Array.isArray(input?.rows) ? input.rows : [];
+  if (!rows.length || rows.length > LOGIN_BATCH) return failed(`Bitte 1 bis ${LOGIN_BATCH} Konten auf einmal anlegen.`);
+  const results: LoginCreationResult[] = [];
+  for (const raw of rows) {
+    const row = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const customerId = typeof row.customerId === "string" && uuid.test(row.customerId) ? row.customerId : "";
+    const email = cleanEmail(row.email);
+    const person = readPerson({ firstName: row.firstName, lastName: row.lastName, phone: "", position: "" });
+    const fail = (error: string) => { results.push({ customerId, outcome: "failed", email: email.ok ? email.value : "", error }); };
+    if (!customerId) { fail("Diesen Kunden gibt es nicht mehr."); continue; }
+    if (!email.ok) { fail(email.error); continue; }
+    if (!person.ok) { fail(person.error); continue; }
+    const added = await addLogin(ctx, { email: email.value, person: person.value, role: "oalab_customer", customer: { mode: "existing", customerId }, withLink: false });
+    if (!added.ok) { fail(added.error); continue; }
+    await log(ctx, "user.created", "Konto angelegt als Kunde (Sammelanlage, Einladung folgt)", { userId: added.data.user.id, customerId });
+    results.push({ customerId, outcome: "created", email: email.value, userId: added.data.user.id });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
+}
+
+export type InvitationResult = { userId: string; outcome: "sent" | "skipped" | "failed"; error?: string };
+
+/**
+ * „Einladungen senden“: the activation link by mail to logins that never signed in, at most INVITE_BATCH per call. A new
+ * link makes older ones invalid, so the same button sends reminders. Logins that signed in meanwhile are skipped; they
+ * use „Passwort vergessen“. Without a mail server nothing starts.
+ */
+export async function sendInvitations(input: { userIds?: unknown }): Promise<ActionResult<InvitationResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Einladung raus.");
+  const ids = Array.isArray(input?.userIds) ? [...new Set(input.userIds.filter((id): id is string => typeof id === "string" && uuid.test(id)))] : [];
+  if (!ids.length || ids.length > INVITE_BATCH) return failed(`Bitte 1 bis ${INVITE_BATCH} Einladungen auf einmal senden.`);
+  const results: InvitationResult[] = [];
+  for (const userId of ids) {
+    const user = await loadUser(ctx, userId);
+    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Dieses Konto gibt es nicht mehr." }); continue; }
+    if (isDemoUser(user)) { results.push({ userId, outcome: "skipped", error: "Demo-Konten bekommen keine Einladung." }); continue; }
+    if (user.last_sign_in_at) { results.push({ userId, outcome: "skipped", error: "Hat sich schon angemeldet." }); continue; }
+    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "failed", error: "Das Konto ist nicht aktiv." }); continue; }
+    const link = await passwordLink(ctx, user.email);
+    if (!link) { results.push({ userId, outcome: "failed", error: "Der Link konnte nicht erzeugt werden." }); continue; }
+    const mail = await mailPasswordLink(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), link, activation: true, validUntil: activationUntil() });
+    await log(ctx, "user.activation_link", mail === "sent" ? "Einladung mit Aktivierungslink per E-Mail verschickt" : "Einladung erzeugt, die E-Mail ging nicht raus", { userId: user.id });
+    results.push(mail === "sent" ? { userId, outcome: "sent" } : { userId, outcome: "failed", error: mailStatusMessage(mail) });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
+}
+
+const mailStatusMessage = (status: MailStatus) => status === "skipped" ? "Der Mailversand ist nicht eingerichtet." : "Die E-Mail konnte nicht verschickt werden.";
 
 /**
  * A fresh link to set the password: the activation for new logins, a reset for everyone else. Older links expire.
@@ -428,7 +512,7 @@ export async function createPasswordLink(input: { userId: string; deliver?: "cop
   const byMail = input?.deliver === "mail";
   await log(ctx, activation ? "user.activation_link" : "user.password_link", `${activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} erzeugt${byMail ? " und per E-Mail verschickt" : ""}`, { userId: user.id });
   if (!byMail) return { ok: true, data: { link, activation, mail: null } };
-  const mail = await mailPasswordLink(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), link, activation });
+  const mail = await mailPasswordLink(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), link, activation, validUntil: activation ? activationUntil() : null });
   refreshWorkspace();
   return { ok: true, data: { link: null, activation, mail } };
 }
