@@ -2,10 +2,13 @@ import { LegalCard, LegalContents, LegalSection } from "@/components/legal/legal
 import { OPERATOR } from "@/lib/legal-details";
 
 /**
- * Checked on 4.11.2026 against what the hub really uses: Vercel (fra1, Hobby plan, so no processing agreement yet),
- * Supabase (eu-central-1), netcup (mail, agreement in place), Anthropic (assistant), only necessary cookies and
- * browser storage, no trackers, fonts served by the hub itself. Telegram gets the company name and link only.
- * Change this text whenever one of these changes, and move PRIVACY_POLICY_DATE (lib/legal-details.ts) with it.
+ * Checked on 8.11.2026 against what the hub really uses: its own server at netcup (Coolify on server 2: PostgreSQL,
+ * Better Auth login with the session cookie of lib/platform/config.ts, Garage file store; netcup also sends the mail),
+ * Cloudflare in front of every public host, Anthropic (assistant), Telegram (company name and link only), freelancers
+ * who see the customers assigned to them, customer master data taken over from the accounting (Sevdesk import). Vercel
+ * and Supabase only keep the frozen copy from before the move (8.11.2026) until they are deleted. Only necessary
+ * cookies and browser storage, no trackers, fonts served by the hub itself. Change this text whenever one of these
+ * changes, and move PRIVACY_POLICY_DATE (lib/legal-details.ts) with it.
  */
 export const PRIVACY_SECTIONS = [
   { id: "verantwortlicher", title: "Verantwortlicher" },
@@ -48,6 +51,7 @@ export function PrivacyPolicy() {
       <LegalSection id="ueberblick" title={title("ueberblick")}>
         <ul>
           <li>Der Hub ist das Kundenportal von oalab. Wir verarbeiten deine Daten, um dir Zugang zu geben und mit dir an Projekten zu arbeiten.</li>
+          <li>Der Hub läuft auf unserem eigenen Server bei netcup in der EU. Davor steht Cloudflare, das die Verbindungen weiterleitet und vor Angriffen schützt (Abschnitt 3).</li>
           <li>Es gibt keine Werbung, kein Tracking, keine Analyse-Werkzeuge und keine eingebetteten Inhalte fremder Anbieter; auch die Schrift liefert der Hub selbst aus. Cookies und Browser-Speicher nutzt der Hub nur, soweit er sie zum Funktionieren braucht.</li>
           <li>Wir verkaufen keine Daten. Dienstleister bekommen Daten nur, soweit es für den Hub nötig ist; du findest sie unten mit Namen.</li>
           <li>Zwei Punkte solltest du kennen: Schreibt dein Unternehmen uns im Chat, meldet der Hub das unserem Team auch über Telegram, nur mit dem Namen des Unternehmens (Abschnitt 7). Fragen an den KI-Assistenten verarbeitet Anthropic (Abschnitt 8).</li>
@@ -56,25 +60,24 @@ export function PrivacyPolicy() {
 
       <LegalSection id="dienstleister" title={title("dienstleister")}>
         <p>Für den Betrieb setzen wir diese Dienstleister ein. Rechtsgrundlage ist die Erfüllung unseres Vertrags mit dir bzw. deinem Unternehmen (Art. 6 Abs. 1 lit. b DSGVO), im Übrigen unser berechtigtes Interesse an einem sicheren und zuverlässigen Betrieb (Art. 6 Abs. 1 lit. f DSGVO).</p>
-        <h3>Vercel: Betrieb des Hubs</h3>
-        <LegalCard><strong>Vercel Inc.</strong><br />440 N Barranca Ave #4133, Covina, CA 91723, USA</LegalCard>
-        <p>Vercel stellt den Hub bereit. Die Server, auf denen der Hub läuft, stehen in Frankfurt am Main. Seiten und Bilder liefert Vercel über ein weltweites Netz aus, in der Regel vom nächstgelegenen Standort. Dabei verarbeitet Vercel technische Daten wie deine IP-Adresse (Abschnitt 4) und die Inhalte, die der Hub dir zeigt. Vercel hat seinen Sitz in den USA und ist nach dem EU-US Data Privacy Framework zertifiziert; für Übermittlungen dorthin gilt der Angemessenheitsbeschluss der EU-Kommission (Art. 45 DSGVO).</p>
-        <h3>Supabase: Datenbank, Anmeldung und Dateiablage</h3>
-        <LegalCard><strong>Supabase Pte. Ltd.</strong><br />65 Chulia Street #38-02/03, OCBC Centre, Singapur 049513</LegalCard>
-        <p>Die Inhalte des Hubs liegen in einer Datenbank von Supabase in Frankfurt am Main: Konten, Kundendaten, Projekte, Aufgaben, Dateien, Termine, Nachrichten und Protokolle. Supabase verwaltet auch die Anmeldung und verarbeitet die Daten in unserem Auftrag auf Grundlage eines Vertrags über Auftragsverarbeitung (Art. 28 DSGVO). Greift Supabase von außerhalb der EU darauf zu, etwa im Support, gelten die EU-Standardvertragsklauseln. Hub und Serviceplattform (service.oalab.de) nutzen dieselbe Datenbank und dieselbe Anmeldung.</p>
-        <h3>netcup: E-Mail-Versand</h3>
+        <h3>netcup: Server, Datenbank, Anmeldung, Dateiablage und E-Mail</h3>
         <LegalCard><strong>netcup GmbH</strong><br />Daimlerstraße 25, 76185 Karlsruhe, Deutschland</LegalCard>
-        <p>Die E-Mails des Hubs verschicken wir über unser Postfach hub@oalab.de bei netcup in Deutschland (Abschnitt 9). netcup verarbeitet sie in unserem Auftrag auf Grundlage eines Vertrags über Auftragsverarbeitung (Art. 28 DSGVO).</p>
+        <p>Der Hub läuft auf einem eigenen Server, den wir bei netcup in einem Rechenzentrum in der EU mieten und selbst betreiben. Dort liegen alle Inhalte des Hubs: Konten und Anmeldung, Kundendaten, Projekte, Aufgaben, Dateien, Termine, Nachrichten und Protokolle. Hub und Serviceplattform (service.oalab.de) laufen auf demselben Server und nutzen dieselbe Datenbank und dieselbe Anmeldung. Die E-Mails des Hubs verschicken wir über unser Postfach hub@oalab.de, ebenfalls bei netcup in Deutschland (Abschnitt 9). netcup stellt Rechenzentrum, Server und Postfach bereit und verarbeitet die Daten dabei in unserem Auftrag auf Grundlage eines Vertrags über Auftragsverarbeitung (Art. 28 DSGVO).</p>
+        <h3>Cloudflare: Weiterleitung und Schutz vor Angriffen</h3>
+        <LegalCard><strong>Cloudflare, Inc.</strong><br />101 Townsend St., San Francisco, CA 94107, USA</LegalCard>
+        <p>Jeder Aufruf des Hubs und jeder Download aus der Dateiablage läuft über das Netz von Cloudflare, bevor er unseren Server erreicht. Unser Server nimmt Verbindungen nur von Cloudflare an. Cloudflare wehrt Angriffe ab und leitet die Verbindung weiter, in der Regel über das nächstgelegene Rechenzentrum. Dazu entschlüsselt Cloudflare die Verbindung dort kurz und verarbeitet die Daten des Aufrufs: deine IP-Adresse, technische Angaben deines Browsers und die übertragenen Inhalte. Cloudflare verarbeitet sie in unserem Auftrag auf Grundlage eines Vertrags über Auftragsverarbeitung (Art. 28 DSGVO). Cloudflare hat seinen Sitz in den USA und ist nach dem EU-US Data Privacy Framework zertifiziert; für Übermittlungen dorthin gilt der Angemessenheitsbeschluss der EU-Kommission (Art. 45 DSGVO).</p>
+        <h3>Vercel und Supabase: frühere Plattform</h3>
+        <p>Bis zum 8. November 2026 lief der Hub bei <strong>Vercel Inc.</strong> (440 N Barranca Ave #4133, Covina, CA 91723, USA; Server in Frankfurt am Main) mit Datenbank, Anmeldung und Dateiablage bei <strong>Supabase Pte. Ltd.</strong> (65 Chulia Street #38-02/03, OCBC Centre, Singapur 049513; Rechenzentrum in Frankfurt am Main). Eine ruhende Kopie der Daten bis zu diesem Tag bewahren wir dort noch kurz als Rückweg auf; neue Daten kommen nicht hinzu. Danach löschen wir sie. Supabase verarbeitet die Kopie in unserem Auftrag auf Grundlage eines Vertrags über Auftragsverarbeitung (Art. 28 DSGVO); greift Supabase von außerhalb der EU darauf zu, etwa im Support, gelten die EU-Standardvertragsklauseln. Vercel ist nach dem EU-US Data Privacy Framework zertifiziert.</p>
         <p>Anthropic, den Anbieter des KI-Assistenten, beschreiben wir in Abschnitt 8.</p>
       </LegalSection>
 
       <LegalSection id="aufruf" title={title("aufruf")}>
         <h3>Server-Protokolle</h3>
-        <p>Bei jedem Aufruf verarbeitet der Server technische Daten: IP-Adresse, Datum und Uhrzeit, die aufgerufene Adresse, Browser und Betriebssystem, die zuvor besuchte Seite und das Ergebnis der Anfrage. Wir brauchen sie, um den Hub auszuliefern, Fehler zu finden und Angriffe abzuwehren (Art. 6 Abs. 1 lit. f DSGVO). Die Protokolle bleiben nur kurz gespeichert und werden nicht mit anderen Daten zusammengeführt.</p>
+        <p>Bei jedem Aufruf verarbeiten Cloudflare und unser Server technische Daten: IP-Adresse, Datum und Uhrzeit, die aufgerufene Adresse, Browser und Betriebssystem, die zuvor besuchte Seite und das Ergebnis der Anfrage. Wir brauchen sie, um den Hub auszuliefern, Fehler zu finden und Angriffe abzuwehren (Art. 6 Abs. 1 lit. f DSGVO). Die Protokolle bleiben nur kurz gespeichert und werden nicht mit anderen Daten zusammengeführt.</p>
         <h3>Cookies</h3>
         <p>Der Hub setzt nur Cookies, die für die Anmeldung oder eine von dir gewählte Einstellung unbedingt nötig sind:</p>
         <ul>
-          <li><strong>sb-oalab-auth-token</strong> hält dich angemeldet, auf hub.oalab.de und service.oalab.de zugleich. Skripte können ihn nicht lesen. Er wird beim Abmelden gelöscht, sonst spätestens nach 400 Tagen.</li>
+          <li><strong>__Secure-oalab.session_token</strong> hält dich angemeldet, auf hub.oalab.de und service.oalab.de zugleich. Er enthält nur eine zufällige, signierte Kennung deiner Sitzung; Skripte können ihn nicht lesen. Er wird beim Abmelden gelöscht und läuft sonst 30 Tage nach deiner letzten Nutzung ab.</li>
           <li><strong>oalab_reduce_motion</strong> gibt es nur, wenn du unter Darstellung „Bewegung reduzieren“ einschaltest. Er enthält nur diese Wahl, damit sie auch auf service.oalab.de gilt. Er wird gelöscht, wenn du die Einstellung wieder ausschaltest, sonst nach einem Jahr.</li>
           <li><strong>__Host-oalab-demo</strong> gibt es nur in der öffentlichen Demo mit Beispieldaten; er gilt 12 Stunden.</li>
         </ul>
@@ -93,14 +96,18 @@ export function PrivacyPolicy() {
         <h3>Registrierung</h3>
         <p>Für ein Konto fragen wir Vorname, Nachname, Unternehmen, Telefon, E-Mail-Adresse und ein Passwort ab; Position, Website, Kundennummer und eine Nachricht sind freiwillig. Sobald du deine E-Mail-Adresse bestätigt hast, bekommt unser Team deine Angaben per E-Mail und prüft sie. Danach schalten wir deinen Zugang frei oder lehnen ihn mit einer Begründung ab. Rechtsgrundlage ist die Anbahnung eines Vertrags (Art. 6 Abs. 1 lit. b DSGVO). Ohne die Pflichtangaben können wir keinen Zugang einrichten.</p>
         <h3>Anmeldung</h3>
-        <p>Du meldest dich mit E-Mail-Adresse und Passwort an; das Passwort speichert Supabase nur als Hash, nie im Klartext. Auf Wunsch fragt der Hub zusätzlich einen Code ab, per E-Mail oder aus einer Authenticator-App. Wir speichern, wann du dich zuletzt angemeldet hast.</p>
+        <p>Du meldest dich mit E-Mail-Adresse und Passwort an; das Passwort speichern wir nur als Hash, nie im Klartext. Auf Wunsch fragt der Hub zusätzlich einen Code ab, per E-Mail oder aus einer Authenticator-App. Wir speichern, wann du dich zuletzt angemeldet hast.</p>
+        <h3>Daten deines Unternehmens</h3>
+        <p>Ist dein Unternehmen schon Kunde von oalab, legen wir es im Hub mit den Angaben aus unserer Buchhaltung an: Name des Unternehmens, Kundennummer, E-Mail-Adresse, Telefon, Website und Anschrift. Dazu können die E-Mail-Adresse und die Telefonnummer einer Ansprechperson gehören. Steuer- und Bankdaten übernehmen wir nicht in den Hub. Diese Angaben sehen die Logins deines Unternehmens in ihrem Profil; ändern kannst du sie auf der Serviceplattform unter „Profil und Firma“ oder über uns. Rechtsgrundlage ist die Erfüllung unseres Vertrags mit deinem Unternehmen (Art. 6 Abs. 1 lit. b DSGVO).</p>
         <h3>Konto und Protokolle</h3>
         <p>Zu deinem Konto gehören Name, Unternehmen, Kontaktdaten, Rolle und Status. Das oalab-Team sieht sie in der Verwaltung des Hubs. Freigaben, Sperren und Rollenwechsel halten wir in einem Protokoll fest, ebenso, welche E-Mail der Hub wann verschickt hat (ohne Adressen und Inhalte). Das dient der Nachvollziehbarkeit und Sicherheit (Art. 6 Abs. 1 lit. f DSGVO).</p>
       </LegalSection>
 
       <LegalSection id="inhalte" title={title("inhalte")}>
-        <p>Im Hub teilen wir mit dir, woran wir gemeinsam arbeiten: Projekte und Aufgaben, Dateien, das Logo deines Unternehmens und Termine, jeweils mit Namen und Zeitpunkten. Diese Inhalte sehen nur die Logins deines Unternehmens und das oalab-Team. Dateien liegen in einer nicht öffentlichen Ablage; Downloads laufen über Links, die nach kurzer Zeit ablaufen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
+        <p>Im Hub teilen wir mit dir, woran wir gemeinsam arbeiten: Projekte und Aufgaben, Dateien, das Logo deines Unternehmens und Termine, jeweils mit Namen und Zeitpunkten. Diese Inhalte sehen nur die Logins deines Unternehmens, das oalab-Team und, wenn einer dein Unternehmen mitbetreut, ein Freelancer im Umfang unten. Dateien liegen in einer nicht öffentlichen Ablage auf unserem Server; Downloads laufen über Links, die nach kurzer Zeit ablaufen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
         <p>Für Online-Termine speichert der Hub den Link zur Besprechung, etwa bei Microsoft Teams. In E-Mails zu Terminen bietet er „In deinen Kalender eintragen“ an: Wählst du Google Kalender oder Outlook, leitet der Hub Titel, Zeit, Beschreibung und Besprechungslink an Google bzw. Microsoft weiter, und dort gelten deren Datenschutzhinweise. Die Kalenderdatei (.ics) bleibt auf deinem Gerät.</p>
+        <h3>Freelancer</h3>
+        <p>Manche Kunden betreuen wir gemeinsam mit Freelancern, die in unserem Auftrag und nach unseren Weisungen arbeiten. Betreut ein Freelancer dein Unternehmen, sieht er im Hub den Namen, das Logo und die Kontaktdaten deines Unternehmens und die Dateien, die wir für ihn freigeben; Verträge, Angebote und Rechnungen nur, wenn wir sie eigens für ihn freigeben. Chats, Termine und die Logins deines Unternehmens sieht er nicht, und auf die Serviceplattform hat er keinen Zugang. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
       </LegalSection>
 
       <LegalSection id="nachrichten" title={title("nachrichten")}>
@@ -158,7 +165,7 @@ export function PrivacyPolicy() {
       </LegalSection>
 
       <LegalSection id="sicherheit" title={title("sicherheit")}>
-        <p>Der Hub ist nur verschlüsselt erreichbar (HTTPS). Jedes Unternehmen sieht nur seine eigenen Daten; das prüfen Hub und Datenbank bei jedem Zugriff. Deine Anmeldung kannst du im Profil mit einem zweiten Faktor schützen.</p>
+        <p>Der Hub ist nur verschlüsselt erreichbar (HTTPS). Jedes Unternehmen sieht nur seine eigenen Daten; das prüfen Hub und Datenbank bei jedem Zugriff. Die Datenbank ist von außen nicht erreichbar, Dateien nur über die zeitlich begrenzten Links. Von Datenbank und Dateien legen wir jede Nacht eine Sicherung an. Deine Anmeldung kannst du im Profil mit einem zweiten Faktor schützen.</p>
       </LegalSection>
 
       <LegalSection id="aenderungen" title={title("aenderungen")}>

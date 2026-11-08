@@ -37,6 +37,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 16,
+    date: "2026-11-08",
+    title: "Datenschutzerklärung aktualisiert",
+    summary: "Die Datenschutzerklärung beschreibt jetzt den Betrieb auf dem eigenen Server: Hoster, Weiterleitung und Schutz vor Angriffen, das neue Anmelde-Cookie, die nächtliche Sicherung und die frühere Plattform, die nur noch eine ruhende Kopie hält, bis sie gelöscht wird. Neu sind die Abschnitte zu Freelancern als Empfängern und zur Herkunft der Firmendaten aus der Buchhaltung.",
+    changes: [
+      { kind: "improved", title: "Datenschutzerklärung aktualisiert", text: "Die Datenschutzerklärung beschreibt jetzt, wo der Hub läuft und wer deine Daten dafür verarbeitet, welches Cookie dich angemeldet hält und dass wir jede Nacht eine Sicherung anlegen. Neu steht dort auch, was ein Freelancer sieht, der dein Unternehmen im Auftrag von oalab mitbetreut, und dass wir die Angaben zu deinem Unternehmen aus unserer Buchhaltung übernehmen können.", customers: true },
+    ],
+  },
+  {
     number: 15,
     date: "2026-11-06",
     title: "Erklärungen per i und Vertrag & Domain im neuen Look",
