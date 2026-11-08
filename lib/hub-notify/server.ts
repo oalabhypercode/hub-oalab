@@ -85,25 +85,27 @@ async function activeAdminLogins(db: SupabaseClient) {
 /**
  * A new message in a private chat: a customer's goes to every admin (chat.message), oalab's to the company's logins
  * (chat.reply), never to the writer. While a recipient has an unread notice of this chat whose mail is still to come,
- * that notice takes the new line instead of a second one, so a conversation fills the bell with one line. Every
- * message a customer writes also reaches the admins' Telegram group, with company, name and text (decision of
- * 4.11.2026), so the team reads it on the phone and answers in the hub.
+ * that notice takes the new line instead of a second one, so a conversation fills the bell with one line. A customer's
+ * message also reaches the admins' Telegram group, once per chat until someone of the team has read it in the hub,
+ * with the company and the link only.
  */
 export async function notifyChat(input: { side: "customer" | "oalab"; customerId: string; company: string; authorId: string; body: string; origin: string }) {
   const db = createAdminClient();
   if (!db) return;
   try {
     const kind = input.side === "customer" ? "chat.message" : "chat.reply";
+    if (kind === "chat.message") {
+      // Asked before this message's notices exist: an unread one means the group already knows of this chat.
+      const unread = await db.from("hub_inbox").select("id").eq("kind", "chat.message").eq("href", chatHref(input.customerId)).is("read_at", null).limit(1);
+      if (!unread.error && !unread.data?.length) await sendTelegram(telegramChatMessage({ company: input.company, url: `${input.origin}${chatHref(input.customerId)}` }));
+    }
     const [author, recipients] = await Promise.all([
       db.from("hub_profiles").select("first_name, last_name").eq("user_id", input.authorId).maybeSingle<{ first_name: string; last_name: string }>(),
       input.side === "customer" ? activeAdminLogins(db) : customerLogins(db, [input.customerId]),
     ]);
-    const name = author.data ? `${author.data.first_name} ${author.data.last_name}`.trim() : "";
-    // The group hears of every customer message, also when no admin login would get a notice.
-    if (kind === "chat.message") await sendTelegram(telegramChatMessage({ company: input.company, author: name, body: input.body, url: `${input.origin}${chatHref(input.customerId)}` }));
     const to = recipients.filter((id) => id !== input.authorId);
     if (!to.length) return;
-    const notice = { kind, customerId: input.customerId, company: input.company, author: name, body: input.body } as const;
+    const notice = { kind, customerId: input.customerId, company: input.company, author: author.data ? `${author.data.first_name} ${author.data.last_name}`.trim() : "", body: input.body } as const;
     const open = await db.from("hub_inbox").select("id, user_id").eq("kind", kind).eq("href", chatHref(input.customerId))
       .in("user_id", to).is("read_at", null).eq("mail_state", "pending").returns<{ id: number; user_id: string }[]>();
     const waiting = new Map((open.data ?? []).map((row) => [row.user_id, row.id]));

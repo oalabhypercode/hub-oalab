@@ -82,8 +82,8 @@ function TelegramRow() {
       <p className="t-subheadline t-secondary" role="status">{state === "sent"
         ? "Gesendet. Schau in eure Telegram-Gruppe."
         : ready
-          ? "Schreibt ein Kunde, kommt seine Nachricht mit Firma und Name in eure Telegram-Gruppe. Antworten könnt ihr über den Knopf „Im Hub öffnen“."
-          : "Mit Bot-Token und Gruppen-Nummer in der Einrichtung des Hubs kommen die Nachrichten eurer Kunden auch in eure Telegram-Gruppe."}</p>
+          ? "Schreibt ein Kunde, bekommt eure Telegram-Gruppe eine Meldung mit Firma und Link, ohne den Text der Nachricht."
+          : "Mit Bot-Token und Gruppen-Nummer in der Einrichtung des Hubs bekommt eure Telegram-Gruppe eine Meldung, wenn ein Kunde schreibt."}</p>
       {error && <p className="form-error" role="alert">{error}</p>}
     </>
   );
