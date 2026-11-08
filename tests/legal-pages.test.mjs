@@ -4,6 +4,8 @@ import test from "node:test";
 import { OPERATOR, PRIVACY_POLICY_DATE } from "../lib/legal-details.ts";
 import { LEGAL_PATHS, legalMailLinks } from "../lib/legal-links.ts";
 import { PUBLIC_DEMO_COOKIE } from "../lib/public-demo-policy.ts";
+import { SESSION_COOKIE, sessionCookieName } from "../lib/platform/config.ts";
+import { REDUCE_MOTION_COOKIE } from "../lib/appearance.ts";
 import { AUTH_COOKIE_NAME } from "../lib/supabase/cookies.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -61,14 +63,23 @@ test("the imprint follows § 5 DDG, without the outdated references of older tex
 
 test("the privacy policy names every service the hub uses and carries its date", async () => {
   const policy = await source("components/legal/privacy-policy.tsx");
-  for (const name of ["Vercel Inc.", "Supabase Pte. Ltd.", "netcup GmbH", "Anthropic Ireland, Limited", "Telegram Messenger Inc.", "Landesbeauftragte für Datenschutz und Informationsfreiheit Nordrhein-Westfalen"]) {
+  // Since 8.11.2026 the hub runs on its own server at netcup behind Cloudflare; Vercel and Supabase keep only the
+  // frozen copy from before the move until it is deleted.
+  for (const name of ["netcup GmbH", "Cloudflare, Inc.", "Vercel Inc.", "Supabase Pte. Ltd.", "Anthropic Ireland, Limited", "Telegram Messenger Inc.", "Landesbeauftragte für Datenschutz und Informationsfreiheit Nordrhein-Westfalen"]) {
     assert.ok(policy.includes(name), name);
   }
-  // The cookies it names are the ones the code sets.
-  for (const cookie of [AUTH_COOKIE_NAME, PUBLIC_DEMO_COOKIE]) assert.ok(policy.includes(cookie), cookie);
-  // Telegram as it is meant to run with real customers: the company name and a link only. During the internal test
-  // phase lib/hub-telegram still sends the whole message (decision of 4.11.2026); switch it back before real
-  // customer data arrives (README, "Telegram für Admins").
+  assert.match(policy, /<h3>Vercel und Supabase: frühere Plattform<\/h3>/);
+  assert.doesNotMatch(policy, /speichert Supabase|Vercel stellt den Hub bereit/, "the old platform no longer runs the hub");
+  // The cookies it names are the ones the code sets on the own platform; the Supabase cookie is gone with it.
+  assert.equal(sessionCookieName(true), `__Secure-${SESSION_COOKIE}`);
+  for (const cookie of [sessionCookieName(true), REDUCE_MOTION_COOKIE, PUBLIC_DEMO_COOKIE]) assert.ok(policy.includes(cookie), cookie);
+  assert.ok(!policy.includes(AUTH_COOKIE_NAME), "no Supabase cookie on hub.oalab.de any more");
+  assert.match(policy, /läuft sonst 30 Tage nach deiner letzten Nutzung ab/);
+  // Freelancers are recipients, and the company data may come from the accounting (Art. 14 DSGVO: the source).
+  assert.match(policy, /<h3>Freelancer<\/h3>/);
+  assert.match(policy, /<h3>Daten deines Unternehmens<\/h3>/);
+  assert.match(policy, /Steuer- und Bankdaten übernehmen wir nicht in den Hub\./);
+  // Telegram as it runs since 8.11.2026 (hub#74): the company name and a link only.
   assert.match(policy, /Die Meldung enthält nur den Namen des Unternehmens und einen Link in den Hub, keine Namen von Personen und nicht den Text\./);
   // The objection right stands apart; no automated decisions.
   assert.match(policy, /<strong>Widerspruchsrecht nach Art\. 21 DSGVO:<\/strong>/);
