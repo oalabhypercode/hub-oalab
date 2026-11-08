@@ -75,11 +75,14 @@ test("new customers start in Service, and Service customers keep company and num
   const remove = actions.slice(actions.indexOf("async function removeServiceCustomer"));
   const order = ['from("memberships").delete()', 'from("business_customer_profiles").delete()', 'from("hub_customers").delete()', 'from("organizations").delete()'].map((call) => remove.indexOf(call));
   assert.ok(order.every((at, index) => at > 0 && (index === 0 || at > order[index - 1])), String(order));
-  // Editing: company and number of a Service customer go to its organization, the rest to the Hub customer.
+  // Editing: company and number of a Service customer go to its organization, the rest to the Hub customer. The form
+  // and the import from the accounting write through the same function.
   const save = actions.slice(actions.indexOf("export async function saveCustomer"));
-  assert.match(save, /from\("organizations"\)\.update\(\{ name: customer\.value\.company, customer_number: customer\.value\.customerNumber \}\)\.eq\("id", organizationId\)/);
-  assert.match(save, /const row = organizationId \? customerDetails\(customer\.value\) : customerRow\(customer\.value\);/);
-  assert.match(save, /\.update\(\{ \.\.\.row, updated_by: ctx\.actorId \}\)/);
+  assert.match(save, /const written = await writeCustomer\(ctx, id, current\.data\.organization_id, customer\.value\);/);
+  const write = actions.slice(actions.indexOf("async function writeCustomer"));
+  assert.match(write, /from\("organizations"\)\.update\(\{ name: value\.company, customer_number: value\.customerNumber \}\)\.eq\("id", organizationId\)/);
+  assert.match(write, /const row = organizationId \? customerDetails\(value\) : customerRow\(value\);/);
+  assert.match(write, /\.update\(\{ \.\.\.row, updated_by: ctx\.actorId \}\)/);
   // Service's audit trail hears about a new customer only once the whole step worked.
   for (const flow of ["export async function approveRegistration", "export async function createHubUser"]) {
     const chunk = actions.slice(actions.indexOf(flow));
