@@ -29,6 +29,8 @@ export type ManagedUser = {
   source: "registration" | "admin" | "existing";
   createdAt: string;
   lastSignInAt: string | null;
+  /** When the last activation mail went out to the login (invitation or „Link per E-Mail senden“). */
+  invitedAt: string | null;
   decidedAt: string | null;
   decisionNote: string;
   privacyNotedAt: string | null;

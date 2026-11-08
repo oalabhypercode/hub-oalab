@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, ListFilter, MailX, Pencil, Rows3, ShieldCheck, Upload, UserPlus } from "lucide-react";
+import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Pencil, Rows3, Send, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
 import { displayStatusLabels, roleLabels, type DisplayStatus } from "@/lib/hub-users/rules";
+import { customerLoginState, isFirstInvitation, isInvitable, loginStateLabels, type LoginState } from "@/lib/hub-invitations/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
 import { formatFileDate, formatFileDateTime } from "@/lib/hub-files/catalog";
 import { packageCatalog, packageIds } from "@/lib/service-packages";
@@ -17,9 +18,14 @@ import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableG
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { CustomerDialog, FreelancerDialog, fullName, ReviewDialog, UserDialog } from "./users-dialogs";
 import { CustomerImportDialog } from "./users-import";
+import { CustomerLoginsDialog, InvitationsDialog } from "./users-logins";
+import { useInfo } from "../info-box";
 
 const ALL = "all";
-type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" };
+type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" };
+
+const loginStateOrder: LoginState[] = ["none", "created", "invited", "active"];
+const loginStateGlyph: Record<LoginState, GlyphKind> = { none: "disabled", created: "pending", invited: "invited", active: "active" };
 
 const statusOrder: DisplayStatus[] = ["pending", "invited", "active", "disabled", "rejected"];
 
@@ -42,11 +48,12 @@ const userSorts: Record<UserSortKey, SortOption<UserSortKey>> = {
   created: { id: "created", label: "Angelegt", firstDir: "desc", dirLabels: { asc: "älteste zuerst", desc: "neueste zuerst" } },
 };
 
-type CustomerSortKey = "number" | "company" | "logins" | "city";
+type CustomerSortKey = "number" | "company" | "logins" | "login" | "city";
 const customerSorts: Record<CustomerSortKey, SortOption<CustomerSortKey>> = {
   number: { id: "number", label: "Kunden-Nr.", dirLabels: { asc: "aufsteigend", desc: "absteigend" } },
   company: { id: "company", label: "Unternehmen", dirLabels: alphabetical },
-  logins: { id: "logins", label: "Logins", firstDir: "desc", dirLabels: { asc: "wenigste zuerst", desc: "meiste zuerst" } },
+  logins: { id: "logins", label: "Konten", firstDir: "desc", dirLabels: { asc: "wenigste zuerst", desc: "meiste zuerst" } },
+  login: { id: "login", label: "Letzter Login", firstDir: "desc", dirLabels: { asc: "älteste zuerst", desc: "neueste zuerst" } },
   city: { id: "city", label: "Ort", dirLabels: alphabetical },
 };
 
@@ -110,18 +117,34 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   // Customers
   const [customerQuery, setCustomerQuery] = useState("");
   const [packageFilter, setPackageFilter] = useState(ALL);
+  const [loginFilter, setLoginFilter] = useState(ALL);
   const [customerSort, setCustomerSort] = useState<SortState<CustomerSortKey>>({ key: "number", dir: "asc" });
+  // How far each customer is with its logins: none, created, invited or active, and its newest sign-in.
+  const loginsOf = (customer: ManagedCustomer) => customerLoginState(users.filter((user) => customer.memberIds.includes(user.id)));
   const customerSortValue: Record<CustomerSortKey, (customer: ManagedCustomer) => SortValue> = {
     number: (customer) => customer.customerNumber,
     company: (customer) => customer.company,
     logins: (customer) => customer.memberIds.length,
+    login: (customer) => loginsOf(customer).lastSignInAt ?? "",
     city: (customer) => customer.city,
   };
   const shownCustomers = sortRows(customers.filter((customer) =>
     (packageFilter === ALL || (customer.packages as string[]).includes(packageFilter))
-    && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website, ...customer.packages.map((id) => packageCatalog[id].name)]),
+    && (loginFilter === ALL || loginsOf(customer).state === loginFilter)
+    && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website, loginStateLabels[loginsOf(customer).state], ...customer.packages.map((id) => packageCatalog[id].name)]),
   ), customerSortValue[customerSort.key], customerSort.dir, { tieBreak: (customer) => customer.company });
-  const customersNarrowed = customerQuery.trim() !== "" || packageFilter !== ALL;
+  const customerFilters = [packageFilter, loginFilter].filter((value) => value !== ALL).length;
+  const customersNarrowed = customerQuery.trim() !== "" || customerFilters > 0;
+  const withoutLogin = customers.filter((customer) => !customer.memberIds.length).length;
+  const invitable = users.filter(isInvitable);
+  const tabsInfo = useInfo("Konten, Kunden und Freelancer", {
+    steps: [
+      <><b>Konten</b> sind Personen mit Login: Kunden, Freelancer, Admins.</>,
+      <><b>Kunden und Freelancer</b> sind Firmen; ihre Konten gehören dazu.</>,
+      <><b>Letzter Login</b> steht beim Konto und je Kunde.</>,
+    ],
+    ask: "Was ist der Unterschied zwischen Konten, Kunden und Freelancern?",
+  });
 
   // Freelancers: by name, searchable by name, number, place and their customers.
   const [freelancerQuery, setFreelancerQuery] = useState("");
@@ -133,8 +156,8 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const editUser = dialog?.kind === "user" && dialog.userId ? users.find((user) => user.id === dialog.userId) : undefined;
   const editCustomer = dialog?.kind === "customer" && dialog.customerId ? customers.find((customer) => customer.id === dialog.customerId) : undefined;
   const editFreelancer = dialog?.kind === "freelancer" && dialog.customerId ? freelancers.find((freelancer) => freelancer.id === dialog.customerId) : undefined;
-  const switcher = <TabSwitch tab={tab} onTab={setTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />;
-  const manage = <ManageButtons tab={tab} onCustomer={() => open({ kind: "customer" })} onImport={() => open({ kind: "import" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} />;
+  const switcher = <span className="users-switch"><TabSwitch tab={tab} onTab={setTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />{tabsInfo.button}{tabsInfo.box}</span>;
+  const manage = <ManageButtons tab={tab} withoutLogin={withoutLogin} invitable={invitable.filter(isFirstInvitation).length} onCustomer={() => open({ kind: "customer" })} onImport={() => open({ kind: "import" })} onLogins={() => open({ kind: "logins" })} onInvite={() => open({ kind: "invite" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} />;
   const title = <TitleIcon icon={sectionIcons.users!} />;
 
   if (state.error) {
@@ -152,13 +175,14 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
             {user.self && <span className="self-badge">Du</span>}{user.demo && <span className="self-badge">Demo</span>}
           </button>
         </td>
+        <td className="cell-role">{user.role ? roleLabels[user.role] : <span className="cell-none">–</span>}</td>
         <td className="cell-mail">
           <span className="mail-cell"><span title={user.email}>{user.email}</span>{waiting && !user.emailConfirmed && <span className="confirm-badge is-open" title="Die E-Mail-Adresse ist noch nicht bestätigt">unbestätigt</span>}</span>
         </td>
         <td className="cell-number col-number">{customer ? <NumberChip value={customer.customerNumber} /> : <span className="cell-none">–</span>}</td>
         <td className="cell-company">
-          {customer ? <span className="company-cell"><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><span className="company-name" title={customer.company}>{customer.company}</span>{customer.kind === "freelancer" && <span className="role-tag">Freelancer</span>}</span>
-            : user.role === "oalab_admin" ? <span className="company-cell"><span className="company-mark" aria-hidden="true">OA</span>oalab<span className="role-tag">Admin</span></span>
+          {customer ? <span className="company-cell"><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><span className="company-name" title={customer.company}>{customer.company}</span></span>
+            : user.role === "oalab_admin" ? <span className="company-cell"><span className="company-mark" aria-hidden="true">OA</span>oalab</span>
             : user.companyName ? <span className="company-cell is-hint" title="Angabe aus der Registrierung"><span className="company-name">{user.companyName}</span><span className="role-tag">Angabe</span></span>
             : <span className="cell-none">–</span>}
         </td>
@@ -201,8 +225,9 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         ) : (
           <SheetToolbar query={customerQuery} onQuery={setCustomerQuery} placeholder="Unternehmen, Kunden-Nr., Ort, Paket …" label="Kunden durchsuchen" compact
             leading={switcher} trailing={manage}>
-            <ToolbarMenu icon={ListFilter} label="Filter" badge={packageFilter === ALL ? 0 : 1}>
+            <ToolbarMenu icon={ListFilter} label="Filter" badge={customerFilters}>
               <FilterSelect icon={Activity} name="Nach Paket filtern" value={packageFilter} onChange={setPackageFilter} options={[{ value: ALL, label: "Alle Pakete" }, ...packageIds.map((id) => ({ value: id, label: packageCatalog[id].name }))]} />
+              <FilterSelect icon={KeyRound} name="Nach Konto-Status filtern" value={loginFilter} onChange={setLoginFilter} options={[{ value: ALL, label: "Alle Konto-Status" }, ...loginStateOrder.map((state) => ({ value: state, label: loginStateLabels[state] }))]} />
             </ToolbarMenu>
             <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={customerSorts[customerSort.key].label}><SortControl options={Object.values(customerSorts)} sort={customerSort} onChange={setCustomerSort} /></ToolbarMenu>
           </SheetToolbar>
@@ -212,10 +237,11 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
           userGroups.length ? (
             <div className="sheet-scroll">
               <table className="data-table user-table">
-                <caption className="visually-hidden">Konten mit Name, E-Mail, Kundennummer, Unternehmen, Status und letztem Login</caption>
+                <caption className="visually-hidden">Konten mit Name, Rolle, E-Mail, Kundennummer, Unternehmen, Status und letztem Login</caption>
                 <thead>
                   <tr>
                     <SortHeader option={userSorts.name} sort={userSort} onChange={setUserSort} />
+                    <th scope="col">Rolle</th>
                     <th scope="col">E-Mail</th>
                     <SortHeader option={userSorts.number} className="col-number" sort={userSort} onChange={setUserSort} />
                     <SortHeader option={userSorts.company} sort={userSort} onChange={setUserSort} />
@@ -225,7 +251,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                   </tr>
                 </thead>
                 {grouping === "status" ? userGroups.map((group) => (
-                  <TableGroup key={group.status} colSpan={7} label={group.status === "pending" ? "Wartet auf Freigabe" : displayStatusLabels[group.status]} count={group.rows.length}
+                  <TableGroup key={group.status} colSpan={8} label={group.status === "pending" ? "Wartet auf Freigabe" : displayStatusLabels[group.status]} count={group.rows.length}
                     glyph={<StatusGlyph kind={statusGlyph[group.status]} />} collapsed={groups.isCollapsed(group.status)} onToggle={() => groups.toggle(group.status)}
                     empty="Keine offenen Registrierungen. Neue Registrierungen von der Login-Seite erscheinen hier zur Freigabe.">
                     {group.rows.map(userRow)}
@@ -269,35 +295,40 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         ) : shownCustomers.length ? (
           <div className="sheet-scroll">
             <table className="data-table customer-table">
-              <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Paketen, Konten und Ort</caption>
+              <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Paketen, Konten mit Status, letztem Login und Ort</caption>
               <thead>
                 <tr>
                   <SortHeader option={customerSorts.company} sort={customerSort} onChange={setCustomerSort} />
                   <SortHeader option={customerSorts.number} sort={customerSort} onChange={setCustomerSort} />
                   <th scope="col">Pakete</th>
-                  <SortHeader option={customerSorts.logins} label="Konten" className="col-count" sort={customerSort} onChange={setCustomerSort} />
+                  <SortHeader option={customerSorts.logins} label="Konten" sort={customerSort} onChange={setCustomerSort} />
+                  <SortHeader option={customerSorts.login} className="col-login" sort={customerSort} onChange={setCustomerSort} />
                   <SortHeader option={customerSorts.city} sort={customerSort} onChange={setCustomerSort} />
                   <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
                 </tr>
               </thead>
               <tbody>
-                {shownCustomers.map((customer) => (
-                  <tr key={customer.id} className="data-row">
-                    <td className="cell-person">
-                      <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
-                      {customer.linkedIds.length > 0 && <span className="role-tag" title={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
-                    </td>
-                    <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
-                    <td className="cell-packages">{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].short).join(" · ") : <span className="cell-none">–</span>}</td>
-                    <td className="cell-logins numeric">{customer.memberIds.length}</td>
-                    <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
-                    <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>
-                  </tr>
-                ))}
+                {shownCustomers.map((customer) => {
+                  const logins = loginsOf(customer);
+                  return (
+                    <tr key={customer.id} className="data-row">
+                      <td className="cell-person">
+                        <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
+                        {customer.linkedIds.length > 0 && <span className="role-tag" title={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
+                      </td>
+                      <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
+                      <td className="cell-packages">{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].short).join(" · ") : <span className="cell-none">–</span>}</td>
+                      <td className="cell-logins cell-login-state"><span className="status-cell"><StatusGlyph kind={loginStateGlyph[logins.state]} />{customer.memberIds.length ? `${customer.memberIds.length} · ${loginStateLabels[logins.state]}` : loginStateLabels[logins.state]}</span></td>
+                      <td className="cell-login col-login">{logins.lastSignInAt ? <time dateTime={logins.lastSignInAt} title={formatFileDateTime(logins.lastSignInAt)}>{formatFileDate(logins.lastSignInAt)}</time> : <span className="cell-none">{customer.memberIds.length ? "noch nie" : "–"}</span>}</td>
+                      <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
+                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        ) : <SheetEmpty text={customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."} onReset={customersNarrowed ? () => { setCustomerQuery(""); setPackageFilter(ALL); } : undefined} />}
+        ) : <SheetEmpty text={customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."} onReset={customersNarrowed ? () => { setCustomerQuery(""); setPackageFilter(ALL); setLoginFilter(ALL); } : undefined} />}
         <SheetFooter hint={tab === "users" && pending.length ? `${pending.length === 1 ? "1 Registrierung wartet" : `${pending.length} Registrierungen warten`} auf Freigabe` : undefined}>
           {users.filter((user) => user.status === "active").length} aktive Konten · {customers.length === 1 ? "1 Kunde" : `${customers.length} Kunden`}{freelancers.length ? ` · ${freelancers.length} Freelancer` : ""}
         </SheetFooter>
@@ -307,6 +338,8 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserDialog key={dialog.userId ?? "new"} user={editUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onClose={() => setDialog(null)} onNotice={setNotice} onReview={(userId) => setDialog({ kind: "review", userId })} />}
       {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerDialog key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} freelancers={freelancers} freelancersEnabled={state.freelancers} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "import" && <CustomerImportDialog customers={entries} onClose={() => setDialog(null)} onNotice={setNotice} />}
+      {dialog?.kind === "logins" && <CustomerLoginsDialog customers={customers} users={users} onClose={() => setDialog(null)} onNotice={setNotice} />}
+      {dialog?.kind === "invite" && <InvitationsDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerDialog key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
     </>
   );
@@ -322,12 +355,26 @@ function TabSwitch({ tab, onTab, users, customers, freelancers }: { tab: Tab; on
   return <SegmentedControl label="Konten, Kunden oder Freelancer" value={tab} onChange={onTab} options={options} />;
 }
 
-function ManageButtons({ tab, onCustomer, onImport, onFreelancer, onUser }: { tab: Tab; onCustomer: () => void; onImport: () => void; onFreelancer: () => void; onUser: () => void }) {
+/**
+ * Each tab has its own actions, the one that creates its kind of entry primary: logins with „Konto anlegen“ and the
+ * invitations, customers with „Kunde anlegen“, the import and logins for all customers without one, freelancers with
+ * „Freelancer anlegen“. The counts tell how many are waiting.
+ */
+function ManageButtons({ tab, withoutLogin, invitable, onCustomer, onImport, onLogins, onInvite, onFreelancer, onUser }: {
+  tab: Tab; withoutLogin: number; invitable: number;
+  onCustomer: () => void; onImport: () => void; onLogins: () => void; onInvite: () => void; onFreelancer: () => void; onUser: () => void;
+}) {
+  if (tab === "customers") return <>
+    <button type="button" className="sheet-action" onClick={onImport} title="Kunden aus dem Kontakt-Export der Buchhaltung (Sevdesk, CSV) übernehmen"><Upload size={15} aria-hidden="true" />Importieren</button>
+    <button type="button" className="sheet-action" onClick={onLogins} title="Ein Konto für jeden Kunden ohne Konto, noch ohne Einladung"><Users size={15} aria-hidden="true" />Konten anlegen{withoutLogin ? <span className="sheet-menu-badge">{withoutLogin}</span> : null}</button>
+    <button type="button" className="sheet-action is-primary" onClick={onCustomer}><Building2 size={15} aria-hidden="true" />Kunde anlegen</button>
+  </>;
+  if (tab === "freelancers") return <>
+    <button type="button" className="sheet-action" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Konto anlegen</button>
+    <button type="button" className="sheet-action is-primary" onClick={onFreelancer}><Handshake size={15} aria-hidden="true" />Freelancer anlegen</button>
+  </>;
   return <>
-    {tab === "customers" && <button type="button" className="sheet-action" onClick={onImport} title="Kunden aus dem Kontakt-Export der Buchhaltung (Sevdesk, CSV) übernehmen"><Upload size={15} aria-hidden="true" />Importieren</button>}
-    {tab === "freelancers"
-      ? <button type="button" className="sheet-action" onClick={onFreelancer}><Handshake size={15} aria-hidden="true" />Freelancer anlegen</button>
-      : <button type="button" className="sheet-action" onClick={onCustomer}><Building2 size={15} aria-hidden="true" />Kunde anlegen</button>}
+    <button type="button" className="sheet-action" onClick={onInvite} title="Aktivierungslinks an Konten, die sich noch nie angemeldet haben"><Send size={15} aria-hidden="true" />Einladungen senden{invitable ? <span className="sheet-menu-badge">{invitable}</span> : null}</button>
     <button type="button" className="sheet-action is-primary" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Konto anlegen</button>
   </>;
 }

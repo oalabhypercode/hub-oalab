@@ -6,6 +6,15 @@
 **Stand:** 8. November 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
 
+### Vorgabe vom 8. November 2026: Konten für alle Kunden und gesammelte Einladungen
+
+- Wunsch des Nutzers nach dem Import: allen importierten Kunden einen Zugang geben. Ablauf: Ankündigungsmail (Vorlage, vom Nutzer selbst per BCC verschickt), dann am Mittwoch, 11. November 2026, die Einladungen mit Aktivierungslink. Dazu der letzte Login nur für Admins und eine klare Trennung: „Konten“ sind alle Personen mit Login (Kunden, Freelancer, Admins), „Kunden“ und „Freelancer“ die Firmen, zu denen sie gehören. Freigabe nach dem Plan („Ja, so bauen“).
+- „Konten anlegen“ (Reiter Kunden, `components/hub/screens/users-logins.tsx`, `lib/hub-invitations/rules.ts`, Aktion `createCustomerLogins`): eine Zeile je Kunde ohne Konto, Rolle Kunde; Adresse aus der Kontakt-E-Mail, Namen (und eigene Adresse) der Ansprechpartner aus der erneut geladenen Sevdesk-Datei (`readContacts`, nach Kundennummer, dann Firma); in der Zeile änderbar. Gesperrt: ohne Namen, ungültige Adresse, Adresse mit Konto, dieselbe Adresse wie eine Zeile davor. In Paketen zu 10; keine Mail, kein Link. „Konto anlegen“ und die Sammelanlage teilen `addLogin`.
+- „Einladungen senden“ (Reiter Konten, Aktion `sendInvitations`): Aktivierungslink per Mail an Konten, die sich nie angemeldet haben (keine Demo-Konten), in Paketen zu 10; nie Eingeladene sind angehakt, Erinnerungen hakt man bewusst an. Ohne Mailversand startet nichts. „Zuletzt eingeladen“ kommt aus `hub_notifications` (`user.activation`, gesendet).
+- Links: Auf der eigenen Plattform gilt der erste Link eines Kontos, das sich nie angemeldet hat, 7 Tage (`ACTIVATION_LINK_HOURS` in `lib/platform/config.ts`), jeder spätere 24 Stunden; die Aktivierungsmail nennt „Link gültig bis …“. Auf dem alten Supabase-Weg bleibt alles wie vorher.
+- Tabellen: Konten mit Spalte „Rolle“ (die Zusätze „Admin“ und „Freelancer“ in der Spalte Unternehmen entfallen); Kunden mit Konto-Status (kein Konto, Konto angelegt, eingeladen, aktiv) und „Letzter Login“ (neueste Anmeldung aller Konten), mit Filter und Sortierung. ⓘ am Umschalter erklärt die drei Reiter. Knöpfe je Reiter: Konten „Einladungen senden“, „Konto anlegen“; Kunden „Importieren“, „Konten anlegen“, „Kunde anlegen“; Freelancer „Konto anlegen“, „Freelancer anlegen“.
+- Lokal mit Beispieldaten geprüft (temporäre Seite, nicht eingecheckt); Anlegen und Versand nur live prüfbar. Vor dem Versand: Mailversand live prüfen, sich selbst zuerst einladen, zweiter Faktor für Admins.
+
 ### Vorgabe vom 8. November 2026: Echte Kundendaten, Import aus Sevdesk
 
 - Wunsch des Nutzers: den Hub fertig machen für echte Kundendaten und die Kunden aus der Buchhaltung (Sevdesk) in einem Rutsch übernehmen. Freigabe nach dem Plan („gerne so bauen“), mit allen Empfehlungen.

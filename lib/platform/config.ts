@@ -18,6 +18,16 @@ export function sessionCookieName(secure: boolean) {
 /** Service OALab's session lifetime and renewal age (apps/web/server/auth/better-auth.ts). */
 export const SESSION_SECONDS = 30 * 24 * 60 * 60;
 export const SESSION_UPDATE_SECONDS = 24 * 60 * 60;
+/** One-time links (`generateLink`): a password reset lives a day, so a forwarded or old mail soon stops working. */
+export const LINK_HOURS = 24;
+/**
+ * The first link of a login that never signed in (the activation, also an invitation sent in bulk) lives a week: people
+ * open an invitation days later. Once someone has signed in, every further link is a reset again.
+ */
+export const ACTIVATION_LINK_HOURS = 7 * 24;
+export function linkHours(kind: "signup" | "recovery" | "magiclink", signedInBefore: boolean) {
+  return kind === "recovery" && !signedInBefore ? ACTIVATION_LINK_HOURS : LINK_HOURS;
+}
 /** Lifetime of the tokens PostgREST sees. Minted per request, so short is free. */
 export const REST_TOKEN_SECONDS = 5 * 60;
 
