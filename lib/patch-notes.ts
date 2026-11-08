@@ -37,6 +37,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 16,
+    date: "2026-11-08",
+    title: "Kunden aus der Buchhaltung übernehmen",
+    summary: "Admins übernehmen Kunden jetzt in einem Rutsch aus dem Kontakt-Export der Buchhaltung (Sevdesk, als CSV-Datei): im User Management unter „Kunden“ mit „Importieren“. Der Hub erkennt die Spalten selbst, zeigt vor dem Speichern je Zeile, was passiert, und legt neue Kunden genau wie „Kunde anlegen“ an, auch in Service, ohne Login, Mail oder Paket. Kunden, die schon im Hub stehen, bekommen nur leere Felder ergänzt und die Kundennummer aus der Buchhaltung.",
+    changes: [
+      { kind: "new", title: "Kunden aus Sevdesk importieren", text: "Im User Management unter „Kunden“ öffnet „Importieren“ ein Fenster für den CSV-Export der Kontakte aus Sevdesk. Die Vorschau zeigt je Zeile, ob ein Kunde neu entsteht, ergänzt wird, schon aktuell ist oder warum er übersprungen wird; erst „… Kunden übernehmen“ speichert. Die Kundennummer wird „OA-“ plus die Nummer aus Sevdesk, Ansprechpartner füllen nur Lücken ihrer Firma, und Steuer- und Bankdaten übernimmt der Hub nicht." },
+    ],
+  },
+  {
     number: 15,
     date: "2026-11-06",
     title: "Erklärungen per i und Vertrag & Domain im neuen Look",

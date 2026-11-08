@@ -10,6 +10,7 @@ import { mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/no
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
+import { fillsFor, IMPORT_BATCH } from "@/lib/hub-customer-import/rules";
 import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole } from "./rules";
 import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
@@ -244,12 +245,29 @@ async function removeServiceCustomer(ctx: Context, organizationId: string) {
 }
 
 /** Service's audit trail notes where a customer came from, as for the ones the assistant creates. Once it is complete. */
-async function noteServiceCustomer(ctx: Context, customer: { organizationId: string | null; customerNumber: string | null }) {
+async function noteServiceCustomer(ctx: Context, customer: { organizationId: string | null; customerNumber: string | null }, source: "hub_user_management" | "hub_customer_import" = "hub_user_management") {
   if (!customer.organizationId) return;
   await ctx.db.from("audit_events").insert({
     organization_id: customer.organizationId, actor_type: "user", actor_id: ctx.actorId, action: "hub.customer_created", target_type: "organization", target_id: customer.organizationId,
-    result: "success", correlation_id: `cor_${randomUUID().replaceAll("-", "")}`, safe_metadata: { customerNumber: customer.customerNumber, source: "hub_user_management" },
+    result: "success", correlation_id: `cor_${randomUUID().replaceAll("-", "")}`, safe_metadata: { customerNumber: customer.customerNumber, source },
   });
+}
+
+/**
+ * Writes company, number and contact data of an existing customer. For a customer that is also in Service, company and
+ * number go through its organization (Service's sync passes them on) and the contact data through the Hub's own row.
+ */
+async function writeCustomer(ctx: Context, id: string, organizationId: string | null, value: CustomerInput): Promise<ActionResult<{ id: string }>> {
+  if (organizationId) {
+    const refused = serviceCustomerRefusal(value);
+    if (refused) return failed(refused);
+    const organization = await ctx.db.from("organizations").update({ name: value.company, customer_number: value.customerNumber }).eq("id", organizationId);
+    if (organization.error) return failed(organization.error.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
+  }
+  const row = organizationId ? customerDetails(value) : customerRow(value);
+  const { data, error } = await ctx.db.from("hub_customers").update({ ...row, updated_by: ctx.actorId }).eq("id", id).select("id").single<{ id: string }>();
+  if (error || !data) return failed(error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
+  return { ok: true, data };
 }
 
 async function firstNameOf(ctx: Context, userId: string) {
@@ -549,16 +567,9 @@ export async function saveCustomer(input: { id?: string; freelancerIds?: unknown
   const current = await ctx.db.from("hub_customers").select("organization_id").eq("id", id).maybeSingle<{ organization_id: string | null }>();
   if (current.error || !current.data) return failed("Diesen Kunden gibt es nicht mehr.");
   if (await kindOf(ctx, id) === "freelancer") return failed("Das ist ein Freelancer. Bitte über „Freelancer“ bearbeiten.");
-  const organizationId = current.data.organization_id;
-  if (organizationId) {
-    const refused = serviceCustomerRefusal(customer.value);
-    if (refused) return failed(refused);
-    const organization = await ctx.db.from("organizations").update({ name: customer.value.company, customer_number: customer.value.customerNumber }).eq("id", organizationId);
-    if (organization.error) return failed(organization.error.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
-  }
-  const row = organizationId ? customerDetails(customer.value) : customerRow(customer.value);
-  const { data, error } = await ctx.db.from("hub_customers").update({ ...row, updated_by: ctx.actorId }).eq("id", id).select("id").single<{ id: string }>();
-  if (error || !data) return failed(error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
+  const written = await writeCustomer(ctx, id, current.data.organization_id, customer.value);
+  if (!written.ok) return written;
+  const data = written.data;
   await log(ctx, "customer.updated", "Kunde bearbeitet", { customerId: data.id });
   if (freelancerIds) {
     const linked = await replaceLinks(ctx, { customerId: data.id, freelancerIds });
@@ -566,6 +577,64 @@ export async function saveCustomer(input: { id?: string; freelancerIds?: unknown
   }
   refreshWorkspace();
   return { ok: true, data: { id: data.id } };
+}
+
+// Import from the accounting -----------------------------------------------------------------------------------------
+
+export type CustomerImportResult = { line: number; outcome: "created" | "updated" | "unchanged" | "failed"; customerNumber: string; company: string; error?: string };
+
+type StoredCustomer = { organization_id: string | null; company: string; customer_number: string; contact_email: string; phone: string; website: string; street: string; postal_code: string; city: string; country: string };
+
+/**
+ * Takes over customers from the accounting's contact export (lib/hub-customer-import), at most IMPORT_BATCH per call:
+ * the dialog sends them in batches and shows the progress. A new customer goes the way of „Kunde anlegen“ (Service
+ * organization first, with Service's default plan). A match only gets its empty contact fields filled, read again
+ * here so nothing is overwritten, and, when asked, the number from the file. No logins, no mails, no packages.
+ */
+export async function importCustomers(input: { rows?: unknown }): Promise<ActionResult<CustomerImportResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const rows = Array.isArray(input?.rows) ? input.rows : [];
+  if (!rows.length || rows.length > IMPORT_BATCH) return failed(`Bitte 1 bis ${IMPORT_BATCH} Kunden auf einmal übernehmen.`);
+  const results: CustomerImportResult[] = [];
+  for (const raw of rows) {
+    const row = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const line = typeof row.line === "number" && Number.isInteger(row.line) ? row.line : 0;
+    const customer = readCustomer(row.customer && typeof row.customer === "object" ? row.customer as Record<string, unknown> : {});
+    if (!customer.ok) { results.push({ line, outcome: "failed", customerNumber: "", company: "", error: customer.error }); continue; }
+    const value = customer.value;
+    const fail = (error: string) => { results.push({ line, outcome: "failed", customerNumber: value.customerNumber, company: value.company, error }); };
+    const customerId = typeof row.customerId === "string" && uuid.test(row.customerId) ? row.customerId : null;
+
+    if (!customerId) {
+      const created = await createServiceCustomer(ctx, value);
+      if (!created.ok) { fail(created.error); continue; }
+      await noteServiceCustomer(ctx, created.data, "hub_customer_import");
+      await log(ctx, "customer.created", "Kunde aus der Buchhaltung übernommen", { customerId: created.data.customerId });
+      results.push({ line, outcome: "created", customerNumber: created.data.customerNumber, company: created.data.company });
+      continue;
+    }
+
+    const stored = await ctx.db.from("hub_customers").select("organization_id, company, customer_number, contact_email, phone, website, street, postal_code, city, country").eq("id", customerId).maybeSingle<StoredCustomer>();
+    if (stored.error || !stored.data) { fail("Diesen Kunden gibt es nicht mehr."); continue; }
+    if (await kindOf(ctx, customerId) !== "customer") { fail("Das ist ein Freelancer, kein Kunde."); continue; }
+    const current = stored.data;
+    const now: CustomerInput = {
+      company: current.company, customerNumber: current.customer_number, contactEmail: current.contact_email, phone: current.phone, website: current.website,
+      street: current.street, postalCode: current.postal_code, city: current.city, country: current.country,
+    };
+    const fills = fillsFor(now, value);
+    const renumber = row.renumber === true && value.customerNumber !== now.customerNumber;
+    if (!fills.length && !renumber) { results.push({ line, outcome: "unchanged", customerNumber: now.customerNumber, company: now.company }); continue; }
+    const merged: CustomerInput = { ...now, customerNumber: renumber ? value.customerNumber : now.customerNumber };
+    for (const field of fills) merged[field] = value[field];
+    const written = await writeCustomer(ctx, customerId, current.organization_id, merged);
+    if (!written.ok) { fail(written.error); continue; }
+    await log(ctx, "customer.updated", renumber ? "Aus der Buchhaltung ergänzt, mit neuer Kundennummer" : "Aus der Buchhaltung ergänzt", { customerId });
+    results.push({ line, outcome: "updated", customerNumber: merged.customerNumber, company: merged.company });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
 }
 
 // Freelancers --------------------------------------------------------------------------------------------------------
