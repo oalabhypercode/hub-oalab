@@ -1,5 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
+import { createPlatformServerClient, requestMeta } from "@/lib/platform/client";
 import { authCookieOptions, requestHost } from "./cookies";
 
 /**
@@ -9,11 +9,13 @@ import { authCookieOptions, requestHost } from "./cookies";
  */
 export async function createClient() {
   const cookieStore = await cookies();
-  const host = requestHost(await headers());
+  const headerList = await headers();
+  const host = requestHost(headerList);
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  // On the own platform (OALAB_PLATFORM=own) the same calls reach PostgREST, Better Auth's tables and Garage.
+  return createPlatformServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
       // The session cookie Hub and Service share (HTTP-only, Domain=oalab.de in production).
       cookieOptions: authCookieOptions(host),
@@ -34,5 +36,6 @@ export async function createClient() {
         },
       },
     },
+    requestMeta(headerList),
   );
 }

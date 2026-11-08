@@ -1,6 +1,8 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { usesOwnPlatform } from "@/lib/platform/config";
 import { askAssistant, assistantConfigured } from "@/lib/hub-assistant/claude";
 import { cleanConversation } from "@/lib/hub-assistant/conversation";
 import {
@@ -16,8 +18,10 @@ export function whatsappConfig() {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const appSecret = process.env.WHATSAPP_APP_SECRET;
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Own platform: the admin client needs neither (lib/platform).
+  const own = usesOwnPlatform();
+  const supabaseUrl = own ? "own" : process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const secretKey = own ? "own" : process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!accessToken || !phoneNumberId || !appSecret || !verifyToken || !supabaseUrl || !secretKey) return null;
   return { accessToken, phoneNumberId, appSecret, verifyToken, supabaseUrl, secretKey, supportContact: process.env.WHATSAPP_SUPPORT_CONTACT?.trim() || DEFAULT_SUPPORT_CONTACT };
 }
@@ -68,7 +72,7 @@ async function isActiveLogin(db: SupabaseClient, userId: string) {
 
 /** Answers one incoming message. Runs after the webhook has already confirmed the delivery to Meta. */
 export async function handleIncoming(config: WhatsAppConfig, message: IncomingMessage) {
-  const db = createClient(config.supabaseUrl, config.secretKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+  const db = usesOwnPlatform() ? createAdminClient()! : createClient(config.supabaseUrl, config.secretKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
 
   // Store first: a repeated delivery of the same message id stops here.
   const stored = await db.from("hub_whatsapp_messages").insert({ id: message.id, phone: message.from, role: "user", content: message.text ?? "" });

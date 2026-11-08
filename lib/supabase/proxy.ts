@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createPlatformServerClient, requestMeta } from "@/lib/platform/client";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 import { getPublicDemoIdentity } from "@/lib/public-demo-session";
@@ -43,9 +43,9 @@ export async function updateSession(request: NextRequest) {
   // Missing configuration must never expose the authenticated workspace.
   if (!hasEnvVars) return isPublic ? supabaseResponse : loginRedirect();
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  const supabase = createPlatformServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
       cookieOptions: authCookieOptions(requestHost(request.headers)),
       cookies: {
@@ -57,6 +57,7 @@ export async function updateSession(request: NextRequest) {
         },
       },
     },
+    requestMeta(request.headers),
   );
 
   // Keep the claims check immediately after client creation for session refresh.

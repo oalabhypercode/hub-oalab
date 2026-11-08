@@ -10,7 +10,7 @@ import type { CodeTimes } from "@/lib/hub-auth/mail-code";
 import { authMessage } from "@/lib/hub-auth/messages";
 import { readRegistration } from "@/lib/hub-users/rules";
 import { LEGAL_PATHS } from "@/lib/legal-links";
-import { cn, hasEnvVars } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type AuthMode = "login" | "signup" | "forgot" | "update" | "mfa";
 const copy = {
@@ -62,7 +62,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
   async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (!hasEnvVars) { setError(authMessage("setup")); return; }
+    // Whether login is configured is the server actions' call (lib/hub-auth/actions.ts): on the own platform the browser cannot see it.
     const checked = mode === "signup" ? readRegistration({ ...registration, email }) : null;
     if (checked && !checked.ok) { setError(checked.error); return; }
     if ((mode === "signup" || mode === "update") && password !== repeatPassword) { setError("Die beiden Passwörter stimmen noch nicht überein."); return; }
