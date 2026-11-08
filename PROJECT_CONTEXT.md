@@ -3,8 +3,23 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 6. November 2026
+**Stand:** 8. November 2026
 **Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
+
+### Vorgabe vom 8. November 2026: Echte Kundendaten, Import aus Sevdesk
+
+- Wunsch des Nutzers: den Hub fertig machen für echte Kundendaten und die Kunden aus der Buchhaltung (Sevdesk) in einem Rutsch übernehmen. Freigabe nach dem Plan („gerne so bauen“), mit allen Empfehlungen.
+- Import (`lib/hub-customer-import/rules.ts`, `components/hub/screens/users-import.tsx`, Aktion `importCustomers` in `lib/hub-users/actions.ts`): Im User Management unter „Kunden“ öffnet „Importieren“ das Fenster „Kunden importieren“ für den CSV-Export der Kontakte (UTF-8 oder Windows-1252, Semikolon, Komma oder Tab, bis 5 MB und 2000 Zeilen; Excel-Dateien werden mit Hinweis abgelehnt). Spalten werden an den Überschriften erkannt und lassen sich zuordnen. Übernommen: Unternehmen, Kundennummer, E-Mail, Telefon (sonst Mobil), Website, Straße mit Hausnummer, PLZ, Ort, Land; nie USt-ID, Steuernummer, Bankdaten oder Notizen.
+  - Kundennummer = „OA-“ plus Sevdesk-Nummer, unter vier Zeichen mit führenden Nullen (Service verlangt `OA-` und 4 bis 20 Zeichen); ohne Nummer eine freie Zufallsnummer wie bei „Kunde anlegen“.
+  - Bestehende Kunden erkennt der Hub an der Nummer, dann am Firmennamen (`normalizeCompany`). Sie bekommen nur leere Felder gefüllt (das Land nur, solange keine Anschrift da ist) und die Nummer aus Sevdesk; überschrieben wird nichts. Die Aktion liest den Kunden vor dem Schreiben neu und rechnet die Lücken selbst aus. Eine Nummer, die im Hub einer anderen Firma gehört, dieselbe Nummer zweimal und zwei Zeilen für einen Kunden sind Fehler.
+  - Ansprechpartner (Zeilen mit Vor- oder Nachname zu einer Firma, die schon in der Datei steht) werden kein eigener Kunde, ihre Angaben füllen nur Lücken der Firma; eine Person ohne Firma wird unter ihrem Namen Kunde. Kontakte mit einer anderen Kategorie als Kunde sind übersprungen und lassen sich bewusst anhaken. Ungültige optionale Angaben (E-Mail, Telefon, Website, PLZ) bleiben mit Hinweis leer; geprüft wird mit denselben Regeln wie im Formular.
+  - Gespeichert wird erst mit „… Kunden übernehmen“, in Paketen zu 20. Neue Kunden entstehen wie bei „Kunde anlegen“ (Service-Organisation mit Standardplan, Eintrag `hub.customer_created` mit `source: hub_customer_import`), ohne Login, Mail oder Paket. Jeder Kunde steht im Admin-Protokoll. Kein Rückgängig: Kunden mit Service-Organisation lassen sich wegen der unveränderlichen `audit_events` nicht löschen, deshalb Vorschau und der Rat, mit ein, zwei Zeilen zu beginnen.
+  - Lokal nur die Vorschau geprüft (der lokale Hub hängt am eingefrorenen Supabase); das Anlegen wird live geprüft.
+- Vor echten Kundendaten (Stand 8. November 2026):
+  - Erledigt: Telegram schickt nur Firmenname und Link (hub#74).
+  - Datenschutzerklärung auf den eigenen Server umstellen (eigener PR): netcup als Hoster von Server 2 (vom Nutzer bestätigt), Cloudflare davor, Login und Dateien auf dem eigenen Server, Freelancer als Empfänger, Herkunft der Firmendaten aus der Buchhaltung.
+  - Offen beim Nutzer: Standort von Server 2 bei netcup bestätigen; erfragen, wohin die nächtlichen Sicherungen gehen (Ziel des Backups, für die Datenschutzerklärung); Auftragsverarbeitung mit netcup (gilt sie für den Server?) und Cloudflare prüfen; den zweiten Faktor für die Admin-Logins einschalten; Testdaten aufräumen (Testkunden, Test-Logins, Testtermin, Testanfrage OA-11, Testchat); die Werte in Coolify nachtragen, die noch fehlen (KI-Assistent, Telegram, Postfach hub@, siehe Aufgabe 4 im Service-Repo).
+  - Bleibt aus: die Sperre der Service-Kontingente, bis alle echten Kunden ein Servicepaket haben.
 
 ### Vorgabe vom 6. November 2026: Vertrag & Domain, Etappe 3 (Servicepakete begrenzen neue Anfragen)
 

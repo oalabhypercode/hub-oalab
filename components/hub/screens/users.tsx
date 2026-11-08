@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, ListFilter, MailX, Pencil, Rows3, ShieldCheck, UserPlus } from "lucide-react";
+import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, ListFilter, MailX, Pencil, Rows3, ShieldCheck, Upload, UserPlus } from "lucide-react";
 import { displayStatusLabels, roleLabels, type DisplayStatus } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
 import { formatFileDate, formatFileDateTime } from "@/lib/hub-files/catalog";
@@ -16,9 +16,10 @@ import { sectionIcons } from "../navigation";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { CustomerDialog, FreelancerDialog, fullName, ReviewDialog, UserDialog } from "./users-dialogs";
+import { CustomerImportDialog } from "./users-import";
 
 const ALL = "all";
-type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string };
+type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" };
 
 const statusOrder: DisplayStatus[] = ["pending", "invited", "active", "disabled", "rejected"];
 
@@ -133,7 +134,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const editCustomer = dialog?.kind === "customer" && dialog.customerId ? customers.find((customer) => customer.id === dialog.customerId) : undefined;
   const editFreelancer = dialog?.kind === "freelancer" && dialog.customerId ? freelancers.find((freelancer) => freelancer.id === dialog.customerId) : undefined;
   const switcher = <TabSwitch tab={tab} onTab={setTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />;
-  const manage = <ManageButtons tab={tab} onCustomer={() => open({ kind: "customer" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} />;
+  const manage = <ManageButtons tab={tab} onCustomer={() => open({ kind: "customer" })} onImport={() => open({ kind: "import" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} />;
   const title = <TitleIcon icon={sectionIcons.users!} />;
 
   if (state.error) {
@@ -305,6 +306,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       {reviewUser && <ReviewDialog key={reviewUser.id} user={reviewUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserDialog key={dialog.userId ?? "new"} user={editUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onClose={() => setDialog(null)} onNotice={setNotice} onReview={(userId) => setDialog({ kind: "review", userId })} />}
       {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerDialog key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} freelancers={freelancers} freelancersEnabled={state.freelancers} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
+      {dialog?.kind === "import" && <CustomerImportDialog customers={entries} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerDialog key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
     </>
   );
@@ -320,8 +322,9 @@ function TabSwitch({ tab, onTab, users, customers, freelancers }: { tab: Tab; on
   return <SegmentedControl label="Konten, Kunden oder Freelancer" value={tab} onChange={onTab} options={options} />;
 }
 
-function ManageButtons({ tab, onCustomer, onFreelancer, onUser }: { tab: Tab; onCustomer: () => void; onFreelancer: () => void; onUser: () => void }) {
+function ManageButtons({ tab, onCustomer, onImport, onFreelancer, onUser }: { tab: Tab; onCustomer: () => void; onImport: () => void; onFreelancer: () => void; onUser: () => void }) {
   return <>
+    {tab === "customers" && <button type="button" className="sheet-action" onClick={onImport} title="Kunden aus dem Kontakt-Export der Buchhaltung (Sevdesk, CSV) übernehmen"><Upload size={15} aria-hidden="true" />Importieren</button>}
     {tab === "freelancers"
       ? <button type="button" className="sheet-action" onClick={onFreelancer}><Handshake size={15} aria-hidden="true" />Freelancer anlegen</button>
       : <button type="button" className="sheet-action" onClick={onCustomer}><Building2 size={15} aria-hidden="true" />Kunde anlegen</button>}
