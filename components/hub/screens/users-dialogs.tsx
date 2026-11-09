@@ -481,9 +481,32 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
     );
   }
 
+  // A new link, by mail or to copy; its outcome shows under the buttons that asked for it (Profil and Zugang share it).
+  const sendLink = (deliver: "copy" | "mail") => { if (user) run(deliver === "mail" ? "mail" : "link", () => createPasswordLink({ userId: user.id, deliver }), setLink); };
+  const linkOutcome = user && (link?.link ? <LinkPanel link={link.link} activation={link.activation} user={user} />
+    : link?.mail ? <p className={`am-note ${link.mail === "sent" ? "is-ok" : link.mail === "failed" ? "is-bad" : "is-todo"}`}>{link.mail === "sent" ? <MailCheck size={16} aria-hidden="true" /> : <MailX size={16} aria-hidden="true" />}<span>{link.mail === "sent" ? `${link.activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} an ${user.email} geschickt.` : mailStatusText(link.mail)}</span></p>
+    : null);
+  // A login that never signed in waits for its activation: the profile says so on top, with the link at hand.
+  const awaitingActivation = Boolean(user && user.status === "active" && !user.lastSignInAt && !locked);
+  const activationNotice = awaitingActivation && user && (
+    <div className="um-invite" role="group" aria-label="Aktivierung">
+      <span className="um-invite-icon"><Send size={16} aria-hidden="true" /></span>
+      <span className="um-invite-text">
+        <strong>Noch nicht aktiviert</strong>
+        <small>{user.invitedAt ? `Zuletzt eingeladen am ${formatFileDateTime(user.invitedAt)}.` : "Noch keine Einladung per E-Mail verschickt."} {mailConfigured ? "Mit dem Link setzt die Person ihr Passwort; vorher kann sie sich nicht anmelden." : "Der Mailversand ist nicht eingerichtet: Link erzeugen und selbst weitergeben."}</small>
+      </span>
+      <div className="um-actions">
+        {mailConfigured && <button type="button" className="sheet-action is-primary" disabled={busy !== null} onClick={() => sendLink("mail")}>{busy === "mail" ? <Spinner /> : <Send size={14} aria-hidden="true" />}Aktivierungslink senden</button>}
+        <button type="button" className="sheet-action is-quiet" disabled={busy !== null} onClick={() => sendLink("copy")}>{busy === "link" ? <Spinner /> : <KeyRound size={14} aria-hidden="true" />}Link erzeugen</button>
+      </div>
+      {linkOutcome}
+    </div>
+  );
+
   const form = (
     <form ref={formRef} className="um-form" onSubmit={(event) => { event.preventDefault(); if (!user || dirty) save(); }}>
       {locked && <p className="am-note is-todo um-lead"><AlertTriangle size={16} aria-hidden="true" /><span>Demo-Konto: wird per Seed verwaltet und ist hier schreibgeschützt.</span></p>}
+      {activationNotice}
       <PanelSection title="Person">
         <FieldGrid>
           <Field label="Vorname"><input className="am-input" value={person.firstName} onChange={set("firstName")} maxLength={80} required disabled={disabled} autoComplete="off" /></Field>
@@ -532,11 +555,9 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
           </Row>
           {user.status === "active" && (
             <Row lead={<RowIcon icon={KeyRound} />} title={user.lastSignInAt ? "Passwort-Link" : "Aktivierungslink"} text="Gilt einmal und läuft ab."
-              below={link?.link ? <LinkPanel link={link.link} activation={link.activation} user={user} />
-                : link?.mail ? <p className={`am-note ${link.mail === "sent" ? "is-ok" : link.mail === "failed" ? "is-bad" : "is-todo"}`}>{link.mail === "sent" ? <MailCheck size={16} aria-hidden="true" /> : <MailX size={16} aria-hidden="true" />}<span>{link.mail === "sent" ? `${link.activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} an ${user.email} geschickt.` : mailStatusText(link.mail)}</span></p>
-                : null}>
-              <button type="button" className="sheet-action is-quiet" disabled={busy !== null} onClick={() => run("link", () => createPasswordLink({ userId: user.id, deliver: "copy" }), setLink)}>{busy === "link" ? <Spinner /> : <KeyRound size={14} aria-hidden="true" />}Link erzeugen</button>
-              {mailConfigured && <button type="button" className="sheet-action" disabled={busy !== null} onClick={() => run("mail", () => createPasswordLink({ userId: user.id, deliver: "mail" }), setLink)}>{busy === "mail" ? <Spinner /> : <Send size={14} aria-hidden="true" />}Per E-Mail</button>}
+              below={linkOutcome}>
+              <button type="button" className="sheet-action is-quiet" disabled={busy !== null} onClick={() => sendLink("copy")}>{busy === "link" ? <Spinner /> : <KeyRound size={14} aria-hidden="true" />}Link erzeugen</button>
+              {mailConfigured && <button type="button" className="sheet-action" disabled={busy !== null} onClick={() => sendLink("mail")}>{busy === "mail" ? <Spinner /> : <Send size={14} aria-hidden="true" />}Per E-Mail</button>}
             </Row>
           )}
           {!user.self && user.status === "active" && (

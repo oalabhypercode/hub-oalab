@@ -219,6 +219,8 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <td className="cell-login col-login">{user.lastSignInAt ? <time dateTime={user.lastSignInAt} title={formatFileDateTime(user.lastSignInAt)}>{formatFileDate(user.lastSignInAt)}</time> : <span className="cell-none">noch nie</span>}</td>
         <td className="cell-action">
           {waiting ? <button type="button" className="row-check" onClick={() => openUser(user)}><ShieldCheck size={15} aria-hidden="true" />Prüfen</button>
+            // Never signed in: the row leads to the activation link, which the panel offers on top.
+            : user.displayStatus === "invited" && !user.demo ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} title="Konto öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
             : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
         </td>
       </tr>
