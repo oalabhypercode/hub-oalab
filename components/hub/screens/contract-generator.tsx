@@ -175,6 +175,7 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
               <div className="upload-fields">
                 {keys.map((key) => {
                   const field = contractFields[key];
+                  const hint = template.hints?.[key] ?? field.hint;
                   const errorId = `${formId}-${key}-error`;
                   const wide = field.kind === "text" && (key === "kunde_firma" || key === "dienstleister_name" || key === "hoster");
                   return (
@@ -190,7 +191,7 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
                         aria-describedby={fieldErrors[key] ? errorId : undefined}
                         maxLength={200}
                       />
-                      {fieldErrors[key] ? <small id={errorId} className="contract-field-error">{fieldErrors[key]}</small> : field.hint && <small className="field-hint">{field.hint}</small>}
+                      {fieldErrors[key] ? <small id={errorId} className="contract-field-error">{fieldErrors[key]}</small> : hint && <small className="field-hint">{hint}</small>}
                     </label>
                   );
                 })}

@@ -15,6 +15,8 @@ const templateBytes = async (id) => new Uint8Array(await readFile(new URL(`../li
 const operator = { street: OPERATOR.street, city: OPERATOR.city, partners: OPERATOR.partners };
 const paragraph = (...runs) => `<w:p><w:pPr><w:pStyle w:val="Titel"/></w:pPr>${runs.map((text) => `<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${text}</w:t></w:r>`).join("")}</w:p>`;
 const texts = (xml) => [...xml.matchAll(/<w:t(?=[\s>])[^>]*>([^<]*)<\/w:t>/g)].map((match) => decodeXml(match[1]));
+/** The text of every paragraph in the body of a .docx, in order. */
+const paragraphs = (bytes) => (strFromU8(readDocx(bytes)["word/document.xml"]).match(/<w:p[\s>][\s\S]*?<\/w:p>/g) ?? []).map((xml) => texts(xml).join(""));
 
 test("placeholders split by Word across runs are found and filled in the first run", () => {
   const xml = `<w:body>${paragraph("Firma: {{kun", "de_fir", "ma}} in ", "{{KUNDE_PLZ_ORT }}")}</w:body>`;
@@ -102,11 +104,15 @@ test("the form starts from the customer master and each template's own values", 
   assert.equal(pflege.preis_monat, "30,00");
   const komplett = initialInput(contractTemplates["website-domain-mail"], customer, "2026-11-05", operator);
   assert.deepEqual([komplett.preis_monat, komplett.minuten_monat, komplett.hoster], ["15,00", "60", "netcup GmbH"]);
+  const domain = initialInput(contractTemplates["website-domain"], customer, "2026-11-05", operator);
+  assert.deepEqual([domain.kunde_domain, domain.preis_monat, domain.minuten_monat, domain.preis_zusatzblock, domain.hoster, domain.an_funktion], ["nalbach-hinkel.de", "30,00", "30", "95,00", "netcup GmbH", "Geschäftsführer"], "Website-Pflege's values plus the hoster");
   assert.equal(suggestedTemplate(["domain-mail", "service-lite"]), "website-domain-mail");
+  assert.equal(suggestedTemplate(["domain", "service-lite"]), "website-domain", "domain without mail at oalab");
   assert.equal(suggestedTemplate([null, "service-max"]), "website-pflege");
+  assert.equal(suggestedTemplate([]), "website-pflege");
 });
 
-test("both default templates carry exactly their placeholders and no customer's data", async () => {
+test("every default template carries exactly its placeholders and no customer's data", async () => {
   const forbidden = ["Nalbach", "Hinkel", "Neuwied", "Remscheid", "Heinen", "Lüring", "Berler", "Auftraggeberin", "Neustr", "48167"];
   for (const id of contractTemplateIds) {
     const template = contractTemplates[id];
@@ -120,6 +126,57 @@ test("both default templates carry exactly their placeholders and no customer's 
     for (const word of forbidden) assert.ok(!text.includes(word), `${id} contains ${word}`);
     assert.ok(bytes.length < 200_000, `${id}: small enough (${bytes.length} bytes)`);
   }
+});
+
+test("every template numbers its sections in order and refers only to sections it has", async () => {
+  for (const id of contractTemplateIds) {
+    const lines = paragraphs(await templateBytes(id));
+    const headings = lines.flatMap((line) => /^§\s?(\d+a?)\s+\S/.exec(line)?.[1] ?? []);
+    let last = 0;
+    for (const heading of headings) {
+      const number = Number.parseInt(heading, 10);
+      // §1, §2 … and an inserted "§8a" only right after §8.
+      assert.equal(number, heading.endsWith("a") ? last : last + 1, `${id}: § ${heading} follows § ${last}`);
+      last = number;
+    }
+    assert.ok(last >= 10, `${id}: all sections found (${headings.join(", ")})`);
+    for (const line of lines.filter((text) => !/^§\s?\d/.test(text))) {
+      // "§ 7", "§§ 2 und 4"; "§§ 611 ff. BGB" is the law, not the contract.
+      for (const match of line.matchAll(/§§?\s*(\d+)(?!\d)(?!\s*ff\.)(?:\s*und\s*(\d+))?/g)) {
+        for (const number of [match[1], match[2]].filter(Boolean)) assert.ok(Number(number) >= 1 && Number(number) <= last, `${id}: „${line.slice(0, 70)}…“ refers to § ${number}`);
+      }
+    }
+  }
+});
+
+test("Website & Domain is the Website-Pflege contract with domain and hosting at oalab; only e-mail stays external", async () => {
+  const template = contractTemplates["website-domain"];
+  assert.deepEqual([template.name, template.signature, template.packages], ["Website & Domain", true, ["domain"]]);
+  assert.deepEqual(contractTemplates["website-domain-mail"].packages, ["domain-mail"], "Domain & Mail keeps its own template");
+  const pflege = new Set(template.fields);
+  for (const key of contractTemplates["website-pflege"].fields) assert.ok(pflege.has(key), `${key} as in Website-Pflege`);
+  assert.ok(pflege.has("hoster"));
+
+  const lines = paragraphs(await templateBytes("website-domain"));
+  const text = lines.join("\n");
+  assert.match(lines[0], /„Oalab Website-Pflege, Domain/);
+  assert.ok(lines.includes("§4 Domain- und Hosting-Service"));
+  assert.ok(lines.includes("Der Betrieb und die Verwaltung geschäftlicher E-Mail-Systeme sind nicht Gegenstand dieses Vertrages."), "the preamble excludes only e-mail");
+  assert.match(text, /Das Hosting der Website und die Verwaltung der Domain erfolgen derzeit über die \{\{hoster\}\}\./);
+  assert.match(text, /MX-, SPF-, DKIM- und DMARC-Einträge, richtet der Auftragnehmer nach den Vorgaben des externen IT-Dienstleisters/);
+  // The new § 4 moved every later section up by one; the cross-references follow.
+  for (const reference of ["§8 Vergütung und Abrechnung", "§8a Regelmäßige", "§ 10 Vertragsbeginn", "die in §§ 2 und 4 beschriebenen Leistungen", "gilt die Abrechnung nach § 8,", "in § 10 vereinbarten Vertragsbeginn", "zusätzlicher Arbeitszeit gemäß § 8.", "nach § 4 Absatz 3", "Grundvergütung nach § 8 enthalten"]) {
+    assert.ok(text.includes(reference), `reference: ${reference}`);
+  }
+  for (const excluded of ["a) das Hosting der Website,", "c) die Verwaltung der Domain und der DNS-Einstellungen,", "c) Domain- oder DNS-Probleme,"]) {
+    assert.ok(!lines.includes(excluded), `no longer excluded: ${excluded}`);
+  }
+  const website = paragraphs(await templateBytes("website-pflege"));
+  const section = (all, start, end) => all.slice(all.findIndex((line) => line.startsWith(start)), all.findIndex((line) => line.startsWith(end)));
+  assert.deepEqual(section(lines, "§2 ", "§4 "), section(website, "§2 ", "§4 "), "the website service (§§ 2 and 3) is word for word Website-Pflege");
+
+  assert.match(template.hints.hoster, /§ 4/);
+  assert.match(await source("components/hub/screens/contract-generator.tsx"), /template\.hints\?\.\[key\] \?\? field\.hint/, "the form shows the template's own hint");
 });
 
 test("a filled or blank contract keeps the template's other parts byte for byte and has no placeholder left", async () => {
@@ -193,6 +250,7 @@ test("every contract feature explains itself with an ⓘ right where it is used"
 test("file names are safe on every system", () => {
   assert.equal(contractFileName(contractTemplates["website-pflege"], "Nalbach & Hinkel GmbH"), "Servicevertrag Website-Pflege – Nalbach & Hinkel GmbH.docx");
   assert.equal(contractFileName(contractTemplates["website-domain-mail"], "A/B: C*D?", "pdf"), "Servicevereinbarung Website, Domain & Mail – A-B- C-D-.pdf");
+  assert.equal(contractFileName(contractTemplates["website-domain"], "Nalbach & Hinkel GmbH"), "Servicevertrag Website & Domain – Nalbach & Hinkel GmbH.docx");
 });
 
 test("the generator lives in Vertrag & Domain, for admins only, and its templates reach the server bundle", async () => {
