@@ -40,7 +40,7 @@ export type HubStoredFile = {
 
 /**
  * "supabase": real files under RLS; uploads and downloads go through server actions.
- * "fixtures": preview and public demo identities, which may never touch real data.
+ * "fixtures": the preview, which may never touch real data.
  */
 export type HubFilesState = {
   source: "supabase" | "fixtures";

@@ -38,7 +38,7 @@ test("logos are read on their own, so a missing migration never breaks the accou
   assert.match(logos, /const rows = error \? \[\] :/);
   assert.match(logos, /if \(signed\.error \|\| !signed\.data\) return logos;/);
   // Customers get only their own customer's logo, signed with their own session; admins keep their initials.
-  assert.match(logos, /if \(identity\.publicDemo \|\| identity\.demoAccess \|\| !customerId \|\| identity\.account\?\.role === "oalab_admin"\) return null;/);
+  assert.match(logos, /if \(!customerId \|\| identity\.account\?\.role === "oalab_admin"\) return null;/);
   const files = await source("lib/hub-files/server.ts");
   // Admins get every logo, freelancers those of their customers (RLS); customers none here.
   assert.match(files, /canManage \|\| isFreelancer \? loadCustomerLogos\(supabase\) : new Map<string, CustomerLogo>\(\)/);
@@ -62,10 +62,10 @@ test("every logo action checks for an active admin in the database before anythi
 
 test("the logo replaces the initials in the customer's login and in the Asset Management; the sidebar counts real files", async () => {
   const layout = await source("app/dashboard/layout.tsx");
-  assert.match(layout, /countFilesForIdentity\(identity\),\n.*\n {4}loadAccountLogo\(identity\),/);
+  assert.match(layout, /countHubFiles\(\),\n.*\n {4}loadAccountLogo\(identity\),/);
   assert.match(layout, /fileCount=\{fileCount\} accountLogo=\{accountLogo\}/);
   const shell = await source("components/hub/app-shell.tsx");
-  assert.match(shell, /files: hasDemo \? files\.length : fileCount \?\? 0/);
+  assert.match(shell, /files: preview \? previewFiles\.length : fileCount \?\? 0/);
   assert.match(shell, /const logo = live && !account\.admin \? accountLogo : null;/);
   assert.match(shell, /<MobileAvatar href=\{hubHref\(preview, "settings"\)\} initials=\{initials\} logo=\{logo\} \/>/);
   assert.match(await source("components/hub/glass-sidebar.tsx"), /<LogoMark logo=\{logo\} initials=\{initials\} className="avatar" \/>/);

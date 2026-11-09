@@ -81,7 +81,7 @@ test("only active admins read service conversations in the hub, client-visible o
   const server = await source("lib/hub-conversations/server.ts");
   assert.match(server, /export const conversationReader = cache\(async \(\): Promise<\{ readonly userId: string \} \| null> => verifyHubAdmin\(\)\);/);
   assert.match(server, /if \(!\(await conversationReader\(\)\)\) return failed\(unavailable\);/);
-  assert.match(server, /if \(identity\.publicDemo \|\| identity\.demoAccess \|\| identity\.account\?\.role !== "oalab_admin"\) return undefined;/);
+  assert.match(server, /if \(identity\.account\?\.role !== "oalab_admin"\) return undefined;/);
   // Only what the client may see, never internal notes or drafts, and nothing from the bin.
   assert.equal((server.match(/\.eq\("visibility", "client"\)/g) ?? []).length, 2);
   assert.equal((server.match(/\.is\("trashed_at", null\)/g) ?? []).length, 2);
@@ -177,9 +177,9 @@ test("sending a private message: checked, written as the person, once per draft,
 });
 
 test("Nachrichten: customers get their private chat and the way to the service platform, admins the tabs Privat and Service", async () => {
-  assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "messages" \? loadPrivateChatsForIdentity\(identity\) : undefined/);
-  assert.match(await source("app/dashboard/layout.tsx"), /countUnreadPrivateChats\(identity\)/);
-  assert.match(await source("components/hub/app-shell.tsx"), /messages: unreadConversations \?\? \(hasDemo \? 1 : 0\)/);
+  assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "messages" \? loadPrivateChatPage\(\) : undefined/);
+  assert.match(await source("app/dashboard/layout.tsx"), /countUnreadPrivateChats\(\)/);
+  assert.match(await source("components/hub/app-shell.tsx"), /messages: unreadConversations \?\? \(preview \? 1 : 0\)/);
   assert.match(await source("components/hub/hub-view.tsx"), /<ConversationsScreen \{\.\.\.screen\} conversations=\{populated \? undefined : conversations\} privateChats=\{populated \? undefined : privateChats\} \/>/);
   const entry = await source("components/hub/screens/conversations.tsx");
   assert.match(entry, /const tab: ChatTab = admin && params\.get\("tab"\) === "service" \? "service" : "private";/);

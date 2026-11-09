@@ -35,7 +35,7 @@ export interface PrivateChatThread {
 }
 
 export interface PrivateChatState {
-  /** Real logins read the database; the preview, the public demo and the demo logins show examples. */
+  /** Logins read the database; the preview shows examples. */
   readonly source: "live" | "fixtures";
   readonly viewer: ChatSide;
   /** Customers: their company's chat (rarely more than one); admins: every customer, to answer or to write first. */

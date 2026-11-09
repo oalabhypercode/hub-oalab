@@ -2,17 +2,16 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { HubView } from "@/components/hub/hub-view";
 import { HubContentLoading } from "@/components/hub/loading";
-import { adminSections, DEMO_AS_OF, hubSections } from "@/lib/hub-data";
+import { adminSections, hubSections } from "@/lib/hub-data";
 import { parseHubSection, todayIso } from "@/lib/hub-routes";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
-import { getDemoData } from "@/lib/demo-data";
-import { loadFilesForIdentity } from "@/lib/hub-files/server";
-import { loadCalendarForIdentity } from "@/lib/hub-calendar/server";
+import { loadHubFiles } from "@/lib/hub-files/server";
+import { loadHubCalendar } from "@/lib/hub-calendar/server";
 import { loadUserManagement } from "@/lib/hub-users/server";
-import { loadProjectsForIdentity } from "@/lib/hub-projects/server";
+import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { loadAssistantLog } from "@/lib/hub-assistant/log";
 import { loadConversationsForIdentity } from "@/lib/hub-conversations/server";
-import { loadPrivateChatsForIdentity } from "@/lib/hub-private-chat/server";
+import { loadPrivateChatPage } from "@/lib/hub-private-chat/server";
 import { loadContractsForIdentity } from "@/lib/hub-contracts/server";
 
 export function generateStaticParams() { return hubSections.map((section) => ({ section })); }
@@ -22,26 +21,24 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   const validSection = parseHubSection(section);
   if (!validSection) notFound();
   const identity = await getWorkspaceIdentity();
-  // Admin-only sections need a real admin session; everyone else gets a plain 404.
-  if (adminSections.includes(validSection) && (identity.publicDemo || identity.account?.role !== "oalab_admin")) notFound();
+  // Admin-only sections need an admin session; everyone else gets a plain 404.
+  if (adminSections.includes(validSection) && identity.account?.role !== "oalab_admin") notFound();
   // „Vertrag & Domain“ is for admins and customers; freelancers have no entry and get a plain 404 as well.
   if (validSection === "contracts" && identity.account?.role === "oalab_freelancer") notFound();
-  const demoData = identity.demoAccess ? getDemoData(identity.demoAccess, identity.name) : undefined;
   const [filesState, calendarState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts] = await Promise.all([
-    loadFilesForIdentity(identity),
-    // Real appointments always run on today's date, also for the demo logins with fixture projects.
-    validSection === "calendar" ? loadCalendarForIdentity(identity, todayIso()) : undefined,
+    loadHubFiles(),
+    validSection === "calendar" ? loadHubCalendar(todayIso()) : undefined,
     validSection === "users" ? loadUserManagement() : undefined,
-    loadProjectsForIdentity(identity),
+    loadLiveProjects(),
     validSection === "ai-log" ? loadAssistantLog() : undefined,
     // The service platform's conversations only for admins, in the tab "Service".
     validSection === "messages" ? loadConversationsForIdentity(identity) : undefined,
     // The private chats; shared with the layout's unread count through the request cache.
-    validSection === "messages" ? loadPrivateChatsForIdentity(identity) : undefined,
+    validSection === "messages" ? loadPrivateChatPage() : undefined,
     // Packages and timeline: everything for admins, their own for customers.
     validSection === "contracts" ? loadContractsForIdentity(identity) : undefined,
   ]);
-  return <HubView section={validSection} email={identity.email} demoData={demoData} publicDemo={identity.publicDemo} role={identity.account?.role ?? null} userKey={identity.userId} asOf={demoData ? DEMO_AS_OF : todayIso()} filesState={filesState} calendarState={calendarState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} />;
+  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} calendarState={calendarState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {

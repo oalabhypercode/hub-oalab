@@ -71,10 +71,10 @@ function lastLine(chat: PrivateChatSummary) {
  * The private chat (4 November 2026): customers write here with oalab, one chat for their company; the way to the
  * service platform sits right below, Ali thinks along at the bottom. Admins see every customer's chat with the logo
  * from the Asset Management, answer in it and write to a customer first through the pen. Real logins read the
- * database; the preview, the public demo and the demo logins show examples whose new messages stay in this window.
+ * database; the preview shows examples whose new messages stay in this window.
  */
-export function PrivateChats({ admin, freelancer = false, preview, firstName, company, now, state, tabs }: {
-  admin: boolean; preview: boolean; firstName: string; company?: string; now: Date; state?: PrivateChatState; tabs?: (unread: number) => ReactNode;
+export function PrivateChats({ admin, freelancer = false, firstName, company, now, state, tabs }: {
+  admin: boolean; firstName: string; company?: string; now: Date; state?: PrivateChatState; tabs?: (unread: number) => ReactNode;
   /** Freelancers write with oalab like a customer, but have nothing to ask on the service platform. */
   freelancer?: boolean;
 }) {
@@ -233,7 +233,7 @@ export function PrivateChats({ admin, freelancer = false, preview, firstName, co
 
         <section className="chat-pane" aria-label={thread ? `Privater Chat: ${title(thread.chat)}` : "Chat"}>
           {thread ? (
-            <PrivateThread key={thread.chat.customerId} thread={thread} admin={admin} live={live} now={now} preview={preview} logo={logoOf(thread.chat.customerId)}
+            <PrivateThread key={thread.chat.customerId} thread={thread} admin={admin} live={live} now={now} logo={logoOf(thread.chat.customerId)}
               onClose={close} onSent={(next) => { setLiveThread(next); replaceInList(next.chat); }} onDemoSend={appendDemo} />
           ) : selectedId && live && !threadError ? (
             <div className="chat-placeholder"><MiniLoader size={22} /><span>Chat wird geladen …</span></div>
@@ -280,8 +280,8 @@ function CustomerPicker({ chats, logoOf, onClose, onPick }: { chats: readonly Pr
   );
 }
 
-function PrivateThread({ thread, admin, live, now, preview, logo, onClose, onSent, onDemoSend }: {
-  thread: PrivateChatThread; admin: boolean; live: boolean; now: Date; preview: boolean; logo: CustomerLogo | null;
+function PrivateThread({ thread, admin, live, now, logo, onClose, onSent, onDemoSend }: {
+  thread: PrivateChatThread; admin: boolean; live: boolean; now: Date; logo: CustomerLogo | null;
   onClose: () => void; onSent: (thread: PrivateChatThread) => void; onDemoSend: (body: string) => void;
 }) {
   const { chat, messages, people } = thread;
@@ -338,7 +338,7 @@ function PrivateThread({ thread, admin, live, now, preview, logo, onClose, onSen
 
   const several = people.length > 1;
   const hint = !live
-    ? `${preview ? "Vorschau" : "Demo"}: Neue Nachrichten bleiben in diesem Fenster und gehen an niemanden.`
+    ? "Vorschau: Neue Nachrichten bleiben in diesem Fenster und gehen an niemanden."
     : admin
       ? people.length ? `${peopleLine(people)} ${several ? "sehen" : "sieht"} deine Antwort im Hub und ${several ? "bekommen" : "bekommt"} eine Benachrichtigung.` : `${chat.company} hat noch keinen aktiven Login. Deine Nachricht steht im Chat, sobald jemand Zugang hat.`
       : "";

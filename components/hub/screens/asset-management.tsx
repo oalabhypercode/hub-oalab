@@ -139,7 +139,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const filterCount = [category !== ALL, format !== ALL].filter(Boolean).length;
   const narrowed = query.trim() !== "" || filterCount > 0;
 
-  // Folders and moves: admins (and the demo) everywhere; a freelancer only in their own files, never at a customer.
+  // Folders and moves: admins (and the preview) everywhere; a freelancer only in their own files, never at a customer.
   const canOrganize = !freelancerView || (current !== null && current.id === ownId);
   const isOwn = current !== null && current.id === ownId;
   const servedBy = current && canManage && current.kind !== "freelancer" ? servedByNames(current, freelancerEntries) : "";

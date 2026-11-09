@@ -1,12 +1,11 @@
 "use server";
 
 import { createHash } from "node:crypto";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { safeAuthRedirect, SECOND_FACTOR_PAGE, secondFactorDestination, serviceOrigin } from "@/lib/auth-redirect";
 import { greetsAt } from "@/lib/greeting";
 import { mailLoginCode, mailPasswordLink, mailRegistrationConfirmation } from "@/lib/hub-mail/notify";
 import { cleanEmail, readRegistration } from "@/lib/hub-users/rules";
-import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { siteOrigin } from "@/lib/site-origin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -71,8 +70,6 @@ export async function signInAction(input: { email: string; password: string; nex
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email: email.value, password: input.password });
   if (error) return failure(error.code);
-  // A real login supersedes a previously selected public fixture identity.
-  (await cookies()).set(PUBLIC_DEMO_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
   const next = safeAuthRedirect(input.next);
   // Logins with a second factor continue on the code page. The e-mail code goes out right away (the page offers a new
   // one if this fails); the app needs nothing sent.

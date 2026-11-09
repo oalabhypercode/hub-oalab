@@ -213,7 +213,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <td className="cell-person">
           <button type="button" className="row-open" onClick={() => openUser(user)}>
             <span className="avatar avatar-s" aria-hidden="true">{initialsOf(user)}</span><strong title={fullName(user)}>{fullName(user)}</strong>
-            {user.self && <span className="self-badge">Du</span>}{user.demo && <span className="self-badge">Demo</span>}
+            {user.self && <span className="self-badge">Du</span>}
           </button>
         </td>
         <td className="cell-role">{user.role ? roleLabels[user.role] : <span className="cell-none">–</span>}</td>
@@ -232,7 +232,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <td className="cell-action">
           {waiting ? <button type="button" className="row-check" onClick={() => openUser(user)}><ShieldCheck size={15} aria-hidden="true" />Prüfen</button>
             // Never signed in: the row leads to the activation link, which the panel offers on top.
-            : user.displayStatus === "invited" && !user.demo ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} title="Zugang öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
+            : user.displayStatus === "invited" ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} title="Zugang öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
             : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Settings size={16} aria-hidden="true" /></button>}
         </td>
       </tr>

@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import { loadLocalEnv } from "./lib/local-env.mjs";
 
 // Applies supabase/migrations to the configured project. Credentials come from .env.local
@@ -11,7 +10,8 @@ if (!process.argv.includes("--retired-project")) {
   process.exit(1);
 }
 await loadLocalEnv();
-const blueprint = JSON.parse(await readFile(new URL("../config/demo-accounts.json", import.meta.url), "utf8"));
+// The retired Hub-only Supabase project.
+const PROJECT_REF = "tjbslvwvisxjjcxfhbgm";
 const missing = ["SUPABASE_ACCESS_TOKEN", "SUPABASE_DB_PASSWORD"].filter((name) => !process.env[name]);
 if (missing.length) {
   console.error(`Fehlt in .env.local: ${missing.join(", ")}. Bitte selbst eintragen und erneut starten.`);
@@ -24,6 +24,6 @@ const run = (args) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
-run(["link", "--project-ref", blueprint.projectRef]);
+run(["link", "--project-ref", PROJECT_REF]);
 run(["db", "push", ...(dryRun ? ["--dry-run"] : ["--yes"])]);
 console.log(dryRun ? "Prüfung abgeschlossen: Migrationen wurden nicht angewendet." : "Migrationen angewendet.");

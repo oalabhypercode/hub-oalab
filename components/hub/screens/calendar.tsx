@@ -104,7 +104,7 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
   return (
     <>
       <LargeTitleHeader title="Kalender" icon={<CategoryTitle category="calendar" />} actions={<HeaderActions />} />
-      {!store.live && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">{canManage ? "Beispieltermine der drei Demo-Kunden. Was du hier anlegst oder beantwortest, bleibt nur in diesem Browserfenster." : "Beispieltermine für die Demo. Anfragen bleiben in diesem Browserfenster und gehen nicht an oalab."}</p></GlassCard>}
+      {!store.live && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">{canManage ? "Beispieltermine der drei Beispielkunden. Was du hier anlegst oder beantwortest, bleibt nur in diesem Browserfenster." : "Beispieltermine für die Vorschau. Anfragen bleiben in diesem Browserfenster und gehen nicht an oalab."}</p></GlassCard>}
       {store.live && !canManage && !store.customers.length && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Dein Konto ist noch keinem Kunden zugeordnet. Die Auslastung siehst du schon, Termine anfragen kannst du nach der Zuordnung.</p></GlassCard>}
 
       <div className="calendar-toolbar">
@@ -151,7 +151,7 @@ export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProp
         <SectionHeader title="Zieltermine" />
         <ul className="glass inset-list appointment-list goal-list" aria-label="Zieltermine der Projekte">
           {goals.map((goal) => {
-            // Same reference day as the projects table, so both pages name the same distance (demo accounts: the fixtures' day).
+            // Same reference day as the projects table, so both pages name the same distance (the preview: the fixtures' day).
             const hint = deadlineHint(goal.day, goal.done, asOf);
             return (
               <li key={goal.id} className={`list-item appointment-item${goal.done ? " is-done" : ""}`}>

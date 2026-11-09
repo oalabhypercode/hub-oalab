@@ -1,10 +1,10 @@
-// Fictional example files ("Servicevertrag", "Logo-Datei") for the demo customers.
+// Fictional example files ("Servicevertrag", "Logo-Datei") of the preview's example customers.
 // Deterministic output, so seeding twice uploads identical bytes.
 
 export const sampleCustomers = [
-  { slug: "nordlicht", customerNumber: "KD-24017", company: "Nordlicht Studio", servicePackage: "Oalab-Website extra", initial: "N", color: "#FF9500", email: "nordlicht@demo.oalab.test" },
-  { slug: "formfeld", customerNumber: "KD-24023", company: "Form & Feld", servicePackage: "Oalab-Website lite", initial: "F", color: "#34C759", email: "formfeld@demo.oalab.test" },
-  { slug: "horizont", customerNumber: "KD-24031", company: "Studio Horizont", servicePackage: "Oalab-Website Max", initial: "H", color: "#30B0C7", email: "horizont@demo.oalab.test" },
+  { slug: "nordlicht", customerNumber: "KD-24017", company: "Nordlicht Studio", servicePackage: "Oalab-Website extra", initial: "N", color: "#FF9500" },
+  { slug: "formfeld", customerNumber: "KD-24023", company: "Form & Feld", servicePackage: "Oalab-Website lite", initial: "F", color: "#34C759" },
+  { slug: "horizont", customerNumber: "KD-24031", company: "Studio Horizont", servicePackage: "Oalab-Website Max", initial: "H", color: "#30B0C7" },
 ];
 
 /** Minimal single-page PDF (Helvetica, WinAnsi) with correct cross-reference offsets. */

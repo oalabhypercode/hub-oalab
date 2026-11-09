@@ -25,7 +25,7 @@ async function confirmedLogin() {
   const supabase = await createClient();
   const [{ data: claimData }, { data: userData }] = await Promise.all([supabase.auth.getClaims(), supabase.auth.getUser()]);
   const user = userData.user;
-  if (!claimData?.claims || !user || (user.app_metadata as Record<string, unknown> | undefined)?.demo_account === true) return null;
+  if (!claimData?.claims || !user) return null;
   const hasApp = hasConfirmedApp(user.factors);
   const method = secondFactorMethod(user.app_metadata, hasApp);
   return { supabase, user, hasApp, method, confirmed: method === null || claimData.claims.aal === "aal2" };

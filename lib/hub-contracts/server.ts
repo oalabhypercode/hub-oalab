@@ -108,11 +108,11 @@ async function loadForCustomer(account: HubAccountData): Promise<ContractsState>
 }
 
 /**
- * The area „Vertrag & Domain“ for a real login: everything for admins, their own for customers. Preview, public demo
- * and the demo logins keep their fixtures (undefined); freelancers never reach the page.
+ * The area „Vertrag & Domain“ for a login: everything for admins, their own for customers. The preview keeps its
+ * fixtures (undefined); freelancers never reach the page.
  */
-export async function loadContractsForIdentity(identity: { publicDemo: boolean; demoAccess?: unknown; account?: HubAccountData | null }): Promise<ContractsState | undefined> {
-  if (identity.publicDemo || identity.demoAccess || !identity.account) return undefined;
+export async function loadContractsForIdentity(identity: { account?: HubAccountData | null }): Promise<ContractsState | undefined> {
+  if (!identity.account) return undefined;
   if (identity.account.role === "oalab_admin") return loadForAdmin();
   if (identity.account.role === "oalab_customer") return loadForCustomer(identity.account);
   return undefined;

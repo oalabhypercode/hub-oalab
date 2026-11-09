@@ -1,8 +1,6 @@
 import { createPlatformServerClient, requestMeta } from "@/lib/platform/client";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
-import { getPublicDemoIdentity } from "@/lib/public-demo-session";
-import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
 import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, serviceOrigin, signedInRedirect } from "../auth-redirect";
 import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub-auth/second-factor";
@@ -21,9 +19,6 @@ export async function updateSession(request: NextRequest) {
 
   // The preview is an isolated, public UI with fictional fixtures only.
   if (isPreview) return supabaseResponse;
-
-  // Public demo cookies grant access to fixture pages only, never Supabase data APIs.
-  if ((pathname === "/dashboard" || pathname.startsWith("/dashboard/")) && getPublicDemoIdentity(request.cookies.get(PUBLIC_DEMO_COOKIE)?.value, request.headers)) return supabaseResponse;
 
   function withSessionCookies(response: NextResponse) {
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));

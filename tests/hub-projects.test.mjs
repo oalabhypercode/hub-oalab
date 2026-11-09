@@ -65,5 +65,5 @@ test("customers read Studio rows with their own session; names come only for pro
   assert.match(loader, /: await viewer\.from\("studio_project_details"\)\.select\("project_id"\)/);
   assert.match(loader, /const reader = admin \? db : viewer;/);
   assert.match(loader, /reader\.from\("studio_tasks"\)/);
-  assert.match(loader, /identity\.publicDemo \|\| identity\.demoAccess \? undefined/);
+  assert.match(loader, /export const loadLiveProjects = cache\(/);
 });

@@ -11,7 +11,7 @@ const done = <T,>(data: T): CalendarActionResult<T> => ({ ok: true, data });
 
 /**
  * Real logins change appointments through server actions, and the page refreshes with the new data.
- * The preview and the public demo apply the same rules to a copy that never leaves this browser tab.
+ * The preview applies the same rules to a copy that never leaves this browser tab.
  */
 export function useCalendarStore(state: HubCalendarState) {
   const live = state.source === "supabase";

@@ -15,7 +15,7 @@ import { INVITE_BATCH, LOGIN_BATCH } from "@/lib/hub-invitations/rules";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { ACTIVATION_LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
 import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
-import { isDemoUser, listAllUsers, roleOf, verifyHubAdmin } from "./server";
+import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
 // considers them an active admin before the service role touches anything. Inputs are validated here again,
@@ -82,9 +82,8 @@ async function activeAdminIds(ctx: Context) {
   return users.filter((user) => roleOf(user) === "oalab_admin" && active.has(user.id)).map((user) => user.id);
 }
 
-/** Changes that could lock everyone out or touch the demo logins are refused before anything is written. */
+/** Changes that could lock everyone out are refused before anything is written. */
 async function guardAccountChange(ctx: Context, user: User, change: "role" | "status" | "delete") {
-  if (isDemoUser(user)) return "Demo-Zugänge werden per Seed verwaltet und lassen sich hier nicht ändern.";
   if (user.id === ctx.actorId) return change === "role" ? "Deine eigene Rolle kannst du nicht ändern." : change === "status" ? "Du kannst dich nicht selbst deaktivieren." : "Du kannst deinen eigenen Zugang nicht löschen.";
   if (roleOf(user) === "oalab_admin") {
     const admins = await activeAdminIds(ctx);
@@ -320,7 +319,6 @@ export async function approveRegistration(input: { userId: string; role: string;
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
   if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
   const status = await profileStatus(ctx, user.id);
   if (status !== "pending" && status !== "rejected") return failed("Diese Registrierung ist bereits entschieden.");
   if (!isHubRole(input?.role)) return failed("Bitte eine Rolle wählen.");
@@ -349,7 +347,6 @@ export async function rejectRegistration(input: { userId: string; note: string }
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
   if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
   if (await profileStatus(ctx, user.id) !== "pending") return failed("Nur offene Registrierungen lassen sich ablehnen.");
   const note = cleanText(input?.note, 500);
   const { error } = await ctx.db.from("hub_profiles").update({ status: "rejected", decided_at: new Date().toISOString(), decided_by: ctx.actorId, decision_note: note }).eq("user_id", user.id);
@@ -480,8 +477,7 @@ export async function sendInvitations(input: { userIds?: unknown }): Promise<Act
   for (const userId of ids) {
     const user = await loadUser(ctx, userId);
     if (!user?.email) { results.push({ userId, outcome: "failed", error: "Diesen Zugang gibt es nicht mehr." }); continue; }
-    if (isDemoUser(user)) { results.push({ userId, outcome: "skipped", error: "Demo-Zugänge bekommen keine Einladung." }); continue; }
-    if (user.last_sign_in_at) { results.push({ userId, outcome: "skipped", error: "Hat sich schon angemeldet." }); continue; }
+      if (user.last_sign_in_at) { results.push({ userId, outcome: "skipped", error: "Hat sich schon angemeldet." }); continue; }
     if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "failed", error: "Der Zugang ist nicht aktiv." }); continue; }
     const link = await passwordLink(ctx, user.email);
     if (!link) { results.push({ userId, outcome: "failed", error: "Der Link konnte nicht erzeugt werden." }); continue; }
@@ -504,7 +500,6 @@ export async function createPasswordLink(input: { userId: string; deliver?: "cop
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
   if (!user?.email) return failed("Diesen Zugang gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
   if (await profileStatus(ctx, user.id) !== "active") return failed("Links gibt es nur für aktive Zugänge.");
   const link = await passwordLink(ctx, user.email);
   if (!link) return failed("Der Link konnte nicht erzeugt werden.");
@@ -523,7 +518,6 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
   if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet und lassen sich hier nicht ändern.");
   if (await profileStatus(ctx, user.id) === "pending") return failed("Offene Registrierungen bitte über „Prüfen“ freigeben.");
   const person = readPerson(input ?? {});
   if (!person.ok) return person;
@@ -562,7 +556,7 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
   if (!active) {
     const refused = await guardAccountChange(ctx, user, "status");
     if (refused) return failed(refused);
-  } else if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
+  }
 
   // The profile first: an inactive profile cuts all data access immediately, the ban stops new sign-ins.
   const saved = !(await ctx.db.from("hub_profiles").update({ status: active ? "active" : "disabled", decided_at: new Date().toISOString(), decided_by: ctx.actorId }).eq("user_id", user.id)).error;
@@ -584,7 +578,6 @@ export async function setHubUserSecondFactor(input: { userId: string; choice: "o
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
   if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet und lassen sich hier nicht ändern.");
   const choice = input?.choice === "email" ? "email" : input?.choice === "off" ? "off" : null;
   if (!choice) return failed("Bitte eine Methode wählen.");
   if (choice === "off" && roleOf(user) === "oalab_freelancer") return failed("Freelancer melden sich immer mit einem Code an, weil sie die Dateien mehrerer Kunden sehen.");
@@ -625,7 +618,7 @@ export async function deleteHubUser(input: { userId: string; confirmEmail: strin
 /**
  * Creates a customer (in Service too) or updates one; the customer number stays unique. For a customer in Service,
  * company and number go to its organization and come back through Service's trigger; the contact data the Hub saves
- * reaches Service's customer profile through the Hub's own trigger. Hub-only customers (the demo ones) stay as they are.
+ * reaches Service's customer profile through the Hub's own trigger. Hub-only customers stay as they are.
  */
 export async function saveCustomer(input: { id?: string; freelancerIds?: unknown } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
   const ctx = await context();

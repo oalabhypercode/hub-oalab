@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
-import { formatDeadline, hubHref, previewAccount, previewFiles, previewProjects, sampleFolders, type HubDemoData, type HubSection, type Project, type ProjectTask } from "@/lib/hub-data";
+import { formatDeadline, hubHref, previewAccount, previewFiles, previewProjects, sampleFolders, type HubSection, type Project, type ProjectTask } from "@/lib/hub-data";
 import type { HubFilesState } from "@/lib/hub-files/types";
 import { calendarFixtures } from "@/lib/hub-calendar/fixtures";
 import type { HubCalendarState } from "@/lib/hub-calendar/types";
@@ -41,19 +41,17 @@ type HubViewProps = {
   detail?: string;
   preview?: boolean;
   email?: string;
-  demoData?: HubDemoData;
-  publicDemo?: boolean;
   userKey: string;
   asOf: string;
-  /** Real files from Supabase for signed-in users; absent for the preview and public demo identities. */
+  /** Real files for signed-in users; absent for the preview. */
   filesState?: HubFilesState;
-  /** Real calendar from Supabase on the calendar page; absent for the preview and public demo identities. */
+  /** Real calendar on the calendar page; absent for the preview. */
   calendarState?: HubCalendarState;
-  /** Role of a real login from the user management; demo logins take theirs from the demo data. */
+  /** Role of the login from the user management. */
   role?: HubRole | null;
   /** Logins and customers on the admin's user management page. */
   userManagement?: UserManagementState;
-  /** Studio projects of a real login; absent for the preview, the public demo and the demo logins. */
+  /** Studio projects of a login; absent for the preview. */
   liveProjects?: LiveProjectsState;
   /** The assistant's proposals on the admin's "KI-Protokoll" page. */
   assistantLog?: AssistantLogState;
@@ -65,15 +63,16 @@ type HubViewProps = {
   contracts?: ContractsState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", demoData, publicDemo = false, userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const projects = useMemo(() => preview ? previewProjects : demoData?.projects || liveProjects?.projects || [], [preview, demoData, liveProjects]);
-  const fixtureFiles = useMemo(() => preview ? previewFiles : demoData?.files || [], [preview, demoData]);
-  const populated = preview || Boolean(demoData);
-  const admin = demoData ? demoData.role === "oalab_admin" : role === "oalab_admin";
-  const freelancer = !demoData && !preview && role === "oalab_freelancer";
+  const projects = useMemo(() => preview ? previewProjects : liveProjects?.projects || [], [preview, liveProjects]);
+  const fixtureFiles = useMemo(() => preview ? previewFiles : [], [preview]);
+  // Only the preview is filled with examples.
+  const populated = preview;
+  const admin = role === "oalab_admin";
+  const freelancer = !preview && role === "oalab_freelancer";
   const liveFiles = filesState?.source === "supabase" && !filesState.error;
   const files = liveFiles ? filesState.files : fixtureFiles;
   const fileState: HubFilesState = useMemo(() => {
@@ -81,27 +80,26 @@ export function HubView({ section = "overview", detail, preview = false, email =
     const customers = Array.from(new Map(fixtureFiles.flatMap((file) => file.customers).map((customer) => [customer.id, customer])).values());
     return { source: "fixtures", files: fixtureFiles, customers, folders: sampleFolders(customers), canManage: false };
   }, [filesState, fixtureFiles]);
-  const calendar = useMemo(() => calendarState ?? calendarFixtures({ admin, customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null }), [calendarState, admin, preview, demoData]);
+  const calendar = useMemo(() => calendarState ?? calendarFixtures({ admin, customerNumber: preview ? previewAccount.customerNumber : null }), [calendarState, admin, preview]);
   const favorites = useFavorites(userKey);
-  // Without real data (preview, demos) the examples: every demo customer for admins, the own one for customers. The
+  // Without real data (the preview) the examples: every example customer for admins, the own one for customers. The
   // example contracts of the asset management link up with them, the example quota with their Service packages.
   const contractState = useMemo((): ContractsState => {
     if (contracts) return contracts;
     const examples = contractFixtures({
       admin,
-      customerNumber: populated ? (preview ? previewAccount.customerNumber : demoData?.customerNumber ?? null) : null,
+      customerNumber: preview ? previewAccount.customerNumber : null,
       contractFiles: Object.fromEntries(fileState.files.filter((file) => file.category === "contract").flatMap((file) => file.customers.map((customer) => [customer.id, file.id]))),
     });
     return { ...examples, serviceQuota: quotaFixtures({ admin, customerIds: examples.customers.map((customer) => customer.id) }) };
-  }, [contracts, admin, populated, preview, demoData, fileState.files]);
+  }, [contracts, admin, preview, fileState.files]);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
 
   const screen: ScreenProps = {
     model, preview, populated, asOf, projects, files, fileState, calendar, favorites, admin, freelancer,
-    liveProjects: !preview && !demoData ? liveProjects ?? null : null,
-    firstName: demoData?.name.split(" ")[0] || (preview ? "Jana" : ""),
-    company: demoData?.company,
+    liveProjects: !preview ? liveProjects ?? null : null,
+    firstName: preview ? "Jana" : "",
     toggleStep: (id) => setCompletedSteps((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id]),
   };
 
@@ -120,7 +118,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />
         : section === "patch-notes" ? <PatchNotesScreen />
-        : <ProfileScreen {...screen} email={email} publicDemo={publicDemo} />}
+        : <ProfileScreen {...screen} email={email} />}
       {selectedProject && <ProjectModal project={selectedProject} preview={preview} admin={admin} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
     </>
   );

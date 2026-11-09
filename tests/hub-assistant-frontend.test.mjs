@@ -79,7 +79,7 @@ test("the KI-Protokoll names outcome, kind, target and content of each proposal"
 
 test("the chat lives per login in this browser, ends with signing out and docks without a dialog", async () => {
   const shell = await source("components/hub/app-shell.tsx");
-  assert.match(shell, /const chatStore = !preview && !publicDemo && userId \? chatKey\(userId\) : null;/);
+  assert.match(shell, /const chatStore = !preview && userId \? chatKey\(userId\) : null;/);
   const signOut = shell.slice(shell.indexOf("async function signOut()"));
   assert.ok(signOut.indexOf("localStorage.removeItem(chatStore)") > 0 && signOut.indexOf("localStorage.removeItem(chatStore)") < signOut.indexOf('window.location.replace("/auth/login")'));
   assert.match(shell, /proposalStatuses\(\{ ids: restoredIds \}\)/);

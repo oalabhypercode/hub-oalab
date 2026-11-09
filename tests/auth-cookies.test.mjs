@@ -27,7 +27,7 @@ test("local tests choose their own shared domain or switch sharing off", () => {
 
 test("only the former project-scoped cookies count as leftovers", () => {
   for (const name of ["sb-tjbslvwvisxjjcxfhbgm-auth-token", "sb-tjbslvwvisxjjcxfhbgm-auth-token.0", "sb-tjbslvwvisxjjcxfhbgm-auth-token-code-verifier"]) assert.match(name, LEGACY_AUTH_COOKIE);
-  for (const name of [AUTH_COOKIE_NAME, `${AUTH_COOKIE_NAME}.1`, "__Host-oalab-demo", "oalab-theme"]) assert.doesNotMatch(name, LEGACY_AUTH_COOKIE);
+  for (const name of [AUTH_COOKIE_NAME, `${AUTH_COOKIE_NAME}.1`, "oalab-theme"]) assert.doesNotMatch(name, LEGACY_AUTH_COOKIE);
 });
 
 test("Hub and Service write the same cookie", async () => {

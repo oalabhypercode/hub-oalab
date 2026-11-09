@@ -65,8 +65,3 @@ export const loadLiveProjects = cache(async (): Promise<LiveProjectsState> => {
   const admin = Boolean(await verifyHubAdmin());
   return assemble(await createClient(), db, admin);
 });
-
-/** Real projects for a signed-in login; the preview, the public demo and the demo logins keep their fixtures. */
-export async function loadProjectsForIdentity(identity: { publicDemo: boolean; demoAccess: unknown }) {
-  return identity.publicDemo || identity.demoAccess ? undefined : loadLiveProjects();
-}

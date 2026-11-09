@@ -136,14 +136,8 @@ export async function loadPrivateChatPage(): Promise<PrivateChatState> {
   return { ...state, chats: state.chats.map((chat) => ({ ...chat, logo: logos.get(chat.customerId) ?? null })) };
 }
 
-/** Real chats for a signed-in login; the preview, the public demo and the demo logins keep their examples. */
-export async function loadPrivateChatsForIdentity(identity: { publicDemo: boolean; demoAccess: unknown }) {
-  return identity.publicDemo || identity.demoAccess ? undefined : loadPrivateChatPage();
-}
-
 /** How many chats wait unread, for the sidebar and the tab bar. */
-export async function countUnreadPrivateChats(identity: { publicDemo: boolean; demoAccess: unknown }): Promise<number | undefined> {
-  if (identity.publicDemo || identity.demoAccess) return undefined;
+export async function countUnreadPrivateChats(): Promise<number | undefined> {
   const state = await loadPrivateChats();
   return state.error ? undefined : state.chats.filter((chat) => chat.unread).length;
 }

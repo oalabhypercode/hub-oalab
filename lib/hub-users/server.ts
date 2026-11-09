@@ -55,7 +55,6 @@ export const roleOf = (user: Pick<User, "app_metadata">): HubRole | null => {
   const role = (user.app_metadata as Record<string, unknown> | undefined)?.app_role;
   return isHubRole(role) ? role : null;
 };
-export const isDemoUser = (user: Pick<User, "app_metadata">) => (user.app_metadata as Record<string, unknown> | undefined)?.demo_account === true;
 
 function toCustomer(row: CustomerRow, packages: PackageId[]) {
   return {
@@ -195,7 +194,6 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         status,
         displayStatus: displayStatus(status, user.last_sign_in_at ?? null),
         role: roleOf(user),
-        demo: isDemoUser(user),
         self: user.id === admin.userId,
         secondFactor: secondFactorMethod(user.app_metadata, withApp.has(user.id)) ?? "off",
         customerIds: memberships.filter((row) => row.user_id === user.id).map((row) => row.customer_id),

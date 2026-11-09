@@ -79,7 +79,6 @@ export function PrivacyPolicy() {
         <ul>
           <li><strong>__Secure-oalab.session_token</strong> hält dich angemeldet, auf hub.oalab.de und service.oalab.de zugleich. Er enthält nur eine zufällige, signierte Kennung deiner Sitzung; Skripte können ihn nicht lesen. Er wird beim Abmelden gelöscht und läuft sonst 30 Tage nach deiner letzten Nutzung ab.</li>
           <li><strong>oalab_reduce_motion</strong> gibt es nur, wenn du unter Darstellung „Bewegung reduzieren“ einschaltest. Er enthält nur diese Wahl, damit sie auch auf service.oalab.de gilt. Er wird gelöscht, wenn du die Einstellung wieder ausschaltest, sonst nach einem Jahr.</li>
-          <li><strong>__Host-oalab-demo</strong> gibt es nur in der öffentlichen Demo mit Beispieldaten; er gilt 12 Stunden.</li>
         </ul>
         <p>Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, weil der Hub ohne diese Cookies die Anmeldung und deine gewählte Einstellung nicht umsetzen kann, für die Anmeldedaten selbst Art. 6 Abs. 1 lit. b DSGVO.</p>
         <h3>Speicher im Browser</h3>

@@ -68,7 +68,6 @@ test("sign-ins note the greeting, and the hub shows it outside its load boundary
   const form = await source("components/auth-form.tsx");
   assert.match(form, /if \(\(mode === "login" \|\| mode === "mfa"\) && greetsAt\(result\.redirect\)\) noteGreeting\(result\.greeting \?\? ""\);/);
   assert.match(form, /finally \{\s+if \(!leaving\) setLoading\(false\);/);
-  assert.match(await source("components/demo-account-picker.tsx"), /onSubmit=\{\(\) => \{ noteGreeting\(account\.name\.split\(" "\)\[0\] \?\? ""\);/);
   const actions = await source("lib/hub-auth/actions.ts");
   assert.equal(actions.match(/greeting: await greetingFor\(/g)?.length, 3, "password sign-in, app code and e-mail code");
   assert.match(await source("app/layout.tsx"), /<script dangerouslySetInnerHTML=\{\{ __html: greetingInlineScript\(\) \}\} \/>/);

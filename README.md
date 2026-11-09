@@ -6,17 +6,17 @@ Projektstand, Entscheidungen und offene Produktfragen werden in [PROJECT_CONTEXT
 
 Logo-Einsatz, Markenfarben und Typografie sind in [CI_GUIDELINES.md](./CI_GUIDELINES.md) festgelegt. Die zentralen Markentokens stehen in `app/brand.css`.
 
-Die [Online-Version](https://oalab-client-hub.vercel.app/) zeigt direkt den Login; eine separate Landingpage gibt es nicht. Die vier Demo-Ansichten sind auf ausdrücklichen Wunsch öffentlich per Klick zugänglich: OALAB Admin, Nordlicht Studio, Form & Feld und Studio Horizont. Sie verwenden nur Fixtures und keine echten Supabase-Sitzungen. Lokal bestehen zusätzlich vier echte Supabase-Testkonten. Einrichtung und Status stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md).
+[hub.oalab.de](https://hub.oalab.de/) zeigt direkt den Login; eine separate Landingpage gibt es nicht. Demo-Zugänge gibt es seit dem 9. November 2026 nicht mehr: Die Demo-Logins, die öffentliche Demo und die Demo-Kunden sind entfernt.
 
 ## Aktueller Umfang
 
 Schritt 1 umfasst das responsive Frontend mit Navigation und Dashboard sowie die neu gestalteten Login-, Registrierungs- und Passwortseiten. Die Gestaltung orientiert sich an [Prolab](https://www.framer.com/marketplace/templates/prolab/).
 
-- **Designvorschau:** [/preview](http://localhost:3000/preview) – ausdrücklich gekennzeichnete fiktive Projekte, Dateien und Nachrichten.
+- **Designvorschau:** [/preview](http://localhost:3000/preview) – ausdrücklich gekennzeichnete fiktive Projekte, Dateien und Nachrichten. Nur auf einem lokalen Entwicklungsserver (`npm run dev`); live und in jedem Produktionsbuild ist sie eine 404-Seite.
 - **Anmelden:** [/auth/login](http://localhost:3000/auth/login) – bestehende Supabase-Authentifizierung im neuen Design.
-- **Workspace:** [/dashboard](http://localhost:3000/dashboard) – nach regulärer Anmeldung oder mit einer separat signierten öffentlichen Demo-Identität. Demo-Identitäten erhalten ausschließlich rollenabhängige Fixtures. Echte Konten kommen erst nach der Freigabe im User Management in den Hub und sehen dann Unternehmen, Kundennummer und Servicepakete aus der Datenbank; bis dahin zeigt [/auth/pending](http://localhost:3000/auth/pending) den Stand.
+- **Workspace:** [/dashboard](http://localhost:3000/dashboard) – nach der Anmeldung. Konten kommen erst nach der Freigabe im User Management in den Hub und sehen dann Unternehmen, Kundennummer und Servicepakete aus der Datenbank; bis dahin zeigt [/auth/pending](http://localhost:3000/auth/pending) den Stand.
 
-Der Hub ist im Liquid-Glass-Stil gestaltet (Struktur nach Apple Health): Übersicht mit Insights, Favoriten, Highlights und Listen, Detailseiten je Kennzahl mit Zeitraum-Umschalter, Entdecken sowie die Kategorien Projekte, Dateien, Nachrichten und Kalender. Die Sprechblase „Assistent & Hilfe“ oben rechts öffnet einen KI-Assistenten (Claude), der Fragen zu den Funktionen beantwortet. Hintergrund und Glas lassen sich unter Profil › Darstellung einstellen. Ab 1024 px navigiert eine Glas-Sidebar; auf Tablet und Smartphone stehen dieselben Einträge in einer schwebenden Tab-Bar am unteren Rand, daneben ein Such-Button für „Entdecken“. In der Vorschau und den Demo-Workspaces lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Der Demo-Admin sieht alle drei Kunden; Customer nur ihren eigenen Workspace. Admins verwalten Registrierungen, Logins und Kunden im User Management. Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
+Der Hub ist im Liquid-Glass-Stil gestaltet (Struktur nach Apple Health): Übersicht mit Insights, Favoriten, Highlights und Listen, Detailseiten je Kennzahl mit Zeitraum-Umschalter, Entdecken sowie die Kategorien Projekte, Dateien, Nachrichten und Kalender. Die Sprechblase „Assistent & Hilfe“ oben rechts öffnet einen KI-Assistenten (Claude), der Fragen zu den Funktionen beantwortet. Hintergrund und Glas lassen sich unter Profil › Darstellung einstellen. Ab 1024 px navigiert eine Glas-Sidebar; auf Tablet und Smartphone stehen dieselben Einträge in einer schwebenden Tab-Bar am unteren Rand, daneben ein Such-Button für „Entdecken“. In der Vorschau lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Admins verwalten Registrierungen, Logins und Kunden im User Management. Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
 
 ## Lokal starten
 
@@ -37,29 +37,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<SUPABASE_PUBLISHABLE_KEY>
 npm run dev
 ```
 
-Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite zeigt denselben Login wie `/auth/login`. Sind die vier Testkonten eingerichtet und ihre lokalen Zugangsdaten vorhanden, öffnet ein Klick auf ein Demo-Konto den zugehörigen Workspace. Diese echte Konto-Abkürzung ist ausschließlich auf lokalen Entwicklungsservern aktiv; `ENABLE_DEMO_LOGIN=false` deaktiviert sie zusätzlich. Die davon getrennte öffentliche Fixture-Demo wird nur mit den folgenden expliziten Produktionseinstellungen aktiviert. Die Designvorschau ist auch ohne Supabase-Konfiguration erreichbar.
+Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite zeigt denselben Login wie `/auth/login`. Die Designvorschau ist auch ohne Supabase-Konfiguration erreichbar.
 
-## Vercel und öffentliche Demo
+## Betrieb und Vercel
 
 Seit 08.11.2026 läuft [hub.oalab.de](https://hub.oalab.de/) auf der eigenen OALab-Plattform: Coolify-App `oalab-hub` auf Server 2, gebaut aus `main` (jeder Push geht in 2–4 Minuten live), Daten in PostgreSQL und Garage statt Supabase (siehe `lib/platform/` und im Service-Repo `docs/operations/eigener-server.md`).
 
-Das Vercel-Projekt `oalabs-projects/oalab-client-hub` bleibt als Weg zurück bis mindestens 22.11.2026 bestehen, baut aber nichts mehr (Ignored Build Step `exit 0`); sein letztes Production-Deployment ist weiter unter [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/) erreichbar. Der folgende Abschnitt beschreibt diesen alten Supabase-Weg.
-
-In Vercel sind ausschließlich für **Production** konfiguriert:
-
-| Variable | Typ | Zweck |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Config | Vorhandene URL für reguläre Authentifizierung |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Config | Vorhandener öffentlicher Supabase-Schlüssel |
-| `ENABLE_PUBLIC_DEMO_LOGIN` | Config | `true` aktiviert die öffentliche Fixture-Demo |
-| `PUBLIC_DEMO_ORIGIN` | Config | `https://oalab-client-hub.vercel.app` als einziger erlaubter HTTPS-Origin |
-| `OALAB_DEMO_SESSION_SECRET` | Secret | Zufällig erzeugter, serverseitiger Signaturschlüssel, mindestens 32 Zeichen |
-
-Der Secret-Wert wird direkt in Vercel verwaltet, nicht in Git. Für die Online-Demo werden weder der administrative Supabase-Key noch echte Testpasswörter benötigt. `.vercelignore` und das Next.js-Tracing schließen die lokalen Zugangsdaten vom Deployment aus. Preview-Domains sind nicht automatisch freigegeben.
-
-Nach Änderungen auf `main` deployen; bei manuellem CLI-Deployment zunächst mit `vercel link --project oalab-client-hub --scope oalabs-projects` das bestehende Projekt auswählen, anschließend `vercel deploy --prod --scope oalabs-projects`. Keine lokalen Secret-Dateien hochladen und keine fremden Projektvariablen überschreiben. Änderungen an Umgebungsvariablen benötigen ein neues Deployment.
-
-Sicherheitsgrenze: Das `__Host-oalab-demo`-Cookie gewährt für zwölf Stunden nur Zugriff auf die vier Fixture-Ansichten. Es ist kein Supabase-JWT. Echte Datenzugriffe und spätere Schreib-Endpunkte müssen unabhängig davon gültige Supabase-Claims sowie passende RLS-Policies prüfen. Vor der Anbindung echter Geschäftsdaten diese Trennung erneut prüfen. Abschalten: `ENABLE_PUBLIC_DEMO_LOGIN=false` setzen und neu deployen; Schlüsselwechsel invalidiert alle bisherigen Demo-Cookies.
+Das Vercel-Projekt `oalabs-projects/oalab-client-hub` bleibt als Weg zurück bis mindestens 22.11.2026 bestehen, baut aber nichts mehr (Ignored Build Step `exit 0`); sein letztes Production-Deployment ist weiter unter [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/) erreichbar. Bei einem manuellen CLI-Deployment zunächst mit `vercel link --project oalab-client-hub --scope oalabs-projects` das bestehende Projekt auswählen, anschließend `vercel deploy --prod --scope oalabs-projects`. Keine lokalen Secret-Dateien hochladen und keine fremden Projektvariablen überschreiben. Die früheren Vercel-Variablen der öffentlichen Demo (`ENABLE_PUBLIC_DEMO_LOGIN`, `PUBLIC_DEMO_ORIGIN`, `OALAB_DEMO_SESSION_SECRET`) liest der Code seit dem 9. November 2026 nicht mehr.
 
 ## Dateiablage einrichten
 
@@ -73,7 +57,6 @@ SUPABASE_DB_PASSWORD=<Datenbank-Passwort des Projekts>
 ```sh
 npm run db:check   # zeigt, welche Migrationen angewendet würden
 npm run db:push    # wendet supabase/migrations an
-npm run files:seed # Demo-Kunden, Mitgliedschaften und Beispieldateien (benötigt SUPABASE_SECRET_KEY)
 ```
 
 Die Skripte lesen die Werte aus `.env.local` und geben sie nicht aus.
@@ -233,13 +216,9 @@ npm run lint
 npx tsc --noEmit
 npm test
 npm run build
-# Öffentliche Demo im lokalen Produktionsbuild prüfen (Port 3001, abweichend mit SMOKE_PORT)
-npm run demo:public:smoke -- --local
-# Dieselben Prüfungen gegen die öffentliche Vercel-Adresse
-npm run demo:public:smoke
 ```
 
-Die Unit-Tests prüfen Auth-Weiterleitungen, das gemeinsame Login-Cookie und die Server-Aktionen für Login und Registrierung, Seed-Konten, Demo-Rollen, Branding, die öffentliche Demo-Policy einschließlich Manipulation und Ablauf der signierten Sitzungen, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration und Projekt-Terminierungen, Suche und Sortierung der Tabellen, Eingaberegeln, Migration und Admin-Prüfungen des User Managements sowie Gesprächsregeln und Wissensbasis des KI-Assistenten, die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS) und die E-Mails (Vorlagen und Maskierung, SMTP-Zugang und -Nachricht, Versandprotokoll, Supabase-Vorlagen). `demo:public:smoke` benötigt keine Zugangsdaten und prüft alle vier öffentlichen Fixture-Ansichten, Kundentrennung, Abmeldung und die Grenze zu echten Auth-Routen. Mit den lokalen Zugangsdaten prüft `npm run demo:verify` die echte Supabase-Authentifizierung erneut; `npm run demo:smoke` prüft bei laufendem Entwicklungsserver die echten Test-Logins und Dashboard-Datensichten. Einrichtung und Ergebnisse stehen in [DEMO_ACCOUNTS.md](./DEMO_ACCOUNTS.md). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+Die Unit-Tests prüfen Auth-Weiterleitungen, das gemeinsame Login-Cookie und die Server-Aktionen für Login und Registrierung, Branding, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration und Projekt-Terminierungen, Suche und Sortierung der Tabellen, Eingaberegeln, Migration und Admin-Prüfungen des User Managements sowie Gesprächsregeln und Wissensbasis des KI-Assistenten, die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS) und die E-Mails (Vorlagen und Maskierung, SMTP-Zugang und -Nachricht, Versandprotokoll, Supabase-Vorlagen). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
 
 ## Supabase-Authentifizierung
 
@@ -253,7 +232,7 @@ Login, Registrierung, „Passwort vergessen“ und Abmelden laufen über Server-
 - **Passwort zurücksetzen:** Aus: Link, neues Passwort. E-Mail: Der Link zählt als Code (`lib/hub-auth/recovery.ts`), also kein zweiter Code. App: Link, App-Code, neues Passwort; Supabase verlangt ihn, und er schützt bei einem geknackten Postfach.
 - Hub-Seiten, -Aktionen, der Assistent und die Team-Bereiche von Service verlangen `aal2`. Service schickt Team-Konten ohne `aal2` auf `/auth/mfa?next=<Service-Adresse>` im Hub und bekommt sie danach zurück (`serviceDestination`, lokal mit `OALAB_SERVICE_URL`). Migration: `service-oalab/supabase/migrations/202610260001_mail_second_factor.sql`. `npm run auth:second-factor` zeigt alle Konten mit zweitem Faktor.
 
-Der reguläre Workspace prüft die Supabase-Session im Proxy und erneut auf dem Server. Öffentliche Demo-Identitäten sind separat signiert, ausdrücklich markiert und auf Fixture-Seiten begrenzt; sie dürfen niemals echte Datenoperationen autorisieren. Ein erfolgreicher regulärer Passwort-Login beendet eine zuvor ausgewählte öffentliche Demo-Identität. Vorschau und öffentliche Demo enthalten keine echten Kundendaten.
+Der Workspace prüft die Sitzung im Proxy und erneut auf dem Server; einen Zugang ohne Login gibt es nicht. Die Vorschau enthält keine echten Kundendaten.
 
 Für PKCE-E-Mail-Flows müssen in Supabase die passenden Redirect-URLs erlaubt sein:
 

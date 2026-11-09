@@ -69,7 +69,7 @@ type PanelProps = {
   turns: ChatTurn[];
   setTurns: React.Dispatch<React.SetStateAction<ChatTurn[]>>;
   admin: boolean;
-  /** False for the preview and the public demo, which have no real login. */
+  /** False for the preview, which has no real login. */
   available: boolean;
   mode: AssistantMode;
   onModeChange: (mode: AssistantMode) => void;
@@ -247,7 +247,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
             ? "Ich bin der KI-Assistent von oalab. Ich erkläre den Client Hub, lese für dich Kunden, Projekte und Aufgaben, schlage neue Aufgaben, Änderungen und neue Kunden vor (mit aktivem Zwei-Faktor-Schutz). Gespeichert wird erst, wenn du in der Vorschau auf „Speichern“ klickst."
             : "Ich bin der KI-Assistent von oalab und erkläre dir die Funktionen des Client Hub. Bei Fragen zu deinem Projekt ist dein oalab-Team die erste Anlaufstelle."}</p>
         </div>
-        {!available && <p className="assistant-note">Der Assistent ist mit einem echten Login verfügbar. In der Vorschau und der öffentlichen Demo werden keine Fragen an Claude gesendet.</p>}
+        {!available && <p className="assistant-note">Der Assistent ist mit einem echten Login verfügbar. In der Vorschau werden keine Fragen an Claude gesendet.</p>}
         {available && !turns.length && (
           <ul className="assistant-suggestions" aria-label="Vorschläge">
             {suggestions[admin ? "admin" : "customer"].map((question) => <li key={question}><button type="button" onClick={() => ask(question)}>{question}</button></li>)}

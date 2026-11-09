@@ -32,10 +32,10 @@ export type ShellContextValue = {
   /** The loading shell before the login is known: account details are blank, not "no customer". */
   pending: boolean;
   initials: string;
-  /** Customer logins: their company's logo in place of the initials (null without one, for admins and demos). */
+  /** Customer logins: their company's logo in place of the initials (null without one and for admins). */
   logo: CustomerLogo | null;
   account: HubAccount;
-  /** Real admin login (not the preview or the public demo): may open the user management. */
+  /** Admin login (not the preview): may open the user management. */
   manageUsers: boolean;
   openPanel: (panel: ShellPanel) => void;
   /** Opens the assistant about this project; it keeps the project as its reference, also when docked. */

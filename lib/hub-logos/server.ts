@@ -31,11 +31,10 @@ export async function loadCustomerLogos(supabase: SupabaseClient, ids?: string[]
 
 /**
  * The logo a customer login sees in its own hub (corner, welcome card, phone header), read and signed with its own
- * session: the storage policy hands out only the logo of its own customer. Admins keep their initials; demo logins
- * keep their fixtures.
+ * session: the storage policy hands out only the logo of its own customer. Admins keep their initials.
  */
-export async function loadAccountLogo(identity: { publicDemo: boolean; demoAccess?: unknown; account: HubAccountData | null }) {
+export async function loadAccountLogo(identity: { account: HubAccountData | null }) {
   const customerId = identity.account?.customers[0]?.id;
-  if (identity.publicDemo || identity.demoAccess || !customerId || identity.account?.role === "oalab_admin") return null;
+  if (!customerId || identity.account?.role === "oalab_admin") return null;
   return (await loadCustomerLogos(await createClient(), [customerId])).get(customerId) ?? null;
 }

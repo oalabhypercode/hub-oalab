@@ -37,6 +37,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 18,
+    date: "2026-11-10",
+    title: "Demo-Zugänge entfernt",
+    summary: "Alle Demo-Zugänge sind entfernt: die vier Testlogins samt ihren drei Beispielkunden, die Anmeldeknöpfe für Testkonten und die öffentliche Demo mit Beispieldaten. Das User Management sperrt keine Demo-Zugänge mehr, und wer im Hub angemeldet ist, ist immer ein echter Zugang mit echten Daten. Die Designvorschau mit erfundenen Beispieldaten ist online nicht mehr erreichbar.",
+    changes: [
+      { kind: "security", title: "Keine Demo-Zugänge mehr", text: "Die vier Testlogins mit ihren Beispielkunden und die öffentliche Demo gibt es nicht mehr. Im User Management sind sie nicht länger schreibgeschützt und lassen sich löschen; wer sich im Hub anmeldet, hat damit immer einen echten Zugang mit echten Daten." },
+      { kind: "improved", title: "Vorschau nur noch intern", text: "Die Designvorschau mit erfundenen Projekten, Dateien und Nachrichten ist online nicht mehr erreichbar. Sie bleibt nur für die Entwicklung erhalten, damit neue Ansichten vor dem Livegang geprüft werden können." },
+    ],
+  },
+  {
     number: 17,
     date: "2026-11-09",
     title: "Zugänge und Kunden in der Seitenleiste bearbeiten",
