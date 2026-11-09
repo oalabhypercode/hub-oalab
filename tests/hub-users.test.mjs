@@ -163,7 +163,7 @@ test("every user management action checks the admin first and guards lock-outs",
   assert.match(actions, /const admin = await verifyHubAdmin\(\);/);
   for (const change of ['"role"', '"status"', '"delete"']) assert.match(actions, new RegExp(`guardAccountChange\\(ctx, user, ${change}\\)`));
   assert.match(actions, /Das ist der letzte aktive Admin/);
-  assert.match(actions, /Demo-Konten werden per Seed verwaltet/);
+  assert.match(actions, /Demo-Zugänge werden per Seed verwaltet/);
   // Links are credentials: the link value is never handed to the log.
   for (const call of actions.matchAll(/await log\(([^;]+)\);/g)) assert.doesNotMatch(call[1], /\blink\b/);
   const server = await source("lib/hub-users/server.ts");
@@ -178,7 +178,7 @@ test("logins are deleted together with their Service client membership, or not a
   assert.match(actions, /ctx\.db\.rpc\("hub_delete_login", \{ target: userId \}\)/);
   const remove = actions.slice(actions.indexOf("export async function deleteHubUser"));
   assert.match(remove, /const removed = await removeLogin\(ctx, user\.id\);\n  if \(removed !== "deleted"\) return failed\(removalErrors\[removed\]\);/);
-  assert.match(actions, /in_use: "Auf dieses Konto verweisen noch Einträge in der Serviceplattform[^"]*Deaktiviere es stattdessen\."/);
+  assert.match(actions, /in_use: "Auf diesen Zugang verweisen noch Einträge in der Serviceplattform[^"]*Deaktiviere ihn stattdessen\."/);
   // A login whose setup failed halfway is removed the same way, even after its customer assignment.
   assert.match(actions, /const undo = async \(customerId\?: string \| null\) => \{\n    await removeLogin\(ctx, user\.id\);/);
 });
@@ -236,8 +236,8 @@ test("logins, registrations, customers and freelancers open in a panel beside th
   // Speichern in the footer submits the form, so the browser checks the required fields, also from another tab.
   assert.match(panels, /formRef\.current\.requestSubmit\(\)/);
   // A login's tabs; access actions act at once and say so.
-  assert.match(panels, /\{ id: "profile", label: "Profil" \}, \{ id: "access", label: "Zugang" \}/);
-  assert.match(panels, /<PanelSection title="Zugang und Sicherheit" info=\{info\.button\} meta="wirkt sofort">/);
+  assert.match(panels, /\{ id: "profile", label: "Profil" \}, \{ id: "access", label: "Sicherheit" \}/);
+  assert.match(panels, /<PanelSection title="Anmeldung und Sicherheit" info=\{info\.button\} meta="wirkt sofort">/);
   // After saving, the form starts again from the saved data, so a second save cannot create a customer twice.
   assert.match(panels, /if \(seen !== source\) \{\n\s+const next = fresh\(\);/);
 
@@ -260,4 +260,46 @@ test("logins, registrations, customers and freelancers open in a panel beside th
   assert.match(css, /\.hub-app\.has-assistant-dock \.am-panel\.um-panel \{ right: calc\(var\(--assistant-dock\) \+ 24px\); \}/, "left of the docked assistant");
   assert.match(css, /@media \(max-width: 767px\) \{\n {2}\.am-panel\.um-panel \{ inset: 0;/, "phones: the whole screen");
   assert.match(css, /\.data-table tbody tr\.is-open td \{/);
+});
+
+test("a customer or freelancer without a login offers its Zugang in one click (user 9.11.2026)", async () => {
+  const panels = await source("components/hub/screens/users-dialogs.tsx");
+  const page = await source("components/hub/screens/users.tsx");
+  // „Zugänge“ instead of „Konten“ in the User Management.
+  assert.match(page, /\{ id: "users", label: "Zugänge", count: users, name: `Zugänge: \$\{users\}` \}/);
+  assert.doesNotMatch(page + panels, /Konto|Konten/);
+  // On top of the entry's data, and in the column „Zugänge“ of both tables.
+  assert.match(panels, /\{customer && !members\.length && <NoLoginNotice entry=\{customer\} onNewUser=\{onNewUser\} \/>\}/);
+  assert.match(panels, /\{freelancer && !members\.length && <NoLoginNotice entry=\{freelancer\} onNewUser=\{onNewUser\} \/>\}/);
+  assert.match(page, /\{freelancer\.memberIds\.length \|\| <AddLogin name=\{freelancer\.company\} onClick=\{\(\) => newLoginFor\(freelancer\.id\)\} \/>\}/);
+  assert.match(page, /: <AddLogin name=\{customer\.company\} onClick=\{\(\) => newLoginFor\(customer\.id\)\} \/>\}/);
+  // The new login starts with the entry, its role and its contact address; nothing is sent before „Zugang anlegen“.
+  assert.match(page, /role: entry\.kind === "freelancer" \? "oalab_freelancer" : "oalab_customer"/);
+  assert.match(panels, /email: user\?\.email \?\? presetEntry\?\.contactEmail \?\? ""/);
+  // Creating a customer or freelancer goes on to its first login, once the new entry is in the data.
+  assert.match(panels, /else if \(onCreated\) onCreated\(data\.id\);/);
+  assert.match(page, /onCreated=\{afterCreate\("customer"\)\}/);
+  assert.match(page, /onCreated=\{afterCreate\("freelancer"\)\}/);
+  assert.match(page, /dialog\.userId \? Boolean\(editUser\) : !dialog\.customerId \|\| Boolean\(loginEntry\)/);
+  // Their rows: red without a login, yellow while nobody signed in yet, plain once active; the footer says how many.
+  assert.match(page, /const loginVeil: Record<LoginState, string> = \{ none: " is-no-login", created: " is-awaiting-login", invited: " is-awaiting-login", active: "" \};/);
+  assert.match(page, /className=\{`data-row\$\{loginVeil\[loginsOf\(freelancer\)\.state\]\}/);
+  assert.match(page, /className=\{`data-row\$\{loginVeil\[logins\.state\]\}/);
+  assert.match(page, /<VeilKey states=\{\(tab === "customers" \? customers : freelancers\)\.map\(\(entry\) => loginsOf\(entry\)\.state\)\} \/>/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.data-table tbody tr\.is-no-login \{ --row-veil: var\(--veil-none\);/);
+  assert.match(css, /\.data-table tbody tr\.is-awaiting-login \{ --row-veil: var\(--veil-open\);/);
+  for (const token of ["--veil-none:", "--veil-open:"]) assert.equal(css.split(token).length - 1, 2, `${token} light and dark`);
+  // The veil fades out towards the gear; the mark on the left is a rounded bar, in the accent colour while the row is open.
+  assert.match(css, /linear-gradient\(to right, var\(--row-veil\) 0%, var\(--row-veil\) 50%, transparent 100%\)/);
+  assert.match(css, /td:first-child::before \{ content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 4px; background: var\(--row-mark\); \}/);
+  // One red gear per tab holds its actions; the rows open with a gear instead of a pencil.
+  assert.match(page, /return <SheetActionMenu label=\{tab === "customers" \? "Kunden verwalten"/);
+  for (const label of ["Kunde anlegen", "Zugänge anlegen", "Importieren", "Freelancer anlegen", "Zugang anlegen", "Einladungen senden"]) assert.match(page, new RegExp(`label: "${label}"`), label);
+  assert.doesNotMatch(page, /Pencil/);
+  assert.equal(page.split('<Settings size={16} aria-hidden="true" />').length - 1, 3, "gear in the rows of all three tabs");
+  const sheet = await source("components/hub/sheet.tsx");
+  assert.match(sheet, /<button ref=\{trigger\} type="button" className="sheet-gear" aria-haspopup="menu" aria-expanded=\{open\}/);
+  assert.match(sheet, /role="menu" aria-label=\{label\} hidden=\{!open\}/);
+  assert.match(css, /\.sheet-gear \{[^}]*background: var\(--accent-gradient\);/);
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, Plus, Search, type LucideIcon } from "lucide-react";
+import { ChevronDown, Plus, Search, Settings, type LucideIcon } from "lucide-react";
 
 /**
  * The hub's tables in the Studio look: one calm sheet with a toolbar on top, hairlines between the rows and groups as
@@ -62,6 +62,57 @@ export function ToolbarMenu({ icon: Icon, label, value, badge = 0, align = "star
         {badge > 0 && <span className="sheet-menu-badge numeric" aria-hidden="true">{badge}</span>}
       </button>
       <div id={panelId} className={`sheet-pop${align === "end" ? " is-end" : ""}`} role="group" aria-label={label} hidden={!open}>{children}</div>
+    </div>
+  );
+}
+
+export type SheetAction = { icon: LucideIcon; label: string; hint?: string; badge?: number; onSelect: () => void };
+
+/**
+ * A tab's actions behind one gear in the accent colour (user 9.11.2026): a click opens them as a menu in the look of the
+ * toolbar's panels. ↑/↓ move through the actions, Escape closes and gives the focus back to the gear.
+ */
+export function SheetActionMenu({ label, actions }: { label: string; actions: SheetAction[] }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    box.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const onPointer = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", onPointer);
+    return () => document.removeEventListener("pointerdown", onPointer);
+  }, [open]);
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (!open) return;
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      setOpen(false);
+      trigger.current?.focus();
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const items = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  };
+  const names = actions.map((action) => action.label).join(", ");
+  return (
+    <div className="sheet-menu sheet-action-menu" ref={box} onKeyDown={onKeyDown}>
+      <button ref={trigger} type="button" className="sheet-gear" aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} aria-label={`${label}: ${names}`} title={names} onClick={() => setOpen((now) => !now)}>
+        <Settings size={17} aria-hidden="true" />
+      </button>
+      <div id={menuId} className="sheet-pop is-end sheet-action-pop" role="menu" aria-label={label} hidden={!open}>
+        {actions.map(({ icon: Icon, label: name, hint, badge, onSelect }) => (
+          <button key={name} type="button" role="menuitem" className="sheet-action-item" onClick={() => { setOpen(false); onSelect(); }}>
+            <span className="sheet-action-icon"><Icon size={16} aria-hidden="true" /></span>
+            <span className="sheet-action-text"><strong>{name}</strong>{hint && <small>{hint}</small>}</span>
+            {badge ? <span className="sheet-menu-badge numeric" aria-label={`${badge} offen`}>{badge}</span> : null}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

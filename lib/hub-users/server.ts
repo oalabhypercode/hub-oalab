@@ -141,7 +141,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   const admin = await verifyHubAdmin();
   if (!admin) return { ...emptyState, error: "Das User Management ist nur für Admins verfügbar." };
   const db = createAdminClient();
-  if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Konten verwaltet werden." };
+  if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Zugänge verwaltet werden." };
 
   try {
     const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, activations, packageRows] = await Promise.all([
@@ -167,7 +167,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
     for (const row of activations.data ?? []) if (row.user_id && !invitedAt.has(row.user_id)) invitedAt.set(row.user_id, row.created_at);
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
-      return { ...emptyState, error: isMissingUserTables(failure) ? "Das User Management ist in Supabase noch nicht eingerichtet. Die Migration steht noch aus." : "Die Konten konnten gerade nicht geladen werden. Bitte versuche es erneut." };
+      return { ...emptyState, error: isMissingUserTables(failure) ? "Das User Management ist in Supabase noch nicht eingerichtet. Die Migration steht noch aus." : "Die Zugänge konnten gerade nicht geladen werden. Bitte versuche es erneut." };
     }
 
     const profileOf = new Map((profiles.data ?? []).map((row) => [row.user_id, row]));
@@ -211,7 +211,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
     const customerRows = customers.data ?? [];
     const nameOf = (id: string | null) => {
       const user = users.find((item) => item.id === id);
-      return user ? `${user.firstName} ${user.lastName}`.trim() || user.email : "Gelöschtes Konto";
+      return user ? `${user.firstName} ${user.lastName}`.trim() || user.email : "Gelöschter Zugang";
     };
     return {
       users,
@@ -252,7 +252,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       mailConfigured: mailSettings().configured,
     };
   } catch {
-    return { ...emptyState, error: "Die Konten konnten gerade nicht geladen werden. Bitte versuche es erneut." };
+    return { ...emptyState, error: "Die Zugänge konnten gerade nicht geladen werden. Bitte versuche es erneut." };
   }
 }
 

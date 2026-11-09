@@ -68,7 +68,7 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
       {/* Same split as the sidebar: admins find the patch notes under "Verwaltung", customers under "Neuigkeiten". */}
       <SectionHeader title={manageUsers ? "Verwaltung" : "Neuigkeiten"} />
       <InsetGroupedList label={manageUsers ? "Verwaltung" : "Neuigkeiten"} className="list-icons">
-        {manageUsers && <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Konten und Kunden" />}
+        {manageUsers && <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Zugänge und Kunden" />}
         {manageUsers && <ListRow compact href={hubHref(preview, "ai-log")} icon={<Bot size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels["ai-log"]} subtitle="Vorschläge des Assistenten und was daraus wurde" />}
         <ListRow compact href={hubHref(preview, "patch-notes")} icon={<ScrollText size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels["patch-notes"]} subtitle="Alle Änderungen am Hub, Paket für Paket" />
       </InsetGroupedList>

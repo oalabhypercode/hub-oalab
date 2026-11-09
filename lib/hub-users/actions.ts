@@ -66,10 +66,10 @@ async function removeLogin(ctx: Context, userId: string): Promise<LoginRemoval> 
 }
 
 const removalErrors: Record<Exclude<LoginRemoval, "deleted">, string> = {
-  in_use: "Auf dieses Konto verweisen noch Einträge in der Serviceplattform, etwa Anfragen oder Nachrichten. Deaktiviere es stattdessen.",
-  staff: "Das Konto hat Team-Zugang zur Serviceplattform und lässt sich hier nicht löschen. Deaktiviere es stattdessen.",
-  missing: "Dieses Konto gibt es nicht mehr.",
-  failed: "Das Konto konnte nicht gelöscht werden.",
+  in_use: "Auf diesen Zugang verweisen noch Einträge in der Serviceplattform, etwa Anfragen oder Nachrichten. Deaktiviere ihn stattdessen.",
+  staff: "Der Zugang hat Team-Rechte auf der Serviceplattform und lässt sich hier nicht löschen. Deaktiviere ihn stattdessen.",
+  missing: "Diesen Zugang gibt es nicht mehr.",
+  failed: "Der Zugang konnte nicht gelöscht werden.",
 };
 
 /** Admins that can still sign in and act: the hub role in their token and an active profile. */
@@ -84,8 +84,8 @@ async function activeAdminIds(ctx: Context) {
 
 /** Changes that could lock everyone out or touch the demo logins are refused before anything is written. */
 async function guardAccountChange(ctx: Context, user: User, change: "role" | "status" | "delete") {
-  if (isDemoUser(user)) return "Demo-Konten werden per Seed verwaltet und lassen sich hier nicht ändern.";
-  if (user.id === ctx.actorId) return change === "role" ? "Deine eigene Rolle kannst du nicht ändern." : change === "status" ? "Du kannst dich nicht selbst deaktivieren." : "Du kannst dein eigenes Konto nicht löschen.";
+  if (isDemoUser(user)) return "Demo-Zugänge werden per Seed verwaltet und lassen sich hier nicht ändern.";
+  if (user.id === ctx.actorId) return change === "role" ? "Deine eigene Rolle kannst du nicht ändern." : change === "status" ? "Du kannst dich nicht selbst deaktivieren." : "Du kannst deinen eigenen Zugang nicht löschen.";
   if (roleOf(user) === "oalab_admin") {
     const admins = await activeAdminIds(ctx);
     if (admins.includes(user.id) && admins.length <= 1) return "Das ist der letzte aktive Admin. Lege zuerst einen weiteren Admin an.";
@@ -140,7 +140,7 @@ async function resolveCustomer(ctx: Context, role: HubRole, value: unknown): Pro
   if (choice.mode === "existing") {
     const { data } = await ctx.db.from("hub_customers").select("id, customer_number, company").eq("id", choice.customerId).maybeSingle<{ id: string; customer_number: string; company: string }>();
     if (!data) return failed(kind === "freelancer" ? "Diesen Freelancer gibt es nicht mehr." : "Dieser Kunde existiert nicht mehr.");
-    if (await kindOf(ctx, data.id) !== kind) return failed(kind === "freelancer" ? "Freelancer-Konten gehören zu einem Freelancer, nicht zu einem Kunden." : "Kunden-Konten gehören zu einem Kunden, nicht zu einem Freelancer.");
+    if (await kindOf(ctx, data.id) !== kind) return failed(kind === "freelancer" ? "Freelancer-Zugänge gehören zu einem Freelancer, nicht zu einem Kunden." : "Kunden-Zugänge gehören zu einem Kunden, nicht zu einem Freelancer.");
     return { ok: true, data: { customerId: data.id, customerNumber: data.customer_number, company: data.company, organizationId: null, created: false } };
   }
   const input = readCustomer(choice.customer);
@@ -319,8 +319,8 @@ export async function approveRegistration(input: { userId: string; role: string;
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
-  if (!user) return failed("Dieses Konto gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet.");
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
   const status = await profileStatus(ctx, user.id);
   if (status !== "pending" && status !== "rejected") return failed("Diese Registrierung ist bereits entschieden.");
   if (!isHubRole(input?.role)) return failed("Bitte eine Rolle wählen.");
@@ -348,8 +348,8 @@ export async function rejectRegistration(input: { userId: string; note: string }
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
-  if (!user) return failed("Dieses Konto gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet.");
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
   if (await profileStatus(ctx, user.id) !== "pending") return failed("Nur offene Registrierungen lassen sich ablehnen.");
   const note = cleanText(input?.note, 500);
   const { error } = await ctx.db.from("hub_profiles").update({ status: "rejected", decided_at: new Date().toISOString(), decided_by: ctx.actorId, decision_note: note }).eq("user_id", user.id);
@@ -380,15 +380,15 @@ export async function createHubUser(input: { email: string; firstName: string; l
   const added = await addLogin(ctx, { email: email.value, person: person.value, role, customer: input.customer, withLink: true });
   if (!added.ok) return added;
   const { user, link, customerId } = added.data;
-  if (!link) return failed("Das Konto konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
-  await log(ctx, "user.created", `Konto angelegt als ${roleLabels[role]}`, { userId: user.id, customerId });
+  if (!link) return failed("Der Zugang konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
+  await log(ctx, "user.created", `Zugang angelegt als ${roleLabels[role]}`, { userId: user.id, customerId });
   const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true, validUntil: activationUntil() }) : null;
   refreshWorkspace();
   return { ok: true, data: { userId: user.id, link, mail } };
 }
 
 /**
- * The steps of a new login, for „Konto anlegen“ and „Konten anlegen“: the login first, so a taken address stops here
+ * The steps of a new login, for „Zugang anlegen“ and „Zugänge anlegen“: the login first, so a taken address stops here
  * without leftovers, then its entry (an existing one or a new one), profile and membership. With `withLink` it also
  * makes the activation link and counts as failed without one. Whatever fails is taken back; the caller logs.
  */
@@ -404,7 +404,7 @@ async function addLogin(ctx: Context, input: { email: string; person: PersonInpu
   });
   if (created.error || !created.data.user) {
     const taken = created.error?.code === "email_exists" || /already|registered|exists/i.test(created.error?.message ?? "");
-    return failed(taken ? "Für diese E-Mail-Adresse besteht bereits ein Konto." : "Das Konto konnte nicht angelegt werden.");
+    return failed(taken ? "Für diese E-Mail-Adresse besteht bereits ein Zugang." : "Der Zugang konnte nicht angelegt werden.");
   }
   const user = created.data.user;
   const undo = async (customerId?: string | null) => {
@@ -421,7 +421,7 @@ async function addLogin(ctx: Context, input: { email: string; person: PersonInpu
   const link = saved && input.withLink ? await passwordLink(ctx, email) : null;
   if (!saved || (input.withLink && !link)) {
     await undo(customer.data.created ? customer.data.customerId : null);
-    return failed("Das Konto konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
+    return failed("Der Zugang konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
   }
   if (customer.data.created) await noteServiceCustomer(ctx, customer.data);
   return { ok: true, data: { user, link, customerId: customer.data.customerId } };
@@ -435,7 +435,7 @@ const activationUntil = () => usesOwnPlatform() ? new Date(Date.now() + ACTIVATI
 export type LoginCreationResult = { customerId: string; outcome: "created" | "failed"; email: string; userId?: string; error?: string };
 
 /**
- * „Konten anlegen“ (lib/hub-invitations): one login with the role Kunde per row, at an existing customer, at most
+ * „Zugänge anlegen“ (lib/hub-invitations): one login with the role Kunde per row, at an existing customer, at most
  * LOGIN_BATCH per call; the dialog sends them in batches. No mail goes out: the invitations follow with
  * „Einladungen senden“, so the logins can be prepared and checked first.
  */
@@ -443,7 +443,7 @@ export async function createCustomerLogins(input: { rows?: unknown }): Promise<A
   const ctx = await context();
   if (!ctx) return denied;
   const rows = Array.isArray(input?.rows) ? input.rows : [];
-  if (!rows.length || rows.length > LOGIN_BATCH) return failed(`Bitte 1 bis ${LOGIN_BATCH} Konten auf einmal anlegen.`);
+  if (!rows.length || rows.length > LOGIN_BATCH) return failed(`Bitte 1 bis ${LOGIN_BATCH} Zugänge auf einmal anlegen.`);
   const results: LoginCreationResult[] = [];
   for (const raw of rows) {
     const row = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -456,7 +456,7 @@ export async function createCustomerLogins(input: { rows?: unknown }): Promise<A
     if (!person.ok) { fail(person.error); continue; }
     const added = await addLogin(ctx, { email: email.value, person: person.value, role: "oalab_customer", customer: { mode: "existing", customerId }, withLink: false });
     if (!added.ok) { fail(added.error); continue; }
-    await log(ctx, "user.created", "Konto angelegt als Kunde (Sammelanlage, Einladung folgt)", { userId: added.data.user.id, customerId });
+    await log(ctx, "user.created", "Zugang angelegt als Kunde (Sammelanlage, Einladung folgt)", { userId: added.data.user.id, customerId });
     results.push({ customerId, outcome: "created", email: email.value, userId: added.data.user.id });
   }
   refreshWorkspace();
@@ -479,10 +479,10 @@ export async function sendInvitations(input: { userIds?: unknown }): Promise<Act
   const results: InvitationResult[] = [];
   for (const userId of ids) {
     const user = await loadUser(ctx, userId);
-    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Dieses Konto gibt es nicht mehr." }); continue; }
-    if (isDemoUser(user)) { results.push({ userId, outcome: "skipped", error: "Demo-Konten bekommen keine Einladung." }); continue; }
+    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Diesen Zugang gibt es nicht mehr." }); continue; }
+    if (isDemoUser(user)) { results.push({ userId, outcome: "skipped", error: "Demo-Zugänge bekommen keine Einladung." }); continue; }
     if (user.last_sign_in_at) { results.push({ userId, outcome: "skipped", error: "Hat sich schon angemeldet." }); continue; }
-    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "failed", error: "Das Konto ist nicht aktiv." }); continue; }
+    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "failed", error: "Der Zugang ist nicht aktiv." }); continue; }
     const link = await passwordLink(ctx, user.email);
     if (!link) { results.push({ userId, outcome: "failed", error: "Der Link konnte nicht erzeugt werden." }); continue; }
     const mail = await mailPasswordLink(ctx.db, user, { firstName: await firstNameOf(ctx, user.id), link, activation: true, validUntil: activationUntil() });
@@ -503,9 +503,9 @@ export async function createPasswordLink(input: { userId: string; deliver?: "cop
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
-  if (!user?.email) return failed("Dieses Konto gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet.");
-  if (await profileStatus(ctx, user.id) !== "active") return failed("Links gibt es nur für aktive Konten.");
+  if (!user?.email) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
+  if (await profileStatus(ctx, user.id) !== "active") return failed("Links gibt es nur für aktive Zugänge.");
   const link = await passwordLink(ctx, user.email);
   if (!link) return failed("Der Link konnte nicht erzeugt werden.");
   const activation = !user.last_sign_in_at;
@@ -522,8 +522,8 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
-  if (!user) return failed("Dieses Konto gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet und lassen sich hier nicht ändern.");
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet und lassen sich hier nicht ändern.");
   if (await profileStatus(ctx, user.id) === "pending") return failed("Offene Registrierungen bitte über „Prüfen“ freigeben.");
   const person = readPerson(input ?? {});
   if (!person.ok) return person;
@@ -535,7 +535,7 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
     if (refused) return failed(refused);
     if (role === "oalab_freelancer") {
       if (!hasMailbox(user.email)) return failed(noCodeAddress);
-      if (await hasServiceTeamAccess(ctx, user.id)) return failed("Dieses Konto hat Team-Zugang zur Serviceplattform. Freelancer haben dort keinen Zugang; lege für den Freelancer ein eigenes Konto an.");
+      if (await hasServiceTeamAccess(ctx, user.id)) return failed("Dieser Zugang hat Team-Rechte auf der Serviceplattform. Freelancer haben dort keinen Zugang; lege für den Freelancer einen eigenen Zugang an.");
     }
   }
 
@@ -544,8 +544,8 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
   const done = !(await ctx.db.from("hub_profiles").update({ first_name: person.value.firstName, last_name: person.value.lastName, phone: person.value.phone, position: person.value.position }).eq("user_id", user.id)).error
     && (!roleChanged || await setRole(ctx, user, role))
     && await assignCustomer(ctx, user.id, customer.data.customerId);
-  if (!done) return failed("Die Änderungen konnten nicht vollständig gespeichert werden. Bitte prüfe das Konto.");
-  await log(ctx, "user.updated", roleChanged ? `Konto bearbeitet, Rolle jetzt ${roleLabels[role]}` : "Konto bearbeitet", { userId: user.id, customerId: customer.data.customerId });
+  if (!done) return failed("Die Änderungen konnten nicht vollständig gespeichert werden. Bitte prüfe den Zugang.");
+  await log(ctx, "user.updated", roleChanged ? `Zugang bearbeitet, Rolle jetzt ${roleLabels[role]}` : "Zugang bearbeitet", { userId: user.id, customerId: customer.data.customerId });
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -555,20 +555,20 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
-  if (!user) return failed("Dieses Konto gibt es nicht mehr.");
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
   const active = input?.active === true;
   const status = await profileStatus(ctx, user.id);
-  if (status !== (active ? "disabled" : "active")) return failed(active ? "Nur deaktivierte Konten lassen sich aktivieren." : "Nur aktive Konten lassen sich deaktivieren.");
+  if (status !== (active ? "disabled" : "active")) return failed(active ? "Nur deaktivierte Zugänge lassen sich aktivieren." : "Nur aktive Zugänge lassen sich deaktivieren.");
   if (!active) {
     const refused = await guardAccountChange(ctx, user, "status");
     if (refused) return failed(refused);
-  } else if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet.");
+  } else if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet.");
 
   // The profile first: an inactive profile cuts all data access immediately, the ban stops new sign-ins.
   const saved = !(await ctx.db.from("hub_profiles").update({ status: active ? "active" : "disabled", decided_at: new Date().toISOString(), decided_by: ctx.actorId }).eq("user_id", user.id)).error;
   const banned = saved && !(await ctx.db.auth.admin.updateUserById(user.id, { ban_duration: active ? "none" : BLOCKED })).error;
-  if (!banned) return failed(active ? "Das Konto konnte nicht aktiviert werden." : "Das Konto konnte nicht vollständig deaktiviert werden. Bitte erneut versuchen.");
-  await log(ctx, active ? "user.reactivated" : "user.deactivated", active ? "Konto wieder aktiviert" : "Konto deaktiviert", { userId: user.id });
+  if (!banned) return failed(active ? "Der Zugang konnte nicht aktiviert werden." : "Der Zugang konnte nicht vollständig deaktiviert werden. Bitte erneut versuchen.");
+  await log(ctx, active ? "user.reactivated" : "user.deactivated", active ? "Zugang wieder aktiviert" : "Zugang deaktiviert", { userId: user.id });
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -583,8 +583,8 @@ export async function setHubUserSecondFactor(input: { userId: string; choice: "o
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
-  if (!user) return failed("Dieses Konto gibt es nicht mehr.");
-  if (isDemoUser(user)) return failed("Demo-Konten werden per Seed verwaltet und lassen sich hier nicht ändern.");
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (isDemoUser(user)) return failed("Demo-Zugänge werden per Seed verwaltet und lassen sich hier nicht ändern.");
   const choice = input?.choice === "email" ? "email" : input?.choice === "off" ? "off" : null;
   if (!choice) return failed("Bitte eine Methode wählen.");
   if (choice === "off" && roleOf(user) === "oalab_freelancer") return failed("Freelancer melden sich immer mit einem Code an, weil sie die Dateien mehrerer Kunden sehen.");
@@ -607,15 +607,15 @@ export async function deleteHubUser(input: { userId: string; confirmEmail: strin
   const ctx = await context();
   if (!ctx) return denied;
   const user = await loadUser(ctx, input?.userId);
-  if (!user?.email) return failed("Dieses Konto gibt es nicht mehr.");
+  if (!user?.email) return failed("Diesen Zugang gibt es nicht mehr.");
   const refused = await guardAccountChange(ctx, user, "delete");
   if (refused) return failed(refused);
-  if (cleanEmail(input?.confirmEmail).ok === false || String(input.confirmEmail).trim().toLowerCase() !== user.email.toLowerCase()) return failed("Zur Bestätigung bitte die E-Mail-Adresse des Kontos genau eintragen.");
+  if (cleanEmail(input?.confirmEmail).ok === false || String(input.confirmEmail).trim().toLowerCase() !== user.email.toLowerCase()) return failed("Zur Bestätigung bitte die E-Mail-Adresse des Zugangs genau eintragen.");
   const { data: membership } = await ctx.db.from("hub_customer_members").select("customer_id").eq("user_id", user.id).limit(1).maybeSingle<{ customer_id: string }>();
   // Files and appointments of the customer stay.
   const removed = await removeLogin(ctx, user.id);
   if (removed !== "deleted") return failed(removalErrors[removed]);
-  await log(ctx, "user.deleted", "Konto endgültig gelöscht", { customerId: membership?.customer_id ?? null });
+  await log(ctx, "user.deleted", "Zugang endgültig gelöscht", { customerId: membership?.customer_id ?? null });
   refreshWorkspace();
   return { ok: true, data: null };
 }

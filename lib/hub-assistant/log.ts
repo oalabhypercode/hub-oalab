@@ -47,7 +47,7 @@ export async function loadAssistantLog(): Promise<AssistantLogState> {
       id: row.id,
       createdAt: row.created_at,
       decidedAt: row.decided_at,
-      actor: names.get(row.actor_id) || "Gelöschtes Konto",
+      actor: names.get(row.actor_id) || "Gelöschter Zugang",
       kind: row.kind,
       outcome: actionOutcome(row.status, row.expires_at, now),
       target: actionTarget(row.kind, row.payload, row.result),

@@ -285,7 +285,7 @@ export function readRows(table: readonly string[][], mapping: ColumnMapping, nor
 export type ImportContact = { firstName: string; lastName: string; email: string; line: number };
 
 /**
- * The contact persons of the export, for the logins of „Konten anlegen“: every row with a first or last name, found by
+ * The contact persons of the export, for the logins of „Zugänge anlegen“: every row with a first or last name, found by
  * the customer number it carries ("OA-" form) and by its company (or, without one, the person's own name, the way the
  * import named such a customer). A person with an address wins over one without; otherwise the first one counts.
  */
