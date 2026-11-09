@@ -26,9 +26,12 @@ const ALL = "all";
  * What is open: a panel at the right edge (a registration, a login, a customer, a freelancer; new without an id, a new
  * login from a customer with its entry and role chosen) or one of the bulk windows.
  */
-type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string; customerId?: string; role?: HubRole } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" };
+type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string; customerId?: string; role?: HubRole; entryCreated?: boolean } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" };
 const dialogFor = (user: ManagedUser): Dialog => user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id };
-const openIdOf = (dialog: Dialog | null) => dialog?.kind === "review" || dialog?.kind === "user" ? dialog.userId : dialog?.kind === "customer" || dialog?.kind === "freelancer" ? dialog.customerId : undefined;
+/** A new login for a customer or a freelancer: that entry chosen, with its role. */
+const loginFor = (entry: Pick<ManagedCustomer, "id" | "kind">, entryCreated = false): Dialog => ({ kind: "user", customerId: entry.id, role: entry.kind === "freelancer" ? "oalab_freelancer" : "oalab_customer", ...(entryCreated ? { entryCreated } : {}) });
+// The open row: the login, or the customer or freelancer being edited or getting a new login.
+const openIdOf = (dialog: Dialog | null) => dialog?.kind === "review" ? dialog.userId : dialog?.kind === "user" ? dialog.userId ?? dialog.customerId : dialog?.kind === "customer" || dialog?.kind === "freelancer" ? dialog.customerId : undefined;
 
 const loginStateOrder: LoginState[] = ["none", "created", "invited", "active"];
 const loginStateGlyph: Record<LoginState, GlyphKind> = { none: "disabled", created: "pending", invited: "invited", active: "active" };
@@ -58,7 +61,7 @@ type CustomerSortKey = "number" | "company" | "logins" | "login" | "city";
 const customerSorts: Record<CustomerSortKey, SortOption<CustomerSortKey>> = {
   number: { id: "number", label: "Kunden-Nr.", dirLabels: { asc: "aufsteigend", desc: "absteigend" } },
   company: { id: "company", label: "Unternehmen", dirLabels: alphabetical },
-  logins: { id: "logins", label: "Konten", firstDir: "desc", dirLabels: { asc: "wenigste zuerst", desc: "meiste zuerst" } },
+  logins: { id: "logins", label: "Zugänge", firstDir: "desc", dirLabels: { asc: "wenigste zuerst", desc: "meiste zuerst" } },
   login: { id: "login", label: "Letzter Login", firstDir: "desc", dirLabels: { asc: "älteste zuerst", desc: "neueste zuerst" } },
   city: { id: "city", label: "Ort", dirLabels: alphabetical },
 };
@@ -116,6 +119,10 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   };
   // From the logins of a customer or a freelancer to one of them: the table under the panel shows the logins.
   const openFromEntry = (user: ManagedUser) => { if (open(dialogFor(user))) setTab("users"); };
+  // A customer or freelancer without a login: one click opens „Zugang anlegen“ for it.
+  const newLoginFor = (entryId: string) => { const entry = entries.find((item) => item.id === entryId); if (entry) open(loginFor(entry)); };
+  // Right after creating a customer or a freelancer, its first login follows; its form is saved, nothing to ask.
+  const afterCreate = (kind: "customer" | "freelancer") => (id: string) => { dirty.current = false; setDialog(loginFor({ id, kind }, true)); };
 
   // Logins
   const [userQuery, setUserQuery] = useState("");
@@ -166,13 +173,13 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const customersNarrowed = customerQuery.trim() !== "" || customerFilters > 0;
   const withoutLogin = customers.filter((customer) => !customer.memberIds.length).length;
   const invitable = users.filter(isInvitable);
-  const tabsInfo = useInfo("Konten, Kunden und Freelancer", {
+  const tabsInfo = useInfo("Zugänge, Kunden und Freelancer", {
     steps: [
-      <><b>Konten</b> sind Personen mit Login: Kunden, Freelancer, Admins.</>,
-      <><b>Kunden und Freelancer</b> sind Firmen; ihre Konten gehören dazu.</>,
-      <><b>Letzter Login</b> steht beim Konto und je Kunde.</>,
+      <><b>Zugänge</b> sind Personen mit Login: Kunden, Freelancer, Admins.</>,
+      <><b>Erst Kunde oder Freelancer</b> anlegen, dann den Zugang dazu.</>,
+      <><b>Letzter Login</b> steht beim Zugang und je Kunde.</>,
     ],
-    ask: "Was ist der Unterschied zwischen Konten, Kunden und Freelancern?",
+    ask: "Was ist der Unterschied zwischen Zugängen, Kunden und Freelancern?",
   });
 
   // Freelancers: by name, searchable by name, number, place and their customers.
@@ -183,6 +190,9 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
 
   const reviewUser = dialog?.kind === "review" ? users.find((user) => user.id === dialog.userId) : undefined;
   const editUser = dialog?.kind === "user" && dialog.userId ? users.find((user) => user.id === dialog.userId) : undefined;
+  // A new login for an entry waits until the entry is in the data (right after creating it, with the refreshed page).
+  const loginEntry = dialog?.kind === "user" && !dialog.userId && dialog.customerId ? entries.find((entry) => entry.id === dialog.customerId) : undefined;
+  const userPanelReady = dialog?.kind === "user" && (dialog.userId ? Boolean(editUser) : !dialog.customerId || Boolean(loginEntry));
   const editCustomer = dialog?.kind === "customer" && dialog.customerId ? customers.find((customer) => customer.id === dialog.customerId) : undefined;
   const editFreelancer = dialog?.kind === "freelancer" && dialog.customerId ? freelancers.find((freelancer) => freelancer.id === dialog.customerId) : undefined;
   const switcher = <span className="users-switch"><TabSwitch tab={tab} onTab={showTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />{tabsInfo.button}{tabsInfo.box}</span>;
@@ -220,7 +230,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <td className="cell-action">
           {waiting ? <button type="button" className="row-check" onClick={() => openUser(user)}><ShieldCheck size={15} aria-hidden="true" />Prüfen</button>
             // Never signed in: the row leads to the activation link, which the panel offers on top.
-            : user.displayStatus === "invited" && !user.demo ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} title="Konto öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
+            : user.displayStatus === "invited" && !user.demo ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} title="Zugang öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
             : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
         </td>
       </tr>
@@ -251,7 +261,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
 
       <div className="sheet section-first">
         {tab === "users" ? (
-          <SheetToolbar query={userQuery} onQuery={setUserQuery} placeholder="Name, E-Mail, Unternehmen, Kunden-Nr. …" label="Konten durchsuchen" compact
+          <SheetToolbar query={userQuery} onQuery={setUserQuery} placeholder="Name, E-Mail, Unternehmen, Kunden-Nr. …" label="Zugänge durchsuchen" compact
             leading={switcher} trailing={manage}>
             <ToolbarMenu icon={ListFilter} label="Filter" badge={userFilters}>
               <FilterSelect icon={Activity} name="Nach Status filtern" value={statusFilter} onChange={setStatusFilter} options={[{ value: ALL, label: "Alle Status" }, ...statusOrder.map((status) => ({ value: status, label: displayStatusLabels[status] }))]} />
@@ -270,7 +280,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
             leading={switcher} trailing={manage}>
             <ToolbarMenu icon={ListFilter} label="Filter" badge={customerFilters}>
               <FilterSelect icon={Activity} name="Nach Paket filtern" value={packageFilter} onChange={setPackageFilter} options={[{ value: ALL, label: "Alle Pakete" }, ...packageIds.map((id) => ({ value: id, label: packageCatalog[id].name }))]} />
-              <FilterSelect icon={KeyRound} name="Nach Konto-Status filtern" value={loginFilter} onChange={setLoginFilter} options={[{ value: ALL, label: "Alle Konto-Status" }, ...loginStateOrder.map((state) => ({ value: state, label: loginStateLabels[state] }))]} />
+              <FilterSelect icon={KeyRound} name="Nach Zugangsstatus filtern" value={loginFilter} onChange={setLoginFilter} options={[{ value: ALL, label: "Alle Zugangsstatus" }, ...loginStateOrder.map((state) => ({ value: state, label: loginStateLabels[state] }))]} />
             </ToolbarMenu>
             <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={customerSorts[customerSort.key].label}><SortControl options={Object.values(customerSorts)} sort={customerSort} onChange={setCustomerSort} /></ToolbarMenu>
           </SheetToolbar>
@@ -280,7 +290,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
           userGroups.length ? (
             <div className="sheet-scroll">
               <table className="data-table user-table">
-                <caption className="visually-hidden">Konten mit Name, Rolle, E-Mail, Kundennummer, Unternehmen, Status und letztem Login</caption>
+                <caption className="visually-hidden">Zugänge mit Name, Rolle, E-Mail, Kundennummer, Unternehmen, Status und letztem Login</caption>
                 <thead>
                   <tr>
                     <SortHeader option={userSorts.name} sort={userSort} onChange={setUserSort} />
@@ -302,18 +312,18 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                 )) : <tbody>{shownUsers.map(userRow)}</tbody>}
               </table>
             </div>
-          ) : <SheetEmpty text={users.length ? "Keine Konten für diese Suche oder Filter." : "Noch keine Konten."} onReset={usersNarrowed ? resetUsers : undefined} />
+          ) : <SheetEmpty text={users.length ? "Keine Zugänge für diese Suche oder Filter." : "Noch keine Zugänge."} onReset={usersNarrowed ? resetUsers : undefined} />
         ) : tab === "freelancers" ? (
           shownFreelancers.length ? (
             <div className="sheet-scroll">
               <table className="data-table customer-table">
-                <caption className="visually-hidden">Freelancer mit Nummer, betreuten Kunden, Konten und Ort</caption>
+                <caption className="visually-hidden">Freelancer mit Nummer, betreuten Kunden, Zugängen und Ort</caption>
                 <thead>
                   <tr>
                     <th scope="col">Freelancer</th>
                     <th scope="col">Nummer</th>
                     <th scope="col">Betreute Kunden</th>
-                    <th scope="col" className="col-count">Konten</th>
+                    <th scope="col" className="col-count">Zugänge</th>
                     <th scope="col">Ort</th>
                     <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
                   </tr>
@@ -326,7 +336,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                       </td>
                       <td className="cell-number"><NumberChip value={freelancer.customerNumber} /></td>
                       <td className="cell-packages">{freelancer.linkedIds.length ? namesOf(freelancer.linkedIds, customers) : <span className="cell-none">noch keine</span>}</td>
-                      <td className="cell-logins numeric">{freelancer.memberIds.length}</td>
+                      <td className="cell-logins numeric">{freelancer.memberIds.length || <AddLogin name={freelancer.company} onClick={() => newLoginFor(freelancer.id)} />}</td>
                       <td className="cell-city">{[freelancer.postalCode, freelancer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
                       <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })} aria-label={`${freelancer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>
                     </tr>
@@ -338,13 +348,13 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         ) : shownCustomers.length ? (
           <div className="sheet-scroll">
             <table className="data-table customer-table">
-              <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Paketen, Konten mit Status, letztem Login und Ort</caption>
+              <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Paketen, Zugängen mit Status, letztem Login und Ort</caption>
               <thead>
                 <tr>
                   <SortHeader option={customerSorts.company} sort={customerSort} onChange={setCustomerSort} />
                   <SortHeader option={customerSorts.number} sort={customerSort} onChange={setCustomerSort} />
                   <th scope="col">Pakete</th>
-                  <SortHeader option={customerSorts.logins} label="Konten" sort={customerSort} onChange={setCustomerSort} />
+                  <SortHeader option={customerSorts.logins} label="Zugänge" sort={customerSort} onChange={setCustomerSort} />
                   <SortHeader option={customerSorts.login} className="col-login" sort={customerSort} onChange={setCustomerSort} />
                   <SortHeader option={customerSorts.city} sort={customerSort} onChange={setCustomerSort} />
                   <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
@@ -361,7 +371,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                       </td>
                       <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
                       <td className="cell-packages">{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].short).join(" · ") : <span className="cell-none">–</span>}</td>
-                      <td className="cell-logins cell-login-state"><span className="status-cell"><StatusGlyph kind={loginStateGlyph[logins.state]} />{customer.memberIds.length ? `${customer.memberIds.length} · ${loginStateLabels[logins.state]}` : loginStateLabels[logins.state]}</span></td>
+                      <td className="cell-logins cell-login-state">{customer.memberIds.length ? <span className="status-cell"><StatusGlyph kind={loginStateGlyph[logins.state]} />{`${customer.memberIds.length} · ${loginStateLabels[logins.state]}`}</span> : <AddLogin name={customer.company} onClick={() => newLoginFor(customer.id)} />}</td>
                       <td className="cell-login col-login">{logins.lastSignInAt ? <time dateTime={logins.lastSignInAt} title={formatFileDateTime(logins.lastSignInAt)}>{formatFileDate(logins.lastSignInAt)}</time> : <span className="cell-none">{customer.memberIds.length ? "noch nie" : "–"}</span>}</td>
                       <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
                       <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>
@@ -373,33 +383,38 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
           </div>
         ) : <SheetEmpty text={customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."} onReset={customersNarrowed ? () => { setCustomerQuery(""); setPackageFilter(ALL); setLoginFilter(ALL); } : undefined} />}
         <SheetFooter hint={tab === "users" && pending.length ? `${pending.length === 1 ? "1 Registrierung wartet" : `${pending.length} Registrierungen warten`} auf Freigabe` : undefined}>
-          {users.filter((user) => user.status === "active").length} aktive Konten · {customers.length === 1 ? "1 Kunde" : `${customers.length} Kunden`}{freelancers.length ? ` · ${freelancers.length} Freelancer` : ""}
+          {users.filter((user) => user.status === "active").length} aktive Zugänge · {customers.length === 1 ? "1 Kunde" : `${customers.length} Kunden`}{freelancers.length ? ` · ${freelancers.length} Freelancer` : ""}
         </SheetFooter>
       </div>
 
       {reviewUser && <ReviewPanel key={reviewUser.id} user={reviewUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} {...panelProps} />}
-      {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserPanel key={dialog.userId ?? `new-${dialog.customerId ?? ""}`} user={editUser} presetCustomerId={dialog.customerId} presetRole={dialog.role} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onReview={(userId) => open({ kind: "review", userId })} {...panelProps} />}
-      {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerPanel key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} freelancers={freelancers} freelancersEnabled={state.freelancers} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onOpenUser={openFromEntry} onNewUser={(customerId) => open({ kind: "user", customerId, role: "oalab_customer" })} {...panelProps} />}
+      {dialog?.kind === "user" && userPanelReady && <UserPanel key={dialog.userId ?? `new-${dialog.customerId ?? ""}`} user={editUser} presetCustomerId={dialog.customerId} presetRole={dialog.role} entryCreated={dialog.entryCreated} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onReview={(userId) => open({ kind: "review", userId })} {...panelProps} />}
+      {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerPanel key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} freelancers={freelancers} freelancersEnabled={state.freelancers} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onOpenUser={openFromEntry} onNewUser={newLoginFor} onCreated={afterCreate("customer")} {...panelProps} />}
       {dialog?.kind === "import" && <CustomerImportDialog customers={entries} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "logins" && <CustomerLoginsDialog customers={customers} users={users} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "invite" && <InvitationsDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
-      {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerPanel key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onOpenUser={openFromEntry} onNewUser={(freelancerId) => open({ kind: "user", customerId: freelancerId, role: "oalab_freelancer" })} {...panelProps} />}
+      {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerPanel key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onOpenUser={openFromEntry} onNewUser={newLoginFor} onCreated={afterCreate("freelancer")} {...panelProps} />}
     </>
   );
+}
+
+/** In the column „Zugänge“ of a customer or a freelancer without a login: one click opens „Zugang anlegen“ for it. */
+function AddLogin({ name, onClick }: { name: string; onClick: () => void }) {
+  return <button type="button" className="row-invite" onClick={onClick} aria-label={`Zugang für ${name} anlegen`} title="Noch kein Zugang: jetzt einen anlegen"><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>;
 }
 
 /** Logins, customers and freelancers share one sheet; the switch sits where Studio has its views. Freelancers appear once the database knows them. */
 function TabSwitch({ tab, onTab, users, customers, freelancers }: { tab: Tab; onTab: (tab: Tab) => void; users: number; customers: number; freelancers: number | null }) {
   const options: { id: Tab; label: string; count: number; name: string }[] = [
-    { id: "users", label: "Konten", count: users, name: `Konten: ${users}` },
+    { id: "users", label: "Zugänge", count: users, name: `Zugänge: ${users}` },
     { id: "customers", label: "Kunden", count: customers, name: `Kunden: ${customers}` },
   ];
   if (freelancers !== null) options.push({ id: "freelancers", label: "Freelancer", count: freelancers, name: `Freelancer: ${freelancers}` });
-  return <SegmentedControl label="Konten, Kunden oder Freelancer" value={tab} onChange={onTab} options={options} />;
+  return <SegmentedControl label="Zugänge, Kunden oder Freelancer" value={tab} onChange={onTab} options={options} />;
 }
 
 /**
- * Each tab has its own actions, the one that creates its kind of entry primary: logins with „Konto anlegen“ and the
+ * Each tab has its own actions, the one that creates its kind of entry primary: logins with „Zugang anlegen“ and the
  * invitations, customers with „Kunde anlegen“, the import and logins for all customers without one, freelancers with
  * „Freelancer anlegen“. The counts tell how many are waiting.
  */
@@ -409,15 +424,15 @@ function ManageButtons({ tab, withoutLogin, invitable, onCustomer, onImport, onL
 }) {
   if (tab === "customers") return <>
     <button type="button" className="sheet-action" onClick={onImport} title="Kunden aus dem Kontakt-Export der Buchhaltung (Sevdesk, CSV) übernehmen"><Upload size={15} aria-hidden="true" />Importieren</button>
-    <button type="button" className="sheet-action" onClick={onLogins} title="Ein Konto für jeden Kunden ohne Konto, noch ohne Einladung"><Users size={15} aria-hidden="true" />Konten anlegen{withoutLogin ? <span className="sheet-menu-badge">{withoutLogin}</span> : null}</button>
+    <button type="button" className="sheet-action" onClick={onLogins} title="Ein Zugang für jeden Kunden ohne Zugang, noch ohne Einladung"><Users size={15} aria-hidden="true" />Zugänge anlegen{withoutLogin ? <span className="sheet-menu-badge">{withoutLogin}</span> : null}</button>
     <button type="button" className="sheet-action is-primary" onClick={onCustomer}><Building2 size={15} aria-hidden="true" />Kunde anlegen</button>
   </>;
   if (tab === "freelancers") return <>
-    <button type="button" className="sheet-action" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Konto anlegen</button>
+    <button type="button" className="sheet-action" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Zugang anlegen</button>
     <button type="button" className="sheet-action is-primary" onClick={onFreelancer}><Handshake size={15} aria-hidden="true" />Freelancer anlegen</button>
   </>;
   return <>
-    <button type="button" className="sheet-action" onClick={onInvite} title="Aktivierungslinks an Konten, die sich noch nie angemeldet haben"><Send size={15} aria-hidden="true" />Einladungen senden{invitable ? <span className="sheet-menu-badge">{invitable}</span> : null}</button>
-    <button type="button" className="sheet-action is-primary" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Konto anlegen</button>
+    <button type="button" className="sheet-action" onClick={onInvite} title="Aktivierungslinks an alle, die sich noch nie angemeldet haben"><Send size={15} aria-hidden="true" />Einladungen senden{invitable ? <span className="sheet-menu-badge">{invitable}</span> : null}</button>
+    <button type="button" className="sheet-action is-primary" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Zugang anlegen</button>
   </>;
 }

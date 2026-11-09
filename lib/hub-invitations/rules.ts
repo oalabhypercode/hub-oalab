@@ -62,7 +62,7 @@ export function checkLogins(drafts: readonly LoginDraft[], taken: ReadonlySet<st
     const email = draft.email.trim().toLowerCase();
     const problem = !email ? "E-Mail-Adresse fehlt"
       : check.email(email) ? "Keine gültige E-Mail-Adresse"
-      : taken.has(email) ? "Für diese Adresse gibt es schon ein Konto"
+      : taken.has(email) ? "Für diese Adresse gibt es schon einen Zugang"
       : seen.has(email) ? `Dieselbe Adresse wie bei „${seen.get(email)}“`
       : !draft.firstName.trim() || !draft.lastName.trim() ? "Vor- und Nachname fehlen"
       : check.person(draft.firstName, draft.lastName);
@@ -76,8 +76,8 @@ export function checkLogins(drafts: readonly LoginDraft[], taken: ReadonlySet<st
 export type LoginState = "none" | "created" | "invited" | "active";
 
 export const loginStateLabels: Record<LoginState, string> = {
-  none: "kein Konto",
-  created: "Konto angelegt",
+  none: "kein Zugang",
+  created: "Zugang angelegt",
   invited: "eingeladen",
   active: "aktiv",
 };

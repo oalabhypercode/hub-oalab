@@ -53,7 +53,7 @@ test("what stands in the way of a login, row by row", () => {
   assert.deepEqual(rows.map((row) => row.problem), [
     null,
     "Dieselbe Adresse wie bei „A“",
-    "Für diese Adresse gibt es schon ein Konto",
+    "Für diese Adresse gibt es schon einen Zugang",
     "Vor- und Nachname fehlen",
     "Keine gültige E-Mail-Adresse",
     "E-Mail-Adresse fehlt",
@@ -82,7 +82,7 @@ test("how far a customer is, and who gets an invitation", () => {
   assert.deepEqual(customerLoginState([{ lastSignInAt: null, invitedAt: null }]), { state: "created", lastSignInAt: null });
   assert.deepEqual(customerLoginState([{ lastSignInAt: null, invitedAt: "2026-11-11T08:00:00Z" }]), { state: "invited", lastSignInAt: null });
   assert.deepEqual(customerLoginState([{ lastSignInAt: "2026-11-12T08:00:00Z", invitedAt: null }, { lastSignInAt: "2026-11-13T09:00:00Z", invitedAt: null }]), { state: "active", lastSignInAt: "2026-11-13T09:00:00Z" });
-  assert.deepEqual(Object.values(loginStateLabels), ["kein Konto", "Konto angelegt", "eingeladen", "aktiv"]);
+  assert.deepEqual(Object.values(loginStateLabels), ["kein Zugang", "Zugang angelegt", "eingeladen", "aktiv"]);
   assert.ok(isInvitable({ id: "a", demo: false, displayStatus: "invited", invitedAt: null }));
   assert.ok(!isInvitable({ id: "b", demo: true, displayStatus: "invited", invitedAt: null }), "never the demo logins");
   assert.ok(!isInvitable({ id: "c", demo: false, displayStatus: "active", invitedAt: null }), "never someone who signed in");
@@ -127,7 +127,7 @@ test("the platform and the actions use these rules", async () => {
   assert.match(invite, /isDemoUser\(user\)/);
   assert.match(invite, /mailPasswordLink\(ctx\.db, user, \{ firstName: await firstNameOf\(ctx, user\.id\), link, activation: true, validUntil: activationUntil\(\) \}\)/);
 
-  // „Konto anlegen“ and „Konten anlegen“ share the steps of a new login.
+  // „Zugang anlegen“ and „Zugänge anlegen“ share the steps of a new login.
   assert.match(body("createHubUser"), /const added = await addLogin\(ctx, \{ email: email\.value, person: person\.value, role, customer: input\.customer, withLink: true \}\);/);
   assert.match(actions, /const activationUntil = \(\) => usesOwnPlatform\(\) \? new Date\(Date\.now\(\) \+ ACTIVATION_LINK_HOURS \* 60 \* 60 \* 1000\) : null;/);
 
@@ -149,5 +149,5 @@ test("the User Management shows roles, states and the two bulk windows", async (
   assert.match(dialogs, /disabled=\{!selected\.length \|\| running \|\| !mailConfigured\}/, "no sending without a mail server");
   assert.match(dialogs, /new Set\(users\.filter\(isFirstInvitation\)\.map\(\(user\) => user\.id\)\)/, "the never invited start ticked");
   const knowledge = await source("lib/hub-assistant/knowledge.ts");
-  for (const title of ["Konten anlegen", "Einladungen", "Konten, Kunden und Freelancer"]) assert.match(knowledge, new RegExp(`^- ${title} \\(nur Admin\\): `, "m"), title);
+  for (const title of ["Zugänge anlegen", "Einladungen", "Zugänge, Kunden und Freelancer"]) assert.match(knowledge, new RegExp(`^- ${title} \\(nur Admin\\): `, "m"), title);
 });

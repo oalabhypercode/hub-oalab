@@ -16,7 +16,7 @@ import { Modal } from "../modal";
 type Progress<T> = { done: number; total: number; results: T[]; error: string };
 type Edit = { firstName?: string; lastName?: string; email?: string };
 
-/** The hub's own rules for a login's address and names, as „Konto anlegen“ checks them. */
+/** The hub's own rules for a login's address and names, as „Zugang anlegen“ checks them. */
 const loginChecks = {
   email: (email: string) => (cleanEmail(email).ok ? null : "invalid"),
   person: (firstName: string, lastName: string) => {
@@ -44,9 +44,9 @@ async function inBatches<T, R>(items: T[], size: number, send: (batch: T[]) => P
 }
 
 /**
- * „Konten anlegen“: one login with the role Kunde for every customer that has none yet. Names and addresses come from
+ * „Zugänge anlegen“: one login with the role Kunde for every customer that has none yet. Names and addresses come from
  * the contact person in the accounting's export (if loaded) or the customer's contact address and can be changed in the
- * row. No mail goes out here; the invitations follow with „Einladungen senden“ under „Konten“.
+ * row. No mail goes out here; the invitations follow with „Einladungen senden“ under „Zugänge“.
  */
 export function CustomerLoginsDialog({ customers, users, onClose, onNotice }: { customers: ManagedCustomer[]; users: ManagedUser[]; onClose: () => void; onNotice: (message: string) => void }) {
   const [contacts, setContacts] = useState<{ name: string; count: number; find: (customer: LoginCustomer) => ImportContact | null } | null>(null);
@@ -54,13 +54,13 @@ export function CustomerLoginsDialog({ customers, users, onClose, onNotice }: { 
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<Progress<LoginCreationResult> | null>(null);
-  const info = useInfo("Konten anlegen", {
+  const info = useInfo("Zugänge anlegen", {
     steps: [
-      <><b>Ein Konto je Kunde</b> ohne Konto, mit der Rolle Kunde.</>,
+      <><b>Ein Zugang je Kunde</b> ohne Zugang, mit der Rolle Kunde.</>,
       <><b>Namen und Adresse</b> aus der Sevdesk-Datei oder von Hand.</>,
-      <><b>Noch keine Mail:</b> die Einladung folgt unter „Konten“.</>,
+      <><b>Noch keine Mail:</b> die Einladung folgt unter „Zugänge“.</>,
     ],
-    ask: "Wie lege ich Konten für viele Kunden an?",
+    ask: "Wie lege ich Zugänge für viele Kunden an?",
   });
 
   const taken = useMemo(() => new Set(users.map((user) => user.email.trim().toLowerCase())), [users]);
@@ -96,28 +96,28 @@ export function CustomerLoginsDialog({ customers, users, onClose, onNotice }: { 
   function close() {
     if (running) return;
     const created = progress?.results.filter((result) => result.outcome === "created").length ?? 0;
-    if (created) onNotice(`${created === 1 ? "1 Konto" : `${created} Konten`} angelegt. Die Einladungen schickst du unter „Konten“ mit „Einladungen senden“.`);
+    if (created) onNotice(`${created === 1 ? "1 Zugang" : `${created} Zugänge`} angelegt. Die Einladungen schickst du unter „Zugänge“ mit „Einladungen senden“.`);
     onClose();
   }
 
   const companyOf = (customerId: string) => rows.find((row) => row.customerId === customerId)?.company ?? customers.find((customer) => customer.id === customerId)?.company ?? "";
 
   return (
-    <Modal title="Konten anlegen" onClose={close} className="users-modal import-modal" actions={info.button}>
+    <Modal title="Zugänge anlegen" onClose={close} className="users-modal import-modal" actions={info.button}>
       {info.box}
       {finished && progress ? (
         <div className="import-preview">
-          <p className="dialog-success" role="status"><Check size={20} aria-hidden="true" />{progress.results.filter((result) => result.outcome === "created").length} Konten angelegt. Noch ist keine Mail raus.</p>
+          <p className="dialog-success" role="status"><Check size={20} aria-hidden="true" />{progress.results.filter((result) => result.outcome === "created").length} Zugänge angelegt. Noch ist keine Mail raus.</p>
           {progress.error && <p className="form-error" role="alert">{progress.error}</p>}
           <Failures items={progress.results.filter((result) => result.outcome === "failed").map((result) => ({ key: result.customerId, label: companyOf(result.customerId), error: result.error ?? "" }))} />
-          <p className="field-hint">Die Einladungen mit dem Aktivierungslink schickst du unter „Konten“ mit „Einladungen senden“. Bis dahin stehen die neuen Konten dort auf „Aktivierung offen“.</p>
+          <p className="field-hint">Die Einladungen mit dem Aktivierungslink schickst du unter „Zugänge“ mit „Einladungen senden“. Bis dahin stehen die neuen Zugänge dort auf „Aktivierung offen“.</p>
           <button type="button" className="sheet-button sheet-button-primary" onClick={close}><Check size={18} aria-hidden="true" />Fertig</button>
         </div>
       ) : !rows.length ? (
-        <p className="field-hint">Alle Kunden haben schon ein Konto. Ein weiteres Konto für einen Kunden legst du mit „Konto anlegen“ an.</p>
+        <p className="field-hint">Alle Kunden haben schon einen Zugang. Einen weiteren Zugang für einen Kunden legst du mit „Zugang anlegen“ an.</p>
       ) : (
         <div className="import-preview">
-          <p className="field-hint">Für jeden Kunden ohne Konto steht hier eine Zeile. Prüfe Namen und Adresse; angelegt wird erst mit dem Knopf unten, und noch geht keine Mail raus.</p>
+          <p className="field-hint">Für jeden Kunden ohne Zugang steht hier eine Zeile. Prüfe Namen und Adresse; angelegt wird erst mit dem Knopf unten, und noch geht keine Mail raus.</p>
           {contacts ? (
             <div className="import-file">
               <FileSpreadsheet size={18} aria-hidden="true" />
@@ -134,7 +134,7 @@ export function CustomerLoginsDialog({ customers, users, onClose, onNotice }: { 
 
           <div className="import-table-wrap">
             <table className="data-table import-table login-table">
-              <caption className="visually-hidden">Kunden ohne Konto mit Vorname, Nachname und E-Mail-Adresse des neuen Kontos</caption>
+              <caption className="visually-hidden">Kunden ohne Zugang mit Vorname, Nachname und E-Mail-Adresse des neuen Zugangs</caption>
               <thead>
                 <tr>
                   <th scope="col"><span className="visually-hidden">Anlegen</span></th>
@@ -147,7 +147,7 @@ export function CustomerLoginsDialog({ customers, users, onClose, onNotice }: { 
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.customerId} className={`data-row${row.problem || skipped.has(row.customerId) ? " is-muted" : ""}`}>
-                    <td className="cell-check"><input type="checkbox" checked={!row.problem && !skipped.has(row.customerId)} disabled={Boolean(row.problem) || running} onChange={() => toggle(row.customerId)} aria-label={`Konto für ${row.company} anlegen`} /></td>
+                    <td className="cell-check"><input type="checkbox" checked={!row.problem && !skipped.has(row.customerId)} disabled={Boolean(row.problem) || running} onChange={() => toggle(row.customerId)} aria-label={`Zugang für ${row.company} anlegen`} /></td>
                     <td className="import-company">
                       <strong>{row.company}</strong>
                       <small className="numeric">{row.customerNumber}</small>
@@ -162,10 +162,10 @@ export function CustomerLoginsDialog({ customers, users, onClose, onNotice }: { 
             </table>
           </div>
 
-          <p className="field-hint">Ein Konto gehört zu genau einem Kunden. Die Person bekommt erst mit „Einladungen senden“ ihren Link; bis dahin bemerkt sie nichts.</p>
+          <p className="field-hint">Ein Zugang gehört zu genau einem Kunden. Die Person bekommt erst mit „Einladungen senden“ ihren Link; bis dahin bemerkt sie nichts.</p>
           {progress?.error && <p className="form-error" role="alert">{progress.error}</p>}
           <button type="button" className="sheet-button sheet-button-primary" disabled={!included.length || running} onClick={run}>
-            {running ? <><MiniLoader size={18} />Lege {progress?.done ?? 0} von {progress?.total ?? included.length} an …</> : <><UserPlus size={18} aria-hidden="true" />{included.length === 1 ? "1 Konto anlegen" : `${included.length} Konten anlegen`}</>}
+            {running ? <><MiniLoader size={18} />Lege {progress?.done ?? 0} von {progress?.total ?? included.length} an …</> : <><UserPlus size={18} aria-hidden="true" />{included.length === 1 ? "1 Zugang anlegen" : `${included.length} Zugänge anlegen`}</>}
           </button>
         </div>
       )}
@@ -185,18 +185,18 @@ export function InvitationsDialog({ users, customers, mailConfigured, onClose, o
   const days = ACTIVATION_LINK_HOURS / 24;
   const info = useInfo("Einladungen", {
     steps: [
-      <><b>Für Konten ohne Anmeldung:</b> Status „Aktivierung offen“.</>,
+      <><b>Für Zugänge ohne Anmeldung:</b> Status „Aktivierung offen“.</>,
       <><b>Der Link gilt {days} Tage;</b> ein neuer ersetzt den alten.</>,
       <><b>Erinnern:</b> schon Eingeladene bewusst anhaken.</>,
     ],
-    ask: "Wie verschicke ich Einladungen an viele Konten?",
+    ask: "Wie verschicke ich Einladungen an viele Zugänge?",
   });
   const running = progress !== null && progress.done < progress.total && !progress.error;
   const finished = progress !== null && !running;
   const selected = candidates.filter((item) => chosen.has(item.user.id));
   const nameOf = (userId: string) => {
     const item = candidates.find((candidate) => candidate.user.id === userId);
-    return item ? `${`${item.user.firstName} ${item.user.lastName}`.trim() || item.user.email}${item.customer ? ` (${item.customer.company})` : ""}` : "Konto";
+    return item ? `${`${item.user.firstName} ${item.user.lastName}`.trim() || item.user.email}${item.customer ? ` (${item.customer.company})` : ""}` : "Zugang";
   };
   const toggle = (userId: string) => setChosen((current) => {
     const next = new Set(current);
@@ -224,11 +224,11 @@ export function InvitationsDialog({ users, customers, mailConfigured, onClose, o
           <p className="dialog-success" role="status"><Check size={20} aria-hidden="true" />{progress.results.filter((result) => result.outcome === "sent").length} Einladungen verschickt{progress.results.some((result) => result.outcome === "skipped") ? `, ${progress.results.filter((result) => result.outcome === "skipped").length} übersprungen` : ""}.</p>
           {progress.error && <p className="form-error" role="alert">{progress.error}</p>}
           <Failures items={progress.results.filter((result) => result.outcome !== "sent").map((result) => ({ key: result.userId, label: nameOf(result.userId), error: result.error ?? "" }))} />
-          <p className="field-hint">Wer sich angemeldet hat, steht unter „Konten“ auf „Aktiv“; unter „Kunden“ siehst du je Kunde den letzten Login.</p>
+          <p className="field-hint">Wer sich angemeldet hat, steht unter „Zugänge“ auf „Aktiv“; unter „Kunden“ siehst du je Kunde den letzten Login.</p>
           <button type="button" className="sheet-button sheet-button-primary" onClick={close}><Check size={18} aria-hidden="true" />Fertig</button>
         </div>
       ) : !candidates.length ? (
-        <p className="field-hint">Kein Konto wartet auf eine Einladung: Alle Konten haben sich schon angemeldet. Neue Konten legst du unter „Kunden“ mit „Konten anlegen“ an.</p>
+        <p className="field-hint">Kein Zugang wartet auf eine Einladung: Mit allen hat sich schon jemand angemeldet. Neue Zugänge legst du unter „Kunden“ mit „Zugänge anlegen“ an.</p>
       ) : (
         <div className="import-preview">
           {!mailConfigured && <p className="field-warning" role="alert"><MailX size={18} aria-hidden="true" />Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Einladung raus.</p>}
@@ -239,7 +239,7 @@ export function InvitationsDialog({ users, customers, mailConfigured, onClose, o
           </div>
           <div className="import-table-wrap">
             <table className="data-table import-table invite-table">
-              <caption className="visually-hidden">Konten ohne Anmeldung mit Name, E-Mail-Adresse, Kunde und letzter Einladung</caption>
+              <caption className="visually-hidden">Zugänge ohne Anmeldung mit Name, E-Mail-Adresse, Kunde und letzter Einladung</caption>
               <thead>
                 <tr>
                   <th scope="col"><span className="visually-hidden">Einladen</span></th>

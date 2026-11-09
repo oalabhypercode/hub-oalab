@@ -279,7 +279,7 @@ function ImportResult({ progress, onDone }: { progress: Progress; onDone: () => 
           </span>
         </div>
       )}
-      <p className="field-hint">Pakete und Logins legst du für die neuen Kunden wie gewohnt an: Pakete unter Vertrag & Domain, Logins mit „Konto anlegen“.</p>
+      <p className="field-hint">Pakete und Logins legst du für die neuen Kunden wie gewohnt an: Pakete unter Vertrag & Domain, Zugänge mit „Zugang anlegen“.</p>
       <button type="button" className="sheet-button sheet-button-primary" onClick={onDone}><Check size={18} aria-hidden="true" />Fertig</button>
     </div>
   );
