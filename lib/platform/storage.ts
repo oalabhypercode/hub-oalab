@@ -296,3 +296,28 @@ function catalogError(error: unknown): StorageErrorShape {
 export function ownStorage(scope: Scope) {
   return { from: (bucket: string) => new OwnBucket(bucket, scope) };
 }
+
+const ABANDONED_AFTER_HOURS = UPLOAD_SECONDS / 3600 + 1;
+const ABANDONED_BATCH = 100;
+
+/**
+ * Removes the catalog row of a browser upload that never arrived: the row is written before the bytes, so a cancelled
+ * upload stays behind as a name without a file. Empty metadata alone proves nothing (a moved or never-listed file has
+ * none either), so only a row Garage has no object for goes, and only after its upload link can no longer be used.
+ */
+export async function sweepAbandonedUploads() {
+  const unclaimed = `metadata->>'size' is null and not exists (select 1 from public.hub_files f where f.storage_path = o.name)`;
+  const candidates = await sql<{ bucket_id: string; name: string }>(
+    `select bucket_id, name from storage.objects o
+     where bucket_id = any($1::text[]) and created_at < now() - make_interval(hours => $2) and ${unclaimed}
+     order by created_at limit $3`,
+    [["hub-files", "hub-logos"], ABANDONED_AFTER_HOURS, ABANDONED_BATCH],
+  );
+  let removed = 0;
+  for (const { bucket_id: bucket, name } of candidates.rows) {
+    if (await store().head(bucket, name)) continue;
+    const deleted = await sql(`delete from storage.objects o where bucket_id = $1 and name = $2 and ${unclaimed}`, [bucket, name]);
+    removed += deleted.rowCount ?? 0;
+  }
+  return removed;
+}
