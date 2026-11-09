@@ -6,7 +6,7 @@
  * minute steps) and oalab's own address are never typed in; they follow from the other fields and from the imprint.
  */
 
-export type ContractTemplateId = "website-domain-mail" | "website-pflege";
+export type ContractTemplateId = "website-domain-mail" | "website-domain" | "website-pflege";
 
 export type ContractFieldKind = "text" | "money" | "minutes" | "percent" | "date";
 export type ContractFieldGroup = "customer" | "terms" | "provider" | "signature";
@@ -46,6 +46,8 @@ export type ContractTemplate = {
   fields: readonly string[];
   /** Starting values that differ per template (raw input as typed). */
   initial: Readonly<Record<string, string>>;
+  /** Hints under a field that differ from the field's own, e.g. where this template's text uses it. */
+  hints?: Readonly<Record<string, string>>;
 };
 
 export const contractFields: Record<string, ContractField> = {
@@ -85,9 +87,31 @@ export const contractTemplates: Record<ContractTemplateId, ContractTemplate> = {
     fileTitle: "Servicevereinbarung Website, Domain & Mail",
     file: "website-domain-mail.docx",
     signature: false,
-    packages: ["domain-mail", "domain"],
+    packages: ["domain-mail"],
     fields: ["kunde_firma", "kunde_strasse", "kunde_plz_ort", "preis_monat", "minuten_monat", "rabatt_prozent", "hoster"],
     initial: { preis_monat: "15,00", minuten_monat: "60", rabatt_prozent: "10", hoster: "netcup GmbH" },
+  },
+  // The text of Website-Pflege plus a § 4 for domain and hosting; the external IT provider keeps only the e-mail.
+  "website-domain": {
+    id: "website-domain",
+    name: "Website & Domain",
+    title: "Servicevertrag „Oalab Website-Pflege, Domain und technischer Support“",
+    description: "Website, Domain und Hosting liegen bei oalab, die E-Mail bei einem externen IT-Dienstleister. Mit Unterschrift.",
+    fileTitle: "Servicevertrag Website & Domain",
+    file: "website-domain.docx",
+    signature: true,
+    packages: ["domain"],
+    fields: [
+      "kunde_firma", "kunde_strasse", "kunde_plz_ort", "kunde_domain",
+      "vertragsbeginn", "preis_monat", "minuten_monat", "preis_zusatzblock", "rabatt_prozent", "hoster",
+      "dienstleister_name", "dienstleister_strasse", "dienstleister_plz_ort",
+      "ort_datum", "ag_name", "ag_funktion", "an_name", "an_funktion",
+    ],
+    initial: { preis_monat: "30,00", minuten_monat: "30", preis_zusatzblock: "95,00", rabatt_prozent: "10", hoster: "netcup GmbH", an_funktion: "Geschäftsführer" },
+    hints: {
+      hoster: "Steht in § 4: „Das Hosting der Website und die Verwaltung der Domain erfolgen derzeit über die …“",
+      dienstleister_name: "Der externe IT-Dienstleister des Kunden für die E-Mail",
+    },
   },
   "website-pflege": {
     id: "website-pflege",
@@ -134,9 +158,12 @@ export function placeholderLabel(key: string) {
   return (computedLabels as Record<string, string>)[key] ?? key;
 }
 
-/** The template that fits a customer's domain package: oalab hosts → Website, Domain & Mail; otherwise Website-Pflege. */
+/**
+ * The template that fits a customer's domain package: Domain & Mail → Website, Domain & Mail; Domain → Website & Domain;
+ * no domain package (the domain lies elsewhere) → Website-Pflege.
+ */
 export function suggestedTemplate(packageIds: readonly (string | null)[]): ContractTemplateId {
-  return packageIds.some((id) => id && contractTemplates["website-domain-mail"].packages.includes(id)) ? "website-domain-mail" : "website-pflege";
+  return contractTemplateIds.find((template) => packageIds.some((id) => id && contractTemplates[template].packages.includes(id))) ?? "website-pflege";
 }
 
 /* ---------- Reading and writing values ---------- */
