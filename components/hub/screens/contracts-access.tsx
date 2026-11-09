@@ -21,7 +21,7 @@ const tryAgain = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
 const DOTS = "••••••••••";
 
 /**
- * „Zugänge“ of one customer, for admins: the passwords of its mailboxes and its logins at domain provider, DNS and
+ * „Zugangsdaten“ of one customer, for admins: the passwords of its mailboxes and its logins at domain provider, DNS and
  * hosting. The page only knows whether a password is stored; showing or copying asks the server each time, which
  * checks the confirmed second factor and logs the look first. A shown password hides itself after 30 seconds.
  */
@@ -45,20 +45,20 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
   const logins = domainMail.logins.filter((item) => item.customerId === customer.id);
   const shownMailboxes = mailboxes.filter((mailbox) => tableHit(term, mailbox.display, mailbox.person));
   const shownLogins = logins.filter((login) => tableHit(term, login.label, loginKinds[login.kind], login.loginUrl, login.username));
-  const info = useInfo("Zugänge", {
+  const info = useInfo("Zugangsdaten", {
     steps: [
       <><b>Nur mit zweitem Faktor</b> sichtbar.</>,
       <><b>{REVEAL_SECONDS} Sekunden</b> lesbar, dann wieder verdeckt.</>,
       <><b>Jeder Blick</b> steht im Verlauf des Kunden.</>,
     ],
-    ask: "Wie funktionieren die Zugänge unter Vertrag & Domain?",
+    ask: "Wie funktionieren die Zugangsdaten unter Vertrag & Domain?",
   });
 
   const note = fixtures
     ? "Fiktive Beispieldaten: Hier gibt es keine Passwörter. Anzeigen und Speichern gehen nur mit echtem Admin-Login."
-    : !domainMail.ready ? "Zugänge sind in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus."
+    : !domainMail.ready ? "Zugangsdaten sind in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus."
       : !confirmed ? null
-        : !vault?.keyReady ? "Auf dem Server fehlt der Schlüssel für die Zugänge (HUB_VAULT_KEY). Bis er eingetragen ist, lassen sich keine Passwörter speichern oder anzeigen."
+        : !vault?.keyReady ? "Auf dem Server fehlt der Schlüssel für die Zugangsdaten (HUB_VAULT_KEY). Bis er eingetragen ist, lassen sich keine Passwörter speichern oder anzeigen."
           : null;
 
   return (
@@ -122,7 +122,7 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
       </div>
       <SheetFooter hint="Jeder Blick auf ein Passwort steht im Verlauf">
         {live && vault
-          ? vault.keyId ? <>Schlüssel auf diesem Server: <span className="dm-mono" translate="no">{vault.keyId}</span>; lokal und in Vercel muss dieselbe Kennung stehen.</> : "Auf diesem Server ist kein Schlüssel für die Zugänge eingetragen."
+          ? vault.keyId ? <>Schlüssel auf diesem Server: <span className="dm-mono" translate="no">{vault.keyId}</span>; lokal und in Vercel muss dieselbe Kennung stehen.</> : "Auf diesem Server ist kein Schlüssel für die Zugangsdaten eingetragen."
           : [mailboxes.length === 1 ? "1 Postfach" : `${mailboxes.length} Postfächer`, logins.length === 1 ? "1 Anbieter-Login" : `${logins.length} Anbieter-Logins`].join(" · ")}
       </SheetFooter>
 

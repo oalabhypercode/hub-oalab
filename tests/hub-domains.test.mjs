@@ -222,12 +222,12 @@ test("the page knows only whether a password exists; customers read with their o
   assert.doesNotMatch(domainActions, /hub_vault_secrets"\)\.(insert|update|upsert)|sealSecret|openSecret/);
 });
 
-test("„Domain & Mail“ and „Zugänge“ sit between „Vertrag“ and „Verlauf“; the overview lists domain renewals", async () => {
+test("„Domain & Mail“ and „Zugangsdaten“ sit between „Vertrag“ and „Verlauf“; the overview lists domain renewals", async () => {
   const screen = await source("components/hub/screens/contracts.tsx");
   const tabs = [...screen.matchAll(/\{ id: "(\w+)", label: "[^"]+", name: /g)].map((match) => match[1]);
   assert.deepEqual(tabs, ["contract", "domains", "access", "timeline"]);
   assert.match(screen, /label: "Domain & Mail"/);
-  assert.match(screen, /label: "Zugänge"/);
+  assert.match(screen, /label: "Zugangsdaten"/);
   const overview = await source("components/hub/screens/contracts-overview.tsx");
   assert.match(overview, /const soon = upcoming\(state, asOf\)/);
   assert.match(overview, /renewingSoon\(state\.domainMail\.domains/);

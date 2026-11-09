@@ -2459,7 +2459,7 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .cdm-server .chat-pill { grid-column: 1 / -1; justify-self: start; }
 }
 
-/* Vertrag & Domain, stage 2: „Domain & Mail“ and „Zugänge“. */
+/* Vertrag & Domain, stage 2: „Domain & Mail“ and „Zugangsdaten“. */
 .dm-check-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 2px 12px; margin: 0; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--fill-tertiary); }
 .dm-check-fields legend { float: left; width: 100%; margin-bottom: 4px; padding: 0 2px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
 .dm-check-field { display: flex; align-items: flex-start; gap: 9px; padding: 6px 2px; cursor: pointer; }

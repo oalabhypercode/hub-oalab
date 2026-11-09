@@ -38,7 +38,7 @@ const places = [
   { file: "components/hub/screens/contracts-domains.tsx", call: 'useInfo("E-Mail-Adressen"', button: /"E-Mail-Adresse eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-customer.tsx", call: 'useInfo("Deine Pakete"', button: /label="Pakete"[^\n]*actions=\{packagesInfo\.button\}>/, box: "{packagesInfo.box}" },
   { file: "components/hub/screens/contracts-customer.tsx", call: 'useInfo("Deine Adressen"', button: /label="E-Mail-Adressen"[^\n]*actions=\{addressesInfo\.button\}>/, box: "{addressesInfo.box}" },
-  { file: "components/hub/screens/contracts-access.tsx", call: 'useInfo("Zugänge"', button: /label="Postfächer"[^\n]*actions=\{info\.button\}/, box: "{info.box}" },
+  { file: "components/hub/screens/contracts-access.tsx", call: 'useInfo("Zugangsdaten"', button: /label="Postfächer"[^\n]*actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-access.tsx", call: 'useInfo("Anbieter-Login"', button: /"Login anlegen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Service-Kontingente"', button: /label="Service-Kontingente"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Service-Anfragen"', button: /label=\{`Service-Anfragen\$\{month \? ` im \$\{month\.month\}` : ""\}`\}[^]*?actions=\{info\.button\}/, box: "{info.box}" },

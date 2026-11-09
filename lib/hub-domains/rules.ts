@@ -1,5 +1,5 @@
 /**
- * Rules of „Domain & Mail“ and „Zugänge“ in the area „Vertrag & Domain“ (stage 2): statuses, checks and kinds, and
+ * Rules of „Domain & Mail“ and „Zugangsdaten“ in the area „Vertrag & Domain“ (stage 2): statuses, checks and kinds, and
  * what an admin may save as a domain, mail server, mailbox, provider login or password. Pure functions without imports
  * at run time, so the tests load this file directly. The database checks the same formats again (migration
  * 202611050002 in service-oalab).

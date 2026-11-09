@@ -42,7 +42,7 @@ const missingTables = "Domains und Mail sind in der Datenbank noch nicht eingeri
 function writeError(error: { code?: string; message?: string }, duplicate: string) {
   if (error.code === "42P01" || error.code === "PGRST205") return missingTables;
   if (error.code === "23505") return duplicate;
-  if (error.code === "23514" && /Passwort/.test(error.message ?? "")) return "Dieses Postfach hat ein Passwort. Entferne es zuerst unter „Zugänge“, dann wird daraus eine Weiterleitung oder ein Alias.";
+  if (error.code === "23514" && /Passwort/.test(error.message ?? "")) return "Dieses Postfach hat ein Passwort. Entferne es zuerst unter „Zugangsdaten“, dann wird daraus eine Weiterleitung oder ein Alias.";
   if (error.code === "23514") return "Bitte die Eingaben prüfen.";
   return tryAgain;
 }

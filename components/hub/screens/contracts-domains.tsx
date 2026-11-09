@@ -56,7 +56,7 @@ const statusGlyphs: Record<DomainStatus, GlyphKind> = { active: "active", setup:
 
 /**
  * The domains, the mail server and the addresses of one customer, for admins, as one table in groups. The server is
- * changed in a dialog behind the pencil; passwords live under „Zugänge“.
+ * changed in a dialog behind the pencil; passwords live under „Zugangsdaten“.
  */
 export function DomainMailTab({ customer, domainMail, canManage, today, query, onNotice }: {
   customer: ContractCustomer;
@@ -160,7 +160,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
         </table>
         {serverInfo.box}
       </div>
-      <SheetFooter hint="Passwörter der Postfächer liegen unter „Zugänge“">
+      <SheetFooter hint="Passwörter der Postfächer liegen unter „Zugangsdaten“">
         {[domains.length === 1 ? "1 Domain" : `${domains.length} Domains`, server ? "Mail-Server eingetragen" : "kein Mail-Server", mailboxes.length === 1 ? "1 Adresse" : `${mailboxes.length} Adressen`].join(" · ")}
       </SheetFooter>
       {dialog?.kind === "domain" && <DomainDialog customer={customer} entry={dialog.entry} onClose={() => setDialog(null)} onSaved={onNotice} />}
@@ -232,7 +232,7 @@ function DomainDialog({ customer, entry, onClose, onSaved }: { customer: Contrac
     steps: [
       <><b>Sechs Häkchen</b> setzt du nach der Prüfung selbst.</>,
       <><b>Verlängerung</b> in 60 Tagen steht unter „Demnächst“.</>,
-      <><b>Logins</b> der Anbieter gehören unter „Zugänge“.</>,
+      <><b>Logins</b> der Anbieter gehören unter „Zugangsdaten“.</>,
     ],
     ask: "Wie trage ich eine Domain ein?",
   });
@@ -402,7 +402,7 @@ function MailboxDialog({ customer, entry, domains, onClose, onSaved }: { custome
         )}
         {draft.kind === "forward" && <p className="field-hint">Mehrere Ziele mit Komma trennen.</p>}
         <label className="upload-field"><span>Person (optional)</span><input value={draft.person} onChange={set("person")} maxLength={MAX_PERSON} placeholder="z. B. Jana Sommer" autoComplete="off" disabled={disabled} /></label>
-        {keepsPassword && <p className="form-error" role="status">Dieses Postfach hat ein Passwort. Entferne es zuerst unter „Zugänge“, dann wird daraus eine Weiterleitung oder ein Alias.</p>}
+        {keepsPassword && <p className="form-error" role="status">Dieses Postfach hat ein Passwort. Entferne es zuerst unter „Zugangsdaten“, dann wird daraus eine Weiterleitung oder ein Alias.</p>}
         <p className="field-hint">Der Kunde sieht Adresse, Art, Ziel und Person unter „Vertrag & Domain“.</p>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button type="submit" className="sheet-button sheet-button-primary" disabled={disabled || keepsPassword}>{busy === "save" ? <Spinner /> : <Save size={18} aria-hidden="true" />}{entry ? "Änderungen speichern" : "Eintragen"}</button>
