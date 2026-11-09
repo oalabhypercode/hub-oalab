@@ -1107,11 +1107,16 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .data-table tbody tr.is-open td { background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
 .data-table tbody tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--accent-text); }
 .data-table tbody tr.is-open .row-open strong { color: var(--accent-text); font-weight: 600; }
-/* Customers and freelancers by their Zugänge (user 9.11.2026): a veil over the row, under hover and the open mark. */
+/* Customers and freelancers by their Zugänge (user 9.11.2026): a veil over the row, full on the left three quarters and
+   fading out towards the pencil; the open mark lies over it. */
 .data-table tbody tr.is-no-login { --row-veil: var(--veil-none); --row-veil-bar: var(--veil-none-bar); }
 .data-table tbody tr.is-awaiting-login { --row-veil: var(--veil-open); --row-veil-bar: var(--veil-open-bar); }
-.data-table tbody tr:is(.is-no-login, .is-awaiting-login) td { background-image: linear-gradient(var(--row-veil), var(--row-veil)); }
+.data-table tbody tr:is(.is-no-login, .is-awaiting-login) { background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 75%, transparent 100%); }
 .data-table tbody tr:is(.is-no-login, .is-awaiting-login):not(.is-open) td:first-child { box-shadow: inset 3px 0 0 var(--row-veil-bar); }
+/* Hover and the open row colour the row under its veil instead of the cells, which would cover it. */
+.data-table tbody tr:is(.is-no-login, .is-awaiting-login):hover td, .data-table tbody tr.is-open:is(.is-no-login, .is-awaiting-login) td { background-color: transparent; }
+.data-table tbody tr:is(.is-no-login, .is-awaiting-login):hover { background-color: var(--sheet-hover); }
+.data-table tbody tr.is-open:is(.is-no-login, .is-awaiting-login) { background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
 .veil-keys { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
 .veil-key { display: inline-flex; align-items: center; gap: 6px; }
 .veil-dot { width: 9px; height: 9px; border-radius: 3px; }
@@ -1318,8 +1323,8 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet .data-table :is(.cell-number, .cell-company):has(> .cell-none) { display: none; }
   .sheet .user-table .cell-login::before { content: "Letzter Login: "; }
   .sheet .data-table .cell-logins::before { content: "Zugänge: "; }
-  /* The cells wrap here, so the whole row carries the veil. */
-  .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login) { background-image: linear-gradient(var(--row-veil), var(--row-veil)); box-shadow: inset 3px 0 0 var(--row-veil-bar); }
+  /* The cells wrap here, so the row itself carries the bar on the left. */
+  .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login) { box-shadow: inset 3px 0 0 var(--row-veil-bar); }
   .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login) td, .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login):not(.is-open) td:first-child { background-image: none; box-shadow: none; }
   .sheet .ai-log-table .cell-summary { flex-basis: 100%; min-width: 0; }
 }
