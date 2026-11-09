@@ -303,3 +303,18 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   assert.match(sheet, /role="menu" aria-label=\{label\} hidden=\{!open\}/);
   assert.match(css, /\.sheet-gear \{[^}]*background: var\(--accent-gradient\);/);
 });
+
+test("a freelancer login asks for no freelancer: it is the freelancer's own (user 9.11.2026)", async () => {
+  const panels = await source("components/hub/screens/users-dialogs.tsx");
+  // Only customer logins pick the entry they belong to.
+  assert.doesNotMatch(panels, /Gehört zum Freelancer|Neuen Freelancer anlegen|Neuer Freelancer/);
+  assert.match(panels, /\{kind === "customer" && choice && \(choice\.mode === "existing" && options\.length \? \(/);
+  // A freelancer login keeps its own entry; without one a new freelancer is made, never the first one in the list.
+  assert.match(panels, /if \(kind === "freelancer"\) return \{ mode: current \? "existing" : "new", customerId: current \?\? "",/);
+  // The new freelancer is named after the person (or the firm a registration gave) and gets the login's address.
+  assert.match(panels, /const newFreelancerName = \(choices: Choices, person: Person\) => choices\.freelancer\.draft\.company\.trim\(\) \|\| person\.name;/);
+  assert.match(panels, /company: newFreelancerName\(choices, person\), contactEmail: choice\.draft\.contactEmail \|\| person\.email/);
+  assert.equal(panels.split("choicePayload(").length - 1, 3, "registration, new and edited logins");
+  assert.match(panels, /choicePayload\(decision\.role, decision\.choices, person\)/);
+  assert.equal(panels.split(", who)").length - 1, 2, "new and edited logins pass the person");
+});
