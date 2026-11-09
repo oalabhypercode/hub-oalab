@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Pencil, Rows3, Send, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Rows3, Send, Settings, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
 import { displayStatusLabels, roleLabels, type DisplayStatus, type HubRole } from "@/lib/hub-users/rules";
 import { customerLoginState, isFirstInvitation, isInvitable, loginStateLabels, type LoginState } from "@/lib/hub-invitations/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
@@ -14,7 +14,7 @@ import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { LogoMark } from "../logo-mark";
 import { sectionIcons } from "../navigation";
-import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
+import { MenuChoices, SheetActionMenu, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind, type SheetAction } from "../sheet";
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { CustomerPanel, FreelancerPanel, fullName, ReviewPanel, statusGlyph, UserPanel } from "./users-dialogs";
 import { CustomerImportDialog } from "./users-import";
@@ -233,7 +233,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
           {waiting ? <button type="button" className="row-check" onClick={() => openUser(user)}><ShieldCheck size={15} aria-hidden="true" />Prüfen</button>
             // Never signed in: the row leads to the activation link, which the panel offers on top.
             : user.displayStatus === "invited" && !user.demo ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} title="Zugang öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
-            : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+            : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Settings size={16} aria-hidden="true" /></button>}
         </td>
       </tr>
     );
@@ -340,7 +340,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                       <td className="cell-packages">{freelancer.linkedIds.length ? namesOf(freelancer.linkedIds, customers) : <span className="cell-none">noch keine</span>}</td>
                       <td className="cell-logins numeric">{freelancer.memberIds.length || <AddLogin name={freelancer.company} onClick={() => newLoginFor(freelancer.id)} />}</td>
                       <td className="cell-city">{[freelancer.postalCode, freelancer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
-                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })} aria-label={`${freelancer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>
+                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })} aria-label={`${freelancer.company} bearbeiten`} title="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -376,7 +376,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                       <td className="cell-logins cell-login-state">{customer.memberIds.length ? <span className="status-cell"><StatusGlyph kind={loginStateGlyph[logins.state]} />{`${customer.memberIds.length} · ${loginStateLabels[logins.state]}`}</span> : <AddLogin name={customer.company} onClick={() => newLoginFor(customer.id)} />}</td>
                       <td className="cell-login col-login">{logins.lastSignInAt ? <time dateTime={logins.lastSignInAt} title={formatFileDateTime(logins.lastSignInAt)}>{formatFileDate(logins.lastSignInAt)}</time> : <span className="cell-none">{customer.memberIds.length ? "noch nie" : "–"}</span>}</td>
                       <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
-                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button></td>
+                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
                     </tr>
                   );
                 })}
@@ -428,25 +428,24 @@ function TabSwitch({ tab, onTab, users, customers, freelancers }: { tab: Tab; on
 }
 
 /**
- * Each tab has its own actions, the one that creates its kind of entry primary: logins with „Zugang anlegen“ and the
- * invitations, customers with „Kunde anlegen“, the import and logins for all customers without one, freelancers with
- * „Freelancer anlegen“. The counts tell how many are waiting.
+ * Each tab's actions behind one red gear (user 9.11.2026), the one that creates its kind of entry first: customers with
+ * „Kunde anlegen“, the logins for all customers without one and the import; freelancers with „Freelancer anlegen“ and a
+ * login; logins with „Zugang anlegen“ and the invitations. The counts tell how many are waiting.
  */
 function ManageButtons({ tab, withoutLogin, invitable, onCustomer, onImport, onLogins, onInvite, onFreelancer, onUser }: {
   tab: Tab; withoutLogin: number; invitable: number;
   onCustomer: () => void; onImport: () => void; onLogins: () => void; onInvite: () => void; onFreelancer: () => void; onUser: () => void;
 }) {
-  if (tab === "customers") return <>
-    <button type="button" className="sheet-action" onClick={onImport} title="Kunden aus dem Kontakt-Export der Buchhaltung (Sevdesk, CSV) übernehmen"><Upload size={15} aria-hidden="true" />Importieren</button>
-    <button type="button" className="sheet-action" onClick={onLogins} title="Ein Zugang für jeden Kunden ohne Zugang, noch ohne Einladung"><Users size={15} aria-hidden="true" />Zugänge anlegen{withoutLogin ? <span className="sheet-menu-badge">{withoutLogin}</span> : null}</button>
-    <button type="button" className="sheet-action is-primary" onClick={onCustomer}><Building2 size={15} aria-hidden="true" />Kunde anlegen</button>
-  </>;
-  if (tab === "freelancers") return <>
-    <button type="button" className="sheet-action" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Zugang anlegen</button>
-    <button type="button" className="sheet-action is-primary" onClick={onFreelancer}><Handshake size={15} aria-hidden="true" />Freelancer anlegen</button>
-  </>;
-  return <>
-    <button type="button" className="sheet-action" onClick={onInvite} title="Aktivierungslinks an alle, die sich noch nie angemeldet haben"><Send size={15} aria-hidden="true" />Einladungen senden{invitable ? <span className="sheet-menu-badge">{invitable}</span> : null}</button>
-    <button type="button" className="sheet-action is-primary" onClick={onUser}><UserPlus size={15} aria-hidden="true" />Zugang anlegen</button>
-  </>;
+  const actions: SheetAction[] = tab === "customers" ? [
+    { icon: Building2, label: "Kunde anlegen", hint: "Mit der nächsten freien Kundennummer", onSelect: onCustomer },
+    { icon: Users, label: "Zugänge anlegen", hint: "Ein Zugang für jeden Kunden ohne Zugang", badge: withoutLogin, onSelect: onLogins },
+    { icon: Upload, label: "Importieren", hint: "Kunden aus dem Sevdesk-Export (CSV)", onSelect: onImport },
+  ] : tab === "freelancers" ? [
+    { icon: Handshake, label: "Freelancer anlegen", hint: "Mit der nächsten freien FL-Nummer", onSelect: onFreelancer },
+    { icon: UserPlus, label: "Zugang anlegen", hint: "Für einen Freelancer oder einen Kunden", onSelect: onUser },
+  ] : [
+    { icon: UserPlus, label: "Zugang anlegen", hint: "Mit Aktivierungslink per E-Mail", onSelect: onUser },
+    { icon: Send, label: "Einladungen senden", hint: "An alle, die sich noch nie angemeldet haben", badge: invitable, onSelect: onInvite },
+  ];
+  return <SheetActionMenu label={tab === "customers" ? "Kunden verwalten" : tab === "freelancers" ? "Freelancer verwalten" : "Zugänge verwalten"} actions={actions} />;
 }

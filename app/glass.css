@@ -815,6 +815,18 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .sheet-action:hover { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); }
 .sheet-action.is-primary { background: var(--accent-gradient); box-shadow: none; color: #ffffff; }
 .sheet-action.is-primary:hover { filter: brightness(0.94); }
+/* A tab's actions behind one gear in the accent colour, opened like the toolbar's panels (user 9.11.2026). */
+.sheet-gear { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-gradient); color: #ffffff; }
+.sheet-gear:hover, .sheet-gear[aria-expanded="true"] { filter: brightness(0.92); }
+.sheet-gear svg { transition: transform 0.2s ease; }
+.sheet-gear[aria-expanded="true"] svg { transform: rotate(60deg); }
+.sheet-pop.sheet-action-pop { min-width: 290px; gap: 2px; padding: 6px; }
+.sheet-action-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 10px 7px 7px; border-radius: 9px; text-align: left; }
+.sheet-action-item:is(:hover, :focus-visible) { background: var(--sheet-hover); }
+.sheet-action-icon { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); color: var(--accent-text); }
+.sheet-action-text { display: flex; flex-direction: column; min-width: 0; }
+.sheet-action-text strong { font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
+.sheet-action-text small { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
 .sheet-action:disabled { opacity: 0.55; cursor: not-allowed; }
 .sheet-hint { padding: 10px 20px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; color: var(--sheet-muted); }
 .sheet-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px 8px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-select); }
@@ -1105,14 +1117,17 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .um-foot-state.is-saved { color: var(--tone-ok); font-weight: 600; }
 /* The open row in the table. */
 .data-table tbody tr.is-open td { background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
-.data-table tbody tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--accent-text); }
 .data-table tbody tr.is-open .row-open strong { color: var(--accent-text); font-weight: 600; }
 /* Customers and freelancers by their Zugänge (user 9.11.2026): a veil over the row, full on the left half and fading out
    towards the pencil; the open mark lies over it. */
 .data-table tbody tr.is-no-login { --row-veil: var(--veil-none); --row-veil-bar: var(--veil-none-bar); }
 .data-table tbody tr.is-awaiting-login { --row-veil: var(--veil-open); --row-veil-bar: var(--veil-open-bar); }
 .data-table tbody tr:is(.is-no-login, .is-awaiting-login) { background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 50%, transparent 100%); }
-.data-table tbody tr:is(.is-no-login, .is-awaiting-login):not(.is-open) td:first-child { box-shadow: inset 3px 0 0 var(--row-veil-bar); }
+/* The mark on the left of a row: a rounded bar, red or yellow by its Zugänge, in the accent colour while it is open. */
+.data-table tbody tr:is(.is-no-login, .is-awaiting-login) { --row-mark: var(--row-veil-bar); }
+.data-table tbody tr.is-open { --row-mark: var(--accent-text); }
+.data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login) td:first-child { position: relative; }
+.data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login) td:first-child::before { content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 4px; background: var(--row-mark); }
 /* Hover and the open row colour the row under its veil instead of the cells, which would cover it. */
 .data-table tbody tr:is(.is-no-login, .is-awaiting-login):hover td, .data-table tbody tr.is-open:is(.is-no-login, .is-awaiting-login) td { background-color: transparent; }
 .data-table tbody tr:is(.is-no-login, .is-awaiting-login):hover { background-color: var(--sheet-hover); }
@@ -1323,9 +1338,10 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet .data-table :is(.cell-number, .cell-company):has(> .cell-none) { display: none; }
   .sheet .user-table .cell-login::before { content: "Letzter Login: "; }
   .sheet .data-table .cell-logins::before { content: "Zugänge: "; }
-  /* The cells wrap here, so the row itself carries the bar on the left. */
-  .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login) { box-shadow: inset 3px 0 0 var(--row-veil-bar); }
-  .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login) td, .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login):not(.is-open) td:first-child { background-image: none; box-shadow: none; }
+  /* The cells wrap here, so the row itself carries the rounded bar on the left. */
+  .sheet .data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login) { position: relative; }
+  .sheet .data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login) td:first-child::before { content: none; }
+  .sheet .data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login)::before { content: ""; position: absolute; left: 4px; top: 10px; bottom: 10px; width: 4px; border-radius: 4px; background: var(--row-mark); }
   .sheet .ai-log-table .cell-summary { flex-basis: 100%; min-width: 0; }
 }
 

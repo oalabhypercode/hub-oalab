@@ -208,7 +208,8 @@ test("the server action goes the way of „Kunde anlegen“ and never overwrites
 
 test("the dialog sits in the customers' toolbar and checks drafts like the form", async () => {
   const screen = await source("components/hub/screens/users.tsx");
-  assert.match(screen, /if \(tab === "customers"\) return <>\s*<button type="button" className="sheet-action" onClick=\{onImport\}/);
+  // Behind the red gear of the customers' tab (user 9.11.2026).
+  assert.match(screen, /tab === "customers" \? \[[^\]]*\{ icon: Upload, label: "Importieren", hint: "[^"]+", onSelect: onImport \}/);
   assert.match(screen, /dialog\?\.kind === "import" && <CustomerImportDialog customers=\{entries\}/);
   const dialog = await source("components/hub/screens/users-import.tsx");
   assert.match(dialog, /const result = readCustomer\(draft\);\s*return result\.ok \? serviceCustomerRefusal\(result\.value\) : result\.error;/);
