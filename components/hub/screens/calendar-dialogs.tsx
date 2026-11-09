@@ -23,7 +23,7 @@ export function TeamsJoin({ appointment, compact = false }: { appointment: HubAp
   if (!appointment.teamsUrl) return null;
   const label = compact ? "Teams" : "Teams-Meeting beitreten";
   if (appointment.sample) {
-    return <span className={`teams-join is-sample${compact ? " is-compact" : ""}`} title="Beispiel-Link aus der Demo, kein echtes Meeting"><Video size={18} aria-hidden="true" /><span className="teams-join-label">{label}</span>{!compact && <small>Beispiel</small>}</span>;
+    return <span className={`teams-join is-sample${compact ? " is-compact" : ""}`} title="Beispiel-Link aus der Vorschau, kein echtes Meeting"><Video size={18} aria-hidden="true" /><span className="teams-join-label">{label}</span>{!compact && <small>Beispiel</small>}</span>;
   }
   return <a className={`teams-join${compact ? " is-compact" : ""}`} href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer" aria-label={`${appointment.title}: Teams-Meeting beitreten (öffnet Microsoft Teams)`}><Video size={18} aria-hidden="true" /><span className="teams-join-label">{label}</span></a>;
 }
@@ -75,7 +75,7 @@ export function AppointmentDetailDialog({ appointment, store, onClose, onEdit }:
         )}
       </dl>
       {appointment.status === "requested" && !canManage && <p className="t-footnote t-secondary appointment-note">Dein oalab-Team bestätigt die Anfrage oder schlägt eine andere Zeit vor. Erst dann ist der Termin fest.</p>}
-      {appointment.sample && <p className="t-footnote t-secondary appointment-note">Fiktiver Beispieltermin für die Demo.</p>}
+      {appointment.sample && <p className="t-footnote t-secondary appointment-note">Fiktiver Beispieltermin für die Vorschau.</p>}
 
       {closing && (
         <div className="appointment-close">

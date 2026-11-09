@@ -95,10 +95,10 @@ export function customerLoginState(members: readonly MemberLogin[]): { state: Lo
   return { state: members.some((member) => member.invitedAt) ? "invited" : "created", lastSignInAt: null };
 }
 
-export type InvitableLogin = { id: string; demo: boolean; displayStatus: string; invitedAt: string | null };
+export type InvitableLogin = { id: string; displayStatus: string; invitedAt: string | null };
 
-/** Logins an invitation can go to: active, never signed in, no demo login. */
-export const isInvitable = (login: InvitableLogin) => !login.demo && login.displayStatus === "invited";
+/** Logins an invitation can go to: active, never signed in. */
+export const isInvitable = (login: InvitableLogin) => login.displayStatus === "invited";
 
 /** Ticked at the start: the ones never invited; reminders to the others are a choice. */
 export const isFirstInvitation = (login: InvitableLogin) => isInvitable(login) && !login.invitedAt;

@@ -493,8 +493,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   const { person, role, choices } = draft;
   const change = (next: Partial<UserDraft>) => { setSaved(false); setDraft((current) => ({ ...current, ...next })); };
   const set = (key: keyof UserDraft["person"]) => (event: React.ChangeEvent<HTMLInputElement>) => change({ person: { ...person, [key]: event.target.value } });
-  const locked = Boolean(user?.demo);
-  const disabled = busy !== null || locked;
+  const disabled = busy !== null;
   const name = `${person.firstName} ${person.lastName}`.trim();
   const who = { name, email: user?.email ?? person.email.trim() };
   const freelancerLogin = (user?.role ?? role) === "oalab_freelancer";
@@ -539,7 +538,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
     : link?.mail ? <p className={`am-note ${link.mail === "sent" ? "is-ok" : link.mail === "failed" ? "is-bad" : "is-todo"}`}>{link.mail === "sent" ? <MailCheck size={16} aria-hidden="true" /> : <MailX size={16} aria-hidden="true" />}<span>{link.mail === "sent" ? `${link.activation ? "Aktivierungslink" : "Link zum Passwort-Zurücksetzen"} an ${user.email} geschickt.` : mailStatusText(link.mail)}</span></p>
     : null);
   // A login that never signed in waits for its activation: the profile says so on top, with the link at hand.
-  const awaitingActivation = Boolean(user && user.status === "active" && !user.lastSignInAt && !locked);
+  const awaitingActivation = Boolean(user && user.status === "active" && !user.lastSignInAt);
   const activationNotice = awaitingActivation && user && (
     <div className="um-invite" role="group" aria-label="Aktivierung">
       <span className="um-invite-icon"><Send size={16} aria-hidden="true" /></span>
@@ -569,7 +568,6 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
 
   const form = (
     <form ref={formRef} className="um-form" onSubmit={(event) => { event.preventDefault(); if (!user || dirty) save(); }}>
-      {locked && <p className="am-note is-todo um-lead"><AlertTriangle size={16} aria-hidden="true" /><span>Demo-Zugang: wird per Seed verwaltet und ist hier schreibgeschützt.</span></p>}
       {activationNotice}
       {entryLead}
       <PanelSection title="Person">
@@ -598,74 +596,72 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   const access = user && (
     <PanelSection title="Anmeldung und Sicherheit" info={info.button} meta="wirkt sofort">
       {info.box}
-      {locked ? <p className="am-help">Demo-Zugänge verwaltet der Seed; hier lässt sich nichts ändern.</p> : (
-        <RowList>
-          <Row lead={<RowIcon icon={LogIn} />} title="Letzte Anmeldung" text={user.lastSignInAt ? formatFileDateTime(user.lastSignInAt) : "Noch nie angemeldet"} />
-          <Row lead={<RowIcon icon={ShieldCheck} />} title="Zwei-Faktor-Schutz" text={freelancerLogin
-            ? "Für Freelancer immer an: Ohne bestätigten Code zeigt der Hub ihnen keine Kundendaten."
-            : secondFactor === "totp" ? "Die Person nutzt eine Authenticator-App. Stellst du um, wird sie entfernt, etwa nach einem verlorenen Handy."
-            : "Die Person wählt die Methode im Profil selbst. Der Code per E-Mail gilt auch auf der Serviceplattform."}>
-            <span className="am-mini">
-              {busy === "secondFactor" ? <MiniLoader size={14} /> : <Shield size={14} aria-hidden="true" />}
-              <select value={secondFactor} disabled={busy !== null} aria-label="Zwei-Faktor-Schutz" onChange={(event) => {
-                const choice = event.target.value === "email" ? "email" : "off";
-                run("secondFactor", () => setHubUserSecondFactor({ userId: user.id, choice }), () => { setSecondFactor(choice); onNotice(choice === "email" ? `${fullName(user)} bestätigt jede Anmeldung jetzt mit einem Code per E-Mail.` : `Zwei-Faktor-Schutz für ${fullName(user)} ausgeschaltet.`); });
-              }}>
-                {!freelancerLogin && <option value="off">Aus</option>}
-                <option value="email">Code per E-Mail</option>
-                {secondFactor === "totp" && <option value="totp" disabled>Authenticator-App</option>}
-              </select>
-              <ChevronDown size={14} aria-hidden="true" />
-            </span>
+      <RowList>
+        <Row lead={<RowIcon icon={LogIn} />} title="Letzte Anmeldung" text={user.lastSignInAt ? formatFileDateTime(user.lastSignInAt) : "Noch nie angemeldet"} />
+        <Row lead={<RowIcon icon={ShieldCheck} />} title="Zwei-Faktor-Schutz" text={freelancerLogin
+          ? "Für Freelancer immer an: Ohne bestätigten Code zeigt der Hub ihnen keine Kundendaten."
+          : secondFactor === "totp" ? "Die Person nutzt eine Authenticator-App. Stellst du um, wird sie entfernt, etwa nach einem verlorenen Handy."
+          : "Die Person wählt die Methode im Profil selbst. Der Code per E-Mail gilt auch auf der Serviceplattform."}>
+          <span className="am-mini">
+            {busy === "secondFactor" ? <MiniLoader size={14} /> : <Shield size={14} aria-hidden="true" />}
+            <select value={secondFactor} disabled={busy !== null} aria-label="Zwei-Faktor-Schutz" onChange={(event) => {
+              const choice = event.target.value === "email" ? "email" : "off";
+              run("secondFactor", () => setHubUserSecondFactor({ userId: user.id, choice }), () => { setSecondFactor(choice); onNotice(choice === "email" ? `${fullName(user)} bestätigt jede Anmeldung jetzt mit einem Code per E-Mail.` : `Zwei-Faktor-Schutz für ${fullName(user)} ausgeschaltet.`); });
+            }}>
+              {!freelancerLogin && <option value="off">Aus</option>}
+              <option value="email">Code per E-Mail</option>
+              {secondFactor === "totp" && <option value="totp" disabled>Authenticator-App</option>}
+            </select>
+            <ChevronDown size={14} aria-hidden="true" />
+          </span>
+        </Row>
+        {user.status === "active" && (
+          <Row lead={<RowIcon icon={KeyRound} />} title={user.lastSignInAt ? "Passwort-Link" : "Aktivierungslink"} text="Gilt einmal und läuft ab."
+            below={linkOutcome}>
+            <button type="button" className="sheet-action is-quiet" disabled={busy !== null} onClick={() => sendLink("copy")}>{busy === "link" ? <Spinner /> : <KeyRound size={14} aria-hidden="true" />}Link erzeugen</button>
+            {mailConfigured && <button type="button" className="sheet-action" disabled={busy !== null} onClick={() => sendLink("mail")}>{busy === "mail" ? <Spinner /> : <Send size={14} aria-hidden="true" />}Per E-Mail</button>}
           </Row>
-          {user.status === "active" && (
-            <Row lead={<RowIcon icon={KeyRound} />} title={user.lastSignInAt ? "Passwort-Link" : "Aktivierungslink"} text="Gilt einmal und läuft ab."
-              below={linkOutcome}>
-              <button type="button" className="sheet-action is-quiet" disabled={busy !== null} onClick={() => sendLink("copy")}>{busy === "link" ? <Spinner /> : <KeyRound size={14} aria-hidden="true" />}Link erzeugen</button>
-              {mailConfigured && <button type="button" className="sheet-action" disabled={busy !== null} onClick={() => sendLink("mail")}>{busy === "mail" ? <Spinner /> : <Send size={14} aria-hidden="true" />}Per E-Mail</button>}
-            </Row>
-          )}
-          {!user.self && user.status === "active" && (
-            <Row lead={<RowIcon icon={Ban} />} title="Deaktivieren" text="Sperrt Anmeldung und Datenzugriff sofort, jederzeit umkehrbar."
-              below={confirming === "deactivate" && (
-                <div className="um-stack">
-                  <p className="am-help">Die Person kann sich nicht mehr anmelden und sieht sofort keine Daten mehr. Du kannst den Zugang jederzeit wieder aktivieren.</p>
-                  <div className="um-actions">
-                    <button type="button" className="sheet-action is-quiet" onClick={() => setConfirming(null)} disabled={busy !== null}>Abbrechen</button>
-                    <button type="button" className="sheet-action is-danger" disabled={busy !== null} onClick={() => run("status", () => setHubUserActive({ userId: user.id, active: false }), () => { setConfirming(null); onNotice(`${fullName(user)} ist deaktiviert.`); })}>{busy === "status" ? <Spinner /> : <Ban size={14} aria-hidden="true" />}Jetzt deaktivieren</button>
-                  </div>
+        )}
+        {!user.self && user.status === "active" && (
+          <Row lead={<RowIcon icon={Ban} />} title="Deaktivieren" text="Sperrt Anmeldung und Datenzugriff sofort, jederzeit umkehrbar."
+            below={confirming === "deactivate" && (
+              <div className="um-stack">
+                <p className="am-help">Die Person kann sich nicht mehr anmelden und sieht sofort keine Daten mehr. Du kannst den Zugang jederzeit wieder aktivieren.</p>
+                <div className="um-actions">
+                  <button type="button" className="sheet-action is-quiet" onClick={() => setConfirming(null)} disabled={busy !== null}>Abbrechen</button>
+                  <button type="button" className="sheet-action is-danger" disabled={busy !== null} onClick={() => run("status", () => setHubUserActive({ userId: user.id, active: false }), () => { setConfirming(null); onNotice(`${fullName(user)} ist deaktiviert.`); })}>{busy === "status" ? <Spinner /> : <Ban size={14} aria-hidden="true" />}Jetzt deaktivieren</button>
                 </div>
-              )}>
-              {confirming !== "deactivate" && <button type="button" className="sheet-action is-quiet" onClick={() => setConfirming("deactivate")} disabled={busy !== null}>Deaktivieren</button>}
-            </Row>
-          )}
-          {!user.self && user.status === "disabled" && (
-            <Row lead={<RowIcon icon={RotateCcw} />} title="Wieder aktivieren" text="Die Person kann sich sofort wieder anmelden.">
-              <button type="button" className="sheet-action is-quiet" disabled={busy !== null} onClick={() => run("status", () => setHubUserActive({ userId: user.id, active: true }), () => onNotice(`${fullName(user)} ist wieder aktiv.`))}>{busy === "status" ? <Spinner /> : <RotateCcw size={14} aria-hidden="true" />}Aktivieren</button>
-            </Row>
-          )}
-          {!user.self && user.status === "rejected" && (
-            <Row lead={<RowIcon icon={ShieldCheck} />} title="Registrierung abgelehnt" text={user.decisionNote ? `„${user.decisionNote}“` : "Du kannst sie trotzdem freigeben."}>
-              <button type="button" className="sheet-action is-quiet" onClick={() => onReview(user.id)}>Doch freigeben</button>
-            </Row>
-          )}
-          {!user.self && (
-            <Row danger lead={<RowIcon icon={Trash2} />} title="Zugang löschen" text="Login, Profil und Kundenzuordnung, nicht umkehrbar."
-              below={confirming === "delete" && (
-                <div className="um-stack">
-                  <label className="um-field"><span className="am-label">Zum endgültigen Löschen die E-Mail-Adresse eintragen</span><input className="am-input" type="email" value={confirmEmail} onChange={(event) => setConfirmEmail(event.target.value)} placeholder={user.email} autoComplete="off" disabled={busy !== null} /></label>
-                  <p className="am-help">Gelöscht werden Login, Profil und Kundenzuordnung. Dateien und Termine des Kunden bleiben erhalten.</p>
-                  <div className="um-actions">
-                    <button type="button" className="sheet-action is-quiet" onClick={() => { setConfirming(null); setConfirmEmail(""); }} disabled={busy !== null}>Abbrechen</button>
-                    <button type="button" className="sheet-action is-danger" disabled={busy !== null || confirmEmail.trim().toLowerCase() !== user.email.toLowerCase()} onClick={() => run("delete", () => deleteHubUser({ userId: user.id, confirmEmail }), () => { onNotice(`Zugang von ${fullName(user)} gelöscht.`); onClose(true); })}>{busy === "delete" ? <Spinner /> : <Trash2 size={14} aria-hidden="true" />}Endgültig löschen</button>
-                  </div>
+              </div>
+            )}>
+            {confirming !== "deactivate" && <button type="button" className="sheet-action is-quiet" onClick={() => setConfirming("deactivate")} disabled={busy !== null}>Deaktivieren</button>}
+          </Row>
+        )}
+        {!user.self && user.status === "disabled" && (
+          <Row lead={<RowIcon icon={RotateCcw} />} title="Wieder aktivieren" text="Die Person kann sich sofort wieder anmelden.">
+            <button type="button" className="sheet-action is-quiet" disabled={busy !== null} onClick={() => run("status", () => setHubUserActive({ userId: user.id, active: true }), () => onNotice(`${fullName(user)} ist wieder aktiv.`))}>{busy === "status" ? <Spinner /> : <RotateCcw size={14} aria-hidden="true" />}Aktivieren</button>
+          </Row>
+        )}
+        {!user.self && user.status === "rejected" && (
+          <Row lead={<RowIcon icon={ShieldCheck} />} title="Registrierung abgelehnt" text={user.decisionNote ? `„${user.decisionNote}“` : "Du kannst sie trotzdem freigeben."}>
+            <button type="button" className="sheet-action is-quiet" onClick={() => onReview(user.id)}>Doch freigeben</button>
+          </Row>
+        )}
+        {!user.self && (
+          <Row danger lead={<RowIcon icon={Trash2} />} title="Zugang löschen" text="Login, Profil und Kundenzuordnung, nicht umkehrbar."
+            below={confirming === "delete" && (
+              <div className="um-stack">
+                <label className="um-field"><span className="am-label">Zum endgültigen Löschen die E-Mail-Adresse eintragen</span><input className="am-input" type="email" value={confirmEmail} onChange={(event) => setConfirmEmail(event.target.value)} placeholder={user.email} autoComplete="off" disabled={busy !== null} /></label>
+                <p className="am-help">Gelöscht werden Login, Profil und Kundenzuordnung. Dateien und Termine des Kunden bleiben erhalten.</p>
+                <div className="um-actions">
+                  <button type="button" className="sheet-action is-quiet" onClick={() => { setConfirming(null); setConfirmEmail(""); }} disabled={busy !== null}>Abbrechen</button>
+                  <button type="button" className="sheet-action is-danger" disabled={busy !== null || confirmEmail.trim().toLowerCase() !== user.email.toLowerCase()} onClick={() => run("delete", () => deleteHubUser({ userId: user.id, confirmEmail }), () => { onNotice(`Zugang von ${fullName(user)} gelöscht.`); onClose(true); })}>{busy === "delete" ? <Spinner /> : <Trash2 size={14} aria-hidden="true" />}Endgültig löschen</button>
                 </div>
-              )}>
-              {confirming !== "delete" && <button type="button" className="sheet-action is-danger" onClick={() => setConfirming("delete")} disabled={busy !== null}>Löschen …</button>}
-            </Row>
-          )}
-        </RowList>
-      )}
+              </div>
+            )}>
+            {confirming !== "delete" && <button type="button" className="sheet-action is-danger" onClick={() => setConfirming("delete")} disabled={busy !== null}>Löschen …</button>}
+          </Row>
+        )}
+      </RowList>
       {error && <p className="form-error" role="alert">{error}</p>}
     </PanelSection>
   );
@@ -673,7 +669,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   const footer = <>
     {user ? <SaveStatus state={dirty ? "dirty" : saved ? "saved" : "clean"} /> : <span className="um-foot-state" />}
     <button type="button" className="sheet-action is-quiet" onClick={() => onClose(true)} disabled={busy === "save"}>{entryCreated && !user ? "Später" : "Abbrechen"}</button>
-    {!locked && <button type="button" className="sheet-action is-primary" onClick={submit} disabled={busy !== null || (Boolean(user) && !dirty)}>{busy === "save" ? <Spinner /> : user ? <Check size={15} aria-hidden="true" /> : <UserPlus size={15} aria-hidden="true" />}{user ? "Speichern" : "Zugang anlegen"}</button>}
+    <button type="button" className="sheet-action is-primary" onClick={submit} disabled={busy !== null || (Boolean(user) && !dirty)}>{busy === "save" ? <Spinner /> : user ? <Check size={15} aria-hidden="true" /> : <UserPlus size={15} aria-hidden="true" />}{user ? "Speichern" : "Zugang anlegen"}</button>
   </>;
 
   return (

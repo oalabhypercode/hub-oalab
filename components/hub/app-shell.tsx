@@ -7,7 +7,7 @@ import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, LogOut, MessageCircl
 import { MiniLoader } from "@/components/brand-loader";
 import { signOutAction } from "@/lib/hub-auth/actions";
 import { categories } from "@/lib/categories";
-import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubDemoData, type HubSection, type Project } from "@/lib/hub-data";
+import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { AppearanceProvider } from "./appearance-provider";
@@ -32,7 +32,7 @@ function readStored<T>(read: () => T, fallback: T): T {
   try { return read(); } catch { return fallback; }
 }
 
-export function AppShell({ children, preview = false, pending = false, email = "", userId, demoData, publicDemo = false, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null, unreadConversations, fileCount, accountLogo = null }: {
+export function AppShell({ children, preview = false, pending = false, email = "", userId, hubAccount = null, pendingRegistrations = 0, liveProjects, inbox = null, unreadConversations, fileCount, accountLogo = null }: {
   children: React.ReactNode;
   /** The signed-in login; keys the chat stored in this browser. */
   userId?: string;
@@ -40,15 +40,13 @@ export function AppShell({ children, preview = false, pending = false, email = "
   /** Loading fallback while the login is checked: navigation and page title at once, the account still blank. */
   pending?: boolean;
   email?: string;
-  demoData?: HubDemoData;
-  publicDemo?: boolean;
-  /** Real logins: profile and customer from the user management (demo logins keep their fixtures). */
+  /** Logins: profile and customer from the user management (the preview keeps its fixtures). */
   hubAccount?: HubAccountData | null;
   /** Admins: registrations waiting for approval, shown next to "User Management". */
   pendingRegistrations?: number;
   /** Real logins: their Studio projects, for the sidebar count and the search. */
   liveProjects?: Project[];
-  /** Real logins: the notices behind the bell (null before the migration or for demo logins). */
+  /** Real logins: the notices behind the bell (null before the migration). */
   inbox?: InboxState | null;
   /** Real logins: conversations with something new from oalab (Nachrichten); the examples count their own. */
   unreadConversations?: number;
@@ -66,7 +64,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const [logoutError, setLogoutError] = useState("");
   // The chat of a real login lives in this browser until "Neu starten" or signing out (lib/hub-assistant/chat-storage.ts).
   // The panel is closed on the first render, so reading the browser here never changes the server-rendered page.
-  const chatStore = !preview && !publicDemo && userId ? chatKey(userId) : null;
+  const chatStore = !preview && userId ? chatKey(userId) : null;
   const [assistantTurns, setAssistantTurns] = useState<ChatTurn[]>(() => chatStore && typeof window !== "undefined" ? readStored(() => parseChat<ChatTurn>(localStorage.getItem(chatStore)), []) : []);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantMode, setAssistantMode] = useState<AssistantMode>(() => typeof window !== "undefined" && readStored(() => localStorage.getItem(MODE_KEY), null) === "dock" ? "dock" : "window");
@@ -75,31 +73,28 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const [assistantQuestion, setAssistantQuestion] = useState<{ text: string; key: number } | null>(null);
   const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
   const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
-  // Real logins take their name, company and packages from the user management; demo logins keep the fixtures.
-  const live = !preview && !demoData ? hubAccount : null;
+  // Logins take their name, company and packages from the user management; the preview keeps its fixtures.
+  const live = !preview ? hubAccount : null;
   const liveCustomer = live?.customers[0] ?? null;
-  const name = preview ? previewAccount.name : pending ? "" : demoData?.name || accountDisplayName(live, liveCustomer?.company, email);
-  const projects = preview ? previewProjects : demoData?.projects || liveProjects || [];
-  const files = preview ? previewFiles : demoData?.files || [];
-  const hasDemo = preview || Boolean(demoData);
-  // The first line of the account menu: real logins see their e-mail; demo accounts carry no banner, so the role and the
-  // kind of demo stay visible there.
-  const accountLabel = preview ? "Designvorschau" : demoData ? `${demoData.role === "oalab_admin" ? "oalab-Admin" : "Kunde"} · ${publicDemo ? "Öffentliche Demo" : "Demo"}` : email || "Angemeldet";
+  const name = preview ? previewAccount.name : pending ? "" : accountDisplayName(live, liveCustomer?.company, email);
+  const projects = preview ? previewProjects : liveProjects || [];
+  // The first line of the account menu: logins see their e-mail, the preview says what it is.
+  const accountLabel = preview ? "Designvorschau" : email || "Angemeldet";
   const words = name.trim().split(/\s+/).filter(Boolean);
   const initials = preview ? previewAccount.initials : (words.length > 1 ? words[0][0] + words[words.length - 1][0] : name.slice(0, 2)).toUpperCase();
   const account: HubAccount = {
     name,
-    firstName: (preview ? previewAccount.name.split(" ")[0] : pending ? "" : demoData ? demoData.name.split(" ")[0] : live?.firstName.trim()) ?? "",
-    company: preview ? previewAccount.company : demoData?.company ?? liveCustomer?.company ?? null,
-    customerNumber: preview ? previewAccount.customerNumber : demoData?.customerNumber ?? liveCustomer?.customerNumber ?? null,
-    packages: preview ? previewAccount.packages : demoData?.packages ?? liveCustomer?.packages ?? [],
-    admin: demoData ? demoData.role === "oalab_admin" : live?.role === "oalab_admin",
-    freelancer: !demoData && live?.role === "oalab_freelancer",
+    firstName: (preview ? previewAccount.name.split(" ")[0] : pending ? "" : live?.firstName.trim()) ?? "",
+    company: preview ? previewAccount.company : liveCustomer?.company ?? null,
+    customerNumber: preview ? previewAccount.customerNumber : liveCustomer?.customerNumber ?? null,
+    packages: preview ? previewAccount.packages : liveCustomer?.packages ?? [],
+    admin: live?.role === "oalab_admin",
+    freelancer: live?.role === "oalab_freelancer",
     customers: new Set(projects.map((project) => project.company).filter(Boolean)).size,
     person: live ? { phone: live.phone, position: live.position } : null,
     customerDetails: liveCustomer ? { street: liveCustomer.street, postalCode: liveCustomer.postalCode, city: liveCustomer.city, country: liveCustomer.country, website: liveCustomer.website, phone: liveCustomer.phone, contactEmail: liveCustomer.contactEmail } : null,
   };
-  const counts = { projects: projects.length, files: hasDemo ? files.length : fileCount ?? 0, messages: unreadConversations ?? (hasDemo ? 1 : 0) };
+  const counts = { projects: projects.length, files: preview ? previewFiles.length : fileCount ?? 0, messages: unreadConversations ?? (preview ? 1 : 0) };
   // Only a real customer login shows its company's logo; admins keep their initials.
   const logo = live && !account.admin ? accountLogo : null;
 
@@ -138,14 +133,9 @@ export function AppShell({ children, preview = false, pending = false, email = "
     setSigningOut(true);
     setLogoutError("");
     try {
-      if (publicDemo) {
-        const response = await fetch("/auth/demo/logout", { method: "POST" });
-        if (!response.ok) throw new Error("Demo logout failed");
-      } else {
-        // On the server: the shared session cookie is HTTP-only, and this signs out of Service OALab too.
-        const result = await signOutAction();
-        if (!result.ok) throw new Error(result.error);
-      }
+      // On the server: the shared session cookie is HTTP-only, and this signs out of Service OALab too.
+      const result = await signOutAction();
+      if (!result.ok) throw new Error(result.error);
       // Signing out ends the stored chat of this login.
       if (chatStore) readStored(() => localStorage.removeItem(chatStore), undefined);
       // Cross the auth boundary with a fresh document, not preserved Activity state.
@@ -158,12 +148,12 @@ export function AppShell({ children, preview = false, pending = false, email = "
 
   const term = query.trim().toLowerCase();
   const closeSearch = () => { setPanel(null); setQuery(""); };
-  // The user management needs a real admin session; the preview and the public demo never show it.
-  const manageUsers = account.admin && !preview && !publicDemo;
+  // The user management needs an admin session; the preview never shows it.
+  const manageUsers = account.admin && !preview;
   const signOutLabel = preview ? "Vorschau verlassen" : "Abmelden";
   const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin || account.freelancer).toLowerCase().includes(term));
-  const metricResults = hasDemo ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
-  const projectResults = hasDemo || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
+  const metricResults = preview ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
+  const projectResults = preview || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
   const assistantDocked = assistantOpen && assistantMode === "dock";
   const shell: ShellContextValue = {
     preview, pending, initials, logo, account, manageUsers,
@@ -171,7 +161,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
     askAboutProject: (project) => { setAssistantProject(project); setAssistantOpen(true); },
     askAssistant: (question) => { setAssistantQuestion((current) => ({ text: question, key: (current?.key ?? 0) + 1 })); setAssistantOpen(true); },
     assistantDocked: assistantMode === "dock",
-    unread: hasDemo ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError,
+    unread: preview ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError,
   };
   const changeAssistantMode = (mode: AssistantMode) => {
     setAssistantMode(mode);
@@ -213,7 +203,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
         )}
         {panel === "notifications" && (
           <Modal title="Benachrichtigungen" onClose={() => setPanel(null)}>
-            {hasDemo ? <>
+            {preview ? <>
               <div className="notification-item"><span className="notification-symbol"><MessageSquare size={19} color={categories.messages.fill} aria-hidden="true" /></span><div><strong>Deine Meinung ist gefragt.</strong><p>Die erste Brand Direction ist bereit für dein Feedback.</p><span>Beispiel · 14. Oktober 2026</span><Link className="text-link" href={hubHref(preview, "messages")} onClick={() => setPanel(null)}>Nachricht ansehen <ArrowUpRight size={15} aria-hidden="true" /></Link></div></div>
               <button className="sheet-button" onClick={() => setRead(true)}><Check size={17} aria-hidden="true" />{read ? "Alle als gelesen markiert" : "Alle als gelesen markieren"}</button>
             </> : inbox ? <NotificationsPanel items={inbox.items} admin={account.admin} onClose={() => setPanel(null)} />
@@ -221,7 +211,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
           </Modal>
         )}
         {assistantOpen && (
-          <AssistantPanel turns={assistantTurns} setTurns={setAssistantTurns} admin={account.admin} available={!preview && !publicDemo}
+          <AssistantPanel turns={assistantTurns} setTurns={setAssistantTurns} admin={account.admin} available={!preview}
             mode={assistantMode} onModeChange={changeAssistantMode}
             project={assistantProject} onClearProject={() => setAssistantProject(null)} question={assistantQuestion}
             onClose={() => setAssistantOpen(false)} />

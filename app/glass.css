@@ -1685,7 +1685,7 @@ a.teams-join:active { transform: scale(0.97); }
 .proposal-field select:disabled { opacity: 0.6; }
 .proposal-pick-sub { margin: 8px 0 0 26px; font-weight: 400; }
 
-/* Notes on the page: icon and text side by side, the tone's bar on the left (demo hints use "info"). */
+/* Notes on the page: icon and text side by side, the tone's bar on the left (example hints use "info"). */
 .file-demo-note { display: flex; align-items: flex-start; gap: 12px; box-shadow: inset 3px 0 0 var(--tone-info-bar), var(--glass-shadow); }
 .file-demo-note > svg { flex: 0 0 auto; margin-top: 1px; }
 /* Empty states: title, text and an optional link stacked with even gaps. */

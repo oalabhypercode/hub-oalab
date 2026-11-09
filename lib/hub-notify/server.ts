@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { mailSettings, sendMail } from "@/lib/hub-mail/send";
 import { noticeDigestMail } from "@/lib/hub-mail/templates";
 import { calendarLinks, calendarLinkSecret } from "@/lib/hub-calendar/links";
-import { isDemoUser, listAllUsers, roleOf } from "@/lib/hub-users/server";
+import { listAllUsers, roleOf } from "@/lib/hub-users/server";
 import { sendTelegram } from "@/lib/hub-telegram/server";
 import { telegramChatMessage } from "@/lib/hub-telegram/rules";
 import {
@@ -74,9 +74,9 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
   }
 }
 
-/** Admins who can sign in and act: the admin role and an active profile; the demo logins stay out. */
+/** Admins who can sign in and act: the admin role and an active profile. */
 async function activeAdminLogins(db: SupabaseClient) {
-  const admins = (await listAllUsers(db)).filter((user) => roleOf(user) === "oalab_admin" && !isDemoUser(user)).map((user) => user.id);
+  const admins = (await listAllUsers(db)).filter((user) => roleOf(user) === "oalab_admin").map((user) => user.id);
   if (!admins.length) return [];
   const active = await db.from("hub_profiles").select("user_id").in("user_id", admins).eq("status", "active").returns<{ user_id: string }[]>();
   return (active.data ?? []).map((row) => row.user_id);

@@ -261,7 +261,7 @@ function AccountDetailsCard() {
   );
 }
 
-export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { email: string; publicDemo: boolean }) {
+export function ProfileScreen({ preview, email }: ScreenProps & { email: string }) {
   const { openPanel, signOut, signingOut, logoutError, account } = useHubShell();
   return (
     <>
@@ -272,16 +272,16 @@ export function ProfileScreen({ preview, email, publicDemo }: ScreenProps & { em
           <h2 className="t-headline settings-card-title"><KeyRound size={20} color="var(--accent-text)" aria-hidden="true" />Dein Konto</h2>
           <label className="settings-label" htmlFor="account-email">E-Mail-Adresse</label>
           <input id="account-email" className="account-input" readOnly value={preview ? previewAccount.email : email} />
-          <p className="t-footnote t-secondary">{preview ? "Fiktives Beispielkonto für die Designvorschau." : publicDemo ? "Fiktive Testidentität. Diese Adresse gehört zu keinem persönlichen Konto." : "Die E-Mail-Adresse deines angemeldeten Kontos."}</p>
-          {!publicDemo && <Link className="text-link" href="/auth/forgot-password">Passwort zurücksetzen</Link>}
+          <p className="t-footnote t-secondary">{preview ? "Fiktives Beispielkonto für die Designvorschau." : "Die E-Mail-Adresse deines angemeldeten Kontos."}</p>
+          <Link className="text-link" href="/auth/forgot-password">Passwort zurücksetzen</Link>
         </GlassCard>
-        {!preview && !publicDemo ? <SecondFactorCard /> : <GlassCard className="settings-card">
-          <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--accent-text)" aria-hidden="true" />{preview ? "Du siehst die Vorschau." : publicDemo ? "Du testest die öffentliche Demo." : "Dein Zugang ist geschützt."}</h2>
-          <p className="t-subheadline t-secondary">{preview ? "Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen." : publicDemo ? "Alle Besucher können diese Testansicht öffnen. Sie enthält nur Beispieldaten und keine echte Supabase-Sitzung. Bitte keine persönlichen Daten eingeben." : account.admin ? "Dein Workspace ist nur nach Anmeldung erreichbar. Als Admin verwaltest du Konten und Kunden im User Management." : "Dein Workspace ist nur nach Anmeldung erreichbar und zeigt ausschließlich die Daten deines Unternehmens."}</p>
-          {preview && <Link className="text-link" href="/auth/login">Zur Anmeldung</Link>}
+        {!preview ? <SecondFactorCard /> : <GlassCard className="settings-card">
+          <h2 className="t-headline settings-card-title"><ShieldCheck size={20} color="var(--accent-text)" aria-hidden="true" />Du siehst die Vorschau.</h2>
+          <p className="t-subheadline t-secondary">Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen.</p>
+          <Link className="text-link" href="/auth/login">Zur Anmeldung</Link>
         </GlassCard>}
-        {!preview && !publicDemo && <NotificationSettingsCard admin={account.admin} />}
-        {!preview && !publicDemo && <WhatsAppCard />}
+        {!preview && <NotificationSettingsCard admin={account.admin} />}
+        {!preview && <WhatsAppCard />}
       </div>
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">

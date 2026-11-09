@@ -13,8 +13,8 @@ import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { cleanEmail, cleanLine, cleanPhone, cleanWebsite, normalizeCompany, readPerson } from "@/lib/hub-users/rules";
 
-// The hub assistant: answers questions about the platform with Claude. Only signed-in Supabase users reach it (public
-// demo and preview never do). Customers get help only; verified admins with a confirmed second factor may also let it
+// The hub assistant: answers questions about the platform with Claude. Only signed-in users reach it (the preview
+// never does). Customers get help only; verified admins with a confirmed second factor may also let it
 // read customers, projects and tasks, and propose new tasks, changes and customers. Nothing here writes to Studio or
 // Service: a proposal is only stored for the admin to confirm in the chat (lib/hub-assistant/actions.ts).
 // The answer streams back as one JSON object per line: {"t":"text"|"tool"|"proposal"|"error","v":"…"}.

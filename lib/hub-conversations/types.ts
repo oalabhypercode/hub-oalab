@@ -35,7 +35,7 @@ export interface ConversationThread {
 }
 
 export interface ConversationsState {
-  /** Real admin logins read the service platform; the demo logins show examples. */
+  /** Admin logins read the service platform; the preview shows examples. */
   readonly source: "service" | "fixtures";
   readonly conversations: readonly ConversationSummary[];
   readonly error: string | null;

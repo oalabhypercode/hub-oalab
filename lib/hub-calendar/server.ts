@@ -72,8 +72,3 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
     })),
   };
 }
-
-/** Real calendar for a signed-in Supabase user; public demo identities keep their fixtures. */
-export async function loadCalendarForIdentity(identity: { publicDemo: boolean }, today: string) {
-  return identity.publicDemo ? undefined : loadHubCalendar(today);
-}

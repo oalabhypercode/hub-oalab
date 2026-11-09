@@ -83,11 +83,10 @@ test("how far a customer is, and who gets an invitation", () => {
   assert.deepEqual(customerLoginState([{ lastSignInAt: null, invitedAt: "2026-11-11T08:00:00Z" }]), { state: "invited", lastSignInAt: null });
   assert.deepEqual(customerLoginState([{ lastSignInAt: "2026-11-12T08:00:00Z", invitedAt: null }, { lastSignInAt: "2026-11-13T09:00:00Z", invitedAt: null }]), { state: "active", lastSignInAt: "2026-11-13T09:00:00Z" });
   assert.deepEqual(Object.values(loginStateLabels), ["kein Zugang", "Zugang angelegt", "eingeladen", "aktiv"]);
-  assert.ok(isInvitable({ id: "a", demo: false, displayStatus: "invited", invitedAt: null }));
-  assert.ok(!isInvitable({ id: "b", demo: true, displayStatus: "invited", invitedAt: null }), "never the demo logins");
-  assert.ok(!isInvitable({ id: "c", demo: false, displayStatus: "active", invitedAt: null }), "never someone who signed in");
-  assert.ok(isFirstInvitation({ id: "a", demo: false, displayStatus: "invited", invitedAt: null }));
-  assert.ok(!isFirstInvitation({ id: "d", demo: false, displayStatus: "invited", invitedAt: "2026-11-11T08:00:00Z" }), "a reminder is ticked on purpose");
+  assert.ok(isInvitable({ id: "a", displayStatus: "invited", invitedAt: null }));
+  assert.ok(!isInvitable({ id: "c", displayStatus: "active", invitedAt: null }), "never someone who signed in");
+  assert.ok(isFirstInvitation({ id: "a", displayStatus: "invited", invitedAt: null }));
+  assert.ok(!isFirstInvitation({ id: "d", displayStatus: "invited", invitedAt: "2026-11-11T08:00:00Z" }), "a reminder is ticked on purpose");
   assert.equal(LOGIN_BATCH, 10);
   assert.equal(INVITE_BATCH, 10);
 });
@@ -124,7 +123,7 @@ test("the platform and the actions use these rules", async () => {
   assert.match(invite, /if \(!mailSettings\(\)\.configured\) return failed\(/, "nothing starts without a mail server");
   assert.match(invite, /ids\.length > INVITE_BATCH/);
   assert.match(invite, /if \(user\.last_sign_in_at\) \{ results\.push\(\{ userId, outcome: "skipped"/, "only logins that never signed in");
-  assert.match(invite, /isDemoUser\(user\)/);
+  assert.doesNotMatch(invite, /isDemoUser|demo/i, "the demo logins are gone (9.11.2026)");
   assert.match(invite, /mailPasswordLink\(ctx\.db, user, \{ firstName: await firstNameOf\(ctx, user\.id\), link, activation: true, validUntil: activationUntil\(\) \}\)/);
 
   // „Zugang anlegen“ and „Zugänge anlegen“ share the steps of a new login.

@@ -26,7 +26,7 @@ export const adminSectionLabels: Partial<Record<HubSection, string>> = { files: 
 
 export const sectionLabel = (section: HubSection, admin: boolean) => (admin && adminSectionLabels[section]) || sectionLabels[section];
 
-/** Fictional reference day of all fixtures; dates in the demo history are relative to it. */
+/** Fictional reference day of all fixtures; dates in the example history are relative to it. */
 export const DEMO_AS_OF = "2026-10-15";
 
 /** `description` says what the milestone delivers; the projects table shows it for the current milestone. */
@@ -79,18 +79,6 @@ export type Project = {
   progressBasis?: "tasks" | "requests" | "none";
   /** Studio projects: open and finished requests (Anfragen) on the service platform. */
   requests?: { open: number; done: number };
-};
-
-export type HubDemoData = {
-  name: string;
-  company: string;
-  /** Fictional fixture value; null for the OALAB admin, who represents no customer. */
-  customerNumber: string | null;
-  /** The packages (fictional fixtures); empty for the OALAB admin. */
-  packages: PackageId[];
-  role: "oalab_admin" | "oalab_customer";
-  projects: Project[];
-  files: HubStoredFile[];
 };
 
 /** Account shown in the explicitly labelled /preview routes (fictional). */
@@ -160,7 +148,7 @@ const sampleFileSizes: Record<string, { contract: number; logo: number }> = {
   horizont: { contract: 1094, logo: 610 },
 };
 
-/** The fictional example files ("Servicevertrag", "Logo-Datei") of one demo customer, downloadable as static samples. */
+/** The fictional example files ("Servicevertrag", "Logo-Datei") of one example customer, downloadable as static samples. */
 export function sampleFileFixtures(slug: keyof typeof sampleFileSizes, company: string, customerNumber: string, packageName: string): HubStoredFile[] {
   const customers = [{ id: customerNumber, customerNumber, company }];
   return [
@@ -180,7 +168,7 @@ export function sampleFileFixtures(slug: keyof typeof sampleFileSizes, company: 
   ];
 }
 
-/** Example folders of the demo customers: "Verträge" holds the sample contract, "Briefings" is still empty. */
+/** Example folders of the example customers: "Verträge" holds the sample contract, "Briefings" is still empty. */
 export function sampleFolders(customers: HubFileCustomer[]): HubFolder[] {
   return customers.flatMap((customer) => [
     { id: `${customer.id}-briefings`, customerId: customer.id, name: "Briefings" },

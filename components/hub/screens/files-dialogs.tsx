@@ -60,7 +60,7 @@ export function FileDetailDialog({ file, customers, folders, canManage, onClose,
         {file.sha256 && <div className="file-details-block"><dt>Prüfsumme (SHA-256)</dt><dd className="file-checksum">{file.sha256}</dd></div>}
       </dl>
       {file.sha256 && <p className="t-footnote t-secondary file-detail-note">Der Download liefert genau diese Fassung. Die Prüfsumme wurde beim Upload berechnet.</p>}
-      {file.sampleHref && <p className="t-footnote t-secondary file-detail-note">Fiktive Beispieldatei für die Demo.</p>}
+      {file.sampleHref && <p className="t-footnote t-secondary file-detail-note">Fiktive Beispieldatei für die Vorschau.</p>}
       {canManage && editing && (
         <div className="file-assign">
           <CustomerPicker customers={customers} selected={selected} onChange={setSelected} idPrefix={`assign-${file.id}`} />

@@ -125,9 +125,9 @@ export const loadConversations = cache(async (): Promise<ConversationsState> => 
   return { source: "service", conversations, error: null };
 });
 
-/** Real conversations for an admin login; the demo logins keep their examples, customers get none. */
-export async function loadConversationsForIdentity(identity: { publicDemo: boolean; demoAccess: unknown; account?: { role: string | null } | null }) {
-  if (identity.publicDemo || identity.demoAccess || identity.account?.role !== "oalab_admin") return undefined;
+/** Real conversations for an admin login; customers get none. */
+export async function loadConversationsForIdentity(identity: { account?: { role: string | null } | null }) {
+  if (identity.account?.role !== "oalab_admin") return undefined;
   return loadConversations();
 }
 

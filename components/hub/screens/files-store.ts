@@ -13,7 +13,7 @@ const zipName = () => `oalab-dateien-${new Intl.DateTimeFormat("en-CA", { timeZo
 
 /**
  * Folders, moves and downloads of the files page. Real logins change folders through server actions
- * (the page refreshes with the new data); the preview and the public demo keep their changes in this tab.
+ * (the page refreshes with the new data); the preview keeps its changes in this tab.
  */
 export function useFilesStore(state: HubFilesState) {
   const live = state.source === "supabase";

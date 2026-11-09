@@ -163,7 +163,7 @@ test("every user management action checks the admin first and guards lock-outs",
   assert.match(actions, /const admin = await verifyHubAdmin\(\);/);
   for (const change of ['"role"', '"status"', '"delete"']) assert.match(actions, new RegExp(`guardAccountChange\\(ctx, user, ${change}\\)`));
   assert.match(actions, /Das ist der letzte aktive Admin/);
-  assert.match(actions, /Demo-Zugänge werden per Seed verwaltet/);
+  assert.doesNotMatch(actions, /isDemoUser|Demo-Zugänge/, "the demo logins are gone (9.11.2026)");
   // Links are credentials: the link value is never handed to the log.
   for (const call of actions.matchAll(/await log\(([^;]+)\);/g)) assert.doesNotMatch(call[1], /\blink\b/);
   const server = await source("lib/hub-users/server.ts");
@@ -194,7 +194,7 @@ test("waiting, rejected and deactivated logins never reach the hub, the assistan
   const page = await source("components/hub/screens/users.tsx");
   assert.match(page, /export function UserManagementScreen/);
   const route = await source("app/dashboard/[section]/page.tsx");
-  assert.match(route, /adminSections\.includes\(validSection\) && \(identity\.publicDemo \|\| identity\.account\?\.role !== "oalab_admin"\)\) notFound\(\)/);
+  assert.match(route, /adminSections\.includes\(validSection\) && identity\.account\?\.role !== "oalab_admin"\) notFound\(\)/);
 });
 
 test("the registration form sends what the trigger reads and shows the privacy notice", async () => {
@@ -248,8 +248,8 @@ test("logins, registrations, customers and freelancers open in a panel beside th
   assert.match(page, /window\.confirm\("Deine Änderungen sind noch nicht gespeichert\. Verwerfen\?"\)/);
   assert.match(await source("components/hub/screens/users-panel.tsx"), /export function useDirtyReport\(dirty: boolean, onDirty\?: \(dirty: boolean\) => void\)/);
   // Never signed in (user 9.11.2026: "nirgendswo den Button"): „Einladen“ in the row, the activation on top of the profile.
-  assert.match(page, /user\.displayStatus === "invited" && !user\.demo \? <button type="button" className="row-invite" onClick=\{\(\) => openUser\(user\)\}/);
-  assert.match(panels, /const awaitingActivation = Boolean\(user && user\.status === "active" && !user\.lastSignInAt && !locked\);/);
+  assert.match(page, /user\.displayStatus === "invited" \? <button type="button" className="row-invite" onClick=\{\(\) => openUser\(user\)\}/);
+  assert.match(panels, /const awaitingActivation = Boolean\(user && user\.status === "active" && !user\.lastSignInAt\);/);
   assert.match(panels, /\{activationNotice\}/);
   assert.match(panels, /\{mailConfigured && <button type="button" className="sheet-action is-primary" disabled=\{busy !== null\} onClick=\{\(\) => sendLink\("mail"\)\}>/);
   // Escape in a ⓘ card or the logo window closes only that, not the panel.

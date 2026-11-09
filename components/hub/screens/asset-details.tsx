@@ -229,7 +229,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
       {file.sha256 && <><dt>Prüfsumme</dt><dd className="am-hash">SHA-256 · {file.sha256}</dd></>}
     </dl>
     {file.sha256 && <p className="am-help">Der Download liefert genau diese Fassung; die Prüfsumme wurde beim Hochladen berechnet.</p>}
-    {file.sampleHref && <p className="am-help">Fiktive Beispieldatei für die Demo.</p>}
+    {file.sampleHref && <p className="am-help">Fiktive Beispieldatei für die Vorschau.</p>}
   </>;
 }
 

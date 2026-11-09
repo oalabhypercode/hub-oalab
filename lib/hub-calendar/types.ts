@@ -20,7 +20,7 @@ export type HubAppointment = {
 
 /**
  * "supabase": real appointments under RLS; changes go through server actions.
- * "fixtures": preview and public demo identities; changes stay in the browser and are never stored.
+ * "fixtures": the preview; changes stay in the browser and are never stored.
  */
 export type HubCalendarState = {
   source: "supabase" | "fixtures";

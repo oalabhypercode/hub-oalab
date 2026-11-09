@@ -3,7 +3,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { OPERATOR, PRIVACY_POLICY_DATE } from "../lib/legal-details.ts";
 import { LEGAL_PATHS, legalMailLinks } from "../lib/legal-links.ts";
-import { PUBLIC_DEMO_COOKIE } from "../lib/public-demo-policy.ts";
 import { SESSION_COOKIE, sessionCookieName } from "../lib/platform/config.ts";
 import { REDUCE_MOTION_COOKIE } from "../lib/appearance.ts";
 import { AUTH_COOKIE_NAME } from "../lib/supabase/cookies.ts";
@@ -72,7 +71,8 @@ test("the privacy policy names every service the hub uses and carries its date",
   assert.doesNotMatch(policy, /speichert Supabase|Vercel stellt den Hub bereit/, "the old platform no longer runs the hub");
   // The cookies it names are the ones the code sets on the own platform; the Supabase cookie is gone with it.
   assert.equal(sessionCookieName(true), `__Secure-${SESSION_COOKIE}`);
-  for (const cookie of [sessionCookieName(true), REDUCE_MOTION_COOKIE, PUBLIC_DEMO_COOKIE]) assert.ok(policy.includes(cookie), cookie);
+  for (const cookie of [sessionCookieName(true), REDUCE_MOTION_COOKIE]) assert.ok(policy.includes(cookie), cookie);
+  assert.ok(!policy.includes("__Host-oalab-demo"), "the public demo and its cookie are gone (9.11.2026)");
   assert.ok(!policy.includes(AUTH_COOKIE_NAME), "no Supabase cookie on hub.oalab.de any more");
   assert.match(policy, /läuft sonst 30 Tage nach deiner letzten Nutzung ab/);
   // Freelancers are recipients, and the company data may come from the accounting (Art. 14 DSGVO: the source).

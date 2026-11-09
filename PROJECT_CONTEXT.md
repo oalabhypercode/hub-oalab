@@ -3,8 +3,16 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 8. November 2026
-**Projektphase:** Schritt 1 – Frontend und vier rollenbasierte Demo-Konten umgesetzt; persistentes Datenmodell folgt
+**Stand:** 9. November 2026
+**Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
+
+### Vorgabe vom 9. November 2026: alle Demo-Zugänge raus
+
+- Wunsch des Nutzers: „Nimm bitte alle Demo Zugänge nun raus“. Entschieden: alles entfernen (Demo-Logins, Demo-Kunden samt Beispiel-PDFs, Demo-Code), die Designvorschau `/preview` nur noch lokal.
+- Code: Anmeldeknöpfe der Testkonten (`components/demo-*`, `/auth/demo`), die öffentliche Fixture-Demo (`lib/public-demo-*`, Cookie `__Host-oalab-demo`), die Fixture-Workspaces der Demo-Logins (`lib/demo-access.ts`, `lib/demo-data.ts`, `demoData`/`publicDemo` in Dashboard und Hub-Ansicht), die Seeds und Prüfskripte (`demo:*`, `files:seed`, `config/demo-accounts.json`, `DEMO_ACCOUNTS.md`) und die Sperre „Demo-Zugänge werden per Seed verwaltet“ im User Management sind entfernt. Jeder Login im Dashboard ist jetzt ein echter Login mit echten Daten.
+- `/preview` rendert nur bei `NODE_ENV=development` (`app/preview/layout.tsx`); live und in jedem Produktionsbuild ist es eine 404-Seite. Die Beispieldaten (`lib/hub-data.ts`, `lib/hub-*/fixtures.ts`, `public/demo-files`) bleiben für die lokale Vorschau.
+- Datenschutzerklärung: Der Cookie `__Host-oalab-demo` ist aus der Cookie-Liste gestrichen.
+- Live-Daten: die vier Logins `admin@`, `nordlicht@`, `formfeld@`, `horizont@demo.oalab.test` sowie die Hub-Kunden KD-24017 Nordlicht Studio, KD-24023 Form & Feld, KD-24031 Studio Horizont (nur im Hub, mit Beispiel-PDFs, Ordner und Paketen) werden nach dem Livegang gelöscht.
 
 ### Vorgabe vom 8. November 2026: Konten für alle Kunden und gesammelte Einladungen
 
@@ -565,7 +573,7 @@
 - `npm run files:seed` legt die drei Demo-Kunden mit Kundennummer an, verknüpft die Demo-Logins und lädt je einen fiktiven Servicevertrag (PDF) und eine Logo-Datei (SVG) hoch.
 - Live-Nachrichten werden zurückgestellt: Nachrichten aus dem Hub sollen später über den bevorzugten Kanal des Kunden zugestellt werden, z. B. WhatsApp. Angebote, Verträge und Rechnungen laufen vorerst nur als Dateien mit passender Kategorie.
 
-### Ergänzung vom 15. Oktober 2026: Login und Testkonten
+### Ergänzung vom 15. Oktober 2026: Login und Testkonten (seit 9. November 2026 entfernt)
 
 - `/` zeigt direkt den Login; die separate Landingpage wurde auf Wunsch entfernt.
 - Lokal können alle vier echten Demo-Konten per Klick angemeldet werden. Die Passwörter bleiben serverseitig in der ignorierten Zugangsdaten-Datei; dieser Passwort-Zweig ist im Produktionsmodus gesperrt.
@@ -591,7 +599,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Plattformname, Logos, Markenverlauf und Inter sind durch den Auftraggeber festgelegt.
 - Das Frontend ist zunächst deutschsprachig und auf die Zusammenarbeit zwischen Kunden und OALAB ausgerichtet.
 - `/preview` zeigt ausschließlich fiktive Beispieldaten und kennzeichnet diese ausdrücklich. Es wird keine echte Anmeldung simuliert.
-- `/dashboard` prüft entweder echte Supabase-Claims oder eine ausdrücklich markierte öffentliche Fixture-Identität. Die vier Demo-Identitäten erhalten gezielt zugeordnete Fixtures; normale Konten sehen ohne Datenanbindung leere Zustände. Öffentliche Fixture-Identitäten dürfen niemals echte Geschäftsdaten oder Schreibaktionen autorisieren.
+- `/dashboard` verlangt einen echten Login; Demo-Identitäten gibt es seit dem 9. November 2026 nicht mehr.
 - Die bestehende Selbstregistrierung bleibt vorerst erhalten. Einladung und Rollenmodell sind weiterhin offen.
 
 ### Technische Basis
@@ -617,19 +625,16 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 - Deutsche Authentifizierungsseiten mit Ladezuständen, Passwortsichtbarkeit und Fehlermeldungen
 - Workspace-Suche, Projektfilter, Detaildialoge und Benachrichtigungsdialog in der Designvorschau
 - Sichere interne Weiterleitungen und PKCE-/E-Mail-Bestätigungs-Callbacks
-- Vier echte Demo-Konten mit serververwalteter Admin-/Customer-Zuordnung und getrennten Fixture-Datensichten
-- Wiederholbarer Seed und automatisierte Login- sowie Dashboard-Zugriffstests ohne Ausgabe von Passwörtern
 - KI-Assistent (Claude) für Admins und Kunden hinter „Assistent & Hilfe“ sowie Claude-Code-Befehl `/hub-hilfe`
 - WhatsApp-Anbindung des Assistenten über die WhatsApp Cloud API, Verknüpfen der Nummer per Code im Profil
 - Dateiablage mit Ordnern pro Kunde, Mehrfach-Upload für Admins und ZIP-Download mehrerer Dateien
 - Kalender für Admins und Kunden: Auslastung, Terminanfragen, Bestätigung mit Microsoft-Teams-Link (Supabase mit RLS)
-- Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten im selben Glas-Stil mit Demo-Konten im Dropdown
+- Client Hub im Liquid-Glass-Stil mit wählbarem Hintergrund, Glasflächen, Insights, Favoriten, Highlights, Kennzahl-Detailseiten und Darstellungs-Einstellungen; Login- und Auth-Seiten im selben Glas-Stil
 
 ### Noch nicht implementiert
 
 - Datenanbindung für Kunden, Unternehmen, Projekte, Aufgaben und Meilensteine
 - Persistentes Rollen- und Berechtigungssystem für reale Geschäftsdaten
-- Datenbankseitige Mandantentrennung zwischen Kunden (die Demo-Fixtures sind bereits getrennt)
 - Löschen und Versionieren von Dateien
 - E-Mail-Benachrichtigungen zu Projekten, Dateien, Terminen und Nachrichten (Registrierung, Freigabe, Ablehnung und Aktivierungslinks sind seit dem 22. Oktober 2026 angebunden, siehe oben)
 - Echte Kommentare, Nachrichten und Benachrichtigungen; Nachrichten sollen später über den bevorzugten Kanal des Kunden (z. B. WhatsApp) laufen
@@ -642,10 +647,8 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 
 | Route | Status | Zweck |
 | --- | --- | --- |
-| `/` | Öffentlich | Direkter Login mit vier explizit freigegebenen Online-Fixture-Ansichten; lokal echte Testkonten |
-| `/auth/login` | Öffentlich | Derselbe Login mit regulärem Formular und Demo-Konten im Dropdown |
-| `/auth/demo` | Same-Origin-POST | Online: feste Fixture-Identität; lokal: regulärer Testkonto-Login. Ohne passende Freigabe 404 |
-| `/auth/demo/logout` | Same-Origin-POST | Öffentliche Demo-Identität abmelden, ohne Supabase-Session auszugeben |
+| `/` | Öffentlich | Direkter Login |
+| `/auth/login` | Öffentlich | Derselbe Login |
 | `/auth/sign-up` | Öffentlich | Registrierung mit Firmenangaben; Zugang erst nach Freigabe im User Management |
 | `/auth/pending` | Mit Login | Stand einer Registrierung: wartet, abgelehnt (mit Hinweis) oder deaktiviert; aktive Konten werden zum Hub weitergeleitet |
 | `/auth/sign-up-success` | Öffentlich | Hinweis zur E-Mail-Bestätigung |
@@ -654,10 +657,10 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/auth/confirm` | Auth-Callback | E-Mail-Token bestätigen; Recovery zum Passwortformular |
 | `/auth/callback` | Auth-Callback | PKCE-Code gegen Session tauschen |
 | `/auth/error` | Öffentlich | Authentifizierungsfehler anzeigen |
-| `/dashboard` | Geschützt | Persönliche Übersicht; zugeordnete Demo-Inhalte oder leerer Zustand |
-| `/dashboard/projects` | Geschützt | Demo-Projekte je Rolle/Workspace; ansonsten Gerüst |
-| `/dashboard/files` | Geschützt | Zugeordnete Beispieldateien ohne echte Downloads |
-| `/dashboard/messages` | Geschützt | Zugeordnete Beispielunterhaltung ohne Versand |
+| `/dashboard` | Geschützt | Persönliche Übersicht |
+| `/dashboard/projects` | Geschützt | Studio-Projekte des Logins |
+| `/dashboard/files` | Geschützt | Asset Management (Admins) bzw. Dateien des Kunden |
+| `/dashboard/messages` | Geschützt | Nachrichten: privater Chat, bei Admins dazu die Gespräche der Serviceplattform |
 | `/dashboard/calendar` | Geschützt | Kalender: Admins planen Termine mit Teams-Link und beantworten Anfragen; Kunden sehen die Auslastung und fragen Termine an |
 | `/dashboard/users` | Nur Admins | User Management: Registrierungen freigeben, Logins und Kunden anlegen, bearbeiten, sperren und löschen |
 | `/dashboard/patch-notes` | Geschützt | Patch Notes: alle Änderungen als Pakete pro Livegang; Admins sehen alles, Kunden die für sie markierten Einträge |
@@ -668,7 +671,7 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/dashboard/settings/appearance` | Geschützt | Darstellung: Hintergrund, Glas, Transparenz |
 | `/api/whatsapp` | Öffentlich, nur mit Meta-Signatur | Webhook der WhatsApp Cloud API: Verifizierung (GET) und eingehende Nachrichten (POST) |
 | `/api/assistant` | Geschützt (POST) | KI-Assistent: streamt Antworten von Claude zu Funktionen des Hubs |
-| `/preview` | Öffentlich | Dashboard-Designvorschau mit fiktiven Daten; vom Login nicht mehr verlinkt |
+| `/preview` | Nur lokal (`npm run dev`), live 404 | Dashboard-Designvorschau mit fiktiven Daten; vom Login nicht verlinkt |
 | `/preview/projects` | Öffentlich | Beispielprojekte mit Filtern und Detaildialogen |
 | `/preview/files` | Öffentlich | Beispiel-Dateiliste und Dateiinformationen |
 | `/preview/messages` | Öffentlich | Fiktive, nicht sendende Beispielunterhaltung |
@@ -677,9 +680,9 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/preview/insights`, `/preview/discover`, `/preview/metrics/<kennzahl>`, `/preview/settings/appearance` | Öffentlich | Dieselben neuen Ansichten mit Beispieldaten |
 | `/protected` | Geschützt | Weiterleitung auf `/dashboard` |
 
-Die Root-Route, `/auth/*` und `/preview/*` sind öffentlich. Das Dashboard prüft die Identität im Proxy und zusätzlich serverseitig. Nur `/dashboard` und seine Unterseiten akzeptieren bei expliziter Freigabe die separat signierte öffentliche Fixture-Identität; andere geschützte Routen verlangen weiterhin gültige Supabase-Claims. Ohne echte Session oder gültige Demo-Identität wird zum Login umgeleitet. Vorschau und öffentliche Demo lesen keine echten Kundendaten. Vor der Anbindung echter Daten müssen neue APIs und Datenzugriffe unabhängig von der Fixture-Identität echte Authentifizierung sowie RLS prüfen.
+Die Root-Route und `/auth/*` sind öffentlich, `/preview/*` nur auf einem lokalen Entwicklungsserver. Das Dashboard prüft die Identität im Proxy und zusätzlich serverseitig; ohne Sitzung wird zum Login umgeleitet. Die Vorschau liest keine echten Kundendaten.
 
-Deployment und Abschalten der Demo sind in [README.md](./README.md#vercel-und-öffentliche-demo) dokumentiert. Bestehendes Vercel-Projekt: `oalabs-projects/oalab-client-hub`. Production enthält öffentliche Supabase-Konfiguration sowie `ENABLE_PUBLIC_DEMO_LOGIN`, `PUBLIC_DEMO_ORIGIN` und das private `OALAB_DEMO_SESSION_SECRET`. Lokale Secret-Dateien bleiben vom Upload und Git ausgeschlossen.
+Betrieb und das frühere Vercel-Projekt `oalabs-projects/oalab-client-hub` sind in [README.md](./README.md#betrieb-und-vercel) beschrieben. Lokale Secret-Dateien bleiben vom Upload und Git ausgeschlossen.
 
 Für vollständige E-Mail-Flows müssen die eingesetzten Supabase-E-Mail-Templates und Redirect-URLs zum Callback passen: `<origin>/auth/callback?next=/dashboard` und `<origin>/auth/callback?next=/auth/update-password`. Die eigenen Vorlagen in `supabase/templates/` sind Token-Hash-Templates und verwenden `/auth/confirm`. Echte Passwort-Logins sind mit allen vier Demo-Konten erfolgreich geprüft. Die Projekteinstellungen und die E-Mail-Zustellung sind noch nicht geprüft; die reservierten `.test`-Adressen haben bewusst keine Postfächer.
 

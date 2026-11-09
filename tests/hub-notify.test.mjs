@@ -284,7 +284,7 @@ test("chat messages notify the other side, never the writer, and the sweep drops
   assert.match(notify, /const to = recipients\.filter\(\(id\) => id !== input\.authorId\);/);
   // A waiting notice of the same chat takes the new line instead of a second one.
   assert.match(notify, /\.in\("user_id", to\)\.is\("read_at", null\)\.eq\("mail_state", "pending"\)/);
-  assert.match(server, /roleOf\(user\) === "oalab_admin" && !isDemoUser\(user\)/);
+  assert.match(server, /filter\(\(user\) => roleOf\(user\) === "oalab_admin"\)/);
   assert.match(server, /const seen = \(pending\.data \?\? \[\]\)\.filter\(skipsMail\)\.map\(\(row\) => row\.id\);/);
   assert.match(server, /update\(\{ mail_state: "skipped" \}\)\.in\("id", seen\)\.eq\("mail_state", "pending"\)/);
 });

@@ -2,12 +2,8 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
-import { parseDemoAccess } from "@/lib/demo-access";
-import { getPublicDemoIdentity } from "@/lib/public-demo-session";
-import { PUBLIC_DEMO_COOKIE } from "@/lib/public-demo-policy";
 import { getHubAccount } from "@/lib/hub-users/server";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 
@@ -15,8 +11,6 @@ import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 export const getWorkspaceIdentity = cache(async () => {
   // Auth SDK expiry checks must run for a real request, not during prerendering.
   await connection();
-  const demoIdentity = getPublicDemoIdentity((await cookies()).get(PUBLIC_DEMO_COOKIE)?.value, await headers());
-  if (demoIdentity) return { ...demoIdentity, account: null };
   if (!hasEnvVars) redirect("/auth/login");
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
@@ -33,8 +27,6 @@ export const getWorkspaceIdentity = cache(async () => {
     userId: data.claims.sub,
     email: typeof data.claims.email === "string" ? data.claims.email : "",
     name: profileName || (typeof metadata?.full_name === "string" ? metadata.full_name : ""),
-    demoAccess: parseDemoAccess(data.claims.app_metadata),
-    publicDemo: false as const,
     account,
   };
 });

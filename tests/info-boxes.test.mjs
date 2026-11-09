@@ -138,7 +138,7 @@ test("the cards and the assistant's details say what the code does", async () =>
 
   // The details moved into the assistant's knowledge, with the numbers of the code.
   const knowledge = await source("lib/hub-assistant/knowledge.ts");
-  const details = knowledge.slice(knowledge.indexOf("## Ausführlich zu den Karten am ⓘ"), knowledge.indexOf("## Demo und Vorschau"));
+  const details = knowledge.slice(knowledge.indexOf("## Ausführlich zu den Karten am ⓘ"), knowledge.indexOf("## Noch nicht verfügbar (geplant)"));
   assert.ok(details.length > 10000, "the long explanations are kept for the assistant");
   assert.ok(details.includes(`Bis zu ${MAX_UPLOAD_BATCH} Dateien auf einmal, jede bis ${MAX_FILE_BYTES / 1024 / 1024} MB`));
   assert.ok(details.includes(`von ${WORKDAY.start} bis ${WORKDAY.end} Uhr`));

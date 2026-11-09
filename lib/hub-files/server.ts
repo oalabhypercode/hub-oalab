@@ -37,7 +37,6 @@ export function describeStorageError(error: { code?: string; message?: string })
  * Files visible to the signed-in Supabase user. Row Level Security decides:
  * admins see every file and customer, customers only files assigned to their customer, freelancers their own files
  * and what their customers share with them (only with a confirmed second factor).
- * Public demo identities never reach this function (they have no Supabase session).
  */
 export async function loadHubFiles(): Promise<HubFilesState> {
   const supabase = await createClient();
@@ -96,17 +95,11 @@ export async function loadHubFiles(): Promise<HubFilesState> {
   };
 }
 
-/** Real files for a signed-in Supabase user; public demo identities keep their fixtures. */
-export async function loadFilesForIdentity(identity: { publicDemo: boolean }) {
-  return identity.publicDemo ? undefined : loadHubFiles();
-}
-
 /**
- * The number next to "Asset Management" / "Dateien" in the sidebar for real logins: every file for admins, the
- * assigned ones for customers (RLS counts). Demo logins count their fixtures, so they get undefined here.
+ * The number next to "Asset Management" / "Dateien" in the sidebar: every file for admins, the assigned ones for
+ * customers (RLS counts).
  */
-export async function countFilesForIdentity(identity: { publicDemo: boolean; demoAccess?: unknown }) {
-  if (identity.publicDemo || identity.demoAccess) return undefined;
+export async function countHubFiles() {
   const supabase = await createClient();
   const { count, error } = await supabase.from("hub_files").select("id", { count: "exact", head: true });
   return error ? undefined : count ?? 0;

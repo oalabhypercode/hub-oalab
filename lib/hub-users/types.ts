@@ -19,8 +19,6 @@ export type ManagedUser = {
   status: AccountStatus;
   displayStatus: DisplayStatus;
   role: HubRole | null;
-  /** Seeded demo login: read-only in the user management. */
-  demo: boolean;
   /** The signed-in admin themself: no role change, deactivation or deletion. */
   self: boolean;
   /** The method sign-in asks for as second factor: off, a code by e-mail or the login's authenticator app. */

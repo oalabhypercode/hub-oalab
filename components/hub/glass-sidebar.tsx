@@ -21,7 +21,7 @@ type SidebarProps = {
   /** Categories without a count (the calendar) show none; Nachrichten counts only unread conversations. */
   counts: Partial<Record<CategoryId, number>>;
   name: string;
-  /** The first line of the account menu: the login's e-mail, or what kind of demo or preview this is. */
+  /** The first line of the account menu: the login's e-mail, or that this is the preview. */
   accountLabel: string;
   initials: string;
   /** Customer logins: their company's logo instead of the initials. */

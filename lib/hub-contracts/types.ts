@@ -35,7 +35,7 @@ export type ContractCustomer = {
 export type ContractsState = {
   /** "admin": every customer with internal notes; "customer": the login's own customers and released entries only. */
   view: "admin" | "customer";
-  /** "fixtures": preview and demo logins, which never touch real data. */
+  /** "fixtures": the preview, which never touches real data. */
   source: "supabase" | "fixtures";
   customers: ContractCustomer[];
   /** Newest first. */
