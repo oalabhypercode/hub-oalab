@@ -197,21 +197,30 @@ type Choice = { mode: "existing" | "new"; customerId: string; draft: CustomerDra
 /** One choice per kind of entry, so switching between the roles keeps what was picked for each. */
 type Choices = Record<CustomerKind, Choice>;
 
-/** Starts both choices: the login's own entry if it has one of that kind, else the first one, else a new one. */
+/**
+ * Starts both choices: the login's own entry if it has one of that kind, else the first one, else a new one. A
+ * freelancer login is the freelancer's own and nobody picks one: it keeps its own entry, or a new one is made.
+ */
 function startChoices(entries: ManagedCustomer[], numbers: Record<CustomerKind, string>, presets: Partial<Record<CustomerKind, Partial<CustomerDraft>>>, own?: string | null, preferNew = false): Choices {
   const make = (kind: CustomerKind): Choice => {
     const options = entries.filter((entry) => entry.kind === kind);
     const current = own && options.some((entry) => entry.id === own) ? own : null;
+    if (kind === "freelancer") return { mode: current ? "existing" : "new", customerId: current ?? "", draft: emptyDraft(numbers[kind], presets[kind]) };
     return { mode: current || (options.length && !preferNew) ? "existing" : "new", customerId: current ?? options[0]?.id ?? "", draft: emptyDraft(numbers[kind], presets[kind]) };
   };
   return { customer: make("customer"), freelancer: make("freelancer") };
 }
 
-const choicePayload = (role: HubRole, choices: Choices) => {
+/** The person behind a login, for a new freelancer: it is named after them unless a registration named a firm. */
+type Person = { name: string; email: string };
+const newFreelancerName = (choices: Choices, person: Person) => choices.freelancer.draft.company.trim() || person.name;
+
+const choicePayload = (role: HubRole, choices: Choices, person: Person) => {
   const kind = kindForRole(role);
   if (!kind) return { mode: "none" };
   const choice = choices[kind];
-  return choice.mode === "existing" ? { mode: "existing", customerId: choice.customerId } : { mode: "new", customer: choice.draft };
+  if (choice.mode === "existing") return { mode: "existing", customerId: choice.customerId };
+  return { mode: "new", customer: kind === "freelancer" ? { ...choice.draft, company: newFreelancerName(choices, person), contactEmail: choice.draft.contactEmail || person.email } : choice.draft };
 };
 
 const roleHints: Record<HubRole, string> = {
@@ -221,11 +230,15 @@ const roleHints: Record<HubRole, string> = {
 };
 const roleIcons: Record<HubRole, LucideIcon> = { oalab_customer: UserRound, oalab_freelancer: Handshake, oalab_admin: ShieldCheck };
 
-/** Role and, for customers and freelancers, the entry they belong to: an existing one or a new one created on the spot. */
-function RoleAndCustomer({ role, onRole, choices, onChoices, customers, disabled, roleLocked = false, freelancers }: {
+/**
+ * Role and, for customers, the customer they belong to: an existing one or a new one created on the spot. A freelancer
+ * login belongs to the freelancer themself, so there is nothing to pick: its own entry, or a new one named after the person.
+ */
+function RoleAndCustomer({ role, onRole, choices, onChoices, customers, disabled, roleLocked = false, freelancers, person }: {
   role: HubRole; onRole: (role: HubRole) => void; choices: Choices; onChoices: (choices: Choices) => void; customers: ManagedCustomer[]; disabled: boolean; roleLocked?: boolean;
   /** The database knows freelancers (their migration is applied). */
   freelancers: boolean;
+  person: Person;
 }) {
   const kind = kindForRole(role);
   const roles: HubRole[] = freelancers || role === "oalab_freelancer" ? ["oalab_customer", "oalab_freelancer", "oalab_admin"] : ["oalab_customer", "oalab_admin"];
@@ -234,6 +247,7 @@ function RoleAndCustomer({ role, onRole, choices, onChoices, customers, disabled
   const setChoice = (next: Choice) => { if (kind) onChoices({ ...choices, [kind]: next }); };
   const isFreelancer = kind === "freelancer";
   const chosen = choice ? options.find((entry) => entry.id === choice.customerId) ?? null : null;
+  const newName = newFreelancerName(choices, person);
   return (
     <div className="um-stack">
       <div className="um-field">
@@ -243,27 +257,28 @@ function RoleAndCustomer({ role, onRole, choices, onChoices, customers, disabled
       </div>
       {role === "oalab_admin" && !roleLocked && <p className="am-note is-todo"><AlertTriangle size={16} aria-hidden="true" /><span>Admins sehen alle Kunden und dürfen Zugänge verwalten. Vergib diese Rolle nur an das oalab-Team.</span></p>}
       {isFreelancer && <p className="am-help">Freelancer bestätigen jede Anmeldung mit einem Code per E-Mail. Welche Kunden sie betreuen, legst du beim Freelancer fest.</p>}
-      {kind && choice && (choice.mode === "existing" && options.length ? (
+      {isFreelancer && choice?.mode === "new" && <p className="am-help">Mit dem Zugang entsteht der Freelancer {newName || "mit dem Namen der Person"}, Nummer <span className="numeric">{choice.draft.customerNumber}</span>, nur im Hub. Gibt es ihn schon, lege den Zugang bei ihm im Reiter „Freelancer“ an.</p>}
+      {kind === "customer" && choice && (choice.mode === "existing" && options.length ? (
         <div className="um-field">
-          <span className="am-label">{isFreelancer ? "Gehört zum Freelancer" : "Gehört zum Kunden"}
-            <button type="button" className="am-label-action" onClick={() => setChoice({ ...choice, mode: "new" })} disabled={disabled}><Plus size={13} aria-hidden="true" />{isFreelancer ? "Neuen Freelancer anlegen" : "Neuen Kunden anlegen"}</button>
+          <span className="am-label">Gehört zum Kunden
+            <button type="button" className="am-label-action" onClick={() => setChoice({ ...choice, mode: "new" })} disabled={disabled}><Plus size={13} aria-hidden="true" />Neuen Kunden anlegen</button>
           </span>
           <span className="um-pick">
             <LogoMark logo={chosen?.logo} initials={companyInitials(chosen?.company ?? "")} className="company-mark" />
-            <select value={choice.customerId} onChange={(event) => setChoice({ ...choice, customerId: event.target.value })} disabled={disabled} aria-label={isFreelancer ? "Freelancer" : "Kunde"}>
+            <select value={choice.customerId} onChange={(event) => setChoice({ ...choice, customerId: event.target.value })} disabled={disabled} aria-label="Kunde">
               {options.map((entry) => <option key={entry.id} value={entry.id}>{entry.company} · {entry.customerNumber}</option>)}
             </select>
             <ChevronDown size={16} aria-hidden="true" />
           </span>
-          <p className="am-help">{isFreelancer ? "Die Person sieht die Dateien dieses Freelancers und seiner Kunden." : "Die Person sieht die Dateien, Termine und Projekte dieses Kunden."}</p>
+          <p className="am-help">Die Person sieht die Dateien, Termine und Projekte dieses Kunden.</p>
         </div>
       ) : (
         <div className="um-field um-new-entry">
-          <span className="am-label">{isFreelancer ? "Neuer Freelancer" : "Neuer Kunde"}
+          <span className="am-label">Neuer Kunde
             {options.length > 0 && <button type="button" className="am-label-action" onClick={() => setChoice({ ...choice, mode: "existing" })} disabled={disabled}>Bestehenden wählen</button>}
           </span>
-          <CompanyFields draft={choice.draft} onChange={(draft) => setChoice({ ...choice, draft })} disabled={disabled} compact freelancer={isFreelancer} />
-          <p className="am-help">{isFreelancer ? "Nur im Hub, mit einer freien FL-Nummer." : "Auch in Service, mit einer freien Kundennummer."}</p>
+          <CompanyFields draft={choice.draft} onChange={(draft) => setChoice({ ...choice, draft })} disabled={disabled} compact />
+          <p className="am-help">Auch in Service, mit einer freien Kundennummer.</p>
         </div>
       ))}
     </div>
@@ -334,7 +349,8 @@ export function ReviewPanel({ user, customers, nextNumber, nextFreelancerNumber,
   const loginUrl = typeof window === "undefined" ? "" : `${window.location.origin}/auth/login`;
   const message = `Hallo ${user.firstName},\n\ndein Zugang zum oalab Client Hub ist freigeschaltet. Du kannst dich ab sofort mit deiner E-Mail-Adresse ${user.email} und deinem Passwort anmelden:\n\n${loginUrl}\n\nViele Grüße\nDein oalab-Team`;
   const avatar = <span className="avatar" aria-hidden="true">{initialsOf(user)}</span>;
-  const approve = () => run("approve", () => approveRegistration({ userId: user.id, role: decision.role, customer: choicePayload(decision.role, decision.choices) }), (data) => { setApproved(data); onNotice(`${name} ist freigegeben.`); });
+  const person = { name: `${user.firstName} ${user.lastName}`.trim(), email: user.email };
+  const approve = () => run("approve", () => approveRegistration({ userId: user.id, role: decision.role, customer: choicePayload(decision.role, decision.choices, person) }), (data) => { setApproved(data); onNotice(`${name} ist freigegeben.`); });
 
   if (approved !== null) {
     const handOver = <>
@@ -400,7 +416,7 @@ export function ReviewPanel({ user, customers, nextNumber, nextFreelancerNumber,
       ) : (
         <form ref={formRef} className="um-form" onSubmit={(event) => { event.preventDefault(); approve(); }}>
           <PanelSection title="Rolle und Kunde">
-            <RoleAndCustomer role={decision.role} onRole={(role) => setDecision((current) => ({ ...current, role }))} choices={decision.choices} onChoices={(choices) => setDecision((current) => ({ ...current, choices }))} customers={customers} disabled={busy !== null} freelancers={freelancers} />
+            <RoleAndCustomer role={decision.role} onRole={(role) => setDecision((current) => ({ ...current, role }))} choices={decision.choices} onChoices={(choices) => setDecision((current) => ({ ...current, choices }))} customers={customers} disabled={busy !== null} freelancers={freelancers} person={person} />
             {!user.emailConfirmed && <p className="am-help">Die E-Mail-Adresse ist noch nicht bestätigt. Anmelden kann sich die Person erst nach der Bestätigung.</p>}
             {error && <p className="form-error" role="alert">{error}</p>}
           </PanelSection>
@@ -480,12 +496,13 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   const locked = Boolean(user?.demo);
   const disabled = busy !== null || locked;
   const name = `${person.firstName} ${person.lastName}`.trim();
+  const who = { name, email: user?.email ?? person.email.trim() };
   const freelancerLogin = (user?.role ?? role) === "oalab_freelancer";
   const showTab = (next: UserTab) => { setError(""); setTab(next); };
 
   const save = () => user
-    ? run("save", () => updateHubUser({ userId: user.id, firstName: person.firstName, lastName: person.lastName, phone: person.phone, position: person.position, role, customer: choicePayload(role, choices) }), () => { setSaved(true); setBase(JSON.stringify(draft)); onNotice(`Änderungen an ${fullName({ ...user, ...person })} gespeichert.`); })
-    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choices), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Zugang für ${name} angelegt.`); });
+    ? run("save", () => updateHubUser({ userId: user.id, firstName: person.firstName, lastName: person.lastName, phone: person.phone, position: person.position, role, customer: choicePayload(role, choices, who) }), () => { setSaved(true); setBase(JSON.stringify(draft)); onNotice(`Änderungen an ${fullName({ ...user, ...person })} gespeichert.`); })
+    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choices, who), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Zugang für ${name} angelegt.`); });
 
   if (created && link?.link) {
     return (
@@ -566,7 +583,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
         </FieldGrid>
       </PanelSection>
       <PanelSection title="Rolle und Kunde">
-        <RoleAndCustomer role={role} onRole={(next) => change({ role: next })} choices={choices} onChoices={(next) => change({ choices: next })} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} freelancers={freelancers} />
+        <RoleAndCustomer role={role} onRole={(next) => change({ role: next })} choices={choices} onChoices={(next) => change({ choices: next })} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} freelancers={freelancers} person={who} />
       </PanelSection>
       {!user && (
         <PanelSection title="Aktivierung">
