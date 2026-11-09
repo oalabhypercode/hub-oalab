@@ -25,7 +25,8 @@ test("both ways open the same logo window: asset management and user management 
   assert.match(am, /<span className="am-logo-text">\{current\.logo \? "Logo ändern" : "Logo hochladen"\}<\/span>/);
   assert.match(am, /<CustomerLogoDialog customer=\{logoRow\.customer\} onClose=/);
   const um = await source("components/hub/screens/users-dialogs.tsx");
-  assert.match(um, /<div className="customer-logo-row">/);
+  // Since 9.11.2026 the customer's panel has the logo as its first row, the window opens beside the panel.
+  assert.match(um, /title="Logo" text=\{customer\.logo \? [^]*?onClick=\{\(\) => setLogoOpen\(true\)\}/);
   assert.match(um, /\{customer && logoOpen && <CustomerLogoDialog customer=\{customer\} onClose=/);
   const users = await source("components/hub/screens/users.tsx");
   assert.equal((users.match(/<LogoMark logo=\{customer\.logo\} initials=\{companyMark\(customer\.company\)\} className="company-mark" \/>/g) ?? []).length, 2, "in the logins and in the customers");

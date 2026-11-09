@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Pencil, Rows3, Send, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
-import { displayStatusLabels, roleLabels, type DisplayStatus } from "@/lib/hub-users/rules";
+import { displayStatusLabels, roleLabels, type DisplayStatus, type HubRole } from "@/lib/hub-users/rules";
 import { customerLoginState, isFirstInvitation, isInvitable, loginStateLabels, type LoginState } from "@/lib/hub-invitations/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
 import { formatFileDate, formatFileDateTime } from "@/lib/hub-files/catalog";
@@ -16,13 +16,19 @@ import { LogoMark } from "../logo-mark";
 import { sectionIcons } from "../navigation";
 import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
-import { CustomerDialog, FreelancerDialog, fullName, ReviewDialog, UserDialog } from "./users-dialogs";
+import { CustomerPanel, FreelancerPanel, fullName, ReviewPanel, statusGlyph, UserPanel } from "./users-dialogs";
 import { CustomerImportDialog } from "./users-import";
 import { CustomerLoginsDialog, InvitationsDialog } from "./users-logins";
 import { useInfo } from "../info-box";
 
 const ALL = "all";
-type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" };
+/**
+ * What is open: a panel at the right edge (a registration, a login, a customer, a freelancer; new without an id, a new
+ * login from a customer with its entry and role chosen) or one of the bulk windows.
+ */
+type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string; customerId?: string; role?: HubRole } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" };
+const dialogFor = (user: ManagedUser): Dialog => user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id };
+const openIdOf = (dialog: Dialog | null) => dialog?.kind === "review" || dialog?.kind === "user" ? dialog.userId : dialog?.kind === "customer" || dialog?.kind === "freelancer" ? dialog.customerId : undefined;
 
 const loginStateOrder: LoginState[] = ["none", "created", "invited", "active"];
 const loginStateGlyph: Record<LoginState, GlyphKind> = { none: "disabled", created: "pending", invited: "invited", active: "active" };
@@ -57,7 +63,6 @@ const customerSorts: Record<CustomerSortKey, SortOption<CustomerSortKey>> = {
   city: { id: "city", label: "Ort", dirLabels: alphabetical },
 };
 
-const statusGlyph: Record<DisplayStatus, GlyphKind> = { pending: "pending", invited: "invited", active: "active", disabled: "disabled", rejected: "rejected" };
 const initialsOf = (user: ManagedUser) => ((user.firstName[0] ?? "") + (user.lastName[0] ?? "")).toUpperCase() || "?";
 const companyMark = (name: string) => name.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
 type Tab = "users" | "customers" | "freelancers";
@@ -83,10 +88,34 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<Tab>("users");
   const groups = useCollapsedGroups();
+  // The panel reports unsaved changes; another row, another tab or closing asks before they are lost.
+  const dirty = useRef(false);
+  const reportDirty = useCallback((value: boolean) => { dirty.current = value; }, []);
   const customerOf = (user: ManagedUser) => entries.find((customer) => customer.id === user.customerIds[0]) ?? null;
   const pending = users.filter((user) => user.status === "pending");
-  const open = (next: Dialog) => { setNotice(""); setDialog(next); };
-  const openUser = (user: ManagedUser) => open(user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id });
+  const leave = () => !dirty.current || window.confirm("Deine Änderungen sind noch nicht gespeichert. Verwerfen?");
+  const open = (next: Dialog) => {
+    if (!leave()) return false;
+    dirty.current = false;
+    setNotice("");
+    setDialog(next);
+    return true;
+  };
+  const close = (discard = false) => {
+    if (!discard && !leave()) return;
+    dirty.current = false;
+    setDialog(null);
+  };
+  const openUser = (user: ManagedUser) => open(dialogFor(user));
+  const openId = openIdOf(dialog);
+  const panelOpen = dialog !== null && dialog.kind !== "import" && dialog.kind !== "logins" && dialog.kind !== "invite";
+  const showTab = (next: Tab) => {
+    if (panelOpen && !leave()) return;
+    if (panelOpen) { dirty.current = false; setDialog(null); }
+    setTab(next);
+  };
+  // From the logins of a customer or a freelancer to one of them: the table under the panel shows the logins.
+  const openFromEntry = (user: ManagedUser) => { if (open(dialogFor(user))) setTab("users"); };
 
   // Logins
   const [userQuery, setUserQuery] = useState("");
@@ -156,7 +185,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const editUser = dialog?.kind === "user" && dialog.userId ? users.find((user) => user.id === dialog.userId) : undefined;
   const editCustomer = dialog?.kind === "customer" && dialog.customerId ? customers.find((customer) => customer.id === dialog.customerId) : undefined;
   const editFreelancer = dialog?.kind === "freelancer" && dialog.customerId ? freelancers.find((freelancer) => freelancer.id === dialog.customerId) : undefined;
-  const switcher = <span className="users-switch"><TabSwitch tab={tab} onTab={setTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />{tabsInfo.button}{tabsInfo.box}</span>;
+  const switcher = <span className="users-switch"><TabSwitch tab={tab} onTab={showTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />{tabsInfo.button}{tabsInfo.box}</span>;
   const manage = <ManageButtons tab={tab} withoutLogin={withoutLogin} invitable={invitable.filter(isFirstInvitation).length} onCustomer={() => open({ kind: "customer" })} onImport={() => open({ kind: "import" })} onLogins={() => open({ kind: "logins" })} onInvite={() => open({ kind: "invite" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} />;
   const title = <TitleIcon icon={sectionIcons.users!} />;
 
@@ -168,7 +197,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
     const customer = customerOf(user);
     const waiting = user.status === "pending";
     return (
-      <tr key={user.id} className={`data-row${user.status === "disabled" || user.status === "rejected" ? " is-muted" : ""}`}>
+      <tr key={user.id} className={`data-row${user.status === "disabled" || user.status === "rejected" ? " is-muted" : ""}${openId === user.id ? " is-open" : ""}`}>
         <td className="cell-person">
           <button type="button" className="row-open" onClick={() => openUser(user)}>
             <span className="avatar avatar-s" aria-hidden="true">{initialsOf(user)}</span><strong title={fullName(user)}>{fullName(user)}</strong>
@@ -199,6 +228,18 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const userGroups = statusOrder.map((status) => ({ status, rows: shownUsers.filter((user) => user.displayStatus === status) }))
     // The registrations always have their group at the top, also empty: that is where new ones appear.
     .filter((group) => group.rows.length || (group.status === "pending" && !pending.length && !usersNarrowed));
+
+  // ↑/↓ in the panel go through the rows as the table shows them: its tab, search, filters, sorting and open groups.
+  const entryDialog = (kind: "customer" | "freelancer", customerId: string): Dialog => ({ kind, customerId });
+  const rows: { id: string; dialog: Dialog }[] = tab === "users"
+    ? (grouping === "status" ? userGroups.filter((group) => !groups.isCollapsed(group.status)).flatMap((group) => group.rows) : shownUsers).map((user) => ({ id: user.id, dialog: dialogFor(user) }))
+    : (tab === "customers" ? shownCustomers : shownFreelancers).map((entry) => ({ id: entry.id, dialog: entryDialog(tab === "customers" ? "customer" : "freelancer", entry.id) }));
+  const at = openId === undefined ? -1 : rows.findIndex((row) => row.id === openId);
+  const panelProps = {
+    onClose: close, onNotice: setNotice, onDirty: reportDirty,
+    onPrev: at > 0 ? () => { open(rows[at - 1].dialog); } : undefined,
+    onNext: at >= 0 && at < rows.length - 1 ? () => { open(rows[at + 1].dialog); } : undefined,
+  };
 
   return (
     <>
@@ -277,7 +318,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                 </thead>
                 <tbody>
                   {shownFreelancers.map((freelancer) => (
-                    <tr key={freelancer.id} className="data-row">
+                    <tr key={freelancer.id} className={`data-row${openId === freelancer.id ? " is-open" : ""}`}>
                       <td className="cell-person">
                         <button type="button" className="row-open" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })}><LogoMark logo={freelancer.logo} initials={companyMark(freelancer.company)} className="company-mark" /><strong>{freelancer.company}</strong></button>
                       </td>
@@ -311,7 +352,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                 {shownCustomers.map((customer) => {
                   const logins = loginsOf(customer);
                   return (
-                    <tr key={customer.id} className="data-row">
+                    <tr key={customer.id} className={`data-row${openId === customer.id ? " is-open" : ""}`}>
                       <td className="cell-person">
                         <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
                         {customer.linkedIds.length > 0 && <span className="role-tag" title={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
@@ -334,13 +375,13 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         </SheetFooter>
       </div>
 
-      {reviewUser && <ReviewDialog key={reviewUser.id} user={reviewUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} onClose={() => setDialog(null)} onNotice={setNotice} />}
-      {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserDialog key={dialog.userId ?? "new"} user={editUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onClose={() => setDialog(null)} onNotice={setNotice} onReview={(userId) => setDialog({ kind: "review", userId })} />}
-      {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerDialog key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} freelancers={freelancers} freelancersEnabled={state.freelancers} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
+      {reviewUser && <ReviewPanel key={reviewUser.id} user={reviewUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} {...panelProps} />}
+      {dialog?.kind === "user" && (!dialog.userId || editUser) && <UserPanel key={dialog.userId ?? `new-${dialog.customerId ?? ""}`} user={editUser} presetCustomerId={dialog.customerId} presetRole={dialog.role} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onReview={(userId) => open({ kind: "review", userId })} {...panelProps} />}
+      {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerPanel key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} freelancers={freelancers} freelancersEnabled={state.freelancers} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onOpenUser={openFromEntry} onNewUser={(customerId) => open({ kind: "user", customerId, role: "oalab_customer" })} {...panelProps} />}
       {dialog?.kind === "import" && <CustomerImportDialog customers={entries} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "logins" && <CustomerLoginsDialog customers={customers} users={users} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "invite" && <InvitationsDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
-      {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerDialog key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onClose={() => setDialog(null)} onNotice={setNotice} />}
+      {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerPanel key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onOpenUser={openFromEntry} onNewUser={(freelancerId) => open({ kind: "user", customerId: freelancerId, role: "oalab_freelancer" })} {...panelProps} />}
     </>
   );
 }
