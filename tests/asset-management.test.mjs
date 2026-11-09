@@ -80,7 +80,8 @@ test("upload and details open as panels over the files, not as dialogs", async (
   assert.match(await source("components/hub/sheet.tsx"), /<tbody className=\{`table-group-body\$\{className \? ` \$\{className\}` : ""\}`\} data-drop-folder=\{dropKey\}>/);
 
   const panel = await source("components/hub/screens/asset-panel.tsx");
-  assert.match(panel, /if \(event\.key !== "Escape" \|\| closeDisabled\) return;/);
+  // Escape closes the panel, except while it uploads or while a ⓘ card or a window inside it takes the key.
+  assert.match(panel, /if \(event\.key !== "Escape" \|\| closeDisabled \|\| escapeIsTaken\(event, ref\.current\)\) return;/);
   assert.match(panel, /if \(!left && opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
 });
 

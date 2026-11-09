@@ -37,6 +37,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 17,
+    date: "2026-11-09",
+    title: "Konten und Kunden in der Seitenleiste bearbeiten",
+    summary: "Im User Management öffnen sich Konten, Registrierungen, Kunden und Freelancer jetzt in einer Seitenleiste am rechten Rand, im Look der Tabelle statt als Glasfenster in der Mitte. Die Tabelle bleibt daneben sichtbar und bedienbar: Ein Klick auf eine andere Zeile oder die Pfeile im Kopf der Leiste zeigen den nächsten Eintrag, die offene Zeile ist markiert. Konten haben die Reiter Profil, Zugang und Verlauf, Kunden und Freelancer Stammdaten, Konten und Verlauf. Gespeichert wird unten in der Leiste; dort steht, ob noch etwas ungespeichert ist, und vor einem Wechsel fragt der Hub nach. Zugangslink, Zwei-Faktor-Schutz, Deaktivieren und Löschen wirken wie bisher sofort. Am Handy füllt die Leiste den ganzen Bildschirm.",
+    changes: [
+      { kind: "improved", title: "Bearbeiten in der Seitenleiste", text: "Konten, Kunden und Freelancer öffnen sich im User Management rechts neben der Tabelle, in derselben Optik wie die Tabelle. Mit den Pfeilen im Kopf geht es zum nächsten Eintrag, ohne die Leiste zu schließen; ungespeicherte Änderungen zeigt die Leiste unten an und fragt vor dem Wechsel nach." },
+      { kind: "improved", title: "Rolle, Kunde und Zugang übersichtlicher", text: "Die Rolle wählt man jetzt mit einem Schalter statt mit drei großen Kacheln, den Kunden in einer Auswahl mit Logo. Zwei-Faktor-Schutz, Zugangslink, Deaktivieren und Löschen stehen gesammelt im Reiter „Zugang“, der Verlauf als Zeitleiste in einem eigenen Reiter." },
+    ],
+  },
+  {
     number: 16,
     date: "2026-11-08",
     title: "Datenschutzerklärung aktualisiert und Einladung eine Woche gültig",

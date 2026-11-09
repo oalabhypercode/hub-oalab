@@ -225,3 +225,34 @@ test("a failed account read shows a load error instead of 'pending' or 'no compa
   assert.match(boundary, /onClick=\{\(\) => retry\(\)\}/);
   assert.match(await source("app/auth/pending/error.tsx"), /<AuthLoadError retry=\{retry\} \/>/);
 });
+
+test("logins, registrations, customers and freelancers open in a panel beside the table, in its look (user 9.11.2026)", async () => {
+  const panels = await source("components/hub/screens/users-dialogs.tsx");
+  // No glass windows any more: every view is the shared panel, floating at the right edge.
+  assert.doesNotMatch(panels, /<Modal /);
+  const opened = panels.match(/<AssetPanel [^>]*/g) ?? [];
+  assert.ok(opened.length >= 6, "registration, login (new, created, waiting, existing), customer and freelancer");
+  for (const tag of opened) assert.match(tag, /^<AssetPanel className="um-panel"/, tag.slice(0, 80));
+  // Speichern in the footer submits the form, so the browser checks the required fields, also from another tab.
+  assert.match(panels, /formRef\.current\.requestSubmit\(\)/);
+  // A login's tabs; access actions act at once and say so.
+  assert.match(panels, /\{ id: "profile", label: "Profil" \}, \{ id: "access", label: "Zugang" \}/);
+  assert.match(panels, /<PanelSection title="Zugang und Sicherheit" info=\{info\.button\} meta="wirkt sofort">/);
+  // After saving, the form starts again from the saved data, so a second save cannot create a customer twice.
+  assert.match(panels, /if \(seen !== source\) \{\n\s+const next = fresh\(\);/);
+
+  const page = await source("components/hub/screens/users.tsx");
+  // The open row is marked, ↑/↓ follow the table as it is shown, unsaved changes are asked about.
+  assert.match(page, /\$\{openId === user\.id \? " is-open" : ""\}/);
+  assert.match(page, /onPrev: at > 0 \?/);
+  assert.match(page, /window\.confirm\("Deine Änderungen sind noch nicht gespeichert\. Verwerfen\?"\)/);
+  assert.match(await source("components/hub/screens/users-panel.tsx"), /export function useDirtyReport\(dirty: boolean, onDirty\?: \(dirty: boolean\) => void\)/);
+  // Escape in a ⓘ card or the logo window closes only that, not the panel.
+  assert.match(await source("components/hub/screens/asset-panel.tsx"), /closest\("dialog, \[popover\]"\)/);
+
+  const css = await source("app/glass.css");
+  assert.match(css, /\.am-panel\.um-panel \{ position: fixed; z-index: 50; top: 12px; right: 12px; bottom: 12px;/);
+  assert.match(css, /\.hub-app\.has-assistant-dock \.am-panel\.um-panel \{ right: calc\(var\(--assistant-dock\) \+ 24px\); \}/, "left of the docked assistant");
+  assert.match(css, /@media \(max-width: 767px\) \{\n {2}\.am-panel\.um-panel \{ inset: 0;/, "phones: the whole screen");
+  assert.match(css, /\.data-table tbody tr\.is-open td \{/);
+});

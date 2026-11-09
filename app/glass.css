@@ -869,7 +869,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 /* User management (admins): logins and customers on one sheet; dialogs below. */
 .confirm-badge { flex: 0 0 auto; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--tone-ok-bg); color: var(--tone-ok); font-size: 12px; line-height: 18px; font-weight: 600; }
 .confirm-badge.is-open { background: var(--tone-todo-bg); color: var(--tone-todo); }
-.suggestion { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); color: var(--accent-text); font-size: 14px; line-height: 19px; font-weight: 600; }
 /* Status of a login: waiting (orange), activation open (blue), active (green), deactivated (red), rejected (grey). */
 .status-pending { color: var(--tone-todo); background: var(--tone-todo-bg); }
 .status-invited { color: var(--tone-info); background: var(--tone-info-bg); }
@@ -910,38 +909,12 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .row-check { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; background: var(--accent-gradient); color: #ffffff; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .row-check:hover { filter: brightness(0.94); }
 .hub-modal.users-modal { width: min(640px, calc(100% - 32px)); }
-.users-modal form, .users-modal .decision, .role-customer { display: flex; flex-direction: column; gap: 14px; }
-.detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0 0 14px; padding: 14px; border-radius: 14px; background: var(--fill-tertiary); }
-.detail-list dt { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-secondary); }
-.detail-list dd { font-size: 15px; line-height: 20px; color: var(--label-body); overflow-wrap: anywhere; }
-.detail-list a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
-.detail-list .detail-wide { grid-column: 1 / -1; }
-.detail-message { white-space: pre-line; }
-.users-modal .suggestion { margin-bottom: 14px; }
-.choice-group { min-width: 0; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; }
-.choice-group legend, .package-checks legend { margin-bottom: 6px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
-.choice-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); cursor: pointer; transition: box-shadow 150ms ease, background 150ms ease; }
-.choice-option input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent-text); }
-.choice-option strong, .choice-option small { display: block; }
-.choice-option strong { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
-.choice-option small { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
-.choice-option:has(input:checked) { background: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); box-shadow: inset 0 0 0 2px var(--accent-text); }
-.choice-group:disabled .choice-option { cursor: default; opacity: 0.7; }
-.upload-field.package-checks { margin: 0; padding: 0; border: 0; display: flex; flex-flow: row wrap; gap: 6px 16px; }
-.package-checks label { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--fill-tertiary); font-size: 15px; color: var(--label-body); cursor: pointer; }
-.package-checks label:has(input:checked) { background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); box-shadow: inset 0 0 0 2px var(--accent-text); }
-/* Not the text-field look of .upload-field inputs. */
-.upload-field.package-checks input { flex: 0 0 auto; width: 18px; height: 18px; min-height: 0; padding: 0; border-radius: 4px; background: none; accent-color: var(--accent-text); }
+.users-modal form { display: flex; flex-direction: column; gap: 14px; }
 .field-warning { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px 10px 14px; border-radius: 12px; background: var(--tone-todo-bg); color: var(--tone-todo); box-shadow: inset 3px 0 0 var(--tone-todo-bar); font-size: 14px; line-height: 19px; }
 .field-warning svg { flex: 0 0 auto; margin-top: 1px; }
 .users-modal .field-warning { margin-bottom: 12px; }
 .users-modal form .field-warning { margin-bottom: 0; }
 .dialog-success { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 12px 14px 12px 16px; border-radius: 12px; background: var(--tone-ok-bg); color: var(--tone-ok); box-shadow: inset 3px 0 0 var(--tone-ok-bar); font-size: 15px; line-height: 20px; font-weight: 600; }
-.message-preview, .link-panel-input { width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--fill-tertiary); color: var(--label-body); font: inherit; font-size: 14px; line-height: 20px; }
-.message-preview { margin: 0 0 12px; resize: vertical; }
-.link-panel { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; padding: 14px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--separator); }
-.link-panel-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--label); }
-.user-link-button { margin-top: 14px; }
 /* „Kunden importieren“: file, columns, preview table and result. */
 .hub-modal.import-modal { width: min(960px, calc(100% - 32px)); }
 .import-zone { margin-top: 12px; cursor: pointer; }
@@ -1004,28 +977,134 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .import-table .import-line { grid-column: 3; grid-row: 1; color: var(--sheet-muted); font-size: 12px; }
   .import-table :is(.import-number, .import-city, .import-what) { grid-column: 2 / -1; font-size: 12.5px; }
 }
-.user-link-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-/* Second factor switch: its own row with a short explanation below. */
-.user-security { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--separator); }
-.user-security .check-row svg { flex: 0 0 auto; color: var(--accent-text); }
-/* Outcome of a mail: sent (green), not set up (orange), failed (red). */
-.mail-status { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 10px 12px 10px 14px; border-radius: 12px; background: var(--tone-todo-bg); color: var(--tone-todo); box-shadow: inset 3px 0 0 var(--tone-todo-bar); font-size: 14px; line-height: 19px; }
-.mail-status svg { flex: 0 0 auto; margin-top: 1px; }
-.mail-status.is-sent { background: var(--tone-ok-bg); color: var(--tone-ok); box-shadow: inset 3px 0 0 var(--tone-ok-bar); }
-.mail-status.is-failed { background: var(--tone-bad-bg); color: var(--tone-bad); box-shadow: inset 3px 0 0 var(--tone-bad-bar); }
-.user-link-actions .mail-status { margin: 0; }
-.check-row { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 15px; color: var(--label-body); cursor: pointer; }
-.check-row input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--accent-text); }
-.check-row:has(input:disabled) { cursor: default; opacity: 0.6; }
-.danger-zone { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--separator); }
-.sheet-button.danger-text { color: var(--danger); }
-.history, .member-list { margin-top: 16px; }
-.history summary { display: flex; align-items: center; min-height: 40px; font-size: 15px; font-weight: 600; color: var(--accent-text); cursor: pointer; }
-.history ul, .member-list ul { display: flex; flex-direction: column; }
-.history li, .member-list li { padding: 8px 0; border-bottom: 1px solid var(--separator); }
-.history li strong, .member-list li strong { display: block; font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label-body); }
-.history li small, .member-list li small { display: block; font-size: 12px; line-height: 16px; color: var(--label-secondary); overflow-wrap: anywhere; }
-.member-list h3 { margin-bottom: 4px; font-size: 15px; font-weight: 600; color: var(--label); }
+/* User Management, since 9.11.2026: logins, registrations, customers and freelancers open in a panel at the right edge,
+   in the look of the table (components/hub/screens/users-dialogs.tsx). It floats over the table, which stays usable: a
+   row, the pencil or ↑/↓ in the head show another entry. With the assistant docked it moves left of it; phones get
+   the whole screen. */
+.am-panel.um-panel { position: fixed; z-index: 50; top: 12px; right: 12px; bottom: 12px; width: min(480px, calc(100% - 24px)); border: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--sheet-line), -18px 0 50px rgba(20, 4, 14, 0.3); }
+:root[data-theme="dark"] .am-panel.um-panel { box-shadow: 0 0 0 1px var(--sheet-line), -18px 0 50px rgba(0, 0, 0, 0.6); }
+.hub-app.has-assistant-dock .am-panel.um-panel { right: calc(var(--assistant-dock) + 24px); }
+.um-panel .am-panel-head .avatar { width: 40px; height: 40px; font-size: 14px; }
+.um-panel .am-panel-head .company-mark { width: 40px; height: 40px; border-radius: 11px; font-size: 14px; }
+/* The line under the name keeps the status whole and shortens the address instead. */
+.um-panel .am-panel-title > span { display: flex; align-items: center; gap: 6px; }
+.um-panel .am-panel-title > span > * { flex: 0 0 auto; overflow: visible; }
+.um-panel .am-panel-title > span > .um-clip { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.um-panel .am-panel-title .status-cell { gap: 5px; color: var(--label-body); }
+.um-panel .am-panel-title .status-glyph { width: 12px; height: 12px; }
+.um-dot { color: var(--sheet-icon); }
+.um-nav { display: inline-flex; align-items: center; gap: 2px; padding-right: 8px; border-right: 1px solid var(--sheet-line); }
+.um-panel .am-panel-body { gap: 0; padding: 2px 20px 8px; }
+.um-tabs { flex: 0 0 auto; padding: 12px 20px 4px; }
+.um-count { color: var(--sheet-muted); font-weight: 500; }
+.um-form { display: contents; }
+.um-pad { padding: 18px 0; }
+.um-lead { margin-top: 16px; }
+.um-sec { padding: 18px 0; }
+.um-sec + .um-sec, .um-sec + .um-form > .um-sec:first-child, .um-form > .um-sec + .um-sec { border-top: 1px solid var(--sheet-divider); }
+.um-sec-head { display: flex; align-items: center; gap: 8px; min-height: 22px; margin-bottom: 12px; }
+.um-sec-head h3 { font-size: 13px; line-height: 18px; font-weight: 650; color: var(--label); }
+.um-sec-head .info-button { width: 22px; height: 22px; }
+.um-sec-head > :is(.um-sec-meta, .sheet-action) { margin-left: auto; }
+.um-sec-meta { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.um-sec-head .sheet-action { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.um-panel .um-sec > :is(p.am-help, .am-note, .form-error, .um-check) { margin-top: 10px; }
+.um-stack { display: grid; gap: 14px; }
+.um-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.um-grid.is-address { grid-template-columns: 110px minmax(0, 1fr); }
+.um-field { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.um-field.is-wide { grid-column: 1 / -1; }
+.um-field .am-label small { font-weight: 500; color: var(--sheet-icon); }
+.um-panel .am-input.is-number { font-variant-numeric: tabular-nums; font-weight: 600; }
+.um-panel :is(.am-input, .am-textarea):disabled { color: var(--sheet-muted); background: var(--sheet-sunken); }
+.um-panel :is(.am-input, .am-textarea)::placeholder { color: var(--sheet-icon); }
+.um-readonly { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 4px 0 10px; border-radius: 9px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13.5px; color: var(--label-body); }
+.um-readonly > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.um-readonly > svg { flex: 0 0 auto; color: var(--sheet-icon); }
+.um-readonly button { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--sheet-muted); }
+.um-readonly button:hover { background: var(--sheet-hover); color: var(--accent-text); }
+/* The role and the tabs: the sheet's segmented control. */
+.um-seg { display: flex; width: 100%; height: 34px; padding: 2px; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.um-seg button { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; padding: 0 10px; border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--sheet-muted); white-space: nowrap; }
+.um-seg button:hover:not(:disabled) { color: var(--label); }
+.um-seg button[aria-pressed="true"] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); }
+.um-seg button:disabled { cursor: default; opacity: 0.6; }
+/* The customer of a login: a select with the company's sign in front. */
+.um-pick { position: relative; display: flex; align-items: center; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13.5px; color: var(--label); }
+.um-pick .company-mark { position: absolute; left: 8px; pointer-events: none; }
+.um-pick > svg { position: absolute; right: 10px; pointer-events: none; color: var(--sheet-muted); }
+.um-pick select { appearance: none; -webkit-appearance: none; width: 100%; height: 38px; padding: 0 34px 0 40px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; text-overflow: ellipsis; cursor: pointer; }
+.um-pick select:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.um-pick select:disabled { cursor: default; color: var(--sheet-muted); }
+.um-new-entry { padding: 12px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+/* Rows in a hairline box: access and security, logo and packages, the logins of an entry. */
+.um-list { display: grid; border-radius: 12px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.um-item + .um-item { border-top: 1px solid var(--sheet-divider); }
+.um-item-main { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 56px; padding: 9px 10px 9px 12px; }
+.um-item-icon { width: 30px; height: 30px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.um-item.is-danger .um-item-icon { background: var(--tone-bad-bg); box-shadow: none; color: var(--tone-bad); }
+.um-item-main > .company-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 11.5px; }
+.hub-app .um-item-main > .avatar { width: 30px; height: 30px; font-size: 11.5px; }
+.um-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.um-item-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
+.um-item-text small { font-size: 12px; line-height: 16px; color: var(--sheet-muted); overflow-wrap: anywhere; }
+.um-item-acts { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+.um-item-acts .status-cell { font-size: 12.5px; color: var(--sheet-muted); }
+.um-item-below { display: grid; gap: 10px; padding: 0 12px 12px 54px; }
+.um-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.um-link { display: grid; gap: 10px; }
+.um-panel .am-mini { max-width: none; }
+.um-panel .am-mini select { height: 30px; font-weight: 500; }
+.um-panel .sheet-action { height: 30px; }
+.um-panel .sheet-action.is-quiet { background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); }
+.um-panel .sheet-action.is-quiet:hover { background: var(--sheet-hover); }
+.um-panel .sheet-action.is-danger { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
+.um-panel .am-panel-foot .sheet-action { height: 34px; padding: 0 14px; }
+.am-note.is-ok { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.am-note.is-bad { background: var(--tone-bad-bg); color: var(--tone-bad); }
+.um-check { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px; color: var(--label-body); cursor: pointer; }
+.um-check input { flex: 0 0 auto; width: 16px; height: 16px; accent-color: var(--accent-text); }
+.um-check:has(input:disabled) { cursor: default; opacity: 0.6; }
+.um-panel .am-dl a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.um-message { white-space: pre-line; }
+.um-more > summary { display: inline-flex; align-items: center; min-height: 30px; font-size: 12.5px; font-weight: 600; color: var(--accent-text); cursor: pointer; }
+.um-more[open] > summary { margin-bottom: 8px; }
+/* Freelancers of a customer and customers of a freelancer as chips; "+" opens the tick list. */
+.um-chips { display: grid; gap: 10px; }
+.um-chips .am-chip { padding: 0 4px 0 6px; }
+.um-chips .am-chip .company-mark { width: 20px; height: 20px; border-radius: 5px; font-size: 9.5px; }
+.um-chip-number { font-weight: 500; color: var(--sheet-muted); }
+.um-chips-empty { font-size: 13px; color: var(--sheet-muted); }
+/* History: a quiet line of dots, newest first. */
+.um-history { display: grid; margin: 0; padding: 0; list-style: none; }
+.um-history li { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; padding-bottom: 14px; }
+.um-history li::before { content: ""; position: absolute; left: 4px; top: 14px; bottom: 0; width: 1px; background: var(--sheet-line); }
+.um-history li:last-child { padding-bottom: 0; }
+.um-history li:last-child::before { display: none; }
+.um-history i { width: 9px; height: 9px; margin-top: 4px; border-radius: 50%; background: var(--sheet); box-shadow: inset 0 0 0 2px var(--sheet-icon); }
+.um-history li:first-child i { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.um-history strong { display: block; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--label-body); overflow-wrap: anywhere; }
+.um-history small { display: block; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+/* The footer: what waits to be saved on the left, Abbrechen and Speichern on the right. */
+.um-foot-state { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
+.um-foot-state.is-dirty { color: var(--accent-text); font-weight: 600; }
+.um-foot-state.is-dirty::before { content: ""; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: currentColor; }
+.um-foot-state.is-saved { color: var(--tone-ok); font-weight: 600; }
+/* The open row in the table. */
+.data-table tbody tr.is-open td { background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
+.data-table tbody tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--accent-text); }
+.data-table tbody tr.is-open .row-open strong { color: var(--accent-text); font-weight: 600; }
+@media (max-width: 767px) {
+  .am-panel.um-panel { inset: 0; z-index: 60; width: auto; border-radius: 0; box-shadow: none; }
+  .um-grid { grid-template-columns: minmax(0, 1fr); }
+  .um-grid.is-address { grid-template-columns: 96px minmax(0, 1fr); }
+  .um-item-main { flex-wrap: wrap; row-gap: 8px; }
+  .um-item-acts { flex: 1 0 100%; padding-left: 42px; }
+  .um-item-below { padding-left: 12px; }
+  .um-panel .um-foot-state { flex: 1 0 100%; }
+  .um-panel .um-foot-state:empty, .um-panel .um-foot-state.is-clean { display: none; }
+  .um-panel .am-panel-title > span { flex-wrap: wrap; white-space: normal; }
+}
 /* The customer's own details in the profile. */
 .account-details { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 4px 0 8px; }
 .account-details dt { font-size: 13px; line-height: 20px; color: var(--label-secondary); }
@@ -1160,7 +1239,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 /* Phones: the tables become lists on the same sheet; groups stay as headings, the toolbar wraps, menus open at the bottom. */
 @media (max-width: 767px) {
   .upload-fields { grid-template-columns: 1fr; }
-  .detail-list { grid-template-columns: 1fr; }
   .sheet { border-radius: 14px; }
   .sheet-toolbar { padding: 10px 12px; }
   .sheet-search { flex: 1 1 100%; margin-right: 0; }
@@ -1896,15 +1974,6 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .logo-window-remove { justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin: -4px 0 -6px; padding: 6px 2px; border-radius: 8px; color: var(--danger); font-size: 14px; font-weight: 500; }
 .logo-window-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
 
-/* User management, "Kunde bearbeiten": the customer's logo on top, with the button into the same window. */
-.customer-logo-row { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 14px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.hub-app .customer-logo-mark, .hub-app .customer-logo-mark.has-logo { flex: none; width: 52px; height: 52px; border-radius: 14px; font-size: 18px; }
-.hub-app .customer-logo-mark.is-plate { width: auto; min-width: 52px; max-width: 156px; padding: 0 6px; }
-.hub-app .customer-logo-mark.is-plate > img { width: auto; max-width: 100%; height: 78%; }
-.customer-logo-text { flex: 1; min-width: 0; display: grid; }
-.customer-logo-text strong { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
-.customer-logo-text small { font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
-.customer-logo-row .sheet-action { flex: none; height: 34px; }
 
 /* ---------- Asset Management, step 3: panels for uploading and for a file's details ---------- */
 /* Both open over the files on the right: the customers stay in view, and a click on another file only changes the
@@ -2340,7 +2409,6 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .cdm-server-label { grid-column: 1 / -1; }
   .cdm-server .chat-pill { grid-column: 1 / -1; justify-self: start; }
 }
-.customer-packages-row .sheet-action { flex: 0 0 auto; }
 
 /* Vertrag & Domain, stage 2: „Domain & Mail“ and „Zugänge“. */
 .dm-check-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 2px 12px; margin: 0; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--fill-tertiary); }
