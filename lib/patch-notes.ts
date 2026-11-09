@@ -44,6 +44,7 @@ export const patchPackages: PatchPackage[] = [
     changes: [
       { kind: "improved", title: "Bearbeiten in der Seitenleiste", text: "Konten, Kunden und Freelancer öffnen sich im User Management rechts neben der Tabelle, in derselben Optik wie die Tabelle. Mit den Pfeilen im Kopf geht es zum nächsten Eintrag, ohne die Leiste zu schließen; ungespeicherte Änderungen zeigt die Leiste unten an und fragt vor dem Wechsel nach." },
       { kind: "improved", title: "Rolle, Kunde und Zugang übersichtlicher", text: "Die Rolle wählt man jetzt mit einem Schalter statt mit drei großen Kacheln, den Kunden in einer Auswahl mit Logo. Zwei-Faktor-Schutz, Zugangslink, Deaktivieren und Löschen stehen gesammelt im Reiter „Zugang“, der Verlauf als Zeitleiste in einem eigenen Reiter." },
+      { kind: "improved", title: "Einladung erneut senden", text: "Konten, die sich noch nie angemeldet haben, tragen in der Tabelle den Knopf „Einladen“. Er öffnet das Konto, und oben im Profil steht „Noch nicht aktiviert“ mit dem Datum der letzten Einladung und „Aktivierungslink senden“; ohne Mailversand erzeugt „Link erzeugen“ einen Link zum Weitergeben." },
       { kind: "fixed", title: "Abgebrochene Uploads räumen sich selbst auf", text: "Bricht ein Datei-Upload ab, blieb bisher ein leerer Eintrag ohne Datei zurück. Der Hub entfernt solche Einträge jetzt von selbst, sobald der Upload-Link abgelaufen ist. Fertige Dateien bleiben unberührt." },
     ],
   },

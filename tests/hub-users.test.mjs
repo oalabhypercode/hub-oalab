@@ -247,6 +247,11 @@ test("logins, registrations, customers and freelancers open in a panel beside th
   assert.match(page, /onPrev: at > 0 \?/);
   assert.match(page, /window\.confirm\("Deine Änderungen sind noch nicht gespeichert\. Verwerfen\?"\)/);
   assert.match(await source("components/hub/screens/users-panel.tsx"), /export function useDirtyReport\(dirty: boolean, onDirty\?: \(dirty: boolean\) => void\)/);
+  // Never signed in (user 9.11.2026: "nirgendswo den Button"): „Einladen“ in the row, the activation on top of the profile.
+  assert.match(page, /user\.displayStatus === "invited" && !user\.demo \? <button type="button" className="row-invite" onClick=\{\(\) => openUser\(user\)\}/);
+  assert.match(panels, /const awaitingActivation = Boolean\(user && user\.status === "active" && !user\.lastSignInAt && !locked\);/);
+  assert.match(panels, /\{activationNotice\}/);
+  assert.match(panels, /\{mailConfigured && <button type="button" className="sheet-action is-primary" disabled=\{busy !== null\} onClick=\{\(\) => sendLink\("mail"\)\}>/);
   // Escape in a ⓘ card or the logo window closes only that, not the panel.
   assert.match(await source("components/hub/screens/asset-panel.tsx"), /closest\("dialog, \[popover\]"\)/);
 
