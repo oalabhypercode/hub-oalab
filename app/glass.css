@@ -1107,11 +1107,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .data-table tbody tr.is-open td { background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
 .data-table tbody tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--accent-text); }
 .data-table tbody tr.is-open .row-open strong { color: var(--accent-text); font-weight: 600; }
-/* Customers and freelancers by their Zugänge (user 9.11.2026): a veil over the row, full on the left three quarters and
-   fading out towards the pencil; the open mark lies over it. */
+/* Customers and freelancers by their Zugänge (user 9.11.2026): a veil over the row, full on the left half and fading out
+   towards the pencil; the open mark lies over it. */
 .data-table tbody tr.is-no-login { --row-veil: var(--veil-none); --row-veil-bar: var(--veil-none-bar); }
 .data-table tbody tr.is-awaiting-login { --row-veil: var(--veil-open); --row-veil-bar: var(--veil-open-bar); }
-.data-table tbody tr:is(.is-no-login, .is-awaiting-login) { background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 75%, transparent 100%); }
+.data-table tbody tr:is(.is-no-login, .is-awaiting-login) { background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 50%, transparent 100%); }
 .data-table tbody tr:is(.is-no-login, .is-awaiting-login):not(.is-open) td:first-child { box-shadow: inset 3px 0 0 var(--row-veil-bar); }
 /* Hover and the open row colour the row under its veil instead of the cells, which would cover it. */
 .data-table tbody tr:is(.is-no-login, .is-awaiting-login):hover td, .data-table tbody tr.is-open:is(.is-no-login, .is-awaiting-login) td { background-color: transparent; }
