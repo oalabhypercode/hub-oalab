@@ -66,6 +66,9 @@
   --tone-ok-bg: #e5f5e9; --tone-ok: #124e20; --tone-ok-bar: #2e9b4b;
   --tone-off-bg: #f1edef; --tone-off: #62575d; --tone-off-bar: #b9adb4;
   --tone-bad-bg: #fdeceb; --tone-bad: #8a1c14; --tone-bad-bar: #d93a2f;
+  /* Rows of customers and freelancers: red without a Zugang, yellow while nobody signed in yet. */
+  --veil-none: rgb(217 58 47 / 0.09); --veil-none-bar: #d93a2f;
+  --veil-open: rgb(234 179 8 / 0.17); --veil-open-bar: #d9a300;
   --danger: #b3261e;
   --danger-fill: #b3261e;
   --track-neutral: rgba(60, 60, 67, 0.28);
@@ -1104,6 +1107,16 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .data-table tbody tr.is-open td { background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
 .data-table tbody tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--accent-text); }
 .data-table tbody tr.is-open .row-open strong { color: var(--accent-text); font-weight: 600; }
+/* Customers and freelancers by their Zugänge (user 9.11.2026): a veil over the row, under hover and the open mark. */
+.data-table tbody tr.is-no-login { --row-veil: var(--veil-none); --row-veil-bar: var(--veil-none-bar); }
+.data-table tbody tr.is-awaiting-login { --row-veil: var(--veil-open); --row-veil-bar: var(--veil-open-bar); }
+.data-table tbody tr:is(.is-no-login, .is-awaiting-login) td { background-image: linear-gradient(var(--row-veil), var(--row-veil)); }
+.data-table tbody tr:is(.is-no-login, .is-awaiting-login):not(.is-open) td:first-child { box-shadow: inset 3px 0 0 var(--row-veil-bar); }
+.veil-keys { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
+.veil-key { display: inline-flex; align-items: center; gap: 6px; }
+.veil-dot { width: 9px; height: 9px; border-radius: 3px; }
+.veil-dot.is-none { background: var(--veil-none-bar); }
+.veil-dot.is-open { background: var(--veil-open-bar); }
 @media (max-width: 767px) {
   .am-panel.um-panel { inset: 0; z-index: 60; width: auto; border-radius: 0; box-shadow: none; }
   .um-grid { grid-template-columns: minmax(0, 1fr); }
@@ -1305,6 +1318,9 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet .data-table :is(.cell-number, .cell-company):has(> .cell-none) { display: none; }
   .sheet .user-table .cell-login::before { content: "Letzter Login: "; }
   .sheet .data-table .cell-logins::before { content: "Zugänge: "; }
+  /* The cells wrap here, so the whole row carries the veil. */
+  .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login) { background-image: linear-gradient(var(--row-veil), var(--row-veil)); box-shadow: inset 3px 0 0 var(--row-veil-bar); }
+  .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login) td, .sheet .data-table tbody tr:is(.is-no-login, .is-awaiting-login):not(.is-open) td:first-child { background-image: none; box-shadow: none; }
   .sheet .ai-log-table .cell-summary { flex-basis: 100%; min-width: 0; }
 }
 
@@ -1700,6 +1716,8 @@ a.teams-join:active { transform: scale(0.97); }
   --tone-ok-bg: #16301d; --tone-ok: #9ee2ae;
   --tone-off-bg: #2c262a; --tone-off: #c2b7bd; --tone-off-bar: #7d7278;
   --tone-bad-bg: #3d1a18; --tone-bad: #ffb1aa;
+  --veil-none: rgb(255 107 96 / 0.14); --veil-none-bar: #ff6b60;
+  --veil-open: rgb(250 204 21 / 0.13); --veil-open-bar: #facc15;
   --danger: #ffb1aa;
   --track-neutral: rgba(255, 255, 255, 0.14);
   --selected-pill: rgba(255, 255, 255, 0.12);

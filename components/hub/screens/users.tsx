@@ -35,6 +35,8 @@ const openIdOf = (dialog: Dialog | null) => dialog?.kind === "review" ? dialog.u
 
 const loginStateOrder: LoginState[] = ["none", "created", "invited", "active"];
 const loginStateGlyph: Record<LoginState, GlyphKind> = { none: "disabled", created: "pending", invited: "invited", active: "active" };
+/** The row of a customer or freelancer (user 9.11.2026): red without a login, yellow while nobody signed in yet, plain once active. */
+const loginVeil: Record<LoginState, string> = { none: " is-no-login", created: " is-awaiting-login", invited: " is-awaiting-login", active: "" };
 
 const statusOrder: DisplayStatus[] = ["pending", "invited", "active", "disabled", "rejected"];
 
@@ -177,7 +179,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
     steps: [
       <><b>Zugänge</b> sind Personen mit Login: Kunden, Freelancer, Admins.</>,
       <><b>Erst Kunde oder Freelancer</b> anlegen, dann den Zugang dazu.</>,
-      <><b>Letzter Login</b> steht beim Zugang und je Kunde.</>,
+      <><b>Rot:</b> noch kein Zugang. <b>Gelb:</b> noch nie angemeldet.</>,
     ],
     ask: "Was ist der Unterschied zwischen Zugängen, Kunden und Freelancern?",
   });
@@ -330,7 +332,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                 </thead>
                 <tbody>
                   {shownFreelancers.map((freelancer) => (
-                    <tr key={freelancer.id} className={`data-row${openId === freelancer.id ? " is-open" : ""}`}>
+                    <tr key={freelancer.id} className={`data-row${loginVeil[loginsOf(freelancer).state]}${openId === freelancer.id ? " is-open" : ""}`}>
                       <td className="cell-person">
                         <button type="button" className="row-open" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })}><LogoMark logo={freelancer.logo} initials={companyMark(freelancer.company)} className="company-mark" /><strong>{freelancer.company}</strong></button>
                       </td>
@@ -364,7 +366,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                 {shownCustomers.map((customer) => {
                   const logins = loginsOf(customer);
                   return (
-                    <tr key={customer.id} className={`data-row${openId === customer.id ? " is-open" : ""}`}>
+                    <tr key={customer.id} className={`data-row${loginVeil[logins.state]}${openId === customer.id ? " is-open" : ""}`}>
                       <td className="cell-person">
                         <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
                         {customer.linkedIds.length > 0 && <span className="role-tag" title={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
@@ -382,7 +384,8 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
             </table>
           </div>
         ) : <SheetEmpty text={customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."} onReset={customersNarrowed ? () => { setCustomerQuery(""); setPackageFilter(ALL); setLoginFilter(ALL); } : undefined} />}
-        <SheetFooter hint={tab === "users" && pending.length ? `${pending.length === 1 ? "1 Registrierung wartet" : `${pending.length} Registrierungen warten`} auf Freigabe` : undefined}>
+        <SheetFooter hint={tab === "users" ? (pending.length ? `${pending.length === 1 ? "1 Registrierung wartet" : `${pending.length} Registrierungen warten`} auf Freigabe` : undefined)
+          : <VeilKey states={(tab === "customers" ? customers : freelancers).map((entry) => loginsOf(entry).state)} />}>
           {users.filter((user) => user.status === "active").length} aktive Zugänge · {customers.length === 1 ? "1 Kunde" : `${customers.length} Kunden`}{freelancers.length ? ` · ${freelancers.length} Freelancer` : ""}
         </SheetFooter>
       </div>
@@ -396,6 +399,17 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerPanel key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onOpenUser={openFromEntry} onNewUser={newLoginFor} onCreated={afterCreate("freelancer")} {...panelProps} />}
     </>
   );
+}
+
+/** What the red and yellow rows mean, with how many there are of each; nothing when every entry is active. */
+function VeilKey({ states }: { states: LoginState[] }) {
+  const none = states.filter((state) => state === "none").length;
+  const open = states.filter((state) => state === "created" || state === "invited").length;
+  if (!none && !open) return null;
+  return <span className="veil-keys">
+    {none > 0 && <span className="veil-key"><span className="veil-dot is-none" aria-hidden="true" />{none} ohne Zugang</span>}
+    {open > 0 && <span className="veil-key"><span className="veil-dot is-open" aria-hidden="true" />{open} noch nie angemeldet</span>}
+  </span>;
 }
 
 /** In the column „Zugänge“ of a customer or a freelancer without a login: one click opens „Zugang anlegen“ for it. */

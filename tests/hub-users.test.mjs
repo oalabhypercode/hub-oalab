@@ -281,4 +281,13 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   assert.match(page, /onCreated=\{afterCreate\("customer"\)\}/);
   assert.match(page, /onCreated=\{afterCreate\("freelancer"\)\}/);
   assert.match(page, /dialog\.userId \? Boolean\(editUser\) : !dialog\.customerId \|\| Boolean\(loginEntry\)/);
+  // Their rows: red without a login, yellow while nobody signed in yet, plain once active; the footer says how many.
+  assert.match(page, /const loginVeil: Record<LoginState, string> = \{ none: " is-no-login", created: " is-awaiting-login", invited: " is-awaiting-login", active: "" \};/);
+  assert.match(page, /className=\{`data-row\$\{loginVeil\[loginsOf\(freelancer\)\.state\]\}/);
+  assert.match(page, /className=\{`data-row\$\{loginVeil\[logins\.state\]\}/);
+  assert.match(page, /<VeilKey states=\{\(tab === "customers" \? customers : freelancers\)\.map\(\(entry\) => loginsOf\(entry\)\.state\)\} \/>/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.data-table tbody tr\.is-no-login \{ --row-veil: var\(--veil-none\);/);
+  assert.match(css, /\.data-table tbody tr\.is-awaiting-login \{ --row-veil: var\(--veil-open\);/);
+  for (const token of ["--veil-none:", "--veil-open:"]) assert.equal(css.split(token).length - 1, 2, `${token} light and dark`);
 });
