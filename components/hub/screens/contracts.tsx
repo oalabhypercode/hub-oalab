@@ -151,7 +151,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
         leading={<SegmentedControl label="Ansicht" value={tab} onChange={(next) => { setTab(next); setTabQuery(""); }} options={[
           { id: "contract", label: "Vertrag", name: "Vertrag" },
           { id: "domains", label: "Domain & Mail", name: "Domain & Mail", count: counts.domains },
-          { id: "access", label: "Zugänge", name: "Zugänge", count: counts.access },
+          { id: "access", label: "Zugangsdaten", name: "Zugangsdaten", count: counts.access },
           { id: "timeline", label: "Verlauf", name: "Verlauf", count: entries.length },
         ]} />}
         query={tabQuery}

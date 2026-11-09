@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 /**
- * AES-256-GCM for the passwords under „Zugänge“. The hub server seals a password with the key from HUB_VAULT_KEY before
+ * AES-256-GCM for the passwords under „Zugangsdaten“. The hub server seals a password with the key from HUB_VAULT_KEY before
  * it reaches the database (hub_vault_secrets holds ciphertext only) and opens it only for an admin with a confirmed
  * second factor. The additional data binds each ciphertext to its owner, a mailbox or a provider login: copied onto
  * another row it no longer opens. Self-contained, so the tests load it directly; the key is read in ./key.ts.

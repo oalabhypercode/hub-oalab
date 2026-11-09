@@ -9,7 +9,7 @@ import { isUuid, LOOK_LIMIT, LOOK_WINDOW_MINUTES, loginKinds, readLogin, readSec
 import { openSecret, sealSecret } from "./crypto";
 import { vaultKey } from "./key";
 
-// „Zugänge“: provider logins and the passwords of mailboxes and logins. Every action is a public POST endpoint and
+// „Zugangsdaten“: provider logins and the passwords of mailboxes and logins. Every action is a public POST endpoint and
 // checks first, with the caller's own session, an access token with a confirmed second factor (aal2) and an active
 // admin; a hub admin without a second factor gets no password and changes none. Only then does the service role touch
 // anything. Every look and every change lands in hub_admin_events, never with the password; a password is shown only
@@ -22,9 +22,9 @@ type Context = { db: SupabaseClient; actorId: string; key: Buffer | null };
 type Checked = { ok: true; ctx: Context } | { ok: false; error: string };
 
 const failed = (error: string) => ({ ok: false as const, error });
-const needsCode = "Zugänge gibt es nur mit bestätigtem zweitem Faktor. Melde dich mit deinem Code neu an; ohne zweiten Faktor richtest du ihn zuerst im Profil ein.";
+const needsCode = "Zugangsdaten gibt es nur mit bestätigtem zweitem Faktor. Melde dich mit deinem Code neu an; ohne zweiten Faktor richtest du ihn zuerst im Profil ein.";
 const denied = "Dafür brauchst du einen aktiven Admin-Zugang mit bestätigtem zweitem Faktor.";
-const missingKey = "Auf dem Server fehlt der Schlüssel für die Zugänge (HUB_VAULT_KEY). Bis er eingetragen ist, lassen sich keine Passwörter speichern oder anzeigen.";
+const missingKey = "Auf dem Server fehlt der Schlüssel für die Zugangsdaten (HUB_VAULT_KEY). Bis er eingetragen ist, lassen sich keine Passwörter speichern oder anzeigen.";
 const gone = "Diesen Zugang gibt es nicht mehr.";
 const tryAgain = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
 
