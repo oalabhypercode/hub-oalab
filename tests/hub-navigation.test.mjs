@@ -78,3 +78,19 @@ test("on tablets signing out sits top right next to the profile; phones and comp
   assert.match(tablet, /\.topbar-actions \.topbar-signout \{ display: inline-flex; \}/);
   assert.match(tablet, /\.hub-topbar \.topbar-signout-error \{ display: block; order: 4; flex: 1 1 100%; margin: 0; \}/);
 });
+
+test("changes refresh the browser only: nothing purges the server's prerendered page shells (10.11.2026)", async () => {
+  const helper = await source("lib/refresh-workspace.ts");
+  assert.match(helper, /import \{ refresh \} from "next\/cache";/);
+  assert.match(helper, /export function refreshWorkspace\(\) \{\s+refresh\(\);\s+\}/);
+  // revalidatePath("/dashboard", "layout") made Next.js rebuild the /dashboard/[section] shells at runtime, which fails:
+  // every subpage answered 500 on a full load until the next deployment.
+  const { readdir } = await import("node:fs/promises");
+  for (const dir of ["app", "lib", "components"]) {
+    const files = (await readdir(new URL(`../${dir}`, import.meta.url), { recursive: true })).filter((file) => /\.(ts|tsx)$/.test(file));
+    for (const file of files) {
+      const path = `${dir}/${file.replaceAll("\\", "/")}`;
+      assert.doesNotMatch(await source(path), /\b(revalidatePath|revalidateTag|updateTag)\(/, path);
+    }
+  }
+});
