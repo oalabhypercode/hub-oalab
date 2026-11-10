@@ -5,7 +5,7 @@ import { safeAuthRedirect } from "../lib/auth-redirect.ts";
 import { MAIL_IMAGES } from "../lib/hub-mail/images.ts";
 import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport } from "../lib/hub-mail/smtp.ts";
 import {
-  accessApprovedMail, cleanSubject, escapeHtml, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
+  accessAnnouncementMail, accessApprovedMail, cleanSubject, escapeHtml, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
 } from "../lib/hub-mail/templates.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -134,6 +134,35 @@ test("the sign-in code mail shows the six digits large in the body and keeps the
   assert.match(loginCodeMail({ firstName: "", code: "000001", minutes: 10, issuedAt }).text, /^Dein Sicherheitscode\n\nGib diesen Code ein/);
   // Summer time is counted as well.
   assert.equal(loginCodeMail({ firstName: "", code: "000001", minutes: 10, issuedAt: new Date("2026-07-01T10:00:00Z") }).subject, "Dein Sicherheitscode für oalab · 12:00 Uhr");
+});
+
+test("the announcement names the day by its weekday, guides through the first sign-in and greets without a name", () => {
+  const day = new Date("2026-11-11T12:00:00Z");
+  const mail = accessAnnouncementMail({ day, sender: "hub@oalab.de", days: 7, hubUrl: "https://hub.oalab.de" }, legal);
+  assert.equal(mail.subject, "Ab Mittwoch: dein Zugang zum oalab Client Hub");
+  assert.match(mail.html, />Dein Zugang kommt am Mittwoch<\/h1>/);
+  assert.match(mail.html, />Mittwoch, 11\. November 2026<\/div>/);
+  assert.match(mail.html, /<div style="display:none[^>]*>Am Mittwoch, 11\. November 2026 kommt dein persönlicher Aktivierungslink von hub@oalab\.de\./);
+  // Ali greets every customer alike (10.11.2026: no names), Omed speaks of the own AI platform; hyphenated words stay whole.
+  assert.match(mail.html, /Hallo, lieber <span style="white-space:nowrap;">oalab-Kunde!<\/span>/);
+  assert.match(mail.html, /eigens entwickelten <span style="white-space:nowrap;">KI-Plattform<\/span> sind Anpassungen/);
+  assert.match(mail.html, /Ab Mittwoch begrüße ich dich im Client Hub\./);
+  // The guide, step by step, as the hub really works.
+  assert.match(mail.text, /\n1\. Einladung öffnen\nAm Mittwoch kommt eine E-Mail von hub@oalab\.de mit dem Betreff „Dein Zugang zum oalab Client Hub“\./);
+  assert.match(mail.text, /\n2\. Passwort festlegen\nTippe in der E-Mail auf „Passwort festlegen“\. Gib dein neues Passwort zweimal ein \(mindestens acht Zeichen\) und tippe auf „Passwort speichern“\. Der Link ist 7 Tage gültig\./);
+  assert.match(mail.text, /\n3\. Anmelden\nDanach bist du direkt angemeldet\.[^\n]*\nhttps:\/\/hub\.oalab\.de\/\n/);
+  assert.match(mail.text, /\n4\. Loslegen\nNicht wundern: Am Anfang siehst du noch nicht alle deine Daten\. Wir pflegen sie nach und nach ein, auch deinen Servicevertrag und die dazugehörigen Rechnungen\./);
+  assert.match(mail.html, /<a class="link" href="https:\/\/hub\.oalab\.de\/"[^>]*>hub\.oalab\.de&nbsp;&rarr;<\/a>/);
+  assert.match(mail.text, /Das ist zu tun: Damit die Einladung sicher ankommt: Speichere hub@oalab\.de am besten gleich in deinen Kontakten\./);
+  // The hosts, the tile of the guide and the new area travel inside the mail, and the mail stays below Gmail's cut.
+  for (const id of ["host-ali", "host-omed", "mail-tile", "area-contracts", "logo"]) assert.ok(mail.images.includes(id), id);
+  for (const id of mail.images) assert.ok(Object.hasOwn(MAIL_IMAGES, id), id);
+  assert.ok(mail.html.length < 100_000, String(mail.html.length));
+  // A link of a day (Supabase platform) and no usable hub address still read right.
+  const short = accessAnnouncementMail({ day, sender: "hub@oalab.de", days: 1, hubUrl: "javascript:alert(1)" });
+  assert.match(short.text, /Der Link ist einen Tag gültig\./);
+  assert.match(short.text, /Später meldest du dich mit deiner E-Mail-Adresse und deinem Passwort an\./);
+  assert.doesNotMatch(short.html, /javascript:/);
 });
 
 test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {

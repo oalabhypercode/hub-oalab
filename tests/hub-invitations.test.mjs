@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  checkLogins, customerLoginState, INVITE_BATCH, isFirstInvitation, isInvitable, LOGIN_BATCH, loginDrafts, loginStateLabels,
+  ANNOUNCE_DAYS_AHEAD, announceDays, berlinDayKey, checkLogins, customerLoginState, INVITE_BATCH, isAnnounceable, isFirstAnnouncement, isFirstInvitation, isInvitable,
+  LOGIN_BATCH, loginDrafts, loginStateLabels, readAnnounceDay,
 } from "../lib/hub-invitations/rules.ts";
 import { guessMapping, parseCsv, readContacts } from "../lib/hub-customer-import/rules.ts";
 import { cleanEmail, normalizeCompany, readPerson } from "../lib/hub-users/rules.ts";
@@ -89,6 +90,28 @@ test("how far a customer is, and who gets an invitation", () => {
   assert.ok(!isFirstInvitation({ id: "d", displayStatus: "invited", invitedAt: "2026-11-11T08:00:00Z" }), "a reminder is ticked on purpose");
   assert.equal(LOGIN_BATCH, 10);
   assert.equal(INVITE_BATCH, 10);
+});
+
+test("the announcement goes to customer logins without sign-in, for a day within the coming week", () => {
+  const login = (extra = {}) => ({ id: "a", displayStatus: "invited", invitedAt: null, role: "oalab_customer", announcedAt: null, ...extra });
+  assert.ok(isAnnounceable(login()));
+  assert.ok(!isAnnounceable(login({ role: "oalab_freelancer" })), "freelancers have neither projects nor contracts");
+  assert.ok(!isAnnounceable(login({ role: "oalab_admin" })));
+  assert.ok(!isAnnounceable(login({ displayStatus: "active" })), "never someone who signed in");
+  assert.ok(isFirstAnnouncement(login()));
+  assert.ok(!isFirstAnnouncement(login({ announcedAt: "2026-11-10T08:00:00Z" })), "a second announcement is ticked on purpose");
+  assert.ok(!isFirstAnnouncement(login({ invitedAt: "2026-11-09T08:00:00Z" })), "an invited login needs no announcement");
+
+  // 23:30 UTC on 10 November is already Wednesday, 11 November, in Berlin.
+  const now = new Date("2026-11-10T23:30:00Z");
+  assert.equal(berlinDayKey(now), "2026-11-11");
+  assert.equal(ANNOUNCE_DAYS_AHEAD, 6, "within a week the weekday names the day");
+  assert.deepEqual(announceDays(now), { min: "2026-11-11", max: "2026-11-17", suggested: "2026-11-12" });
+  assert.equal(readAnnounceDay("2026-11-11", now)?.toISOString(), "2026-11-11T12:00:00.000Z");
+  assert.equal(readAnnounceDay("2026-11-17", now)?.toISOString(), "2026-11-17T12:00:00.000Z");
+  for (const bad of ["2026-11-10", "2026-11-18", "11.11.2026", "2026-11-1", "", null, 20261112]) assert.equal(readAnnounceDay(bad, now), null, String(bad));
+  // Across the end of a month.
+  assert.deepEqual(announceDays(new Date("2026-11-28T10:00:00Z")), { min: "2026-11-28", max: "2026-12-04", suggested: "2026-11-29" });
 });
 
 test("an activation link lives a week, a reset a day, and the mail says until when", () => {

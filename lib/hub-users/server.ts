@@ -143,7 +143,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Zugänge verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, activations, packageRows] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, activations, announcements, packageRows] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
@@ -159,11 +159,15 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       // Every activation mail that went out, newest first: when each login was last invited (all of them, not only the
       // newest 300 of the history above).
       db.from("hub_notifications").select("user_id, created_at").eq("kind", "user.activation").eq("status", "sent").order("created_at", { ascending: false }).limit(5000).returns<{ user_id: string | null; created_at: string }[]>(),
+      // Every announcement that went out (admin log, „Ankündigung senden“), newest first.
+      db.from("hub_admin_events").select("target_user_id, created_at").eq("action", "user.announcement").order("created_at", { ascending: false }).limit(5000).returns<{ target_user_id: string | null; created_at: string }[]>(),
       // The packages of „Vertrag & Domain“; without their migration the list simply shows none.
       readCustomerPackages(db),
     ]);
     const invitedAt = new Map<string, string>();
     for (const row of activations.data ?? []) if (row.user_id && !invitedAt.has(row.user_id)) invitedAt.set(row.user_id, row.created_at);
+    const announcedAt = new Map<string, string>();
+    for (const row of announcements.data ?? []) if (row.target_user_id && !announcedAt.has(row.target_user_id)) announcedAt.set(row.target_user_id, row.created_at);
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
       return { ...emptyState, error: isMissingUserTables(failure) ? "Das User Management ist in Supabase noch nicht eingerichtet. Die Migration steht noch aus." : "Die Zugänge konnten gerade nicht geladen werden. Bitte versuche es erneut." };
@@ -201,6 +205,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         createdAt: user.created_at,
         lastSignInAt: user.last_sign_in_at ?? null,
         invitedAt: invitedAt.get(user.id) ?? null,
+        announcedAt: announcedAt.get(user.id) ?? null,
         decidedAt: profile?.decided_at ?? null,
         decisionNote: profile?.decision_note ?? "",
         privacyNotedAt: profile?.privacy_noted_at ?? null,

@@ -27,6 +27,7 @@ const places = [
   { file: "components/hub/screens/users-dialogs.tsx", call: 'useInfo("Kundenstamm"', button: /<PanelSection title="Firma und Kontakt" info=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users.tsx", call: 'useInfo("Zugänge, Kunden und Freelancer"', button: /<TabSwitch [^\n]*\/>\{tabsInfo\.button\}\{tabsInfo\.box\}<\/span>/, box: "{tabsInfo.box}" },
   { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Zugänge anlegen"', button: /<Modal title="Zugänge anlegen" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Ankündigung"', button: /<Modal title="Ankündigung senden" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Einladungen"', button: /<Modal title="Einladungen senden" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-import.tsx", call: 'useInfo("Import aus Sevdesk"', button: /<Modal title="Kunden importieren" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-dialogs.tsx", call: 'useInfo("Freelancer"', button: /title=\{freelancer \? freelancer\.company : "Freelancer anlegen"\}[^]*?actions=\{<>\{info\.button\}\{freelancer && <EntryNav/, box: "{info.box}" },

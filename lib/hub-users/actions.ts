@@ -6,14 +6,14 @@ import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
-import { mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import { mailAnnouncement, mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
 import { fillsFor, IMPORT_BATCH } from "@/lib/hub-customer-import/rules";
-import { INVITE_BATCH, LOGIN_BATCH } from "@/lib/hub-invitations/rules";
+import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, LOGIN_BATCH, readAnnounceDay } from "@/lib/hub-invitations/rules";
 import { mailSettings } from "@/lib/hub-mail/send";
-import { ACTIVATION_LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
+import { ACTIVATION_LINK_HOURS, LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
 import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
 import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
@@ -490,6 +490,57 @@ export async function sendInvitations(input: { userIds?: unknown }): Promise<Act
 }
 
 const mailStatusMessage = (status: MailStatus) => status === "skipped" ? "Der Mailversand ist nicht eingerichtet." : "Die E-Mail konnte nicht verschickt werden.";
+
+/** What an announcement needs besides the address: the day, how long the coming link lives, where to sign in. */
+async function announcementInput(day: unknown) {
+  const date = readAnnounceDay(day, new Date());
+  if (!date) return null;
+  const hours = usesOwnPlatform() ? ACTIVATION_LINK_HOURS : LINK_HOURS;
+  return { day: date, days: hours / 24, hubUrl: (await requestOrigin()) ?? "" };
+}
+
+const announceDayRefusal = `Bitte einen Tag von heute bis in ${ANNOUNCE_DAYS_AHEAD} Tagen wählen.`;
+
+/**
+ * „Ankündigung senden“: before the invitations, a mail to customer logins nobody has signed in with yet: the day the
+ * activation link comes, a short guide to the first sign-in and what the hub offers (accessAnnouncementMail). At most
+ * INVITE_BATCH per call. Each mail lands in the admin log (user.announcement), which shows who has it already.
+ */
+export async function sendAnnouncements(input: { userIds?: unknown; day?: unknown }): Promise<ActionResult<InvitationResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Ankündigung raus.");
+  const announcement = await announcementInput(input?.day);
+  if (!announcement) return failed(announceDayRefusal);
+  const ids = Array.isArray(input?.userIds) ? [...new Set(input.userIds.filter((id): id is string => typeof id === "string" && uuid.test(id)))] : [];
+  if (!ids.length || ids.length > INVITE_BATCH) return failed(`Bitte 1 bis ${INVITE_BATCH} Ankündigungen auf einmal senden.`);
+  const results: InvitationResult[] = [];
+  for (const userId of ids) {
+    const user = await loadUser(ctx, userId);
+    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Diesen Zugang gibt es nicht mehr." }); continue; }
+    if (user.last_sign_in_at) { results.push({ userId, outcome: "skipped", error: "Hat sich schon angemeldet." }); continue; }
+    if (roleOf(user) !== "oalab_customer") { results.push({ userId, outcome: "skipped", error: "Die Ankündigung ist nur für Kunden-Zugänge." }); continue; }
+    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "failed", error: "Der Zugang ist nicht aktiv." }); continue; }
+    const mail = await mailAnnouncement(user.email, announcement);
+    await log(ctx, mail === "sent" ? "user.announcement" : "user.announcement_failed", mail === "sent" ? "Ankündigung der Einladung per E-Mail verschickt" : "Ankündigung der Einladung ging nicht raus", { userId: user.id });
+    results.push(mail === "sent" ? { userId, outcome: "sent" } : { userId, outcome: "failed", error: mailStatusMessage(mail) });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
+}
+
+/** The announcement once to the admin's own address, „[Test]“ in the subject, to check it in a real inbox first. */
+export async function sendAnnouncementTest(input: { day?: unknown }): Promise<ActionResult<{ to: string }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet.");
+  const announcement = await announcementInput(input?.day);
+  if (!announcement) return failed(announceDayRefusal);
+  const admin = await loadUser(ctx, ctx.actorId);
+  if (!admin?.email) return failed("Dein Zugang hat keine E-Mail-Adresse.");
+  const mail = await mailAnnouncement(admin.email, { ...announcement, test: true });
+  return mail === "sent" ? { ok: true, data: { to: admin.email } } : failed(mailStatusMessage(mail));
+}
 
 /**
  * A fresh link to set the password: the activation for new logins, a reset for everyone else. Older links expire.
