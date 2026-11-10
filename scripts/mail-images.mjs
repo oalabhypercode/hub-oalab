@@ -4,7 +4,8 @@ import sharp from "sharp";
 
 // Renders the pictures of the hub's mails into lib/hub-mail/images.ts: the app icon, a tile per hub area and the small
 // symbols, from the hub's own artwork and Lucide symbols, plus the marks of Apple, Google and Microsoft for the calendar
-// buttons. Mail programs show no SVG, so each is a PNG at twice its shown size; the mails carry them as inline
+// buttons and the hosts Ali and Omed for the announcement. Mail programs show no SVG, so each is a PNG at twice its
+// shown size; the mails carry them as inline
 // attachments. Run again after changing a colour or symbol:
 //   node scripts/mail-images.mjs
 // sharp comes with Next.js.
@@ -48,8 +49,18 @@ async function mark(name, color, size = 16) {
   return png(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${size * 2}" height="${size * 2}" viewBox="0 0 24 24"><path fill="${color}" transform="translate(${shift} ${shift}) scale(${scale})" d="${path}"/></svg>`));
 }
 
+/**
+ * A host cut out of his still (560 px square, the bust on the lower edge), shown at 132 px. The same square crop for
+ * both keeps their heads at the same scale, and the bust stays on the lower edge, so each stands on the line under him.
+ * Ali's still is the hub's own; Omed's comes from the service platform (scripts/mail-sources/).
+ */
+async function host(file) {
+  const buffer = await sharp(fileURLToPath(new URL(file, root))).extract({ left: 12, top: 24, width: 536, height: 536 }).resize(264, 264).png({ compressionLevel: 9, palette: true, quality: 90, effort: 10 }).toBuffer();
+  return buffer.toString("base64");
+}
+
 // Area colours as in the hub; account, security and users in a lighter bordeaux, so the symbol stays visible on a dark card.
-const areas = { projects: ["folder-open", "#FF9500"], files: ["files", "#5856D6"], calendar: ["calendar-days", "#FF3B30"], messages: ["message-square", "#007AFF"], account: ["user-round", "#B5236F"], security: ["shield-check", "#B5236F"], users: ["user-cog", "#B5236F"], news: ["bell", "#F37222"] };
+const areas = { projects: ["folder-open", "#FF9500"], files: ["files", "#5856D6"], contracts: ["file-badge", "#34C759"], calendar: ["calendar-days", "#FF3B30"], messages: ["message-square", "#007AFF"], account: ["user-round", "#B5236F"], security: ["shield-check", "#B5236F"], users: ["user-cog", "#B5236F"], news: ["bell", "#F37222"] };
 const GREY = "#8A7E85";
 
 const images = {
@@ -62,6 +73,10 @@ images["calendar-tile"] = await tile("calendar-plus", areas.calendar[1]);
 for (const name of Object.keys(brands)) images[`brand-${name}`] = await mark(name, "#B5236F", 20);
 images["calendar-file"] = await glyph("download", "#B5236F", 20);
 images["calendar-small"] = await glyph("calendar-plus", GREY, 14);
+// The announcement before the invitations: its guide's tile and the two hosts.
+images["mail-tile"] = await tile("mail-check", areas.account[1]);
+images["host-ali"] = await host("public/brand/ali-welcome.webp");
+images["host-omed"] = await host("scripts/mail-sources/omed-welcome.webp");
 
 const lines = Object.entries(images).map(([id, data]) => `  "${id}": "${data}",`);
 await writeFile(new URL("lib/hub-mail/images.ts", root), `/**

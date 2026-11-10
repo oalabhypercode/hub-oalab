@@ -29,6 +29,8 @@ export type ManagedUser = {
   lastSignInAt: string | null;
   /** When the last activation mail went out to the login (invitation or „Link per E-Mail senden“). */
   invitedAt: string | null;
+  /** When the last announcement of the invitation went out to the login („Ankündigung senden“). */
+  announcedAt: string | null;
   decidedAt: string | null;
   decisionNote: string;
   privacyNotedAt: string | null;

@@ -68,10 +68,11 @@ const C = {
 // the very bottom, so the mail meets the plain body without an edge. Outlook for Windows shows the base colour.
 const CANVAS = `background-color:${C.canvas};background-image:linear-gradient(180deg,rgba(58,6,36,0) 78%,rgba(58,6,36,1) 100%),radial-gradient(circle at 0% 0%,rgba(126,0,75,0.95) 0%,rgba(126,0,75,0) 52%),radial-gradient(circle at 100% 42%,rgba(143,29,33,0.85) 0%,rgba(143,29,33,0) 50%),radial-gradient(circle at 35% 100%,rgba(180,64,15,0.9) 0%,rgba(180,64,15,0) 55%);`;
 
-type Area = "projects" | "files" | "calendar" | "messages" | "account" | "security" | "users" | "news";
+type Area = "projects" | "files" | "contracts" | "calendar" | "messages" | "account" | "security" | "users" | "news";
 const AREAS: Record<Area, { label: string; text: string; dark: string }> = {
   projects: { label: "Projekte", text: "#7F2100", dark: "#FFC680" },
   files: { label: "Dateien", text: "#3533A1", dark: "#BDBCFF" },
+  contracts: { label: "Vertrag & Domain", text: "#0E4A20", dark: "#9FE0B0" },
   calendar: { label: "Kalender", text: "#800F0B", dark: "#FFB3AD" },
   messages: { label: "Nachrichten", text: "#004285", dark: "#9CC7FF" },
   account: { label: "Konto", text: C.bordeaux, dark: "#F6A9CE" },
@@ -113,6 +114,10 @@ ${s(".rule")}{border-color:#332A30 !important}
 ${s(".link")}{color:#F4A6C9 !important}
 ${s(".vcard")}{background:#231D21 !important;border-color:#382E34 !important}
 ${s(".calbtn,.calpill")}{background:#2E262B !important;border-color:#43383F !important}
+${s(".stage")}{background:#221C20 !important;border-color:#332A30 !important}
+${s(".floor")}{border-color:#3A3036 !important}
+${s(".bubble")}{background:#2E262B !important;border-color:#43383F !important}
+${s(".stepline")}{background-image:linear-gradient(#3F343A,#3F343A) !important}
 ${s(".calpill")}{color:#F6F0F3 !important}
 ${(Object.keys(AREAS) as Area[]).map((id) => `${s(`.area-${id}`)}{color:${AREAS[id].dark} !important}`).join("\n")}
 ${s(".tone-todo")}{background:#3A2614 !important;color:#FFBE8A !important}
@@ -143,6 +148,15 @@ const PHONE = `
   .show-mobile{display:block !important;max-height:none !important;overflow:visible !important}
   .vcol{display:block !important;width:100% !important;padding:0 0 10px !important}
   .calpanel{padding:18px 16px 8px !important}
+  .guidepanel{padding:18px 16px 14px !important}
+  .floor{padding:0 !important}
+  .speech{display:block !important;width:auto !important;padding:18px 12px 4px !important}
+  .host-cell{display:block !important;width:auto !important}
+  .host-img{width:104px !important;height:104px !important}
+  .host-left .host-img{margin:0 auto 0 14px !important}
+  .host-right .host-img{margin:0 14px 0 auto !important}
+  .bubble-pad{padding:11px 16px 13px !important}
+  .hello{font-size:19px !important;line-height:24px !important}
 }`;
 
 // ---------- Building blocks ----------
@@ -173,7 +187,7 @@ ${table(`<tr>
 <tr><td class="px" style="padding:0 44px;"><div class="rule" style="height:1px;line-height:1px;font-size:0;border-top:1px solid ${C.line};">&nbsp;</div></td></tr>`;
 }
 
-const panel = (content: string, padding = "6px 24px") => table(`<tr><td style="padding:${padding};">${content}</td></tr>`, ` class="panel" style="background:${C.panel};border:1px solid ${C.panelLine};border-radius:18px;"`);
+const panel = (content: string, padding = "6px 24px", inner = "") => table(`<tr><td${inner ? ` class="${inner}"` : ""} style="padding:${padding};">${content}</td></tr>`, ` class="panel" style="background:${C.panel};border:1px solid ${C.panelLine};border-radius:18px;"`);
 
 function details(rows: Row[]) {
   const body = rows.map((row, index) => `
@@ -270,6 +284,68 @@ function note(tone: NoteTone, text: string) {
 </td></tr>`, ` class="note-${tone}" style="background:${n.bg};border-radius:14px;"`);
 }
 
+/** A host of the hub (Ali) or of the service platform (Omed): his cut-out picture (cid image), who he is, what he says. */
+type Host = { image: string; name: string; hello: string; line: string; side: "left" | "right" };
+
+/**
+ * The hosts in conversation, as in the hub's welcome: each stands on a line, his bubble beside him, the first on the
+ * left, the next on the right. The bubble's sharp corner points to him. Two soft lights in the brand colours sit behind
+ * them; Outlook for Windows shows the plain panel.
+ */
+function hostStage(hosts: Host[]) {
+  // Bubble first, picture second in the source, so on a phone each bubble stacks above its host; dir="rtl" puts the
+  // left host's picture back on the left on a computer.
+  const rows = hosts.map((host, index) => {
+    const left = host.side === "left";
+    const last = index === hosts.length - 1;
+    const avatar = `<td class="host-cell host-${host.side}" dir="ltr" width="132" valign="bottom" style="width:132px;font-size:0;line-height:0;"><img class="host-img" src="cid:${host.image}@hub.oalab.de" width="132" height="132" alt="${esc(host.name.split(" ")[0])}" style="display:block;width:132px;height:132px;border:0;"></td>`;
+    // Words with a hyphen ("KI-Plattform", "oalab-Kunde") stay on one line in the narrow bubbles.
+    const keep = (text: string) => esc(text).replace(/[^\s-]+(?:-[^\s-]+)+/g, (word) => `<span style="white-space:nowrap;">${word}</span>`);
+    const bubble = table(`<tr><td class="bubble-pad" style="padding:12px 18px 14px;">
+<div class="muted" style="${t(13, 18, 600, C.muted)}">${esc(host.name)}</div>
+<div class="ink hello" style="padding-top:2px;${t(21, 26, 700, C.ink, "letter-spacing:-0.015em;")}">${keep(host.hello)}</div>
+<div class="body" style="padding-top:5px;${t(15, 22, 400, C.body)}">${keep(host.line)}</div>
+</td></tr>`, ` class="bubble" bgcolor="#FFFFFF" style="background:#FFFFFF;border:1px solid #F0E4EA;border-radius:${left ? "20px 20px 20px 6px" : "20px 20px 6px 20px"};box-shadow:0 1px 2px rgba(60,0,30,0.05),0 10px 24px rgba(60,0,30,0.10);"`);
+    const speech = `<td class="speech" dir="ltr" valign="middle" style="padding:${left ? "24px 22px 24px 4px" : "24px 4px 24px 22px"};">${bubble}</td>`;
+    return `<tr><td class="floor" style="padding:${left ? "0 0 0 10px" : "0 10px 0 0"};${last ? "" : "border-bottom:1px solid #EADCE2;"}">${table(`<tr>${speech}${avatar}</tr>`, left ? ` dir="rtl"` : "")}</td></tr>`;
+  });
+  return table(rows.join(""), ` class="stage" bgcolor="#FBF6F8" style="background:#FBF6F8;background-image:radial-gradient(circle at 4% 50%,rgba(181,35,111,0.14) 0%,rgba(181,35,111,0) 34%),radial-gradient(circle at 96% 100%,rgba(243,114,34,0.14) 0%,rgba(243,114,34,0) 34%);border:1px solid #F0E4EA;border-radius:22px;"`);
+}
+
+/** One step of a short guide: what to do, how, and optionally a link. */
+type Step = { title: string; text: string; link?: { label: string; url: string } };
+
+/** A short guide for a day: a tile, the date and a line, then the steps. */
+type Guide = { tile: string; date: string; line: string; steps: Step[] };
+
+/**
+ * Numbered steps: a round number in the brand colours, a fine line down to the next number (not in Outlook for
+ * Windows, which shows the numbers alone), the title and what to do.
+ */
+function stepList(steps: Step[]) {
+  return table(steps.map((step, index) => {
+    const last = index === steps.length - 1;
+    const line = last ? "" : `background-image:linear-gradient(#E6D7DE,#E6D7DE);background-size:2px 100%;background-position:center top;background-repeat:no-repeat;`;
+    const url = step.link ? safeUrl(step.link.url) : "";
+    const link = url && step.link ? `<div style="padding-top:6px;"><a class="link" href="${esc(url)}" style="${t(15, 22, 600, C.bordeaux, "text-decoration:none;")}">${esc(step.link.label)}&nbsp;&rarr;</a></div>` : "";
+    return `<tr>
+<td class="${last ? "" : "stepline"}" width="28" valign="top" style="width:28px;${line}"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="28" height="28" align="center" valign="middle" bgcolor="${C.bordeaux}" style="width:28px;height:28px;border-radius:14px;background:${C.bordeaux};background-image:linear-gradient(135deg,${C.bordeaux} 0%,${C.red} 60%,${C.orange} 100%);${t(13, 28, 700, "#FFFFFF", "text-align:center;")}">${index + 1}</td></tr></table></td>
+<td valign="top" style="padding:3px 0 ${last ? 4 : 20}px 14px;">
+<div class="ink" style="${t(16, 22, 700, C.ink, "letter-spacing:-0.005em;")}">${esc(step.title)}</div>
+<div class="body" style="padding-top:4px;${t(15, 23, 400, C.body)}">${esc(step.text)}</div>
+${link}
+</td></tr>`;
+  }).join(""));
+}
+
+function guidePanel(guide: Guide) {
+  return panel(`${table(`<tr>
+<td width="36" valign="top" style="width:36px;padding-top:2px;">${image(guide.tile, 36)}</td>
+<td valign="middle" style="padding-left:14px;"><div class="ink" style="${t(17, 22, 700, C.ink, "letter-spacing:-0.01em;")}">${esc(guide.date)}</div><div class="muted" style="padding-top:3px;${t(14, 20, 400, C.muted)}">${esc(guide.line)}</div></td>
+</tr>`)}
+${table(`<tr><td class="rule" style="padding:20px 0 0;border-top:1px solid ${C.panelLine};">${stepList(guide.steps)}</td></tr>`, ` style="margin-top:16px;"`)}`, "20px 24px 18px", "guidepanel");
+}
+
 const MOVED_HINT = "Schon in deinem Kalender? Lösch dort den alten Eintrag. Private Kalender ändern sich nicht von selbst.";
 
 /** The ways into a calendar, each with a safe link; an empty list when none is usable. */
@@ -348,13 +424,19 @@ type Mail = {
   lead: string;
   code?: { value: string; note: string };
   card?: Card;
+  hosts?: Host[];
+  guide?: Guide;
   details?: Row[];
   notice?: Notice;
   calendar?: MailCalendar;
+  /** A small caption above the list. */
+  listTitle?: string;
   list?: Notice[];
   more?: string;
   quote?: { label: string; value: string };
   note?: { tone: NoteTone; text: string };
+  /** Closing words at the end of the card, signed by `from`. */
+  signoff?: { text: string; from: string };
   /** The button; left out without a usable link. */
   cta?: { label: string; url: string };
   small?: string;
@@ -388,10 +470,13 @@ function render(mail: Mail): MailContent {
   rows.push(section(`<p class="body" style="margin:0;${t(17, 27, 400, C.body)}">${esc(mail.lead)}</p>`, 12));
   if (mail.code) rows.push(section(codePanel(mail.code.value, mail.code.note)));
   if (mail.card) rows.push(section(contactCard(mail.card)));
+  if (mail.hosts?.length) rows.push(section(hostStage(mail.hosts), 26));
+  if (mail.guide) rows.push(section(guidePanel(mail.guide), 16));
   if (mail.details?.length) rows.push(section(details(mail.details)));
   if (mail.notice) rows.push(section(noticeCard(mail.notice)));
   if (calendar) rows.push(section(calendarBlock(calendar), 16));
-  if (list?.length) rows.push(section(noticeList(list), 16));
+  if (list?.length && mail.listTitle) rows.push(section(`<div class="muted" style="${caps(C.muted)}">${esc(mail.listTitle)}</div>`, 34));
+  if (list?.length) rows.push(section(noticeList(list), mail.listTitle ? 2 : 16));
   if (mail.more) rows.push(section(`<p class="muted" style="margin:0;${t(14, 21, 400, C.muted)}">${esc(mail.more)}</p>`, 4));
   if (mail.quote) rows.push(section(quote(mail.quote.label, mail.quote.value), 24));
   if (mail.note) rows.push(section(note(mail.note.tone, mail.note.text), 24));
@@ -400,6 +485,8 @@ function render(mail: Mail): MailContent {
     if (!cta.url.startsWith("mailto:")) rows.push(section(`<p class="muted" style="margin:0;${t(12, 18, 400, C.muted)}">Button funktioniert nicht? Öffne diesen Link:<br><a class="link" href="${esc(cta.url)}" style="color:${C.bordeaux};word-break:break-all;">${esc(cta.url)}</a></p>`, 14));
   }
   if (mail.small) rows.push(section(`<p class="muted" style="margin:0;${t(12, 18, 400, C.muted)}">${esc(mail.small)}</p>`, cta ? 12 : 22));
+  if (mail.signoff) rows.push(section(`<p class="body" style="margin:0;${t(16, 25, 400, C.body)}">${esc(mail.signoff.text)}</p>
+<p class="body" style="margin:16px 0 0;${t(16, 25, 400, C.body)}">Viele Grüße<br><span class="ink" style="font-weight:700;color:${C.ink};">${esc(mail.signoff.from)}</span></p>`, 30));
   rows.push(`<tr><td style="height:44px;line-height:44px;font-size:0;">&nbsp;</td></tr>`);
 
   const legal = legalLinks(mail.legal).map(([label, url]) => `<a href="${esc(url)}" style="color:#D9BFCB;text-decoration:underline;">${label}</a>&nbsp;&middot;&nbsp;`).join("");
@@ -459,8 +546,15 @@ ${footer}
     if (card.footnote) lines.push(card.footnote);
     lines.push("");
   }
+  for (const host of mail.hosts ?? []) lines.push(`${host.name}: ${host.hello} ${host.line}`, "");
+  if (mail.guide) {
+    lines.push(mail.guide.date, mail.guide.line);
+    mail.guide.steps.forEach((step, index) => lines.push("", `${index + 1}. ${step.title}`, step.text, ...(step.link && safeUrl(step.link.url) ? [safeUrl(step.link.url)] : [])));
+    lines.push("");
+  }
   if (mail.details?.length) lines.push(...mail.details.map((row) => `${row.label}: ${row.value}`), "");
   if (mail.notice) lines.push(mail.notice.title, ...(mail.notice.body ? [mail.notice.body] : []), "");
+  if (list?.length && mail.listTitle) lines.push(`${mail.listTitle}:`, "");
   if (calendar) lines.push(...calendarText(calendar), "");
   for (const item of list ?? []) {
     lines.push(`${item.label}: ${item.title}`, ...(item.body ? [item.body] : []), ...(item.calendar ? calendarText(item.calendar) : []), ...(item.link ? [`${item.link.label}: ${item.link.url}`] : []), "");
@@ -470,6 +564,7 @@ ${footer}
   if (mail.note) lines.push(`${NOTES[mail.note.tone].title}: ${mail.note.text}`, "");
   if (cta) lines.push(`${cta.label}: ${cta.url.startsWith("mailto:") ? cta.url.slice(7).split("?")[0] : cta.url}`, "");
   if (mail.small) lines.push(mail.small, "");
+  if (mail.signoff) lines.push(mail.signoff.text, "", "Viele Grüße", mail.signoff.from, "");
   lines.push("—", mail.reason, ...(manage ? [`Benachrichtigungen verwalten: ${manage}`] : []), "Fragen? Antworte einfach auf diese E-Mail.", ...legalLinks(mail.legal).map(([label, url]) => `${label}: ${url}`));
 
   const images = [...new Set([...html.matchAll(/src="cid:([a-z0-9-]+)@hub\.oalab\.de"/g)].map((match) => match[1]))];
@@ -477,6 +572,60 @@ ${footer}
 }
 
 // ---------- The mails ----------
+
+const weekdayName = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long" });
+const fullDay = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+/**
+ * To a customer login before its invitation (User Management → Zugänge → „Ankündigung senden“, 10.11.2026): the day
+ * the activation link comes, Ali and Omed as the faces of hub and service platform, a short guide to the first
+ * sign-in, what the hub offers and what to do now. The same text for everyone, without names (user's wish). `day` is
+ * the day of the invitations (at most a week ahead, so its weekday is enough), `sender` the hub's address, `days` how
+ * long the activation link lives, `hubUrl` where to sign in later.
+ */
+export function accessAnnouncementMail(input: { day: Date; sender: string; days: number; hubUrl: string }, legal?: MailLegal): MailContent {
+  const weekday = weekdayName.format(input.day);
+  const hub = safeUrl(input.hubUrl);
+  return render({
+    subject: `Ab ${weekday}: dein Zugang zum oalab Client Hub`,
+    preheader: `Am ${fullDay.format(input.day)} kommt dein persönlicher Aktivierungslink von ${input.sender}.`,
+    area: "account",
+    heading: `Dein Zugang kommt am ${weekday}`,
+    lead: "Damit unsere Zusammenarbeit noch einfacher wird, bekommst du einen eigenen Zugang zum oalab Client Hub, unserem Kundenportal.",
+    hosts: [
+      { image: "host-ali", side: "left", name: "Ali von oalab · Client Hub", hello: "Hallo, lieber oalab-Kunde!", line: `Ab ${weekday} begrüße ich dich im Client Hub. Dort findest du alles rund um unsere Zusammenarbeit.` },
+      { image: "host-omed", side: "right", name: "Omed von oalab · Serviceplattform", hello: "Was sollen wir verbessern?", line: "Mit unserer eigens entwickelten KI-Plattform sind Anpassungen an deinen Projekten jetzt direkt möglich." },
+    ],
+    // The guide follows the real flow: the activation mail (passwordLinkMail, subject and button as named here), the
+    // page „Ein neues Passwort“ (button „Passwort speichern“, at least eight characters), then signed in. Customers have
+    // no second factor unless they choose one in their profile.
+    guide: {
+      tile: "mail-tile",
+      date: fullDay.format(input.day),
+      line: "So kommst du Schritt für Schritt in den Client Hub:",
+      steps: [
+        { title: "Einladung öffnen", text: `Am ${weekday} kommt eine E-Mail von ${input.sender} mit dem Betreff „Dein Zugang zum oalab Client Hub“. Nicht im Posteingang? Dann schau bitte im Spam-Ordner nach.` },
+        { title: "Passwort festlegen", text: `Tippe in der E-Mail auf „Passwort festlegen“. Gib dein neues Passwort zweimal ein (mindestens acht Zeichen) und tippe auf „Passwort speichern“. Der Link ist ${input.days === 1 ? "einen Tag" : `${input.days} Tage`} gültig.` },
+        hub
+          ? { title: "Anmelden", text: "Danach bist du direkt angemeldet. Später meldest du dich hier mit deiner E-Mail-Adresse und deinem Passwort an:", link: { label: new URL(hub).host, url: hub } }
+          : { title: "Anmelden", text: "Danach bist du direkt angemeldet. Später meldest du dich mit deiner E-Mail-Adresse und deinem Passwort an." },
+        { title: "Loslegen", text: "Nicht wundern: Am Anfang siehst du noch nicht alle deine Daten. Wir pflegen sie nach und nach ein, auch deinen Servicevertrag und die dazugehörigen Rechnungen. Schreiben kannst du uns aber sofort unter „Nachrichten“." },
+      ],
+    },
+    listTitle: "Das erwartet dich im Client Hub",
+    list: [
+      { area: "projects", label: "Projekte anpassen", title: "Änderungen direkt beauftragen", body: "Über unser automatisches Anpassungssystem gibst du Änderungen an deinen Projekten direkt bei uns in Auftrag und siehst jederzeit, wie weit sie sind." },
+      { area: "files", label: "Deine Dateien", title: "Alles zum Herunterladen", body: "Alles, was wir für dich erstellt haben, kannst du jederzeit herunterladen." },
+      { area: "messages", label: "Nachrichten", title: "Direkter Draht zu uns", body: "Unter „Nachrichten“ schreibst du uns direkt." },
+      { area: "calendar", label: "Termine", title: "Termin anfragen", body: "Im Kalender siehst du, wann wir Zeit haben, und fragst einen Termin bei uns an. Er ist mit unserem Kalender abgestimmt." },
+      { area: "contracts", label: "Vertrag & Domain", title: "Domain und Postfächer im Blick", body: "Hier siehst du den aktuellen Stand deiner gebuchten Domain und deiner E-Mail-Postfächer." },
+    ],
+    note: { tone: "todo", text: `Damit die Einladung sicher ankommt: Speichere ${input.sender} am besten gleich in deinen Kontakten.` },
+    signoff: { text: "Wir freuen uns auf dich im Client Hub!", from: "Dein oalab-Team" },
+    reason: "Du bekommst diese E-Mail, weil du bei oalab einen Zugang zum Client Hub bekommst.",
+    legal,
+  });
+}
 
 const REGISTRATION_REASON = "Diese E-Mail gehört zu deiner Registrierung beim oalab Client Hub.";
 const ACCOUNT_REASON = "Diese E-Mail gehört zu deinem Zugang zum oalab Client Hub.";

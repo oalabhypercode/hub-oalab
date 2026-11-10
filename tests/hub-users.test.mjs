@@ -295,7 +295,7 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   assert.match(css, /td:first-child::before \{ content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 4px; background: var\(--row-mark\); \}/);
   // One red gear per tab holds its actions; the rows open with a gear instead of a pencil.
   assert.match(page, /return <SheetActionMenu label=\{tab === "customers" \? "Kunden verwalten"/);
-  for (const label of ["Kunde anlegen", "Zugänge anlegen", "Importieren", "Freelancer anlegen", "Zugang anlegen", "Einladungen senden"]) assert.match(page, new RegExp(`label: "${label}"`), label);
+  for (const label of ["Kunde anlegen", "Zugänge anlegen", "Importieren", "Freelancer anlegen", "Zugang anlegen", "Ankündigung senden", "Einladungen senden"]) assert.match(page, new RegExp(`label: "${label}"`), label);
   assert.doesNotMatch(page, /Pencil/);
   assert.equal(page.split('<Settings size={16} aria-hidden="true" />').length - 1, 3, "gear in the rows of all three tabs");
   const sheet = await source("components/hub/sheet.tsx");

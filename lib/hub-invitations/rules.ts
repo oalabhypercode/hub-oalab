@@ -102,3 +102,44 @@ export const isInvitable = (login: InvitableLogin) => login.displayStatus === "i
 
 /** Ticked at the start: the ones never invited; reminders to the others are a choice. */
 export const isFirstInvitation = (login: InvitableLogin) => isInvitable(login) && !login.invitedAt;
+
+// The announcement before the invitations -----------------------------------------------------------------------------
+
+/** How far ahead the day of the invitations may lie: within a week, so the mail can name it by its weekday. */
+export const ANNOUNCE_DAYS_AHEAD = 6;
+
+export type AnnounceableLogin = InvitableLogin & { role: string | null; announcedAt: string | null };
+
+/** Logins the announcement goes to: customer logins nobody has signed in with yet. */
+export const isAnnounceable = (login: AnnounceableLogin) => isInvitable(login) && login.role === "oalab_customer";
+
+/** Ticked at the start: the ones that got neither the announcement nor an invitation yet. */
+export const isFirstAnnouncement = (login: AnnounceableLogin) => isAnnounceable(login) && !login.announcedAt && !login.invitedAt;
+
+const berlinDate = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** The calendar day of a moment in German time, as YYYY-MM-DD. */
+export function berlinDayKey(moment: Date) {
+  const parts = Object.fromEntries(berlinDate.formatToParts(moment).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/** The days the invitations may be announced for: from today up to ANNOUNCE_DAYS_AHEAD days ahead, suggested tomorrow. */
+export function announceDays(now: Date) {
+  const [year, month, day] = berlinDayKey(now).split("-").map(Number);
+  const ahead = (days: number) => new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
+  return { min: ahead(0), max: ahead(ANNOUNCE_DAYS_AHEAD), suggested: ahead(1) };
+}
+
+/**
+ * The chosen day of the invitations as noon of that day (in German time still the same date), or null for anything
+ * that is no real date within announceDays.
+ */
+export function readAnnounceDay(value: unknown, now: Date): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const { min, max } = announceDays(now);
+  if (value < min || value > max) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const noon = new Date(Date.UTC(year, month - 1, day, 12));
+  return noon.toISOString().slice(0, 10) === value ? noon : null;
+}

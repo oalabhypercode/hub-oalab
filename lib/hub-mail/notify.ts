@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
-import { accessApprovedMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
+import { accessAnnouncementMail, accessApprovedMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
 
 // Every mail the hub sends on its own. Each attempt lands in hub_notifications (kind and outcome only);
 // the registration mails go out once per login. Nothing here throws: a mail problem never breaks an action.
@@ -90,6 +90,21 @@ export function mailPasswordLink(db: SupabaseClient, user: User, input: { firstN
 export function mailLoginCode(db: SupabaseClient, user: Pick<User, "id" | "email">, input: { firstName: string; code: string; minutes: number; issuedAt: Date; hubOnly: boolean }) {
   const settings = mailSettings();
   return sendTracked(db, "user.login_code", user.id, mailOf([user.email ?? ""], loginCodeMail(input, settings.legal)));
+}
+
+/** The plain address of a sender like „oalab Client Hub <hub@oalab.de>“. */
+const senderAddress = (from: string) => /<([^<>\s]+@[^<>\s]+)>/.exec(from)?.[1] ?? from.trim();
+
+/**
+ * The announcement before the invitations (User Management → „Ankündigung senden“), to one address. The mail log
+ * (hub_notifications) accepts only the kinds of its migration, so the action records the announcement in the admin log
+ * instead. `days` is how long the coming activation link lives; `test` marks the subject.
+ */
+export async function mailAnnouncement(to: string, input: { day: Date; days: number; hubUrl: string; test?: boolean }): Promise<MailStatus> {
+  const settings = mailSettings();
+  const content = accessAnnouncementMail({ day: input.day, sender: senderAddress(settings.from), days: input.days, hubUrl: input.hubUrl }, settings.legal);
+  const result = await sendMail(mailOf([to], input.test ? { ...content, subject: `[Test] ${content.subject}` } : content, { kind: "user.announcement" }));
+  return result.status;
 }
 
 /** Right after the registration form: the link that confirms the e-mail address. */
