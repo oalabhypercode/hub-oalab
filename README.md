@@ -142,12 +142,12 @@ Einrichtung: Nach der Migration den Wert von `oalab_hub_notify_token` aus Supaba
 
 ### Telegram für Admins
 
-Schreibt ein Kunde im privaten Chat, bekommt die Telegram-Gruppe des Teams eine Meldung mit Firmenname und dem Knopf „Im Hub öffnen“, nie mit dem Text der Nachricht. Bis jemand aus dem Team den Chat im Hub gelesen hat, kommt pro Chat nur eine Meldung (`lib/hub-telegram/`). Das läuft kostenlos über die offizielle Bot API von Telegram, ohne eigenen Server und ohne Webhook.
+Jede Nachricht, die ein Kunde im privaten Chat schreibt, kommt auch in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text (über 3.500 Zeichen gekürzt), dazu der Knopf „Im Hub öffnen“. Geantwortet wird im Hub (`lib/hub-telegram/`). Das läuft kostenlos über die offizielle Bot API von Telegram, ohne eigenen Server und ohne Webhook. Die Gruppe löscht ihre Nachrichten nach 24 Stunden (Einstellung in Telegram, Entscheidung des Nutzers vom 12. November 2026).
 
 1. In Telegram dem Bot @BotFather `/newbot` schicken, Namen und Benutzernamen (endet auf „bot“) wählen. BotFather antwortet mit dem Token.
 2. Eine Gruppe mit allen Admins anlegen, den Bot hinzufügen und in der Gruppe `/start@<benutzername_des_bots>` senden.
 3. Im Browser `https://api.telegram.org/bot<TOKEN>/getUpdates` öffnen. Bei `"chat"` steht die Nummer der Gruppe (beginnt mit `-100`).
-4. In Vercel (Production) eintragen und neu deployen:
+4. In Coolify bei der App des Hubs unter „Environment Variables“ eintragen (nur zur Laufzeit, nicht beim Bauen) und neu deployen:
 
 | Variable | Typ | Zweck |
 | --- | --- | --- |
@@ -156,9 +156,7 @@ Schreibt ein Kunde im privaten Chat, bekommt die Telegram-Gruppe des Teams eine 
 
 5. Im Profil unter „Benachrichtigungen“ mit „Testmeldung senden“ prüfen.
 
-Ohne beide Werte sendet der Hub nichts an Telegram. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt; deshalb geht nur der Firmenname mit. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
-
-**Nur für die interne Testphase:** Der volle Text geht an Telegram, solange keine echten Kundendaten im Hub sind (Entscheidung des Nutzers vom 4. November 2026). Die Datenschutzerklärung (`/datenschutz`, Abschnitt 7) und der Hinweis im Chat beschreiben bewusst schon den Betrieb mit echten Kunden: nur Firmenname und Link. Bevor echte Kunden schreiben, `telegramChatMessage` wieder auf Firmenname und Link stellen (Commit f2ec6a9 zurücknehmen) oder Datenschutzerklärung und Hinweis anpassen.
+Ohne beide Werte sendet der Hub nichts an Telegram, auch keine Fehlermeldung. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt. Auf dem Sperrbildschirm lässt sich die Vorschau in Telegram unter Einstellungen → Mitteilungen abschalten. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
 
 ## KI-Assistent (Claude)
 

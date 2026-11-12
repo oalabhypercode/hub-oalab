@@ -16,4 +16,4 @@ export const OPERATOR = {
 } as const;
 
 /** "Stand" of the privacy policy: the day its content was last checked against the code. Move it with every change. */
-export const PRIVACY_POLICY_DATE = "8. November 2026";
+export const PRIVACY_POLICY_DATE = "12. November 2026";

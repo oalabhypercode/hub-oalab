@@ -79,8 +79,10 @@ test("the privacy policy names every service the hub uses and carries its date",
   assert.match(policy, /<h3>Freelancer<\/h3>/);
   assert.match(policy, /<h3>Daten deines Unternehmens<\/h3>/);
   assert.match(policy, /Steuer- und Bankdaten übernehmen wir nicht in den Hub\./);
-  // Telegram as it runs since 8.11.2026 (hub#74): the company name and a link only.
-  assert.match(policy, /Die Meldung enthält nur den Namen des Unternehmens und einen Link in den Hub, keine Namen von Personen und nicht den Text\./);
+  // Telegram since 12.11.2026: every customer message with its text. At the user's wish the policy does not describe
+  // the content, so it must not claim the opposite either (company name only, no text, one notice per company).
+  assert.match(policy, /meldet der Hub sie zusätzlich in einer geschlossenen Telegram-Gruppe unseres Teams\./);
+  assert.doesNotMatch(policy, /nicht den Text|nur (mit )?(den |dem )?Namen? des Unternehmens|nur der Name des Unternehmens|pro Unternehmen nur eine Meldung/);
   // The objection right stands apart; no automated decisions.
   assert.match(policy, /<strong>Widerspruchsrecht nach Art\. 21 DSGVO:<\/strong>/);
   assert.match(policy, /automatisierte Entscheidungen nach Art\. 22 DSGVO gibt es nicht/);
@@ -94,6 +96,8 @@ test("the privacy policy names every service the hub uses and carries its date",
 
 test("customers read at the chat that Telegram hears of new messages, with the way to the details", async () => {
   const chat = await source("components/hub/screens/private-chat.tsx");
-  assert.match(chat, /neue Nachrichten meldet der Hub unserem Team auch über Telegram, ohne den Text\. <Link href=\{`\$\{LEGAL_PATHS\.privacy\}#nachrichten`\}>Mehr dazu<\/Link>/);
+  assert.match(chat, /neue Nachrichten meldet der Hub unserem Team auch über Telegram\. <Link href=\{`\$\{LEGAL_PATHS\.privacy\}#nachrichten`\}>Mehr dazu<\/Link>/);
+  // Since 12.11.2026 the text goes along, so the note no longer says it does not.
+  assert.doesNotMatch(chat, /Telegram, ohne den Text/);
   assert.match(await source("components/legal/privacy-policy.tsx"), /\{ id: "nachrichten", title: /);
 });

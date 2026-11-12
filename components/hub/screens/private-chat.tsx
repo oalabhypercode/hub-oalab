@@ -355,7 +355,7 @@ function PrivateThread({ thread, admin, live, now, logo, onClose, onSent, onDemo
       </header>
       <div className="chat-log" ref={log} role="log" aria-live="polite" aria-label="Nachrichten">
         {/* Customers learn here, where they write, that the team's Telegram group hears of new messages (Art. 13 DSGVO). */}
-        <p className="chat-system"><Info size={14} aria-hidden="true" />{admin ? `Privater Chat mit ${chat.company}. Nur ihr Team und oalab lesen mit.` : <span>Hier schreibst du direkt mit dem oalab-Team. Nur {chat.company} und oalab lesen mit; neue Nachrichten meldet der Hub unserem Team auch über Telegram, ohne den Text. <Link href={`${LEGAL_PATHS.privacy}#nachrichten`}>Mehr dazu</Link></span>}</p>
+        <p className="chat-system"><Info size={14} aria-hidden="true" />{admin ? `Privater Chat mit ${chat.company}. Nur ihr Team und oalab lesen mit.` : <span>Hier schreibst du direkt mit dem oalab-Team. Nur {chat.company} und oalab lesen mit; neue Nachrichten meldet der Hub unserem Team auch über Telegram. <Link href={`${LEGAL_PATHS.privacy}#nachrichten`}>Mehr dazu</Link></span>}</p>
         {items.map(({ message, day, first, last }) => {
           const side = chatMessageSide({ side: message.side, own: message.own, viewer });
           // On the right only the own side; admins see there which of them wrote, unless it was themselves.

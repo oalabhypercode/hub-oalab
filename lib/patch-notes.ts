@@ -37,6 +37,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 19,
+    date: "2026-11-12",
+    title: "Kundennachrichten in Telegram",
+    summary: "Schreibt ein Kunde im privaten Chat, kommt seine Nachricht wieder vollständig in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text, dazu der Knopf in den Hub. Jede Nachricht kommt einzeln an, nicht mehr nur eine Meldung pro Chat.",
+    changes: [
+      { kind: "improved", title: "Nachrichten mit Text in Telegram", text: "Die Telegram-Gruppe des Teams zeigt bei jeder Kundennachricht Firma, Name und den Text selbst, sehr lange Nachrichten gekürzt. Geantwortet wird weiter im Hub über den Knopf „Im Hub öffnen“." },
+    ],
+  },
+  {
     number: 18,
     date: "2026-11-10",
     title: "Seiten laden nach Änderungen wieder zuverlässig",
