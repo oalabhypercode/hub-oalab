@@ -4,7 +4,9 @@ import { OPERATOR } from "@/lib/legal-details";
 /**
  * Checked on 8.11.2026 against what the hub really uses: its own server at netcup (Coolify on server 2: PostgreSQL,
  * Better Auth login with the session cookie of lib/platform/config.ts, Garage file store; netcup also sends the mail),
- * Cloudflare in front of every public host, Anthropic (assistant), Telegram (company name and link only), freelancers
+ * Cloudflare in front of every public host, Anthropic (assistant), Telegram (since 12.11.2026 every customer message
+ * with company, name and text; at the user's wish the text below says only that the team hears of new messages there
+ * and makes no claim about their content), freelancers
  * who see the customers assigned to them, customer master data taken over from the accounting (Sevdesk import). Vercel
  * and Supabase only keep the frozen copy from before the move (8.11.2026) until they are deleted. Only necessary
  * cookies and browser storage, no trackers, fonts served by the hub itself. Change this text whenever one of these
@@ -54,7 +56,7 @@ export function PrivacyPolicy() {
           <li>Der Hub läuft auf unserem eigenen Server bei netcup in der EU. Davor steht Cloudflare, das die Verbindungen weiterleitet und vor Angriffen schützt (Abschnitt 3).</li>
           <li>Es gibt keine Werbung, kein Tracking, keine Analyse-Werkzeuge und keine eingebetteten Inhalte fremder Anbieter; auch die Schrift liefert der Hub selbst aus. Cookies und Browser-Speicher nutzt der Hub nur, soweit er sie zum Funktionieren braucht.</li>
           <li>Wir verkaufen keine Daten. Dienstleister bekommen Daten nur, soweit es für den Hub nötig ist; du findest sie unten mit Namen.</li>
-          <li>Zwei Punkte solltest du kennen: Schreibt dein Unternehmen uns im Chat, meldet der Hub das unserem Team auch über Telegram, nur mit dem Namen des Unternehmens (Abschnitt 7). Fragen an den KI-Assistenten verarbeitet Anthropic (Abschnitt 8).</li>
+          <li>Zwei Punkte solltest du kennen: Schreibt dein Unternehmen uns im Chat, meldet der Hub das unserem Team auch über Telegram (Abschnitt 7). Fragen an den KI-Assistenten verarbeitet Anthropic (Abschnitt 8).</li>
         </ul>
       </LegalSection>
 
@@ -113,7 +115,7 @@ export function PrivacyPolicy() {
         <h3>Privater Chat</h3>
         <p>Unter „Nachrichten“ schreibst du direkt mit dem oalab-Team. Gespeichert werden Text, Name, Zeitpunkt und wer welche Nachricht gelesen hat. Den Chat sehen alle Logins deines Unternehmens und das oalab-Team. Über neue Nachrichten informiert der Hub in der Glocke und per E-Mail (Abschnitt 9). Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Service-Anfragen stellst du auf der Serviceplattform; deren Gespräche sieht das oalab-Team auch im Hub.</p>
         <h3>Meldung an Telegram</h3>
-        <p>Damit wir neue Nachrichten schnell sehen, meldet der Hub sie zusätzlich in einer geschlossenen Telegram-Gruppe unseres Teams. Die Meldung enthält nur den Namen des Unternehmens und einen Link in den Hub, keine Namen von Personen und nicht den Text. Bis jemand aus dem Team den Chat im Hub gelesen hat, kommt pro Unternehmen nur eine Meldung. Gelesen und beantwortet wird im Hub.</p>
+        <p>Damit wir neue Nachrichten schnell sehen, meldet der Hub sie zusätzlich in einer geschlossenen Telegram-Gruppe unseres Teams. Beantwortet wird im Hub.</p>
         <LegalCard>
           <strong>Telegram Messenger Inc.</strong><br />
           Commerce House, Wickhams Cay 1, PO Box 3140, Road Town, Tortola, VG1110, Britische Jungferninseln<br />
@@ -122,7 +124,7 @@ export function PrivacyPolicy() {
         <ul>
           <li>Telegram ist kein Auftragsverarbeiter mit Vertrag. Telegram verarbeitet die Meldungen als eigener Verantwortlicher nach seiner Datenschutzerklärung unter telegram.org/privacy.</li>
           <li>Meldungen in Gruppen sind nicht Ende-zu-Ende-verschlüsselt. Telegram speichert sie auf seinen Servern, für Konten aus dem Europäischen Wirtschaftsraum nach eigenen Angaben in Rechenzentren in den Niederlanden.</li>
-          <li>Telegram hat seinen Sitz außerhalb der EU, auf den Britischen Jungferninseln. Dafür gibt es keinen Angemessenheitsbeschluss der EU-Kommission, und mit Telegram bestehen keine Standardvertragsklauseln. Deshalb geht nur der Name des Unternehmens an Telegram. Enthält er den Namen einer Person, etwa bei Einzelunternehmen, ist auch das ein personenbezogenes Datum.</li>
+          <li>Telegram hat seinen Sitz außerhalb der EU, auf den Britischen Jungferninseln. Dafür gibt es keinen Angemessenheitsbeschluss der EU-Kommission, und mit Telegram bestehen keine Standardvertragsklauseln.</li>
         </ul>
         <p>Rechtsgrundlage ist unser berechtigtes Interesse, Kundennachrichten schnell zu sehen (Art. 6 Abs. 1 lit. f DSGVO). Du kannst dem widersprechen (Abschnitt 11).</p>
       </LegalSection>
