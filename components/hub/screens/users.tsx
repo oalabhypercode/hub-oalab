@@ -13,6 +13,7 @@ import { SegmentedControl } from "../controls";
 import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { LogoMark } from "../logo-mark";
+import { customerOption } from "../select-options";
 import { sectionIcons } from "../navigation";
 import { MenuChoices, SheetActionMenu, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind, type SheetAction } from "../sheet";
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
@@ -46,7 +47,7 @@ function NumberChip({ value }: { value: string }) {
   async function copy() {
     try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked: the number stays readable */ }
   }
-  return <span className="number-chip"><span className="numeric">{value}</span><button type="button" onClick={copy} aria-label={`Kundennummer ${value} kopieren`} title="Kopieren">{copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}</button></span>;
+  return <span className="number-chip"><span className="numeric">{value}</span><button type="button" onClick={copy} aria-label={`Kundennummer ${value} kopieren`} data-tip="Kopieren">{copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}</button></span>;
 }
 
 type UserSortKey = "name" | "company" | "number" | "status" | "login" | "created";
@@ -212,28 +213,28 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       <tr key={user.id} className={`data-row${user.status === "disabled" || user.status === "rejected" ? " is-muted" : ""}${openId === user.id ? " is-open" : ""}`}>
         <td className="cell-person">
           <button type="button" className="row-open" onClick={() => openUser(user)}>
-            <span className="avatar avatar-s" aria-hidden="true">{initialsOf(user)}</span><strong title={fullName(user)}>{fullName(user)}</strong>
+            <span className="avatar avatar-s" aria-hidden="true">{initialsOf(user)}</span><strong data-tip={fullName(user)}>{fullName(user)}</strong>
             {user.self && <span className="self-badge">Du</span>}
           </button>
         </td>
         <td className="cell-role">{user.role ? roleLabels[user.role] : <span className="cell-none">–</span>}</td>
         <td className="cell-mail">
-          <span className="mail-cell"><span title={user.email}>{user.email}</span>{waiting && !user.emailConfirmed && <span className="confirm-badge is-open" title="Die E-Mail-Adresse ist noch nicht bestätigt">unbestätigt</span>}</span>
+          <span className="mail-cell"><span data-tip={user.email}>{user.email}</span>{waiting && !user.emailConfirmed && <span className="confirm-badge is-open" data-tip="Die E-Mail-Adresse ist noch nicht bestätigt">unbestätigt</span>}</span>
         </td>
         <td className="cell-number col-number">{customer ? <NumberChip value={customer.customerNumber} /> : <span className="cell-none">–</span>}</td>
         <td className="cell-company">
-          {customer ? <span className="company-cell"><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><span className="company-name" title={customer.company}>{customer.company}</span></span>
+          {customer ? <span className="company-cell"><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><span className="company-name" data-tip={customer.company}>{customer.company}</span></span>
             : user.role === "oalab_admin" ? <span className="company-cell"><span className="company-mark" aria-hidden="true">OA</span>oalab</span>
-            : user.companyName ? <span className="company-cell is-hint" title="Angabe aus der Registrierung"><span className="company-name">{user.companyName}</span><span className="role-tag">Angabe</span></span>
+            : user.companyName ? <span className="company-cell is-hint" data-tip="Angabe aus der Registrierung"><span className="company-name">{user.companyName}</span><span className="role-tag">Angabe</span></span>
             : <span className="cell-none">–</span>}
         </td>
-        <td className="cell-status"><span className="status-cell" title={waiting ? `Registriert am ${formatFileDateTime(user.createdAt)}` : undefined}><StatusGlyph kind={statusGlyph[user.displayStatus]} />{waiting ? `Seit ${formatFileDate(user.createdAt)}` : displayStatusLabels[user.displayStatus]}</span></td>
-        <td className="cell-login col-login">{user.lastSignInAt ? <time dateTime={user.lastSignInAt} title={formatFileDateTime(user.lastSignInAt)}>{formatFileDate(user.lastSignInAt)}</time> : <span className="cell-none">noch nie</span>}</td>
+        <td className="cell-status"><span className="status-cell" data-tip={waiting ? `Registriert am ${formatFileDateTime(user.createdAt)}` : undefined}><StatusGlyph kind={statusGlyph[user.displayStatus]} />{waiting ? `Seit ${formatFileDate(user.createdAt)}` : displayStatusLabels[user.displayStatus]}</span></td>
+        <td className="cell-login col-login">{user.lastSignInAt ? <time dateTime={user.lastSignInAt} data-tip={formatFileDateTime(user.lastSignInAt)}>{formatFileDate(user.lastSignInAt)}</time> : <span className="cell-none">noch nie</span>}</td>
         <td className="cell-action">
           {waiting ? <button type="button" className="row-check" onClick={() => openUser(user)}><ShieldCheck size={15} aria-hidden="true" />Prüfen</button>
             // Never signed in: the row leads to the activation link, which the panel offers on top.
-            : user.displayStatus === "invited" ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} title="Zugang öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
-            : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} title="Bearbeiten"><Settings size={16} aria-hidden="true" /></button>}
+            : user.displayStatus === "invited" ? <button type="button" className="row-invite" onClick={() => openUser(user)} aria-label={`${fullName(user)} einladen`} data-tip="Zugang öffnen und den Aktivierungslink senden"><Send size={14} aria-hidden="true" />Einladen</button>
+            : <button type="button" className="row-action" onClick={() => openUser(user)} aria-label={`${fullName(user)} bearbeiten`} data-tip="Bearbeiten"><Settings size={16} aria-hidden="true" /></button>}
         </td>
       </tr>
     );
@@ -268,7 +269,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
             <ToolbarMenu icon={ListFilter} label="Filter" badge={userFilters}>
               <FilterSelect icon={Activity} name="Nach Status filtern" value={statusFilter} onChange={setStatusFilter} options={[{ value: ALL, label: "Alle Status" }, ...statusOrder.map((status) => ({ value: status, label: displayStatusLabels[status] }))]} />
               <FilterSelect icon={ShieldCheck} name="Nach Rolle filtern" value={roleFilter} onChange={setRoleFilter} options={[{ value: ALL, label: "Alle Rollen" }, { value: "oalab_customer", label: roleLabels.oalab_customer }, ...(state.freelancers ? [{ value: "oalab_freelancer", label: roleLabels.oalab_freelancer }] : []), { value: "oalab_admin", label: roleLabels.oalab_admin }, { value: "none", label: "Ohne Rolle" }]} />
-              <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customerFilter} onChange={setCustomerFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...entries.map((customer) => ({ value: customer.id, label: `${customer.customerNumber} · ${customer.company}` }))]} />
+              <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customerFilter} onChange={setCustomerFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...entries.map((customer) => customerOption(customer))]} />
             </ToolbarMenu>
             <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={userSorts[userSort.key].label}><SortControl options={Object.values(userSorts)} sort={userSort} onChange={setUserSort} /></ToolbarMenu>
             <ToolbarMenu icon={Rows3} label="Gruppe" value={grouping === "status" ? "Status" : "Keine"}>
@@ -340,7 +341,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                       <td className="cell-packages">{freelancer.linkedIds.length ? namesOf(freelancer.linkedIds, customers) : <span className="cell-none">noch keine</span>}</td>
                       <td className="cell-logins numeric">{freelancer.memberIds.length || <AddLogin name={freelancer.company} onClick={() => newLoginFor(freelancer.id)} />}</td>
                       <td className="cell-city">{[freelancer.postalCode, freelancer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
-                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })} aria-label={`${freelancer.company} bearbeiten`} title="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
+                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })} aria-label={`${freelancer.company} bearbeiten`} data-tip="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -369,14 +370,14 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                     <tr key={customer.id} className={`data-row${loginVeil[logins.state]}${openId === customer.id ? " is-open" : ""}`}>
                       <td className="cell-person">
                         <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
-                        {customer.linkedIds.length > 0 && <span className="role-tag" title={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
+                        {customer.linkedIds.length > 0 && <span className="role-tag" data-tip={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
                       </td>
                       <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
                       <td className="cell-packages">{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].short).join(" · ") : <span className="cell-none">–</span>}</td>
                       <td className="cell-logins cell-login-state">{customer.memberIds.length ? <span className="status-cell"><StatusGlyph kind={loginStateGlyph[logins.state]} />{`${customer.memberIds.length} · ${loginStateLabels[logins.state]}`}</span> : <AddLogin name={customer.company} onClick={() => newLoginFor(customer.id)} />}</td>
-                      <td className="cell-login col-login">{logins.lastSignInAt ? <time dateTime={logins.lastSignInAt} title={formatFileDateTime(logins.lastSignInAt)}>{formatFileDate(logins.lastSignInAt)}</time> : <span className="cell-none">{customer.memberIds.length ? "noch nie" : "–"}</span>}</td>
+                      <td className="cell-login col-login">{logins.lastSignInAt ? <time dateTime={logins.lastSignInAt} data-tip={formatFileDateTime(logins.lastSignInAt)}>{formatFileDate(logins.lastSignInAt)}</time> : <span className="cell-none">{customer.memberIds.length ? "noch nie" : "–"}</span>}</td>
                       <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
-                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} title="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
+                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} data-tip="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
                     </tr>
                   );
                 })}
@@ -415,7 +416,7 @@ function VeilKey({ states }: { states: LoginState[] }) {
 
 /** In the column „Zugänge“ of a customer or a freelancer without a login: one click opens „Zugang anlegen“ for it. */
 function AddLogin({ name, onClick }: { name: string; onClick: () => void }) {
-  return <button type="button" className="row-invite" onClick={onClick} aria-label={`Zugang für ${name} anlegen`} title="Noch kein Zugang: jetzt einen anlegen"><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>;
+  return <button type="button" className="row-invite" onClick={onClick} aria-label={`Zugang für ${name} anlegen`} data-tip="Noch kein Zugang: jetzt einen anlegen"><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>;
 }
 
 /** Logins, customers and freelancers share one sheet; the switch sits where Studio has its views. Freelancers appear once the database knows them. */

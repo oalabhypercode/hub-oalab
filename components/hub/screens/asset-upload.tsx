@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { BellRing, Check, ChevronDown, CloudUpload, Folder, Inbox, Plus, Upload, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { checkUpload, fileCategories, fileCategoryIds, formatBytes, guessFileCategory, isFileCategory, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, type FileCategory } from "@/lib/hub-files/catalog";
+import { checkUpload, formatBytes, guessFileCategory, isFileCategory, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, type FileCategory } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder } from "@/lib/hub-files/types";
 import { useInfo } from "../info-box";
+import { Select } from "../select";
+import { categoryOptions } from "../select-options";
 import { AssetPanel } from "./asset-panel";
 import { CustomerSign } from "./customer-sign";
 import { CustomerPicker, FileIcon } from "./files-parts";
@@ -152,7 +154,7 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
           {chosen.map((customer) => (
             <span key={customer.id} className="am-chip">
               <CustomerSign customer={customer} logo={customer.logo} size="sm" />{customer.company}
-              <button type="button" onClick={() => queue.setCustomerIds(queue.customerIds.filter((id) => id !== customer.id))} disabled={working} aria-label={`${customer.company} entfernen`} title="Entfernen"><X size={14} aria-hidden="true" /></button>
+              <button type="button" onClick={() => queue.setCustomerIds(queue.customerIds.filter((id) => id !== customer.id))} disabled={working} aria-label={`${customer.company} entfernen`} data-tip="Entfernen"><X size={14} aria-hidden="true" /></button>
             </span>
           ))}
           <button type="button" className="am-chip-add" onClick={() => setPicking((open) => !open)} aria-expanded={picking} disabled={working}><Plus size={14} aria-hidden="true" />{chosen.length ? "Weitere Kunden" : "Kunden wählen"}</button>
@@ -170,10 +172,8 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
           <span className="am-label">Ordner bei {one.company}</span>
           <span className="am-control">
             <Folder size={16} aria-hidden="true" />
-            <select value={queue.folderId} onChange={(event) => queue.setFolderId(event.target.value)} disabled={working} aria-label={`Ordner bei ${one.company}`}>
-              <option value="">Ohne Ordner</option>
-              {queue.customerFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-            </select>
+            <Select variant="bare" label={`Ordner bei ${one.company}`} value={queue.folderId} onChange={queue.setFolderId} disabled={working}
+              options={[{ value: "", label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }, ...queue.customerFolders.map((folder) => ({ value: folder.id, label: folder.name, lead: <Folder size={15} aria-hidden="true" /> }))]} />
             <ChevronDown size={16} aria-hidden="true" />
           </span>
         </div>
@@ -196,10 +196,7 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
         <div className="am-field">
           <span className="am-label">Dateien
             <span className="am-label-select">
-              <select value="" onChange={(event) => { if (isFileCategory(event.target.value)) queue.categoryForAll(event.target.value); }} disabled={working} aria-label="Eine Kategorie für alle Dateien">
-                <option value="">Kategorie für alle</option>
-                {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
-              </select>
+              <Select variant="bare" label="Eine Kategorie für alle Dateien" placeholder="Kategorie für alle" value="" onChange={(value) => { if (isFileCategory(value)) queue.categoryForAll(value); }} disabled={working} options={categoryOptions()} />
               <ChevronDown size={13} aria-hidden="true" />
             </span>
           </span>
@@ -213,12 +210,10 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
                   <span className="am-upload-text">
                     <input value={item.title} onChange={(event) => queue.update(item.key, { title: event.target.value })} maxLength={200} aria-label={`Titel für ${item.file.name}`} disabled={locked} />
                     <span className="am-upload-meta">
-                      <small title={item.file.name}>{item.file.name} · {formatBytes(item.file.size)}</small>
+                      <small data-tip={item.file.name}>{item.file.name} · {formatBytes(item.file.size)}</small>
                       <span className={`am-cat-select am-cat-${item.category}`}>
                         <i aria-hidden="true" />
-                        <select value={item.category} onChange={(event) => { if (isFileCategory(event.target.value)) queue.update(item.key, { category: event.target.value }); }} disabled={locked} aria-label={`Kategorie für ${item.file.name}`}>
-                          {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
-                        </select>
+                        <Select variant="bare" showLead={false} label={`Kategorie für ${item.file.name}`} value={item.category} onChange={(value) => { if (isFileCategory(value)) queue.update(item.key, { category: value }); }} disabled={locked} options={categoryOptions()} />
                         <ChevronDown size={13} aria-hidden="true" />
                       </span>
                     </span>
@@ -228,9 +223,9 @@ export function UploadPanel({ queue, customers, onClose, onUploaded }: { queue: 
                       </span>
                     )}
                   </span>
-                  {item.status === "done" ? <span className="am-upload-state is-done" title="Hochgeladen"><Check size={16} aria-hidden="true" /></span>
+                  {item.status === "done" ? <span className="am-upload-state is-done" data-tip="Hochgeladen"><Check size={16} aria-hidden="true" /></span>
                     : item.status === "working" ? <span className="am-upload-state"><MiniLoader size={16} /></span>
-                    : <button type="button" className="am-icon-btn" onClick={() => queue.remove(item.key)} disabled={working} aria-label={`${item.file.name} entfernen`} title="Entfernen"><X size={15} aria-hidden="true" /></button>}
+                    : <button type="button" className="am-icon-btn" onClick={() => queue.remove(item.key)} disabled={working} aria-label={`${item.file.name} entfernen`} data-tip="Entfernen"><X size={15} aria-hidden="true" /></button>}
                 </li>
               );
             })}

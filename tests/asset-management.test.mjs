@@ -37,8 +37,8 @@ test("admins get the Asset Management with customers first; customers keep their
   const screen = await source("components/hub/screens/asset-management.tsx");
   // The switch and the setting under Darstellung are one value.
   assert.match(screen, /trailing=\{<DensitySwitch view=\{listView\} onChange=\{\(next\) => update\(\{ listView: next \}\)\} \/>\}/);
-  assert.match(screen, /title="Minimalistische Sicht"/);
-  assert.match(screen, /title="Detailsicht"/);
+  assert.match(screen, /data-tip="Minimalistische Sicht"/);
+  assert.match(screen, /data-tip="Detailsicht"/);
   // The shared views stay on top of the customers; a notice's link still opens its file.
   assert.match(screen, /"Alle Dateien"/);
   assert.match(screen, /"Ablage"/);

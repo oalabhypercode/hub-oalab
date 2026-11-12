@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Ellipsis, Eye, Folder, Inbox, Link2, Pencil, Trash2, UserPlus } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { createDownloadUrls, setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
-import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileCategory } from "@/lib/hub-files/catalog";
+import { fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileCategory } from "@/lib/hub-files/catalog";
 import { fileAudiences, isFileAudience, type FileAudience, type HubFileCustomer, type HubFolder, type HubStoredFile } from "@/lib/hub-files/types";
 import { audienceLabels } from "./asset-freelancers";
 import { saveCustomerLogo } from "@/lib/hub-logos/actions";
 import { canBeLogo } from "@/lib/hub-logos/rules";
 import { useInfo } from "../info-box";
+import { Select } from "../select";
+import { categoryOptions } from "../select-options";
 import { AssetPanel } from "./asset-panel";
 import { CustomerSign } from "./customer-sign";
 import { DownloadButton } from "./files-dialogs";
@@ -55,7 +57,7 @@ export function FilePanel({ onClose, ...props }: DetailProps & { onClose: () => 
   const [editingId, setEditingId] = useState<string | null>(null);
   const editing = props.canAssign && editingId === file.id;
   const pencil = props.canAssign && (
-    <button type="button" className="chat-icon-button is-muted" onClick={() => setEditingId(editing ? null : file.id)} aria-pressed={editing} aria-label="Bearbeiten" title="Titel, Kategorie und Beschreibung bearbeiten"><Pencil size={18} aria-hidden="true" /></button>
+    <button type="button" className="chat-icon-button is-muted" onClick={() => setEditingId(editing ? null : file.id)} aria-pressed={editing} aria-label="Bearbeiten" data-tip="Titel, Kategorie und Beschreibung bearbeiten"><Pencil size={18} aria-hidden="true" /></button>
   );
   return (
     <AssetPanel label="Details" icon={<span className="am-file-icon is-lg"><FileIcon file={file} size={20} /></span>} title={file.title} subtitle={`${fileFormat(file.fileName)} · ${formatBytes(file.sizeBytes)}`} actions={pencil} onClose={onClose}>
@@ -140,7 +142,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
     <FilePreview file={file} live={live} />
     <div className="am-panel-actions">
       <DownloadButton file={file} onError={setError} label className="sheet-action is-primary" />
-      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" title={copied ? "Link kopiert" : freelancerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
+      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" data-tip={copied ? "Link kopiert" : freelancerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
       {canAssign && <MoreMenu onDelete={onDelete} disabled={busy !== null} />}
     </div>
     {copied && <p className="am-help" role="status">Link kopiert. Wer ihn öffnet, sieht die Datei, wenn sein Login sie sehen darf.</p>}
@@ -189,24 +191,20 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
                   {served && (
                     <span className="am-mini am-audience">
                       <Eye size={14} aria-hidden="true" />
-                      <select value={audience} onChange={(event) => changeAudience(customer, event.target.value)} disabled={busy !== null} aria-label={`Bei ${customer.company} sichtbar für`}>
-                        {fileAudiences.map((value) => <option key={value} value={value}>{audienceLabels[value]}</option>)}
-                      </select>
+                      <Select variant="bare" label={`Bei ${customer.company} sichtbar für`} value={audience} onChange={(value) => changeAudience(customer, value)} disabled={busy !== null} options={fileAudiences.map((value) => ({ value, label: audienceLabels[value] }))} />
                       <ChevronDown size={14} aria-hidden="true" />
                     </span>
                   )}
                 </span>
-                {!canFile(customer.id) ? <span className="am-mini is-static" title={`Ordner bei ${customer.company}`}><Folder size={14} aria-hidden="true" />{folderName}</span>
+                {!canFile(customer.id) ? <span className="am-mini is-static" data-tip={`Ordner bei ${customer.company}`}><Folder size={14} aria-hidden="true" />{folderName}</span>
                 : own.length ? (
                   <span className="am-mini">
                     <Folder size={14} aria-hidden="true" />
-                    <select value={folderId} onChange={(event) => move(customer, event.target.value)} disabled={busy !== null} aria-label={`Ordner bei ${customer.company}`}>
-                      <option value="">Ohne Ordner</option>
-                      {own.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-                    </select>
+                    <Select variant="bare" label={`Ordner bei ${customer.company}`} value={folderId} onChange={(value) => move(customer, value)} disabled={busy !== null}
+                      options={[{ value: "", label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }, ...own.map((folder) => ({ value: folder.id, label: folder.name, lead: <Folder size={15} aria-hidden="true" /> }))]} />
                     <ChevronDown size={14} aria-hidden="true" />
                   </span>
-                ) : <span className="am-mini is-static" title="Dieser Kunde hat noch keine Ordner"><Folder size={14} aria-hidden="true" />Ohne Ordner</span>}
+                ) : <span className="am-mini is-static" data-tip="Dieser Kunde hat noch keine Ordner"><Folder size={14} aria-hidden="true" />Ohne Ordner</span>}
               </div>
             );
           }) : (
@@ -260,9 +258,7 @@ function FileEditForm({ file, onClose, onNotice }: { file: HubStoredFile; onClos
         <span className="am-label">Kategorie</span>
         <span className={`am-control am-cat-${category}`}>
           <i aria-hidden="true" />
-          <select value={category} onChange={(event) => { if (isFileCategory(event.target.value)) setCategory(event.target.value); }} disabled={saving} aria-label="Kategorie">
-            {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
-          </select>
+          <Select variant="bare" showLead={false} label="Kategorie" value={category} onChange={(value) => { if (isFileCategory(value)) setCategory(value); }} disabled={saving} options={categoryOptions()} />
           <ChevronDown size={16} aria-hidden="true" />
         </span>
       </div>
@@ -299,7 +295,7 @@ function MoreMenu({ onDelete, disabled }: { onDelete: () => void; disabled: bool
       setOpen(false);
       trigger.current?.focus();
     }}>
-      <button ref={trigger} type="button" className="am-icon-btn" onClick={() => setOpen((now) => !now)} disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label="Mehr" title="Mehr"><Ellipsis size={17} aria-hidden="true" /></button>
+      <button ref={trigger} type="button" className="am-icon-btn" onClick={() => setOpen((now) => !now)} disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label="Mehr" data-tip="Mehr"><Ellipsis size={17} aria-hidden="true" /></button>
       {open && (
         <div className="am-more-menu" role="menu">
           <button ref={first} type="button" role="menuitem" className="is-danger" onClick={() => { setOpen(false); onDelete(); }}><Trash2 size={15} aria-hidden="true" />Datei löschen</button>

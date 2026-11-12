@@ -12,6 +12,7 @@ import {
 } from "@/lib/hub-customer-import/rules";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { Select } from "../select";
 
 type Loaded = { name: string; table: string[][] };
 type Show = "all" | "chosen" | "hints";
@@ -186,10 +187,8 @@ export function CustomerImportDialog({ customers, onClose, onNotice }: { custome
               {importFields.map((field) => (
                 <label key={field.id} className="upload-field">
                   <span>{field.label}</span>
-                  <select value={mapping?.[field.id] ?? ""} onChange={(event) => remap(field.id, event.target.value === "" ? null : Number(event.target.value))} disabled={running}>
-                    <option value="">– nicht übernehmen –</option>
-                    {headers.map((header, column) => <option key={column} value={column}>{header || `Spalte ${column + 1}`}</option>)}
-                  </select>
+                  <Select label={field.label} value={String(mapping?.[field.id] ?? "")} onChange={(value) => remap(field.id, value === "" ? null : Number(value))} disabled={running} searchPlaceholder="Spalte suchen …"
+                    options={[{ value: "", label: "– nicht übernehmen –" }, ...headers.map((header, column) => ({ value: String(column), label: header || `Spalte ${column + 1}` }))]} />
                 </label>
               ))}
             </div>
@@ -204,14 +203,9 @@ export function CustomerImportDialog({ customers, onClose, onNotice }: { custome
                 {counts.same > 0 && <span className="import-count">{counts.same} schon aktuell</span>}
                 {counts.skip > 0 && <span className="import-count is-skip">{counts.skip} übersprungen</span>}
                 {counts.error > 0 && <span className="import-count is-error">{counts.error} mit Fehler</span>}
-                <label className="import-show">
-                  <span className="visually-hidden">Zeilen zeigen</span>
-                  <select value={show} onChange={(event) => setShow(event.target.value as Show)}>
-                    <option value="all">Alle Zeilen</option>
-                    <option value="chosen">Nur angehakte</option>
-                    <option value="hints">Nur mit Hinweis</option>
-                  </select>
-                </label>
+                <span className="import-show">
+                  <Select variant="bare" chevron label="Zeilen zeigen" value={show} onChange={(value) => setShow(value as Show)} options={[{ value: "all", label: "Alle Zeilen" }, { value: "chosen", label: "Nur angehakte" }, { value: "hints", label: "Nur mit Hinweis" }]} />
+                </span>
               </div>
 
               <div className="import-table-wrap">

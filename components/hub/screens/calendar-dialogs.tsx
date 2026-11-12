@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pencil, Send, Trash2, Undo2, Video, X } from "lucide-react";
+import { Building2, Check, Clock, Pencil, Send, Trash2, Undo2, Video, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import {
   addDays, addMonths, APPOINTMENT_DURATIONS, appointmentStatuses, calendarWindow, dayOf, formatDayLong, formatTimeRange, isClock, isDay, overlaps,
@@ -10,6 +10,8 @@ import {
 import type { HubAppointment } from "@/lib/hub-calendar/types";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { Select } from "../select";
+import { customerOption } from "../select-options";
 import type { CalendarStore } from "./calendar-store";
 
 const MINUTE = 60_000;
@@ -23,7 +25,7 @@ export function TeamsJoin({ appointment, compact = false }: { appointment: HubAp
   if (!appointment.teamsUrl) return null;
   const label = compact ? "Teams" : "Teams-Meeting beitreten";
   if (appointment.sample) {
-    return <span className={`teams-join is-sample${compact ? " is-compact" : ""}`} title="Beispiel-Link aus der Vorschau, kein echtes Meeting"><Video size={18} aria-hidden="true" /><span className="teams-join-label">{label}</span>{!compact && <small>Beispiel</small>}</span>;
+    return <span className={`teams-join is-sample${compact ? " is-compact" : ""}`} data-tip="Beispiel-Link aus der Vorschau, kein echtes Meeting"><Video size={18} aria-hidden="true" /><span className="teams-join-label">{label}</span>{!compact && <small>Beispiel</small>}</span>;
   }
   return <a className={`teams-join${compact ? " is-compact" : ""}`} href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer" aria-label={`${appointment.title}: Teams-Meeting beitreten (öffnet Microsoft Teams)`}><Video size={18} aria-hidden="true" /><span className="teams-join-label">{label}</span></a>;
 }
@@ -163,16 +165,14 @@ export function AppointmentFormDialog({ store, appointment, day: initialDay, sta
         <div className="upload-fields">
           <label className="upload-field upload-field-wide"><span>Titel</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="z. B. Abstimmung Website-Inhalte" required disabled={saving} /></label>
           <label className="upload-field upload-field-wide"><span>Kunde</span>
-            <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} disabled={saving || (accept && Boolean(appointment?.customer))}>
-              <option value="">Intern (kein Kunde)</option>
-              {store.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customerNumber} · {customer.company}</option>)}
-            </select>
+            <Select label="Kunde" value={customerId} onChange={setCustomerId} disabled={saving || (accept && Boolean(appointment?.customer))} searchPlaceholder="Kunde oder Nummer suchen …"
+              options={[{ value: "", label: "Intern (kein Kunde)", lead: <Building2 size={15} aria-hidden="true" /> }, ...store.customers.map((customer) => customerOption(customer, "Kunden"))]} />
           </label>
           <div className="appointment-time-fields">
             <label className="upload-field"><span>Datum</span><input type="date" value={day} onChange={(event) => setDay(event.target.value)} required disabled={saving} /></label>
             <label className="upload-field"><span>Beginn</span><input type="time" value={start} step={900} onChange={(event) => setStart(event.target.value)} required disabled={saving} /></label>
             <label className="upload-field"><span>Dauer</span>
-              <select value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} disabled={saving}>{durations.map((value) => <option key={value} value={value}>{durationLabel(value)}</option>)}</select>
+              <Select label="Dauer" value={String(minutes)} onChange={(value) => setMinutes(Number(value))} disabled={saving} options={durations.map((value) => ({ value: String(value), label: durationLabel(value) }))} />
             </label>
           </div>
           <label className="upload-field upload-field-wide"><span>Microsoft-Teams-Link (optional)</span>
@@ -231,11 +231,11 @@ export function RequestDialog({ store, day: initialDay, start: initialStart, onC
         <div className="upload-fields">
           <label className="upload-field"><span>Datum</span><input type="date" value={day} min={dayOf(store.now)} max={lastDay} onChange={(event) => setDay(event.target.value)} required disabled={sending} /></label>
           <label className="upload-field"><span>Dauer</span>
-            <select value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} disabled={sending}>{REQUEST_DURATIONS.map((value) => <option key={value} value={value}>{durationLabel(value)}</option>)}</select>
+            <Select label="Dauer" value={String(minutes)} onChange={(value) => setMinutes(Number(value))} disabled={sending} options={REQUEST_DURATIONS.map((value) => ({ value: String(value), label: durationLabel(value) }))} />
           </label>
           <label className="upload-field upload-field-wide"><span>Freie Uhrzeit</span>
             {slots.length
-              ? <select value={chosen} onChange={(event) => setStart(event.target.value)} disabled={sending}>{slots.map((slot) => <option key={slot} value={slot}>{slot} Uhr</option>)}</select>
+              ? <Select label="Freie Uhrzeit" value={chosen} onChange={setStart} disabled={sending} searchPlaceholder="Uhrzeit suchen, z. B. 14" options={slots.map((slot) => ({ value: slot, label: `${slot} Uhr`, lead: <Clock size={15} aria-hidden="true" /> }))} />
               : <span className="appointment-no-slots" role="status">{isDay(day) ? `An diesem Tag ist kein passender Zeitraum frei. Termine sind montags bis freitags von ${WORKDAY.start} bis ${WORKDAY.end} Uhr möglich.` : "Bitte ein Datum wählen."}</span>}
           </label>
           <label className="upload-field upload-field-wide"><span>Thema</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="z. B. Website-Texte besprechen" required disabled={sending} /></label>

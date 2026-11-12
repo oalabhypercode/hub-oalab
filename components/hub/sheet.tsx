@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, Plus, Search, Settings, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, Settings, type LucideIcon } from "lucide-react";
 
 /**
  * The hub's tables in the Studio look: one calm sheet with a toolbar on top, hairlines between the rows and groups as
@@ -48,7 +48,8 @@ export function ToolbarMenu({ icon: Icon, label, value, badge = 0, align = "star
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) setOpen(false); };
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    // An open list inside the panel takes its Escape first (components/hub/select.tsx marks it as handled).
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented) setOpen(false); };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("pointerdown", onPointer); document.removeEventListener("keydown", onKey); };
@@ -56,7 +57,7 @@ export function ToolbarMenu({ icon: Icon, label, value, badge = 0, align = "star
   const name = `${label}${value ? `: ${value}` : ""}${badge ? ` (${badge} aktiv)` : ""}`;
   return (
     <div className="sheet-menu" ref={ref}>
-      <button type="button" className="sheet-menu-button" aria-expanded={open} aria-controls={panelId} aria-label={name} title={name} onClick={() => setOpen((current) => !current)}>
+      <button type="button" className="sheet-menu-button" aria-expanded={open} aria-controls={panelId} aria-label={name} data-tip={name} onClick={() => setOpen((current) => !current)}>
         <Icon size={15} aria-hidden="true" />
         <span className="sheet-menu-label">{label}</span>{value && <span className="sheet-menu-value">: <b>{value}</b></span>}
         {badge > 0 && <span className="sheet-menu-badge numeric" aria-hidden="true">{badge}</span>}
@@ -101,7 +102,7 @@ export function SheetActionMenu({ label, actions }: { label: string; actions: Sh
   const names = actions.map((action) => action.label).join(", ");
   return (
     <div className="sheet-menu sheet-action-menu" ref={box} onKeyDown={onKeyDown}>
-      <button ref={trigger} type="button" className="sheet-gear" aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} aria-label={`${label}: ${names}`} title={names} onClick={() => setOpen((now) => !now)}>
+      <button ref={trigger} type="button" className="sheet-gear" aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} aria-label={`${label}: ${names}`} data-tip={names} onClick={() => setOpen((now) => !now)}>
         <Settings size={17} aria-hidden="true" />
       </button>
       <div id={menuId} className="sheet-pop is-end sheet-action-pop" role="menu" aria-label={label} hidden={!open}>
@@ -122,7 +123,7 @@ export function MenuChoices<T extends string>({ label, value, options, onChange 
   return (
     <div className="sheet-choices" role="radiogroup" aria-label={label}>
       {options.map((option) => (
-        <button key={option.id} type="button" role="radio" aria-checked={value === option.id} className="sheet-choice" onClick={() => onChange(option.id)}>{option.label}</button>
+        <button key={option.id} type="button" role="radio" aria-checked={value === option.id} className="sheet-choice" onClick={() => onChange(option.id)}>{option.label}<Check className="hub-option-check" size={15} aria-hidden="true" /></button>
       ))}
     </div>
   );

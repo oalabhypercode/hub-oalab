@@ -80,16 +80,16 @@ export function ContractTemplatesSection({ canManage }: { canManage: boolean }) 
               </td>
               <td className="cell-action">
                 <span className="cdm-template-acts">
-                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-blank`, () => downloadContractTemplate(id, "blank"), saveDownload)} title="Mit Linien zum Ausfüllen von Hand">
+                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-blank`, () => downloadContractTemplate(id, "blank"), saveDownload)} data-tip="Mit Linien zum Ausfüllen von Hand">
                     {busy === `${id}-blank` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Blanko
                   </button>
-                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-placeholders`, () => downloadContractTemplate(id, "placeholders"), saveDownload)} title="Die aktive Word-Vorlage mit Platzhaltern wie {{kunde_firma}}, zum Bearbeiten in Word">
+                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null} onClick={() => run(`${id}-placeholders`, () => downloadContractTemplate(id, "placeholders"), saveDownload)} data-tip="Die aktive Word-Vorlage mit Platzhaltern wie {{kunde_firma}}, zum Bearbeiten in Word">
                     {busy === `${id}-placeholders` ? <Spinner /> : <Download size={14} aria-hidden="true" />}Vorlage
                   </button>
                   <button type="button" className="sheet-action" disabled={!canManage || busy !== null || !overview} onClick={() => { setNotice(""); setUploadFor(id); }}>
                     <Upload size={14} aria-hidden="true" />Neue Fassung
                   </button>
-                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null || !overview} onClick={() => { setNotice(""); setHistoryFor(id); }} title="Alle Fassungen dieser Vorlage">
+                  <button type="button" className="sheet-action" disabled={!canManage || busy !== null || !overview} onClick={() => { setNotice(""); setHistoryFor(id); }} data-tip="Alle Fassungen dieser Vorlage">
                     <History size={14} aria-hidden="true" />Fassungen{versionsOf(id).length > 0 && <span className="contract-count">{versionsOf(id).length}</span>}
                   </button>
                 </span>

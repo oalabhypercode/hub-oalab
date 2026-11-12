@@ -79,13 +79,13 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
         {categoriesFor(account.freelancer).map((id) => {
           const Icon = categories[id].icon;
-          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" title={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" data-tip={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
         })}
         {manageUsers && <>
           <span className="sidebar-caption">Verwaltung</span>
           <Link {...item("users")}>
             <UserCog size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels.users}</span>
-            {pendingRegistrations > 0 && <span className="sidebar-count sidebar-count-alert" title={`${pendingRegistrations} offene Registrierung${pendingRegistrations === 1 ? "" : "en"}`}><span className="visually-hidden">Offene Registrierungen: </span>{pendingRegistrations}</span>}
+            {pendingRegistrations > 0 && <span className="sidebar-count sidebar-count-alert" data-tip={`${pendingRegistrations} offene Registrierung${pendingRegistrations === 1 ? "" : "en"}`}><span className="visually-hidden">Offene Registrierungen: </span>{pendingRegistrations}</span>}
           </Link>
           <Link {...item("ai-log")}>
             <Bot size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels["ai-log"]}</span>
@@ -104,10 +104,10 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           <span className="sidebar-account-text">
             {/* Blank while the loading shell waits for the login. */}
             <strong>{name || <span className="skeleton-bar sidebar-name-skeleton" aria-hidden="true" />}</strong>
-            {meta && <span className="sidebar-account-meta" title={activePackages ? `Pakete: ${account.packages.map((id) => packageCatalog[id].name).join(", ")}` : undefined}><i aria-hidden="true" /><span>{activePackages && <span className="visually-hidden">Pakete: </span>}{meta}</span></span>}
+            {meta && <span className="sidebar-account-meta" data-tip={activePackages ? `Pakete: ${account.packages.map((id) => packageCatalog[id].name).join(", ")}` : undefined}><i aria-hidden="true" /><span>{activePackages && <span className="visually-hidden">Pakete: </span>}{meta}</span></span>}
           </span>
         </Link>
-        <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung, ${preview ? "Vorschau verlassen" : "Abmelden"}, Impressum und Datenschutz`} title="Konto" onClick={() => setMenuOpen((open) => !open)}>
+        <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung, ${preview ? "Vorschau verlassen" : "Abmelden"}, Impressum und Datenschutz`} data-tip="Konto" onClick={() => setMenuOpen((open) => !open)}>
           {signingOut ? <MiniLoader size={18} /> : <Settings size={18} strokeWidth={2.2} aria-hidden="true" />}
         </button>
         {menuOpen && (

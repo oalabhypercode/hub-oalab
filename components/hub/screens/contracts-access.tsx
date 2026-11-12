@@ -11,6 +11,7 @@ import type { DomainMailState, ProviderLogin } from "@/lib/hub-domains/types";
 import { deleteLogin, removeSecret, revealSecret, saveLogin, saveSecret, type VaultResult } from "@/lib/hub-vault/actions";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { Select, SuggestInput } from "../select";
 import { SheetFooter, TableGroup, useCollapsedGroups } from "../sheet";
 import { CopyButton } from "./contracts-domains";
 import { ADMIN_COLUMNS, tableHit, useContractAction } from "./contracts-parts";
@@ -91,7 +92,7 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
               );
             })}
           </TableGroup>
-          <TableGroup colSpan={ADMIN_COLUMNS} label="Anbieter-Logins" count={shownLogins.length} glyph={<KeyRound size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("logins")} onToggle={() => groups.toggle("logins")} actions={confirmed && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({})} title="Login anlegen" aria-label="Login anlegen"><Plus size={15} aria-hidden="true" /></button>} empty={term ? "Kein Login passt zur Suche." : "Noch keine Logins für Domain-Anbieter, DNS oder Hosting."}>
+          <TableGroup colSpan={ADMIN_COLUMNS} label="Anbieter-Logins" count={shownLogins.length} glyph={<KeyRound size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("logins")} onToggle={() => groups.toggle("logins")} actions={confirmed && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({})} data-tip="Login anlegen" aria-label="Login anlegen"><Plus size={15} aria-hidden="true" /></button>} empty={term ? "Kein Login passt zur Suche." : "Noch keine Logins für Domain-Anbieter, DNS oder Hosting."}>
             {shownLogins.map((login) => {
               const owner: VaultOwner = { kind: "login", id: login.id };
               const name = `Login ${login.label}`;
@@ -110,7 +111,7 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
                     <span className="cdm-secret-line">
                       {login.username && <span className="dm-login-user"><span className="dm-mono">{login.username}</span><CopyButton value={login.username} label="Benutzername" /></span>}
                       <SecretControl key={`${login.id}-${login.hasPassword}`} owner={owner} name={name} stored={login.hasPassword} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
-                      {confirmed && <button type="button" className="am-icon-btn" onClick={() => setDialog({ entry: login })} aria-label={`${login.label} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+                      {confirmed && <button type="button" className="am-icon-btn" onClick={() => setDialog({ entry: login })} aria-label={`${login.label} bearbeiten`} data-tip="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
                     </span>
                   </td>
                 </tr>
@@ -256,16 +257,16 @@ function SecretControl({ owner, name, stored, usable, onNotice, onSet }: {
       </div>
       <div className="dm-secret-acts">
         {shown
-          ? <button type="button" className="row-action" onClick={() => setShown(null)} aria-label={`Passwort von ${name} verdecken`} title="Verdecken"><EyeOff size={16} aria-hidden="true" /></button>
-          : <button type="button" className="row-action" onClick={show} disabled={disabled} aria-label={`Passwort von ${name} anzeigen`} title={`Anzeigen (${REVEAL_SECONDS} Sekunden)`}>{busy === "show" ? <Spinner /> : <Eye size={16} aria-hidden="true" />}</button>}
-        <button type="button" className="row-action" onClick={copy} disabled={disabled} aria-label={`Passwort von ${name} kopieren`} title={copied ? "Kopiert" : "Kopieren"}>
+          ? <button type="button" className="row-action" onClick={() => setShown(null)} aria-label={`Passwort von ${name} verdecken`} data-tip="Verdecken"><EyeOff size={16} aria-hidden="true" /></button>
+          : <button type="button" className="row-action" onClick={show} disabled={disabled} aria-label={`Passwort von ${name} anzeigen`} data-tip={`Anzeigen (${REVEAL_SECONDS} Sekunden)`}>{busy === "show" ? <Spinner /> : <Eye size={16} aria-hidden="true" />}</button>}
+        <button type="button" className="row-action" onClick={copy} disabled={disabled} aria-label={`Passwort von ${name} kopieren`} data-tip={copied ? "Kopiert" : "Kopieren"}>
           {busy === "copy" ? <Spinner /> : copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
           <span className="visually-hidden" role="status">{copied ? "Kopiert" : ""}</span>
         </button>
-        {usable && <button type="button" className="row-action" onClick={() => onSet(true)} disabled={busy !== null} aria-label={`Passwort von ${name} ändern`} title="Ändern"><Pencil size={16} aria-hidden="true" /></button>}
+        {usable && <button type="button" className="row-action" onClick={() => onSet(true)} disabled={busy !== null} aria-label={`Passwort von ${name} ändern`} data-tip="Ändern"><Pencil size={16} aria-hidden="true" /></button>}
         {usable && (confirmRemove
           ? <button type="button" className="sheet-action is-danger" onClick={remove} disabled={busy !== null}>{busy === "remove" ? <Spinner /> : <Trash2 size={15} aria-hidden="true" />}Entfernen?</button>
-          : <button type="button" className="row-action" onClick={() => setConfirmRemove(true)} disabled={busy !== null} aria-label={`Passwort von ${name} entfernen`} title="Entfernen"><Trash2 size={16} aria-hidden="true" /></button>)}
+          : <button type="button" className="row-action" onClick={() => setConfirmRemove(true)} disabled={busy !== null} aria-label={`Passwort von ${name} entfernen`} data-tip="Entfernen"><Trash2 size={16} aria-hidden="true" /></button>)}
       </div>
       {error && <p className="form-error dm-secret-error" role="alert">{error}</p>}
     </div>
@@ -336,7 +337,6 @@ function LoginDialog({ customer, entry, canStoreSecret, onClose, onSaved }: { cu
   const [secret, setSecret] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
-  const listId = useId();
   const info = useInfo("Anbieter-Login", {
     steps: [
       <><b>Anbieter, Adresse, Benutzername</b> stehen offen.</>,
@@ -354,12 +354,11 @@ function LoginDialog({ customer, entry, canStoreSecret, onClose, onSaved }: { cu
       {info.box}
       <div className="cdm-dialog" onKeyDown={(event) => { if (event.key === "Enter" && event.target instanceof HTMLInputElement && !disabled && draft.label.trim()) { event.preventDefault(); save(); } }}>
         <p className="field-hint">{customer.company} · {customer.customerNumber}</p>
-        <datalist id={listId}>{providerSuggestions.map((item) => <option key={item} value={item} />)}</datalist>
         <div className="upload-fields">
           <label className="upload-field"><span>Art</span>
-            <select value={draft.kind} onChange={(event) => setDraft({ ...draft, kind: event.target.value as LoginKind })} disabled={disabled}>{loginKindIds.map((id) => <option key={id} value={id}>{loginKinds[id]}</option>)}</select>
+            <Select label="Art" value={draft.kind} onChange={(kind) => setDraft({ ...draft, kind: kind as LoginKind })} disabled={disabled} options={loginKindIds.map((id) => ({ value: id, label: loginKinds[id] }))} />
           </label>
-          <label className="upload-field"><span>Anbieter</span><input value={draft.label} onChange={set("label")} list={listId} maxLength={MAX_LABEL} required placeholder="z. B. netcup Kundenbereich" autoComplete="off" disabled={disabled} /></label>
+          <label className="upload-field"><span>Anbieter</span><SuggestInput label="Anbieter" value={draft.label} onValueChange={(label) => setDraft({ ...draft, label })} suggestions={providerSuggestions} maxLength={MAX_LABEL} required placeholder="z. B. netcup Kundenbereich" disabled={disabled} /></label>
           <label className="upload-field upload-field-wide"><span>Login-Adresse (optional)</span><input value={draft.loginUrl} onChange={set("loginUrl")} placeholder="https://login.anbieter.de" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url" autoComplete="off" maxLength={300} disabled={disabled} /></label>
           <label className="upload-field upload-field-wide"><span>Benutzername oder Kundennummer (optional)</span><input value={draft.username} onChange={set("username")} maxLength={MAX_USERNAME} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off" data-1p-ignore="" data-lpignore="true" disabled={disabled} /></label>
         </div>

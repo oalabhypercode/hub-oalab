@@ -13,6 +13,8 @@ import {
 import type { CustomerDomain, DomainMailState, Mailbox, MailServer } from "@/lib/hub-domains/types";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { Select, SuggestInput } from "../select";
+import { toneDot } from "../select-options";
 import { SheetFooter, StatusGlyph, TableGroup, useCollapsedGroups, type GlyphKind } from "../sheet";
 import { ADMIN_COLUMNS, tableHit, useContractAction } from "./contracts-parts";
 
@@ -27,7 +29,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
       type="button"
       className="row-action dm-copy"
       aria-label={`${label} kopieren`}
-      title={copied ? "Kopiert" : `${label} kopieren`}
+      data-tip={copied ? "Kopiert" : `${label} kopieren`}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
@@ -40,10 +42,6 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
       <span className="visually-hidden" role="status">{copied ? "Kopiert" : ""}</span>
     </button>
   );
-}
-
-function ProviderList({ id }: { id: string }) {
-  return <datalist id={id}>{providerSuggestions.map((name) => <option key={name} value={name} />)}</datalist>;
 }
 
 /* ---------- Admin: tab „Domain & Mail“ ---------- */
@@ -91,7 +89,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
     })),
     ...(server.webmailUrl ? [{
       key: "webmail", icon: Globe, title: "Webmail", sub: server.webmailUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""), kind: "Browser", detail: "",
-      action: <a className="am-icon-btn is-accent" href={server.webmailUrl} target="_blank" rel="noopener noreferrer" aria-label="Webmail öffnen (neuer Tab)" title="Webmail öffnen"><ArrowUpRight size={16} aria-hidden="true" /></a>,
+      action: <a className="am-icon-btn is-accent" href={server.webmailUrl} target="_blank" rel="noopener noreferrer" aria-label="Webmail öffnen (neuer Tab)" data-tip="Webmail öffnen"><ArrowUpRight size={16} aria-hidden="true" /></a>,
     }] : []),
     ...(server.provider ? [{ key: "provider", icon: Server, title: "Anbieter", sub: server.provider, kind: "intern", detail: "", action: null }] : []),
   ].filter((row) => tableHit(term, row.title, row.sub)) : [];
@@ -110,7 +108,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
             glyph={<Globe size={16} aria-hidden="true" />}
             collapsed={groups.isCollapsed("domains")}
             onToggle={() => groups.toggle("domains")}
-            actions={canManage && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({ kind: "domain" })} title="Domain eintragen" aria-label="Domain eintragen"><Plus size={15} aria-hidden="true" /></button>}
+            actions={canManage && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({ kind: "domain" })} data-tip="Domain eintragen" aria-label="Domain eintragen"><Plus size={15} aria-hidden="true" /></button>}
             empty={term ? "Keine Domain passt zur Suche." : "Noch keine Domain eingetragen."}
           >
             {shownDomains.map((domain) => <DomainRow key={domain.id} domain={domain} today={today} onEdit={canManage ? () => setDialog({ kind: "domain", entry: domain }) : undefined} />)}
@@ -122,7 +120,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
             glyph={<Server size={16} aria-hidden="true" />}
             collapsed={groups.isCollapsed("server")}
             onToggle={() => groups.toggle("server")}
-            actions={<>{serverInfo.button}{canManage && (withMail || server) && <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "server" })} title={server ? "Mail-Server bearbeiten" : "Mail-Server eintragen"} aria-label={server ? "Mail-Server bearbeiten" : "Mail-Server eintragen"}>{server ? <Pencil size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}</button>}</>}
+            actions={<>{serverInfo.button}{canManage && (withMail || server) && <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "server" })} data-tip={server ? "Mail-Server bearbeiten" : "Mail-Server eintragen"} aria-label={server ? "Mail-Server bearbeiten" : "Mail-Server eintragen"}>{server ? <Pencil size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}</button>}</>}
             empty={withMail ? "Noch kein Mail-Server eingetragen." : "Einen Mail-Server gibt es nur mit dem Paket OALAB Domain & Mail; festlegen lässt es sich im Reiter „Vertrag“."}
           >
             {serverRows.map((row) => (
@@ -142,7 +140,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
             glyph={<Mail size={16} aria-hidden="true" />}
             collapsed={groups.isCollapsed("addresses")}
             onToggle={() => groups.toggle("addresses")}
-            actions={canManage && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({ kind: "mailbox" })} title="Adresse eintragen" aria-label="Adresse eintragen"><Plus size={15} aria-hidden="true" /></button>}
+            actions={canManage && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({ kind: "mailbox" })} data-tip="Adresse eintragen" aria-label="Adresse eintragen"><Plus size={15} aria-hidden="true" /></button>}
             empty={term ? "Keine Adresse passt zur Suche." : "Noch keine Postfächer, Weiterleitungen oder Aliase."}
           >
             {shownMailboxes.map((mailbox) => {
@@ -152,7 +150,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
                   <td className="cell-file"><span className="am-file"><span className="am-file-icon cdm-file-icon"><Icon size={16} aria-hidden="true" /></span><span className="am-file-text"><strong>{mailbox.display}</strong><small>{mailbox.kind === "mailbox" ? (mailbox.person || "Ohne Person") : `${mailboxKinds[mailbox.kind].target} ${mailbox.targetDisplay}${mailbox.person ? ` · ${mailbox.person}` : ""}`}</small></span></span></td>
                   <td className="cell-category"><span className={`file-dot cdm-dot-${mailbox.kind}`}><i aria-hidden="true" />{mailboxKinds[mailbox.kind].label}</span></td>
                   <td className="cell-date">{mailbox.kind === "mailbox" && <span className="status-cell"><StatusGlyph kind={mailbox.hasPassword ? "active" : "invited"} />{mailbox.hasPassword ? "Passwort hinterlegt" : "kein Passwort"}</span>}</td>
-                  <td className="cell-action">{canManage && <button type="button" className="am-icon-btn" onClick={() => setDialog({ kind: "mailbox", entry: mailbox })} aria-label={`${mailbox.display} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}</td>
+                  <td className="cell-action">{canManage && <button type="button" className="am-icon-btn" onClick={() => setDialog({ kind: "mailbox", entry: mailbox })} aria-label={`${mailbox.display} bearbeiten`} data-tip="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}</td>
                 </tr>
               );
             })}
@@ -185,7 +183,7 @@ function DomainRow({ domain, today, onEdit }: { domain: CustomerDomain; today: s
   return (
     <tr className="file-row">
       <td className="cell-file">
-        <span className="am-file" title={[domain.display !== domain.domain ? domain.domain : "", details.note].filter(Boolean).join("\n") || undefined}>
+        <span className="am-file" data-tip={[domain.display !== domain.domain ? domain.domain : "", details.note].filter(Boolean).join("\n") || undefined}>
           <span className="am-file-icon cdm-file-icon is-domain"><Globe size={16} aria-hidden="true" /></span>
           <span className="am-file-text">
             <strong>{domain.display}{details.note && <StickyNote size={13} className="cdm-note-mark" aria-label="Mit Notiz" />}</strong>
@@ -199,11 +197,11 @@ function DomainRow({ domain, today, onEdit }: { domain: CustomerDomain; today: s
         {passed ? <small className="is-overdue">prüfen</small> : days !== null && days >= 0 && days <= 60 ? <small>in {days} {days === 1 ? "Tag" : "Tagen"}</small> : null}
       </td>
       <td className="cell-action">
-        <span className="cdm-checks" aria-label={`${done} von ${domainCheckIds.length} Prüfungen erledigt`} title={domainCheckIds.map((id) => `${domainChecks[id].label}: ${details.checks[id] ? "erledigt" : "offen"}`).join("\n")}>
+        <span className="cdm-checks" aria-label={`${done} von ${domainCheckIds.length} Prüfungen erledigt`} data-tip={domainCheckIds.map((id) => `${domainChecks[id].label}: ${details.checks[id] ? "erledigt" : "offen"}`).join("\n")}>
           {domainCheckIds.map((id) => <i key={id} className={details.checks[id] ? "is-ok" : undefined} aria-hidden="true" />)}
           <b className="numeric" aria-hidden="true">{done}/{domainCheckIds.length}</b>
         </span>
-        {onEdit && <button type="button" className="am-icon-btn" onClick={onEdit} aria-label={`${domain.display} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+        {onEdit && <button type="button" className="am-icon-btn" onClick={onEdit} aria-label={`${domain.display} bearbeiten`} data-tip="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
       </td>
     </tr>
   );
@@ -227,7 +225,6 @@ function DomainDialog({ customer, entry, onClose, onSaved }: { customer: Contrac
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
-  const listId = useId();
   const info = useInfo("Domains", {
     steps: [
       <><b>Sechs Häkchen</b> setzt du nach der Prüfung selbst.</>,
@@ -247,14 +244,13 @@ function DomainDialog({ customer, entry, onClose, onSaved }: { customer: Contrac
         run("save", () => saveDomain({ ...draft, id: entry?.id, customerId: customer.id }), () => { onSaved(entry ? "Domain gespeichert." : "Domain eingetragen."); onClose(); });
       }}>
         <p className="field-hint">{customer.company} · {customer.customerNumber}</p>
-        <ProviderList id={listId} />
         <div className="upload-fields">
           <label className="upload-field upload-field-wide"><span>Domain</span><input value={draft.domain} onChange={set("domain")} required placeholder="kunde.de" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url" maxLength={260} disabled={disabled} /></label>
-          <label className="upload-field"><span>Status</span><select value={draft.status} onChange={set("status")} disabled={disabled}>{domainStatusIds.map((id) => <option key={id} value={id}>{domainStatuses[id].label}</option>)}</select></label>
-          <label className="upload-field"><span>Inhaber</span><select value={draft.owner} onChange={set("owner")} disabled={disabled}>{(Object.keys(domainOwners) as DomainOwner[]).map((id) => <option key={id} value={id}>{domainOwners[id]}</option>)}</select></label>
-          <label className="upload-field"><span>Registriert bei</span><input value={draft.registrar} onChange={set("registrar")} list={listId} maxLength={MAX_PROVIDER} placeholder="z. B. netcup" disabled={disabled} /></label>
-          <label className="upload-field"><span>DNS bei</span><input value={draft.dnsProvider} onChange={set("dnsProvider")} list={listId} maxLength={MAX_PROVIDER} placeholder="z. B. Cloudflare" disabled={disabled} /></label>
-          <label className="upload-field"><span>Website läuft bei</span><input value={draft.websiteHost} onChange={set("websiteHost")} list={listId} maxLength={MAX_PROVIDER} placeholder="z. B. Vercel" disabled={disabled} /></label>
+          <label className="upload-field"><span>Status</span><Select label="Status" value={draft.status} onChange={(status) => setDraft({ ...draft, status: status as DomainStatus })} disabled={disabled} options={domainStatusIds.map((id) => ({ value: id, label: domainStatuses[id].label, lead: toneDot(domainStatuses[id].tone) }))} /></label>
+          <label className="upload-field"><span>Inhaber</span><Select label="Inhaber" value={draft.owner} onChange={(owner) => setDraft({ ...draft, owner: owner as DomainOwner })} disabled={disabled} options={(Object.keys(domainOwners) as DomainOwner[]).map((id) => ({ value: id, label: domainOwners[id] }))} /></label>
+          <label className="upload-field"><span>Registriert bei</span><SuggestInput label="Registriert bei" value={draft.registrar} onValueChange={(registrar) => setDraft({ ...draft, registrar })} suggestions={providerSuggestions} maxLength={MAX_PROVIDER} placeholder="z. B. netcup" disabled={disabled} /></label>
+          <label className="upload-field"><span>DNS bei</span><SuggestInput label="DNS bei" value={draft.dnsProvider} onValueChange={(dnsProvider) => setDraft({ ...draft, dnsProvider })} suggestions={providerSuggestions} maxLength={MAX_PROVIDER} placeholder="z. B. Cloudflare" disabled={disabled} /></label>
+          <label className="upload-field"><span>Website läuft bei</span><SuggestInput label="Website läuft bei" value={draft.websiteHost} onValueChange={(websiteHost) => setDraft({ ...draft, websiteHost })} suggestions={providerSuggestions} maxLength={MAX_PROVIDER} placeholder="z. B. Vercel" disabled={disabled} /></label>
           <label className="upload-field"><span>Verlängerung am</span><input type="date" value={draft.renewsOn} onChange={set("renewsOn")} disabled={disabled} /></label>
         </div>
         <fieldset className="dm-check-fields" disabled={disabled}>
@@ -296,12 +292,11 @@ function MailServerForm({ customerId, server, canManage, onSaved }: { customerId
   const [saved, setSaved] = useState(() => serverDraft(server));
   const [draft, setDraft] = useState(saved);
   const { busy, error, run } = useContractAction();
-  const listId = useId();
   const changed = JSON.stringify(draft) !== JSON.stringify(saved);
   const set = (key: keyof ServerDraft) => (event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, [key]: event.target.value });
   // Switching the encryption takes the usual port along, unless a port of its own was typed.
-  const setSecurity = (side: "imap" | "smtp") => (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = event.target.value as MailSecurity;
+  const setSecurity = (side: "imap" | "smtp") => (value: string) => {
+    const next = value as MailSecurity;
     const port = draft[`${side}Port`];
     const usual = Object.values(mailSecurities).some((item) => String(item.ports[side]) === port) || port === "";
     setDraft({ ...draft, [`${side}Security`]: next, [`${side}Port`]: usual ? String(mailSecurities[next].ports[side]) : port });
@@ -311,10 +306,9 @@ function MailServerForm({ customerId, server, canManage, onSaved }: { customerId
       event.preventDefault();
       run("save", () => saveMailServer({ ...draft, customerId }), () => { setSaved(draft); onSaved("Mail-Server gespeichert."); });
     }}>
-      <ProviderList id={listId} />
       <fieldset className="dm-server" disabled={!canManage || busy !== null}>
         <legend className="visually-hidden">Mail-Server</legend>
-        <label className="upload-field dm-server-wide"><span>Anbieter (nur für das oalab-Team)</span><input value={draft.provider} onChange={set("provider")} list={listId} maxLength={MAX_PROVIDER} placeholder="z. B. netcup" /></label>
+        <label className="upload-field dm-server-wide"><span>Anbieter (nur für das oalab-Team)</span><SuggestInput label="Anbieter" value={draft.provider} onValueChange={(provider) => setDraft({ ...draft, provider })} suggestions={providerSuggestions} maxLength={MAX_PROVIDER} placeholder="z. B. netcup" /></label>
         {(["imap", "smtp"] as const).map((side) => (
           <div key={side} className="dm-server-side">
             <p className="dm-server-title">{side === "imap" ? "Posteingang (IMAP)" : "Postausgang (SMTP)"}</p>
@@ -322,7 +316,7 @@ function MailServerForm({ customerId, server, canManage, onSaved }: { customerId
             <div className="dm-server-row">
               <label className="upload-field"><span>Port</span><input value={draft[`${side}Port`]} onChange={set(`${side}Port`)} inputMode="numeric" pattern="[0-9]*" maxLength={5} /></label>
               <label className="upload-field"><span>Verschlüsselung</span>
-                <select value={draft[`${side}Security`]} onChange={setSecurity(side)}>{(Object.keys(mailSecurities) as MailSecurity[]).map((id) => <option key={id} value={id}>{mailSecurities[id].label}</option>)}</select>
+                <Select label="Verschlüsselung" value={draft[`${side}Security`]} onChange={setSecurity(side)} options={(Object.keys(mailSecurities) as MailSecurity[]).map((id) => ({ value: id, label: mailSecurities[id].label }))} />
               </label>
             </div>
           </div>

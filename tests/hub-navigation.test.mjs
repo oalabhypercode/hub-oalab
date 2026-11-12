@@ -67,7 +67,7 @@ test("on tablets the logo alone sits in the middle of the top row; phones keep l
 test("on tablets signing out sits top right next to the profile; phones and computers keep their ways", async () => {
   // Wish of 5 November 2026: tablets hide the sidebar with its gear menu, so signing out was only in Profil.
   const shell = await source("components/hub/app-shell.tsx");
-  assert.match(shell, /<MobileAvatar href=\{hubHref\(preview, "settings"\)\} initials=\{initials\} logo=\{logo\} \/><button type="button" className="glass glass-float glass-button topbar-signout" aria-label=\{signOutLabel\} title=\{signOutLabel\} onClick=\{signOut\} disabled=\{signingOut\}>/);
+  assert.match(shell, /<MobileAvatar href=\{hubHref\(preview, "settings"\)\} initials=\{initials\} logo=\{logo\} \/><button type="button" className="glass glass-float glass-button topbar-signout" aria-label=\{signOutLabel\} data-tip=\{signOutLabel\} onClick=\{signOut\} disabled=\{signingOut\}>/);
   assert.match(shell, /const signOutLabel = preview \? "Vorschau verlassen" : "Abmelden";/);
   // A failed attempt is shown in the top row, except on Profil, which has its own message.
   assert.match(shell, /\{logoutError && section !== "settings" && <p role="alert" className="form-error topbar-signout-error">/);

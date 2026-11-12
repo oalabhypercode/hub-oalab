@@ -21,7 +21,7 @@ export function TitleIcon({ icon: Icon }: { icon: LucideIcon }) {
 /** Round (icon) or capsule (text) glass button. Icon-only buttons need a label. */
 export function GlassButton({ icon: Icon, label, children, badge = false, className = "", ...rest }: { icon?: LucideIcon; label?: string; badge?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button type="button" className={`glass glass-float glass-button${children ? " glass-button-text" : ""} ${className}`} aria-label={children ? undefined : label} title={children ? undefined : label} {...rest}>
+    <button type="button" className={`glass glass-float glass-button${children ? " glass-button-text" : ""} ${className}`} aria-label={children ? undefined : label} data-tip={children ? undefined : label} {...rest}>
       {Icon && <Icon size={20} strokeWidth={2} aria-hidden="true" />}{children}{badge && <span className="glass-button-badge" aria-hidden="true" />}
     </button>
   );

@@ -204,7 +204,7 @@ export function CustomerContractSheet({ customer, state, files, preview }: { cus
                       <td className="cell-date" />
                       <td className="cell-state" />
                       <td className="cell-action">
-                        <a className="file-download" href={`https://${domain.domain}`} target="_blank" rel="noopener noreferrer" aria-label={`${domain.display} öffnen (neuer Tab)`} title="Website öffnen"><ArrowUpRight size={17} aria-hidden="true" /></a>
+                        <a className="file-download" href={`https://${domain.domain}`} target="_blank" rel="noopener noreferrer" aria-label={`${domain.display} öffnen (neuer Tab)`} data-tip="Website öffnen"><ArrowUpRight size={17} aria-hidden="true" /></a>
                       </td>
                     </tr>
                   ))}

@@ -14,6 +14,8 @@ import { packageCatalog } from "@/lib/service-packages";
 import { CustomerLogoDialog } from "../customer-logo-dialog";
 import { useInfo } from "../info-box";
 import { LogoMark, companyInitials } from "../logo-mark";
+import { Select } from "../select";
+import { customerOption } from "../select-options";
 import { StatusGlyph, type GlyphKind } from "../sheet";
 import { AssetPanel } from "./asset-panel";
 import { EntryChips, EntryNav, Field, FieldGrid, HistoryList, PanelSection, PanelTabs, ReadonlyField, Row, RowIcon, RowList, SaveStatus, Segmented, useDirtyReport } from "./users-panel";
@@ -265,9 +267,7 @@ function RoleAndCustomer({ role, onRole, choices, onChoices, customers, disabled
           </span>
           <span className="um-pick">
             <LogoMark logo={chosen?.logo} initials={companyInitials(chosen?.company ?? "")} className="company-mark" />
-            <select value={choice.customerId} onChange={(event) => setChoice({ ...choice, customerId: event.target.value })} disabled={disabled} aria-label="Kunde">
-              {options.map((entry) => <option key={entry.id} value={entry.id}>{entry.company} · {entry.customerNumber}</option>)}
-            </select>
+            <Select variant="bare" showLead={false} label="Kunde" value={choice.customerId} onChange={(customerId) => setChoice({ ...choice, customerId })} disabled={disabled} searchPlaceholder="Kunde oder Nummer suchen …" options={options.map((entry) => customerOption(entry))} />
             <ChevronDown size={16} aria-hidden="true" />
           </span>
           <p className="am-help">Die Person sieht die Dateien, Termine und Projekte dieses Kunden.</p>
@@ -309,7 +309,7 @@ function MemberRows({ members, onOpenUser }: { members: ManagedUser[]; onOpenUse
       {members.map((user) => (
         <Row key={user.id} lead={<span className="avatar" aria-hidden="true">{initialsOf(user)}</span>} title={fullName(user)} text={user.email}>
           <span className="status-cell"><StatusGlyph kind={statusGlyph[user.displayStatus]} />{displayStatusLabels[user.displayStatus]}</span>
-          <button type="button" className="am-icon-btn" onClick={() => onOpenUser(user)} aria-label={`${fullName(user)} öffnen`} title="Zugang öffnen"><ChevronRight size={16} aria-hidden="true" /></button>
+          <button type="button" className="am-icon-btn" onClick={() => onOpenUser(user)} aria-label={`${fullName(user)} öffnen`} data-tip="Zugang öffnen"><ChevronRight size={16} aria-hidden="true" /></button>
         </Row>
       ))}
     </RowList>
@@ -604,14 +604,14 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
           : "Die Person wählt die Methode im Profil selbst. Der Code per E-Mail gilt auch auf der Serviceplattform."}>
           <span className="am-mini">
             {busy === "secondFactor" ? <MiniLoader size={14} /> : <Shield size={14} aria-hidden="true" />}
-            <select value={secondFactor} disabled={busy !== null} aria-label="Zwei-Faktor-Schutz" onChange={(event) => {
-              const choice = event.target.value === "email" ? "email" : "off";
+            <Select variant="bare" label="Zwei-Faktor-Schutz" value={secondFactor} disabled={busy !== null} onChange={(value) => {
+              const choice = value === "email" ? "email" : "off";
               run("secondFactor", () => setHubUserSecondFactor({ userId: user.id, choice }), () => { setSecondFactor(choice); onNotice(choice === "email" ? `${fullName(user)} bestätigt jede Anmeldung jetzt mit einem Code per E-Mail.` : `Zwei-Faktor-Schutz für ${fullName(user)} ausgeschaltet.`); });
-            }}>
-              {!freelancerLogin && <option value="off">Aus</option>}
-              <option value="email">Code per E-Mail</option>
-              {secondFactor === "totp" && <option value="totp" disabled>Authenticator-App</option>}
-            </select>
+            }} options={[
+              ...(freelancerLogin ? [] : [{ value: "off", label: "Aus" }]),
+              { value: "email", label: "Code per E-Mail" },
+              ...(secondFactor === "totp" ? [{ value: "totp", label: "Authenticator-App", disabled: true }] : []),
+            ]} />
             <ChevronDown size={14} aria-hidden="true" />
           </span>
         </Row>

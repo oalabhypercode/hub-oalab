@@ -227,11 +227,11 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 :root[data-theme="dark"] .sidebar-account-gear { background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
 :root[data-theme="dark"] .sidebar-account-gear:is(:hover, :focus-visible, [aria-expanded="true"]) { background: rgba(255, 255, 255, 0.12); }
 /* The menu opens above the corner: who is signed in, Profil, Darstellung and, set apart in red, Abmelden. */
-.sidebar-account-menu { position: absolute; z-index: 50; right: 0; bottom: calc(100% + 8px); min-width: 210px; max-width: 100%; display: grid; gap: 2px; padding: 6px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--separator), 0 14px 34px rgba(20, 4, 14, 0.24); }
-.sidebar-account-menu :is(a, button) { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 9px; font-size: 14px; font-weight: 500; color: var(--label-body); text-align: left; }
+.sidebar-account-menu { position: absolute; z-index: 50; right: 0; bottom: calc(100% + 8px); min-width: 210px; max-width: 100%; display: grid; gap: 1px; padding: var(--menu-pad); border-radius: var(--menu-radius); background: var(--menu-bg); box-shadow: var(--menu-shadow); }
+.sidebar-account-menu :is(a, button) { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: var(--menu-item-radius); font-size: 14px; font-weight: 500; color: var(--label-body); text-align: left; }
 .sidebar-account-menu :is(a, button) svg { color: var(--label-secondary); }
-.sidebar-account-menu :is(a, button):is(:hover, :focus-visible) { background: var(--fill-tertiary); outline: none; }
-.sidebar-account-menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--separator); }
+.sidebar-account-menu :is(a, button):is(:hover, :focus-visible) { background: var(--menu-hover); outline: none; }
+.sidebar-account-menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--sheet-line); }
 .sidebar-account-menu .is-danger, .sidebar-account-menu .is-danger svg { color: var(--tone-bad); }
 .sidebar-account-menu .sidebar-account-legal { display: flex; align-items: center; gap: 2px; padding: 2px 4px 0; font-size: 12px; color: var(--label-secondary); }
 .sidebar-account-menu .sidebar-account-legal a { height: 30px; padding: 0 6px; font-size: 12px; color: var(--label-secondary); }
@@ -506,7 +506,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .status-feedback { color: var(--tone-todo); background: var(--tone-todo-bg); }
 .status-done { color: var(--tone-off); background: var(--tone-off-bg); }
 .customer-filter { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 6px 0 14px; border-radius: 999px; font-size: 15px; color: var(--label-secondary); }
-.customer-filter select { height: 34px; max-width: 180px; padding: 0 8px; border: 0; border-radius: 999px; background: var(--fill-tertiary); color: var(--label); font: inherit; }
+.customer-filter .hub-select-trigger { height: 34px; max-width: 180px; padding: 0 8px 0 10px; border-radius: 999px; background: var(--fill-tertiary); color: var(--label); }
 
 /* Gespräche (Nachrichten): a messenger on one opaque sheet. The conversations sit left, the open one right; on narrow
    sheets only one of them shows, and on phones an open conversation fills the screen. */
@@ -772,6 +772,13 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   --sheet: #ffffff; --sheet-hover: #f8f5f6; --sheet-sunken: #faf8f7; --sheet-line: #e9e2e5; --sheet-divider: #f1ecee;
   --sheet-muted: #6f626b; --sheet-icon: #b3a7ad; --sheet-seg: #f5f1f3; --sheet-seg-on: #ffffff; --sheet-select: rgba(126, 0, 75, 0.05);
   --sheet-shadow: 0 0 0 1px rgba(30, 25, 28, 0.05), 0 1px 2px rgba(30, 25, 28, 0.08), 0 16px 36px rgba(20, 4, 14, 0.22);
+  /* Lists and menus (proposal A „Studio“, 12.11.2026): a white sheet with a hairline, compact rows, a tick at the choice. */
+  --menu-bg: var(--sheet); --menu-radius: 12px; --menu-pad: 5px; --menu-item-h: 34px; --menu-item-radius: 8px; --menu-hover: var(--sheet-hover);
+  --menu-selected: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k)));
+  --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(20, 4, 14, 0.06), 0 14px 34px rgba(20, 4, 14, 0.16);
+  --select-open-ring: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k)));
+  /* Hover hints: a small dark label with an arrow. */
+  --tip-bg: #252027; --tip-shadow: 0 6px 18px rgba(20, 4, 14, 0.26);
 }
 .sheet { border-radius: 16px; background: var(--sheet); box-shadow: var(--sheet-shadow); color: var(--label-body); }
 /* Pages with a table may use more of the width, like Studio: up to 1240 px instead of 1040 px. */
@@ -794,17 +801,19 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .sheet-toolbar.is-compact .sheet-menu-value { display: none; }
 .sheet-toolbar.is-compact .sheet-search { flex-basis: 220px; }
 .sheet-menu-badge { min-width: 18px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: var(--on-accent); font-size: 11px; font-weight: 700; }
-.sheet-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: max-content; min-width: 240px; max-width: min(340px, calc(100vw - 32px)); display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line), 0 16px 36px rgba(20, 4, 14, 0.18); }
+.sheet-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: max-content; min-width: 240px; max-width: min(340px, calc(100vw - 32px)); display: grid; gap: 8px; padding: 8px; border-radius: var(--menu-radius); background: var(--menu-bg); box-shadow: var(--menu-shadow); }
 .sheet-pop[hidden] { display: none; }
 .sheet-pop.is-end { left: auto; right: 0; }
 .sheet-pop .customer-filter { width: 100%; height: 38px; gap: 8px; padding: 0 4px 0 10px; border-radius: 9px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
-.sheet-pop .customer-filter select { flex: 1; height: 30px; max-width: none; padding: 0 6px; border-radius: 7px; background: transparent; font-size: 14px; }
+.sheet-pop .customer-filter .hub-select-trigger { flex: 1; height: 30px; max-width: none; padding: 0 4px 0 6px; border-radius: 7px; background: transparent; font-size: 14px; }
 .sheet-pop .sort-control label { flex: 1; min-width: 0; }
 .sheet-pop .sort-direction { width: 30px; height: 30px; margin-left: 2px; }
 .sheet-choices { display: grid; gap: 2px; }
-.sheet-choice { display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; font-size: 14px; color: var(--label-body); text-align: left; }
-.sheet-choice:hover { background: var(--sheet-hover); }
-.sheet-choice[aria-checked="true"] { color: var(--accent-text); font-weight: 600; background: rgb(var(--accent-rgb) / calc(0.06 * var(--tint-k))); }
+.sheet-choice { display: flex; align-items: center; gap: 10px; height: var(--menu-item-h); padding: 0 9px 0 10px; border-radius: var(--menu-item-radius); font-size: 14px; color: var(--label-body); text-align: left; }
+.sheet-choice .hub-option-check { margin-left: auto; }
+.sheet-choice[aria-checked="true"] .hub-option-check { visibility: visible; }
+.sheet-choice:hover { background: var(--menu-hover); }
+.sheet-choice[aria-checked="true"] { color: var(--accent-text); font-weight: 600; background: var(--menu-selected); }
 /* Counts and tabs in the toolbar: the segmented control on the sheet instead of on glass. */
 .sheet-toolbar .segmented-control { width: auto; height: 30px; padding: 2px; border: 0; border-radius: 8px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .sheet-toolbar .segment { gap: 6px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: var(--sheet-muted); }
@@ -820,9 +829,9 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .sheet-gear:hover, .sheet-gear[aria-expanded="true"] { filter: brightness(0.92); }
 .sheet-gear svg { transition: transform 0.2s ease; }
 .sheet-gear[aria-expanded="true"] svg { transform: rotate(60deg); }
-.sheet-pop.sheet-action-pop { min-width: 290px; gap: 2px; padding: 6px; }
+.sheet-pop.sheet-action-pop { min-width: 290px; gap: 2px; padding: var(--menu-pad); }
 .sheet-action-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 10px 7px 7px; border-radius: 9px; text-align: left; }
-.sheet-action-item:is(:hover, :focus-visible) { background: var(--sheet-hover); }
+.sheet-action-item:is(:hover, :focus-visible) { background: var(--menu-hover); }
 .sheet-action-icon { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); color: var(--accent-text); }
 .sheet-action-text { display: flex; flex-direction: column; min-width: 0; }
 .sheet-action-text strong { font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
@@ -831,7 +840,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .sheet-hint { padding: 10px 20px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; color: var(--sheet-muted); }
 .sheet-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px 8px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-select); }
 .sheet-selection strong { margin-right: 4px; font-size: 13px; font-weight: 600; color: var(--label); }
-.sheet-move select { height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13px; font-weight: 500; }
+.sheet-move .hub-select-trigger { height: 30px; padding: 0 8px 0 10px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font-size: 13px; font-weight: 500; }
 /* Positioned, so labels hidden for screen readers (position: absolute) scroll with a wide table instead of widening the page. */
 .sheet-scroll { position: relative; overflow-x: auto; }
 .sheet-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; min-height: 40px; padding: 8px 16px 8px 20px; font-size: 12px; color: var(--sheet-muted); }
@@ -954,7 +963,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .import-count.is-skip { background: var(--tone-todo-bg); color: var(--tone-todo); }
 .import-count.is-error { background: var(--tone-bad-bg); color: var(--tone-bad); }
 .import-show { margin-left: auto; }
-.import-show select { min-height: 32px; padding: 4px 10px; border: 0; border-radius: 8px; background: var(--fill-tertiary); color: var(--label-body); font: inherit; font-size: 13px; }
+.import-show .hub-select-trigger { min-height: 32px; padding: 4px 8px 4px 10px; border-radius: 8px; background: var(--fill-tertiary); color: var(--label-body); font-size: 13px; }
 .import-table-wrap { max-height: min(48vh, 440px); overflow: auto; border-radius: 12px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
 .import-table thead th { position: sticky; top: 0; z-index: 1; background: var(--sheet); }
 .import-table td, .import-table th { vertical-align: top; }
@@ -1049,11 +1058,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .um-seg button:disabled { cursor: default; opacity: 0.6; }
 /* The customer of a login: a select with the company's sign in front. */
 .um-pick { position: relative; display: flex; align-items: center; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13.5px; color: var(--label); }
-.um-pick .company-mark { position: absolute; left: 8px; pointer-events: none; }
+.um-pick > .company-mark { position: absolute; left: 8px; pointer-events: none; }
 .um-pick > svg { position: absolute; right: 10px; pointer-events: none; color: var(--sheet-muted); }
-.um-pick select { appearance: none; -webkit-appearance: none; width: 100%; height: 38px; padding: 0 34px 0 40px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; text-overflow: ellipsis; cursor: pointer; }
-.um-pick select:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
-.um-pick select:disabled { cursor: default; color: var(--sheet-muted); }
+.um-pick .hub-select-trigger { width: 100%; height: 38px; padding: 0 34px 0 40px; border-radius: inherit; }
+.um-pick .hub-select-trigger:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.um-pick .hub-select-trigger:disabled { opacity: 1; color: var(--sheet-muted); }
 .um-new-entry { padding: 12px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
 /* Rows in a hairline box: access and security, logo and packages, the logins of an entry. */
 .um-list { display: grid; border-radius: 12px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
@@ -1072,7 +1081,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .um-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .um-link { display: grid; gap: 10px; }
 .um-panel .am-mini { max-width: none; }
-.um-panel .am-mini select { height: 30px; font-weight: 500; }
+.um-panel .am-mini .hub-select-trigger { height: 30px; font-weight: 500; }
 .um-panel .sheet-action { height: 30px; }
 .um-panel .sheet-action.is-quiet { background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); }
 .um-panel .sheet-action.is-quiet:hover { background: var(--sheet-hover); }
@@ -1205,7 +1214,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .upload-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .upload-field-wide { grid-column: 1 / -1; }
 .upload-field > span, .customer-picker legend { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-secondary); }
-.upload-field input, .upload-field select, .upload-field textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--fill-tertiary); color: var(--label); font: inherit; font-size: 17px; line-height: 22px; }
+.upload-field input, .upload-field textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--fill-tertiary); color: var(--label); font: inherit; font-size: 17px; line-height: 22px; }
 .upload-field textarea { resize: vertical; min-height: 76px; }
 .upload-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .upload-submit { width: auto; padding: 0 22px; }
@@ -1681,8 +1690,7 @@ a.teams-join:active { transform: scale(0.97); }
 .proposal-company { font-weight: 600; }
 .proposal-facts .proposal-change, .proposal-facts .proposal-warning { margin-left: 0; }
 .proposal-field { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--label-secondary); }
-.proposal-field select { height: 32px; max-width: 100%; padding: 0 10px; border: 0; border-radius: 999px; background: var(--fill-tertiary); color: var(--label); font: inherit; font-size: 14px; font-weight: 600; }
-.proposal-field select:disabled { opacity: 0.6; }
+.proposal-field .hub-select-trigger { height: 32px; max-width: 100%; padding: 0 8px 0 12px; border-radius: 999px; background: var(--fill-tertiary); color: var(--label); font-size: 14px; font-weight: 600; }
 .proposal-pick-sub { margin: 8px 0 0 26px; font-weight: 400; }
 
 /* Notes on the page: icon and text side by side, the tone's bar on the left (example hints use "info"). */
@@ -1748,6 +1756,9 @@ a.teams-join:active { transform: scale(0.97); }
   --sheet: #1c181b; --sheet-hover: #241f22; --sheet-sunken: #191518; --sheet-line: #342b31; --sheet-divider: #272125;
   --sheet-muted: #a1959b; --sheet-icon: #6e6268; --sheet-seg: #231e21; --sheet-seg-on: #332b30; --sheet-select: rgba(244, 166, 201, 0.08);
   --sheet-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 36px rgba(0, 0, 0, 0.45);
+  --menu-selected: rgb(var(--accent-rgb) / 0.1);
+  --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(0, 0, 0, 0.35), 0 16px 38px rgba(0, 0, 0, 0.55);
+  --tip-bg: #3a3136; --tip-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 22px rgba(0, 0, 0, 0.55);
 }
 /* The background keeps its colours, only darker; lib/appearance.ts sets --bg-shade (62 %, less for light custom colours). */
 html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-layer { background: color-mix(in srgb, var(--bg-base) var(--bg-shade, 62%), #000); }
@@ -2048,25 +2059,25 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 /* Selects that look like the rest of the panel: the icons sit on top, the whole box opens the list. */
 .am-control, .am-mini, .am-cat-select, .am-label-select { position: relative; display: inline-flex; align-items: center; min-width: 0; }
 .am-control > :is(svg, i), .am-mini > :is(svg, i), .am-cat-select > :is(svg, i), .am-label-select > svg { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--sheet-muted); }
-:is(.am-control, .am-mini, .am-cat-select, .am-label-select) select { appearance: none; -webkit-appearance: none; max-width: 100%; margin: 0; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; text-overflow: ellipsis; cursor: pointer; }
-:is(.am-control, .am-mini, .am-cat-select, .am-label-select) select:disabled { cursor: default; }
-:is(.am-control, .am-mini, .am-cat-select) select:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+:is(.am-control, .am-mini, .am-cat-select, .am-label-select) .hub-select-trigger { border-radius: inherit; }
+:is(.am-control, .am-mini, .am-cat-select, .am-label-select) .hub-select-trigger:disabled { opacity: 1; }
+:is(.am-control, .am-mini, .am-cat-select) .hub-select-trigger:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
 .am-control { display: flex; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13.5px; color: var(--label); }
 .am-control > svg:first-child { left: 10px; }
 .am-control > svg:last-child { right: 10px; }
-.am-control select { width: 100%; height: 38px; padding: 0 34px; }
+.am-control .hub-select-trigger { width: 100%; height: 38px; padding: 0 34px; }
 .am-mini { flex: 0 1 auto; max-width: 48%; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 12.5px; color: var(--label-body); white-space: nowrap; }
 .am-mini > svg:first-child { left: 8px; }
 .am-mini > svg:last-child { right: 6px; }
-.am-mini select { height: 28px; padding: 0 24px 0 28px; }
+.am-mini .hub-select-trigger { height: 28px; padding: 0 24px 0 28px; }
 .am-mini.is-static { height: 28px; padding: 0 10px 0 28px; color: var(--sheet-muted); }
 .am-cat-select { flex: 0 0 auto; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 12.5px; color: var(--label-body); white-space: nowrap; }
 .am-cat-select > i { left: 9px; width: 8px; height: 8px; border-radius: 3px; background: var(--cat); }
 .am-cat-select > svg { right: 6px; }
-.am-cat-select select { height: 26px; padding: 0 23px; }
+.am-cat-select .hub-select-trigger { height: 26px; padding: 0 23px; }
 .am-label-select { font-size: 12px; font-weight: 600; color: var(--accent-text); }
 .am-label-select > svg { right: 0; color: inherit; }
-.am-label-select select { padding: 0 17px 0 0; }
+.am-label-select .hub-select-trigger { padding: 0 17px 0 0; }
 
 /* Upload: for whom and where, the files with a title and a category each, the button in the footer. */
 .am-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -2157,10 +2168,9 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-input:focus { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
 .am-control > i { left: 13px; width: 10px; height: 10px; border-radius: 3px; background: var(--cat); }
 .am-more { position: relative; display: inline-flex; }
-.am-more-menu { position: absolute; z-index: 3; top: calc(100% + 6px); right: 0; min-width: 190px; display: grid; padding: 6px; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line), 0 12px 32px rgba(20, 4, 14, 0.18); }
-:root[data-theme="dark"] .am-more-menu { box-shadow: 0 0 0 1px var(--sheet-line), 0 12px 32px rgba(0, 0, 0, 0.5); }
-.am-more-menu button { display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 10px; border-radius: 8px; text-align: left; font-size: 13.5px; font-weight: 500; color: var(--label); }
-.am-more-menu button:is(:hover, :focus-visible) { background: var(--sheet-hover); }
+.am-more-menu { position: absolute; z-index: 3; top: calc(100% + 6px); right: 0; min-width: 190px; display: grid; gap: 1px; padding: var(--menu-pad); border-radius: var(--menu-radius); background: var(--menu-bg); box-shadow: var(--menu-shadow); }
+.am-more-menu button { display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 10px; border-radius: var(--menu-item-radius); text-align: left; font-size: 13.5px; font-weight: 500; color: var(--label); }
+.am-more-menu button:is(:hover, :focus-visible) { background: var(--menu-hover); }
 .am-more-menu .is-danger { color: var(--tone-bad); }
 .am .sheet-action.is-danger { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
 
@@ -2499,4 +2509,101 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 @media (max-width: 767px) {
   .dm-server { grid-template-columns: minmax(0, 1fr); }
   .dm-secret-error { text-align: left; }
+}
+
+/* ---------- Lists and hover hints (user 12.11.2026, proposal A „Studio“) ----------
+   The hub's own select and suggestions (components/hub/select.tsx) and hover hints (components/hub/tooltip.tsx) instead
+   of the browser's: the field keeps its box, the list opens as a white sheet like the tables, with a tick at the choice,
+   and the hint is a small dark label in the hub's font. Lists and hints float in the top layer (Popover API). */
+.hub-select-trigger { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; margin: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.hub-select-trigger:disabled { cursor: default; opacity: 0.6; }
+.hub-select-value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-select-prefix { margin-right: 7px; color: var(--sheet-muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+/* In a form an empty field is muted; in a bar the placeholder is the button's name ("Verschieben nach …"). */
+.is-field .hub-select-placeholder { color: var(--sheet-muted); }
+.hub-select-lead { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: 16px; }
+.hub-select-chevron { flex: 0 0 auto; color: var(--sheet-muted); transition: color 150ms ease; }
+.hub-select-trigger[aria-expanded="true"] .hub-select-chevron { color: var(--accent-text); }
+/* In forms the field looks like the inputs next to it. */
+.hub-select-trigger.is-field { display: flex; width: 100%; min-height: 44px; gap: 10px; padding: 0 10px 0 12px; border-radius: 12px; background: var(--fill-tertiary); color: var(--label); font-size: 17px; line-height: 22px; }
+.hub-select-trigger.is-field .hub-select-prefix { font-size: 15px; }
+.hub-select-trigger.is-field:disabled { opacity: 0.55; }
+/* While the list is open the field wears the accent ring of the search fields: on the field itself, or on the box its
+   wrapper draws (panels, filter menus). */
+:is(.hub-select-trigger.is-field, .customer-filter .hub-select-trigger, .sheet-move .hub-select-trigger, .import-show .hub-select-trigger, .proposal-field .hub-select-trigger)[aria-expanded="true"] { background: var(--surface); box-shadow: var(--select-open-ring); }
+:is(.am-control, .am-mini, .am-cat-select, .um-pick, .sheet-pop .customer-filter):has(.hub-select-trigger[aria-expanded="true"]) { background: var(--sheet); box-shadow: var(--select-open-ring); }
+.sheet-pop .customer-filter .hub-select-trigger[aria-expanded="true"] { background: transparent; box-shadow: none; }
+
+.hub-list { box-sizing: border-box; display: flex; flex-direction: column; width: max-content; min-width: 200px; max-width: min(380px, calc(100vw - 16px)); max-height: min(400px, calc(100dvh - 16px)); margin: 0; padding: var(--menu-pad); border: 0; border-radius: var(--menu-radius); background: var(--menu-bg); box-shadow: var(--menu-shadow); color: var(--label-body); font-family: var(--font-text); font-size: 13.5px; font-weight: 400; line-height: 1.25; letter-spacing: normal; text-align: left; text-transform: none; overflow: hidden; }
+.hub-list[popover] { position: fixed; inset: auto; }
+/* The list sets its own display, so a closed one must be hidden again (the browser's rule would lose against it). */
+.hub-list[popover]:not(:popover-open) { display: none; }
+.hub-list[popover]:popover-open { animation: hub-list-in 0.14s ease-out; }
+.hub-list[data-side="above"] { animation-name: hub-list-in-above; }
+/* Invisible until it sits at its field, so it never flashes in the middle of the screen. */
+.hub-list[popover]:not([data-side]) { opacity: 0; }
+@keyframes hub-list-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes hub-list-in-above { from { opacity: 0; transform: translateY(4px); } }
+/* Browsers without the Popover API show the list in the flow under its field. */
+.hub-list.is-inline { position: relative; z-index: 5; margin-top: 6px; }
+.hub-list.is-inline[hidden] { display: none; }
+.hub-list-head { display: none; }
+.hub-list-search { flex: 0 0 auto; display: flex; align-items: center; gap: 7px; height: 32px; margin: 1px 1px 6px; padding: 0 10px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.hub-list-search:focus-within { box-shadow: var(--select-open-ring); }
+.hub-list-search input { flex: 1; width: auto; min-width: 0; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; line-height: normal; color: var(--label); }
+.hub-list-search input::placeholder { color: var(--sheet-muted); }
+.hub-list-search input::-webkit-search-cancel-button { display: none; }
+.hub-list .hub-list-search :focus-visible { outline: 0; box-shadow: none; }
+.hub-list-options { flex: 1 1 auto; min-height: 0; display: grid; align-content: start; gap: 1px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.hub-list-group { padding: 9px 9px 5px; font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sheet-muted); }
+.hub-list-group:first-child { padding-top: 5px; }
+.hub-option { display: flex; align-items: center; gap: 10px; min-height: var(--menu-item-h); padding: 0 9px; border-radius: var(--menu-item-radius); color: var(--label-body); white-space: nowrap; cursor: pointer; user-select: none; }
+.hub-option.is-active { background: var(--menu-hover); }
+.hub-option[aria-selected="true"] { background: var(--menu-selected); color: var(--accent-text); font-weight: 600; }
+.hub-option[aria-selected="true"].is-active { background: rgb(var(--accent-rgb) / calc(0.11 * var(--tint-k))); }
+.hub-option[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.hub-option-lead { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: 16px; color: var(--sheet-muted); }
+.hub-option[aria-selected="true"] .hub-option-lead { color: inherit; }
+.hub-option-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hub-option-text b { font-weight: 700; color: var(--label); }
+.hub-option-prefix { margin-right: 7px; color: var(--sheet-muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.hub-option[aria-selected="true"] .hub-option-prefix { color: inherit; opacity: 0.8; }
+.hub-option-meta { flex: 0 0 auto; font-size: 12px; font-weight: 400; color: var(--sheet-muted); }
+.hub-option-check { flex: 0 0 auto; color: var(--accent-text); visibility: hidden; }
+.hub-option[aria-selected="true"] .hub-option-check { visibility: visible; }
+/* Suggestions mark the row the arrow keys are on, without a tick: nothing is chosen until it is taken. */
+.is-suggest .hub-option[aria-selected="true"] { background: var(--menu-hover); color: var(--label-body); font-weight: 400; }
+.hub-list-empty { padding: 12px 10px; font-size: 13.5px; color: var(--sheet-muted); }
+.hub-list-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; margin: 5px calc(-1 * var(--menu-pad)) calc(-1 * var(--menu-pad)); padding: 7px 12px 8px; border-top: 1px solid var(--sheet-line); background: var(--sheet-sunken); font-size: 11.5px; line-height: 16px; color: var(--sheet-muted); white-space: nowrap; }
+.hub-list-foot kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; margin-right: 3px; padding: 0 4px; border-radius: 5px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line), 0 1px 0 var(--sheet-line); font: 600 10.5px/1 var(--font-text); color: var(--label-secondary); }
+/* Colour dots of categories and states in lists and fields, like in the tables; logos and initials of customers. */
+.select-dot { display: inline-block; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 3px; background: var(--dot, var(--sheet-icon)); }
+.select-dot.is-round { width: 9px; height: 9px; border-radius: 50%; }
+.hub-option-lead .company-mark, .hub-select-lead .company-mark { width: 24px; height: 24px; border-radius: 7px; font-size: 10px; }
+
+/* Phones: the list is a sheet at the bottom with its field's name and large rows, the page dimmed behind it. */
+@media (max-width: 767px) {
+  .hub-list[popover]:not(.is-suggest) { left: 8px !important; right: 8px; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom)); width: auto !important; min-width: 0 !important; max-width: none; max-height: 72dvh !important; padding: 18px 8px 10px; border-radius: 24px; opacity: 1; animation: hub-sheet-in 0.24s var(--ease-spring); }
+  .hub-list[popover]:not(.is-suggest)::backdrop { background: rgba(0, 0, 0, 0.28); }
+  .hub-list:not(.is-suggest) .hub-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 4px 10px 10px; }
+  .hub-list:not(.is-suggest) .hub-list-head::before { content: ""; position: absolute; top: 7px; left: 50%; width: 36px; height: 5px; border-radius: 3px; background: var(--sheet-line); transform: translateX(-50%); }
+  .hub-list-head strong { font-size: 16px; font-weight: 700; color: var(--label); }
+  .hub-list-close { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--fill-tertiary); color: var(--label-secondary); }
+  .hub-list:not(.is-suggest) .hub-option { min-height: 46px; font-size: 16px; }
+  .hub-list-search { height: 40px; }
+  .hub-list-foot { display: none; }
+}
+@keyframes hub-sheet-in { from { opacity: 0; transform: translateY(24px); } }
+
+.hub-tip { position: fixed; inset: auto; z-index: 1000; box-sizing: border-box; width: max-content; max-width: min(280px, calc(100vw - 16px)); margin: 0; padding: 5px 8px; border: 0; border-radius: 7px; overflow: visible; background: var(--tip-bg); color: #ffffff; box-shadow: var(--tip-shadow); font-family: var(--font-text); font-size: 12.5px; line-height: 17px; font-weight: 500; letter-spacing: normal; text-align: left; text-transform: none; white-space: normal; overflow-wrap: anywhere; pointer-events: none; }
+.hub-tip:popover-open, .hub-tip:not([popover]):not([hidden]) { animation: hub-tip-in 0.12s ease-out; }
+.hub-tip[hidden] { display: none; }
+@keyframes hub-tip-in { from { opacity: 0; } }
+.hub-tip::after { content: ""; position: absolute; left: var(--tip-arrow, 50%); bottom: -4px; width: 9px; height: 9px; border-radius: 0 0 2px 0; background: inherit; transform: translateX(-50%) rotate(45deg); }
+.hub-tip[data-side="below"]::after { top: -4px; bottom: auto; border-radius: 2px 0 0 0; }
+.hub-tip-title { display: flex; align-items: center; gap: 6px; }
+.hub-tip small { display: block; margin-top: 1px; font-size: 12px; line-height: 16px; font-weight: 400; color: rgba(255, 255, 255, 0.68); }
+.hub-tip kbd { display: inline-flex; align-items: center; height: 18px; margin-left: 2px; padding: 0 5px; border-radius: 5px; background: rgba(255, 255, 255, 0.16); font: 600 11px/1 var(--font-text); letter-spacing: 0.02em; }
+@media (hover: none) {
+  .hub-tip { display: none !important; }
 }

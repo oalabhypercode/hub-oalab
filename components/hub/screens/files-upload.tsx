@@ -1,13 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, CircleAlert, Upload, X } from "lucide-react";
+import { Check, CircleAlert, Folder, Inbox, Upload, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { createClient } from "@/lib/supabase/client";
-import { checkUpload, fileCategories, fileCategoryIds, fileFormat, formatBytes, HUB_FILES_BUCKET, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, type FileCategory } from "@/lib/hub-files/catalog";
+import { checkUpload, fileFormat, formatBytes, HUB_FILES_BUCKET, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, type FileCategory } from "@/lib/hub-files/catalog";
 import { finalizeUpload, prepareUpload } from "@/lib/hub-files/actions";
 import type { HubFileCustomer, HubFolder } from "@/lib/hub-files/types";
 import { GlassCard } from "../glass";
+import { Select } from "../select";
+import { categoryOptions } from "../select-options";
 import { CustomerPicker, FileIcon } from "./files-parts";
 
 type UploadItem = { key: string; file: File; title: string; status: "ready" | "working" | "done" | "error"; message: string };
@@ -141,15 +143,11 @@ export function FileUploadCard({ customers, folders, initialCustomerIds = [], in
 
       <div className="upload-fields">
         <label className="upload-field"><span>Kategorie (für alle)</span>
-          <select value={category} onChange={(event) => setCategory(event.target.value as FileCategory)} disabled={working}>
-            {fileCategoryIds.map((id) => <option key={id} value={id}>{fileCategories[id]}</option>)}
-          </select>
+          <Select label="Kategorie" value={category} onChange={(value) => setCategory(value as FileCategory)} disabled={working} options={categoryOptions()} />
         </label>
         <label className="upload-field"><span>Ordner</span>
-          <select value={targetFolder} onChange={(event) => setFolderId(event.target.value)} disabled={working || customerIds.length !== 1}>
-            <option value="">{customerIds.length === 1 ? "Ohne Ordner" : "Erst genau einen Kunden wählen"}</option>
-            {customerFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-          </select>
+          <Select label="Ordner" value={targetFolder} onChange={setFolderId} disabled={working || customerIds.length !== 1}
+            options={[{ value: "", label: customerIds.length === 1 ? "Ohne Ordner" : "Erst genau einen Kunden wählen", lead: <Inbox size={15} aria-hidden="true" /> }, ...customerFolders.map((folder) => ({ value: folder.id, label: folder.name, lead: <Folder size={15} aria-hidden="true" /> }))]} />
         </label>
         <label className="upload-field upload-field-wide"><span>Beschreibung (für alle, optional)</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} rows={2} placeholder="Was steckt in den Dateien, wofür sind sie gedacht?" disabled={working} /></label>
       </div>

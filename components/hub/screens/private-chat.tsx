@@ -177,7 +177,7 @@ export function PrivateChats({ admin, freelancer = false, firstName, company, no
         <section className={`chat-list${admin ? "" : " is-single"}`} aria-label="Gespräche">
           <div className="chat-list-head">
             <h2>Gespräche{info.button}</h2>
-            {admin && <button type="button" className="chat-icon-button" onClick={() => setPicking(true)} title="Kunden anschreiben" aria-label="Kunden anschreiben"><SquarePen size={19} aria-hidden="true" /></button>}
+            {admin && <button type="button" className="chat-icon-button" onClick={() => setPicking(true)} data-tip="Kunden anschreiben" aria-label="Kunden anschreiben"><SquarePen size={19} aria-hidden="true" /></button>}
           </div>
           {info.box}
           {tabs?.(unreadCount)}
