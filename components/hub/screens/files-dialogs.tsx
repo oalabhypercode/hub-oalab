@@ -18,7 +18,7 @@ export function DownloadButton({ file, onError, label = false, compact = false, 
   const content = <>{busy ? <MiniLoader size={18} /> : <Download size={18} aria-hidden="true" />}{label && <span>Herunterladen</span>}</>;
   const className = look ?? (label ? "sheet-button sheet-button-primary" : compact ? "am-icon-btn is-accent" : "file-download");
   if (file.sampleHref) {
-    return <a className={className} href={file.sampleHref} download={file.fileName} aria-label={label ? undefined : `${file.title} herunterladen`} title={label ? undefined : "Herunterladen"}>{content}</a>;
+    return <a className={className} href={file.sampleHref} download={file.fileName} aria-label={label ? undefined : `${file.title} herunterladen`} data-tip={label ? undefined : "Herunterladen"}>{content}</a>;
   }
   async function download() {
     setBusy(true);
@@ -27,7 +27,7 @@ export function DownloadButton({ file, onError, label = false, compact = false, 
     if (result.ok) window.location.assign(result.data.url);
     else onError(result.error);
   }
-  return <button type="button" className={className} onClick={download} disabled={busy} aria-label={label ? undefined : `${file.title} herunterladen`} title={label ? undefined : "Herunterladen"}>{content}</button>;
+  return <button type="button" className={className} onClick={download} disabled={busy} aria-label={label ? undefined : `${file.title} herunterladen`} data-tip={label ? undefined : "Herunterladen"}>{content}</button>;
 }
 
 /** All details of a file; admins can change the customer assignment here. */

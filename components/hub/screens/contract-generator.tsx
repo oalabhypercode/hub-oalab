@@ -16,6 +16,7 @@ import type { ContractCustomer } from "@/lib/hub-contracts/types";
 import { Switch } from "../controls";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { SuggestInput } from "../select";
 import { saveDownload, useContractRunner } from "./contract-actions";
 
 export { ContractTemplatesSection } from "./contract-template-versions";
@@ -94,8 +95,7 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
 
   const start = initialInput(template, master ?? { company: customer.company, street: "", postalCode: "", city: "", website: "" }, today, operator);
   const input = Object.fromEntries(template.fields.map((key) => [key, edits[key] ?? start[key] ?? ""]));
-  const set = (key: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
+  const setValue = (key: string, value: string) => {
     setEdits((current) => ({ ...current, [key]: value }));
     setFieldErrors((current) => {
       if (!current[key]) return current;
@@ -104,6 +104,7 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
       return next;
     });
   };
+  const set = (key: string) => (event: React.ChangeEvent<HTMLInputElement>) => setValue(key, event.target.value);
   const masterNote = !canManage ? "Ohne echten Admin-Login sind die Kundendaten hier nicht geladen." : loadError;
   const missingMaster = master && (!master.street || !master.postalCode || !master.city || (template.fields.includes("kunde_domain") && !master.website));
   const summary = termsSummary(input);
@@ -181,16 +182,27 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
                   return (
                     <label key={key} className={`upload-field${wide ? " upload-field-wide" : ""}`}>
                       <span>{field.label}{field.required ? "" : " (optional)"}</span>
-                      <input
-                        type={field.kind === "date" ? "date" : "text"}
-                        inputMode={field.kind === "money" || field.kind === "percent" ? "decimal" : field.kind === "minutes" ? "numeric" : undefined}
-                        value={input[key] ?? ""}
-                        onChange={set(key)}
-                        list={field.options === "partners" ? `${formId}-partners` : undefined}
-                        aria-invalid={fieldErrors[key] ? true : undefined}
-                        aria-describedby={fieldErrors[key] ? errorId : undefined}
-                        maxLength={200}
-                      />
+                      {field.options === "partners" ? (
+                        <SuggestInput
+                          label={field.label}
+                          value={input[key] ?? ""}
+                          onValueChange={(value) => setValue(key, value)}
+                          suggestions={OPERATOR.partners}
+                          aria-invalid={fieldErrors[key] ? true : undefined}
+                          aria-describedby={fieldErrors[key] ? errorId : undefined}
+                          maxLength={200}
+                        />
+                      ) : (
+                        <input
+                          type={field.kind === "date" ? "date" : "text"}
+                          inputMode={field.kind === "money" || field.kind === "percent" ? "decimal" : field.kind === "minutes" ? "numeric" : undefined}
+                          value={input[key] ?? ""}
+                          onChange={set(key)}
+                          aria-invalid={fieldErrors[key] ? true : undefined}
+                          aria-describedby={fieldErrors[key] ? errorId : undefined}
+                          maxLength={200}
+                        />
+                      )}
                       {fieldErrors[key] ? <small id={errorId} className="contract-field-error">{fieldErrors[key]}</small> : hint && <small className="field-hint">{hint}</small>}
                     </label>
                   );
@@ -201,7 +213,6 @@ export function ContractGenerator({ customer, canManage, today, onClose, onFiled
             </fieldset>
           );
         })}
-        <datalist id={`${formId}-partners`}>{OPERATOR.partners.map((name) => <option key={name} value={name} />)}</datalist>
 
         {error && <p className="form-error" role="alert">{error}</p>}
         {!canManage && <p className="field-hint">Erstellen und Ablegen gehen nur mit echtem Admin-Login.</p>}

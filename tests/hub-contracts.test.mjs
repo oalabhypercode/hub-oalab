@@ -202,7 +202,7 @@ test("the customer's tabs are tables: tabs in the toolbar, packages chosen in th
   // The bar appears only with a change, names it and saves through the same action as before.
   assert.match(parts, /\{canManage && changes\.length > 0 && \(\s*<div className="sheet-selection cdm-savebar"/);
   assert.match(parts, /saveCustomerPackages\(\{ customerId: customer\.id, packages: draft \}\)/);
-  assert.match(parts, /title="Kündigung eintragen"/);
+  assert.match(parts, /data-tip="Kündigung eintragen"/);
   // The timeline by month, each entry with its release chip.
   assert.match(parts, /const months = \[\.\.\.new Set\(shown\.map\(\(entry\) => entry\.occurredOn\.slice\(0, 7\)\)\)\];/);
   assert.match(parts, /setTimelineVisible\(\{ id: entry\.id, visible: !entry\.customerVisible \}\)/);

@@ -39,10 +39,12 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 19,
     date: "2026-11-12",
-    title: "Kundennachrichten in Telegram",
-    summary: "Schreibt ein Kunde im privaten Chat, kommt seine Nachricht wieder vollständig in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text, dazu der Knopf in den Hub. Jede Nachricht kommt einzeln an, nicht mehr nur eine Meldung pro Chat.",
+    title: "Auswahllisten und Hinweise im Hub-Look",
+    summary: "Schreibt ein Kunde im privaten Chat, kommt seine Nachricht wieder vollständig in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text, dazu der Knopf in den Hub. Jede Nachricht kommt einzeln an, nicht mehr nur eine Meldung pro Chat. Dazu sehen alle Auswahllisten, Vorschläge beim Tippen und die kleinen Hinweise beim Darüberfahren jetzt aus wie der Rest des Hubs, statt wie die Standardfenster des Browsers.",
     changes: [
       { kind: "improved", title: "Nachrichten mit Text in Telegram", text: "Die Telegram-Gruppe des Teams zeigt bei jeder Kundennachricht Firma, Name und den Text selbst, sehr lange Nachrichten gekürzt. Geantwortet wird weiter im Hub über den Knopf „Im Hub öffnen“." },
+      { kind: "improved", title: "Auswahllisten im Hub-Look", text: "Aufklappende Listen, etwa für Filter, Kategorien, Ordner oder Termine, öffnen sich jetzt als ruhiges weißes Blatt in der Schrift des Hubs, die Auswahl trägt ein Häkchen. Lange Listen wie Kunden lassen sich durchsuchen, und auf dem Handy öffnet jede Auswahl als Blatt von unten.", customers: true },
+      { kind: "improved", title: "Hinweise beim Darüberfahren", text: "Fährst du mit der Maus über ein Symbol, einen gekürzten Namen oder ein Datum, erscheint ein kleiner dunkler Hinweis im Stil des Hubs statt des grauen Kästchens des Browsers. Er kommt etwas schneller und zeigt sich auch, wenn du mit der Tabulatortaste durch die Seite gehst.", customers: true },
     ],
   },
   {

@@ -254,7 +254,7 @@ export function InvitationsDialog({ users, customers, mailConfigured, onClose, o
                     <td className="cell-check"><input type="checkbox" checked={chosen.has(user.id)} disabled={running} onChange={() => toggle(user.id)} aria-label={`${user.email} einladen`} /></td>
                     <td className="import-company"><strong>{`${user.firstName} ${user.lastName}`.trim() || user.email}</strong><small>{user.email}</small></td>
                     <td className="import-city">{customer ? <>{customer.company} <small className="numeric">{customer.customerNumber}</small></> : <span className="cell-none">–</span>}</td>
-                    <td className="import-what">{user.invitedAt ? <time dateTime={user.invitedAt} title={formatFileDateTime(user.invitedAt)}>{formatFileDate(user.invitedAt)}</time> : <span className="cell-none">noch nie</span>}</td>
+                    <td className="import-what">{user.invitedAt ? <time dateTime={user.invitedAt} data-tip={formatFileDateTime(user.invitedAt)}>{formatFileDate(user.invitedAt)}</time> : <span className="cell-none">noch nie</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -372,7 +372,7 @@ export function AnnouncementsDialog({ users, customers, mailConfigured, onClose,
                     <td className="cell-check"><input type="checkbox" checked={chosen.has(user.id)} disabled={running} onChange={() => toggle(user.id)} aria-label={`${user.email} die Ankündigung schicken`} /></td>
                     <td className="import-company"><strong>{`${user.firstName} ${user.lastName}`.trim() || user.email}</strong><small>{user.email}</small></td>
                     <td className="import-city">{customer ? <>{customer.company} <small className="numeric">{customer.customerNumber}</small></> : <span className="cell-none">–</span>}</td>
-                    <td className="import-what">{user.announcedAt ? <time dateTime={user.announcedAt} title={formatFileDateTime(user.announcedAt)}>{formatFileDate(user.announcedAt)}</time> : user.invitedAt ? <span className="cell-none">schon eingeladen</span> : <span className="cell-none">noch nie</span>}</td>
+                    <td className="import-what">{user.announcedAt ? <time dateTime={user.announcedAt} data-tip={formatFileDateTime(user.announcedAt)}>{formatFileDate(user.announcedAt)}</time> : user.invitedAt ? <span className="cell-none">schon eingeladen</span> : <span className="cell-none">noch nie</span>}</td>
                   </tr>
                 ))}
               </tbody>

@@ -20,6 +20,8 @@ import { DeleteFolderDialog, DownloadButton, FileDetailDialog, FolderNameDialog,
 import { useFilesStore } from "./files-store";
 import { AssetManagement } from "./asset-management";
 import { FileUploadCard } from "./files-upload";
+import { Select } from "../select";
+import { categoryDot, customerOption } from "../select-options";
 import type { ScreenProps } from "./types";
 
 const ALL = "all";
@@ -123,14 +125,14 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
       <td className="cell-select"><input type="checkbox" checked={selected.includes(file.id)} onChange={() => toggle(file.id)} aria-label={`${file.title} auswählen`} /></td>
       <td className="cell-file">
         {/* One fact per cell: the title; the file name is in the tooltip and in the dialog. */}
-        <button type="button" className="file-open" onClick={() => setOpenId(file.id)} title={file.fileName}><FileIcon file={file} size={16} /><strong>{file.title}</strong></button>
+        <button type="button" className="file-open" onClick={() => setOpenId(file.id)} data-tip={file.fileName}><FileIcon file={file} size={16} /><strong>{file.title}</strong></button>
       </td>
       <td className="cell-category"><CategoryDot category={file.category} /></td>
       <td className="cell-description col-description">{file.description || <span className="cell-none">–</span>}</td>
       <td className="cell-format">{fileFormat(file.fileName)}</td>
       <td className="cell-size numeric">{formatBytes(file.sizeBytes)}</td>
       <td className="cell-date numeric">{formatFileDate(file.createdAt)}</td>
-      {showCustomers && <td className="cell-customers">{file.customers.length ? file.customers.map((item) => <span key={item.id} className="customer-chip numeric" title={item.company}>{item.customerNumber}</span>) : <span className="customer-chip customer-chip-empty">Ablage</span>}</td>}
+      {showCustomers && <td className="cell-customers">{file.customers.length ? file.customers.map((item) => <span key={item.id} className="customer-chip numeric" data-tip={item.company}>{item.customerNumber}</span>) : <span className="customer-chip customer-chip-empty">Ablage</span>}</td>}
       <td className="cell-action"><DownloadButton file={file} onError={setError} /></td>
     </tr>
   );
@@ -150,9 +152,9 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
         <div className="sheet section-first">
           <SheetToolbar query={query} onQuery={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen">
             <ToolbarMenu icon={ListFilter} label="Filter" badge={menuFilters}>
-              {showCustomers && <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((item) => ({ value: item.id, label: `${item.customerNumber} · ${item.company}` })), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)" }] : [])]} />}
-              {canOrganize && <FilterSelect icon={Folder} name="Nach Ordner filtern" value={folder} onChange={chooseFolder} options={[{ value: ALL, label: "Alle Ordner" }, ...scopeFolders.map((item) => ({ value: item.id, label: item.name })), { value: NO_FOLDER, label: "Ohne Ordner" }]} />}
-              <FilterSelect icon={Tag} name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle Kategorien" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id] }))]} />
+              {showCustomers && <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((item) => customerOption(item)), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)", lead: <Inbox size={15} aria-hidden="true" /> }] : [])]} />}
+              {canOrganize && <FilterSelect icon={Folder} name="Nach Ordner filtern" value={folder} onChange={chooseFolder} options={[{ value: ALL, label: "Alle Ordner" }, ...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />}
+              <FilterSelect icon={Tag} name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle Kategorien" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id], lead: categoryDot(id) }))]} />
               <FilterSelect icon={FileType} name="Nach Format filtern" value={format} onChange={setFormat} options={[{ value: ALL, label: "Alle Formate" }, ...usedFormats.map((item) => ({ value: item, label: item }))]} />
             </ToolbarMenu>
             <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={fileSorts[sort.key].label}><SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} /></ToolbarMenu>
@@ -168,13 +170,10 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
               <strong className="numeric">{selection.length === 1 ? "1 Datei" : `${selection.length} Dateien`} ausgewählt</strong>
               <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "Als ZIP herunterladen" : "Herunterladen"}</button>
               {canOrganize && (
-                <label className="sheet-move"><span className="visually-hidden">Ausgewählte Dateien verschieben nach</span>
-                  <select value="" onChange={(event) => move(event.target.value)} disabled={busy !== null}>
-                    <option value="">Verschieben nach …</option>
-                    {scopeFolders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                    <option value={NO_FOLDER}>Ohne Ordner</option>
-                  </select>
-                </label>
+                <span className="sheet-move">
+                  <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben nach …" value="" onChange={move} disabled={busy !== null}
+                    options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
+                </span>
               )}
               <button type="button" className="sheet-action" onClick={() => setSelected([])}><X size={15} aria-hidden="true" />Auswahl aufheben</button>
             </div>
@@ -201,8 +200,8 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
                     collapsed={groups.isCollapsed(group.key)} onToggle={() => groups.toggle(group.key)}
                     empty={narrowed ? "Keine Dateien für diese Auswahl in diesem Ordner." : "Noch keine Dateien in diesem Ordner. Wähle Dateien aus und verschiebe sie hierher."}
                     actions={group.folder && <>
-                      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "rename", folder: group.folder! })} aria-label={`Ordner „${group.label}“ umbenennen`} title="Umbenennen"><Pencil size={14} aria-hidden="true" /></button>
-                      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "delete", folder: group.folder! })} aria-label={`Ordner „${group.label}“ löschen`} title="Löschen"><Trash2 size={14} aria-hidden="true" /></button>
+                      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "rename", folder: group.folder! })} aria-label={`Ordner „${group.label}“ umbenennen`} data-tip="Umbenennen"><Pencil size={14} aria-hidden="true" /></button>
+                      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "delete", folder: group.folder! })} aria-label={`Ordner „${group.label}“ löschen`} data-tip="Löschen"><Trash2 size={14} aria-hidden="true" /></button>
                     </>}>
                     {group.files.map(row)}
                   </TableGroup>

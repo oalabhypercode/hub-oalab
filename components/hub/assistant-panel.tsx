@@ -14,6 +14,7 @@ import { contactLines, customerNote, type CustomerChoice, type CustomerView } fr
 import { formatDeadline } from "@/lib/hub-data";
 import { useInfo, type InfoCard } from "./info-box";
 import { Modal } from "./modal";
+import { Select } from "./select";
 
 /** New tasks (Schritt 3/4), a change to a project or to existing tasks (Schritt 5) or a new customer (Schritt 6). */
 type AnyView = (ProposalView & { kind?: "tasks.create" }) | ChangeView | CustomerView;
@@ -235,7 +236,7 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
   const title = "Wie können wir helfen?";
   const modeToggle = (
     <button type="button" className="assistant-mode" onClick={() => onModeChange(mode === "dock" ? "window" : "dock")}
-      aria-label={mode === "dock" ? "Als Fenster öffnen" : "Rechts andocken"} title={mode === "dock" ? "Als Fenster öffnen" : "Rechts andocken, die Seite bleibt bedienbar"}>
+      aria-label={mode === "dock" ? "Als Fenster öffnen" : "Rechts andocken"} data-tip={mode === "dock" ? "Als Fenster öffnen" : "Rechts andocken, die Seite bleibt bedienbar"}>
       {mode === "dock" ? <PanelRightClose size={19} aria-hidden="true" /> : <PanelRightOpen size={19} aria-hidden="true" />}
     </button>
   );
@@ -435,9 +436,7 @@ function CustomerCard({ item, view, onChoose, onDecide }: { item: ProposalState;
           ))}
           <label className="proposal-field">
             Service-Paket
-            <select value={choice.planId} disabled={!editable} onChange={(event) => onChoose({ ...choice, planId: event.target.value })}>
-              {view.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
-            </select>
+            <Select variant="bare" chevron label="Service-Paket" value={choice.planId} disabled={!editable} onChange={(planId) => onChoose({ ...choice, planId })} options={view.plans.map((plan) => ({ value: plan.id, label: plan.name }))} />
           </label>
           {view.similar.map((other) => (
             <p key={other.customerNumber} className="proposal-warning"><TriangleAlert size={14} aria-hidden="true" /> {other.reason === "name" ? "Ähnlicher Kunde" : "Gleiche Kontakt-E-Mail wie"}: {other.company} ({other.customerNumber})</p>

@@ -45,8 +45,8 @@ export function ReadonlyField({ label, note, value, copyLabel }: { label: string
   return (
     <div className="um-field is-wide">
       <span className="am-label">{label}{note && <small>{note}</small>}</span>
-      <span className="um-readonly"><Lock size={14} aria-hidden="true" /><span title={value}>{value}</span>
-        <button type="button" onClick={copy} aria-label={copyLabel} title={copied ? "Kopiert" : "Kopieren"}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</button>
+      <span className="um-readonly"><Lock size={14} aria-hidden="true" /><span data-tip={value}>{value}</span>
+        <button type="button" onClick={copy} aria-label={copyLabel} data-tip={copied ? "Kopiert" : "Kopieren"}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</button>
       </span>
     </div>
   );
@@ -104,8 +104,8 @@ export function HistoryList({ events }: { events: ManagedEvent[] }) {
 export function EntryNav({ onPrev, onNext }: { onPrev?: () => void; onNext?: () => void }) {
   return (
     <span className="um-nav">
-      <button type="button" className="am-icon-btn" onClick={onPrev} disabled={!onPrev} aria-label="Vorheriger Eintrag" title="Vorheriger Eintrag"><ChevronUp size={18} aria-hidden="true" /></button>
-      <button type="button" className="am-icon-btn" onClick={onNext} disabled={!onNext} aria-label="Nächster Eintrag" title="Nächster Eintrag"><ChevronDown size={18} aria-hidden="true" /></button>
+      <button type="button" className="am-icon-btn" onClick={onPrev} disabled={!onPrev} aria-label="Vorheriger Eintrag" data-tip="Vorheriger Eintrag"><ChevronUp size={18} aria-hidden="true" /></button>
+      <button type="button" className="am-icon-btn" onClick={onNext} disabled={!onNext} aria-label="Nächster Eintrag" data-tip="Nächster Eintrag"><ChevronDown size={18} aria-hidden="true" /></button>
     </span>
   );
 }
@@ -135,7 +135,7 @@ export function EntryChips({ legend, entries, selected, onChange, addLabel, empt
         {chosen.map((entry) => (
           <span key={entry.id} className="am-chip">
             <LogoMark logo={entry.logo} initials={companyInitials(entry.company)} className="company-mark" />{entry.company}<span className="numeric um-chip-number">{entry.customerNumber}</span>
-            <button type="button" onClick={() => onChange(selected.filter((id) => id !== entry.id))} disabled={disabled} aria-label={`${entry.company} entfernen`} title="Entfernen"><X size={14} aria-hidden="true" /></button>
+            <button type="button" onClick={() => onChange(selected.filter((id) => id !== entry.id))} disabled={disabled} aria-label={`${entry.company} entfernen`} data-tip="Entfernen"><X size={14} aria-hidden="true" /></button>
           </span>
         ))}
         {!chosen.length && <span className="um-chips-empty">{emptyText}</span>}

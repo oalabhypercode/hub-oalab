@@ -23,6 +23,7 @@ import { CategoryIcon, GlassButton } from "./glass";
 import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
+import { TooltipLayer } from "./tooltip";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { LogoImage, logoTileStyle, useShownLogo } from "./logo-mark";
@@ -181,7 +182,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
               {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. Tablets hide the
                   sidebar with its gear menu, so there signing out sits at the far right (wish of 5 November 2026). */}
-              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="glass glass-float glass-button topbar-signout" aria-label={signOutLabel} title={signOutLabel} onClick={signOut} disabled={signingOut}>{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
+              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="glass glass-float glass-button topbar-signout" aria-label={signOutLabel} data-tip={signOutLabel} onClick={signOut} disabled={signingOut}>{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
               {/* Profil shows its own message; on other pages a failed sign-out from the top row says so here. */}
               {logoutError && section !== "settings" && <p role="alert" className="form-error topbar-signout-error">{logoutError}</p>}
@@ -216,6 +217,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
             project={assistantProject} onClearProject={() => setAssistantProject(null)} question={assistantQuestion}
             onClose={() => setAssistantOpen(false)} />
         )}
+        {/* Hover hints of the whole hub (data-tip), in place of the browser's title tooltips. */}
+        <TooltipLayer />
       </ShellContext.Provider>
     </AppearanceProvider>
   );

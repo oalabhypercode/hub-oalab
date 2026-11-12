@@ -97,7 +97,7 @@ export function ServiceQuotaSection({ quota, customers, onOpenCustomer, onNotice
           </span>
         </td>
         <td className="cell-category"><span className="status-cell"><StatusGlyph kind={quota.enforced ? "active" : "invited"} />{quota.enforced ? "Sperre an" : "Sperre aus"}</span></td>
-        <td className="cell-date" title={quota.switchedBy ? `von ${quota.switchedBy}` : undefined}>{quota.switchedAt ? `${quota.enforced ? "an" : "aus"} seit ${formatBerlinDay(quota.switchedAt)}` : ""}</td>
+        <td className="cell-date" data-tip={quota.switchedBy ? `von ${quota.switchedBy}` : undefined}>{quota.switchedAt ? `${quota.enforced ? "an" : "aus"} seit ${formatBerlinDay(quota.switchedAt)}` : ""}</td>
         <td className="cell-action">
           {quota.canManage && (
             <button type="button" className={`sheet-action${quota.enforced ? "" : " is-primary"}`} onClick={() => setDialog(true)}>

@@ -90,7 +90,7 @@ export function AssistantLogScreen({ state }: { state: AssistantLogState }) {
             <tbody>
               {shown.map((row) => (
                 <tr key={row.id} className={`data-row${row.outcome === "discarded" || row.outcome === "expired" ? " is-muted" : ""}`}>
-                  <td className="cell-time numeric"><time dateTime={row.createdAt} title={formatFileDateTime(row.createdAt)}>{when.format(new Date(row.createdAt))}</time></td>
+                  <td className="cell-time numeric"><time dateTime={row.createdAt} data-tip={formatFileDateTime(row.createdAt)}>{when.format(new Date(row.createdAt))}</time></td>
                   <td>{row.actor}</td>
                   <td className="cell-role">{kindLabels[row.kind]}</td>
                   <td className="cell-target">{row.projectId && row.outcome === "done" ? <Link className="table-link" href={`/dashboard/projects?project=${row.projectId}`}>{row.target}</Link> : row.target || <span className="t-secondary">–</span>}</td>

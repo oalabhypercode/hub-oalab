@@ -160,7 +160,7 @@ export function ProjectsScreen({ preview, populated, projects, admin, asOf, live
         </td>
         {showArea && <td className="cell-area col-area">{project.category}</td>}
         {/* One fact per cell: the milestone's title; its description is in the project dialog and in the tooltip. */}
-        <td className="cell-milestone" title={milestone?.description || undefined}>{milestone ? milestone.title : <span className="cell-none">Noch kein Meilenstein</span>}</td>
+        <td className="cell-milestone" data-tip={milestone?.description || undefined}>{milestone ? milestone.title : <span className="cell-none">Noch kein Meilenstein</span>}</td>
         <td className="cell-status col-status">{project.status}</td>
         <td className="cell-start col-start"><span className="cell-start-label">Start </span><span className="numeric">{formatDeadline(project.startedOn)}</span></td>
         <td className="cell-deadline">

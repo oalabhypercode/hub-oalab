@@ -19,6 +19,8 @@ import { FilterSelect, SortControl, SortHeader } from "../table-tools";
 import { CategoryTitle } from "./workspace";
 import { DeleteFilesDialog, DeleteFolderDialog, DownloadButton, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
 import { CustomerLogoDialog } from "../customer-logo-dialog";
+import { Select } from "../select";
+import { categoryDot } from "../select-options";
 import { FilePanel } from "./asset-details";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
 import { CustomerSign } from "./customer-sign";
@@ -44,8 +46,8 @@ const newest = (list: HubStoredFile[]) => list.reduce((last, file) => (file.crea
 function DensitySwitch({ view, onChange }: { view: ListView; onChange: (view: ListView) => void }) {
   return (
     <div className="segmented-control am-density" role="group" aria-label="Ansicht der Liste">
-      <button type="button" className="segment" aria-pressed={view === "minimal"} title="Minimalistische Sicht" onClick={() => onChange("minimal")}><LayoutList size={14} aria-hidden="true" />Minimal</button>
-      <button type="button" className="segment" aria-pressed={view === "detail"} title="Detailsicht" onClick={() => onChange("detail")}><Table2 size={14} aria-hidden="true" />Detail</button>
+      <button type="button" className="segment" aria-pressed={view === "minimal"} data-tip="Minimalistische Sicht" onClick={() => onChange("minimal")}><LayoutList size={14} aria-hidden="true" />Minimal</button>
+      <button type="button" className="segment" aria-pressed={view === "detail"} data-tip="Detailsicht" onClick={() => onChange("detail")}><Table2 size={14} aria-hidden="true" />Detail</button>
     </div>
   );
 }
@@ -277,13 +279,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     const shared = current && !freelancerView ? others(file) : [];
     return (
       <div key={file.id} className={`am-min-row${isSelected ? " is-selected" : ""}`} role="listitem">
-        <span className={`am-min-lead am-cat-${file.category}`} title={fileCategories[file.category]}>
+        <span className={`am-min-lead am-cat-${file.category}`} data-tip={fileCategories[file.category]}>
           <FileIcon file={file} size={17} color="currentColor" />
           <input type="checkbox" checked={isSelected} onChange={() => toggle(file.id)} aria-label={`${file.title} auswählen`} />
         </span>
-        <button type="button" className="am-min-title" onClick={() => open(file)} title={file.fileName}>
+        <button type="button" className="am-min-title" onClick={() => open(file)} data-tip={file.fileName}>
           <span className="t">{file.title}</span>
-          {shared.length > 0 && <span className="am-min-shared" title={`Auch bei ${shared.map((item) => item.company).join(", ")}`}><Users size={12} aria-hidden="true" />{shared.length + 1}</span>}
+          {shared.length > 0 && <span className="am-min-shared" data-tip={`Auch bei ${shared.map((item) => item.company).join(", ")}`}><Users size={12} aria-hidden="true" />{shared.length + 1}</span>}
           {tagOf(file)}
         </button>
         <span className="am-min-trail">
@@ -298,7 +300,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const fileCell = (file: HubStoredFile) => {
     const shared = current && !freelancerView ? others(file) : [];
     return (
-      <button type="button" className="am-file" onClick={() => open(file)} title={file.fileName}>
+      <button type="button" className="am-file" onClick={() => open(file)} data-tip={file.fileName}>
         <span className="am-file-icon"><FileIcon file={file} size={17} /></span>
         <span className="am-file-text">
           <strong>{file.title}{tagOf(file)}</strong>
@@ -309,7 +311,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   };
 
   const who = (file: HubStoredFile, compact = false) => file.customers.length
-    ? <span className={compact ? "am-min-who" : "am-customer"}><CustomerSign customer={file.customers[0]} logo={logos.get(file.customers[0].id)} size={compact ? "xs" : "sm"} /><span>{file.customers[0].company}</span>{file.customers.length > 1 && <span className={compact ? "am-min-plus" : "am-plus"} title={file.customers.slice(1).map((item) => item.company).join(", ")}>+{file.customers.length - 1}</span>}</span>
+    ? <span className={compact ? "am-min-who" : "am-customer"}><CustomerSign customer={file.customers[0]} logo={logos.get(file.customers[0].id)} size={compact ? "xs" : "sm"} /><span>{file.customers[0].company}</span>{file.customers.length > 1 && <span className={compact ? "am-min-plus" : "am-plus"} data-tip={file.customers.slice(1).map((item) => item.company).join(", ")}>+{file.customers.length - 1}</span>}</span>
     : <span className={compact ? "am-min-who is-inbox" : "am-customer is-inbox"}><Inbox size={compact ? 13 : 15} aria-hidden="true" /><span>Ablage</span></span>;
 
   const assignButton = (file: HubStoredFile) => canManage && source === "supabase"
@@ -343,10 +345,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   );
 
   const folderActions = (group: Group) => <>
-    {canUpload && <button type="button" className="table-group-action is-accent" onClick={() => startUpload({ customerId: current!.id, folderId: group.folder?.id ?? "" })} aria-label={`In „${group.label}“ hochladen`} title="Hierher hochladen"><Upload size={14} aria-hidden="true" /></button>}
+    {canUpload && <button type="button" className="table-group-action is-accent" onClick={() => startUpload({ customerId: current!.id, folderId: group.folder?.id ?? "" })} aria-label={`In „${group.label}“ hochladen`} data-tip="Hierher hochladen"><Upload size={14} aria-hidden="true" /></button>}
     {group.folder && canOrganize && <>
-      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "rename", folder: group.folder! })} aria-label={`Ordner „${group.label}“ umbenennen`} title="Umbenennen"><Pencil size={14} aria-hidden="true" /></button>
-      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "delete", folder: group.folder! })} aria-label={`Ordner „${group.label}“ löschen`} title="Löschen"><Trash2 size={14} aria-hidden="true" /></button>
+      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "rename", folder: group.folder! })} aria-label={`Ordner „${group.label}“ umbenennen`} data-tip="Umbenennen"><Pencil size={14} aria-hidden="true" /></button>
+      <button type="button" className="table-group-action" onClick={() => setDialog({ kind: "delete", folder: group.folder! })} aria-label={`Ordner „${group.label}“ löschen`} data-tip="Löschen"><Trash2 size={14} aria-hidden="true" /></button>
     </>}
   </>;
 
@@ -437,7 +439,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       {back}
       {/* The logo opens from its own button and from the sign; the badge shows on hover, and always while there is none. */}
       {canUpload ? (
-        <button type="button" className="am-sign-edit" onClick={() => setLogoFor(current.id)} title={current.logo ? "Logo ändern" : "Logo hochladen"} aria-label={`Logo von ${current.company} ${current.logo ? "ändern" : "hochladen"}`}>
+        <button type="button" className="am-sign-edit" onClick={() => setLogoFor(current.id)} data-tip={current.logo ? "Logo ändern" : "Logo hochladen"} aria-label={`Logo von ${current.company} ${current.logo ? "ändern" : "hochladen"}`}>
           <CustomerSign customer={current} logo={current.logo} size="lg" />
           <span className={`am-sign-badge${current.logo ? "" : " is-shown"}`} aria-hidden="true"><ImagePlus size={12} /></span>
         </button>
@@ -453,11 +455,11 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       </div>
       <div className="am-pane-actions">
         {canUpload && fileState.freelancers && current.kind !== "freelancer" && freelancerEntries.length > 0 && (
-          <button type="button" className={`sheet-action am-served${servedBy ? " is-set" : ""}`} onClick={() => setServedFor(current.id)} title={servedBy ? `Betreut von ${servedBy}` : "Einen Freelancer zuordnen"}>
+          <button type="button" className={`sheet-action am-served${servedBy ? " is-set" : ""}`} onClick={() => setServedFor(current.id)} data-tip={servedBy ? `Betreut von ${servedBy}` : "Einen Freelancer zuordnen"}>
             <Handshake size={15} aria-hidden="true" /><span className="am-served-text">{servedBy ? servedBy : "Freelancer"}</span>
           </button>
         )}
-        {canUpload && <button type="button" className="sheet-action am-logo-button" onClick={() => setLogoFor(current.id)} title={`Logo von ${current.company}`}><ImagePlus size={15} aria-hidden="true" /><span className="am-logo-text">{current.logo ? "Logo ändern" : "Logo hochladen"}</span></button>}
+        {canUpload && <button type="button" className="sheet-action am-logo-button" onClick={() => setLogoFor(current.id)} data-tip={`Logo von ${current.company}`}><ImagePlus size={15} aria-hidden="true" /><span className="am-logo-text">{current.logo ? "Logo ändern" : "Logo hochladen"}</span></button>}
         {!minimal && canOrganize && <button type="button" className="sheet-action am-wide" onClick={() => setDialog({ kind: "create" })}><FolderPlus size={15} aria-hidden="true" />Neuer Ordner</button>}{uploadButton}
       </div>
     </header>
@@ -478,7 +480,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   );
 
   const filters = <>
-    <FilterSelect icon={Tag} name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle Kategorien" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id] }))]} />
+    <FilterSelect icon={Tag} name="Nach Kategorie filtern" value={category} onChange={setCategory} options={[{ value: ALL, label: "Alle Kategorien" }, ...usedCategories.map((id) => ({ value: id, label: fileCategories[id], lead: categoryDot(id) }))]} />
     <FilterSelect icon={FileType} name="Nach Format filtern" value={format} onChange={setFormat} options={[{ value: ALL, label: "Alle Formate" }, ...usedFormats.map((item) => ({ value: item, label: item }))]} />
   </>;
 
@@ -508,7 +510,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     <div className="chat-list">
       <div className="chat-list-head">
         <h2>{freelancerView ? "Meine Kunden" : "Kunden"}<span>{customerCount}</span>{freelancerView && freelancerInfo.button}</h2>
-        {canUpload && <button type="button" className="chat-icon-button" onClick={() => startUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" title="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
+        {canUpload && <button type="button" className="chat-icon-button" onClick={() => startUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" data-tip="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
       </div>
       {freelancerView && freelancerInfo.box}
       <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder={minimal ? "Kunde suchen" : "Kunde oder Kundennummer"} aria-label="Kunden durchsuchen" /></label>
@@ -560,16 +562,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                   <strong className="numeric">{plural(selection.length, "Datei", "Dateien")} ausgewählt</strong>
                   <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</button>
                   {current && canOrganize && (
-                    <label className="sheet-move"><span className="visually-hidden">Ausgewählte Dateien verschieben nach</span>
-                      <select value="" onChange={(event) => move(event.target.value)} disabled={busy !== null}>
-                        <option value="">Verschieben nach …</option>
-                        {scopeFolders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                        <option value={NO_FOLDER}>Ohne Ordner</option>
-                      </select>
-                    </label>
+                    <span className="sheet-move">
+                      <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben nach …" value="" onChange={move} disabled={busy !== null}
+                        options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
+                    </span>
                   )}
                   {canUpload && <button type="button" className="sheet-action is-danger" onClick={() => setDeleting(selection)} disabled={busy !== null}><Trash2 size={15} aria-hidden="true" />Löschen</button>}
-                  <button type="button" className="am-icon-btn am-selection-clear" onClick={() => setSelected([])} aria-label="Auswahl aufheben" title="Auswahl aufheben"><X size={17} aria-hidden="true" /></button>
+                  <button type="button" className="am-icon-btn am-selection-clear" onClick={() => setSelected([])} aria-label="Auswahl aufheben" data-tip="Auswahl aufheben"><X size={17} aria-hidden="true" /></button>
                 </div>
               )}
               <div className="am-scroll">{body}</div>

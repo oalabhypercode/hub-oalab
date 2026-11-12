@@ -60,7 +60,7 @@ export function AssetPanel({ label, icon, title, subtitle, actions, onClose, clo
         {icon}
         <div className="am-panel-title"><strong>{title}</strong>{subtitle && <span>{subtitle}</span>}</div>
         {actions}
-        <button type="button" className="chat-icon-button is-muted" onClick={onClose} disabled={closeDisabled} aria-label="Schließen" title="Schließen"><X size={20} aria-hidden="true" /></button>
+        <button type="button" className="chat-icon-button is-muted" onClick={onClose} disabled={closeDisabled} aria-label="Schließen" data-tip="Schließen"><X size={20} aria-hidden="true" /></button>
       </header>
       {bar}
       <div className="am-panel-body">{children}</div>

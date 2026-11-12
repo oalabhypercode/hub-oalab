@@ -99,7 +99,7 @@ export function useInfo(title: string, card: InfoCard) {
       aria-expanded={open}
       aria-controls={id}
       aria-label={`Kurz erklärt: ${title}`}
-      title={`Kurz erklärt: ${title}`}
+      data-tip={`Kurz erklärt: ${title}`}
       popoverTarget={floating ? id : undefined}
       onClick={floating ? undefined : () => setOpen((now) => !now)}
     >

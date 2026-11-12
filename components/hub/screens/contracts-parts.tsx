@@ -14,6 +14,8 @@ import type { ContractCustomer, TimelineEntry } from "@/lib/hub-contracts/types"
 import { Switch } from "../controls";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
+import { Select } from "../select";
+import { categoryDot, toneDot } from "../select-options";
 import { SheetFooter, TableGroup, useCollapsedGroups } from "../sheet";
 import { DownloadButton } from "./files-dialogs";
 import { CategoryDot } from "./files-parts";
@@ -135,7 +137,7 @@ export function ContractTab({ customer, files, preview, canManage, quotaGroup, q
                   <td className="cell-category">
                     <span className="cdm-picker" role="radiogroup" aria-label={`${name}-Paket`}>
                       {[null, ...packageGroups[item.group].packages].map((id) => (
-                        <button key={id ?? "none"} type="button" role="radio" className="cdm-pick" aria-checked={item.packageId === id} disabled={locked} onClick={() => set(item.group, { packageId: id })} title={id ? packageCatalog[id].name : "Kein Paket"}>{pickLabel(id)}</button>
+                        <button key={id ?? "none"} type="button" role="radio" className="cdm-pick" aria-checked={item.packageId === id} disabled={locked} onClick={() => set(item.group, { packageId: id })} data-tip={id ? packageCatalog[id].name : "Kein Paket"}>{pickLabel(id)}</button>
                       ))}
                     </span>
                   </td>
@@ -145,7 +147,7 @@ export function ContractTab({ customer, files, preview, canManage, quotaGroup, q
                   <td className="cell-action">
                     {item.packageId && (item.until || endOpen[item.group]
                       ? <label className="cdm-date-in"><span>bis</span><input type="date" value={item.until ?? ""} min={item.since ?? undefined} disabled={locked} onChange={(event) => set(item.group, { until: event.target.value || null })} aria-label={`${name} gekündigt zum`} /></label>
-                      : canManage && <button type="button" className="cdm-quiet" onClick={() => setEndOpen({ ...endOpen, [item.group]: true })} title="Kündigung eintragen"><Plus size={14} aria-hidden="true" /><span>Kündigung</span></button>)}
+                      : canManage && <button type="button" className="cdm-quiet" onClick={() => setEndOpen({ ...endOpen, [item.group]: true })} data-tip="Kündigung eintragen"><Plus size={14} aria-hidden="true" /><span>Kündigung</span></button>)}
                   </td>
                 </tr>
               );
@@ -234,7 +236,7 @@ export function TimelineTab({ customer, entries, files, preview, canManage, quer
                   return (
                     <tr key={entry.id} className="file-row">
                       <td className="cell-file">
-                        <span className="am-file" title={by}>
+                        <span className="am-file" data-tip={by}>
                           <span className="am-file-icon cdm-file-icon"><Icon size={16} aria-hidden="true" /></span>
                           <span className="am-file-text"><strong>{entry.title}</strong><small>{[entry.amountCents !== null ? formatCents(entry.amountCents) : "", entry.note ?? ""].filter(Boolean).join(" · ") || by}</small></span>
                         </span>
@@ -247,14 +249,14 @@ export function TimelineTab({ customer, entries, files, preview, canManage, quer
                           className={`cdm-release${entry.customerVisible ? " is-on" : ""}`}
                           aria-pressed={entry.customerVisible}
                           disabled={!canManage || busy !== null}
-                          title={entry.customerVisible ? "Der Kunde sieht diesen Eintrag. Klicken, um ihn nur intern zu zeigen." : "Nur das oalab-Team sieht diesen Eintrag. Klicken, um ihn für den Kunden freizugeben."}
+                          data-tip={entry.customerVisible ? "Der Kunde sieht diesen Eintrag. Klicken, um ihn nur intern zu zeigen." : "Nur das oalab-Team sieht diesen Eintrag. Klicken, um ihn für den Kunden freizugeben."}
                           onClick={() => run(entry.id, () => setTimelineVisible({ id: entry.id, visible: !entry.customerVisible }), (data) => onNotice(data.visible ? "Der Kunde sieht den Eintrag jetzt." : "Der Eintrag ist jetzt nur intern."))}
                         >
                           {busy === entry.id ? <Spinner /> : entry.customerVisible ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
                           <span>{entry.customerVisible ? "Kunde" : "Intern"}</span>
                         </button>
                         {file && <Link className="am-icon-btn" href={fileHref(preview, file.id)} aria-label={`Datei ${file.title} öffnen`} title={file.title}><Paperclip size={16} aria-hidden="true" /></Link>}
-                        {canManage && <button type="button" className="am-icon-btn" onClick={() => onEdit(entry)} aria-label={`${entry.title} bearbeiten`} title="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+                        {canManage && <button type="button" className="am-icon-btn" onClick={() => onEdit(entry)} aria-label={`${entry.title} bearbeiten`} data-tip="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
                       </td>
                     </tr>
                   );
@@ -323,14 +325,12 @@ export function TimelineDialog({ customer, entry, files, today, onClose, onSaved
         <p className="field-hint">{customer.company} · {customer.customerNumber}</p>
         <div className="upload-fields">
           <label className="upload-field"><span>Datum</span><input type="date" required value={draft.occurredOn} onChange={set("occurredOn")} disabled={disabled} /></label>
-          <label className="upload-field"><span>Art</span><select value={draft.kind} onChange={set("kind")} disabled={disabled}>{timelineKindIds.map((id) => <option key={id} value={id}>{timelineKinds[id].label}</option>)}</select></label>
+          <label className="upload-field"><span>Art</span><Select label="Art" value={draft.kind} onChange={(kind) => setDraft({ ...draft, kind: kind as TimelineKind })} disabled={disabled} options={timelineKindIds.map((id) => ({ value: id, label: timelineKinds[id].label, lead: toneDot(timelineKinds[id].tone) }))} /></label>
           <label className="upload-field upload-field-wide"><span>Titel</span><input value={draft.title} onChange={set("title")} maxLength={MAX_TITLE} required placeholder={titleHints[draft.kind]} disabled={disabled} /></label>
           <label className="upload-field"><span>Betrag (optional)</span><input value={draft.amount} onChange={set("amount")} inputMode="decimal" placeholder="89,00" disabled={disabled} /></label>
           <label className="upload-field"><span>Datei (optional)</span>
-            <select value={draft.fileId} onChange={set("fileId")} disabled={disabled}>
-              <option value="">Keine Datei</option>
-              {own.map((file) => <option key={file.id} value={file.id}>{fileCategories[file.category]}: {file.title}</option>)}
-            </select>
+            <Select label="Datei" value={draft.fileId} onChange={(fileId) => setDraft({ ...draft, fileId })} disabled={disabled} searchPlaceholder="Datei suchen …"
+              options={[{ value: "", label: "Keine Datei", lead: <FileText size={15} aria-hidden="true" /> }, ...own.map((file) => ({ value: file.id, label: file.title, meta: fileCategories[file.category], lead: categoryDot(file.category) }))]} />
           </label>
           <label className="upload-field upload-field-wide"><span>Notiz (nur für das oalab-Team)</span><textarea value={draft.note} onChange={set("note")} maxLength={MAX_NOTE} rows={3} disabled={disabled} /></label>
         </div>
