@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createDownloadUrl, createDownloadUrls, createFolder, deleteFolder, moveFiles, renameFolder, type ActionResult } from "@/lib/hub-files/actions";
+import { createDownloadUrl, createDownloadUrls, createFolder, deleteFolder, moveFiles, renameFiles, renameFolder, type ActionResult, type FileRename } from "@/lib/hub-files/actions";
 import { cleanFolderName } from "@/lib/hub-files/catalog";
 import type { HubFilesState, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
 import { downloadAsZip } from "@/lib/hub-files/zip";
@@ -61,6 +61,17 @@ export function useFilesStore(state: HubFilesState) {
     return done({ count: fileIds.length });
   }
 
+  /** New titles and download names ("Umbenennen"); the preview renames in this tab only. */
+  async function renameMany(changes: FileRename[]): Promise<ActionResult<{ count: number }>> {
+    if (live) return renameFiles(changes);
+    const byId = new Map(changes.map((change) => [change.id, change]));
+    setLocalFiles((list) => list.map((file) => {
+      const change = byId.get(file.id);
+      return change ? { ...file, title: change.title, fileName: change.fileName } : file;
+    }));
+    return done({ count: changes.length });
+  }
+
   /** One file downloads directly; several become a ZIP built in the browser. */
   async function download(selection: HubStoredFile[]): Promise<ActionResult<null>> {
     try {
@@ -81,5 +92,5 @@ export function useFilesStore(state: HubFilesState) {
     }
   }
 
-  return { live, files, folders, addFolder, rename, remove, move, download };
+  return { live, files, folders, addFolder, rename, remove, move, renameFiles: renameMany, download };
 }

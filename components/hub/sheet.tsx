@@ -130,10 +130,27 @@ export function MenuChoices<T extends string>({ label, value, options, onChange 
 }
 
 /**
- * A group of rows with its heading: chevron to fold it, symbol, name and count, optional actions on the right.
- * Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title).
+ * The tick for a whole list or group („Alle auswählen“, user 13.11.2026): ticked when every row is chosen, a dash when
+ * only some are. Without a label it takes its name from a <label> around it.
  */
-export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, actions, empty, className, dropKey, children }: {
+export function GroupCheck({ checked, mixed, onChange, label, disabled = false }: { checked: boolean; mixed: boolean; onChange: () => void; label?: string; disabled?: boolean }) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = mixed && !checked; }, [mixed, checked]);
+  return <input ref={ref} type="checkbox" checked={checked} onChange={onChange} disabled={disabled} aria-label={label} />;
+}
+
+/** Ticks of one group: all chosen, some, or none. */
+export const groupTicks = (ids: string[], selected: readonly string[]) => {
+  const count = ids.filter((id) => selected.includes(id)).length;
+  return { checked: ids.length > 0 && count === ids.length, mixed: count > 0 && count < ids.length };
+};
+
+/**
+ * A group of rows with its heading: chevron to fold it, symbol, name and count, optional actions on the right.
+ * Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title). With `select` the
+ * heading starts with a tick for all of its rows, in the column of the rows' ticks.
+ */
+export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, actions, select, empty, className, dropKey, children }: {
   colSpan: number;
   label: string;
   count: number;
@@ -141,6 +158,7 @@ export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, 
   collapsed: boolean;
   onToggle: () => void;
   actions?: React.ReactNode;
+  select?: { checked: boolean; mixed: boolean; onChange: () => void; label: string; disabled?: boolean };
   /** Shown instead of rows when the group is empty (an empty folder). */
   empty?: string;
   className?: string;
@@ -152,7 +170,8 @@ export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, 
     <tbody className={`table-group-body${className ? ` ${className}` : ""}`} data-drop-folder={dropKey}>
       <tr className="table-group">
         <th colSpan={colSpan} scope="rowgroup">
-          <span className="table-group-in">
+          <span className={`table-group-in${select ? " has-select" : ""}`}>
+            {select && <span className="table-group-select"><GroupCheck {...select} /></span>}
             <button type="button" className="table-group-toggle" aria-expanded={!collapsed} onClick={onToggle}>
               <ChevronDown size={14} className="table-group-chevron" aria-hidden="true" />
               {glyph && <span className="table-group-glyph">{glyph}</span>}

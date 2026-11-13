@@ -88,7 +88,8 @@ test("upload and details open as panels over the files, not as dialogs", async (
 test("the upload sends every file with its own category, the same way as before, and skips files that can never go up", async () => {
   const upload = await source("components/hub/screens/asset-upload.tsx");
   assert.match(upload, /export const isFileDrag = \(event: React\.DragEvent\) => Array\.from\(event\.dataTransfer\.types\)\.includes\("Files"\);/);
-  assert.match(upload, /await sendUpload\(item\.file, \{ title: item\.title, category: item\.category, description, customerIds, folderId: targetFolder \|\| null \}/);
+  // Each file goes up with the name the panel shows for it (its title, or a new name after a pattern).
+  assert.match(upload, /await sendUpload\(item\.file, \{ title: name\.title, fileName: name\.fileName, category: item\.category, description, customerIds, folderId: targetFolder \|\| null \}/);
   assert.match(upload, /const ready = items\.filter\(\(item\) => !item\.blocked && \(item\.status === "ready" \|\| item\.status === "error"\)\);/);
   assert.match(upload, /blocked: !check\.ok/);
   // The old upload card and the panel share one way of sending a file.

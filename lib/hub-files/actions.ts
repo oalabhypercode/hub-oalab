@@ -4,6 +4,7 @@ import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName } from "./catalog";
+import { cleanName, MAX_FILE_NAME, MAX_NAME, nameBase, nameExtension } from "./naming";
 import { isFileAudience, type FileAudience } from "./types";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { fileNotice } from "@/lib/hub-notify/rules";
@@ -75,10 +76,15 @@ export async function finalizeUpload(input: FinalizeInput): Promise<ActionResult
   const path = String(input?.path ?? "");
   const title = String(input?.title ?? "").trim().slice(0, 200);
   const description = String(input?.description ?? "").trim().slice(0, 2000);
-  const fileName = String(input?.fileName ?? "").trim().slice(0, 255);
+  // The download name may be a new one ("Namen nach Muster"); its extension stays the one of the stored file.
+  const fileName = cleanName(input?.fileName, MAX_FILE_NAME);
   const mimeType = /^[\w.+-]+\/[\w.+-]+$/.test(String(input?.mimeType ?? "")) ? String(input.mimeType) : "application/octet-stream";
   const sha256 = typeof input?.sha256 === "string" && /^[0-9a-f]{64}$/.test(input.sha256) ? input.sha256 : null;
-  if (!uploadPath.test(path) || !title || !fileName || !isFileCategory(input?.category)) return { ok: false, error: "Bitte Titel, Kategorie und Datei angeben." };
+  if (!uploadPath.test(path) || !title || !nameBase(fileName) || !isFileCategory(input?.category)) return { ok: false, error: "Bitte Titel, Kategorie und Datei angeben." };
+  if (nameExtension(fileName) !== nameExtension(path)) {
+    await supabase.storage.from(HUB_FILES_BUCKET).remove([path]);
+    return { ok: false, error: "Die Dateiendung darf sich beim Umbenennen nicht ändern." };
+  }
 
   // Trust the stored object, not the browser, for the size.
   const folder = path.slice(0, path.lastIndexOf("/"));
@@ -171,6 +177,43 @@ export async function updateFileDetails(fileId: string, input: { title: string; 
   if (error || !data) return { ok: false, error: "Die Angaben konnten nicht gespeichert werden." };
   refreshWorkspace();
   return { ok: true, data: { title: data.title } };
+}
+
+export type FileRename = { id: string; title: string; fileName: string };
+
+/**
+ * Admin: new titles and download names for several files at once ("Umbenennen" in the selection, user 13.11.2026).
+ * The extension stays, the stored bytes keep their place (so nothing moves), and customers get no notice.
+ */
+export async function renameFiles(input: FileRename[]): Promise<ActionResult<{ count: number }>> {
+  const supabase = await adminClient();
+  if (!supabase) return denied;
+  const wanted = new Map<string, { title: string; fileName: string }>();
+  for (const item of Array.isArray(input) ? input.slice(0, MAX_UPLOAD_BATCH * 10) : []) {
+    const id = String(item?.id ?? "");
+    const title = cleanName(item?.title, MAX_NAME);
+    const fileName = cleanName(item?.fileName, MAX_FILE_NAME);
+    if (!uuid.test(id) || !title || !nameBase(fileName)) return { ok: false, error: "Bitte jeder Datei einen Namen geben." };
+    wanted.set(id, { title, fileName });
+  }
+  if (!wanted.size) return { ok: false, error: "Bitte Dateien auswählen." };
+  const current = await supabase.from("hub_files").select("id, file_name").in("id", [...wanted.keys()]).returns<{ id: string; file_name: string }[]>();
+  if (current.error) return { ok: false, error: "Die Dateien konnten nicht gelesen werden." };
+  if ((current.data ?? []).length < wanted.size) return { ok: false, error: "Mindestens eine Datei gibt es nicht mehr. Bitte die Auswahl prüfen." };
+  if ((current.data ?? []).some((row) => nameExtension(row.file_name) !== nameExtension(wanted.get(row.id)?.fileName ?? ""))) {
+    return { ok: false, error: "Die Dateiendung darf sich beim Umbenennen nicht ändern." };
+  }
+  // A few at a time: each file has its own new name, and one failure must not stop the others unseen.
+  const changes = [...wanted.entries()];
+  let count = 0;
+  for (let index = 0; index < changes.length; index += 8) {
+    const results = await Promise.all(changes.slice(index, index + 8).map(([id, change]) =>
+      supabase.from("hub_files").update({ title: change.title, file_name: change.fileName }).eq("id", id).select("id").maybeSingle()));
+    count += results.filter((result) => !result.error && result.data).length;
+  }
+  refreshWorkspace();
+  if (count < wanted.size) return { ok: false, error: `${count} von ${wanted.size} Dateien umbenannt. Die übrigen ließen sich nicht ändern.` };
+  return { ok: true, data: { count } };
 }
 
 /** Admin: deletes files for good. The records go first, their assignments with them, then the stored bytes. */

@@ -21,9 +21,13 @@ async function sha256Hex(file: Blob) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export type UploadMeta = { title: string; category: FileCategory; description: string; customerIds: string[]; folderId: string | null };
+/** fileName: the download name when the file gets a new one („Namen nach Muster“); otherwise its own name. */
+export type UploadMeta = { title: string; fileName?: string; category: FileCategory; description: string; customerIds: string[]; folderId: string | null };
 
-/** One file: checksum, then straight to storage through a one-time link, then the record with customers and folder. */
+/**
+ * One file: checksum, then straight to storage through a one-time link, then the record with customers and folder.
+ * The stored copy keeps the original name in its path; the record carries the name people see and download.
+ */
 export async function sendUpload(file: File, meta: UploadMeta, onStep: (message: string) => void) {
   const check = checkUpload(file.name, file.size);
   if (!check.ok) throw new Error(check.error);
@@ -36,8 +40,9 @@ export async function sendUpload(file: File, meta: UploadMeta, onStep: (message:
   const uploaded = await createClient().storage.from(HUB_FILES_BUCKET).uploadToSignedUrl(prepared.data.path, prepared.data.token, file, { contentType: file.type || "application/octet-stream" });
   if (uploaded.error) throw new Error("Die Datei konnte nicht hochgeladen werden.");
   onStep("Wird gespeichert …");
-  const saved = await finalizeUpload({ path: prepared.data.path, fileName: file.name, title: meta.title, category: meta.category, description: meta.description, mimeType: file.type, sha256, customerIds: meta.customerIds, folderId: meta.folderId });
+  const saved = await finalizeUpload({ path: prepared.data.path, fileName: meta.fileName ?? file.name, title: meta.title, category: meta.category, description: meta.description, mimeType: file.type, sha256, customerIds: meta.customerIds, folderId: meta.folderId });
   if (!saved.ok) throw new Error(saved.error);
+  return saved.data.id;
 }
 
 /**
