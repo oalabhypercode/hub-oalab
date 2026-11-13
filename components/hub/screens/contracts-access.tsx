@@ -135,7 +135,7 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
       </div>
       <SheetFooter hint="Jeder Blick auf ein Passwort steht im Verlauf">
         {live && vault
-          ? vault.keyId ? <>Schlüssel auf diesem Server: <span className="dm-mono" translate="no">{vault.keyId}</span>; lokal und in Vercel muss dieselbe Kennung stehen.</> : "Auf diesem Server ist kein Schlüssel für die Zugangsdaten eingetragen."
+          ? vault.keyId ? <>Schlüssel auf diesem Server: <span className="dm-mono" translate="no">{vault.keyId}</span>. Gespeicherte Passwörter öffnen sich nur mit genau diesem Schlüssel.</> : "Auf diesem Server ist kein Schlüssel für die Zugangsdaten eingetragen."
           : [mailboxes.length === 1 ? "1 Postfach" : `${mailboxes.length} Postfächer`, logins.length === 1 ? "1 Anbieter-Login" : `${logins.length} Anbieter-Logins`].join(" · ")}
       </SheetFooter>
 
