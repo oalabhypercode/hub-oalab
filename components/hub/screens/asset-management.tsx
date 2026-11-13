@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderPlus, Handshake, ImagePlus, Inbox, LayoutList, ListFilter, Pencil, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutList, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import type { ListView } from "@/lib/appearance";
 import { deleteFiles, setFileAudience } from "@/lib/hub-files/actions";
@@ -14,7 +14,7 @@ import { useAppearance } from "../appearance-provider";
 import { GlassCard } from "../glass";
 import { useInfo } from "../info-box";
 import { LargeTitleHeader } from "../large-title-header";
-import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, TableAddRow, TableGroup, ToolbarMenu, useCollapsedGroups } from "../sheet";
+import { GroupCheck, groupTicks, MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, TableAddRow, TableGroup, ToolbarMenu, useCollapsedGroups } from "../sheet";
 import { FilterSelect, SortControl, SortHeader } from "../table-tools";
 import { CategoryTitle } from "./workspace";
 import { DeleteFilesDialog, DeleteFolderDialog, DownloadButton, FolderNameDialog, fileSorts, fileSortValue, type FileSortKey, type FolderDialog } from "./files-dialogs";
@@ -22,6 +22,7 @@ import { CustomerLogoDialog } from "../customer-logo-dialog";
 import { Select } from "../select";
 import { categoryDot } from "../select-options";
 import { FilePanel } from "./asset-details";
+import { namesByPlace, RenamePanel, storedEntries } from "./asset-naming";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
 import { CustomerSign } from "./customer-sign";
 import { audienceTag, servedByNames, ServedByDialog } from "./asset-freelancers";
@@ -33,8 +34,11 @@ const ALL = "all";
 const NO_FOLDER = "none";
 
 type View = { kind: "customer"; id: string } | { kind: "all" } | { kind: "inbox" };
-/** The panel over the files: the upload, or one file's details (opened to change its customers from the Ablage). */
-type Panel = { kind: "upload" } | { kind: "file"; id: string; assign: boolean };
+/**
+ * The panel over the files: the upload, one file's details (opened to change its customers from the Ablage), or
+ * „Umbenennen“ for the ticked files.
+ */
+type Panel = { kind: "upload" } | { kind: "file"; id: string; assign: boolean } | { kind: "rename" };
 type CustomerRow = { customer: HubFileCustomer; files: HubStoredFile[]; last: string };
 type Group = { key: string; label: string; folder: HubFolder | null; files: HubStoredFile[] };
 
@@ -112,6 +116,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const [busy, setBusy] = useState<"download" | "move" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // Files just uploaded, renamed or moved light up for a few seconds, so the eye finds them in the list.
+  const [fresh, setFresh] = useState<string[]>([]);
+  useEffect(() => {
+    if (!fresh.length) return;
+    const timer = window.setTimeout(() => setFresh([]), 6000);
+    return () => window.clearTimeout(timer);
+  }, [fresh]);
   // Freelancers read here what they see and what not; admins have an ⓘ at each feature instead.
   const freelancerInfo = useInfo("Was du hier siehst", {
     steps: [
@@ -134,6 +145,9 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     { key: NO_FOLDER, label: "Ohne Ordner", folder: null, files: shown.filter((file) => !file.folderIds[current.id]) },
   ] : [];
   const selection = shown.filter((file) => selected.includes(file.id));
+  // „Umbenennen“ belongs to the ticks: once none is left, it closes (adjusted while rendering, no effect needed).
+  if (panel?.kind === "rename" && !selection.length) setPanel(null);
+  const renaming = panel?.kind === "rename" && selection.length > 0;
   const openFile = panel?.kind === "file" ? files.find((file) => file.id === panel.id) : undefined;
   const logoRow = logoFor ? rows.find((row) => row.customer.id === logoFor) : undefined;
   const usedFormats = Array.from(new Set(paneFiles.map((file) => fileFormat(file.fileName)))).sort();
@@ -143,6 +157,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
 
   // Folders and moves: admins (and the preview) everywhere; a freelancer only in their own files, never at a customer.
   const canOrganize = !freelancerView || (current !== null && current.id === ownId);
+  // Renaming several files: admins only, like the title in a file's details; the preview renames in this tab.
+  const canRename = canManage && !fileState.error;
   const isOwn = current !== null && current.id === ownId;
   const servedBy = current && canManage && current.kind !== "freelancer" ? servedByNames(current, freelancerEntries) : "";
   const customersOf = (freelancerId: string) => customers.filter((customer) => customer.freelancerIds?.includes(freelancerId)).length;
@@ -174,6 +190,14 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   // them, and opening a file clears the ticks, like a click on one file in a file manager. An upload stays open.
   const toggle = (id: string) => { closeDetails(); setSelected((list) => list.includes(id) ? list.filter((item) => item !== id) : [...list, id]); };
   const toggleAll = () => { closeDetails(); setSelected(selection.length === shown.length ? [] : shown.map((file) => file.id)); };
+  // A folder's (or a day's) tick: all of its shown files, or none of them again; other ticks stay as they are.
+  const toggleMany = (list: HubStoredFile[]) => {
+    closeDetails();
+    const ids = list.map((file) => file.id);
+    setSelected((now) => ids.every((id) => now.includes(id)) ? now.filter((id) => !ids.includes(id)) : [...now, ...ids.filter((id) => !now.includes(id))]);
+  };
+  const ticksOf = (list: HubStoredFile[]) => groupTicks(list.map((file) => file.id), selected);
+  const groupCheck = (list: HubStoredFile[], label: string) => ({ ...ticksOf(list), onChange: () => toggleMany(list), label: `Alle Dateien in „${label}“ auswählen`, disabled: !list.length });
   const open = (file: HubStoredFile, assign = false) => { setSelected([]); setPanel({ kind: "file", id: file.id, assign }); };
 
   function startUpload(target: UploadTarget, dropped?: File[]) {
@@ -245,12 +269,14 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     setBusy("move");
     setError("");
     const folderId = target === NO_FOLDER ? null : target;
-    const result = await store.move(selection.map((file) => file.id), current.id, folderId);
+    const ids = selection.map((file) => file.id);
+    const result = await store.move(ids, current.id, folderId);
     setBusy(null);
     if (!result.ok) { setError(result.error); return; }
     const name = folderId ? scopeFolders.find((item) => item.id === folderId)?.name : "Ohne Ordner";
     setNotice(`${plural(result.data.count, "Datei", "Dateien")} nach „${name}“ verschoben.`);
     setSelected([]);
+    setFresh(ids);
   }
 
   async function remove(list: HubStoredFile[]) {
@@ -278,7 +304,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     const isSelected = selected.includes(file.id);
     const shared = current && !freelancerView ? others(file) : [];
     return (
-      <div key={file.id} className={`am-min-row${isSelected ? " is-selected" : ""}`} role="listitem">
+      <div key={file.id} className={`am-min-row${isSelected ? " is-selected" : ""}${fresh.includes(file.id) ? " is-fresh" : ""}`} role="listitem">
         <span className={`am-min-lead am-cat-${file.category}`} data-tip={fileCategories[file.category]}>
           <FileIcon file={file} size={17} color="currentColor" />
           <input type="checkbox" checked={isSelected} onChange={() => toggle(file.id)} aria-label={`${file.title} auswählen`} />
@@ -319,7 +345,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     : null;
 
   const tableRow = (file: HubStoredFile, columns: "customer" | "all" | "inbox") => (
-    <tr key={file.id} className={`file-row${selected.includes(file.id) ? " is-selected" : ""}`}>
+    <tr key={file.id} className={`file-row${selected.includes(file.id) ? " is-selected" : ""}${fresh.includes(file.id) ? " is-fresh" : ""}`}>
       <td className="cell-select"><input type="checkbox" checked={selected.includes(file.id)} onChange={() => toggle(file.id)} aria-label={`${file.title} auswählen`} /></td>
       <td className="cell-file">{fileCell(file)}</td>
       {columns === "all" && <td className="cell-customers">{who(file)}</td>}
@@ -334,7 +360,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const tableHead = (
     <thead>
       <tr>
-        <th scope="col" className="cell-select"><input type="checkbox" checked={shown.length > 0 && selection.length === shown.length} onChange={toggleAll} disabled={!shown.length} aria-label="Alle angezeigten Dateien auswählen" /></th>
+        <th scope="col" className="cell-select"><GroupCheck {...ticksOf(shown)} onChange={toggleAll} disabled={!shown.length} label="Alle angezeigten Dateien auswählen" /></th>
         <SortHeader option={fileSorts.title} label="Datei" sort={sort} onChange={setSort} />
         {view.kind === "all" && <th scope="col">Kunde</th>}
         <SortHeader option={fileSorts.category} sort={sort} onChange={setSort} />
@@ -357,6 +383,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       {folderGroups.map((group) => (
         <div key={group.key} className="am-min-group" role="presentation" data-drop-folder={canDrop ? group.key : undefined}>
           <div className={`am-min-section${drag?.folder === group.key ? " is-drop" : ""}`}>
+            <span className="am-min-section-check">{group.files.length > 0 && <GroupCheck {...groupCheck(group.files, group.label)} />}</span>
             <button type="button" className="am-min-section-toggle" aria-expanded={!groups.isCollapsed(group.key)} onClick={() => groups.toggle(group.key)}>
               <ChevronDown size={13} aria-hidden="true" /><span>{group.label}</span><span className="am-min-count">{group.files.length || (narrowed ? "0" : "leer")}</span>
             </button>
@@ -377,7 +404,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
             collapsed={groups.isCollapsed(group.key)} onToggle={() => groups.toggle(group.key)}
             className={drag?.folder === group.key ? "is-drop" : undefined} dropKey={canDrop ? group.key : undefined}
             empty={narrowed ? "Keine Dateien für diese Auswahl in diesem Ordner." : canOrganize ? "Noch leer. Wähle Dateien aus und verschiebe sie hierher." : "Noch leer."}
-            actions={folderActions(group)}>
+            actions={folderActions(group)} select={groupCheck(group.files, group.label)}>
             {group.files.map((file) => tableRow(file, "customer"))}
           </TableGroup>
         )) : <tbody>{shown.map((file) => tableRow(file, "customer"))}</tbody>}
@@ -397,7 +424,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label="Alle Dateien">
       {dayGroups.map((group) => (
         <div key={group.label} className="am-min-group" role="presentation">
-          <div className="am-min-section"><span className="am-min-section-toggle">{group.label}<span className="am-min-count">{group.files.length}</span></span></div>
+          <div className="am-min-section">
+            <span className="am-min-section-check"><GroupCheck {...groupCheck(group.files, group.label)} /></span>
+            <span className="am-min-section-toggle">{group.label}<span className="am-min-count">{group.files.length}</span></span>
+          </div>
           {group.files.map((file) => minimalRow(file, who(file, true)))}
         </div>
       ))}
@@ -427,13 +457,21 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   );
 
   const empty = !shown.length && !(current && folderGroups.length && !narrowed);
+  // „Alle auswählen“ over the list (user 13.11.2026): in Minimal, and in Detail on phones, where the table drops its head.
+  const selectAll = !empty && shown.length > 0 && (
+    <label className={`am-select-all${minimal ? "" : " is-detail"}`}>
+      <span className="am-select-all-box"><GroupCheck {...ticksOf(shown)} onChange={toggleAll} /></span>
+      <span>{narrowed ? `Alle ${shown.length} Treffer auswählen` : "Alle auswählen"}</span>
+    </label>
+  );
   const body = empty
     ? <SheetEmpty text={narrowed ? (query.trim() ? `Keine Dateien zu „${query.trim()}“.` : "Keine Dateien für diese Auswahl.") : view.kind === "inbox" ? "Die Ablage ist leer. Alle Dateien haben einen Kunden." : "Noch keine Dateien."} onReset={narrowed ? () => { setQuery(""); setCategory(ALL); setFormat(ALL); } : undefined} />
     : current ? customerBody : view.kind === "inbox" ? inboxBody : allBody;
 
   /* ---------- Pane head ---------- */
   const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
-  const uploadButton = canUpload && <button type="button" className="sheet-action is-primary" onClick={() => startUpload({ customerId: current?.id ?? null, folderId: "" })}><Upload size={15} aria-hidden="true" />Hochladen</button>;
+  // On phones the head's buttons show their symbols only, so the customer's name keeps its room (glass.css).
+  const uploadButton = canUpload && <button type="button" className="sheet-action is-primary" onClick={() => startUpload({ customerId: current?.id ?? null, folderId: "" })}><Upload size={15} aria-hidden="true" /><span className="am-btn-text">Hochladen</span></button>;
   const head = current ? (
     <header className="am-pane-head">
       {back}
@@ -547,7 +585,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         <div className={`sheet section-first am${minimal ? " is-minimal" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
           <div className="am-grid">
             {customerList}
-            <section className="am-pane" aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
+            <section className={`am-pane${panel && (panel.kind !== "rename" || renaming) ? " has-panel" : ""}`} aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
               {head}
               <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!minimal}
                 trailing={<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} />}>
@@ -557,21 +595,27 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                   {current && <ToolbarMenu icon={Rows3} label="Gruppe" value={grouping === "folder" ? "Ordner" : "Keine"}><MenuChoices label="Gruppieren nach" value={grouping} onChange={setGrouping} options={[{ id: "folder", label: "Ordner" }, { id: "none", label: "Keine Gruppen" }]} /></ToolbarMenu>}
                 </>}
               </SheetToolbar>
+              {/* The count on the left, every action on the right, × at the end (user 13.11.2026). Narrower panes shorten
+                  it in steps, phones show symbols only, and with a panel open only the count and × stay (glass.css). */}
               {selection.length > 0 && (
-                <div className="sheet-selection" role="region" aria-label="Auswahl">
-                  <strong className="numeric">{plural(selection.length, "Datei", "Dateien")} ausgewählt</strong>
-                  <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</button>
-                  {current && canOrganize && (
-                    <span className="sheet-move">
-                      <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben nach …" value="" onChange={move} disabled={busy !== null}
-                        options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
-                    </span>
-                  )}
-                  {canUpload && <button type="button" className="sheet-action is-danger" onClick={() => setDeleting(selection)} disabled={busy !== null}><Trash2 size={15} aria-hidden="true" />Löschen</button>}
+                <div className="sheet-selection am-selection" role="region" aria-label="Auswahl">
+                  <strong className="numeric">{selection.length} <span className="am-sel-long">{selection.length === 1 ? "Datei" : "Dateien"} </span>ausgewählt</strong>
+                  <span className="am-sel-acts">
+                    <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}<span className="am-btn-text">{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</span></button>
+                    {canRename && <button type="button" className="sheet-action" aria-pressed={renaming} onClick={() => setPanel(renaming ? null : { kind: "rename" })} disabled={busy !== null}><PenLine size={15} aria-hidden="true" /><span className="am-btn-text">Umbenennen</span></button>}
+                    {current && canOrganize && (
+                      <span className="sheet-move">
+                        <FolderInput className="sheet-move-icon" size={15} aria-hidden="true" />
+                        <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben" value="" onChange={move} disabled={busy !== null}
+                          options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
+                      </span>
+                    )}
+                    {canUpload && <button type="button" className="sheet-action is-danger" onClick={() => setDeleting(selection)} disabled={busy !== null} data-tip-compact="Löschen"><Trash2 size={15} aria-hidden="true" /><span className="am-btn-text" data-tip-label>Löschen</span></button>}
+                  </span>
                   <button type="button" className="am-icon-btn am-selection-clear" onClick={() => setSelected([])} aria-label="Auswahl aufheben" data-tip="Auswahl aufheben"><X size={17} aria-hidden="true" /></button>
                 </div>
               )}
-              <div className="am-scroll">{body}</div>
+              <div className="am-scroll">{selectAll}{body}</div>
               {!minimal && <SheetFooter hint={shown.length > 1 ? "Mehrere ankreuzen: als ZIP laden oder verschieben" : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
               {drag && <>
                 <div className="am-drop" aria-hidden="true" />
@@ -580,7 +624,11 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                   <span>{current ? `nach „${dropFolderName}“ · ${current.company}` : "Kunde und Ordner wählst du gleich"}</span>
                 </div>
               </>}
-              {panel?.kind === "upload" && <UploadPanel queue={queue} customers={customers} onClose={closeUpload} onUploaded={(message) => { setPanel(null); setNotice(message); }} />}
+              {panel?.kind === "upload" && <UploadPanel queue={queue} customers={customers} existing={namesByPlace(files)} onClose={closeUpload} onUploaded={(message, ids) => { setPanel(null); setNotice(message); setFresh(ids); }} />}
+              {renaming && (
+                <RenamePanel files={selection} entries={storedEntries(selection, current, folders)} existing={namesByPlace(files, new Set(selected))} onClose={() => setPanel(null)} onRename={store.renameFiles}
+                  onDone={(message, ids) => { setPanel(null); setSelected([]); setError(""); setNotice(message); setFresh(ids); }} />
+              )}
               {openFile && (
                 <FilePanel file={openFile} customers={customers} folders={folders} here={current} live={source === "supabase"} canAssign={canManage && source === "supabase"}
                   canFile={(customerId) => !freelancerView || customerId === ownId} freelancerView={freelancerView}

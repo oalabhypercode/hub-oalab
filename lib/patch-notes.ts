@@ -37,6 +37,19 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 20,
+    date: "2026-11-13",
+    title: "Aufgeräumte Auswahl bei den Dateien",
+    summary: "Im Asset Management lassen sich Dateien jetzt nach einem Muster benennen, beim Hochladen und nachträglich, ähnlich wie beim Export in Lightroom: etwa Kunde, Ordner und eine fortlaufende Nummer statt kryptischer WhatsApp-Namen. Dazu kommen „Alle auswählen“ für die ganze Liste und je Ordner, eine aufgeräumte Auswahl-Leiste und ein Fehler weniger bei den Knöpfen auf dem Handy.",
+    changes: [
+      { kind: "new", title: "Namen nach Muster beim Hochladen", text: "Fotos mit Kamera- oder WhatsApp-Namen bekommen beim Hochladen auf Wunsch neue Namen nach einem Muster, zum Beispiel Kunde, Ordner und Nummer. Die Nummer zählt im Ordner automatisch weiter, und ein Beispiel zeigt vorher, wie die Dateien heißen werden." },
+      { kind: "new", title: "Mehrere Dateien umbenennen", text: "Ausgewählte Dateien lassen sich über „Umbenennen“ in einem Rutsch neu benennen, mit Vorher und Nachher für jede Datei. Es ändern sich Titel und Download-Name, die Datei selbst bleibt unverändert, und Kunden bekommen dafür keine Meldung." },
+      { kind: "new", title: "Alle auswählen", text: "Ein Häkchen über der Liste wählt alle angezeigten Dateien, ein Häkchen an jedem Ordner alle Dateien darin. Ein Strich im Häkchen zeigt, wenn nur ein Teil gewählt ist." },
+      { kind: "improved", title: "Aufgeräumte Auswahl-Leiste", text: "Wählst du Dateien aus, steht links die Anzahl und rechts stehen alle Aktionen, ganz außen das Kreuz zum Aufheben. Auf dem Handy zeigt die Leiste nur Symbole und bleibt beim Scrollen sichtbar.", customers: true },
+      { kind: "fixed", title: "Knöpfe oben auf dem Handy", text: "Auf dem Handy war „Hochladen“ im Kopf eines Kunden abgeschnitten oder gar nicht zu sehen, und der Kundenname verschwand. Die Knöpfe zeigen dort jetzt nur ihr Symbol, der Name behält seinen Platz." },
+    ],
+  },
+  {
     number: 19,
     date: "2026-11-12",
     title: "Auswahllisten und Hinweise im Hub-Look",

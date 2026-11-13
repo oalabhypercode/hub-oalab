@@ -5,7 +5,7 @@ import { useEffect } from "react";
 /**
  * The hub's hover hints instead of the browser's title tooltips (user 12.11.2026, proposal A „Studio“): a small dark
  * label with an arrow, in the hub's font. An element asks for one with data-tip (the text), data-tip-sub (a second,
- * lighter line) and data-tip-kbd (a shortcut). One layer serves the whole hub: the hint shows after 0.4 s, at once when
+ * lighter line) and data-tip-kbd (a shortcut), or with data-tip-compact for a button whose text may hide. One layer serves the whole hub: the hint shows after 0.4 s, at once when
  * the pointer moves on to a neighbour, also on keyboard focus, and hides on click, scrolling and Escape. A hint that
  * changes while the pointer rests on its element ("Kopieren" → "Kopiert") shows the new text. Phones get none.
  */
@@ -35,9 +35,17 @@ export function TooltipLayer() {
     let pressedAt = 0;
     let described: { element: HTMLElement; before: string | null } | null = null;
 
-    const textOf = (element: HTMLElement) => element.dataset.tip?.trim() ?? "";
+    // data-tip-compact names a button only while its text (data-tip-label) is hidden, when a narrow pane shows the
+    // symbol alone; next to its visible text a hint would only repeat it.
+    const labelHidden = (element: HTMLElement) => {
+      const label = element.querySelector<HTMLElement>("[data-tip-label]");
+      return !label || label.getClientRects().length === 0 || label.getBoundingClientRect().width <= 1;
+    };
+    const textOf = (element: HTMLElement) => element.dataset.tipCompact !== undefined
+      ? (labelHidden(element) ? element.dataset.tipCompact.trim() : "")
+      : element.dataset.tip?.trim() ?? "";
     const isOpen = () => (floating ? tip.matches(":popover-open") : !tip.hidden);
-    const tipTarget = (node: EventTarget | null) => (node instanceof Element ? node.closest<HTMLElement>("[data-tip]") : null);
+    const tipTarget = (node: EventTarget | null) => (node instanceof Element ? node.closest<HTMLElement>("[data-tip], [data-tip-compact]") : null);
 
     const render = (element: HTMLElement) => {
       const title = document.createElement("span");
