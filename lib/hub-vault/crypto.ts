@@ -26,8 +26,8 @@ export function parseVaultKey(value: string | null | undefined): Buffer | null {
 }
 
 /**
- * A short name of the key, „3F9A-1C2E“: the first four bytes of its SHA-256. It tells whether Vercel and .env.local
- * hold the same key and says nothing usable about the key itself.
+ * A short name of the key, „3F9A-1C2E“: the first four bytes of its SHA-256. It tells whether the live server and
+ * .env.local hold the same key and says nothing usable about the key itself.
  */
 export function keyFingerprint(key: Buffer): string {
   const hex = createHash("sha256").update(key).digest("hex").slice(0, 8).toUpperCase();

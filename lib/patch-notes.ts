@@ -37,6 +37,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 21,
+    date: "2026-11-14",
+    title: "Klarer Hinweis zum Schlüssel",
+    summary: "Unter Vertrag & Domain › Zugangsdaten stand unten ein veralteter Hinweis zum Schlüssel für die Passwörter. Jetzt steht dort nur seine Kennung und wozu sie dient.",
+    changes: [
+      { kind: "fixed", title: "Hinweis zum Schlüssel unter Zugangsdaten", text: "Unten unter Zugangsdaten stand noch ein veralteter Hinweis, wo der Schlüssel für die Passwörter eingetragen sein muss. Jetzt steht dort nur seine Kennung und dass sich gespeicherte Passwörter nur mit genau diesem Schlüssel öffnen." },
+    ],
+  },
+  {
     number: 20,
     date: "2026-11-13",
     title: "Aufgeräumte Auswahl bei den Dateien",
