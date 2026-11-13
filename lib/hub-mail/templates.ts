@@ -824,6 +824,27 @@ export function loginCodeMail(input: { firstName: string; code: string; minutes:
   });
 }
 
+/**
+ * The six-digit code before an admin links the authenticator app of the Schlüsselbund. Like the login code: the code
+ * stays out of subject and preheader, the time of the request is in both.
+ */
+export function keychainCodeMail(input: { firstName: string; code: string; minutes: number; issuedAt: Date }, legal?: MailLegal): MailContent {
+  const first = firstNameOf(input.firstName);
+  const sentAt = codeClock.format(input.issuedAt);
+  const until = codeClock.format(new Date(input.issuedAt.getTime() + input.minutes * 60_000));
+  return render({
+    subject: `Code für den Schlüsselbund · ${sentAt} Uhr`,
+    preheader: `Angefordert um ${sentAt} Uhr, gültig bis ${until} Uhr.`,
+    area: "security",
+    heading: "Schlüsselbund einrichten",
+    lead: `${first ? `Hallo ${first}, gib` : "Gib"} diesen Code im Client Hub ein, um deine Authenticator-App mit dem Schlüsselbund zu verbinden.`,
+    code: { value: input.code, note: `Gilt ${input.minutes} Minuten, bis ${until} Uhr · nur für diese Anmeldung` },
+    note: { tone: "security", text: "Gib den Code nie weiter. Du hast den Schlüsselbund gerade nicht eingerichtet? Dann ist jemand mit deinem Zugang angemeldet: Ändere dein Passwort und sag deinem oalab-Team Bescheid." },
+    reason: ACCOUNT_REASON,
+    legal,
+  });
+}
+
 /** One notice of lib/hub-notify: its kind, title and line, the absolute link to its place, and calendar links if any. */
 export type MailNotice = { kind: string; title: string; body: string; url?: string; calendar?: MailCalendar };
 

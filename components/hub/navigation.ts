@@ -1,4 +1,4 @@
-import { Bot, Ellipsis, LayoutGrid, ScrollText, Sparkles, UserCog, UserRound, type LucideIcon } from "lucide-react";
+import { Bot, Ellipsis, KeyRound, LayoutGrid, ScrollText, Sparkles, UserCog, UserRound, type LucideIcon } from "lucide-react";
 import { categories } from "@/lib/categories";
 import type { HubSection } from "@/lib/hub-data";
 
@@ -10,6 +10,7 @@ export const sectionIcons: Partial<Record<HubSection, LucideIcon>> = {
   settings: UserRound,
   users: UserCog,
   "ai-log": Bot,
+  keychain: KeyRound,
   "patch-notes": ScrollText,
 };
 

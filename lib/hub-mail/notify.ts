@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
-import { accessAnnouncementMail, accessApprovedMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
+import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
 
 // Every mail the hub sends on its own. Each attempt lands in hub_notifications (kind and outcome only);
 // the registration mails go out once per login. Nothing here throws: a mail problem never breaks an action.
@@ -90,6 +90,16 @@ export function mailPasswordLink(db: SupabaseClient, user: User, input: { firstN
 export function mailLoginCode(db: SupabaseClient, user: Pick<User, "id" | "email">, input: { firstName: string; code: string; minutes: number; issuedAt: Date; hubOnly: boolean }) {
   const settings = mailSettings();
   return sendTracked(db, "user.login_code", user.id, mailOf([user.email ?? ""], loginCodeMail(input, settings.legal)));
+}
+
+/**
+ * The code before linking the Schlüsselbund's app, to the admin's own address only. Not in the mail log (its kinds are
+ * fixed by migration); the keychain records the request in the admin log instead. The log keeps no code.
+ */
+export async function mailKeychainCode(to: string, input: { firstName: string; code: string; minutes: number; issuedAt: Date }): Promise<MailStatus> {
+  const settings = mailSettings();
+  const result = await sendMail(mailOf([to], keychainCodeMail(input, settings.legal), { kind: "keychain.setup_code" }));
+  return result.status;
 }
 
 /** The plain address of a sender like „oalab Client Hub <hub@oalab.de>“. */

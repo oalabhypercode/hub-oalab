@@ -37,6 +37,17 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 20,
+    date: "2026-11-13",
+    title: "Schlüsselbund für Zugänge und Passwörter",
+    summary: "Neu für Admins: der Schlüsselbund. Er sammelt alle Zugänge von oalab und den Kunden an einem Ort, geordnet nach festen Kategorien wie Postfächer, Domain-Anbieter oder Software & Tools. Die Zugänge sind immer sichtbar, die Passwörter öffnen sich nur mit dem Code aus einer Authenticator-App, die einmal mit dem Schlüsselbund verbunden wird. Derselbe Code öffnet jetzt auch die Passwörter unter Vertrag & Domain.",
+    changes: [
+      { kind: "new", title: "Schlüsselbund", text: "Unter Verwaltung zeigt der Schlüsselbund alle Zugänge nach Kategorien, darin die Kunden und nach einem Klick ihre Logins mit Benutzername und Passwort. Neue Zugänge, auch eigene Konten von oalab, legst du dort mit Kategorie und verschlüsselter Notiz an." },
+      { kind: "security", title: "Passwörter nur mit App-Code", text: "Ein Passwort öffnet sich erst nach dem Code aus deiner Authenticator-App und bleibt 10 Minuten nach der letzten Aktion offen, höchstens eine Stunde am Stück. Nach fünf falschen Codes bleibt der Schlüsselbund 15 Minuten zu, und das Team bekommt Bescheid; acht Notfall-Codes helfen, wenn das Handy fehlt." },
+      { kind: "improved", title: "Zugangsdaten mit derselben Sperre", text: "Die Passwörter unter Vertrag & Domain öffnet jetzt derselbe App-Code wie im Schlüsselbund statt des zweiten Faktors der Anmeldung. Logins wählen ihre Kategorie dort aus derselben festen Liste, die Admins in den Einstellungen des Schlüsselbunds pflegen." },
+    ],
+  },
+  {
     number: 19,
     date: "2026-11-12",
     title: "Auswahllisten und Hinweise im Hub-Look",

@@ -96,7 +96,10 @@ test("mailboxes, forwards and aliases: targets as the database stores them", () 
 
 test("provider logins and passwords: known kinds, safe links, passwords exactly as typed", () => {
   assert.deepEqual(readLogin({ kind: "hosting", label: "  netcup   WCP ", loginUrl: "wcp.netcup.de", username: " kd-4711 " }).value, { kind: "hosting", label: "netcup WCP", loginUrl: "https://wcp.netcup.de/", username: "kd-4711" });
-  assert.equal(readLogin({ kind: "email", label: "x" }).ok, false);
+  // The category comes from the Schlüsselbund's list (the database checks it); only its format is checked here.
+  assert.equal(readLogin({ kind: "cms", label: "WordPress" }).ok, true);
+  assert.equal(readLogin({ kind: "E-Mail", label: "x" }).ok, false);
+  assert.equal(readLogin({ kind: "x", label: "x" }).ok, false);
   assert.equal(readLogin({ kind: "dns", label: " " }).ok, false);
   assert.equal(readLogin({ kind: "dns", label: "x", loginUrl: "javascript:alert(1)" }).ok, false);
   assert.deepEqual(loginKindIds, ["registrar", "dns", "hosting", "other"]);
@@ -149,7 +152,8 @@ test("the examples: admins see everything but no password, customers only names,
   const admin = contractFixtures({ admin: true, customerNumber: null }).domainMail;
   assert.ok(admin.domains.every((domain) => domain.details), "admins see the details");
   assert.ok(admin.logins.length > 0 && admin.mailboxes.some((mailbox) => mailbox.hasPassword));
-  assert.deepEqual(admin.vault, { keyReady: false, keyId: null, confirmed: false }, "examples never open a password");
+  assert.deepEqual(admin.vault, { keyReady: false, keyId: null, lock: { status: "setup" } }, "examples never open a password");
+  assert.deepEqual(admin.categories.map((category) => category.id), ["mailbox", "registrar", "dns", "hosting", "cms", "social", "google", "tools", "other"], "the Schlüsselbund's categories");
   assert.ok(admin.mailServers.every((server) => typeof server.provider === "string"));
   const customer = contractFixtures({ admin: false, customerNumber: "KD-24017" }).domainMail;
   assert.ok(customer.domains.length > 0 && customer.domains.every((domain) => domain.customerId === "KD-24017" && !("details" in domain)));
@@ -161,7 +165,7 @@ test("the examples: admins see everything but no password, customers only names,
   assert.deepEqual(contractFixtures({ admin: false, customerNumber: "KD-24023" }).domainMail.mailServers, [], "OALAB Domain alone has no mail server");
 });
 
-test("passwords: every vault action checks aal2 and the admin first, logs each look before it leaves and talks to nobody else", async () => {
+test("passwords: every vault action checks the admin and the open Schlüsselbund first, logs each look before it leaves and talks to nobody else", async () => {
   const actions = await source("lib/hub-vault/actions.ts");
   const lines = actions.split("\n");
   const exported = lines.flatMap((line, index) => line.startsWith("export async function ") ? [{ name: line.match(/^export async function (\w+)/)[1], next: lines.slice(index + 1, index + 3) }] : []);
@@ -171,9 +175,11 @@ test("passwords: every vault action checks aal2 and the admin first, logs each l
     assert.equal(action.next[1], "  if (!checked.ok) return checked;", action.name);
   }
   const contextBody = actions.slice(actions.indexOf("async function context("), actions.indexOf("/** Writes the admin log"));
-  assert.ok(contextBody.indexOf('data.claims.aal !== "aal2"') > 0 && contextBody.indexOf('data.claims.aal !== "aal2"') < contextBody.indexOf("verifyHubAdmin()"), "aal2 before anything else");
+  // Since 13.11.2026 the code from the Schlüsselbund's app opens the passwords (instead of the login's aal2).
+  assert.ok(contextBody.indexOf("await keychainAdmin()") > 0 && contextBody.indexOf("await currentUnlock(admin)") > contextBody.indexOf("await keychainAdmin()"), "an admin with the Schlüsselbund open before anything else");
+  assert.doesNotMatch(contextBody, /aal2/);
   const reveal = actions.slice(actions.indexOf("export async function revealSecret"), actions.indexOf("export async function saveSecret"));
-  assert.ok(reveal.indexOf("tooManyLooks(ctx)") > 0 && reveal.indexOf("await log(ctx,") < reveal.indexOf("return { ok: true, data: { secret } }"), "throttled, and logged before the password is returned");
+  assert.ok(reveal.indexOf("tooManyLooks(ctx)") > 0 && reveal.indexOf("await log(ctx,") > 0 && reveal.indexOf("await log(ctx,") < reveal.indexOf("return { ok: true, data: { secret: read.text"), "throttled, and logged before the password is returned");
   assert.match(reveal, /if \(!await log\(ctx, copy \? "vault\.copied" : "vault\.revealed", /);
   // The log never carries the password.
   for (const call of actions.matchAll(/await log\(ctx, [^;]+;/g)) assert.doesNotMatch(call[0], /secret(\.value)?[,)}]|typed\.value/, call[0]);
@@ -202,7 +208,7 @@ test("the page knows only whether a password exists; customers read with their o
   const contracts = await source("lib/hub-contracts/server.ts");
   const customerPart = contracts.slice(contracts.indexOf("async function loadForCustomer"), contracts.indexOf("export async function loadContractsForIdentity"));
   assert.match(customerPart, /loadDomainMailForCustomer\(supabase, ids\)/, "with the login's own session");
-  assert.match(contracts, /const confirmed = claims\?\.claims\?\.aal === "aal2";/);
+  assert.match(contracts, /const gate = await loadKeychainGate\(\);/);
 
   // Neither the assistant nor any notification ever reads the new tables or the vault.
   for (const dir of ["lib/hub-assistant", "lib/hub-notify", "lib/hub-mail", "lib/hub-telegram"]) {

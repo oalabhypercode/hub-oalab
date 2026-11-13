@@ -70,6 +70,7 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
       <InsetGroupedList label={manageUsers ? "Verwaltung" : "Neuigkeiten"} className="list-icons">
         {manageUsers && <ListRow compact href={hubHref(preview, "users")} icon={<UserCog size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.users} subtitle="Registrierungen, Zugänge und Kunden" />}
         {manageUsers && <ListRow compact href={hubHref(preview, "ai-log")} icon={<Bot size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels["ai-log"]} subtitle="Vorschläge des Assistenten und was daraus wurde" />}
+        {manageUsers && <ListRow compact href={hubHref(preview, "keychain")} icon={<KeyRound size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.keychain} subtitle="Zugänge und Passwörter, nur mit App-Code" />}
         <ListRow compact href={hubHref(preview, "patch-notes")} icon={<ScrollText size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels["patch-notes"]} subtitle="Alle Änderungen am Hub, Paket für Paket" />
       </InsetGroupedList>
       <SectionHeader title="Konto" />

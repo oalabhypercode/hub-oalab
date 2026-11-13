@@ -3,6 +3,13 @@ import type { DomainCheck, DomainStatus, LoginKind, MailboxKind } from "@/lib/hu
 import type { CustomerDomain, DomainMailState, Mailbox, MailServer, ProviderLogin } from "@/lib/hub-domains/types";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "./types";
 
+/** The Schlüsselbund's first categories (DEFAULT_CATEGORIES in lib/hub-keychain/rules.ts); here without an import, for the tests. */
+const EXAMPLE_CATEGORIES = [
+  { id: "mailbox", name: "Postfächer", icon: "inbox" }, { id: "registrar", name: "Domain-Anbieter", icon: "globe" }, { id: "dns", name: "DNS", icon: "globe" },
+  { id: "hosting", name: "Hosting", icon: "server" }, { id: "cms", name: "Website & CMS", icon: "layout-template" }, { id: "social", name: "Social Media", icon: "share-2" },
+  { id: "google", name: "Google & Statistik", icon: "chart-column" }, { id: "tools", name: "Software & Tools", icon: "app-window" }, { id: "other", name: "Sonstiges", icon: "key-round" },
+];
+
 // Fictional packages and timelines of the three demo customers (/preview and the demo logins). Ids are the customer
 // numbers, as with the example files, so an entry can link the customer's example contract.
 
@@ -151,5 +158,9 @@ function mailFixtures(numbers: string[], customers: ContractCustomer[], admin: b
   const logins = admin ? numbers.flatMap((number) => fixtures[number].mail.logins.map(([kind, label, loginUrl, username, stored], index): ProviderLogin => ({
     id: `${number}-l${index}`, customerId: number, kind, label, loginUrl, username, hasPassword: stored,
   }))) : [];
-  return { ready: true, domains, mailServers, mailboxes, logins, vault: admin ? { keyReady: false, keyId: null, confirmed: false } : null };
+  return {
+    ready: true, domains, mailServers, mailboxes, logins,
+    vault: admin ? { keyReady: false, keyId: null, lock: { status: "setup" } } : null,
+    categories: admin ? EXAMPLE_CATEGORIES : [],
+  };
 }

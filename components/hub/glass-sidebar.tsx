@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Bot, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound } from "lucide-react";
+import { Bot, KeyRound, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { categories, categoriesFor, categoryLabel, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
@@ -89,6 +89,9 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           </Link>
           <Link {...item("ai-log")}>
             <Bot size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels["ai-log"]}</span>
+          </Link>
+          <Link {...item("keychain")}>
+            <KeyRound size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels.keychain}</span>
           </Link>
         </>}
         {/* Admins keep the patch notes with the administration; customers have no "Verwaltung", so theirs get a caption of their own. */}

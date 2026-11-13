@@ -25,6 +25,8 @@ import { UserManagementScreen } from "./screens/users";
 import { PatchNotesScreen } from "./screens/patch-notes";
 import { AssistantLogScreen } from "./screens/assistant-log";
 import { ContractsScreen } from "./screens/contracts";
+import { KeychainScreen } from "./screens/keychain";
+import type { KeychainState } from "@/lib/hub-keychain/types";
 import type { ContractsState } from "@/lib/hub-contracts/types";
 import { contractFixtures } from "@/lib/hub-contracts/fixtures";
 import { quotaFixtures } from "@/lib/hub-service-quota/fixtures";
@@ -61,9 +63,11 @@ type HubViewProps = {
   privateChats?: PrivateChatState;
   /** Packages and timeline on the page „Vertrag & Domain“ for real logins; examples otherwise. */
   contracts?: ContractsState;
+  /** The admins' Schlüsselbund (accesses, categories, where the lock stands); only on its own page. */
+  keychain?: KeychainState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -117,6 +121,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "calendar" ? <CalendarScreen {...screen} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />
+        : section === "keychain" && keychain ? <KeychainScreen state={keychain} />
         : section === "patch-notes" ? <PatchNotesScreen />
         : <ProfileScreen {...screen} email={email} />}
       {selectedProject && <ProjectModal project={selectedProject} preview={preview} admin={admin} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}

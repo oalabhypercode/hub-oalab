@@ -274,11 +274,16 @@ export const MAX_LABEL = 100;
 export const MAX_USERNAME = 200;
 export const MAX_SECRET = 500;
 
-export type LoginInput = { kind: LoginKind; label: string; loginUrl: string; username: string };
+/** A login's category: one of the Schlüsselbund's fixed categories (hub_keychain_categories; the database checks it). */
+export type LoginInput = { kind: string; label: string; loginUrl: string; username: string };
+const CATEGORY_ID = /^[a-z][a-z0-9-]{1,39}$/;
 
-/** A provider login as an admin saves it (without the password, which goes to the vault). */
+/**
+ * A login as an admin saves it (without the password, which goes to the vault). Its category (`kind`) comes from the
+ * Schlüsselbund's list; the first four keep their old ids (registrar, dns, hosting, other).
+ */
 export function readLogin(input: Record<string, unknown>): Read<LoginInput> {
-  if (!isLoginKind(input.kind)) return { ok: false, error: "Bitte die Art wählen: Domain-Anbieter, DNS, Hosting oder Sonstiges." };
+  if (typeof input.kind !== "string" || !CATEGORY_ID.test(input.kind)) return { ok: false, error: "Bitte wähle eine Kategorie aus der Liste." };
   const label = cleanLine(input.label, MAX_LABEL);
   if (!label) return { ok: false, error: "Bitte den Anbieter nennen, zum Beispiel „netcup Kundenbereich“." };
   const loginUrl = normalizeUrl(input.loginUrl, false);

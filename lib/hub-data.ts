@@ -1,9 +1,9 @@
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
 import type { PackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "contracts", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "patch-notes"] as const;
+export const hubSections = ["projects", "files", "contracts", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "keychain", "patch-notes"] as const;
 /** Sections only admins may open. */
-export const adminSections: readonly HubSection[] = ["users", "ai-log"];
+export const adminSections: readonly HubSection[] = ["users", "ai-log", "keychain"];
 export type HubSection = "overview" | (typeof hubSections)[number];
 
 export const sectionLabels: Record<HubSection, string> = {
@@ -18,6 +18,7 @@ export const sectionLabels: Record<HubSection, string> = {
   discover: "Mehr",
   users: "User Management",
   "ai-log": "KI-Protokoll",
+  keychain: "Schlüsselbund",
   "patch-notes": "Patch Notes",
 };
 

@@ -1,7 +1,9 @@
 import "server-only";
 import { domainToUnicode } from "node:url";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { domainCheckIds, isDomainOwner, isDomainStatus, isLoginKind, isMailboxKind, isMailSecurity, type DomainCheck } from "./rules";
+import { DEFAULT_CATEGORIES } from "@/lib/hub-keychain/rules";
+import type { KeychainLock } from "@/lib/hub-keychain/types";
+import { domainCheckIds, isDomainOwner, isDomainStatus, isMailboxKind, isMailSecurity, type DomainCheck } from "./rules";
 import { emptyDomainMail, type CustomerDomain, type DomainMailState, type Mailbox, type MailServer, type ProviderLogin } from "./types";
 
 // Domains, mail and logins of „Vertrag & Domain“ (migration 202611050002 in service-oalab). Admins read everything with
@@ -21,7 +23,7 @@ type DomainRow = { id: string; customer_id: string; domain: string } & Partial<R
 };
 type MailServerRow = { customer_id: string; imap_host: string; imap_port: number | null; imap_security: string; smtp_host: string; smtp_port: number | null; smtp_security: string; webmail_url: string; provider?: string };
 type MailboxRow = { id: string; customer_id: string; address: string; person: string; kind: string; target: string };
-type LoginRow = { id: string; customer_id: string; kind: string; label: string; login_url: string; username: string };
+type LoginRow = { id: string; customer_id: string | null; kind: string; label: string; login_url: string; username: string };
 
 /** The tables are missing until the migration is applied. */
 export const isMissingDomainTables = (error: { code?: string; message?: string } | null) =>
@@ -81,15 +83,17 @@ const byAddress = (a: Mailbox, b: Mailbox) => a.display.localeCompare(b.display,
 
 /**
  * Everything for a real admin, read with the service role after the admin check. Of the vault only which mailboxes and
- * logins have a password, nothing sealed: a password only travels through revealSecret.
+ * logins have a password, nothing sealed: a password only travels through revealSecret. Logins of every category of the
+ * Schlüsselbund; oalab's own logins (no customer) belong only to the Schlüsselbund.
  */
-export async function loadDomainMailForAdmin(db: SupabaseClient, confirmed: boolean, keyId: string | null): Promise<DomainMailState> {
-  const [domains, servers, mailboxes, logins, secrets] = await Promise.all([
+export async function loadDomainMailForAdmin(db: SupabaseClient, lock: KeychainLock, keyId: string | null): Promise<DomainMailState> {
+  const [domains, servers, mailboxes, logins, secrets, categories] = await Promise.all([
     db.from("hub_customer_domains").select(ADMIN_DOMAIN_COLUMNS).returns<DomainRow[]>(),
     db.from("hub_customer_mail_servers").select(ADMIN_MAIL_SERVER_COLUMNS).returns<MailServerRow[]>(),
     db.from("hub_customer_mailboxes").select(CUSTOMER_MAILBOX_COLUMNS).returns<MailboxRow[]>(),
     db.from("hub_customer_logins").select(LOGIN_COLUMNS).returns<LoginRow[]>(),
-    db.from("hub_vault_secrets").select("mailbox_id, login_id").returns<{ mailbox_id: string | null; login_id: string | null }[]>(),
+    db.from("hub_vault_secrets").select("mailbox_id, login_id").eq("purpose", "password").returns<{ mailbox_id: string | null; login_id: string | null }[]>(),
+    db.from("hub_keychain_categories").select("id, name, icon").order("position").order("name").returns<{ id: string; name: string; icon: string }[]>(),
   ]);
   const error = domains.error ?? servers.error ?? mailboxes.error ?? logins.error ?? secrets.error;
   if (error) {
@@ -105,10 +109,12 @@ export async function loadDomainMailForAdmin(db: SupabaseClient, confirmed: bool
       const mailbox = toMailbox(row);
       return mailbox ? [{ ...mailbox, hasPassword: stored.has(mailbox.id) }] : [];
     }).sort(byAddress),
-    logins: (logins.data ?? []).flatMap((row): ProviderLogin[] => isLoginKind(row.kind)
+    logins: (logins.data ?? []).flatMap((row): ProviderLogin[] => row.customer_id
       ? [{ id: row.id, customerId: row.customer_id, kind: row.kind, label: row.label, loginUrl: row.login_url, username: row.username, hasPassword: stored.has(row.id) }]
       : []).sort((a, b) => a.label.localeCompare(b.label, "de")),
-    vault: { keyReady: keyId !== null, keyId, confirmed },
+    vault: { keyReady: keyId !== null, keyId, lock },
+    // Without the categories (a hiccup) the logins keep their ids and the form offers the first categories.
+    categories: categories.error ? DEFAULT_CATEGORIES.map(({ id, name, icon }) => ({ id, name, icon })) : categories.data ?? [],
   };
 }
 
@@ -133,5 +139,6 @@ export async function loadDomainMailForCustomer(supabase: SupabaseClient, custom
     mailboxes: (mailboxes.data ?? []).flatMap((row) => toMailbox(row) ?? []).sort(byAddress),
     logins: [],
     vault: null,
+    categories: [],
   };
 }

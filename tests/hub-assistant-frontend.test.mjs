@@ -96,7 +96,7 @@ test("the chat lives per login in this browser, ends with signing out and docks 
 });
 
 test("the KI-Protokoll is an admin section read with the server key only after the admin check", async () => {
-  assert.match(await source("lib/hub-data.ts"), /adminSections: readonly HubSection\[\] = \["users", "ai-log"\]/);
+  assert.match(await source("lib/hub-data.ts"), /adminSections: readonly HubSection\[\] = \["users", "ai-log", "keychain"\]/);
   assert.match(await source("components/hub/glass-sidebar.tsx"), /\{manageUsers && <>[^]*?item\("ai-log"\)[^]*?<\/>\}/);
   assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "ai-log" \? loadAssistantLog\(\) : undefined/);
   const log = await source("lib/hub-assistant/log.ts");

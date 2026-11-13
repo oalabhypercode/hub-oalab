@@ -1,4 +1,5 @@
-import type { DomainCheck, DomainOwner, DomainStatus, LoginKind, MailboxKind, MailSecurity } from "./rules";
+import type { KeychainLock } from "@/lib/hub-keychain/types";
+import type { DomainCheck, DomainOwner, DomainStatus, MailboxKind, MailSecurity } from "./rules";
 
 /** What only admins see of a domain. */
 export type DomainDetails = {
@@ -54,11 +55,12 @@ export type Mailbox = {
   hasPassword?: boolean;
 };
 
-/** A login at a domain provider, DNS or hosting; admins only. */
+/** A login of a customer (domain provider, DNS, hosting or any other category of the Schlüsselbund); admins only. */
 export type ProviderLogin = {
   id: string;
   customerId: string;
-  kind: LoginKind;
+  /** The category's id (hub_keychain_categories). */
+  kind: string;
   label: string;
   loginUrl: string;
   username: string;
@@ -74,11 +76,13 @@ export type DomainMailState = {
   /** Admins only. */
   logins: ProviderLogin[];
   /**
-   * Admins only: whether the server holds the key (with its short name, never the key) and this session confirmed its
-   * second factor (aal2).
+   * Admins only: whether the server holds the key (with its short name, never the key) and where the Schlüsselbund
+   * stands for this admin (set up, locked, open): its app's code opens the passwords here as well.
    */
-  vault: { keyReady: boolean; keyId: string | null; confirmed: boolean } | null;
+  vault: { keyReady: boolean; keyId: string | null; lock: KeychainLock } | null;
+  /** Admins only: the Schlüsselbund's fixed categories, for the login's category and its name. */
+  categories: { id: string; name: string; icon: string }[];
   error?: string;
 };
 
-export const emptyDomainMail = (ready: boolean, error?: string): DomainMailState => ({ ready, domains: [], mailServers: [], mailboxes: [], logins: [], vault: null, ...(error ? { error } : {}) });
+export const emptyDomainMail = (ready: boolean, error?: string): DomainMailState => ({ ready, domains: [], mailServers: [], mailboxes: [], logins: [], vault: null, categories: [], ...(error ? { error } : {}) });
