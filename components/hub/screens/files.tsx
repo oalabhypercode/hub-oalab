@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpDown, Building2, Check, Download, FileType, Folder, Inbox, ListFilter, Pencil, Rows3, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Building2, Check, Download, FileType, Folder, FolderInput, Inbox, ListFilter, Pencil, Rows3, Tag, Trash2, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { categoryLabel } from "@/lib/categories";
 import { fileCategories, fileCategoryIds, fileFormat, formatBytes, formatFileDate } from "@/lib/hub-files/catalog";
@@ -166,16 +166,20 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
           </SheetToolbar>
           {!canOrganize && showCustomers && customer !== UNASSIGNED && <p className="sheet-hint">Wähle im Filter einen Kunden, um seine Ordner zu sehen und Dateien einzusortieren.</p>}
           {selection.length > 0 && (
-            <div className="sheet-selection" role="region" aria-label="Auswahl">
-              <strong className="numeric">{selection.length === 1 ? "1 Datei" : `${selection.length} Dateien`} ausgewählt</strong>
-              <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}{selection.length > 1 ? "Als ZIP herunterladen" : "Herunterladen"}</button>
-              {canOrganize && (
-                <span className="sheet-move">
-                  <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben nach …" value="" onChange={move} disabled={busy !== null}
-                    options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
-                </span>
-              )}
-              <button type="button" className="sheet-action" onClick={() => setSelected([])}><X size={15} aria-hidden="true" />Auswahl aufheben</button>
+            // Like the Asset Management (13.11.2026): the count on the left, the actions on the right, × at the end.
+            <div className="sheet-selection am-selection" role="region" aria-label="Auswahl">
+              <strong className="numeric">{selection.length} <span className="am-sel-long">{selection.length === 1 ? "Datei" : "Dateien"} </span>ausgewählt</strong>
+              <span className="am-sel-acts">
+                <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}<span className="am-btn-text">{selection.length > 1 ? "Als ZIP herunterladen" : "Herunterladen"}</span></button>
+                {canOrganize && (
+                  <span className="sheet-move">
+                    <FolderInput className="sheet-move-icon" size={15} aria-hidden="true" />
+                    <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben" value="" onChange={move} disabled={busy !== null}
+                      options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
+                  </span>
+                )}
+              </span>
+              <button type="button" className="am-icon-btn am-selection-clear" onClick={() => setSelected([])} aria-label="Auswahl aufheben" data-tip="Auswahl aufheben"><X size={17} aria-hidden="true" /></button>
             </div>
           )}
           {shown.length || folderGroups.length ? (

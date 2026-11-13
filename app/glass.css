@@ -1949,6 +1949,82 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .am-min-section-acts { opacity: 1; }
 }
 
+/* ---------- Selecting (user 13.11.2026) ---------- */
+/* „Alle auswählen“ over the list and a tick at every folder (or day), in the column of the rows' ticks. */
+.am-select-all { display: flex; align-items: center; gap: 12px; min-height: 40px; margin: 6px 10px 0; padding: 0 8px; border-radius: 10px; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--sheet-muted); cursor: pointer; }
+.am-select-all:hover { background: var(--sheet-hover); color: var(--label); }
+.am-select-all-box, .am-min-section-check { width: 34px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+:is(.am-select-all, .am-min-section-check, .table-group-select) input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent-text); cursor: pointer; }
+:is(.am-select-all, .am-min-section-check, .table-group-select) input:disabled { cursor: default; opacity: 0.4; }
+.am-select-all.is-detail { display: none; }
+.am-select-all + .am-min { padding-top: 0; }
+.am-min-section:has(.am-min-section-check) { padding-left: 8px; }
+.table-group-select { display: inline-flex; flex: 0 0 auto; }
+/* An empty folder has nothing to tick; its place stays, so the names keep their line. */
+.table-group-select input:disabled { visibility: hidden; }
+.table-group th:has(> .table-group-in.has-select) { padding-left: 20px; }
+.table-group-in.has-select { gap: 10px; }
+
+/* The selection bar: the count on the left, every action on the right, × at the end. */
+.am-selection { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.am-selection > strong { margin-right: 0; white-space: nowrap; }
+.am-sel-acts { justify-self: end; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.am-selection .am-selection-clear { margin-left: 0; }
+.am-selection .sheet-action[aria-pressed="true"] { background: rgb(var(--accent-rgb) / calc(0.16 * var(--tint-k))); box-shadow: inset 0 0 0 1.5px var(--accent-text); }
+/* „Verschieben“ as tall as the buttons beside it; its folder symbol only shows on phones, where the word goes. */
+.sheet-move { position: relative; display: inline-flex; }
+.am .sheet-move .hub-select-trigger { height: 32px; gap: 6px; }
+.sheet-move-icon { display: none; }
+/* Narrower panes of the Asset Management (its bar holds the most): first a shorter count and the bin as a symbol, then
+   two rows (count and × on top, actions below). The customers' „Dateien“ have room for one row. */
+@container sheet (max-width: 1079px) {
+  .am .am-sel-long { display: none; }
+  .am .am-selection .sheet-action.is-danger { width: 32px; padding: 0; justify-content: center; }
+  .am .am-selection .sheet-action.is-danger .am-btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@container sheet (max-width: 949px) {
+  .am .am-selection { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+  .am .am-sel-long { display: inline; }
+  .am .am-selection .am-selection-clear { grid-column: 2; grid-row: 1; }
+  .am .am-sel-acts { grid-column: 1 / -1; grid-row: 2; }
+}
+/* One column on a tablet: wide enough for one row again. */
+@container sheet (min-width: 660px) and (max-width: 820px) {
+  .am .am-selection { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .am .am-sel-long { display: none; }
+  .am .am-sel-acts { grid-column: 2; grid-row: 1; }
+  .am .am-selection .am-selection-clear { grid-column: 3; grid-row: 1; }
+}
+/* A panel is open (upload or rename): only the count and ×, left of the panel, so nothing hides half under it. */
+.am-pane.has-panel .am-selection { grid-template-columns: minmax(0, 1fr) auto; padding-right: calc(min(420px, 100%) + 12px); }
+.am-pane.has-panel :is(.am-sel-acts, .am-sel-long) { display: none; }
+.am-pane.has-panel .am-selection .am-selection-clear { grid-column: 2; grid-row: 1; }
+/* Files just uploaded, renamed or moved light up for a few seconds. */
+.am-min-row.is-fresh, .am .file-table tbody tr.file-row.is-fresh td { background-color: color-mix(in srgb, var(--tone-ok-bg) 80%, transparent); }
+
+@media (max-width: 767px) {
+  /* Phones: every selection action as a symbol (the words stay for screen readers), one row. The bar stays under the
+     title while the list scrolls, so a folder ticked far down still has its actions in view. */
+  .am-selection { position: sticky; z-index: 6; top: calc(64px + env(safe-area-inset-top)); background: linear-gradient(var(--sheet-select), var(--sheet-select)), var(--sheet); }
+  .am-sel-long { display: none; }
+  .am-sel-acts { gap: 6px; }
+  .am-selection .sheet-action { width: 34px; height: 34px; padding: 0; justify-content: center; }
+  .am-selection :is(.am-btn-text, .sheet-move .hub-select-value) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .am-selection .sheet-move .hub-select-trigger { height: 34px; padding: 0 7px 0 31px; gap: 3px; }
+  .am-selection .sheet-move-icon { display: block; position: absolute; z-index: 1; left: 9px; top: 50%; transform: translateY(-50%); color: var(--accent-text); pointer-events: none; }
+  /* The head's buttons as symbols, so the customer's name keeps its room and „Hochladen“ is no longer cut off. */
+  .am-wide { display: none; }
+  .am-pane-actions .sheet-action { flex: 0 0 auto; width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .am-pane-actions :is(.am-btn-text, .am-logo-text) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* The ticks keep their column: Minimal rows start 12 px in, the Detail rows (a list on phones) 14 px. */
+  .am-select-all { margin: 4px 6px 0; padding: 0 6px; }
+  .am-min-section:has(.am-min-section-check) { padding-left: 6px; }
+  .am-select-all.is-detail { display: flex; gap: 10px; min-height: 44px; margin: 0; padding: 0 14px; border-radius: 0; border-bottom: 1px solid var(--sheet-divider); }
+  .am-select-all.is-detail .am-select-all-box { width: auto; }
+  .table-group th:has(> .table-group-in.has-select), .file-table .table-group th:has(> .table-group-in.has-select) { padding-left: 14px; }
+  .am .file-table tbody tr.file-row.is-fresh { background-color: color-mix(in srgb, var(--tone-ok-bg) 80%, transparent); }
+}
+
 /* ---------- Customer logos (Asset Management, step 2) ---------- */
 /* A logo sits on the same rounded square as the letters, on a white, near-black or brand-coloured tile (--logo-bg,
    logoTileStyle), so that a white logo on a transparent ground stays visible. In the customer's own login it takes
@@ -2110,6 +2186,91 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-upload .am-icon-btn { width: 26px; height: 26px; }
 .am-textarea { width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13.5px; line-height: 19px; resize: vertical; }
 .am-textarea:focus { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+
+/* ---------- Namen nach Muster (user 13.11.2026): positions like a Lightroom export, an example, new names per file ---------- */
+.rn-suggest { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent-text) 7%, var(--sheet)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 24%, transparent); }
+.rn-suggest > svg { flex: 0 0 auto; color: var(--accent-text); }
+.rn-suggest > span { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.rn-suggest strong { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--label); }
+.rn-suggest small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.rn-suggest .sheet-action { flex: 0 0 auto; height: 30px; padding: 0 12px; }
+.rn-label-acts { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.rn-label-acts .info-button { width: 22px; height: 22px; }
+.rn-template .hub-select-trigger { max-width: 190px; }
+.rn-template .hub-select-placeholder { color: inherit; }
+.rn-off { font-size: 12px; font-weight: 600; color: var(--sheet-muted); }
+.rn-off:hover:not(:disabled) { color: var(--label); text-decoration: underline; text-underline-offset: 3px; }
+.rn-card { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.rn-parts { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rn-part { position: relative; display: grid; grid-template-columns: 24px 138px minmax(0, 1fr) 26px; align-items: center; gap: 6px; border-radius: 9px; }
+.rn-part.is-dragging { opacity: 0.45; }
+.rn-part.drop-before::before, .rn-part.drop-after::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; border-radius: 2px; background: var(--accent-text); }
+.rn-part.drop-before::before { top: -4px; }
+.rn-part.drop-after::after { bottom: -4px; }
+.rn-grip { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 32px; border-radius: 7px; font-size: 12px; font-weight: 700; color: var(--sheet-muted); cursor: grab; }
+.rn-grip svg { display: none; }
+.rn-part:hover .rn-grip b, .rn-grip:focus-visible b { display: none; }
+.rn-part:hover .rn-grip svg, .rn-grip:focus-visible svg { display: block; }
+.rn-grip:hover { background: var(--sheet-hover); color: var(--label); }
+.rn-grip:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.rn-type.am-control { height: 32px; border-radius: 8px; font-size: 13px; }
+.rn-type.am-control .hub-select-trigger { height: 32px; padding: 0 26px 0 32px; font-size: 13px; font-weight: 500; }
+.rn-type.am-control > svg:first-child { left: 10px; color: var(--accent-text); }
+.rn-type.am-control > svg:last-child { right: 8px; }
+.rn-card .hub-option-lead svg { color: var(--accent-text); }
+.rn-value { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.rn-input { width: 100%; min-width: 0; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13px; }
+.rn-input::placeholder { color: var(--sheet-muted); }
+.rn-input:focus { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.rn-input.is-empty { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-todo) 55%, transparent); }
+.rn-fixed { min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0 4px; font-size: 13px; color: var(--label-body); white-space: nowrap; }
+.rn-fixed b { overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--label); }
+.rn-fixed small { flex: 0 0 auto; font-size: 11.5px; color: var(--sheet-muted); }
+.rn-fixed.is-missing b { color: var(--tone-todo); }
+.rn-num { width: 52px; flex: 0 0 auto; text-align: center; font-variant-numeric: tabular-nums; }
+.rn-num-label { flex: 0 0 auto; font-size: 12.5px; color: var(--sheet-muted); }
+.rn-mini.am-control { flex: 1 1 auto; height: 32px; min-width: 72px; border-radius: 8px; }
+.rn-mini.am-control .hub-select-trigger { height: 32px; padding: 0 24px 0 10px; font-size: 12.5px; }
+.rn-mini.am-control > svg:last-child { right: 7px; }
+.rn-part .am-icon-btn { width: 26px; height: 26px; }
+.rn-add-row { display: flex; align-items: center; gap: 10px; }
+.rn-add-row .am-link { font-size: 12.5px; }
+.rn-add-row small { font-size: 11.5px; color: var(--sheet-muted); }
+.rn-save .sheet-action { flex: 0 0 auto; height: 32px; }
+.rn-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 9px; border-top: 1px solid var(--sheet-divider); font-size: 12px; font-weight: 600; color: var(--sheet-muted); }
+.rn-opt { display: inline-flex; align-items: center; gap: 7px; }
+.rn-opt .am-label-select { font-size: 12px; }
+.rn-seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.rn-seg button { min-width: 34px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--sheet-muted); white-space: pre; font-variant-numeric: tabular-nums; }
+.rn-seg button[aria-checked="true"] { background: var(--sheet-seg-on); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); color: var(--label); }
+.rn-seg button:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.rn-check { display: inline-flex; align-items: center; gap: 7px; font-weight: 500; color: var(--label-body); cursor: pointer; }
+.rn-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent-text); }
+.rn-check small { font-size: 11.5px; font-weight: 500; color: var(--sheet-muted); }
+.rn-example { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 2px 10px; padding: 9px 11px; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.rn-example > span { font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sheet-muted); }
+.rn-example code { min-width: 0; font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
+.rn-example code i { font-style: normal; font-weight: 500; color: var(--sheet-muted); }
+.rn-hints { display: grid; gap: 6px; }
+.rn-hints:empty { display: none; }
+.rn-hints .am-note button { color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+/* A file's new name: the name to edit, then its extension and how it came about. */
+.rn-name { display: flex; align-items: center; min-width: 0; }
+.am-upload-text .rn-name input { flex: 0 1 auto; width: auto; min-width: 0; max-width: 100%; margin-right: 0; padding-right: 1px; field-sizing: content; }
+.rn-ext { flex: 0 0 auto; padding-left: 1px; font-size: 13.5px; font-weight: 500; color: var(--sheet-muted); }
+.rn-tag { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px; height: 18px; margin-left: 8px; padding: 0 7px; border-radius: 999px; background: var(--tone-info-bg); font-size: 11px; font-weight: 600; color: var(--tone-info); white-space: nowrap; }
+.rn-tag.is-keep { background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.rn-tag button { display: inline-flex; color: inherit; }
+.rn-tag button:hover { color: var(--label); }
+.rn-label-left { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.rn-label-left small { font-size: 11.5px; font-weight: 500; color: var(--sheet-muted); }
+.am-upload-text small.rn-was { display: inline-flex; align-items: center; gap: 4px; }
+.rn-was svg { flex: 0 0 auto; }
+.rn-was span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rn-list .am-upload { grid-template-columns: 32px minmax(0, 1fr); }
+@media (max-width: 767px) {
+  .rn-part { grid-template-columns: 22px 120px minmax(0, 1fr) 26px; }
+}
 
 /* Details: a quiet preview, download and link, the one-click logo, who has the file and in which folder, the facts. */
 .am-preview { display: grid; place-items: center; height: 156px; overflow: hidden; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
