@@ -6,7 +6,8 @@ import { Check, Copy, Eye, EyeOff, Inbox, KeyRound, LockKeyhole, Mail, Pencil, P
 import { MiniLoader } from "@/components/brand-loader";
 import { hubHref } from "@/lib/hub-data";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
-import { loginKindIds, loginKinds, MAX_LABEL, MAX_SECRET, MAX_USERNAME, providerSuggestions, REVEAL_SECONDS, type LoginKind, type VaultOwner } from "@/lib/hub-domains/rules";
+import { loginKinds, MAX_LABEL, MAX_SECRET, MAX_USERNAME, providerSuggestions, REVEAL_SECONDS, type VaultOwner } from "@/lib/hub-domains/rules";
+import { MAILBOX_CATEGORY, UNLOCK_MINUTES } from "@/lib/hub-keychain/rules";
 import type { DomainMailState, ProviderLogin } from "@/lib/hub-domains/types";
 import { deleteLogin, removeSecret, revealSecret, saveLogin, saveSecret, type VaultResult } from "@/lib/hub-vault/actions";
 import { useInfo } from "../info-box";
@@ -15,6 +16,7 @@ import { Select, SuggestInput } from "../select";
 import { SheetFooter, TableGroup, useCollapsedGroups } from "../sheet";
 import { CopyButton } from "./contracts-domains";
 import { ADMIN_COLUMNS, tableHit, useContractAction } from "./contracts-parts";
+import { UnlockDialog, useKeychainLock } from "./keychain-lock";
 
 const Spinner = () => <MiniLoader size={16} />;
 const tryAgain = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
@@ -22,9 +24,10 @@ const tryAgain = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
 const DOTS = "••••••••••";
 
 /**
- * „Zugangsdaten“ of one customer, for admins: the passwords of its mailboxes and its logins at domain provider, DNS and
- * hosting. The page only knows whether a password is stored; showing or copying asks the server each time, which
- * checks the confirmed second factor and logs the look first. A shown password hides itself after 30 seconds.
+ * „Zugangsdaten“ of one customer, for admins: the passwords of its mailboxes and its logins (domain provider, DNS,
+ * hosting and every other category of the Schlüsselbund). The page only knows whether a password is stored; showing or
+ * copying asks the server each time, which checks the open Schlüsselbund (the code from the admin's app, as in the
+ * Schlüsselbund itself) and logs the look first. A shown password hides itself after 30 seconds.
  */
 export function AccessTab({ customer, domainMail, fixtures, preview, query, onNotice }: {
   customer: ContractCustomer;
@@ -39,16 +42,19 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
   const groups = useCollapsedGroups();
   const vault = domainMail.vault;
   const live = !fixtures && domainMail.ready;
-  const confirmed = live && Boolean(vault?.confirmed);
+  const keychain = useKeychainLock(vault?.lock ?? { status: "setup" });
+  const [unlocking, setUnlocking] = useState(false);
+  const confirmed = live && keychain.open;
   const usable = confirmed && Boolean(vault?.keyReady);
+  const categoryName = (id: string) => domainMail.categories.find((category) => category.id === id)?.name ?? loginKinds[id as keyof typeof loginKinds] ?? id;
   const term = query.trim().toLocaleLowerCase("de");
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id && item.kind === "mailbox");
   const logins = domainMail.logins.filter((item) => item.customerId === customer.id);
   const shownMailboxes = mailboxes.filter((mailbox) => tableHit(term, mailbox.display, mailbox.person));
-  const shownLogins = logins.filter((login) => tableHit(term, login.label, loginKinds[login.kind], login.loginUrl, login.username));
+  const shownLogins = logins.filter((login) => tableHit(term, login.label, categoryName(login.kind), login.loginUrl, login.username));
   const info = useInfo("Zugangsdaten", {
     steps: [
-      <><b>Nur mit zweitem Faktor</b> sichtbar.</>,
+      <><b>Nur mit dem Code aus der App</b> sichtbar, wie im Schlüsselbund.</>,
       <><b>{REVEAL_SECONDS} Sekunden</b> lesbar, dann wieder verdeckt.</>,
       <><b>Jeder Blick</b> steht im Verlauf des Kunden.</>,
     ],
@@ -66,12 +72,18 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
     <>
       {domainMail.error && <p className="form-error cdm-tab-error" role="alert">{domainMail.error}</p>}
       {/* What the vault allows right now, as one bar above the table. */}
-      {live && !confirmed && (
+      {live && !confirmed && (keychain.lock.status === "setup" ? (
         <div className="cdm-lock is-todo" role="status">
           <LockKeyhole size={18} aria-hidden="true" />
-          <p><strong>Tresor gesperrt.</strong> Passwörter siehst und änderst du nur mit bestätigtem zweitem Faktor. Melde dich mit deinem Code neu an; hast du noch keinen zweiten Faktor, richte ihn im <Link href={hubHref(preview, "settings")}>Profil</Link> ein.</p>
+          <p><strong>Schlüsselbund noch nicht eingerichtet.</strong> Passwörter öffnet hier derselbe Code wie im Schlüsselbund. Verbinde dort einmal deine Authenticator-App: <Link href={hubHref(preview, "keychain")}>Zum Schlüsselbund</Link>.</p>
         </div>
-      )}
+      ) : (
+        <div className="cdm-lock is-todo" role="status">
+          <LockKeyhole size={18} aria-hidden="true" />
+          <p><strong>{keychain.lock.status === "blocked" ? "Zu viele falsche Codes." : "Gesperrt."}</strong> Passwörter siehst und änderst du nur mit dem Code aus deiner Authenticator-App, wie im Schlüsselbund. Danach bleibt er {UNLOCK_MINUTES} Minuten offen.</p>
+          <button type="button" className="sheet-action is-primary kc-bar-action" onClick={() => setUnlocking(true)}><LockKeyhole size={15} aria-hidden="true" />Entsperren</button>
+        </div>
+      ))}
       {note && <div className="cdm-lock" role="status"><LockKeyhole size={18} aria-hidden="true" /><p>{note}</p></div>}
       {usable && <div className="cdm-lock is-ok"><ShieldCheck size={18} aria-hidden="true" /><p>Passwörter liegen verschlüsselt. Ein angezeigtes Passwort ist nach {REVEAL_SECONDS} Sekunden wieder verdeckt, und jeder Blick und jede Änderung steht im Admin-Protokoll.</p></div>}
       <div className="am-scroll">
@@ -103,7 +115,7 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
                       <span className="am-file-icon cdm-file-icon"><KeyRound size={16} aria-hidden="true" /></span>
                       <span className="am-file-text">
                         <strong>{login.label}</strong>
-                        <small>{loginKinds[login.kind]}{login.loginUrl && <> · <a href={login.loginUrl} target="_blank" rel="noopener noreferrer">{login.loginUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}<span className="visually-hidden"> (öffnet in neuem Tab)</span></a></>}</small>
+                        <small>{categoryName(login.kind)}{login.loginUrl && <> · <a href={login.loginUrl} target="_blank" rel="noopener noreferrer">{login.loginUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}<span className="visually-hidden"> (öffnet in neuem Tab)</span></a></>}</small>
                       </span>
                     </span>
                   </td>
@@ -127,8 +139,9 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
           : [mailboxes.length === 1 ? "1 Postfach" : `${mailboxes.length} Postfächer`, logins.length === 1 ? "1 Anbieter-Login" : `${logins.length} Anbieter-Logins`].join(" · ")}
       </SheetFooter>
 
-      {dialog && <LoginDialog customer={customer} entry={dialog.entry} canStoreSecret={usable} onClose={() => setDialog(null)} onSaved={onNotice} />}
+      {dialog && <LoginDialog customer={customer} entry={dialog.entry} canStoreSecret={usable} categories={domainMail.categories.filter((category) => category.id !== MAILBOX_CATEGORY)} onClose={() => setDialog(null)} onSaved={onNotice} />}
       {secretFor && <SecretDialog owner={secretFor.owner} name={secretFor.name} replace={secretFor.replace} onClose={() => setSecretFor(null)} onSaved={onNotice} />}
+      {unlocking && <UnlockDialog lock={keychain.lock} hint="Danach siehst und änderst du die Passwörter hier." onClose={() => setUnlocking(false)} onUnlocked={(next) => { keychain.setLock(next); setUnlocking(false); }} onLock={keychain.setLock} />}
     </>
   );
 }
@@ -277,12 +290,12 @@ function SecretControl({ owner, name, stored, usable, onNotice, onSet }: {
  * The input for a password. Not a password field: the browser shall not offer to save a customer's password as the
  * admin's own hub password. The dots come from CSS; the eye shows what was typed.
  */
-function SecretInput({ value, onChange, disabled, label, required }: { value: string; onChange: (value: string) => void; disabled: boolean; label: string; required?: boolean }) {
+export function SecretInput({ value, onChange, disabled, label, required, hideLabel = false }: { value: string; onChange: (value: string) => void; disabled: boolean; label: string; required?: boolean; hideLabel?: boolean }) {
   const [visible, setVisible] = useState(false);
   const id = useId();
   return (
     <div className="upload-field">
-      <label htmlFor={id} className="dm-field-label">{label}</label>
+      <label htmlFor={id} className={hideLabel ? "visually-hidden" : "dm-field-label"}>{label}</label>
       <div className="dm-secret-field">
         <input
           id={id}
@@ -311,7 +324,7 @@ function SecretInput({ value, onChange, disabled, label, required }: { value: st
 }
 
 /** Stores a new password or replaces the stored one. */
-function SecretDialog({ owner, name, replace, onClose, onSaved }: { owner: VaultOwner; name: string; replace: boolean; onClose: () => void; onSaved: (message: string) => void }) {
+export function SecretDialog({ owner, name, replace, onClose, onSaved }: { owner: VaultOwner; name: string; replace: boolean; onClose: () => void; onSaved: (message: string) => void }) {
   const [secret, setSecret] = useState("");
   const { busy, error, run } = useContractAction();
   const save = () => run("save", () => saveSecret({ owner, secret }), () => { onSaved(replace ? `Passwort von ${name} geändert.` : `Passwort von ${name} hinterlegt.`); onClose(); });
@@ -332,8 +345,8 @@ function SecretDialog({ owner, name, replace, onClose, onSaved }: { owner: Vault
 }
 
 /** Enters a provider login (with its password, if the vault is ready) or edits its details. */
-function LoginDialog({ customer, entry, canStoreSecret, onClose, onSaved }: { customer: ContractCustomer; entry?: ProviderLogin; canStoreSecret: boolean; onClose: () => void; onSaved: (message: string) => void }) {
-  const [draft, setDraft] = useState({ kind: entry?.kind ?? ("registrar" as LoginKind), label: entry?.label ?? "", loginUrl: entry?.loginUrl ?? "", username: entry?.username ?? "" });
+function LoginDialog({ customer, entry, canStoreSecret, categories, onClose, onSaved }: { customer: ContractCustomer; entry?: ProviderLogin; canStoreSecret: boolean; categories: { id: string; name: string }[]; onClose: () => void; onSaved: (message: string) => void }) {
+  const [draft, setDraft] = useState({ kind: entry?.kind ?? "registrar", label: entry?.label ?? "", loginUrl: entry?.loginUrl ?? "", username: entry?.username ?? "" });
   const [secret, setSecret] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { busy, error, run } = useContractAction();
@@ -355,8 +368,8 @@ function LoginDialog({ customer, entry, canStoreSecret, onClose, onSaved }: { cu
       <div className="cdm-dialog" onKeyDown={(event) => { if (event.key === "Enter" && event.target instanceof HTMLInputElement && !disabled && draft.label.trim()) { event.preventDefault(); save(); } }}>
         <p className="field-hint">{customer.company} · {customer.customerNumber}</p>
         <div className="upload-fields">
-          <label className="upload-field"><span>Art</span>
-            <Select label="Art" value={draft.kind} onChange={(kind) => setDraft({ ...draft, kind: kind as LoginKind })} disabled={disabled} options={loginKindIds.map((id) => ({ value: id, label: loginKinds[id] }))} />
+          <label className="upload-field"><span>Kategorie</span>
+            <Select label="Kategorie" value={draft.kind} onChange={(kind) => setDraft({ ...draft, kind })} disabled={disabled} options={categories.map((category) => ({ value: category.id, label: category.name }))} />
           </label>
           <label className="upload-field"><span>Anbieter</span><SuggestInput label="Anbieter" value={draft.label} onValueChange={(label) => setDraft({ ...draft, label })} suggestions={providerSuggestions} maxLength={MAX_LABEL} required placeholder="z. B. netcup Kundenbereich" disabled={disabled} /></label>
           <label className="upload-field upload-field-wide"><span>Login-Adresse (optional)</span><input value={draft.loginUrl} onChange={set("loginUrl")} placeholder="https://login.anbieter.de" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url" autoComplete="off" maxLength={300} disabled={disabled} /></label>

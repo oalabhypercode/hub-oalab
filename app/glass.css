@@ -2768,3 +2768,471 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 @media (hover: none) {
   .hub-tip { display: none !important; }
 }
+
+/* ==========================================================================================================
+   Schlüsselbund (admins, 13.11.2026): the list on the left without boxes, „Alle Zugänge“ as categories that fold
+   with the customers inside, the accesses in the columns of „Projekte“, Minimal/Detail, the lock, its dialogs and
+   panels. Built from the approved preview („V5 angepasst“).
+   ========================================================================================================== */
+/* Schlüsselbund preview: only what the hub does not have yet, built from its tokens (glass.css). Everything else in the
+   page uses the hub's real classes. */
+/* ---------- Sidebar: the lock state next to the entry ---------- */
+/* ---------- List: two sections, one box per entry, the count aligned on the right ---------- */
+.kc-brand-tile { width: 40px; height: 40px; padding: 5px; border-radius: 11px; background: var(--oalab-gradient); flex: 0 0 auto; display: inline-flex; }
+.kc-brand-tile img { width: 100%; height: 100%; object-fit: contain; }
+.kc-brand-tile.is-lg { width: 44px; height: 44px; border-radius: 12px; }
+.kc-brand-tile.is-sm { width: 24px; height: 24px; padding: 3px; border-radius: 7px; }
+.kc-brand-tile.is-xs { width: 18px; height: 18px; padding: 2px; border-radius: 5px; }
+.kc .chat-list { background: var(--sheet-sunken); }
+.kc .chat-search { background: var(--sheet); }
+.kc-nav { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0 10px 16px 12px; list-style: none; }
+.kc-nav-label { display: flex; align-items: center; gap: 6px; margin: 10px 4px 0; font-size: 11.5px; line-height: 14px; font-weight: 600; color: var(--sheet-muted); }
+.kc-nav-label:first-child { margin-top: 2px; }
+.kc-nav-label span { color: var(--sheet-icon); font-weight: 500; }
+.kc-nav-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 9px 10px; border-radius: 12px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line), 0 1px 2px rgb(20 4 14 / 0.04); color: var(--label); text-align: left; transition: background-color 0.12s ease, box-shadow 0.12s ease; }
+.kc-nav-item:hover { background: var(--sheet-hover); }
+.kc-nav-item[aria-current="true"] { background: rgb(var(--accent-rgb) / calc(0.05 * var(--tint-k))); box-shadow: inset 0 0 0 1.5px var(--accent-text), 0 1px 2px rgb(20 4 14 / 0.04); }
+.kc-nav-item .am-avatar, .kc-nav-item .am-tile { width: 34px; height: 34px; border-radius: 10px; font-size: 12px; }
+.kc-nav-item .kc-brand-tile { width: 34px; height: 34px; padding: 4px; border-radius: 10px; }
+.kc-nav-text { display: flex; flex-direction: column; min-width: 0; }
+.kc-nav-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); }
+.kc-nav-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.kc-nav-text small b { font-weight: 600; color: var(--tone-todo); }
+.kc-nav-empty { padding: 8px 4px; color: var(--sheet-muted); font-size: 13px; }
+.kc-count { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 26px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kc-nav-item[aria-current="true"] .kc-count { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); box-shadow: none; color: var(--accent-text); }
+/* ---------- Pane head: lock state and the one button that changes it ---------- */
+.kc-lock-ctl { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
+.kc-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.kc-chip.is-locked { background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.kc-chip.is-open { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.kc-chip.is-setup { background: var(--tone-todo-bg); color: var(--tone-todo); }
+.kc-chip b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.kc .am-pane-head .sheet-action { height: 32px; }
+/* Phone: the lock state gets its own line under the name, so the name never disappears. */
+@media (max-width: 767px) {
+  .kc .am-pane-head { flex-wrap: wrap; row-gap: 10px; }
+  .kc-lock-ctl { order: 5; flex: 1 0 100%; justify-content: space-between; margin-left: 0; }
+}
+/* ---------- Bar above the table ---------- */
+.kc .cdm-lock { align-items: center; }
+.kc .cdm-lock p { flex: 1 1 auto; }
+.kc .cdm-lock .kc-bar-action { flex: 0 0 auto; height: 28px; padding: 0 10px; font-size: 12.5px; }
+/* The list needs less room than the accesses. */
+@container sheet (min-width: 1100px) {
+  .kc .am-grid { grid-template-columns: 276px minmax(0, 1fr); }
+}
+@container sheet (min-width: 821px) and (max-width: 1099px) {
+  .kc .am-grid { grid-template-columns: 260px minmax(0, 1fr); }
+  .kc .sheet-toolbar .segment-count { display: none; }
+}
+.kc-scroll { background: var(--sheet-sunken); }
+/* ---------- Field boxes: login and password as two equal fields that line up from row to row ---------- */
+.kc-box { display: flex; align-items: center; gap: 7px; width: 100%; min-width: 0; height: 32px; padding: 0 3px 0 10px; border: 0; border-radius: 9px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font: inherit; text-align: left; }
+.kc-box > .lucide:first-child { flex: 0 0 auto; color: var(--sheet-muted); }
+.kc-box-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 18px; color: var(--label-body); }
+.kc-box-text.is-dots { font-family: inherit; font-size: 13px; letter-spacing: 1.5px; color: var(--sheet-muted); }
+.kc-box-text.is-shown { color: var(--label); text-overflow: clip; overflow-x: auto; scrollbar-width: none; user-select: all; }
+.kc-box-text.is-link { font-family: inherit; font-size: 13px; color: var(--accent-text); }
+.kc-box-text.is-quiet { font-family: inherit; color: var(--sheet-muted); }
+/* The 30 seconds of a shown password as a line that runs down at the bottom of the box: no room taken from the text. */
+.kc-box { position: relative; }
+.kc-box-timer { position: absolute; left: 10px; right: 10px; bottom: 3px; height: 2px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--tone-todo) 22%, transparent); }
+.kc-box-timer::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--tone-todo); transform-origin: left center; transform: scaleX(var(--left, 1)); transition: transform 0.25s linear; }
+.kc-box-acts { flex: 0 0 auto; display: inline-flex; align-items: center; }
+.kc-box .row-action { width: 26px; height: 26px; border-radius: 7px; }
+.kc-box .row-action .lucide { width: 15px; height: 15px; }
+.kc-box.is-open > .lucide:first-child { color: var(--tone-ok); }
+.kc-box.is-shown { background: var(--sheet); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tone-todo) 45%, transparent); }
+/* Shown, the amber frame and the running line say enough: the lock gives its room to the password. */
+.kc-box.is-add { background: transparent; box-shadow: none; border: 1px dashed color-mix(in srgb, var(--sheet-muted) 55%, transparent); padding-left: 9px; color: var(--accent-text); cursor: pointer; }
+.kc-box.is-add > .lucide:first-child, .kc-box.is-add .kc-box-text { color: var(--accent-text); font-family: inherit; font-size: 12.5px; font-weight: 600; }
+.kc-box.is-add:hover { border-color: var(--accent-text); background: rgb(var(--accent-rgb) / calc(0.05 * var(--tint-k))); }
+.kc-tone-tools { background: rgb(255 149 0 / 0.12); color: rgb(196 106 0); }
+:root[data-theme="dark"] .kc-tone-tools { background: rgb(255 159 10 / 0.16); color: rgb(255 184 76); }
+.kc-copied { color: var(--tone-ok) !important; }
+.kc-age { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--tone-todo); font-weight: 600; }
+/* ---------- Side panel (details, new entry) ---------- */
+.kc-panel .am-panel-title span { white-space: normal; }
+.kc-fields { display: grid; gap: 14px; }
+.kc-panel .kc-box { height: 40px; gap: 9px; padding: 0 5px 0 12px; border-radius: 10px; }
+.kc-panel .kc-box.is-add { padding-left: 11px; }
+.kc-panel .kc-box-text { font-size: 13.5px; }
+.kc-panel .kc-box-text.is-dots { font-size: 14px; }
+.kc-panel .kc-box .row-action { width: 30px; height: 30px; border-radius: 8px; }
+.kc-panel .kc-box .row-action .lucide { width: 16px; height: 16px; }
+.kc-changed { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 14px 0 0; color: var(--sheet-muted); font-size: 12.5px; line-height: 17px; }
+.kc-changed .kc-age { margin-left: 2px; }
+.kc-note { padding: 12px 14px; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 13.5px; line-height: 19px; }
+.kc-note.is-locked { display: flex; align-items: center; gap: 8px; color: var(--sheet-muted); }
+.kc-history { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.kc-history li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: center; }
+.kc-history i { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--sheet-seg); color: var(--sheet-muted); font-style: normal; }
+.kc-history strong { display: block; color: var(--label); font-size: 13px; line-height: 18px; font-weight: 600; }
+.kc-history small { display: block; color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+.kc-panel .am-panel-foot .kc-foot-spacer { flex: 1 1 auto; }
+.kc-pw-field { display: flex; gap: 6px; }
+.kc-pw-field .am-input { flex: 1 1 auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.kc-pw-field .row-action { width: 38px; height: 38px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.kc-strength { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--tone-ok); font-size: 12px; font-weight: 600; }
+.kc-strength i { flex: 1 1 auto; height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--tone-ok) 86%, var(--fill-tertiary) 86%); }
+textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-height: 19px; }
+/* ---------- Dialogs: unlock, recovery code, setup ---------- */
+.hub-modal.kc-dialog { width: min(440px, calc(100% - 32px)); }
+.hub-modal.kc-dialog.is-wide { width: min(600px, calc(100% - 32px)); }
+.kc-unlock { display: grid; justify-items: center; gap: 14px; padding: 2px 4px 0; text-align: center; }
+.kc-unlock-icon { width: 60px; height: 60px; display: inline-flex; align-items: center; justify-content: center; border-radius: 18px; background: var(--accent-gradient); color: #ffffff; box-shadow: var(--accent-shadow); }
+.kc-unlock-icon.is-ok { background: linear-gradient(135deg, #34c759, #1f9d48); box-shadow: 0 8px 22px rgb(52 199 89 / 0.35); }
+.kc-lead { max-width: 36ch; margin: 0; color: var(--label-secondary); font-size: 15px; line-height: 21px; }
+.kc-lead b { color: var(--label); font-weight: 650; }
+.kc-code { width: 100%; max-width: 270px; height: 62px; padding: 0 0 0 0.32em; border: 0; border-radius: 16px; background: var(--fill-tertiary); color: var(--label); font: inherit; font-size: 30px; font-weight: 650; letter-spacing: 0.32em; text-align: center; font-variant-numeric: tabular-nums; }
+.kc-code::placeholder { color: var(--label-tertiary); font-weight: 500; }
+.kc-code:focus { outline: 0; box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.3); }
+.kc-code.is-wrong { box-shadow: 0 0 0 2px var(--danger); animation: kc-shake 0.36s ease-in-out; }
+.kc-code.is-recovery { font-size: 24px; letter-spacing: 0.16em; padding-left: 0.16em; text-transform: uppercase; }
+@keyframes kc-shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
+.kc-meta { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--label-tertiary); font-size: 12.5px; line-height: 17px; }
+.kc-unlock .sheet-button { max-width: 270px; min-height: 48px; font-size: 16px; }
+.kc-unlock .form-error { max-width: 36ch; margin: 0; }
+.kc-link { color: var(--accent-text); font-size: 13.5px; font-weight: 600; }
+.kc-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.kc-checking { display: inline-flex; align-items: center; gap: 8px; color: var(--label-secondary); font-size: 13.5px; }
+.kc-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgb(var(--accent-rgb) / 0.25); border-top-color: var(--accent-text); animation: kc-spin 0.7s linear infinite; }
+@keyframes kc-spin { to { transform: rotate(360deg); } }
+/* Setup: the hub's three-step list (Mailprogramm einrichten), one step open at a time. */
+.kc-setup .cdm-steps { margin-top: 2px; }
+.kc-setup .cdm-step.is-done .cdm-step-no { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.kc-setup .cdm-step.is-next .cdm-step-no { background: var(--fill-tertiary); color: var(--label-tertiary); }
+.kc-setup .cdm-step.is-next h3, .kc-setup .cdm-step.is-done h3 { color: var(--label-secondary); }
+.kc-setup .cdm-step.is-done p, .kc-setup .cdm-step.is-next p { font-size: 13px; }
+.kc-step-body { display: grid; gap: 12px; margin-top: 10px; }
+.kc-step-body .kc-code { max-width: 220px; height: 54px; font-size: 26px; }
+.kc-step-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.kc-step-row .sheet-action { height: 34px; padding: 0 14px; }
+.kc-qr-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: center; }
+.kc-qr-row .factor-qr { width: 150px; height: 150px; padding: 8px; }
+.kc-apps { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; color: var(--label-secondary); font-size: 13px; line-height: 18px; }
+.kc-apps li { display: flex; gap: 8px; }
+.kc-apps li svg { flex: 0 0 auto; margin-top: 1px; color: var(--accent-text); }
+.kc-apps b { color: var(--label); font-weight: 650; }
+.kc-key { display: flex; align-items: center; gap: 6px; }
+.kc-key .factor-secret { flex: 1 1 auto; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
+.kc-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--fill-tertiary); list-style: none; color: var(--label); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14.5px; letter-spacing: 0.04em; }
+.kc-codes li { display: flex; gap: 8px; }
+.kc-codes li span { color: var(--label-tertiary); }
+.kc-check { display: flex; align-items: flex-start; gap: 10px; color: var(--label-body); font-size: 13.5px; line-height: 19px; cursor: pointer; }
+.kc-check input { width: 18px; height: 18px; margin: 0; flex: 0 0 auto; accent-color: var(--accent); }
+.kc-setup .sheet-button { min-height: 46px; font-size: 16px; }
+@media (max-width: 560px) {
+  .kc-qr-row { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+}
+/* ==========================================================================================================
+   Version 4: the accesses as a table in the „Projekte“ look, the list on the left without boxes.
+   ========================================================================================================== */
+/* List: same spacing as the boxes, but plain rows with a line between them, the selection like the hub's lists. */
+.kc-v4 .chat-list { background: var(--sheet); }
+.kc-v4 .chat-search { background: var(--sheet-sunken); }
+.kc-v4 .kc-nav { gap: 0; padding: 0 0 16px; }
+.kc-v4 .kc-nav-label { margin: 0; padding: 14px 20px 6px; }
+.kc-v4 .kc-nav-label:first-child { padding-top: 6px; }
+.kc-v4 .kc-nav-item { position: relative; min-height: 60px; padding: 10px 16px 10px 20px; border-radius: 0; background: transparent; box-shadow: none; }
+.kc-v4 .kc-nav li + li .kc-nav-item::before { content: ""; position: absolute; top: 0; left: 64px; right: 0; border-top: 1px solid var(--sheet-line); }
+.kc-v4 .kc-nav .kc-nav-label + li .kc-nav-item::before { display: none; }
+.kc-v4 .kc-nav-item:hover { background: var(--sheet-hover); }
+.kc-v4 .kc-nav-item[aria-current="true"] { background: var(--sheet-select); box-shadow: none; }
+.kc-v4 .kc-nav-item[aria-current="true"]::after { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-text); }
+/* Pane: the head carries „+ Zugang“, the toolbar is the one of „Projekte“: search, sorting, groups, filter. */
+.kc-v4 .am-pane { container: kcpane / inline-size; }
+.kc-v4 .kc-scroll { background: var(--sheet); }
+.kc-ptable-wrap { min-width: 0; }
+.kc-head-new { flex: 0 0 auto; }
+@container kcpane (max-width: 899px) {
+  .kc-v4 .sheet-menu-value { display: none; }
+  .kc-v4 .sheet-toolbar .segment-count { display: none; }
+  .kc-v4 .sheet-toolbar .sheet-search { flex-basis: 190px; }
+}
+/* The table: one fact per cell, 40 px rows, groups that fold like in „Projekte“. */
+.kc-ptable .kc-row { cursor: pointer; }
+.kc-ptable .kc-row.is-current td { background-color: var(--sheet-select); }
+.kc-ptable .kc-cell-name { width: 100%; max-width: 0; }
+.kc-ptable .kc-cell-name .cell-title { gap: 9px; }
+.kc-ptable :is(.kc-cell-kind, .kc-cell-user, .kc-cell-secret, .kc-cell-changed, .kc-cell-owner) { white-space: nowrap; }
+.kc-ptable .kc-cell-kind { color: var(--sheet-muted); }
+.kc-ptable .kc-cell-owner { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.kc-ptable .table-group-sub { margin-left: 8px; color: var(--sheet-muted); font-size: 12px; font-weight: 500; }
+.kc-ptable .table-group-glyph { display: inline-flex; }
+.kc-ptable th.kc-col-open, .kc-ptable td.kc-col-open { width: 36px; padding-left: 0; text-align: right; }
+.kc-ptable th.kc-col-secret { width: 236px; }
+.kc-kind-glyph { flex: 0 0 auto; display: inline-flex; color: rgb(31, 157, 72); }
+.kc-kind-glyph.is-domain { color: rgb(28, 140, 160); }
+.kc-kind-glyph.is-service { color: rgb(88, 86, 214); }
+.kc-kind-glyph.kc-tone-tools { background: none; color: rgb(196, 106, 0); }
+:root[data-theme="dark"] .kc-kind-glyph { color: rgb(48, 209, 88); }
+:root[data-theme="dark"] .kc-kind-glyph.is-domain { color: rgb(110, 214, 232); }
+:root[data-theme="dark"] .kc-kind-glyph.is-service { color: rgb(169, 167, 255); }
+:root[data-theme="dark"] .kc-kind-glyph.kc-tone-tools { color: rgb(255, 184, 76); }
+.kc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--label); }
+.kc-row:hover .kc-name { color: var(--accent-text); }
+.kc-site { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: -4px; border-radius: 6px; color: var(--sheet-icon); }
+.kc-site:hover { background: var(--sheet-hover); color: var(--accent-text); }
+.kc-inline { position: relative; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; vertical-align: middle; }
+.kc-mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--label-body); }
+.kc-cell-user .kc-mono { max-width: 168px; }
+.kc-mini { width: 26px; height: 26px; border-radius: 7px; }
+.kc-mini .lucide { width: 15px; height: 15px; }
+.kc-dots { min-width: 86px; color: var(--sheet-muted); font-size: 13px; letter-spacing: 1.5px; }
+/* The password column keeps one width, shown or hidden, so nothing jumps when a password appears. */
+.kc-ptable .kc-secret { min-width: 216px; }
+.kc-lock-glyph { flex: 0 0 auto; color: var(--sheet-icon); }
+.kc-secret.is-open .kc-lock-glyph { color: var(--tone-ok); }
+.kc-secret-text { max-width: 152px; padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--tone-todo) 12%, transparent); color: var(--label); text-overflow: clip; overflow-x: auto; scrollbar-width: none; user-select: all; }
+.kc-secret .kc-box-timer { left: 0; right: 60px; bottom: -5px; }
+.kc-add-link { display: inline-flex; align-items: center; gap: 5px; height: 26px; margin-left: -8px; padding: 0 8px; border-radius: 7px; color: var(--accent-text); font-size: 12.5px; font-weight: 600; }
+.kc-add-link:hover { background: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
+.kc-cell-changed small { margin-left: 6px; color: var(--sheet-muted); font-size: 12px; }
+.kc-cell-changed small.is-old { color: var(--tone-todo); font-weight: 600; }
+.kc-ptable-empty { padding: 30px 20px; color: var(--sheet-muted); font-size: 13.5px; text-align: center; }
+/* Columns step back like in „Projekte“: first the date, then the kind (the symbol and the groups still tell it). */
+@container kcpane (max-width: 1039px) {
+  .kc-ptable .kc-col-kind { display: none; }
+}
+@container kcpane (max-width: 899px) {
+  .kc-ptable .kc-col-changed { display: none; }
+}
+@container kcpane (max-width: 760px) {
+  .kc-cell-user .kc-mono { max-width: 140px; }
+}
+/* Phone: name and arrow on top, login and password below, as the hub's tables do on phones. */
+@media (max-width: 767px) {
+  .sheet .kc-ptable tr.kc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name open" "user user" "secret secret"; gap: 6px 10px; }
+  .sheet .kc-ptable .kc-cell-name { grid-area: name; width: auto; max-width: none; }
+  .sheet .kc-ptable .kc-col-open { grid-area: open; width: auto; }
+  .sheet .kc-ptable .kc-cell-user { grid-area: user; padding-left: 25px; }
+  .sheet .kc-ptable .kc-cell-secret { grid-area: secret; padding-left: 25px; }
+  .sheet .kc-ptable :is(.kc-cell-kind, .kc-cell-changed, .kc-cell-owner) { display: none; }
+  .kc-cell-user .kc-mono { max-width: none; }
+  .kc-secret-text { max-width: 220px; }
+}
+/* ==========================================================================================================
+   Version 5 (after the sketch): „Alle Zugänge“ lists one row per customer: name, number of accesses and customer
+   number side by side, a line across the full width between the customers. A click folds the accesses open below.
+   ========================================================================================================== */
+.kc-otable { table-layout: fixed; }
+/* Roughly where the sketch has them: the name, the count a little to the right, the customer number about mid-row. */
+.kc-otable th.kc-ocol-name { width: 40%; }
+.kc-otable th.kc-ocol-count { width: 16%; }
+.kc-ohead { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.kc-ohead-end { display: inline-flex; margin: -6px -6px -6px auto; }
+/* „Alle auf-/zuklappen“ sits in the title row, right above the arrows of the rows. */
+.kc-fold-all { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: -5px; border-radius: 7px; color: var(--sheet-icon); }
+.kc-fold-all:hover { background: var(--fill-tertiary); color: var(--accent-text); }
+.kc-otable .kc-orow { cursor: pointer; }
+.kc-otable .kc-orow > td { height: 52px; border-bottom-color: var(--sheet-line); }
+.kc-otoggle { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 36px; color: var(--label); font: inherit; text-align: left; }
+.kc-ochev { flex: 0 0 auto; color: var(--sheet-icon); transition: transform 0.16s ease; }
+.kc-otoggle[aria-expanded="false"] .kc-ochev { transform: rotate(-90deg); }
+.kc-osign { flex: 0 0 auto; display: inline-flex; margin-right: 2px; }
+.kc-oname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; line-height: 19px; font-weight: 600; color: var(--label); }
+.kc-orow:hover .kc-oname { color: var(--accent-text); }
+.kc-opill { flex: 0 0 auto; display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 999px; background: var(--tone-todo-bg); color: var(--tone-todo); font-size: 11.5px; font-weight: 600; }
+.kc-ocell-count, .kc-ocell-number { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-body); font-size: 13px; }
+.kc-ocell-count .numeric { font-weight: 500; color: var(--label); }
+.kc-of { color: var(--sheet-muted); }
+.kc-ounit { display: none; }
+/* Open: the arrow turns, the accesses lie below on the quiet ground, indented to the customer's sign. */
+.kc-obody.is-open > .kc-orow > td { border-bottom-color: var(--sheet-divider); }
+.kc-obody.is-open .kc-ochev { color: var(--accent-text); }
+.kc-otable .kc-odetail > td { height: auto; padding: 0 !important; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-sunken); }
+.kc-otable tbody tr.kc-odetail:hover > td { background-color: var(--sheet-sunken); }
+/* Fixed column widths, so the columns of two open customers line up under each other. */
+.kc-nested { table-layout: fixed; }
+.kc-nested th.kc-col-kind { width: 140px; }
+.kc-nested th.kc-col-user { width: 220px; }
+.kc-nested th.kc-col-changed { width: 170px; }
+.kc-nested .kc-cell-user .kc-mono { max-width: none; }
+@container kcpane (max-width: 899px) { .kc-nested th.kc-col-user { width: 204px; } }
+.kc-nested thead th { height: 32px; border-bottom-color: var(--sheet-divider); font-size: 11.5px; }
+.kc-nested :is(th, td):first-child { padding-left: 43px; }
+.kc-nested tbody tr:last-child > td { border-bottom: 0; }
+.kc-nested tbody tr.kc-row:hover > td { background-color: var(--sheet-seg); }
+.kc-onest-empty { margin: 0; padding: 14px 20px 14px 43px; color: var(--sheet-muted); font-size: 13px; }
+/* Narrow pane (laptop 1280, tablet across): each access takes two lines, name on top, login and password below. */
+@container kcpane (max-width: 720px) {
+  .kc-nested, .kc-nested tbody { display: block; }
+  .kc-nested thead { display: none; }
+  .kc-nested tr.kc-row { display: grid; grid-template-columns: minmax(0, 1fr) 216px auto; grid-template-areas: "name name open" "user secret open"; align-items: center; gap: 2px 12px; padding: 8px 12px 8px 43px; border-bottom: 1px solid var(--sheet-divider); }
+  .kc-nested tr.kc-row:last-child { border-bottom: 0; }
+  .kc-nested tr.kc-row > td { display: block; height: auto; padding: 0 !important; border: 0; background: none !important; }
+  .kc-nested tr.kc-row > td:is(.kc-col-kind, .kc-col-changed) { display: none; }
+  .kc-nested .kc-cell-name { grid-area: name; width: auto; max-width: none; }
+  .kc-nested tr.kc-row > td.kc-cell-user { grid-area: user; min-width: 0; padding-left: 24px !important; }
+  .kc-nested .kc-cell-secret { grid-area: secret; }
+  .kc-nested .kc-col-open { grid-area: open; width: auto; }
+  .kc-nested tr.kc-row:hover { background: var(--sheet-seg); }
+  .kc-nested tr.kc-row.is-current { background: var(--sheet-select); }
+}
+/* Phone: the column titles go; like the list on the left, the customer number moves under the name and „6 Zugänge“
+   stays on the right, so a long name still fits. */
+@media (max-width: 767px) {
+  .sheet .kc-otable tr.kc-orow { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name count" "number count"; align-items: center; column-gap: 12px; row-gap: 0; padding: 10px 14px 10px 12px; border-bottom: 1px solid var(--sheet-line); }
+  .sheet .kc-otable .kc-obody.is-open > tr.kc-orow { border-bottom-color: var(--sheet-divider); }
+  .sheet .kc-otable .kc-ocell-name { grid-area: name; }
+  .sheet .kc-otable .kc-ocell-count { grid-area: count; text-align: right; }
+  .sheet .kc-otable .kc-otoggle { min-height: 26px; }
+  .kc-ounit { display: inline; }
+  .sheet .kc-otable .kc-ocell-number { grid-area: number; padding-left: 57px; color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+  .sheet .kc-otable .kc-ocell-number:has(> .cell-none) { display: none; }
+  .sheet .kc-otable tr.kc-odetail { display: block; padding: 0; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-sunken); }
+  .sheet .kc-otable tr.kc-odetail > td { display: block; border: 0; }
+  .sheet .kc-nested tr.kc-row { padding-left: 35px; }
+  .sheet .kc-nested tr.kc-row > td.kc-cell-secret { padding-left: 25px !important; }
+  .kc-onest-empty { padding-left: 35px; }
+}
+/* ==========================================================================================================
+   V5 angepasst: the categories as groups that fold like in „Vertrag & Domain“, inside each the customers (like V5),
+   their accesses only after a click. „Kategorie“ filter in the toolbar, the categories themselves in the settings.
+   ========================================================================================================== */
+.kc-head-gear { flex: 0 0 auto; width: 32px; padding: 0; justify-content: center; }
+.kc-head-gear[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--accent-text); }
+/* A set filter keeps its value in sight, also where the toolbar hides the values. */
+.kc-v4 .sheet-menu-button.is-set { color: var(--accent-text); }
+.kc-v4 .sheet-menu-button.is-set .sheet-menu-value b { color: var(--accent-text); font-weight: 600; }
+@container kcpane (max-width: 899px) { .kc-v4 .sheet-menu-button.is-set .sheet-menu-value { display: inline; } }
+.kc-choice-lead { display: inline-flex; flex: 0 0 auto; }
+.kc-choice-meta { margin-left: auto; padding-left: 12px; color: var(--sheet-muted); font-size: 12px; font-weight: 500; }
+.sheet-choice .kc-choice-meta + .hub-option-check { margin-left: 0; }
+.kc-pop-foot { margin: 0 -8px -8px; padding: 9px 12px 10px; border-top: 1px solid var(--sheet-line); border-radius: 0 0 var(--menu-radius) var(--menu-radius); background: var(--sheet-sunken); }
+/* Categories in the table: the heading row of „Vertrag & Domain“; the customers sit one step in, under its symbol. */
+.kc-ctable .table-group-sub { margin-left: 8px; color: var(--sheet-muted); font-size: 12px; font-weight: 500; }
+.kc-ctable .table-group-glyph { display: inline-flex; }
+.kc-ctable .kc-ohead { gap: 22px; }
+.kc-ctable .kc-orow > td { height: 46px; }
+.kc-ctable .kc-orow > td:first-child { padding-left: 38px; }
+.kc-ctable .kc-orow.is-open > td { border-bottom-color: var(--sheet-divider); }
+.kc-ctable .kc-orow.is-open .kc-ochev { color: var(--accent-text); }
+.kc-ctable .kc-nested :is(th, td):first-child { padding-left: 61px; }
+.kc-no-kind .kc-col-kind { display: none !important; }
+@container kcpane (max-width: 720px) {
+  .kc-ctable .kc-nested tr.kc-row { padding-left: 61px; }
+}
+.kc-tone-custom { background: rgb(100 116 139 / 0.12); color: rgb(84 98 120); }
+.kc-kind-glyph.kc-tone-custom { background: none; color: rgb(100, 116, 139); }
+:root[data-theme="dark"] .kc-tone-custom { background: rgb(148 163 184 / 0.16); color: rgb(176 190 208); }
+:root[data-theme="dark"] .kc-kind-glyph.kc-tone-custom { color: rgb(176, 190, 208); }
+/* Form: owner and category as the hub's choice fields (no free text). */
+.kc-pick { width: 100%; }
+.kc-mark { display: inline-grid; place-items: center; overflow: hidden; }
+.kc-mark .kc-kind-glyph { display: inline-flex; }
+.kc-mark.is-brand { padding: 3px; background: var(--oalab-gradient); box-shadow: none; }
+.kc-mark.is-brand img { width: 100%; height: 100%; object-fit: contain; }
+.hub-option-lead .am-avatar.is-xs, .hub-option-lead .kc-brand-tile.is-xs { font-size: 7.5px; }
+/* Settings: the list of categories, a dashed „Kategorie hinzufügen“, the new one in the hub's „new entry“ box. */
+.kc-set-lead { margin: 0 0 12px !important; }
+.kc-cat-row .um-item-main { min-height: 52px; }
+.kc-cat-icon { width: 30px; height: 30px; border-radius: 9px; }
+.kc-cat-row .um-item-acts { gap: 2px; }
+.kc-cat-row .row-action { width: 30px; height: 30px; border-radius: 8px; }
+.kc-cat-row .row-action:disabled, .kc-cat-row .row-action.kc-off { opacity: 0.35; cursor: default; }
+.kc-cat-row .row-action.kc-off:hover { background: none; color: inherit; }
+.kc-cat-sure { height: 30px; }
+.kc-cat-input { flex: 1 1 auto; min-width: 0; height: 34px; }
+.kc-cat-row .um-item-below { padding-left: 54px; }
+.am-help.is-error { color: var(--danger); }
+.kc-cat-add { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 40px; margin-top: 10px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--sheet-muted) 55%, transparent); color: var(--accent-text); font-size: 13px; font-weight: 600; }
+.kc-cat-add:hover { border-color: var(--accent-text); background: rgb(var(--accent-rgb) / calc(0.05 * var(--tint-k))); }
+.kc-cat-new { display: grid; gap: 8px; margin-top: 10px; }
+.kc-cat-new-field { display: grid; gap: 6px; }
+.kc-icon-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.kc-icon-choice { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); }
+.kc-icon-choice:hover { color: var(--accent-text); }
+.kc-icon-choice[aria-checked="true"] { background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); box-shadow: inset 0 0 0 1.5px var(--accent-text); color: var(--accent-text); }
+.kc-cat-new-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.kc-panel-back { margin-left: -6px; }
+/* Phone: customers one step in under their category, their accesses one more. */
+@media (max-width: 767px) {
+  .sheet .kc-ctable tr.kc-orow { padding-left: 26px; }
+  .sheet .kc-ctable .kc-nested tr.kc-row { padding-left: 49px; }
+}
+/* Phone: „+ Zugang“ and the gear as two small square buttons, so the title keeps its room. */
+@media (max-width: 767px) {
+  .kc-head-new { width: 32px; padding: 0; justify-content: center; }
+  .kc-head-new .kc-head-label { display: none; }
+}
+/* V5 angepasst, last step: the category row in the table's columns. Name under „Kunde“, the total under „Zugänge“ in
+   line with the customers' counts below it, the rest of the row empty; a click anywhere on it folds the category. */
+.kc-ctable .kc-cgroup { cursor: pointer; }
+.kc-ctable .kc-cgroup > td { height: 36px; padding: 0 10px; border-bottom: 1px solid var(--sheet-line); color: var(--label); font-size: 13px; font-weight: 600; line-height: 18px; white-space: nowrap; vertical-align: middle; }
+.kc-ctable .table-group-body + .table-group-body > .kc-cgroup > td { border-top: 12px solid transparent; }
+.kc-ctable .kc-cgroup:hover .table-group-label { color: var(--accent-text); }
+.kc-ctable .kc-cgroup-count .numeric { font-weight: 600; }
+.kc-ctable .kc-cgroup-count .kc-of { font-weight: 500; }
+/* Phone: the column titles go; the total stands on the right as „4 Zugänge“, like the customers' counts. */
+@media (max-width: 767px) {
+  .sheet .kc-ctable tr.kc-cgroup { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding-right: 14px; border-bottom: 1px solid var(--sheet-line); }
+  .sheet .kc-ctable tr.kc-cgroup > th { border: 0; }
+  .sheet .kc-ctable tr.kc-cgroup > td { display: block; height: auto; padding: 0; border: 0; text-align: right; }
+  .sheet .kc-ctable tr.kc-cgroup > td.kc-cgroup-end { display: none; }
+  .sheet .kc-ctable .table-group-body + .table-group-body > tr.kc-cgroup { border-top: 12px solid transparent; }
+  .sheet .kc-ctable .table-group-body + .table-group-body > tr.kc-cgroup > th { border-top: 0; }
+}
+/* V5 angepasst: „Minimal“ — the same lists as a real list. Lower rows (categories 30 px, customers and accesses
+   32 px), smaller signs, the column titles inside an opened customer go; columns and order stay the same. */
+.kc-density .segment { gap: 6px; }
+@container kcpane (max-width: 899px) { .kc-density .segment-label { display: none; } .kc-density .segment { padding: 0 9px; } }
+@media (min-width: 768px) {
+  .kc-minimal .kc-ctable .kc-cgroup > :is(th, td) { height: 30px; }
+  .kc-minimal .kc-ctable .table-group-body + .table-group-body > .kc-cgroup > :is(th, td) { border-top-width: 8px; }
+  .kc-minimal .kc-ctable .table-group-toggle { min-height: 26px; }
+  .kc-minimal .kc-otable .kc-orow > td { height: 32px; padding-top: 2px; padding-bottom: 2px; }
+  .kc-minimal .kc-otoggle { min-height: 26px; gap: 7px; }
+  .kc-minimal .kc-osign .am-avatar { width: 18px; height: 18px; border-radius: 5px; font-size: 7.5px; }
+  .kc-minimal .kc-osign .kc-brand-tile { width: 18px; height: 18px; padding: 2px; border-radius: 5px; }
+  .kc-minimal .kc-oname { font-size: 13px; font-weight: 500; }
+  .kc-minimal .kc-opill { height: 18px; font-size: 11px; }
+  .kc-minimal .kc-ctable .kc-nested :is(th, td):first-child { padding-left: 57px; }
+  .kc-minimal .kc-nested thead tr { visibility: collapse; }
+  .kc-minimal .kc-ptable tbody td { height: 32px; padding-top: 2px; padding-bottom: 2px; }
+  .kc-minimal .kc-ptable .kc-mini { width: 24px; height: 24px; }
+  .kc-minimal .kc-ptable .kc-kind-glyph svg { width: 14px; height: 14px; }
+  .kc-minimal .kc-ptable .table-group th { height: 30px; }
+  .kc-minimal .kc-ptable .table-group-body + .table-group-body > .table-group > th { border-top-width: 8px; }
+}
+/* Phone: the rows keep their lines, only with less air. */
+@media (max-width: 767px) {
+  .sheet .kc-minimal :is(.kc-otable tr.kc-orow, .kc-ptable tr.kc-row) { padding-top: 7px; padding-bottom: 7px; }
+}
+/* V5 angepasst: statuses („Gekündigt“) in a column of their own at the right end, titled „Status“; the ⓘ moves there. */
+.kc-ctable th.kc-ocol-name { width: 38%; }
+.kc-ctable th.kc-ocol-count { width: 14%; }
+.kc-ctable th.kc-ocol-number { width: 20%; }
+.kc-ctable .kc-ocell-status { white-space: nowrap; }
+.kc-ctable .kc-ocell-status .kc-opill { vertical-align: middle; }
+@media (max-width: 767px) {
+  .sheet .kc-ctable tr.kc-orow { grid-template-areas: "name count" "number status"; }
+  .sheet .kc-ctable .kc-ocell-status { grid-area: status; justify-self: end; }
+  .sheet .kc-ctable .kc-ocell-status:has(> .cell-none) { display: none; }
+}
+@media (max-width: 767px) {
+  .sheet .kc-ctable .table-group-body + .table-group-body > tr.kc-cgroup > td { border-top: 0; }
+}
+
+/* Built tab only: the set category filter, the lock states, the panels' password field and note. */
+.kc-v4 .kc-menu-set .sheet-menu-button { color: var(--accent-text); }
+.kc-v4 .kc-menu-set .sheet-menu-value b { color: var(--accent-text); font-weight: 600; }
+@container kcpane (max-width: 899px) { .kc-v4 .kc-menu-set .sheet-menu-value { display: inline; } }
+.cdm-lock:has(.kc-bar-action) { align-items: center; }
+.cdm-lock .kc-bar-action { flex: 0 0 auto; height: 28px; padding: 0 10px; font-size: 12.5px; }
+.kc-chip.is-blocked { background: var(--tone-bad-bg); color: var(--tone-bad); }
+.kc-brand-tile .brand-logo { width: 100%; height: 100%; object-fit: contain; }
+.kc-pick > :is(.kc-brand-tile, .am-avatar) { position: absolute; left: 8px; pointer-events: none; }
+.kc-cat-row .am-file-icon { width: 30px; height: 30px; border-radius: 9px; }
+.kc-panel-secret { display: flex; align-items: center; min-height: 40px; padding: 0 6px 0 12px; border-radius: 10px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.kc-panel-secret .kc-secret { width: 100%; min-width: 0; }
+.kc-panel-secret .kc-secret-text { flex: 1 1 auto; max-width: none; }
+.kc-panel-secret .kc-secret .kc-box-timer { right: 60px; }
+.kc-note-edit { display: grid; gap: 8px; }
+.kc-note-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.kc-note-view { display: grid; gap: 8px; justify-items: start; }
+.kc-note.is-locked .am-label-action { margin-left: auto; }
+.kc-foot-note { margin: 0; }
+.kc-form-help { margin: 10px 0 0; }

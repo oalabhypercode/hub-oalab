@@ -70,6 +70,27 @@ export function verifyTotp(base32Secret: string, code: string, now = Date.now())
   return match;
 }
 
+/**
+ * The 30-second step whose code was typed (this one, the one before or after), or null. Unlike verifyTotp it tells which
+ * step matched, so a caller can refuse a code that was already used (the Schlüsselbund keeps the last step).
+ */
+export function matchTotpStep(base32Secret: string, code: string, now = Date.now()): number | null {
+  if (!/^\d{6}$/u.test(code)) return null;
+  let secret: Uint8Array;
+  try {
+    secret = base32Decode(base32Secret);
+  } catch {
+    return null;
+  }
+  if (secret.length < 10) return null;
+  const counter = Math.floor(now / 30_000);
+  let found: number | null = null;
+  for (const step of [-1, 0, 1]) {
+    if (timingSafeEqual(Buffer.from(totpCode(secret, counter + step)), Buffer.from(code))) found = counter + step;
+  }
+  return found;
+}
+
 /** The `otpauth://` link an authenticator app reads from the QR code. */
 export function totpUri(issuer: string, account: string, secret: string) {
   const label = `${encodeURIComponent(issuer)}:${encodeURIComponent(account)}`;

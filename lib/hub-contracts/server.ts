@@ -10,6 +10,7 @@ import { emptyDomainMail } from "@/lib/hub-domains/types";
 import { loadServiceQuotaForAdmin, loadServiceQuotaForCustomer } from "@/lib/hub-service-quota/server";
 import { emptyServiceQuota } from "@/lib/hub-service-quota/types";
 import { vaultKeyId } from "@/lib/hub-vault/key";
+import { loadKeychainGate } from "@/lib/hub-keychain/server";
 import { isTimelineKind } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "./types";
@@ -46,16 +47,16 @@ async function loadForAdmin(): Promise<ContractsState> {
   if (!await verifyHubAdmin()) return empty("admin", "Vertrag & Domain ist nur für Admins mit bestätigtem zweitem Faktor verfügbar.");
   const db = createAdminClient();
   if (!db) return empty("admin", "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY).");
-  // Passwords need this session's confirmed second factor; verifyHubAdmin alone also lets admins without one in.
-  const { data: claims } = await (await createClient()).auth.getClaims();
-  const confirmed = claims?.claims?.aal === "aal2";
+  // Passwords open with the Schlüsselbund's app code (unlocked in this browser and sign-in), as in the Schlüsselbund.
+  const gate = await loadKeychainGate();
+  const lock = gate?.lock ?? { status: "locked", attemptsLeft: 0, recoveryLeft: 0 } as const;
   const [customers, packages, timeline, profiles, logos, domainMail, serviceQuota] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number, kind").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
     db.from("hub_customer_timeline").select(ADMIN_TIMELINE_COLUMNS).order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(3000).returns<TimelineRow[]>(),
     db.from("hub_profiles").select("user_id, first_name, last_name").returns<{ user_id: string; first_name: string; last_name: string }[]>(),
     loadCustomerLogos(db).catch(() => new Map<string, CustomerLogo>()),
-    loadDomainMailForAdmin(db, confirmed, vaultKeyId()).catch(domainMailFailed),
+    loadDomainMailForAdmin(db, lock, vaultKeyId()).catch(domainMailFailed),
     loadServiceQuotaForAdmin(db).catch(quotaFailed),
   ]);
   if (customers.error) return empty("admin", "Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
