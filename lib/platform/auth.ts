@@ -325,6 +325,17 @@ export class OwnSessionAuth {
     return { data: { user: supabaseUser(current.user, factors), session: sessionOf(current, factors) }, error: null };
   }
 
+  /**
+   * „Lokal immer Admin“ (lib/local-admin.ts): a session for this admin without a password, already past the second
+   * factor. Only the proxy calls it, and only after localAdminEmail() allowed the request. Admins only.
+   */
+  async signInLocalAdmin(email: string) {
+    const user = await userByEmail(email);
+    if (!user?.email_confirmed_at || isBanned(user) || user.raw_app_meta_data?.app_role !== "oalab_admin") return false;
+    await this.#raise(await this.#createSession(user));
+    return true;
+  }
+
   /** `global` (Supabase's default) ends every session of the login, `local` this one, `others` all but this one. */
   async signOut(options: { scope?: "global" | "local" | "others" } = {}) {
     const current = await this.#current();

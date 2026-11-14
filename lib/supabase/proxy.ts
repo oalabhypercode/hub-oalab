@@ -5,6 +5,9 @@ import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
 import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, serviceOrigin, signedInRedirect } from "../auth-redirect";
 import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub-auth/second-factor";
 import { LEGAL_PATHS } from "../legal-links";
+import { localAdminEmail } from "../local-admin";
+import { usesOwnPlatform } from "../platform/config";
+import type { OwnSessionAuth } from "../platform/auth";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -57,7 +60,15 @@ export async function updateSession(request: NextRequest) {
 
   // Keep the claims check immediately after client creation for session refresh.
   const { data, error } = await supabase.auth.getClaims();
-  const claims = !error && data?.claims ? data.claims : null;
+  let claims = !error && data?.claims ? data.claims : null;
+  // „Lokal immer Admin“ (lib/local-admin.ts): only `npm run dev:admin` on localhost, and only when the browser opens a
+  // page (not for prefetches, scripts or curl), so one visit makes one session. The new session cookie rides on this
+  // request and its response, so the page renders signed in at once.
+  const pageVisit = request.headers.get("sec-fetch-mode") === "navigate";
+  const localAdmin = claims === null && pageVisit && usesOwnPlatform() ? localAdminEmail(request.headers.get("host")) : null;
+  if (localAdmin && await (supabase.auth as unknown as OwnSessionAuth).signInLocalAdmin(localAdmin)) {
+    claims = (await supabase.auth.getClaims()).data?.claims ?? null;
+  }
   const signedIn = claims !== null;
   const next = request.nextUrl.searchParams.get("next");
   // The cookie's copy of the factors, no network call: an aal1 session whose next level is aal2 has a confirmed app.
