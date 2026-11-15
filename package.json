@@ -1,8 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:admin": "HUB_LOCAL_ADMIN_BIND=127.0.0.1 next dev -H 127.0.0.1 -p 3001",
+    "dev": "node scripts/dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

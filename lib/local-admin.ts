@@ -1,10 +1,10 @@
-// „Lokal immer Admin“ (Omed, 14.11.2026): `npm run dev:admin` signs every request without a session in as the admin named
+// „Lokal immer Admin“ (Omed, 14.11.2026): `npm run dev` signs every request without a session in as the admin named
 // in `.env.local`, with no password, so the hub on localhost opens straight in the workspace. Off unless ALL of these
 // hold, so this public repository carries no open door:
 // - HUB_LOCAL_ADMIN_EMAIL is set. `.env*` never goes into git (.gitignore) and the hosted hub never has it.
 // - NODE_ENV is "development": only `next dev`; every build runs as production.
-// - HUB_LOCAL_ADMIN_BIND is "127.0.0.1": set only by `npm run dev:admin`, which binds the dev server to loopback, so no
-//   other device can reach it. Never put it into an env file.
+// - HUB_LOCAL_ADMIN_BIND is "127.0.0.1": set only by `npm run dev` (scripts/dev.mjs) together with binding the dev
+//   server to loopback, so no other device can reach it. Never put it into an env file.
 // - The request's own Host is localhost, *.localhost or 127.0.0.1.
 // Self-contained, so `node --test` can load it.
 

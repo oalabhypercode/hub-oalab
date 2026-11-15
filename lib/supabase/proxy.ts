@@ -61,7 +61,7 @@ export async function updateSession(request: NextRequest) {
   // Keep the claims check immediately after client creation for session refresh.
   const { data, error } = await supabase.auth.getClaims();
   let claims = !error && data?.claims ? data.claims : null;
-  // „Lokal immer Admin“ (lib/local-admin.ts): only `npm run dev:admin` on localhost, and only when the browser opens a
+  // „Lokal immer Admin“ (lib/local-admin.ts): only `npm run dev` with HUB_LOCAL_ADMIN_EMAIL on localhost, and only when the browser opens a
   // page (not for prefetches, scripts or curl), so one visit makes one session. The new session cookie rides on this
   // request and its response, so the page renders signed in at once.
   const pageVisit = request.headers.get("sec-fetch-mode") === "navigate";

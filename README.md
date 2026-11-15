@@ -39,7 +39,7 @@ npm run dev
 
 Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite zeigt denselben Login wie `/auth/login`. Die Designvorschau ist auch ohne Supabase-Konfiguration erreichbar.
 
-**Lokal immer Admin:** Steht `HUB_LOCAL_ADMIN_EMAIL=<Admin-Adresse>` in `.env.local`, öffnet `npm run dev:admin` den Hub auf [localhost:3001](http://localhost:3001) ohne Anmeldung als dieser Admin. Der Schalter wirkt nur im Entwicklungsserver, nur an 127.0.0.1 gebunden und nur für Aufrufe über localhost; gebaute Versionen und andere Adressen ignorieren ihn (`lib/local-admin.ts`). Ohne `SMTP_*` gehen lokal keine Mails raus.
+**Lokal immer Admin:** Steht `HUB_LOCAL_ADMIN_EMAIL=<Admin-Adresse>` in `.env.local`, öffnet `npm run dev` den Hub auf [localhost:3000](http://localhost:3000) ohne Anmeldung als dieser Admin. Der Schalter wirkt nur im Entwicklungsserver, der dann nur auf 127.0.0.1 hört, und nur für Aufrufe über localhost; gebaute Versionen, andere Adressen und ein eigenes `-H` ignorieren ihn (`lib/local-admin.ts`, `scripts/dev.mjs`). Mit `HUB_LOCAL_TUNNEL_SCRIPT` öffnet `npm run dev` vorher den Tunnel zum OALab-Server und hält ihn offen (nur Omeds Mac, `service-oalab/scripts/hub-lokal.sh`). Ohne `SMTP_*` gehen lokal keine Mails raus.
 
 ## Betrieb und Vercel
 
