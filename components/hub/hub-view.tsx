@@ -29,6 +29,7 @@ import { AssistantLogScreen } from "./screens/assistant-log";
 import { ContractsScreen } from "./screens/contracts";
 import { KeychainScreen } from "./screens/keychain";
 import type { KeychainState } from "@/lib/hub-keychain/types";
+import type { ProjectDesk } from "@/lib/hub-projects/desk";
 import type { ContractsState } from "@/lib/hub-contracts/types";
 import { contractFixtures } from "@/lib/hub-contracts/fixtures";
 import { quotaFixtures } from "@/lib/hub-service-quota/fixtures";
@@ -67,9 +68,11 @@ type HubViewProps = {
   contracts?: ContractsState;
   /** The admins' Schlüsselbund (accesses, categories, where the lock stands); only on its own page. */
   keychain?: KeychainState;
+  /** Projekte for a real admin: every customer with domains, packages, quota and open requests; only on its own page. */
+  projectDesk?: ProjectDesk;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -102,7 +105,8 @@ export function HubView({ section = "overview", detail, preview = false, email =
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
   // Admins open a project on „Projekte“ in the page's own panel; the window stays for customers and every other page.
-  const panelShowsProject = admin && !preview && section === "projects" && !detail;
+  // On „Projekte“ the admins' page opens a project in its own panel; without that page (no verified admin) the window stays.
+  const panelShowsProject = admin && !preview && section === "projects" && !detail && Boolean(projectDesk && !projectDesk.error);
 
   const screen: ScreenProps = {
     model, preview, populated, asOf, projects, files, fileState, calendar, favorites, admin, freelancer,
@@ -118,7 +122,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "overview" ? <OverviewScreen {...screen} />
         : section === "insights" ? <InsightsScreen {...screen} />
         : section === "discover" ? <DiscoverScreen {...screen} />
-        : section === "projects" ? <ProjectsScreen {...screen} />
+        : section === "projects" ? <ProjectsScreen {...screen} desk={preview ? undefined : projectDesk} />
         : section === "files" ? <FilesScreen {...screen} />
         : section === "contracts" ? <ContractsScreen {...screen} state={contractState} />
         : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />

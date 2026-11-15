@@ -8,7 +8,7 @@ import { getWorkspaceIdentity } from "@/lib/hub-session";
 import { loadHubFiles } from "@/lib/hub-files/server";
 import { loadHubCalendar } from "@/lib/hub-calendar/server";
 import { loadUserManagement } from "@/lib/hub-users/server";
-import { loadLiveProjects } from "@/lib/hub-projects/server";
+import { loadLiveProjects, loadProjectDesk } from "@/lib/hub-projects/server";
 import { loadAssistantLog } from "@/lib/hub-assistant/log";
 import { loadConversationsForIdentity } from "@/lib/hub-conversations/server";
 import { loadPrivateChatPage } from "@/lib/hub-private-chat/server";
@@ -26,7 +26,7 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   if (adminSections.includes(validSection) && identity.account?.role !== "oalab_admin") notFound();
   // „Vertrag & Domain“ is for admins and customers; freelancers have no entry and get a plain 404 as well.
   if (validSection === "contracts" && identity.account?.role === "oalab_freelancer") notFound();
-  const [filesState, calendarState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain] = await Promise.all([
+  const [filesState, calendarState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk] = await Promise.all([
     loadHubFiles(),
     validSection === "calendar" ? loadHubCalendar(todayIso()) : undefined,
     validSection === "users" ? loadUserManagement() : undefined,
@@ -40,8 +40,10 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
     validSection === "contracts" ? loadContractsForIdentity(identity) : undefined,
     // The Schlüsselbund: accesses and categories for admins, of passwords only whether one exists.
     validSection === "keychain" ? loadKeychain() : undefined,
+    // Projekte for admins: every customer with domains, packages, quota and open requests (undefined for everyone else).
+    validSection === "projects" ? loadProjectDesk() : undefined,
   ]);
-  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} calendarState={calendarState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} />;
+  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} calendarState={calendarState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} projectDesk={projectDesk} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {

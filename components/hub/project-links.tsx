@@ -12,7 +12,7 @@ export type QuickLink = { id: string; label: string; href: string; icon: React.R
  * website has its own rows, see `projectSites`). Each target opens with this customer already chosen; a target that does not exist is left out instead
  * of leading to an empty page. On a keyboard the digits 1–9 open them too.
  */
-export function quickLinks(project: Project, preview: boolean, admin: boolean): QuickLink[] {
+export function quickLinks(project: Pick<Project, "customerId" | "company" | "dueOn">, preview: boolean, admin: boolean): QuickLink[] {
   const customer = project.customerId;
   // Real projects without a hub customer have nothing to filter by; the preview shows the pages with its examples.
   const known = Boolean(customer) || preview;

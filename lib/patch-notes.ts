@@ -37,6 +37,18 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 23,
+    date: "2026-11-16",
+    title: "Projekte mit allen Kunden und Status in der Zeile",
+    summary: "Unter Projekte stehen links jetzt alle Kunden, rechts beim gewählten Kunden alle seine Projekte, Domains & Links und sein Service auf einen Blick. Den Status eines Projekts setzt man direkt in der Zeile, und die ganze Zeile trägt seine Farbe. Ein Klick auf ein Projekt öffnet rechts eine Leiste mit allen Angaben.",
+    changes: [
+      { kind: "new", title: "Alle Kunden auf einen Blick", text: "Links stehen jetzt alle Kunden, auch die ohne Projekt, mit den Filtern Laufend und Ohne Projekt. Rechts zeigt der gewählte Kunde alle seine Projekte zugleich, dazu Domains & Links, seinen Service mit Paket, Kontingent und offenen Anfragen sowie die abgeschlossenen Projekte." },
+      { kind: "new", title: "Projektstatus direkt setzen", text: "Den Status eines Projekts (Planung, In Arbeit, Gefährdet, Pausiert, Fertig) ändert man jetzt mit einem Klick in der Zeile; er gilt sofort auch im Studio. Die ganze Zeile trägt die Farbe ihres Status, so fallen gefährdete und pausierte Projekte gleich auf." },
+      { kind: "new", title: "Projekt in der Seitenleiste", text: "Ein Klick auf ein Projekt öffnet rechts eine Leiste mit Status, Live- und Testdomain, Beschreibung, Terminen, Meilensteinen und offenen Aufgaben. Live- und Testdomain lassen sich dort und direkt in der Liste eintragen, ändern und kopieren." },
+      { kind: "improved", title: "Alle Projekte mit Status und Domains", text: "Die Übersicht aller Projekte zeigt jetzt Status, nächsten Meilenstein, Zieltermin, Fortschritt und die Domains und lässt sich nach Status oder Kunde gruppieren. Ein Klick auf den Kunden öffnet ihn, ein Klick auf das Projekt seine Angaben." },
+    ],
+  },
+  {
     number: 22,
     date: "2026-11-15",
     title: "Projekte klarer, Website mit einem Klick, breite Ansicht",

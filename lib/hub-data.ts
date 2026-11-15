@@ -81,8 +81,11 @@ export type Project = {
   milestones: Milestone[];
   /** Real projects from OALab Studio carry their tasks; fixtures have none. */
   tasks?: ProjectTask[];
-  /** Studio projects: their Studio status and the version of their details row (null while Studio has none). */
-  studio?: { status: StudioProjectStatus; version: number | null };
+  /**
+   * Studio projects: their Studio status and the version of their details row (null while Studio has none); for admins
+   * also whether the customer sees the project at all (client_visible), which customers never learn.
+   */
+  studio?: { status: StudioProjectStatus; version: number | null; visible?: boolean };
   /** Studio projects: what the progress is the share of; without tasks Studio counts finished requests. */
   progressBasis?: "tasks" | "requests" | "none";
   /** Studio projects: open and finished requests (Anfragen) on the service platform. */
