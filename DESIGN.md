@@ -62,6 +62,29 @@ Gilt für Asset Management, Vertrag & Domain, Nachrichten, Schlüsselbund und je
 - Spalten treten bei schmaler Fläche zurück (Container-Abfragen); auf dem Handy werden Zeilen zu zweizeiligen Karten.
 - Sortieren über `SortHeader` und `SortControl`, Filter und Gruppen über `ToolbarMenu`.
 
+## Zeilen markieren: der Schleier
+
+Seit 9.11.2026 im User Management (Zugänge), Vorbild für jeden Zustand einer ganzen Zeile, etwa den Status eines
+Projekts. **Die Zeile trägt die Farbe, nicht ein Knopf.**
+
+- **Schleier über die ganze Zeile:** auf der linken Hälfte voll in der Zustandsfarbe, nach rechts transparent
+  auslaufend: `background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 50%, transparent 100%)`
+  am `tr`.
+- **Balken links:** 4 px breit, rund, 4 px vom Rand und 8 px von oben und unten (`td:first-child::before`), in der
+  Balkenfarbe des Zustands. Auf dem Handy, wo Zeilen Karten sind, läuft er als `inset`-Schatten über die ganze Karte.
+- **Farben:** Rot `--veil-none` mit Balken `--veil-none-bar` für Probleme (ohne Zugang, gefährdet), Gelb `--veil-open`
+  mit `--veil-open-bar` für Wartendes (noch nie angemeldet, pausiert). Weitere Zustände nehmen einen schwachen Schleier
+  ihres Tons (höchstens etwa 8 % Deckkraft) und `--tone-*-bar` als Balken. Zustände ohne Handlungsbedarf dürfen
+  ungefärbt bleiben.
+- **Geöffnete Zeile:** Tönung in Akzent (7 %) und Balken in `--accent-text`; sie liegt über dem Schleier.
+- **Hover** färbt die Zeile unter dem Schleier (`background-color` am `tr`, die Zellen bleiben durchsichtig), sonst
+  würden die Zellen den Schleier verdecken.
+- **Legende** rechts im Fuß (`sheet-footer`): ein Punkt je Farbe (`.veil-dot`) mit Anzahl, z. B. „2 ohne Zugang“; nur
+  die Farben, die gerade vorkommen.
+- **Knöpfe in markierten Zeilen bleiben klein und ruhig:** z. B. ein Status-Auswahlfeld 24 px hoch, weiße Fläche mit
+  Haarlinie, Text 12 px; nur das Zustandszeichen trägt die Farbe. Es öffnet die Hub-Liste und trägt offen die
+  Akzent-Kontur.
+
 ## Panels zum Ansehen und Bearbeiten
 
 - `AssetPanel` (`.am-panel`); im User Management und für Einträge „je Kunde“ schwebend am rechten Rand (`.um-panel`,
@@ -112,7 +135,9 @@ Seit 12.11.2026 (Vorschlag „Studio“), verbindlich für jede Auswahl im Hub:
 | Zustand | Aussehen | Wo |
 | --- | --- | --- |
 | Hover in Listen und Tabellen | Fläche `--sheet-hover` (in Menüs `--menu-hover`) | Zeilen, `.chat-conv`, Menüpunkte |
-| Gewählte Zeile | Tönung `--sheet-select` und 3-px-Balken in Akzent links | Listen links, gewählte Zeile |
+| Gewählter Eintrag in der Liste links | Tönung `--sheet-select` und 3-px-Balken in Akzent am Rand | `.chat-conv` (`aria-current`) |
+| Zustand einer Tabellenzeile | Schleier nach rechts auslaufend und runder 4-px-Balken in der Zustandsfarbe | siehe „Zeilen markieren“ |
+| Geöffnete Tabellenzeile | Tönung in Akzent (7 %) und runder 4-px-Balken in Akzent, über dem Schleier | Zeile, deren Panel offen ist |
 | Gewählte Option | `--menu-selected`, Akzentschrift, Häkchen | Auswahllisten, `.sheet-choice` |
 | Suchfeld aktiv, Liste offen | Akzent-Kontur: Linie 1 px innen plus 3 px Hof (`--select-open-ring`) | `.sheet-search`, `.chat-search`, `.um-pick`, Filter, Status-Pillen |
 | Eingabe in Panels | Linie 2 px in Akzent innen | `.am-input`, `.am-textarea` |
