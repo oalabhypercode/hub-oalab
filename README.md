@@ -39,6 +39,8 @@ npm run dev
 
 Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite zeigt denselben Login wie `/auth/login`. Die Designvorschau ist auch ohne Supabase-Konfiguration erreichbar.
 
+**Lokal immer Admin:** Steht `HUB_LOCAL_ADMIN_EMAIL=<Admin-Adresse>` in `.env.local`, öffnet `npm run dev` den Hub auf [localhost:3000](http://localhost:3000) ohne Anmeldung als dieser Admin. Der Schalter wirkt nur im Entwicklungsserver, der dann nur auf 127.0.0.1 hört, und nur für Aufrufe über localhost; gebaute Versionen, andere Adressen und ein eigenes `-H` ignorieren ihn (`lib/local-admin.ts`, `scripts/dev.mjs`). Mit `HUB_LOCAL_TUNNEL_SCRIPT` öffnet `npm run dev` vorher den Tunnel zum OALab-Server und hält ihn offen (nur Omeds Mac, `service-oalab/scripts/hub-lokal.sh`). Ohne `SMTP_*` gehen lokal keine Mails raus.
+
 ## Betrieb und Vercel
 
 Seit 08.11.2026 läuft [hub.oalab.de](https://hub.oalab.de/) auf der eigenen OALab-Plattform: Coolify-App `oalab-hub` auf Server 2, gebaut aus `main` (jeder Push geht in 2–4 Minuten live), Daten in PostgreSQL und Garage statt Supabase (siehe `lib/platform/` und im Service-Repo `docs/operations/eigener-server.md`).

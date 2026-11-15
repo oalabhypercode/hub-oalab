@@ -154,7 +154,7 @@ export function CustomerContractSheet({ customer, state, files, preview }: { cus
         </section>
       </div>
 
-      <div className="sheet section-first cdm-sheet">
+      <div className="sheet section-first cdm-sheet sheet-fill">
         <SheetToolbar
           query={query}
           onQuery={setQuery}

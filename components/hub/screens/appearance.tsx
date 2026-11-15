@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE, type ColorScheme, type ListView } from "@/lib/appearance";
+import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE, type ColorScheme, type ListView, type PageWidth } from "@/lib/appearance";
 import { hubHref } from "@/lib/hub-data";
 import { useAppearance } from "../appearance-provider";
-import { BackgroundSwatch, ListViewSwatch, SchemeSwatch, Slider, Switch } from "../controls";
+import { BackgroundSwatch, ListViewSwatch, SchemeSwatch, Slider, Switch, WidthSwatch } from "../controls";
 import { GlassCard, GlassLinkButton } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 
 const schemes: { id: ColorScheme; label: string }[] = [{ id: "system", label: "Automatisch" }, { id: "light", label: "Hell" }, { id: "dark", label: "Dunkel" }];
 const listViews: { id: ListView; label: string }[] = [{ id: "minimal", label: "Minimalistisch" }, { id: "detail", label: "Detail" }];
+const widths: { id: PageWidth; label: string }[] = [{ id: "standard", label: "Standard" }, { id: "xl", label: "Breit (XL)" }];
 
 /** Profile › Appearance: every change applies live to the whole hub and is stored in this browser. */
 export function AppearanceScreen({ preview, admin = false }: { preview: boolean; admin?: boolean }) {
@@ -32,6 +33,14 @@ export function AppearanceScreen({ preview, admin = false }: { preview: boolean;
             {schemes.map((scheme) => <SchemeSwatch key={scheme.id} scheme={scheme.id} label={scheme.label} selected={appearance.colorScheme === scheme.id} onSelect={() => update({ colorScheme: scheme.id })} />)}
           </div>
           <p className="t-footnote t-secondary">Automatisch folgt dem hellen oder dunklen Modus deines Geräts und wechselt mit ihm.</p>
+        </GlassCard>
+
+        <GlassCard aria-labelledby="appearance-width">
+          <h2 className="t-headline" id="appearance-width">Breite</h2>
+          <div className="swatch-grid list-swatches">
+            {widths.map((width) => <WidthSwatch key={width.id} width={width.id} label={width.label} selected={appearance.pageWidth === width.id} onSelect={() => update({ pageWidth: width.id })} />)}
+          </div>
+          <p className="t-footnote t-secondary">Breit nutzt den Bildschirm wie ein Programm im Vollbild: Tabellen und Panels reichen fast bis an den Rand, auch nach unten. Auf Handy und Tablet bleibt alles gleich.</p>
         </GlassCard>
 
         {/* Only admins have a list with both views so far; customers get the card once their lists follow it. */}

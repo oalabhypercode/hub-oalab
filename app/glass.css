@@ -787,6 +787,37 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 @media (min-width: 768px) {
   .sheet { container: sheet / inline-size; }
 }
+/* Every table page reaches as far down as the panels of „Vertrag & Domain“ (.am), however few rows it has or what
+   stands above it: the page is a column and the sheet takes the rest, its footer at the bottom. Phones keep the
+   natural height. (Block flow collapses the title's 4 px into the sheet's 20 px; the column would add them.) */
+@media (min-width: 768px) {
+  .sheet-fill { display: flex; flex-direction: column; }
+  .sheet-fill > .sheet-footer { margin-top: auto; border-top: 1px solid var(--sheet-line); }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sheet-fill { min-height: calc(100dvh - 280px); }
+}
+@media (min-width: 1024px) {
+  .hub-content:has(> .sheet-fill) { display: flex; flex-direction: column; min-height: calc(100dvh - 20px - 64px); }
+  .hub-app:has(.hub-notice) .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 20px - 64px - 52px); }
+  .hub-content:has(> .sheet-fill) > .large-title-header { margin-bottom: 0; }
+  .sheet-fill { flex: 1 0 auto; }
+}
+/* Darstellung › Breite „Breit (XL)“, from 1024 px on: like an IDE in full screen – 12 px to the sidebar, the window's
+   edge and the bottom, table pages over the whole width, the sheet down to 12 px above the bottom on every page
+   (whatever stands above it). Standard stays exactly as before. */
+@media (min-width: 1024px) {
+  :root[data-width="xl"] .hub-main { padding: 14px 12px 12px calc(272px + 12px + 12px); }
+  :root[data-width="xl"] .hub-app.has-assistant-dock .hub-main { padding-right: calc(var(--assistant-dock) + 12px + 12px); }
+  :root[data-width="xl"] :is(.hub-content, .hub-notice) { max-width: 1240px; }
+  :root[data-width="xl"] .hub-content:has(> .sheet), :root[data-width="xl"] .hub-app:has(.hub-content > .sheet) .hub-notice { max-width: none; }
+  :root[data-width="xl"] .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px); }
+  :root[data-width="xl"] .hub-content:has(> :is(.am, .chat)) { display: flex; flex-direction: column; height: calc(100dvh - 14px - 12px); }
+  :root[data-width="xl"] .hub-app:has(.hub-notice) .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px - 52px); }
+  :root[data-width="xl"] .hub-app:has(.hub-notice) .hub-content:has(> :is(.am, .chat)) { height: calc(100dvh - 14px - 12px - 52px); }
+  :root[data-width="xl"] .hub-content:has(> :is(.am, .chat)) > .large-title-header { margin-bottom: 0; }
+  :root[data-width="xl"] .hub-content > :is(.am, .chat) { flex: 1 1 0; height: auto; min-height: 460px; }
+}
 .sheet-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; min-height: 52px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--sheet-line); }
 .sheet-search { display: inline-flex; align-items: center; gap: 7px; flex: 0 1 260px; min-width: 170px; height: 32px; margin-right: 6px; padding: 0 10px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
 .sheet-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 13.5px; color: var(--label); }
@@ -1649,6 +1680,54 @@ a.teams-join:active { transform: scale(0.97); }
 .project-task-meta { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .project-tasks li.is-done .project-task-title { color: var(--label-secondary); text-decoration: line-through; }
 .project-ask { margin-top: 16px; }
+/* Shortcuts of the project dialog: everything around the customer one click (or digit) away. A quiet grid of equal
+   tiles, three across in the dialog and two on phones; the digit sits right, only where there is a keyboard. They
+   follow the dialog in a short cascade (30 ms apart), then stand still; hover lifts the tint, pressing gives way. */
+.project-quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 18px 0 4px; }
+.project-quick-link { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 0 10px 0 12px; border-radius: 12px; background: var(--fill-tertiary); color: var(--label); font-size: 15px; font-weight: 600; text-decoration: none;
+  animation: project-quick-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: calc(60ms + var(--i, 0) * 30ms);
+  transition: background-color 160ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.project-quick-link > svg { flex: 0 0 auto; }
+.project-quick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-quick-link kbd { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--separator); font: 600 11px/1 var(--font-text); color: var(--label-secondary); }
+.project-quick-link:hover { background: color-mix(in srgb, var(--label) 12%, transparent); }
+.project-quick-link:active { transform: scale(0.97); transition-duration: 80ms; }
+.project-quick-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+@keyframes project-quick-in { from { opacity: 0; filter: blur(6px); translate: 0 -6px; } }
+@media (hover: none), (pointer: coarse) { .project-quick-link kbd { display: none; } }
+/* The website comes last; standing alone in its row it takes the whole row, so its address reads in full. */
+.project-quick-link.is-site:nth-child(3n + 1):last-child { grid-column: 1 / -1; }
+@media (max-width: 480px) {
+  .project-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-quick-link kbd { display: none; }
+  .project-quick-link.is-site:nth-child(3n + 1):last-child { grid-column: auto; }
+  .project-quick-link.is-site:nth-child(2n + 1):last-child { grid-column: 1 / -1; }
+}
+.project-quick + .project-tasks { margin-top: 14px; }
+.hub-modal .project-tasks-empty { margin-top: 14px; }
+/* The website first (customers' project window): live and test address, each a line that opens the site. */
+.project-sites { display: grid; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+.project-sites li { animation: project-quick-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: calc(40ms + var(--i, 0) * 50ms); }
+.project-site { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 8px 14px 8px 10px; border-radius: 14px; background: var(--fill-tertiary); color: var(--label); text-decoration: none; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.project-site:hover { background: color-mix(in srgb, var(--label) 12%, transparent); }
+.project-site:active { transform: scale(0.985); transition-duration: 80ms; }
+.project-site:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+.project-site-icon { width: 40px; height: 40px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; background: rgb(52 199 89 / 0.14); color: rgb(31, 157, 72); }
+.project-site.is-test .project-site-icon { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+.project-site.is-website .project-site-icon { background: var(--fill-tertiary); color: var(--label-secondary); }
+.project-site-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.project-site-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; line-height: 22px; font-weight: 600; }
+.project-site-text small { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.project-site-text small i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 2.5px; background: var(--tone-ok-bar); }
+.project-site.is-test small i { background: var(--tone-todo-bar); }
+.project-site.is-website small i { background: var(--system-gray); }
+.project-site-go { flex: 0 0 auto; color: var(--label-secondary); transition: transform 180ms cubic-bezier(0.3, 1.4, 0.5, 1), color 150ms ease; }
+.project-site:hover .project-site-go { transform: translate(2px, -2px); color: var(--accent-text); }
+.project-site:hover .project-site-text strong { color: var(--accent-text); }
+:root[data-theme="dark"] .project-site-icon { background: rgb(48 209 88 / 0.16); color: rgb(48, 209, 88); }
+:root[data-theme="dark"] .project-site.is-test .project-site-icon { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+:root[data-theme="dark"] .project-site.is-website .project-site-icon { background: var(--fill-tertiary); color: var(--label-secondary); }
+.project-sites + .project-modal-progress { margin-top: 0; }
 
 /* Task proposals of the assistant: a preview the admin checks before anything is saved */
 .proposal-card { margin-top: 10px; padding: 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--separator); }
@@ -1913,6 +1992,11 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .list-preview-detail i { height: 11px; padding-bottom: 1px; border-bottom: 1px solid var(--sheet-divider); }
 .list-preview-detail i::before { width: 5px; height: 5px; border-radius: 2px; }
 .list-preview-detail i::after { height: 3px; background: repeating-linear-gradient(90deg, var(--sheet-line) 0 14px, transparent 14px 18px); }
+/* Profil › Darstellung › Breite: a small window – sidebar on the left, the page's sheet with margins or edge to edge. */
+.width-preview { position: relative; width: 88px; overflow: hidden; background: radial-gradient(circle at 20% 15%, var(--bg-orb-1) 0%, transparent 70%), var(--bg-base); }
+.width-preview i { position: absolute; top: 5px; bottom: 5px; left: 5px; width: 15px; border-radius: 5px; background: rgb(255 255 255 / 0.2); }
+.width-preview b { position: absolute; top: 16px; right: 13px; bottom: 15px; left: 33px; border-radius: 4px; background: var(--sheet) repeating-linear-gradient(180deg, transparent 0 7px, var(--sheet-line) 7px 8px) 0 6px / 100% calc(100% - 6px) no-repeat; transition: inset 260ms cubic-bezier(0.3, 1.3, 0.5, 1); }
+.width-preview-xl b { top: 9px; right: 4px; bottom: 4px; left: 24px; }
 
 /* Freelancers (4.11.2026): who sees a file at a customer, and who looks after a customer. */
 .am-audience-tag { flex: 0 0 auto; display: inline-flex; align-items: center; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: var(--sheet-seg); font-size: 11.5px; line-height: 18px; font-weight: 600; color: var(--sheet-muted); white-space: nowrap; vertical-align: 1px; }
@@ -2550,6 +2634,42 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 @media (max-width: 767px) {
   .cdm-template-acts { justify-content: flex-start; }
   .cdm-admin-table .cell-date small { margin-left: 4px; }
+}
+
+/* Projekte (admins): the customer panel in the frame of „Vertrag & Domain“ – website, domains, state and tasks. */
+.pp-tile-icon { color: var(--cat-projects-text); }
+.pp-jumps { flex: 0 0 auto; gap: 2px; }
+.pp-jump { width: 36px; height: 36px; border-radius: 10px; transition: background-color 120ms ease, transform 160ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.pp-jump:active { transform: scale(0.92); transition-duration: 80ms; }
+.pp-jump:focus-visible, .pp-url:focus-visible, .pp-adopt:focus-visible, .pp-inline-link:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-gap), 0 0 0 4px var(--accent-text); }
+.pp-url .am-file-text strong { font-size: 14.5px; line-height: 19px; font-weight: 600; }
+.cdm-file-icon.pp-icon-live { background: rgb(52 199 89 / 0.12); color: rgb(31, 157, 72); }
+.cdm-file-icon.pp-icon-test { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+.cdm-file-icon:is(.pp-icon-customer, .pp-icon-state) { background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.cdm-file-icon.pp-icon-task { background: rgb(88 86 214 / 0.1); color: rgb(88, 86, 214); }
+:root[data-theme="dark"] .cdm-file-icon.pp-icon-test { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+:root[data-theme="dark"] .cdm-file-icon:is(.pp-icon-customer, .pp-icon-state) { background: var(--sheet-seg); color: var(--sheet-muted); }
+:root[data-theme="dark"] .cdm-file-icon.pp-icon-task { background: rgb(94 92 230 / 0.2); color: rgb(169, 167, 255); }
+.file-dot.pp-dot-live i { background: var(--tone-ok-bar); }
+.file-dot.pp-dot-test i { background: var(--tone-todo-bar); }
+.file-dot.pp-dot-customer i { background: var(--sheet-icon); }
+.pp-progress { display: inline-flex; align-items: center; gap: 10px; }
+.pp-progress .list-progress { width: 120px; }
+.pp-progress b { font-weight: 600; color: var(--label); }
+.pp-inline-link { border-radius: 4px; color: var(--accent-text); }
+.pp-inline-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pp-adopt { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); color: var(--accent-text); font-size: 12.5px; font-weight: 600; white-space: nowrap; transition: background-color 120ms ease; }
+.pp-adopt:hover:not(:disabled) { background: rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k))); }
+.pp-adopt:disabled { opacity: 0.6; }
+/* „Worum es geht“: the description in full, over the whole row. */
+.am .file-table tr.pp-about td { height: auto; padding-top: 12px; padding-bottom: 12px; }
+.pp-about .am-file { align-items: flex-start; }
+.pp-about .am-file-text small { overflow: visible; white-space: normal; font-size: 13px; line-height: 19px; color: var(--label-body); }
+.pp-table tr.is-done .am-file-text strong { color: var(--sheet-muted); text-decoration: line-through; }
+@media (max-width: 767px) {
+  .pp .am-pane-head { flex-wrap: wrap; row-gap: 6px; }
+  .pp-jumps { order: 3; flex-basis: 100%; justify-content: space-between; }
+  .pp-adopt { height: 30px; }
 }
 
 /* The customer's tabs (admins): package choice inside the row, a save bar only while something changed, the six domain

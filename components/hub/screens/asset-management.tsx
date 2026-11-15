@@ -83,18 +83,22 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   // The customers list carries the logos; a file's own customer entries do not, so they are looked up here.
   const logos = useMemo(() => new Map(customers.flatMap((customer) => customer.logo ? [[customer.id, customer.logo] as const] : [])), [customers]);
 
-  // A notice links its file (/files?file=<id>): the page opens with that file and its customer.
-  const linkedFile = useSearchParams().get("file");
+  // A notice links its file (/files?file=<id>): the page opens with that file and its customer. The project dialog
+  // links its customer (/files?customer=<id>): the page opens on that customer's files.
+  const params = useSearchParams();
+  const linkedFile = params.get("file");
+  const linkedCustomer = customers.some((customer) => customer.id === params.get("customer")) ? params.get("customer") : null;
   const [panel, setPanel] = useState<Panel | null>(() => linkedFile && files.some((file) => file.id === linkedFile) ? { kind: "file", id: linkedFile, assign: false } : null);
   const [view, setView] = useState<View>(() => {
     const linked = files.find((file) => file.id === linkedFile);
     if (linked) return linked.customers[0] ? { kind: "customer", id: linked.customers[0].id } : { kind: "inbox" };
+    if (linkedCustomer) return { kind: "customer", id: linkedCustomer };
     const recent = [...rows].filter((row) => row.customer.id !== ownId).sort((a, b) => b.last.localeCompare(a.last))[0];
     if (recent?.files.length) return { kind: "customer", id: recent.customer.id };
     return ownId ? { kind: "customer", id: ownId } : { kind: "all" };
   });
-  // Narrow screens show one side at a time: the customers first, unless a link opened a file.
-  const [paneOpen, setPaneOpen] = useState(Boolean(linkedFile));
+  // Narrow screens show one side at a time: the customers first, unless a link opened a file or a customer.
+  const [paneOpen, setPaneOpen] = useState(Boolean(linkedFile || linkedCustomer));
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerOrder, setCustomerOrder] = useState<"recent" | "az">("recent");
   const [query, setQuery] = useState("");

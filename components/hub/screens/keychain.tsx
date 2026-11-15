@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronsDownUp, ChevronsUpDown, Inbox, KeyRound, LayoutGrid, LayoutList, Plus, Search, Settings, Table2, Tag } from "lucide-react";
 import type { ListView } from "@/lib/appearance";
 import { REVEAL_SECONDS, type VaultOwner } from "@/lib/hub-domains/rules";
@@ -42,8 +43,10 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
   const { lock, open, left } = api;
   const { appearance, update } = useAppearance();
   const listView: ListView = appearance.listView;
-  const [view, setView] = useState<View>({ kind: "all" });
-  const [paneOpen, setPaneOpen] = useState(false);
+  // The project dialog links its customer (/keychain?customer=<id>): the page opens with their accesses.
+  const linkedOwner = useSearchParams().get("customer");
+  const [view, setView] = useState<View>(() => linkedOwner && state.owners.some((owner) => owner.id === linkedOwner) ? { kind: "owner", id: linkedOwner } : { kind: "all" });
+  const [paneOpen, setPaneOpen] = useState(() => view.kind === "owner");
   const [listQuery, setListQuery] = useState("");
   const [query, setQuery] = useState("");
   const [seg, setSeg] = useState<"all" | "missing">("all");

@@ -171,3 +171,29 @@ test("the pre-paint script applies the stored appearance without outside referen
   assert.equal(root.dataset.theme, "dark", "a dark device gets the dark theme before the first paint");
   assert.equal(root.style.colorScheme, "dark");
 });
+
+test("Breite: Standard unless XL is stored, set on <html> before the first paint", () => {
+  assert.equal(defaultAppearance.pageWidth, "standard");
+  assert.equal(normalizeAppearance(null).pageWidth, "standard");
+  assert.equal(normalizeAppearance({ pageWidth: "xl" }).pageWidth, "xl");
+  assert.equal(normalizeAppearance({ pageWidth: "huge" }).pageWidth, "standard");
+  assert.equal(resolveAppearance({ pageWidth: "xl" }, backgroundPresets, false).width, "xl");
+  assert.equal(resolveAppearance({ pageWidth: 1 }, backgroundPresets, false).width, "standard");
+  const root = { style: { setProperty: () => {} }, dataset: {} };
+  vm.runInNewContext(appearanceInlineScript(), {
+    localStorage: { getItem: () => JSON.stringify({ pageWidth: "xl" }) },
+    window: { matchMedia: () => ({ matches: false }) },
+    document: { documentElement: root },
+  });
+  assert.equal(root.dataset.width, "xl");
+});
+
+test("XL only widens desktops, Standard keeps its paddings, and every table page has the panels' minimum height", async () => {
+  const css = await source("app/glass.css");
+  assert.match(css, /\n\.hub-main \{ min-height: 100dvh; padding: 20px 28px 64px calc\(272px \+ 12px \+ 28px\); \}/);
+  const xl = css.slice(css.indexOf("@media (min-width: 1024px) {\n  :root[data-width=\"xl\"]"));
+  assert.match(xl, /^@media \(min-width: 1024px\) \{\n {2}:root\[data-width="xl"\] \.hub-main \{ padding: 14px 12px 12px calc\(272px \+ 12px \+ 12px\); \}/);
+  assert.match(css, /\.hub-content:has\(> \.sheet-fill\) \{ display: flex; flex-direction: column; min-height: calc\(100dvh - 20px - 64px\); \}/);
+  assert.match(css, /\.sheet-fill \{ flex: 1 0 auto; \}/);
+  assert.match(css, /\n\.am \{ height: calc\(100dvh - 148px\);/);
+});
