@@ -72,6 +72,9 @@ export type Project = {
   customerId?: string;
   /** Studio projects: the customer's website from the user management, as a full https URL. */
   website?: string;
+  /** Studio projects: where the finished site runs (branch main) and where every change is previewed first (branch test). */
+  liveUrl?: string;
+  testUrl?: string;
   /** ISO dates; fixtures always have both, Studio projects may have neither. */
   startedOn: string | null;
   dueOn: string | null;

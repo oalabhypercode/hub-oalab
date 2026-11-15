@@ -12,6 +12,9 @@ export type ColorScheme = "system" | "light" | "dark";
 /** Listen: one quiet line per entry (symbol, title, date) or every column. */
 export type ListView = "minimal" | "detail";
 
+/** Breite: the page as it was (Standard), or the sheets almost edge to edge like an IDE (XL). */
+export type PageWidth = "standard" | "xl";
+
 export type BackgroundPreset = {
   id: BackgroundPresetId;
   name: string;
@@ -28,6 +31,7 @@ export type Appearance = {
   reduceTransparency: boolean;
   reduceMotion: boolean;
   listView: ListView;
+  pageWidth: PageWidth;
 };
 
 /** White text reaches at least 4.5:1 on every base and orb colour (see tests/appearance.test.mjs). */
@@ -54,9 +58,10 @@ export const defaultAppearance: Appearance = {
   reduceTransparency: false,
   reduceMotion: false,
   listView: "minimal",
+  pageWidth: "standard",
 };
 
-export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark" };
+export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark"; width: PageWidth };
 
 /** The dark theme shows the background at this brightness at most (glass.css mixes it with black, --bg-shade). */
 export const DARK_BACKGROUND_SHADE = 0.62;
@@ -104,6 +109,8 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : false,
     onBackground,
     theme,
+    // Set before the first paint like the theme, so a page in XL does not open narrow and then jump wide.
+    width: input.pageWidth === "xl" ? "xl" : "standard",
   };
 }
 
@@ -122,6 +129,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : defaultAppearance.reduceMotion,
     listView: input.listView === "detail" ? "detail" : "minimal",
+    pageWidth: input.pageWidth === "xl" ? "xl" : "standard",
   };
 }
 
@@ -132,6 +140,7 @@ export function applyAppearanceToDocument(dom: AppearanceDom, root: HTMLElement)
   root.dataset.reduceMotion = String(dom.reduceMotion);
   root.dataset.onBackground = dom.onBackground;
   root.dataset.theme = dom.theme;
+  root.dataset.width = dom.width;
   // Native controls and scrollbars follow the theme as well.
   root.style.colorScheme = dom.theme;
 }

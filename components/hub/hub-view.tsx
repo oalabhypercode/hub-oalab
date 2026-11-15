@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Globe, KeyRound, Sparkles, UserCog } from "lucide-react";
-import { categories, type CategoryId } from "@/lib/categories";
+import { ArrowUpRight, Globe, Sparkles } from "lucide-react";
+import { categories } from "@/lib/categories";
 import { formatDeadline, hubHref, previewAccount, previewFiles, previewProjects, sampleFolders, type HubSection, type Project, type ProjectTask } from "@/lib/hub-data";
 import type { HubFilesState } from "@/lib/hub-files/types";
 import { calendarFixtures } from "@/lib/hub-calendar/fixtures";
@@ -12,7 +12,7 @@ import type { HubCalendarState } from "@/lib/hub-calendar/types";
 import { buildHubModel, isMetricId } from "@/lib/hub-metrics";
 import { useFavorites } from "@/lib/use-favorites";
 import { Modal } from "./modal";
-import { CategoryIcon } from "./glass";
+import { quickLinks, type QuickLink } from "./project-links";
 import { useHubShell } from "./shell-context";
 import { ProjectStatus } from "./project-status";
 import { AppearanceScreen } from "./screens/appearance";
@@ -20,7 +20,8 @@ import { CalendarScreen } from "./screens/calendar";
 import { MetricDetailScreen } from "./screens/metric-detail";
 import { InsightsScreen, OverviewScreen } from "./screens/overview";
 import { FilesScreen } from "./screens/files";
-import { DiscoverScreen, ProfileScreen, ProjectsScreen } from "./screens/workspace";
+import { DiscoverScreen, ProfileScreen } from "./screens/workspace";
+import { ProjectsScreen } from "./screens/projects";
 import { ConversationsScreen } from "./screens/conversations";
 import { UserManagementScreen } from "./screens/users";
 import { PatchNotesScreen } from "./screens/patch-notes";
@@ -35,7 +36,7 @@ import type { AssistantLogState } from "@/lib/hub-assistant/log";
 import type { ScreenProps } from "./screens/types";
 import type { HubRole } from "@/lib/hub-users/rules";
 import type { UserManagementState } from "@/lib/hub-users/types";
-import type { LiveProjectsState } from "@/lib/hub-projects/map";
+import { projectSites, restatesSite, shortUrl, type LiveProjectsState, type ProjectSite } from "@/lib/hub-projects/map";
 import type { ConversationsState } from "@/lib/hub-conversations/types";
 import type { PrivateChatState } from "@/lib/hub-private-chat/types";
 
@@ -100,6 +101,8 @@ export function HubView({ section = "overview", detail, preview = false, email =
   }, [contracts, admin, preview, fileState.files]);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
   const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
+  // Admins open a project on „Projekte“ in the page's own panel; the window stays for customers and every other page.
+  const panelShowsProject = admin && !preview && section === "projects" && !detail;
 
   const screen: ScreenProps = {
     model, preview, populated, asOf, projects, files, fileState, calendar, favorites, admin, freelancer,
@@ -125,39 +128,12 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "keychain" && keychain ? <KeychainScreen state={keychain} />
         : section === "patch-notes" ? <PatchNotesScreen />
         : <ProfileScreen {...screen} email={email} />}
-      {selectedProject && <ProjectModal project={selectedProject} preview={preview} admin={admin} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
+      {selectedProject && !panelShowsProject && <ProjectModal project={selectedProject} preview={preview} admin={admin} onClose={() => router.replace(hubHref(preview, "projects"), { scroll: false })} />}
     </>
   );
 }
 
 const taskStatusLabels: Record<ProjectTask["status"], string> = { backlog: "Backlog", todo: "Offen", progress: "In Arbeit", review: "In Prüfung", done: "Erledigt" };
-
-type QuickLink = { id: string; label: string; href: string; icon: React.ReactNode; external?: boolean; tip: string };
-
-/**
- * Everything around the project in one click: its chat, files, next date, contract, accesses, customer entry and the
- * live website. Each target opens with this customer already chosen; a target that does not exist is left out instead
- * of leading to an empty page. On a keyboard the digits 1–9 open them too.
- */
-function quickLinks(project: Project, preview: boolean, admin: boolean): QuickLink[] {
-  const customer = project.customerId;
-  // Real projects without a hub customer have nothing to filter by; the preview shows the pages with its examples.
-  const known = Boolean(customer) || preview;
-  const withCustomer = (section: HubSection, key: string) => `${hubHref(preview, section)}${customer ? `?${key}=${encodeURIComponent(customer)}` : ""}`;
-  const icon = (category: CategoryId) => <CategoryIcon category={category} size={18} />;
-  const links: (QuickLink | false)[] = [
-    known && { id: "chat", label: "Chat", href: withCustomer("messages", "chat"), icon: icon("messages"), tip: admin ? `Chat mit ${project.company ?? "dem Kunden"}` : "Chat mit OALab" },
-    known && { id: "files", label: "Dateien", href: withCustomer("files", "customer"), icon: icon("files"), tip: admin ? `Dateien von ${project.company ?? "diesem Kunden"}` : "Deine Dateien" },
-    project.dueOn
-      ? { id: "date", label: formatDeadline(project.dueOn), href: `${hubHref(preview, "calendar")}?day=${project.dueOn}`, icon: icon("calendar"), tip: "Nächsten Termin im Kalender zeigen" }
-      : { id: "date", label: "Kalender", href: hubHref(preview, "calendar"), icon: icon("calendar"), tip: "Kalender öffnen" },
-    known && { id: "contract", label: "Vertrag", href: withCustomer("contracts", "customer"), icon: icon("contracts"), tip: "Vertrag, Domain und Postfächer" },
-    admin && known && { id: "keychain", label: "Zugänge", href: withCustomer("keychain", "customer"), icon: <KeyRound size={18} color="var(--accent-text)" aria-hidden="true" />, tip: "Zugänge im Schlüsselbund" },
-    admin && known && { id: "customer", label: "Kunde", href: withCustomer("users", "customer"), icon: <UserCog size={18} color="var(--accent-text)" aria-hidden="true" />, tip: "Kundeneintrag in der Nutzerverwaltung" },
-    Boolean(project.website) && { id: "website", label: new URL(project.website!).hostname.replace(/^www\./, ""), href: project.website!, icon: <Globe size={18} color="var(--system-gray)" aria-hidden="true" />, external: true, tip: "Website in neuem Tab öffnen" },
-  ];
-  return links.filter((link): link is QuickLink => Boolean(link));
-}
 
 function ProjectQuickLinks({ links }: { links: QuickLink[] }) {
   const nav = useRef<HTMLElement>(null);
@@ -189,16 +165,37 @@ function ProjectQuickLinks({ links }: { links: QuickLink[] }) {
   );
 }
 
+/** Live and test address of the project, each a line that opens the site in a new tab; the website comes first. */
+function ProjectSites({ sites }: { sites: ProjectSite[] }) {
+  if (!sites.length) return null;
+  return (
+    <ul className="project-sites" aria-label="Website">
+      {sites.map((site, index) => (
+        <li key={site.key} style={{ "--i": index } as React.CSSProperties}>
+          <a className={`project-site is-${site.key}`} href={site.url} target="_blank" rel="noopener noreferrer" data-tip={site.url} aria-label={`${site.label}: ${shortUrl(site.url)} öffnen (neuer Tab)`}>
+            <span className="project-site-icon"><Globe size={18} aria-hidden="true" /></span>
+            <span className="project-site-text"><strong>{shortUrl(site.url)}</strong><small><i aria-hidden="true" />{site.label} · {site.sub}</small></span>
+            <ArrowUpRight className="project-site-go" size={18} aria-hidden="true" />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function ProjectModal({ project, preview, admin, onClose }: { project: Project; preview: boolean; admin: boolean; onClose: () => void }) {
   // Studio projects carry their tasks; the fixtures stay example projects with the example conversation.
   const tasks = project.tasks;
   const { manageUsers, askAboutProject, assistantDocked } = useHubShell();
   const links = quickLinks(project, preview, admin);
+  const sites = projectSites(project);
+  const description = restatesSite(project.description, sites.map((site) => site.url)) ? "" : project.description;
   return (
     <Modal title={project.category || project.company || "Projekt"} onClose={onClose}>
       <div className="project-modal-status"><ProjectStatus value={project.status} /><span>Ziel: {project.date}</span></div>
       <h3 className="project-modal-title">{project.name}</h3>
-      {project.description && <p className="modal-description">{project.description}</p>}
+      {description && <p className="modal-description">{description}</p>}
+      <ProjectSites sites={sites} />
       <div className="project-modal-progress"><span>Projektfortschritt</span><strong className="numeric">{project.progress} %</strong></div>
       <div className="progress-bar" aria-hidden="true" style={{ background: `color-mix(in srgb, ${categories.projects.fill} 25%, transparent)` }}><span style={{ width: `${project.progress}%`, background: categories.projects.fill }} /></div>
       <ProjectQuickLinks links={links} />

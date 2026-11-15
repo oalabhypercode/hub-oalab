@@ -10,7 +10,7 @@ import type { Milestone, Project, ProjectTask, StudioProjectStatus } from "../hu
 /** The label that marks a task the customer has to do. */
 export const CUSTOMER_LABEL = "Kunde";
 
-export type StudioProjectRow = { id: string; organization_id: string; display_name: string; status: string };
+export type StudioProjectRow = { id: string; organization_id: string; display_name: string; status: string; test_url?: string | null; live_url?: string | null };
 export type StudioDetailsRow = {
   project_id: string;
   description: string;
@@ -33,8 +33,14 @@ export type StudioTaskRow = {
 };
 export type RequestCounts = { open: number; done: number };
 
-/** Studio projects of a real login, or why they could not be loaded. */
-export type LiveProjectsState = { projects: Project[]; error: string | null };
+/** A domain of the customer from „Vertrag & Domain“, as the project panel lists it (admins only). */
+export type ProjectDomain = { id: string; domain: string; display: string; status: string; renewsOn: string | null };
+
+/** The hub customer behind projects, for the admins' project panel: number, website and domains. */
+export type ProjectCustomer = { id: string; company: string; customerNumber: string; website: string | null; domains: ProjectDomain[] };
+
+/** Studio projects of a real login, or why they could not be loaded; admins also get the customers behind them. */
+export type LiveProjectsState = { projects: Project[]; error: string | null; customers?: ProjectCustomer[] };
 
 const taskStatuses = ["backlog", "todo", "progress", "review", "done"] as const;
 const isCustomerLabel = (label: string) => label.trim().toLowerCase() === CUSTOMER_LABEL.toLowerCase();
@@ -95,6 +101,75 @@ export function websiteUrl(value: string | null | undefined): string | null {
   }
 }
 
+/** A stored project address as a link: only https, as the database allows; anything else is no address. */
+export function projectUrl(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text || !/^https:\/\/\S+$/i.test(text)) return null;
+  try {
+    return new URL(text).hostname.includes(".") ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+/** "https://www.abc.de/" → "abc.de": the address the way people say it. */
+export function shortUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+    return `${parsed.hostname.replace(/^www\./, "")}${path}`;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * An address typed into the panel ("abc.de", " https://abc.de/ ") as it is stored: https, no spaces, at most 2048
+ * characters; empty clears. Returns an error text for anything else.
+ */
+export function readProjectUrl(value: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return { ok: true, value: null };
+  if (/^http:\/\//i.test(text)) return { ok: false, error: "Bitte eine sichere Adresse mit https:// eintragen." };
+  const withScheme = /^https:\/\//i.test(text) ? text : `https://${text}`;
+  if (/\s/.test(withScheme) || withScheme.length > 2048) return { ok: false, error: "Die Adresse darf keine Leerzeichen enthalten." };
+  try {
+    const url = new URL(withScheme);
+    if (!url.hostname.includes(".")) return { ok: false, error: "Das sieht nicht nach einer Web-Adresse aus, etwa kunde.de." };
+    return { ok: true, value: url.pathname === "/" && !url.search && !url.hash ? url.origin : url.href };
+  } catch {
+    return { ok: false, error: "Das sieht nicht nach einer Web-Adresse aus, etwa kunde.de." };
+  }
+}
+
+export type ProjectSite = { key: "live" | "website" | "test"; url: string; label: string; sub: string };
+
+/**
+ * The project's addresses as everyone reads them: the live address (or, without one, the website from the customer
+ * data) and the test address, where every change shows first.
+ */
+export function projectSites(project: Project): ProjectSite[] {
+  const sites: ProjectSite[] = [];
+  if (project.liveUrl) sites.push({ key: "live", url: project.liveUrl, label: "Live", sub: "Die fertige Website" });
+  else if (project.website) sites.push({ key: "website", url: project.website, label: "Website", sub: "Aus den Kundendaten" });
+  if (project.testUrl) sites.push({ key: "test", url: project.testUrl, label: "Test", sub: "Vorschau: Änderungen erscheinen zuerst hier" });
+  return sites;
+}
+
+/** "Website podologie-sassnitz.de" says nothing the address rows do not already show: such a description stays out. */
+export function restatesSite(description: string | undefined, urls: (string | null | undefined)[]): boolean {
+  const text = description?.trim().toLocaleLowerCase("de").replace(/^(die\s+)?(website|webseite|homepage)\s*:?\s*/, "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+  if (!text) return Boolean(description);
+  return urls.some((url) => {
+    if (!url) return false;
+    try {
+      return new URL(url).hostname.replace(/^www\./, "") === text;
+    } catch {
+      return false;
+    }
+  });
+}
+
 const targetDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "long", year: "numeric" });
 
 /** One hub project from its Studio rows; `tasks` are the tasks the viewer may see. */
@@ -120,6 +195,9 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     organizationId: project.organization_id,
     ...(input.customer ? { customerId: input.customer.id } : {}),
     ...(website ? { website } : {}),
+    // Test and live address of the project itself (customer_projects, one source for customer, Studio and Business).
+    ...(projectUrl(project.live_url) ? { liveUrl: projectUrl(project.live_url)! } : {}),
+    ...(projectUrl(project.test_url) ? { testUrl: projectUrl(project.test_url)! } : {}),
     startedOn: details?.start_date ?? null,
     dueOn,
     milestones: toMilestones(details?.milestones),

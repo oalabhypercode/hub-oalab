@@ -266,7 +266,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       {notice && <p className="calendar-notice section-first" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
       {!state.mailConfigured && <GlassCard className="file-demo-note section-first"><MailX size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Der Mailversand ist noch nicht eingerichtet (SMTP-Zugang fehlt). Benachrichtigungen werden nur protokolliert; Links und Nachrichten gibst du bis dahin selbst weiter.</p></GlassCard>}
 
-      <div className="sheet section-first">
+      <div className="sheet section-first sheet-fill">
         {tab === "users" ? (
           <SheetToolbar query={userQuery} onQuery={setUserQuery} placeholder="Name, E-Mail, Unternehmen, Kunden-Nr. …" label="Zugänge durchsuchen" compact
             leading={switcher} trailing={manage}>

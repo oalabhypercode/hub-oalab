@@ -151,7 +151,7 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
-        <div className="sheet section-first">
+        <div className="sheet section-first sheet-fill">
           <SheetToolbar query={query} onQuery={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen">
             <ToolbarMenu icon={ListFilter} label="Filter" badge={menuFilters}>
               {showCustomers && <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((item) => customerOption(item)), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)", lead: <Inbox size={15} aria-hidden="true" /> }] : [])]} />}

@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Search } from "lucide-react";
-import type { BackgroundPreset, ColorScheme, ListView } from "@/lib/appearance";
+import type { BackgroundPreset, ColorScheme, ListView, PageWidth } from "@/lib/appearance";
 
 /** Capsule segmented control; arrow keys move the selection. An optional count sits in its own badge next to the label. */
 export function SegmentedControl<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string; name: string; count?: number }[]; value: T; onChange: (value: T) => void; label: string }) {
@@ -66,6 +66,16 @@ export function ListViewSwatch({ view, label, selected, onSelect }: { view: List
   return (
     <button type="button" className="background-swatch" aria-pressed={selected} onClick={onSelect}>
       <span className={`background-swatch-preview list-preview list-preview-${view}`} aria-hidden="true"><i /><i /><i /><i /></span>
+      <span className="background-swatch-name">{label}</span>
+    </button>
+  );
+}
+
+/** Profil › Darstellung › Breite: a small window with the sidebar and the page, narrow or edge to edge. */
+export function WidthSwatch({ width, label, selected, onSelect }: { width: PageWidth; label: string; selected: boolean; onSelect: () => void }) {
+  return (
+    <button type="button" className="background-swatch" aria-pressed={selected} onClick={onSelect}>
+      <span className={`background-swatch-preview width-preview width-preview-${width}`} aria-hidden="true"><i /><b /></span>
       <span className="background-swatch-name">{label}</span>
     </button>
   );

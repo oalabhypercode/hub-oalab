@@ -64,7 +64,7 @@ export function AssistantLogScreen({ state }: { state: AssistantLogState }) {
   return (
     <>
       <LargeTitleHeader title="KI-Protokoll" icon={title} actions={<HeaderActions />} />
-      <div className="sheet section-first">
+      <div className="sheet section-first sheet-fill">
       <SheetToolbar query={query} onQuery={setQuery} placeholder="Admin, Kunde, Projekt, Inhalt …" label="KI-Protokoll durchsuchen">
         <ToolbarMenu icon={ListFilter} label="Filter" badge={filters}>
           <FilterSelect icon={Activity} name="Nach Ergebnis filtern" value={outcome} onChange={setOutcome} options={[{ value: ALL, label: "Alle Ergebnisse" }, ...outcomeOrder.map((item) => ({ value: item, label: outcomeLabels[item] }))]} />
