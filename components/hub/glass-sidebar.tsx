@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Bot, KeyRound, LogOut, Palette, ScrollText, Search, Settings, UserCog, UserRound } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Bot, KeyRound, LogOut, Palette, ScrollText, Search, Settings, SquareKanban, UserCog, UserRound } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { categories, categoriesFor, categoryLabel, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
@@ -37,6 +38,8 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
   // Under the name: the packages in short, for the oalab team its name.
   const meta = activePackages || (account.admin ? "oalab-Team" : account.freelancer ? "Freelancer" : "");
   const [menuOpen, setMenuOpen] = useState(false);
+  // „Aufgaben“ hangs under Projekte (the oalab team's board); on it, Projekte shows as its parent, not as the page.
+  const onTasks = /\/projects\/tasks\/?$/.test(usePathname() ?? "");
   const corner = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -79,7 +82,19 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
         {categoriesFor(account.freelancer).map((id) => {
           const Icon = categories[id].icon;
-          return <Link key={id} {...item(categories[id].section)}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" data-tip={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+          const props = item(categories[id].section);
+          const parent = id === "projects" && onTasks;
+          const link = <Link key={id} {...props} className={parent ? "sidebar-item is-parent" : props.className} aria-current={parent ? undefined : props["aria-current"]}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" data-tip={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+          // The design preview shows the board with examples, so its sidebar carries the entry as well.
+          if (id !== "projects" || !(manageUsers || preview)) return link;
+          return (
+            <Fragment key={id}>
+              {link}
+              <Link href={`${hubHref(preview, "projects")}/tasks`} className={`sidebar-item sidebar-sub${onTasks ? " is-active" : ""}`} aria-current={onTasks ? "page" : undefined}>
+                <SquareKanban size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>Aufgaben</span>
+              </Link>
+            </Fragment>
+          );
         })}
         {manageUsers && <>
           <span className="sidebar-caption">Verwaltung</span>

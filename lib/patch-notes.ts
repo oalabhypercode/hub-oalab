@@ -37,6 +37,18 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 22,
+    date: "2026-11-16",
+    title: "Aufgaben als Board",
+    summary: "Unter Projekte gibt es für das oalab-Team den Bereich Aufgaben: je Projekt ein Board mit den Spalten Backlog, Offen, In Arbeit, In Prüfung und Erledigt, wahlweise als Liste. Es sind dieselben Aufgaben wie im Studio, verschieben, anlegen, bearbeiten, Checklisten und Kommentare wirken dort genauso.",
+    changes: [
+      { kind: "new", title: "Aufgaben-Board unter Projekte", text: "Unter Projekte › Aufgaben stehen die Aufgaben eines Projekts als Karten in fünf Spalten. Karten ziehst du mit der Maus oder am Handy nach kurzem Halten an ihren neuen Platz, am Rechner geht es auch mit Alt und den Pfeiltasten. Ein Verschieben lässt sich gleich rückgängig machen." },
+      { kind: "new", title: "Liste nach Status", text: "Über das Zahnrad wechselst du zwischen Board und Liste. Die Liste zeigt dieselben Aufgaben nach Status gruppiert, mit Zuständigen, Fälligkeit, Priorität und Labels, und auch dort lassen sich Zeilen ziehen." },
+      { kind: "new", title: "Fenster je Aufgabe", text: "Ein Klick auf eine Karte öffnet sie: Status, Zuständige, Fälligkeit, Priorität, Labels, Beschreibung, Checkliste und Kommentare lassen sich dort direkt ändern. Ein Link zur Aufgabe öffnet genau dieses Fenster." },
+      { kind: "improved", title: "Dieselben Aufgaben wie im Studio", text: "Das Board liest und schreibt die Aufgaben des Studios. Hat jemand eine Karte inzwischen geändert, überschreibt der Hub nichts, sondern zeigt den neuesten Stand; alle 30 Sekunden holt sich das Board Neuigkeiten." },
+    ],
+  },
+  {
     number: 21,
     date: "2026-11-14",
     title: "Klarer Hinweis zum Schlüssel",

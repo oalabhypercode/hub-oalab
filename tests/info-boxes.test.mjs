@@ -56,6 +56,8 @@ const places = [
   { file: "components/hub/assistant-panel.tsx", call: "useInfo(help.title, help.card)", button: /\{info\.button\}\s*<span className=\{`proposal-status/, box: "{info.box}" },
   { file: "components/hub/second-factor-card.tsx", call: 'useInfo("Zweiter Faktor"', button: /Zwei-Faktor-Schutz\{info\.button\}<\/h2>/, box: "{info.box}" },
   { file: "components/hub/whatsapp-card.tsx", call: 'useInfo("WhatsApp"', button: /WhatsApp verbinden\{usable && info\.button\}<\/h2>/, box: "{usable && info.box}" },
+  // The task board under Projekte (since 16.11.2026): at the end of the project's head.
+  { file: "components/hub/screens/tasks.tsx", call: 'useInfo("Aufgaben-Board"', button: /<div className="kb-stat">Zuständig[^\n]*\n\s*\{info\.button\}/, box: "{info.box}" },
 ];
 
 /** The whole call `useInfo(…)`, brackets balanced. */
