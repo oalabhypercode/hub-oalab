@@ -68,6 +68,10 @@ export type Project = {
   company?: string;
   /** Studio projects: the customer organization, to find the hub customer it belongs to. */
   organizationId?: string;
+  /** Studio projects: the hub customer of that organization, so the project dialog can jump to its chat, files and contract. */
+  customerId?: string;
+  /** Studio projects: the customer's website from the user management, as a full https URL. */
+  website?: string;
   /** ISO dates; fixtures always have both, Studio projects may have neither. */
   startedOn: string | null;
   dueOn: string | null;

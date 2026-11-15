@@ -80,15 +80,31 @@ function toMilestones(value: unknown): Milestone[] {
     .sort((a, b) => a.at.localeCompare(b.at));
 }
 
+/**
+ * The website as typed in the user management ("abc.de", "www.abc.de/", "https://abc.de/impressum") as the start page
+ * of the site ("https://abc.de/"), or null. Some entries point at a subpage; the shortcut opens the site itself.
+ */
+export function websiteUrl(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`);
+    return url.hostname.includes(".") ? `${url.origin}/` : null;
+  } catch {
+    return null;
+  }
+}
+
 const targetDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "long", year: "numeric" });
 
 /** One hub project from its Studio rows; `tasks` are the tasks the viewer may see. */
-export function toHubProject(input: { project: StudioProjectRow; details: StudioDetailsRow | null; tasks: ProjectTask[]; requests: RequestCounts; company: string | undefined }): Project {
+export function toHubProject(input: { project: StudioProjectRow; details: StudioDetailsRow | null; tasks: ProjectTask[]; requests: RequestCounts; company: string | undefined; customer?: { id: string; website: string | null } }): Project {
   const { project, details, tasks, requests } = input;
   // Without Studio details a project counts as running (Studio shows "paused" ones as on hold, the hub has no such status).
   const complete = details?.status === "complete";
   const waiting = tasks.some((task) => task.status !== "done" && task.customer && task.visible);
   const dueOn = details?.due_date ?? null;
+  const website = websiteUrl(input.customer?.website);
   return {
     id: project.id,
     name: project.display_name,
@@ -102,6 +118,8 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     artwork: "orange",
     company: input.company,
     organizationId: project.organization_id,
+    ...(input.customer ? { customerId: input.customer.id } : {}),
+    ...(website ? { website } : {}),
     startedOn: details?.start_date ?? null,
     dueOn,
     milestones: toMilestones(details?.milestones),

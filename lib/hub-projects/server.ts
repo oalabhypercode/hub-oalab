@@ -37,12 +37,18 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
   if (error) return unavailable("Die Projekte konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
   const organizationIds = [...new Set((projects.data ?? []).map((row) => row.organization_id))];
-  const organizations = organizationIds.length
-    ? await db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>()
-    : { data: [], error: null };
+  const [organizations, customers] = organizationIds.length
+    ? await Promise.all([
+      db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>(),
+      // The hub customer of each organization: the project dialog jumps from there to its chat, files and contract.
+      db.from("hub_customers").select("id, website, organization_id").in("organization_id", organizationIds).returns<{ id: string; website: string | null; organization_id: string }[]>(),
+    ])
+    : [{ data: [], error: null }, { data: [], error: null }];
   if (organizations.error) return unavailable("Die Projekte konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
   const names = new Map((organizations.data ?? []).map((row) => [row.id, row.name]));
+  // Without the customer row the dialog only leaves out its shortcuts; the projects themselves still show.
+  const customerByOrganization = new Map((customers.error ? [] : customers.data ?? []).map((row) => [row.organization_id, { id: row.id, website: row.website }]));
   const detailsById = new Map((details.data ?? []).map((row) => [row.project_id, row]));
   return {
     error: null,
@@ -53,6 +59,7 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
         tasks: (tasks.data ?? []).filter((task) => task.project_id === project.id).map(toProjectTask),
         requests: countRequests((requests.data ?? []).filter((request) => request.project_id === project.id)),
         company: names.get(project.organization_id),
+        customer: customerByOrganization.get(project.organization_id),
       }))
       .sort((a, b) => (a.company ?? "").localeCompare(b.company ?? "", "de") || a.name.localeCompare(b.name, "de")),
   };

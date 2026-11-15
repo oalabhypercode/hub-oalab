@@ -42,7 +42,9 @@ test("admins get the Asset Management with customers first; customers keep their
   // The shared views stay on top of the customers; a notice's link still opens its file.
   assert.match(screen, /"Alle Dateien"/);
   assert.match(screen, /"Ablage"/);
-  assert.match(screen, /const linkedFile = useSearchParams\(\)\.get\("file"\);/);
+  assert.match(screen, /const params = useSearchParams\(\);\n  const linkedFile = params\.get\("file"\);/);
+  // The project dialog links a customer (?customer=<id>): the page opens on that customer's files.
+  assert.match(screen, /if \(linkedCustomer\) return \{ kind: "customer", id: linkedCustomer \};/);
   // Admins no longer see the two metric cards above the list.
   assert.doesNotMatch(screen, /CategoryMetrics/);
   const appearance = await source("components/hub/screens/appearance.tsx");

@@ -1641,6 +1641,31 @@ a.teams-join:active { transform: scale(0.97); }
 .project-task-meta { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .project-tasks li.is-done .project-task-title { color: var(--label-secondary); text-decoration: line-through; }
 .project-ask { margin-top: 16px; }
+/* Shortcuts of the project dialog: everything around the customer one click (or digit) away. A quiet grid of equal
+   tiles, three across in the dialog and two on phones; the digit sits right, only where there is a keyboard. They
+   follow the dialog in a short cascade (30 ms apart), then stand still; hover lifts the tint, pressing gives way. */
+.project-quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 18px 0 4px; }
+.project-quick-link { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 0 10px 0 12px; border-radius: 12px; background: var(--fill-tertiary); color: var(--label); font-size: 15px; font-weight: 600; text-decoration: none;
+  animation: project-quick-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: calc(60ms + var(--i, 0) * 30ms);
+  transition: background-color 160ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.project-quick-link > svg { flex: 0 0 auto; }
+.project-quick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-quick-link kbd { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--separator); font: 600 11px/1 var(--font-text); color: var(--label-secondary); }
+.project-quick-link:hover { background: color-mix(in srgb, var(--label) 12%, transparent); }
+.project-quick-link:active { transform: scale(0.97); transition-duration: 80ms; }
+.project-quick-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+@keyframes project-quick-in { from { opacity: 0; filter: blur(6px); translate: 0 -6px; } }
+@media (hover: none), (pointer: coarse) { .project-quick-link kbd { display: none; } }
+/* The website comes last; standing alone in its row it takes the whole row, so its address reads in full. */
+.project-quick-link.is-site:nth-child(3n + 1):last-child { grid-column: 1 / -1; }
+@media (max-width: 480px) {
+  .project-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-quick-link kbd { display: none; }
+  .project-quick-link.is-site:nth-child(3n + 1):last-child { grid-column: auto; }
+  .project-quick-link.is-site:nth-child(2n + 1):last-child { grid-column: 1 / -1; }
+}
+.project-quick + .project-tasks { margin-top: 14px; }
+.hub-modal .project-tasks-empty { margin-top: 14px; }
 
 /* Task proposals of the assistant: a preview the admin checks before anything is saved */
 .proposal-card { margin-top: 10px; padding: 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--separator); }

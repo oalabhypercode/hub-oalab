@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Megaphone, Rows3, Send, Settings, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
 import { displayStatusLabels, roleLabels, type DisplayStatus, type HubRole } from "@/lib/hub-users/rules";
 import { customerLoginState, isFirstInvitation, isInvitable, loginStateLabels, type LoginState } from "@/lib/hub-invitations/rules";
@@ -90,9 +91,12 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const entries = state.customers;
   const customers = entries.filter((entry) => entry.kind === "customer");
   const freelancers = entries.filter((entry) => entry.kind === "freelancer");
-  const [dialog, setDialog] = useState<Dialog | null>(null);
+  // The project dialog links its customer (/users?customer=<id>): the page opens on the customers with theirs open.
+  const linkedId = useSearchParams().get("customer");
+  const linked = customers.find((customer) => customer.id === linkedId) ?? null;
+  const [dialog, setDialog] = useState<Dialog | null>(() => linked ? { kind: "customer", customerId: linked.id } : null);
   const [notice, setNotice] = useState("");
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<Tab>(linked ? "customers" : "users");
   const groups = useCollapsedGroups();
   // The panel reports unsaved changes; another row, another tab or closing asks before they are lost.
   const dirty = useRef(false);

@@ -37,6 +37,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 22,
+    date: "2026-11-15",
+    title: "Vom Projekt mit einem Klick weiter",
+    summary: "Das Fenster eines Projekts führt jetzt direkt zu allem, was zum Kunden gehört: Chat, Dateien, Kalender, Vertrag & Domain, für Admins auch Zugänge im Schlüsselbund und der Kundeneintrag in der Nutzerverwaltung, dazu die Website des Kunden. Jedes Ziel öffnet schon beim richtigen Kunden; am Rechner reichen die Zifferntasten 1 bis 9.",
+    changes: [
+      { kind: "new", title: "Schnellzugriff im Projekt", text: "Unter dem Fortschritt eines Projekts stehen jetzt Knöpfe zu Chat, Dateien, Kalender und Vertrag. Ein Klick öffnet die Seite gleich beim richtigen Projekt, am Rechner geht es auch mit den Zifferntasten.", customers: true },
+      { kind: "new", title: "Zugänge, Kunde und Website", text: "Admins springen aus dem Projekt auch zu den Zugängen des Kunden im Schlüsselbund und zu seinem Eintrag in der Nutzerverwaltung, der dort gleich aufgeklappt ist. Ist eine Website hinterlegt, öffnet ein Knopf ihre Startseite in einem neuen Tab." },
+    ],
+  },
+  {
     number: 21,
     date: "2026-11-14",
     title: "Klarer Hinweis zum Schlüssel",

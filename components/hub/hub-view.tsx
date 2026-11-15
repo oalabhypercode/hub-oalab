@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Sparkles } from "lucide-react";
-import { categories } from "@/lib/categories";
+import { Globe, KeyRound, Sparkles, UserCog } from "lucide-react";
+import { categories, type CategoryId } from "@/lib/categories";
 import { formatDeadline, hubHref, previewAccount, previewFiles, previewProjects, sampleFolders, type HubSection, type Project, type ProjectTask } from "@/lib/hub-data";
 import type { HubFilesState } from "@/lib/hub-files/types";
 import { calendarFixtures } from "@/lib/hub-calendar/fixtures";
@@ -12,6 +12,7 @@ import type { HubCalendarState } from "@/lib/hub-calendar/types";
 import { buildHubModel, isMetricId } from "@/lib/hub-metrics";
 import { useFavorites } from "@/lib/use-favorites";
 import { Modal } from "./modal";
+import { CategoryIcon } from "./glass";
 import { useHubShell } from "./shell-context";
 import { ProjectStatus } from "./project-status";
 import { AppearanceScreen } from "./screens/appearance";
@@ -131,10 +132,68 @@ export function HubView({ section = "overview", detail, preview = false, email =
 
 const taskStatusLabels: Record<ProjectTask["status"], string> = { backlog: "Backlog", todo: "Offen", progress: "In Arbeit", review: "In Prüfung", done: "Erledigt" };
 
+type QuickLink = { id: string; label: string; href: string; icon: React.ReactNode; external?: boolean; tip: string };
+
+/**
+ * Everything around the project in one click: its chat, files, next date, contract, accesses, customer entry and the
+ * live website. Each target opens with this customer already chosen; a target that does not exist is left out instead
+ * of leading to an empty page. On a keyboard the digits 1–9 open them too.
+ */
+function quickLinks(project: Project, preview: boolean, admin: boolean): QuickLink[] {
+  const customer = project.customerId;
+  // Real projects without a hub customer have nothing to filter by; the preview shows the pages with its examples.
+  const known = Boolean(customer) || preview;
+  const withCustomer = (section: HubSection, key: string) => `${hubHref(preview, section)}${customer ? `?${key}=${encodeURIComponent(customer)}` : ""}`;
+  const icon = (category: CategoryId) => <CategoryIcon category={category} size={18} />;
+  const links: (QuickLink | false)[] = [
+    known && { id: "chat", label: "Chat", href: withCustomer("messages", "chat"), icon: icon("messages"), tip: admin ? `Chat mit ${project.company ?? "dem Kunden"}` : "Chat mit OALab" },
+    known && { id: "files", label: "Dateien", href: withCustomer("files", "customer"), icon: icon("files"), tip: admin ? `Dateien von ${project.company ?? "diesem Kunden"}` : "Deine Dateien" },
+    project.dueOn
+      ? { id: "date", label: formatDeadline(project.dueOn), href: `${hubHref(preview, "calendar")}?day=${project.dueOn}`, icon: icon("calendar"), tip: "Nächsten Termin im Kalender zeigen" }
+      : { id: "date", label: "Kalender", href: hubHref(preview, "calendar"), icon: icon("calendar"), tip: "Kalender öffnen" },
+    known && { id: "contract", label: "Vertrag", href: withCustomer("contracts", "customer"), icon: icon("contracts"), tip: "Vertrag, Domain und Postfächer" },
+    admin && known && { id: "keychain", label: "Zugänge", href: withCustomer("keychain", "customer"), icon: <KeyRound size={18} color="var(--accent-text)" aria-hidden="true" />, tip: "Zugänge im Schlüsselbund" },
+    admin && known && { id: "customer", label: "Kunde", href: withCustomer("users", "customer"), icon: <UserCog size={18} color="var(--accent-text)" aria-hidden="true" />, tip: "Kundeneintrag in der Nutzerverwaltung" },
+    Boolean(project.website) && { id: "website", label: new URL(project.website!).hostname.replace(/^www\./, ""), href: project.website!, icon: <Globe size={18} color="var(--system-gray)" aria-hidden="true" />, external: true, tip: "Website in neuem Tab öffnen" },
+  ];
+  return links.filter((link): link is QuickLink => Boolean(link));
+}
+
+function ProjectQuickLinks({ links }: { links: QuickLink[] }) {
+  const nav = useRef<HTMLElement>(null);
+  // Digits open the shortcuts while focus is in this dialog (not in a window on top) and nobody types.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || !/^[1-9]$/.test(event.key)) return;
+      const dialog = nav.current?.closest("dialog");
+      const focused = document.activeElement;
+      if (!dialog || !focused || !dialog.contains(focused) || focused.closest("input, textarea, select, [contenteditable='true']")) return;
+      const link = nav.current?.querySelector<HTMLElement>(`[data-quick="${event.key}"]`);
+      if (!link) return;
+      event.preventDefault();
+      link.click();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+  return (
+    <nav ref={nav} className="project-quick" aria-label="Schnellzugriff">
+      {links.map((link, index) => {
+        const inner = <>{link.icon}<span className="project-quick-label">{link.label}</span>{index < 9 && <kbd aria-hidden="true">{index + 1}</kbd>}</>;
+        const props = { className: `project-quick-link${link.external ? " is-site" : ""}`, "data-quick": index + 1, "data-tip": link.tip, style: { "--i": index } as React.CSSProperties, "aria-keyshortcuts": index < 9 ? String(index + 1) : undefined };
+        return link.external
+          ? <a key={link.id} {...props} href={link.href} target="_blank" rel="noopener noreferrer">{inner}</a>
+          : <Link key={link.id} {...props} href={link.href}>{inner}</Link>;
+      })}
+    </nav>
+  );
+}
+
 function ProjectModal({ project, preview, admin, onClose }: { project: Project; preview: boolean; admin: boolean; onClose: () => void }) {
   // Studio projects carry their tasks; the fixtures stay example projects with the example conversation.
   const tasks = project.tasks;
   const { manageUsers, askAboutProject, assistantDocked } = useHubShell();
+  const links = quickLinks(project, preview, admin);
   return (
     <Modal title={project.category || project.company || "Projekt"} onClose={onClose}>
       <div className="project-modal-status"><ProjectStatus value={project.status} /><span>Ziel: {project.date}</span></div>
@@ -142,6 +201,7 @@ function ProjectModal({ project, preview, admin, onClose }: { project: Project; 
       {project.description && <p className="modal-description">{project.description}</p>}
       <div className="project-modal-progress"><span>Projektfortschritt</span><strong className="numeric">{project.progress} %</strong></div>
       <div className="progress-bar" aria-hidden="true" style={{ background: `color-mix(in srgb, ${categories.projects.fill} 25%, transparent)` }}><span style={{ width: `${project.progress}%`, background: categories.projects.fill }} /></div>
+      <ProjectQuickLinks links={links} />
       {tasks ? (
         tasks.length ? (
           <ul className="project-tasks" aria-label="Aufgaben">
@@ -154,17 +214,14 @@ function ProjectModal({ project, preview, admin, onClose }: { project: Project; 
               </li>
             ))}
           </ul>
-        ) : <p className="modal-description t-secondary">Noch keine Aufgaben{admin ? "" : ", die für dich freigegeben sind"}.</p>
+        ) : <p className="modal-description t-secondary project-tasks-empty">Noch keine Aufgaben{admin ? "" : ", die für dich freigegeben sind"}.</p>
       ) : null}
       {/* The assistant keeps this project as its reference, so "dieses Projekt" works. As a window it opens on top of
           this dialog; docked it sits next to the page, and this dialog closes, because a dialog would block the sidebar. */}
       {tasks && manageUsers && (
         <button type="button" className="sheet-button project-ask" onClick={() => { askAboutProject({ id: project.id, name: project.category || project.name }); if (assistantDocked) onClose(); }}><Sparkles size={17} aria-hidden="true" /> Assistent zu diesem Projekt fragen</button>
       )}
-      {!tasks && <>
-        <p className="demo-detail-note"><Sparkles size={15} aria-hidden="true" /> Beispielprojekt · Die vollständige Projektverwaltung folgt im nächsten Schritt.</p>
-        <Link className="sheet-button sheet-button-primary" href={hubHref(preview, "messages")}>Zum Gespräch <ArrowRight size={17} aria-hidden="true" /></Link>
-      </>}
+      {!tasks && <p className="demo-detail-note"><Sparkles size={15} aria-hidden="true" /> Beispielprojekt · Die vollständige Projektverwaltung folgt im nächsten Schritt.</p>}
     </Modal>
   );
 }
