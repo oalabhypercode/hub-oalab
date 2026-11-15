@@ -16,3 +16,8 @@
 - Jede Änderung, die auf `main` geht, bekommt im selben PR einen Eintrag in `lib/patch-notes.ts`: ein Paket pro Livegang-Tag, neueste zuerst, fortlaufend nummeriert. Gehen mehrere PRs am selben Tag live, landen ihre Einträge im Paket dieses Tages.
 - Jeder Eintrag ist eine von Neu, Verbessert, Behoben oder Sicherheit, mit kurzem Titel und zwei, drei verständlichen Sätzen auf Deutsch: was sich ändert und was man davon merkt. Keine Namen, E-Mail-Adressen, Links, Schlüssel oder Infrastruktur-Details.
 - `customers: true` nur für Einträge, die Kunden betreffen; alles andere sehen nur Admins (mit „Intern“). Reine Doku- und Werkzeug-Änderungen ohne Wirkung auf den Hub brauchen keinen Eintrag.
+
+## Design
+
+- Vor jeder Arbeit an der Oberfläche `DESIGN.md` lesen und einhalten (Seitenleiste, Liste links und Kunde rechts, Auswahllisten, Hover-Hinweise, Kontur und Auswahl). Vorschauen folgen denselben Regeln.
+- Neue Muster, die live gehen, im selben PR in `DESIGN.md` nachtragen.
