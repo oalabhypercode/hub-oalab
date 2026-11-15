@@ -44,7 +44,9 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
   const { files, folders } = store;
   const { customers, canManage, source } = fileState;
   const [category, setCategory] = useState<string>(ALL);
-  const [customer, setCustomer] = useState<string>(ALL);
+  // The project dialog links a customer (/files?customer=<id>): the page opens filtered to them, with their folders.
+  const linkedCustomer = useSearchParams().get("customer");
+  const [customer, setCustomer] = useState<string>(() => linkedCustomer && customers.some((item) => item.id === linkedCustomer) ? linkedCustomer : ALL);
   const [query, setQuery] = useState("");
   const [format, setFormat] = useState<string>(ALL);
   const [sort, setSort] = useState<SortState<FileSortKey>>({ key: "date", dir: "desc" });
@@ -149,7 +151,7 @@ function CustomerFiles({ model, populated, fileState, admin }: ScreenProps) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
-        <div className="sheet section-first">
+        <div className="sheet section-first sheet-fill">
           <SheetToolbar query={query} onQuery={setQuery} placeholder={showCustomers ? "Titel, Dateiname, Beschreibung, Kunde …" : "Titel, Dateiname, Beschreibung …"} label="Dateien durchsuchen">
             <ToolbarMenu icon={ListFilter} label="Filter" badge={menuFilters}>
               {showCustomers && <FilterSelect icon={Building2} name="Nach Kunde filtern" value={customer} onChange={setCustomer} options={[{ value: ALL, label: "Alle Kunden" }, ...customers.map((item) => customerOption(item)), ...(canManage ? [{ value: UNASSIGNED, label: "Ablage (ohne Zuordnung)", lead: <Inbox size={15} aria-hidden="true" /> }] : [])]} />}

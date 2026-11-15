@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { countRequests, customerSteps, toHubProject, toProjectTask } from "../lib/hub-projects/map.ts";
+import { countRequests, customerSteps, projectSites, readProjectUrl, restatesSite, shortUrl, toHubProject, toProjectTask } from "../lib/hub-projects/map.ts";
 import { deadlineHint, formatDeadline } from "../lib/hub-data.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -66,4 +66,41 @@ test("customers read Studio rows with their own session; names come only for pro
   assert.match(loader, /const reader = admin \? db : viewer;/);
   assert.match(loader, /reader\.from\("studio_tasks"\)/);
   assert.match(loader, /export const loadLiveProjects = cache\(/);
+});
+
+test("project addresses: https only, typed the short way, the live one first and the customer's website as fallback", () => {
+  assert.deepEqual(readProjectUrl(" kunde.de "), { ok: true, value: "https://kunde.de" });
+  assert.deepEqual(readProjectUrl("https://www.kunde.de/shop/"), { ok: true, value: "https://www.kunde.de/shop/" });
+  assert.deepEqual(readProjectUrl(""), { ok: true, value: null });
+  assert.equal(readProjectUrl("http://kunde.de").ok, false);
+  assert.equal(readProjectUrl("kunde").ok, false);
+  assert.equal(readProjectUrl("kunde .de").ok, false);
+  assert.equal(shortUrl("https://www.kunde.de/"), "kunde.de");
+  assert.equal(shortUrl("https://kunde.de/shop/"), "kunde.de/shop");
+  const keys = (project) => projectSites(project).map((site) => site.key);
+  assert.deepEqual(keys({ liveUrl: "https://kunde.de", website: "https://alt.de", testUrl: "https://kunde-git-test.vercel.app" }), ["live", "test"]);
+  assert.deepEqual(keys({ website: "https://kunde.de" }), ["website"]);
+  assert.deepEqual(keys({}), []);
+  const project = toHubProject({ project: { id: "p", organization_id: "o", display_name: "Website", status: "active", live_url: "http://unsicher.de", test_url: "https://kunde-git-test.vercel.app" }, details: null, tasks: [], requests: { open: 0, done: 0 }, company: "Kunde" });
+  assert.equal(project.liveUrl, undefined, "only https counts as an address");
+  assert.equal(project.testUrl, "https://kunde-git-test.vercel.app");
+});
+
+test("a description that only names the website stays out; a real one stays", () => {
+  assert.equal(restatesSite("Website podologie-sassnitz.de", ["https://podologie-sassnitz.de"]), true);
+  assert.equal(restatesSite("https://www.kunde.de/", ["https://kunde.de"]), true);
+  assert.equal(restatesSite("Der Testshop von KalaClo.", ["https://kalaclo.com"]), false);
+  assert.equal(restatesSite("Website kunde.de", []), false);
+  assert.equal(restatesSite(undefined, ["https://kunde.de"]), false);
+});
+
+test("admins open projects in the panel on „Projekte“; the window stays for customers and other pages", async () => {
+  const view = await source("components/hub/hub-view.tsx");
+  assert.match(view, /const panelShowsProject = admin && !preview && section === "projects" && !detail;/);
+  assert.match(view, /\{selectedProject && !panelShowsProject && <ProjectModal /);
+  assert.match(view, /<ProjectSites sites=\{sites\} \/>/);
+  const actions = await source("lib/hub-projects/actions.ts");
+  assert.match(actions, /^"use server";/);
+  assert.match(actions, /verifyHubAdmin\(\)/);
+  assert.match(actions, /readProjectUrl\(/);
 });

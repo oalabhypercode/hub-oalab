@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
-import { countRequests, toHubProject, toProjectTask, type LiveProjectsState, type StudioDetailsRow, type StudioProjectRow, type StudioTaskRow } from "./map";
+import { domainToUnicode } from "node:url";
+import { countRequests, toHubProject, toProjectTask, websiteUrl, type LiveProjectsState, type ProjectCustomer, type StudioDetailsRow, type StudioProjectRow, type StudioTaskRow } from "./map";
 
 // Real projects come from OALab Studio in the shared database. Service grants browsers no direct read of projects,
 // organizations or requests, so the hub decides *which* projects a viewer sees first and reads their names afterwards:
@@ -28,7 +29,7 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
   // Customers read details and tasks with their own session, so Studio's RLS keeps internal tasks away from them.
   const reader = admin ? db : viewer;
   const [projects, details, tasks, requests] = await Promise.all([
-    db.from("customer_projects").select("id, organization_id, display_name, status").in("id", ids).neq("status", "archived").returns<StudioProjectRow[]>(),
+    db.from("customer_projects").select("id, organization_id, display_name, status, test_url, live_url").in("id", ids).neq("status", "archived").returns<StudioProjectRow[]>(),
     reader.from("studio_project_details").select(DETAILS).in("project_id", ids).returns<StudioDetailsRow[]>(),
     reader.from("studio_tasks").select(TASKS).in("project_id", ids).eq("archived", false).returns<StudioTaskRow[]>(),
     db.from("service_requests").select("project_id, state").in("project_id", ids).is("trashed_at", null).returns<{ project_id: string; state: string }[]>(),
@@ -37,15 +38,22 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
   if (error) return unavailable("Die Projekte konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
   const organizationIds = [...new Set((projects.data ?? []).map((row) => row.organization_id))];
-  const organizations = organizationIds.length
-    ? await db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>()
-    : { data: [], error: null };
+  const [organizations, customers] = organizationIds.length
+    ? await Promise.all([
+      db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>(),
+      // The hub customer of each organization: the project dialog jumps from there to its chat, files and contract.
+      db.from("hub_customers").select("id, company, customer_number, website, organization_id").in("organization_id", organizationIds).returns<CustomerRow[]>(),
+    ])
+    : [{ data: [], error: null }, { data: [], error: null }];
   if (organizations.error) return unavailable("Die Projekte konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
   const names = new Map((organizations.data ?? []).map((row) => [row.id, row.name]));
+  // Without the customer row the dialog only leaves out its shortcuts; the projects themselves still show.
+  const customerByOrganization = new Map((customers.error ? [] : customers.data ?? []).map((row) => [row.organization_id, { id: row.id, website: row.website }]));
   const detailsById = new Map((details.data ?? []).map((row) => [row.project_id, row]));
   return {
     error: null,
+    ...(admin ? { customers: await panelCustomers(db, customers.error ? [] : customers.data ?? []) } : {}),
     projects: (projects.data ?? [])
       .map((project) => toHubProject({
         project,
@@ -53,9 +61,38 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
         tasks: (tasks.data ?? []).filter((task) => task.project_id === project.id).map(toProjectTask),
         requests: countRequests((requests.data ?? []).filter((request) => request.project_id === project.id)),
         company: names.get(project.organization_id),
+        customer: customerByOrganization.get(project.organization_id),
       }))
       .sort((a, b) => (a.company ?? "").localeCompare(b.company ?? "", "de") || a.name.localeCompare(b.name, "de")),
   };
+}
+
+type CustomerRow = { id: string; company: string; customer_number: string; website: string | null; organization_id: string };
+type DomainRow = { id: string; customer_id: string; domain: string; status: string | null; renews_on: string | null };
+
+const readable = (domain: string) => {
+  try {
+    return domainToUnicode(domain) || domain;
+  } catch {
+    return domain;
+  }
+};
+
+/**
+ * The admins' project panel: each customer with number, website and the domains of „Vertrag & Domain“. Without the
+ * domain tables (migration pending) or on a read error the panel shows no domains rather than no projects.
+ */
+async function panelCustomers(db: SupabaseClient, rows: readonly CustomerRow[]): Promise<ProjectCustomer[]> {
+  if (!rows.length) return [];
+  const domains = await db.from("hub_customer_domains").select("id, customer_id, domain, status, renews_on").in("customer_id", rows.map((row) => row.id)).order("domain").returns<DomainRow[]>();
+  const list = domains.error ? [] : domains.data ?? [];
+  return rows.map((row) => ({
+    id: row.id,
+    company: row.company,
+    customerNumber: row.customer_number,
+    website: websiteUrl(row.website),
+    domains: list.filter((domain) => domain.customer_id === row.id).map((domain) => ({ id: domain.id, domain: domain.domain, display: readable(domain.domain), status: domain.status ?? "active", renewsOn: domain.renews_on })),
+  }));
 }
 
 /** Studio projects of the signed-in login, once per request (layout and page share it). */

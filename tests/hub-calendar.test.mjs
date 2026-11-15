@@ -128,6 +128,6 @@ test("project deadlines appear in the calendar and link back from the projects t
   assert.match(calendar, /const params = useSearchParams\(\);/);
   assert.match(calendar, /const linked = appointments\.find\(\(item\) => item\.id === params\.get\("appointment"\)\);\s+const requested = linked \? dayOf\(linked\.start\) : params\.get\("day"\);/);
   assert.match(calendar, /useState<Dialog \| null>\(\(\) => linked \? \{ kind: "detail", id: linked\.id \} : null\)/);
-  const workspace = await source("components/hub/screens/workspace.tsx");
-  assert.match(workspace, /hubHref\(preview, "calendar"\)\}\?day=\$\{project\.dueOn\}/);
+  const table = await source("components/hub/screens/projects-table.tsx");
+  assert.match(table, /hubHref\(preview, "calendar"\)\}\?day=\$\{project\.dueOn\}/);
 });

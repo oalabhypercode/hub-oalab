@@ -149,7 +149,7 @@ test("customers read „Vertrag & Domain“ like „Dateien“: two figures, one
   const sheet = await source("components/hub/screens/contracts-customer.tsx");
   assert.match(sheet, /<div className="metric-grid section-first">/);
   assert.equal((sheet.match(/className="glass glass-card metric-card"/g) ?? []).length, 2, "Pakete and Zahlungen");
-  assert.match(sheet, /<div className="sheet section-first cdm-sheet">\s*<SheetToolbar/);
+  assert.match(sheet, /<div className="sheet section-first cdm-sheet sheet-fill">\s*<SheetToolbar/);
   const groups = [...sheet.matchAll(/<TableGroup colSpan=\{COLUMNS\} label="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(groups, ["Pakete", "Domains", "E-Mail-Adressen", "Dokumente", "Verlauf"]);
   assert.match(sheet, /\{ id: "all", label: "Alles"[^}]*\},\s*\{ id: "contract", label: "Vertrag"[^}]*\},\s*\{ id: "domain", label: "Domain & E-Mail"/);

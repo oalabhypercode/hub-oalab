@@ -51,7 +51,9 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   const linked = useSearchParams().get("customer");
   const [pane, setPane] = useState<Pane>(() => linked && state.customers.some((customer) => customer.id === linked) ? { kind: "customer", id: linked } : { kind: "overview" });
   const [paneOpen, setPaneOpen] = useState(pane.kind === "customer");
-  const [tab, setTab] = useState<Tab>("contract");
+  // The project panel links a customer's domains (?customer=<id>&tab=domains): the page opens on that tab.
+  const linkedTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState<Tab>(() => linkedTab === "domains" || linkedTab === "access" || linkedTab === "timeline" ? linkedTab : "contract");
   const [query, setQuery] = useState("");
   /** The search inside the open customer's tab. */
   const [tabQuery, setTabQuery] = useState("");

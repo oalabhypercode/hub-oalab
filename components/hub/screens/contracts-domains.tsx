@@ -210,7 +210,7 @@ function DomainRow({ domain, today, onEdit }: { domain: CustomerDomain; today: s
 const noChecks: Record<DomainCheck, boolean> = { website: false, ssl: false, mx: false, spf: false, dkim: false, dmarc: false };
 
 /** Enters a domain or edits one: name, status, owner, where it lives, renewal, the six checks and an internal note. */
-function DomainDialog({ customer, entry, onClose, onSaved }: { customer: ContractCustomer; entry?: CustomerDomain; onClose: () => void; onSaved: (message: string) => void }) {
+export function DomainDialog({ customer, entry, onClose, onSaved }: { customer: ContractCustomer; entry?: CustomerDomain; onClose: () => void; onSaved: (message: string) => void }) {
   const details = entry?.details;
   const [draft, setDraft] = useState({
     domain: entry?.display ?? "",
