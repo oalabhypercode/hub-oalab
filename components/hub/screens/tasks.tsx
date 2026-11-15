@@ -305,7 +305,8 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
       <LargeTitleHeader
         title="Aufgaben"
         icon={<span className="title-icon"><SquareKanban size={24} color={categories.projects.fill} aria-hidden="true" /></span>}
-        leading={<Link href={hubHref(preview, "projects")} className="on-bg-link"><ChevronLeft size={22} strokeWidth={2.5} aria-hidden="true" />Projekte</Link>}
+        // Back to the same project in the panel of „Projekte“, which keeps its choice in ?project= as well.
+        leading={<Link href={`${hubHref(preview, "projects")}${project ? `?project=${encodeURIComponent(project.id)}` : ""}`} className="on-bg-link"><ChevronLeft size={22} strokeWidth={2.5} aria-hidden="true" />Projekte</Link>}
         actions={<HeaderActions />}
       />
       {source.error && <p className="calendar-notice kb-error-note" role="alert">{source.error}</p>}

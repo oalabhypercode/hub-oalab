@@ -1,16 +1,17 @@
 "use client";
 
-import { KeyRound, UserCog } from "lucide-react";
-import type { CategoryId } from "@/lib/categories";
+import { KeyRound, SquareKanban, UserCog } from "lucide-react";
+import { categories, type CategoryId } from "@/lib/categories";
 import { formatDeadline, hubHref, type HubSection, type Project } from "@/lib/hub-data";
 import { CategoryIcon } from "./glass";
 
 export type QuickLink = { id: string; label: string; href: string; icon: React.ReactNode; external?: boolean; tip: string };
 
 /**
- * Everything around the project in one click: its chat, files, next date, contract, accesses and customer entry (the
- * website has its own rows, see `projectSites`). Each target opens with this customer already chosen; a target that does not exist is left out instead
- * of leading to an empty page. On a keyboard the digits 1–9 open them too.
+ * Everything around the project in one click: its chat, files, next date, contract, accesses, customer entry and, for
+ * admins, its task board (the website has its own rows, see `projectSites`). Each target opens with this customer already
+ * chosen; a target that does not exist is left out instead of leading to an empty page. On a keyboard the digits 1–9
+ * open them too. The board comes last, so the digits of the other targets stay where they were.
  */
 export function quickLinks(project: Project, preview: boolean, admin: boolean): QuickLink[] {
   const customer = project.customerId;
@@ -27,6 +28,8 @@ export function quickLinks(project: Project, preview: boolean, admin: boolean): 
     known && { id: "contract", label: "Vertrag", href: withCustomer("contracts", "customer"), icon: icon("contracts"), tip: "Vertrag, Domain und Postfächer" },
     admin && known && { id: "keychain", label: "Zugänge", href: withCustomer("keychain", "customer"), icon: <KeyRound size={18} color="var(--accent-text)" aria-hidden="true" />, tip: "Zugänge im Schlüsselbund" },
     admin && known && { id: "customer", label: "Kunde", href: withCustomer("users", "customer"), icon: <UserCog size={18} color="var(--accent-text)" aria-hidden="true" />, tip: "Kundeneintrag in der Nutzerverwaltung" },
+    // The board picks its project by id, so it needs no hub customer.
+    admin && { id: "tasks", label: "Aufgaben", href: `${hubHref(preview, "projects")}/tasks?project=${encodeURIComponent(project.id)}`, icon: <SquareKanban className="category-icon" size={18} color={categories.projects.fill} strokeWidth={2.2} aria-hidden="true" />, tip: "Aufgaben-Board dieses Projekts" },
   ];
   return links.filter((link): link is QuickLink => Boolean(link));
 }
