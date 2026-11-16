@@ -36,15 +36,11 @@ export function webAppManifest(): MetadataRoute.Manifest {
   };
 }
 
-/** Set when someone taps the hint away; it then stays hidden on this device (Profil › „Als App installieren“ stays). */
-export const INSTALL_HINT_KEY = "oalab-hub-install-hint";
-export const INSTALL_HINT_HIDDEN = "hidden";
-
 export type InstallPlatform = "ios" | "android";
 
 /**
- * Where a hint makes sense: iPhone and iPad (Teilen › „Zum Home-Bildschirm“) or Android, and only in the browser, not
- * in the installed app. Computers get none: their browsers show an install symbol of their own.
+ * Where „App installieren“ makes sense: iPhone and iPad (Teilen › „Zum Home-Bildschirm“) or Android, and only in the
+ * browser, not in the installed app. Computers get none: their browsers show an install symbol of their own.
  */
 export function installPlatform(device: { userAgent: string; maxTouchPoints: number; standalone: boolean }): InstallPlatform | null {
   if (device.standalone) return null;
@@ -53,6 +49,3 @@ export function installPlatform(device: { userAgent: string; maxTouchPoints: num
   if (/Android/.test(device.userAgent)) return "android";
   return null;
 }
-
-/** The hint shows until it is tapped away on this device. */
-export const hintHidden = (stored: string | null) => stored === INSTALL_HINT_HIDDEN;

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
-import { hintHidden, INSTALL_HINT_HIDDEN, installPlatform, WEB_APP_COLOR, webAppManifest } from "../lib/web-app/rules.ts";
+import { installPlatform, WEB_APP_COLOR, webAppManifest } from "../lib/web-app/rules.ts";
 
 // The hub as an installable web app (plan of 16.11.2026, stage 1): manifest, icons, safe areas, offline page and the
-// hint „Hub als App nutzen“. Push follows in stage 2.
+// button „App installieren“ left of the bell. Push follows in stage 2.
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const png = async (path) => {
@@ -116,7 +116,7 @@ test("the service worker keeps only the offline page and leaves sign-in, APIs an
   assert.match(page, /<img src="\/app-icons\/icon-192\.png"/, "only the logo the worker keeps");
 });
 
-test("the hint shows on phones and tablets in the browser until it is tapped away", async () => {
+test("„App installieren“ sits left of the bell on phones and tablets in the browser", async () => {
   const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
   const ipad = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
   const android = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36";
@@ -127,15 +127,19 @@ test("the hint shows on phones and tablets in the browser until it is tapped awa
   assert.equal(installPlatform({ userAgent: android, maxTouchPoints: 5, standalone: false }), "android");
   assert.equal(installPlatform({ userAgent: windows, maxTouchPoints: 0, standalone: false }), null);
   assert.equal(installPlatform({ userAgent: iphone, maxTouchPoints: 5, standalone: true }), null, "not in the installed app");
-  assert.equal(hintHidden(INSTALL_HINT_HIDDEN), true);
-  assert.equal(hintHidden(null), false);
 
   const component = await source("components/hub/web-app.tsx");
   assert.match(component, /if \(process\.env\.NODE_ENV !== "production" \|\| !\("serviceWorker" in navigator\)\) return;/, "only the built hub registers the worker");
   assert.match(component, /register\("\/sw\.js", \{ scope: "\/", updateViaCache: "none" \}\)/);
-  assert.match(component, /event\.preventDefault\(\);\s*offer = event as InstallOffer;/, "Chrome's offer waits for „Installieren“");
-  assert.match(component, /localStorage\.setItem\(INSTALL_HINT_KEY, INSTALL_HINT_HIDDEN\)/);
-  assert.match(await source("components/hub/screens/overview.tsx"), /actions=\{<HeaderActions \/>\} \/>\s*\{\/\*[^*]*\*\/\}\s*<InstallHint \/>/, "under the title of the overview");
+  assert.match(component, /event\.preventDefault\(\);\s*offer = event as InstallOffer;/, "Chrome's offer waits for the button");
+  assert.match(component, /canInstall \? <GlassButton icon=\{Download\} label="App installieren" onClick=\{install\} \/> : <InstallGuideButton platform=\{platform\} \/>/, "Android opens its dialog, else the steps");
+  assert.match(component, /useInstallGuide\(platform, \{ className: "glass glass-float glass-button", label: "App installieren", content: <Download /, "the same round button as the bell");
+  assert.doesNotMatch(component, /localStorage/, "nothing is stored on the device for it");
+  // Wish of 16.11.2026: in the row of bell, assistant and profile, left of the bell, instead of a bar on the overview.
+  const shell = await source("components/hub/app-shell.tsx");
+  assert.match(shell, /return <>\s*\{\/\*[^*]*\*\/\}\s*<InstallButton \/>\s*<GlassButton icon=\{Bell\}/, "left of the bell");
+  assert.match(shell, /<WebAppSetup \/>/);
+  assert.doesNotMatch(await source("components/hub/screens/overview.tsx"), /Install/, "the overview keeps no bar");
+  assert.doesNotMatch(await source("app/web-app.css"), /install-hint/);
   assert.match(await source("components/hub/screens/workspace.tsx"), /title="Darstellung"[^\n]*\/>\s*\{\/\*[^*]*\*\/\}\s*<InstallRow \/>/, "in Profil under Darstellung");
-  assert.match(await source("components/hub/app-shell.tsx"), /<WebAppSetup \/>/);
 });
