@@ -122,9 +122,20 @@ export function metadataName(metadata: unknown): string {
   return text(record.full_name) || `${text(record.first_name)} ${text(record.last_name)}`.trim() || text(record.name);
 }
 
-/** Two letters for an avatar: first and last name, or the first two letters of a single word. */
+/**
+ * What the board calls a login the hub has no name for: the name it keeps, else its full e-mail address, as Studio
+ * does (user 16.11.2026: „Ja, wie im Studio“). The address only for the oalab team's view (`withEmail`); freelancers
+ * keep reading „Teammitglied“, so the team's addresses never reach them.
+ */
+export function loginName(user: { user_metadata?: unknown; email?: unknown } | null | undefined, withEmail: boolean): string {
+  const name = metadataName(user?.user_metadata);
+  if (name || !withEmail) return name;
+  return typeof user?.email === "string" ? user.email.trim() : "";
+}
+
+/** Two letters for an avatar: first and last name, or the first two letters of a single word. An e-mail address counts before its @. */
 export function initialsOf(name: string): string {
-  const words = name.replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/[\s-]+/).filter(Boolean);
+  const words = name.split("@")[0].replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/[\s-]+/).filter(Boolean);
   if (!words.length) return "?";
   const letters = words.length === 1 ? words[0].slice(0, 2) : `${words[0][0]}${words[words.length - 1][0]}`;
   return letters.toUpperCase();
