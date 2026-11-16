@@ -50,6 +50,8 @@ const places = [
   { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Anfrage beantworten"', button: /title=\{appointment\.title\} subtitle=\{`Anfrage von [^\n]*actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin und Teams-Link"', button: /title=\{appointment \? appointment\.title : "Neuer Termin"\}[^]*?actions=\{info\.button\} footer=\{footer\}>/, box: "{info.box}" },
   { file: "components/hub/screens/calendar.tsx", call: 'useInfo("Aufgaben im Kalender"', button: /tasksInfo: admin \? tasksInfo\.button : undefined/, box: "{tasksInfo.box}" },
+  // The availability (since 16.11.2026): at the weekly plan of its panel.
+  { file: "components/hub/screens/calendar-availability.tsx", call: 'useInfo("Verfügbarkeit"', button: /<PanelSection title="Wochenplan" info=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Vertragsgenerator"', button: /<Modal title="Vertrag erstellen"[^>]*actions=\{generatorInfo\.button\}/, box: "{generatorInfo.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Beim Kunden ablegen"', button: /<legend>Beim Kunden ablegen\{fileInfo\.button\}<\/legend>/, box: "{fileInfo.box}" },
   { file: "components/hub/screens/contract-template-versions.tsx", call: 'useInfo("Vertragsvorlagen"', button: /label="Vertragsvorlagen"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
@@ -131,8 +133,10 @@ test("every card says it in at most three short lines and hands the rest to the 
 test("the cards and the assistant's details say what the code does", async () => {
   const upload = await source("components/hub/screens/asset-upload.tsx");
   assert.match(upload, /<b>Bis \{MAX_UPLOAD_BATCH\} Dateien,<\/b> je höchstens \{formatBytes\(MAX_FILE_BYTES\)\}/, "upload limits come from the catalog");
+  // Requests follow the availability oalab sets: the durations come from its rules, not from a fixed list.
   const calendar = await source("components/hub/screens/calendar-panels.tsx");
-  assert.match(calendar, /\{WORKDAY\.start\}–\{WORKDAY\.end\} Uhr/, "working hours come from the rules");
+  assert.match(calendar, /const durations = availability\.rules\.durations;/, "durations come from the rules");
+  assert.match(calendar, /<b>Grün<\/b> sind die Zeiten, die oalab für Anfragen frei hat\./);
   // The admins' card about tasks sits where the tasks are: at the week's row „ganztägig“.
   assert.match(await source("components/hub/screens/calendar-views.tsx"), /<span>ganz&shy;tägig<\/span>\{tasksInfo\}/);
   const access = await source("components/hub/screens/contracts-access.tsx");

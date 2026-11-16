@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CalendarDays, CalendarPlus, Check, ChevronLeft, ChevronRight, Inbox, Layers, MousePointerClick, Plus, Search, SquareKanban, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays, CalendarOff, CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Inbox, Layers, MousePointerClick, Paintbrush, Plus, Repeat, Search, SlidersHorizontal,
+  SquareKanban, Trash2, type LucideIcon,
+} from "lucide-react";
 import { confirmSessionHref } from "@/lib/auth-redirect";
 import { categories } from "@/lib/categories";
 import {
-  calendarWindow, clockOf, dayOf, formatDayLong, formatDayShort, formatHours, formatMonth, freeIntervals, isCalendarView, isDay, isoWeek, LIST_DAYS,
-  monthOf, occupancy, stepDay, timeOf, viewDays, weekDays, workWindow, type CalendarView,
+  adminFree, availableSpans, calendarWindow, clockOf, customerFree, dayOf, dayOff, formatDayLong, formatDayShort, formatHours, formatMonth, isCalendarView, isDay,
+  isoWeek, LIST_DAYS, mergeSpans, minutesOn, monthOf, stepDay, subtractSpans, timeOf, viewDays, weekdayIndex, weekDays, weekSummary, WEEKDAY_LONG,
+  type CalendarView, type DaySpan,
 } from "@/lib/hub-calendar/rules";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
 import { hubHref } from "@/lib/hub-data";
@@ -22,9 +26,10 @@ import { useInfo } from "../info-box";
 import { LargeTitleHeader } from "../large-title-header";
 import { SheetActionMenu, ToolbarMenu } from "../sheet";
 import { CustomerSign } from "./customer-sign";
+import { AvailabilityPanel, type ExceptionPreset } from "./calendar-availability";
 import { AppointmentPanel, AskPanel, CustomerAppointmentPanel, GoalPanel, NewTaskPanel, RequestPanel, TaskPanel, type TaskProjectOption } from "./calendar-panels";
 import { boardTasks, projectGoals, projectTasks, useCalendarStore, type CalendarTask } from "./calendar-store";
-import { HOUR_PX, ListView, MonthView, WeekView, type CalendarViewProps, type DayLabel, type OpenTarget, type ViewAppointment } from "./calendar-views";
+import { HOUR_PX, ListView, MonthView, WeekView, type AvailBlock, type CalendarViewProps, type DayLabel, type OpenTarget, type ViewAppointment } from "./calendar-views";
 import type { ScreenProps } from "./types";
 
 /*
@@ -40,9 +45,12 @@ type Panel =
   | { kind: "task"; id: string }
   | { kind: "goal"; id: string }
   | { kind: "newTask"; day: string }
-  | { kind: "ask"; day: string; start?: string };
+  | { kind: "ask"; day: string; start?: string }
+  | { kind: "avail"; preset?: ExceptionPreset | null };
 type Layer = "appts" | "requests" | "tasks" | "goals" | "cancelled" | "done";
-type Float = { x: number; y: number; day: string; minute: number | null };
+type FloatItem = { icon: LucideIcon; label: string; hint?: string; danger?: boolean; run: () => void };
+/** The small menu at the pointer: create something in an empty slot, or decide what painted or clicked green time means. */
+type Float = { x: number; y: number; title: string; items: FloatItem[] };
 type Toast = { text: string; undo?: () => void };
 
 const LAYERS: { id: Layer; label: string; admin?: boolean }[] = [
@@ -159,6 +167,75 @@ function useCalendarDrag(root: React.RefObject<HTMLElement | null>, enabled: boo
   }, [root, enabled]);
 }
 
+/**
+ * Painting availability: while editing, a drag over an editable day column (not over a block or an appointment) draws
+ * a green span on the quarter hour; on release the page asks whether it holds every week or only on that day.
+ */
+function useAvailabilityPaint(root: React.RefObject<HTMLElement | null>, enabled: boolean, onPaint: (day: string, from: number, to: number, x: number, y: number) => void) {
+  const handler = useRef(onPaint);
+  useEffect(() => { handler.current = onPaint; });
+  useEffect(() => {
+    const element = root.current;
+    if (!element || !enabled) return;
+    let paint: { column: HTMLElement; day: string; start: number; anchor: number; from: number; to: number; ghost: HTMLElement | null } | null = null;
+    const minuteAt = (column: HTMLElement, clientY: number) => {
+      const start = Number(column.closest<HTMLElement>(".cal-wk-body")?.dataset.start ?? 0);
+      const raw = start + ((clientY - column.getBoundingClientRect().top) / HOUR_PX) * 60;
+      return Math.min(24 * 60, Math.max(0, Math.round(raw / 15) * 15));
+    };
+    const draw = () => {
+      if (!paint) return;
+      if (!paint.ghost) {
+        paint.ghost = document.createElement("div");
+        paint.ghost.className = "cal-paint";
+        paint.column.append(paint.ghost);
+      }
+      paint.ghost.style.top = `${((paint.from - paint.start) / 60) * HOUR_PX}px`;
+      paint.ghost.style.height = `${((paint.to - paint.from) / 60) * HOUR_PX}px`;
+      paint.ghost.textContent = `${clockOf(paint.from)}–${paint.to === 1440 ? "24:00" : clockOf(paint.to)}`;
+    };
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target as Element | null;
+      const column = target?.closest<HTMLElement>("[data-paint-day]");
+      if (!column || !element.contains(column) || target?.closest("button, a, .cal-av, .cal-ev")) return;
+      const anchor = minuteAt(column, event.clientY);
+      paint = { column, day: column.dataset.paintDay!, start: Number(column.closest<HTMLElement>(".cal-wk-body")?.dataset.start ?? 0), anchor, from: anchor, to: anchor, ghost: null };
+      event.preventDefault();
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!paint) return;
+      event.preventDefault();
+      const minute = minuteAt(paint.column, event.clientY);
+      paint.from = Math.min(paint.anchor, minute);
+      paint.to = Math.max(paint.anchor, minute);
+      if (paint.to - paint.from >= 15) draw();
+    };
+    const onUp = (event: PointerEvent) => {
+      if (!paint) return;
+      const current = paint;
+      paint = null;
+      current.ghost?.remove();
+      if (current.to - current.from < 15) return;
+      // The click that follows the drag must not open anything underneath.
+      const swallow = (click: Event) => { click.stopPropagation(); click.preventDefault(); };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+      handler.current(current.day, current.from, current.to, event.clientX, event.clientY);
+    };
+    element.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      element.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [root, enabled]);
+}
+
 export function CalendarScreen({ calendar, projects, preview, freelancer, fileState, asOf, taskBoard }: ScreenProps & { taskBoard?: TaskBoardState }) {
   const admin = calendar.canManage;
   const board = useMemo(() => admin ? (preview ? taskFixtures(asOf) : taskBoard) : undefined, [admin, preview, asOf, taskBoard]);
@@ -187,6 +264,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const [listQuery, setListQuery] = useState("");
   const [listFilter, setListFilter] = useState<"all" | "appts" | "requests">("all");
   const [float, setFloat] = useState<Float | null>(null);
+  // Admins editing the availability right in the week (approved preview 16.11.2026).
+  const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef(0);
@@ -225,18 +304,20 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const tasksOn = useCallback((date: string) => on("tasks") ? tasks.filter((task) => task.dueOn === date && inScope(task.customerId) && (task.status !== "done" || (admin && on("done")))).sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || b.number - a.number) : [], [tasks, inScope, admin, on]);
   const goalsOn = useCallback((date: string) => on("goals") ? goals.filter((goal) => goal.day === date && inScope(goal.customerId)) : [], [goals, inScope, on]);
   const overdue = useMemo(() => on("tasks") ? tasks.filter((task) => task.dueOn && task.dueOn < today && task.status !== "done" && inScope(task.customerId)) : [], [tasks, today, inScope, on]);
-  const freeOn = useCallback((date: string) => admin || freelancer ? [] : freeIntervals(date, store.blocked, now), [admin, freelancer, store.blocked, now]);
+  // Customers request inside oalab's availability, after the lead time, with the buffer around booked appointments.
+  const { availability } = store;
+  const freeOn = useCallback((date: string) => admin || freelancer ? [] : customerFree(availability, date, store.busy, store.own, now, today), [admin, freelancer, availability, store.busy, store.own, now, today]);
   const dayLabel = useCallback((date: string): DayLabel => {
-    if (!workWindow(date)) return { text: admin ? "Kein Termintag" : "", tone: "off" };
+    if (admin && dayOff(availability, date)) return { text: "Abwesend", tone: "off" };
+    if (!availableSpans(availability, date).length) return { text: admin ? "Kein Termintag" : "", tone: "off" };
     if (date < today) return { text: "", tone: "" };
     if (admin) {
-      const load = occupancy(date, store.busy);
-      const free = load.totalMinutes - load.bookedMinutes;
+      const free = adminFree(availability, date, store.busy, now).reduce((sum, item) => sum + item.end - item.start, 0) / MINUTE;
       return free > 0 ? { text: `${formatHours(free)} frei`, tone: "ok" } : { text: "Ausgebucht", tone: "todo" };
     }
     if (freelancer) return { text: "", tone: "" };
-    return freeIntervals(date, store.blocked, now).some((interval) => interval.end - interval.start >= 30 * MINUTE) ? { text: "Frei", tone: "ok" } : { text: "Belegt", tone: "off" };
-  }, [admin, freelancer, today, store.busy, store.blocked, now]);
+    return freeOn(date).some((interval) => interval.end - interval.start >= 30 * MINUTE) ? { text: "Frei", tone: "ok" } : { text: "Belegt", tone: "off" };
+  }, [admin, freelancer, today, availability, store.busy, now, freeOn]);
 
   const days = viewDays(view, view === "list" && day < today && monthOf(day) === monthOf(today) ? today : day);
   const rangeDays = new Set(days);
@@ -268,13 +349,54 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   }, [store, showToast]);
   useCalendarDrag(root, admin, (id, date) => void moveTaskTo(id, date), (id, date, minute) => void moveAppointmentTo(id, date, minute));
 
+  /* ---------- Availability: edited right in the week, every change applies at once ---------- */
+  const span = (from: number, to: number) => `${clockOf(from)}–${to === 1440 ? "24:00" : clockOf(to)}`;
+  const report = useCallback((result: { ok: true } | { ok: false; error: string }, message: string) => showToast(result.ok ? message : result.error), [showToast]);
+  const weekWith = (index: number, spans: DaySpan[]) => availability.week.map((spansOfDay, position) => position === index ? mergeSpans(spans) : spansOfDay);
+  const toggleEditing = () => {
+    setFloat(null);
+    // Painting needs the time grid: month and list switch to the week.
+    if (!editing && (view === "month" || view === "list")) setView("week");
+    setEditing((current) => !current);
+  };
+  const onPaint = (date: string, from: number, to: number, x: number, y: number) => {
+    const index = weekdayIndex(date);
+    setFloat({ x, y, title: `${formatDayShort(date)}, ${span(from, to)} Uhr`, items: [
+      { icon: Repeat, label: `Jeden ${WEEKDAY_LONG[index]}`, hint: "Kommt in den Wochenplan",
+        run: () => void store.saveWeek(weekWith(index, [...availability.week[index], [from, to]])).then((result) => report(result, `${WEEKDAY_LONG[index]}s ${span(from, to)} Uhr verfügbar.`)) },
+      { icon: CalendarPlus, label: `Nur am ${formatDayShort(date)}`, hint: "Zusätzliche Zeit an diesem Tag",
+        run: () => void store.addException({ kind: "extra", from: date, start: clockOf(from), end: to === 1440 ? "24:00" : clockOf(to) }).then((result) => report(result, `${formatDayShort(date)}, ${span(from, to)} Uhr zusätzlich verfügbar.`)) },
+    ] });
+  };
+  const onAvailBlock = (block: AvailBlock, event: React.MouseEvent<HTMLElement>) => {
+    const title = `${formatDayShort(block.day)}, ${span(block.from, block.to)} Uhr`;
+    if (block.kind === "extra") {
+      setFloat({ x: event.clientX, y: event.clientY, title, items: [
+        { icon: Trash2, label: "Zusätzliche Zeit entfernen", danger: true, run: () => void store.removeException(block.id).then((result) => report(result, "Zusätzliche Zeit entfernt.")) },
+      ] });
+      return;
+    }
+    const index = weekdayIndex(block.day);
+    setFloat({ x: event.clientX, y: event.clientY, title, items: [
+      { icon: CalendarOff, label: `Nur am ${formatDayShort(block.day)} herausnehmen`, hint: "Abwesenheit für diese Zeit",
+        run: () => void store.addException({ kind: "off", from: block.day, allDay: false, start: clockOf(block.from), end: block.to === 1440 ? "24:00" : clockOf(block.to) }).then((result) => report(result, `${title}: nicht verfügbar.`)) },
+      { icon: Repeat, label: `Jeden ${WEEKDAY_LONG[index]} herausnehmen`, hint: "Aus dem Wochenplan", danger: true,
+        run: () => void store.saveWeek(weekWith(index, subtractSpans(availability.week[index], [[block.from, block.to]]))).then((result) => report(result, `${WEEKDAY_LONG[index]}s ${span(block.from, block.to)} Uhr nicht mehr im Wochenplan.`)) },
+    ] });
+  };
+  const onDayOff = (date: string) => {
+    const off = dayOff(availability, date);
+    if (off) void store.removeException(off.id).then((result) => report(result, `${formatDayShort(date)} ist wieder verfügbar.`));
+    else void store.addException({ kind: "off", from: date, allDay: true }).then((result) => report(result, `${formatDayShort(date)}: den ganzen Tag nicht verfügbar.`));
+  };
+  useAvailabilityPaint(root, admin && editing && (view === "week" || view === "day"), onPaint);
+
   /* ---------- Opening things ---------- */
   const open = (target: OpenTarget) => { setFloat(null); setNotice(""); setPanel(target.kind === "appointment" ? { kind: "appointment", id: target.id } : target.kind === "task" ? { kind: "task", id: target.id } : { kind: "goal", id: target.id }); };
+  // A new appointment starts at the first free hour of the day inside the availability, else at ten.
   const firstStart = (date: string) => {
-    const window = workWindow(date);
-    if (!window) return "10:00";
-    const free = freeIntervals(date, store.busy, now).find((interval) => interval.end - interval.start >= 60 * MINUTE);
-    return free ? clockOf(Math.ceil((Math.max(free.start, window.start) - window.start) / (30 * MINUTE)) * 30 + 9 * 60) : "10:00";
+    const free = adminFree(availability, date, store.busy, now).find((interval) => interval.end - interval.start >= 60 * MINUTE);
+    return free ? clockOf(Math.min(Math.ceil(minutesOn(date, free.start) / 30) * 30, 23 * 60)) : "10:00";
   };
   const newAppointment = (date = day < today ? today : day, start?: string, title?: string, customerId: string | null = selected) => { setFloat(null); setNotice(""); setPanel({ kind: "new", day: date, start: start ?? firstStart(date), customerId, title }); };
   const goToday = () => { setDay(today); };
@@ -289,10 +411,12 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || panel) return;
       if ((event.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable='true'], dialog, [role='menu']")) return;
       if (event.key === "Escape" && float) { setFloat(null); return; }
+      if (event.key === "Escape" && editing) { setEditing(false); return; }
       if (event.key === "ArrowLeft") step(-1);
       else if (event.key === "ArrowRight") step(1);
       else if (event.key.toLowerCase() === "t") goToday();
       else if (event.key.toLowerCase() === "n" && admin) { event.preventDefault(); newAppointment(); }
+      else if (event.key.toLowerCase() === "v" && admin) { event.preventDefault(); toggleEditing(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -310,12 +434,19 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       if (!freelancer && cell && view === "month" && freeOn(date).length) setPanel({ kind: "ask", day: date });
       return;
     }
+    // While the availability is edited, a drag paints; a plain click does nothing.
+    if (editing) return;
     let minute: number | null = null;
     if (column) {
       const start = Number(column.closest<HTMLElement>(".cal-wk-body")?.dataset.start ?? 0);
       minute = Math.floor((start + ((event.clientY - column.getBoundingClientRect().top) / HOUR_PX) * 60) / 30) * 30;
     }
-    setFloat({ x: event.clientX, y: event.clientY, day: date, minute });
+    const at = minute;
+    setFloat({ x: event.clientX, y: event.clientY, title: at !== null ? `${formatDayShort(date)}, ${clockOf(at)} Uhr` : formatDayLong(date), items: [
+      { icon: CalendarPlus, label: "Termin anlegen", hint: at !== null ? `${clockOf(at)}–${clockOf(at + 60)} Uhr` : undefined, run: () => newAppointment(date, at !== null ? clockOf(at) : undefined) },
+      { icon: SquareKanban, label: "Aufgabe mit diesem Datum", hint: "Steht danach auch im Board", run: () => setPanel({ kind: "newTask", day: date }) },
+      ...(at !== null ? [{ icon: Inbox, label: "Zeit blockieren", hint: "Interner Termin, für Kunden belegt", run: () => newAppointment(date, clockOf(at), "Blockiert", null) }] : []),
+    ] });
   }
   useEffect(() => {
     if (!float) return;
@@ -349,10 +480,12 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const viewProps: CalendarViewProps = {
     days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks: store.canEditTasks,
     showCompany: admin && selected === null, tasksInfo: admin ? tasksInfo.button : undefined,
+    availability, editing: admin && editing,
     onOpen: open,
     onDay: (date) => { setDay(date); setView(admin ? "day" : "week"); },
-    onOverdue: () => { setView("list"); setDay(today); },
+    onOverdue: () => { setEditing(false); setView("list"); setDay(today); },
     onFree: (date, minute) => setPanel({ kind: "ask", day: date, start: clockOf(minute) }),
+    onAvailBlock, onDayOff,
   };
   const content = view === "month" ? <MonthView {...viewProps} month={monthOf(day)} />
     : view === "list" ? <ListView {...viewProps} logoOf={(id) => logos.get(id) ?? null} />
@@ -382,14 +515,30 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
           ))}
         </div>
       </ToolbarMenu>
-      <SegmentedControl label="Ansicht" value={view} onChange={setView} options={viewOptions} />
+      <SegmentedControl label="Ansicht" value={view} onChange={(next: CalendarView) => { if (next === "month" || next === "list") setEditing(false); setView(next); }} options={viewOptions} />
       {admin && <SheetActionMenu label="Kalender" actions={[
         { icon: CalendarPlus, label: "Neuer Termin", hint: "Mit oder ohne Kunde", shortcut: "N", onSelect: () => newAppointment() },
         { icon: SquareKanban, label: "Neue Aufgabe mit Datum", hint: "Steht danach auch im Board", onSelect: () => setPanel({ kind: "newTask", day: day < today ? today : day }) },
+        { icon: Clock, label: editing ? "Bearbeiten beenden" : "Verfügbarkeit bearbeiten", hint: "Direkt in der Woche ziehen", shortcut: "V", onSelect: toggleEditing },
+        { icon: CalendarOff, label: "Abwesenheit eintragen", hint: "Urlaub, Messe, privat", onSelect: () => setPanel({ kind: "avail", preset: { kind: "off", day: day < today ? today : day } }) },
+        { icon: SlidersHorizontal, label: "Wochenplan & Regeln", hint: "Vorlauf, Puffer, Dauern", onSelect: () => setPanel({ kind: "avail" }) },
       ]} />}
     </div>
   );
-  const strip = admin
+  const strip = admin && editing && (view === "week" || view === "day")
+    ? (
+      <div className="cal-strip is-edit" role="status">
+        <span className="cal-strip-icon"><Paintbrush size={15} aria-hidden="true" /></span>
+        <span className="cal-strip-text">{store.availabilityReady
+          ? <><b>Verfügbarkeit bearbeiten.</b> Zieh über eine Zeit, um sie buchbar zu machen. Ein Klick auf einen grünen Block nimmt ihn wieder heraus, „Tag aus“ sperrt den ganzen Tag.</>
+          : <><b>Noch nicht speicherbar.</b> Die Datenbank-Erweiterung für die Verfügbarkeit fehlt noch; bis dahin gelten montags bis freitags 9 bis 17 Uhr.</>}</span>
+        <span className="cal-strip-acts">
+          <button type="button" className="sheet-action" onClick={() => setPanel({ kind: "avail" })}><SlidersHorizontal size={15} aria-hidden="true" /><span className="cal-head-label">Wochenplan & Regeln</span></button>
+          <button type="button" className="sheet-action is-primary" onClick={toggleEditing}><Check size={15} aria-hidden="true" />Fertig</button>
+        </span>
+      </div>
+    )
+    : admin
     ? openRequests.length > 0 && on("requests") && (
       <div className="cal-strip is-requests">
         <span className="cal-strip-icon"><Inbox size={15} aria-hidden="true" /></span>
@@ -413,7 +562,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const legend = (
     <span className="cal-legend">
       {(admin
-        ? [["is-confirmed", "Termin"], ["is-requested", "Anfrage"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"], ["is-off", "Kein Termintag"]]
+        ? [["is-confirmed", "Termin"], ["is-requested", "Anfrage"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"], ...(editing ? [["is-avail", "Verfügbar"]] : []), ["is-off", "Nicht verfügbar"]]
         : [["is-confirmed", "Dein Termin"], ["is-requested", "Deine Anfrage"], ...(freelancer ? [] : [["is-free", "Frei"]]), ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"]]
       ).map(([cls, label]) => <span key={cls} className="cal-key"><span className={`cal-key-swatch ${cls}`} aria-hidden="true" />{label}</span>)}
     </span>
@@ -437,6 +586,10 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
               : `${titleSub || title}: ${plural(counts.confirmed, "Termin", "Termine")} · ${plural(counts.requested, "Anfrage", "Anfragen")} · ${plural(counts.due, "Aufgabe", "Aufgaben")} fällig`}</span>
           </div>
           <Link className="sheet-action" href={`${hubHref(preview, "projects")}/tasks`} data-tip="Zum Aufgaben-Board"><SquareKanban size={15} aria-hidden="true" /><span className="cal-head-label">Aufgaben</span></Link>
+          <button type="button" className={`sheet-action cal-avail-action${editing ? " is-on" : ""}`} aria-pressed={editing} onClick={toggleEditing}
+            data-tip={editing ? "Bearbeiten beenden" : "Verfügbarkeit im Kalender bearbeiten"} data-tip-sub={weekSummary(availability.week)} data-tip-kbd="V">
+            <Clock size={15} aria-hidden="true" /><span className="cal-head-label">Verfügbarkeit</span>
+          </button>
           <button type="button" className="sheet-action is-primary" onClick={() => newAppointment()} data-tip-compact="Neuer Termin" data-tip-kbd="N"><Plus size={15} aria-hidden="true" /><span className="cal-head-label" data-tip-label>Termin</span></button>
         </header>
       ) : (
@@ -544,13 +697,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     : panel.kind === "goal" && panelGoal ? <GoalPanel key={panelGoal.id} goal={panelGoal} tasks={tasks.filter((task) => task.projectId === panelGoal.id)} preview={preview} today={today} onClose={close} onOpenTask={(id) => setPanel({ kind: "task", id })} />
     : panel.kind === "newTask" ? <NewTaskPanel key={`task-${panel.day}`} store={store} projects={taskProjects} day={panel.day} confirmHref={confirmHref} onClose={close} onDone={finish} />
     : panel.kind === "ask" ? <AskPanel key={`ask-${panel.day}-${panel.start ?? ""}`} store={store} initialDay={panel.day} initialStart={panel.start} onClose={close} onSent={finish} />
+    : panel.kind === "avail" ? <AvailabilityPanel key={`avail-${panel.preset?.kind ?? ""}`} store={store} preset={panel.preset} onClose={close} onNotice={(message) => showToast(message)} />
     : null;
-
-  const floatItems: { icon: LucideIcon; label: string; hint?: string; run: () => void }[] = float ? [
-    { icon: CalendarPlus, label: "Termin anlegen", hint: float.minute !== null ? `${clockOf(float.minute)}–${clockOf(float.minute + 60)} Uhr` : undefined, run: () => newAppointment(float.day, float.minute !== null ? clockOf(float.minute) : undefined) },
-    { icon: SquareKanban, label: "Aufgabe mit diesem Datum", hint: "Steht danach auch im Board", run: () => setPanel({ kind: "newTask", day: float.day }) },
-    ...(float.minute !== null ? [{ icon: Inbox, label: "Zeit blockieren", hint: "Interner Termin, für Kunden belegt", run: () => newAppointment(float.day, clockOf(float.minute!), "Blockiert", null) }] : []),
-  ] : [];
 
   if (calendar.error) {
     return <><Header preview={preview} /><GlassCard className="section-first"><p className="t-headline">Kalender nicht verfügbar</p><p className="t-subheadline t-secondary">{calendar.error}</p></GlassCard></>;
@@ -566,10 +714,10 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       </div>
       {panelNode}
       {float && (
-        <div className="sheet-pop cal-float" role="menu" aria-label={formatDayLong(float.day)} style={{ left: Math.min(float.x - 12, (typeof window === "undefined" ? 1200 : window.innerWidth) - 290), top: float.y + 8 }}>
-          <div className="cal-float-title">{float.minute !== null ? `${formatDayShort(float.day)}, ${clockOf(float.minute)} Uhr` : formatDayLong(float.day)}</div>
-          {floatItems.map((item) => (
-            <button key={item.label} type="button" role="menuitem" className="sheet-action-item" onClick={() => { setFloat(null); item.run(); }}>
+        <div className="sheet-pop cal-float" role="menu" aria-label={float.title} style={{ left: Math.min(float.x - 12, (typeof window === "undefined" ? 1200 : window.innerWidth) - 290), top: float.y + 8 }}>
+          <div className="cal-float-title">{float.title}</div>
+          {float.items.map((item) => (
+            <button key={item.label} type="button" role="menuitem" className={`sheet-action-item${item.danger ? " is-danger" : ""}`} onClick={() => { setFloat(null); item.run(); }}>
               <span className="sheet-action-icon"><item.icon size={16} aria-hidden="true" /></span>
               <span className="sheet-action-text"><strong>{item.label}</strong>{item.hint && <small>{item.hint}</small>}</span>
             </button>
