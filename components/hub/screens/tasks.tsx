@@ -50,6 +50,9 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   // Without a session confirmed by a code Studio refuses every change, so the board stays read-only and offers the code.
   const locked = !source.error && !source.confirmed;
   const canEdit = !source.error && source.confirmed;
+  // The code page returns to this board, project and card (a full page load: it sits outside the hub).
+  const query = searchParams.toString();
+  const confirmHref = locked ? confirmSessionHref(`${hubHref(preview, "projects")}/tasks${query ? `?${query}` : ""}`) : null;
 
   // The board = the server's rows plus what happened here since: changes (until the server knows a newer version),
   // new cards (until the server lists them) and archived cards.
@@ -313,12 +316,11 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
         actions={<HeaderActions />}
       />
       {source.error && <p className="calendar-notice kb-error-note" role="alert">{source.error}</p>}
-      {locked && (
+      {confirmHref && (
         <div className="calendar-notice kb-lock-note" role="status">
           <Lock size={18} aria-hidden="true" />
           <span className="kb-lock-text"><b>Nur lesen.</b> Zum Bearbeiten bestätigst du deine Anmeldung einmal mit einem Code aus der Mail.</span>
-          {/* A full page load: the code page sits outside the hub and returns to this board, project and card. */}
-          <a className="sheet-action is-primary" href={confirmSessionHref(`${hubHref(preview, "projects")}/tasks${searchParams.toString() ? `?${searchParams.toString()}` : ""}`)}>Mit Code bestätigen</a>
+          <a className="sheet-action is-primary" href={confirmHref}>Mit Code bestätigen</a>
         </div>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -374,6 +376,7 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
           today={today}
           preview={preview}
           canEdit={canEdit}
+          confirmHref={confirmHref}
           onClose={close}
           onPatch={(change) => patch(openTask, change)}
           onMove={(status) => void place(openTask, status, 0)}

@@ -111,8 +111,13 @@ test("without a session confirmed by a code the board reads only and offers the 
   assert.equal(taskFixtures("2026-11-15").confirmed, true);
   const screen = await source("components/hub/screens/tasks.tsx");
   assert.match(screen, /const canEdit = !source\.error && source\.confirmed;/);
-  assert.match(screen, /href=\{confirmSessionHref\(`\$\{hubHref\(preview, "projects"\)\}\/tasks/);
-  assert.match(screen, />Mit Code bestätigen<\/a>/);
+  assert.match(screen, /const confirmHref = locked \? confirmSessionHref\(`\$\{hubHref\(preview, "projects"\)\}\/tasks/);
+  assert.match(screen, /href=\{confirmHref\}>Mit Code bestätigen<\/a>/);
+  // The open window covers that note on the right, so its footer offers the code as well (live 16.11.2026).
+  assert.match(screen, /confirmHref=\{confirmHref\}/);
+  const panel = await source("components/hub/screens/tasks-panel.tsx");
+  assert.match(panel, /\) : confirmHref \? \(\n\s+<div className="kb-locked" role="status">/);
+  assert.match(panel, /href=\{confirmHref\}>Mit Code bestätigen<\/a>/);
   // Read-only keeps the choice between board and list.
   assert.match(screen, /actions=\{canEdit \? \[\{ icon: Plus, label: "Neue Aufgabe"/);
 });
