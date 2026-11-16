@@ -43,10 +43,20 @@ export function PriorityIcon({ priority, size = 14 }: { priority: TaskPriority; 
 
 export const priorityLabel = (priority: TaskPriority) => PRIORITY_NAMES[priority];
 
-/** A person's initials in a circle, with the name as the hover hint. */
+/** Under the name in hover hints: „oalab-Team“ or „Freelancer · Pixelwerk GbR“. */
+export const roleOf = (person: BoardPerson | undefined) => person?.kind === "team" ? "oalab-Team" : person?.kind === "freelancer" ? `Freelancer${person.company ? ` · ${person.company}` : ""}` : undefined;
+
+/** A person's initials in a circle, with the name as the hover hint; freelancers in their own colour. */
 export function Avatar({ person, size = "s" }: { person: BoardPerson | undefined; size?: "s" | "m" }) {
   const name = person?.name ?? "Unbekannt";
-  return <span className={`kb-av${size === "m" ? " is-m" : ""}`} data-tip={name} data-tip-sub={person?.kind === "team" ? "oalab-Team" : undefined}>{person?.initials ?? "?"}</span>;
+  return <span className={`kb-av${size === "m" ? " is-m" : ""}${person?.kind === "freelancer" ? " is-freelancer" : ""}`} data-tip={name} data-tip-sub={roleOf(person)}>{person?.initials ?? "?"}</span>;
+}
+
+/** Next to a name in comments: who writes for oalab, who as a freelancer. */
+export function RoleTag({ person }: { person: BoardPerson | undefined }) {
+  if (person?.kind === "team") return <span className="kb-role">oalab</span>;
+  if (person?.kind === "freelancer") return <span className="kb-role is-freelancer">Freelancer</span>;
+  return null;
 }
 
 export function AvatarStack({ ids, people }: { ids: readonly string[]; people: ReadonlyMap<string, BoardPerson> }) {
@@ -74,7 +84,7 @@ export function LabelPill({ label, onRemove }: { label: string; onRemove?: () =>
   );
 }
 
-/** A customer's mark: its initials on a colour from its name (the logos come with the freelancer step). */
+/** A customer's mark: its initials on a colour from its name. */
 export function CompanyMark({ company, size = "l" }: { company: string; size?: "s" | "m" | "l" }) {
   const words = company.replace(/[^\p{L}\p{N}\s&]/gu, " ").split(/\s+/).filter((word) => word && word !== "&");
   const letters = (words.length > 1 ? `${words[0][0]}${words[1][0]}` : (words[0] ?? "?").slice(0, 2)).toUpperCase();

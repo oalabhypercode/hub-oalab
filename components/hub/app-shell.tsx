@@ -97,7 +97,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
     person: live ? { phone: live.phone, position: live.position } : null,
     customerDetails: liveCustomer ? { street: liveCustomer.street, postalCode: liveCustomer.postalCode, city: liveCustomer.city, country: liveCustomer.country, website: liveCustomer.website, phone: liveCustomer.phone, contactEmail: liveCustomer.contactEmail } : null,
   };
-  const counts = { projects: projects.length, files: preview ? previewFiles.length : fileCount ?? 0, messages: unreadConversations ?? (preview ? 1 : 0) };
+  // Freelancers' „Projekte“ is their task board; the customer projects counted here are none of theirs, so no count.
+  const counts = { projects: account.freelancer ? undefined : projects.length, files: preview ? previewFiles.length : fileCount ?? 0, messages: unreadConversations ?? (preview ? 1 : 0) };
   // Only a real customer login shows its company's logo; admins keep their initials.
   const logo = live && !account.admin ? accountLogo : null;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronsRightLeft, Eye, GripVertical, ListChecks, MessageSquare, Paperclip, Plus } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronsRightLeft, Eye, GripVertical, ListChecks, Lock, MessageSquare, Paperclip, Plus } from "lucide-react";
 import { DONE_VISIBLE, dueInfo, PRIORITY_NAMES, STATUS_EMPTY, STATUS_NAMES, TASK_STATUSES } from "@/lib/hub-tasks/rules";
 import type { BoardPerson, BoardProject, BoardTask, TaskStatus } from "@/lib/hub-tasks/types";
 import { Select } from "../select";
@@ -100,9 +100,16 @@ function CardMeta({ task, today }: { task: BoardTask; today: string }) {
       {task.checklist.total > 0 && <span className="kb-meta" data-tip="Checkliste"><ListChecks size={13} aria-hidden="true" />{task.checklist.done}/{task.checklist.total}</span>}
       {task.files > 0 && <span className="kb-meta" data-tip={task.files === 1 ? "1 Bild" : `${task.files} Bilder`}><Paperclip size={13} aria-hidden="true" />{task.files}</span>}
       {task.comments > 0 && <span className="kb-meta" data-tip={task.comments === 1 ? "1 Kommentar" : `${task.comments} Kommentare`}><MessageSquare size={13} aria-hidden="true" />{task.comments}</span>}
-      {task.visible && <span className="kb-vis is-customer" data-tip="Auch der Kunde sieht diese Aufgabe" data-tip-sub="im Fenster des Projekts"><Eye size={11} strokeWidth={2.4} aria-hidden="true" />Kunde</span>}
+      <AudienceBadge task={task} />
     </>
   );
+}
+
+/** „Nur Team“ wears a lock (freelancers never get such cards), a card released to the customer says „Kunde“. */
+function AudienceBadge({ task }: { task: BoardTask }) {
+  if (task.visible) return <span className="kb-vis is-customer" data-tip="Auch der Kunde sieht diese Aufgabe" data-tip-sub="im Fenster des Projekts"><Eye size={11} strokeWidth={2.4} aria-hidden="true" />Kunde</span>;
+  if (task.teamOnly) return <span className="kb-vis is-team" data-tip="Nur das oalab-Team" data-tip-sub="Freelancer und Kunde sehen diese Aufgabe nicht"><Lock size={11} strokeWidth={2.4} aria-hidden="true" />Team</span>;
+  return null;
 }
 
 function Card({ task, view, hidden = false }: { task: BoardTask; view: TaskViewProps; hidden?: boolean }) {
@@ -211,7 +218,7 @@ function Row({ task, view, hidden = false }: { task: BoardTask; view: TaskViewPr
         <span className="kb-num">#{task.number}</span>
         {project && <span className="kb-project-tag"><CompanyMark company={project.company} size="s" /><span>{project.name}</span></span>}
         <span className="kb-row-title">{task.title}</span>
-        {task.visible && <span className="kb-vis is-customer" data-tip="Auch der Kunde sieht diese Aufgabe"><Eye size={11} strokeWidth={2.4} aria-hidden="true" />Kunde</span>}
+        <AudienceBadge task={task} />
       </span>
       <span className="kb-row-who" role="cell">{task.assigneeIds.length ? <AvatarStack ids={task.assigneeIds} people={view.people} /> : <span className="cell-none">–</span>}</span>
       <span className="kb-row-due" role="cell">{due ? <span className={`kb-due ${due.tone}`} data-tip={`Fällig ${due.long}`} data-tip-sub={due.hint}>{due.row}</span> : <span className="cell-none">–</span>}</span>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Bot, Building2, KeyRound, LogOut, MessageCircleQuestion, Palette, Scale, ScrollText, ShieldCheck, Sparkles, SquareKanban, UserCog, UserRound } from "lucide-react";
-import { categories, categoriesFor, categoryLabel, type CategoryId } from "@/lib/categories";
+import { categories, categoriesFor, categoryLabel, projectsHref, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, previewAccount, sectionLabels } from "@/lib/hub-data";
 import { packageCatalog } from "@/lib/service-packages";
 import { LegalLinks } from "@/components/legal-links";
@@ -59,7 +59,10 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
       {shownCategories.length ? (
         <InsetGroupedList label="Bereiche" className="list-icons">
           {shownCategories.flatMap((id) => [
-            <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />,
+            // Freelancers' „Projekte“ is the task board of their projects (16.11.2026).
+            id === "projects" && freelancer
+              ? <ListRow key={id} compact href={projectsHref(hubHref(preview, "projects"), true)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, true)} subtitle="Aufgaben-Board deiner Projekte" />
+              : <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />,
             // Phones reach the oalab team's task board under Projekte from here.
             ...(id === "projects" && manageUsers ? [<ListRow key="tasks" compact href={`${hubHref(preview, "projects")}/tasks`} icon={<SquareKanban size={24} color={categories.projects.fill} aria-hidden="true" />} title="Aufgaben" subtitle="Board und Liste der Projekte" />] : []),
           ])}

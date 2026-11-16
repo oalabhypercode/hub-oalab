@@ -27,6 +27,8 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   if (adminSections.includes(validSection) && identity.account?.role !== "oalab_admin") notFound();
   // „Vertrag & Domain“ is for admins and customers; freelancers have no entry and get a plain 404 as well.
   if (validSection === "contracts" && identity.account?.role === "oalab_freelancer") notFound();
+  // Freelancers have no projects page: „Projekte“ is the task board of the projects they work on (16.11.2026).
+  if (validSection === "projects" && identity.account?.role === "oalab_freelancer") redirect(`${hubHref(false, "projects")}/tasks`);
   const [filesState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk] = await Promise.all([
     loadHubFiles(),
     validSection === "users" ? loadUserManagement() : undefined,
