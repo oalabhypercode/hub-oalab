@@ -4,7 +4,8 @@ import test from "node:test";
 import { activeFilterCount, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, dueInfo, initialsOf, matchesFilters, NO_FILTERS, orderBetween, progressOf, renumbered, toBoardTask, TASK_STATUSES } from "../lib/hub-tasks/rules.ts";
 import { taskFixtures } from "../lib/hub-tasks/fixtures.ts";
 
-const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+// Windows checkouts with autocrlf hold CRLF; the patterns below are written with \n.
+const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 
 test("columns follow Studio: backlog, open, in progress, in review, done", () => {
   assert.deepEqual([...TASK_STATUSES], ["backlog", "todo", "progress", "review", "done"]);
@@ -85,8 +86,15 @@ test("Studio rows become cards, unknown values fall back", () => {
 test("writes go through the admin's own session with a version check", async () => {
   const actions = await source("lib/hub-tasks/actions.ts");
   assert.match(actions, /^"use server";/);
-  assert.match(actions, /aal !== "aal2"/);
+  assert.match(actions, /if \(data\?\.claims\?\.aal !== "aal2"\) return unconfirmed;/);
   assert.match(actions, /verifyHubAdmin\(\)/);
+  // Every action starts with its check. Only the window's reads use the board's own check (live 16.11.2026: a login
+  // without a second factor saw the board but not a card's window); everything else writes and needs aal2.
+  const guards = [...actions.matchAll(/export async function (\w+)[^\n]*\n  const ctx = await (reader|actor)\(\);\n  if \((!ctx\) return denied|"error" in ctx\) return ctx);/g)];
+  const exported = [...actions.matchAll(/export async function (\w+)/g)].map((match) => match[1]);
+  assert.deepEqual(guards.map((match) => match[1]).sort(), exported.sort());
+  assert.deepEqual(guards.filter((match) => match[2] === "reader").map((match) => match[1]).sort(), ["loadTaskDetail", "taskFileLink"]);
+  for (const match of guards) assert.equal(match[3].startsWith("!ctx"), match[2] === "reader", match[1]);
   // Every update of a task or a checklist point carries the version the browser saw.
   for (const write of actions.matchAll(/ctx\.supabase\.from\("studio_(tasks|subtasks)"\)\.update\(/g)) {
     const line = actions.slice(write.index, actions.indexOf("\n", write.index));
@@ -94,6 +102,22 @@ test("writes go through the admin's own session with a version check", async () 
   }
   assert.doesNotMatch(actions, /revalidatePath|revalidateTag/);
   const server = await source("lib/hub-tasks/server.ts");
+  assert.match(server, /return data\?\.claims\?\.aal === "aal2";/);
   assert.match(server, /verifyHubAdmin\(\)/);
   assert.match(server, /\.eq\("archived", false\)/);
+});
+
+test("without a session confirmed by a code the board reads only and offers the code", async () => {
+  assert.equal(taskFixtures("2026-11-15").confirmed, true);
+  const screen = await source("components/hub/screens/tasks.tsx");
+  assert.match(screen, /const canEdit = !source\.error && source\.confirmed;/);
+  assert.match(screen, /const confirmHref = locked \? confirmSessionHref\(`\$\{hubHref\(preview, "projects"\)\}\/tasks/);
+  assert.match(screen, /href=\{confirmHref\}>Mit Code bestätigen<\/a>/);
+  // The open window covers that note on the right, so its footer offers the code as well (live 16.11.2026).
+  assert.match(screen, /confirmHref=\{confirmHref\}/);
+  const panel = await source("components/hub/screens/tasks-panel.tsx");
+  assert.match(panel, /\) : confirmHref \? \(\n\s+<div className="kb-locked" role="status">/);
+  assert.match(panel, /href=\{confirmHref\}>Mit Code bestätigen<\/a>/);
+  // Read-only keeps the choice between board and list.
+  assert.match(screen, /actions=\{canEdit \? \[\{ icon: Plus, label: "Neue Aufgabe"/);
 });

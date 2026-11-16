@@ -116,7 +116,7 @@ export function SheetActionMenu({ label, actions, choices }: { label: string; ac
           </button>
         ))}
         {choices && <>
-          <hr className="sheet-action-sep" />
+          {actions.length > 0 && <hr className="sheet-action-sep" />}
           <div className="sheet-action-caption">{choices.label}</div>
           <div className="sheet-choices" role="group" aria-label={choices.label}>
             {choices.options.map(({ id, label: name, icon: Icon }) => (

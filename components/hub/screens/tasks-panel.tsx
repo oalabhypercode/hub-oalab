@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, CalendarDays, Check, Eye, FileText, History, ImageIcon, Link2, ListChecks, MessageSquare, Plus, Send, SignalHigh, Tag, Trash2, Users, X } from "lucide-react";
+import { Archive, CalendarDays, Check, Eye, FileText, History, ImageIcon, Link2, ListChecks, Lock, MessageSquare, Plus, Send, SignalHigh, Tag, Trash2, Users, X } from "lucide-react";
 import { addComment, deleteSubtask, loadTaskDetail, saveSubtask, taskFileLink } from "@/lib/hub-tasks/actions";
 import { taskDetailFixture } from "@/lib/hub-tasks/fixtures";
 import { dueInfo, MAX_TITLE, PRIORITY_NAMES, STATUS_NAMES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/hub-tasks/rules";
@@ -118,7 +118,7 @@ function StatusBar({ value, onChange, disabled }: { value: TaskStatus; onChange:
 }
 
 /** One card's window: its status as steps, its properties, description, checklist, images, history and comments. */
-export function TaskPanel({ task, project, people, team, knownLabels, today, preview, canEdit, onClose, onPatch, onMove, onArchive, onCopyLink, onCounts }: {
+export function TaskPanel({ task, project, people, team, knownLabels, today, preview, canEdit, confirmHref, onClose, onPatch, onMove, onArchive, onCopyLink, onCounts }: {
   task: BoardTask;
   project: BoardProject | undefined;
   people: ReadonlyMap<string, BoardPerson>;
@@ -127,6 +127,11 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
   today: string;
   preview: boolean;
   canEdit: boolean;
+  /**
+   * Read-only because the session has not confirmed a code: the way to the code page, as above the board. The window
+   * covers that note on the right (seen live 16.11.2026), so its footer offers the code as well. Null otherwise.
+   */
+  confirmHref: string | null;
   onClose: () => void;
   onPatch: (patch: TaskPatch) => Promise<boolean>;
   onMove: (status: TaskStatus) => void;
@@ -285,6 +290,12 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
               <button type="button" className="sheet-action is-primary" onClick={() => void send()} disabled={sending || !comment.trim() || !detail}>{sending ? <MiniLoader size={14} /> : <Send size={14} aria-hidden="true" />}Senden</button>
             </div>
           </div>
+        </div>
+      ) : confirmHref ? (
+        <div className="kb-locked" role="status">
+          <Lock size={15} aria-hidden="true" />
+          <span><b>Nur lesen.</b> Bearbeiten und Kommentieren gehen nach einem Code aus der Mail.</span>
+          <a className="sheet-action is-primary" href={confirmHref}>Mit Code bestätigen</a>
         </div>
       ) : undefined}
     >

@@ -7,27 +7,40 @@ import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { cleanDay, cleanLabels, cleanText, cleanTitle, isPriority, isStatus, MAX_TITLE, ORDER_LIMIT, toBoardTask, type StudioTaskRow } from "./rules";
 import type { BoardTask, TaskComment, TaskDetail, TaskPatch, TaskResult, TaskSubtask } from "./types";
 
-// Every action is a public POST endpoint: it checks the admin again (hub role, second factor, is_hub_admin(), aal2)
-// and writes with the admin's *own* session. Studio's RLS lets only its team write, its triggers validate the row,
-// raise the version and log the change under the admin's name, exactly as when the card is moved in Studio.
-// Changes carry the version the browser saw; a newer row is never overwritten ("stale").
+// Every action is a public POST endpoint and checks again. Reading a card's window or image needs the board's own
+// check: an active admin (hub role, second factor if the login has one, is_hub_admin()). Writing also needs a session
+// confirmed with a code (aal2) and uses the admin's *own* session: Studio's RLS lets only its team write, and only
+// with aal2; its triggers validate the row, raise the version and log the change under the admin's name, exactly as
+// when the card is moved in Studio. Changes carry the version the browser saw; a newer row is never overwritten ("stale").
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TASK_COLUMNS = "id, task_number, project_id, title, status, priority, due_date, labels, assignee_user_ids, client_visible, board_order, version, created_by, created_at, updated_at";
-const denied = { ok: false as const, error: "Dafür brauchst du einen aktiven Admin-Zugang mit bestätigtem zweiten Faktor." };
+const denied = { ok: false as const, error: "Dafür brauchst du einen aktiven Admin-Zugang." };
+// A login whose second factor is off signs in with the password alone (aal1); the board offers the code above itself.
+const unconfirmed = { ok: false as const, error: "Bearbeiten geht erst mit bestätigter Anmeldung: Klick über dem Board auf „Mit Code bestätigen“." };
 const STALE = "Die Aufgabe wurde inzwischen geändert. Das Board zeigt jetzt den neuesten Stand.";
 const fail = (error: string, stale = false) => ({ ok: false as const, error, ...(stale ? { stale: true } : {}) });
 
-async function actor() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  if (!data?.claims || data.claims.aal !== "aal2") return null;
+type Refusal = { ok: false; error: string };
+type Context = { userId: string; supabase: Awaited<ReturnType<typeof createClient>>; db: NonNullable<ReturnType<typeof createAdminClient>> };
+
+/** Who may read a card's details: the same check as the board itself (lib/hub-tasks/server.ts). */
+async function reader() {
   const admin = await verifyHubAdmin();
-  const db = createAdminClient();
-  return admin && db ? { userId: admin.userId, supabase, db } : null;
+  const db = admin ? createAdminClient() : null;
+  return admin && db ? { userId: admin.userId, db } : null;
 }
 
-type Context = NonNullable<Awaited<ReturnType<typeof actor>>>;
+/** Who may write: an active admin whose session confirmed a code (aal2); otherwise why not. */
+async function actor(): Promise<Context | Refusal> {
+  const admin = await verifyHubAdmin();
+  const db = admin ? createAdminClient() : null;
+  if (!admin || !db) return denied;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims?.aal !== "aal2") return unconfirmed;
+  return { userId: admin.userId, supabase, db };
+}
 
 /** Studio refuses writes from logins without a team role (42501) and assignees outside the team (its trigger). */
 function writeError(error: { code?: string; message?: string } | null): string {
@@ -51,7 +64,7 @@ async function whyNotWritten(ctx: Context, taskId: string) {
 /** Moves a card to a column and a place (board_order). */
 export async function moveTask(input: { taskId: string; status: string; order: number; expectedVersion: number }): Promise<TaskResult<BoardTask>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const taskId = id(input?.taskId);
   const order = number(input?.order);
   const version = number(input?.expectedVersion);
@@ -66,7 +79,7 @@ export async function moveTask(input: { taskId: string; status: string; order: n
 /** Gives a whole column fresh places (1, 2, 3 …) when the gaps between cards are used up. */
 export async function renumberColumn(input: { items: { taskId: string; order: number; expectedVersion: number }[] }): Promise<TaskResult<{ taskId: string; version: number }[]>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const items = Array.isArray(input?.items) ? input.items.slice(0, 500) : [];
   const saved: { taskId: string; version: number }[] = [];
   for (const item of items) {
@@ -84,7 +97,7 @@ export async function renumberColumn(input: { items: { taskId: string; order: nu
 /** A new card in a project's column. Without a place it goes to the end of the column. */
 export async function createTask(input: { projectId: string; title: string; status?: string; order?: number | null; patch?: TaskPatch }): Promise<TaskResult<BoardTask>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const projectId = id(input?.projectId);
   const title = cleanTitle(input?.title);
   const status = isStatus(input?.status) ? input.status : "todo";
@@ -164,7 +177,7 @@ function patchColumns(patch: TaskPatch): { ok: true; data: Record<string, unknow
 /** Changes title, description, priority, due date, labels, assignees or the release to the customer. */
 export async function updateTask(input: { taskId: string; expectedVersion: number; patch: TaskPatch }): Promise<TaskResult<BoardTask>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const taskId = id(input?.taskId);
   const version = number(input?.expectedVersion);
   if (!taskId || version === null) return fail("Diese Änderung ist ungültig.");
@@ -181,7 +194,7 @@ export async function updateTask(input: { taskId: string; expectedVersion: numbe
 /** Archives a card: it leaves the board (and Studio's board) but stays in the history. */
 export async function archiveTask(input: { taskId: string; expectedVersion: number }): Promise<TaskResult<null>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const taskId = id(input?.taskId);
   const version = number(input?.expectedVersion);
   if (!taskId || version === null) return fail("Diese Aufgabe gibt es nicht.");
@@ -194,7 +207,7 @@ export async function archiveTask(input: { taskId: string; expectedVersion: numb
 
 /** Everything of a card that is not on the board: description, checklist, comments, images and history. */
 export async function loadTaskDetail(input: { taskId: string }): Promise<TaskResult<TaskDetail>> {
-  const ctx = await actor();
+  const ctx = await reader();
   if (!ctx) return denied;
   const taskId = id(input?.taskId);
   if (!taskId) return fail("Diese Aufgabe gibt es nicht.");
@@ -223,7 +236,7 @@ export async function loadTaskDetail(input: { taskId: string }): Promise<TaskRes
 /** A comment under the card. It stays inside the team (Studio's client_visible false). */
 export async function addComment(input: { taskId: string; body: string }): Promise<TaskResult<TaskComment>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const taskId = id(input?.taskId);
   const body = cleanText(input?.body)?.trim();
   if (!taskId) return fail("Diese Aufgabe gibt es nicht.");
@@ -239,7 +252,7 @@ export async function addComment(input: { taskId: string; body: string }): Promi
 /** A point of the checklist: new (without id) or changed (title, done) with its version. */
 export async function saveSubtask(input: { taskId: string; subtaskId?: string; title?: string; done?: boolean; expectedVersion?: number }): Promise<TaskResult<TaskSubtask>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const taskId = id(input?.taskId);
   if (!taskId) return fail("Diese Aufgabe gibt es nicht.");
   const title = input?.title === undefined ? undefined : cleanTitle(input.title);
@@ -278,7 +291,7 @@ export async function saveSubtask(input: { taskId: string; subtaskId?: string; t
 /** Removes a point from the checklist. */
 export async function deleteSubtask(input: { taskId: string; subtaskId: string; expectedVersion: number }): Promise<TaskResult<null>> {
   const ctx = await actor();
-  if (!ctx) return denied;
+  if ("error" in ctx) return ctx;
   const taskId = id(input?.taskId);
   const subtaskId = id(input?.subtaskId);
   const version = number(input?.expectedVersion);
@@ -292,7 +305,7 @@ export async function deleteSubtask(input: { taskId: string; subtaskId: string; 
 
 /** A short-lived link to one of Studio's images on a card. */
 export async function taskFileLink(input: { fileId: string }): Promise<TaskResult<string>> {
-  const ctx = await actor();
+  const ctx = await reader();
   if (!ctx) return denied;
   const fileId = id(input?.fileId);
   if (!fileId) return fail("Diese Datei gibt es nicht.");

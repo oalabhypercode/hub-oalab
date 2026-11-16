@@ -66,7 +66,7 @@ export function taskFixtures(asOf: string): TaskBoardState {
       files: extra.files ?? 0,
     };
   });
-  return { projects, tasks, people, viewerId: "p-jonas", error: null };
+  return { projects, tasks, people, viewerId: "p-jonas", confirmed: true, error: null };
 }
 
 /** The window of an example card: a short history, a checklist where the card has one. */

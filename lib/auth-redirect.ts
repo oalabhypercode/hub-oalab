@@ -72,12 +72,21 @@ export function secondFactorRedirect(pathname: string, search: string, next: str
 
 /**
  * Who stays on the code page and where everyone else goes. Signed out → login; session already confirmed → its
- * destination. A login that wants the code stays, and so does every login Service OALab sent for its team pages,
- * even if the hub itself would not ask for the code.
+ * destination. A login that wants the code stays, and so does every login Service OALab sent for its team pages or
+ * that asked to confirm its session itself (`asked`, from „Mit Code bestätigen“), even if the hub would not ask.
  */
-export function secondFactorPageRedirect(state: { signedIn: boolean; confirmed: boolean; wanted: boolean }, next: string | null | undefined, origin: string): string | null {
+export function secondFactorPageRedirect(state: { signedIn: boolean; confirmed: boolean; wanted: boolean }, next: string | null | undefined, origin: string, asked = false): string | null {
   if (!state.signedIn) return "/auth/login";
   if (state.confirmed) return secondFactorDestination(next, origin);
-  if (state.wanted || serviceDestination(next, origin)) return null;
+  if (state.wanted || serviceDestination(next, origin) || asked) return null;
   return secondFactorDestination(next, origin);
+}
+
+/**
+ * „Mit Code bestätigen“: a login whose second factor is off signs in with the password alone. Pages that write with
+ * Studio's rights (the task board) need a confirmed session; this address asks for a code by e-mail once and then
+ * returns to `next`. The session stays confirmed until the user signs out.
+ */
+export function confirmSessionHref(next: string): string {
+  return `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(safeAuthRedirect(next))}&confirm=1`;
 }

@@ -58,6 +58,11 @@ export type TaskBoardState = {
   /** Everybody the board names: the team (assignable) and creators or authors. */
   people: BoardPerson[];
   viewerId: string;
+  /**
+   * The session confirmed a code (aal2). Studio lets its team write only then, so without it the board is read-only
+   * and offers „Mit Code bestätigen“ (a login whose second factor is off signs in with the password alone).
+   */
+  confirmed: boolean;
   error: string | null;
 };
 

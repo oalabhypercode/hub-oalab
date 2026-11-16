@@ -13,6 +13,11 @@
 .hub-content:has(.kb-sheet) { max-width: 1720px; }
 .kb-sheet { display: flex; flex-direction: column; overflow: clip; }
 .kb-error-note { background: var(--tone-todo-bg); color: var(--tone-todo); box-shadow: inset 3px 0 0 var(--tone-todo-bar), var(--glass-shadow); }
+/* Read-only until the session confirms a code: information, not an error, with the way to the code on the right */
+.kb-lock-note { flex-wrap: wrap; background: var(--tone-info-bg); color: var(--tone-info); box-shadow: inset 3px 0 0 var(--tone-info-bar), var(--glass-shadow); font-weight: 500; }
+.kb-lock-note b { font-weight: 700; }
+.kb-lock-text { flex: 1 1 280px; min-width: 0; }
+.kb-lock-note .sheet-action { margin-left: auto; height: 32px; }
 
 /* Project head */
 .kb-project { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; padding: 12px 16px 12px 12px; border-bottom: 1px solid var(--sheet-line); }
@@ -224,7 +229,13 @@ html.kb-dragging, html.kb-dragging * { cursor: grabbing !important; }
 .kb-comment-body { margin-top: 4px; padding: 8px 11px; border-radius: 4px 12px 12px 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-divider); color: var(--label-body); font-size: 13.5px; line-height: 19px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .kb-loading { display: flex; justify-content: center; padding: 14px; }
 .kb-archive-confirm { height: 30px; background: var(--danger-fill); box-shadow: none; color: #fff; }
-.kb-panel .am-panel-foot:has(.kb-reply) { display: block; padding: 10px 12px 12px; background: var(--sheet); }
+.kb-panel .am-panel-foot:has(.kb-reply, .kb-locked) { display: block; padding: 10px 12px 12px; background: var(--sheet); }
+/* Read-only window: the way to the code, because the window covers the note above the board */
+.kb-locked { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 9px 10px 9px 12px; border-radius: 12px; background: var(--tone-info-bg); color: var(--tone-info); box-shadow: inset 3px 0 0 var(--tone-info-bar); font-size: 13px; line-height: 18px; font-weight: 500; }
+.kb-locked svg { flex: 0 0 auto; }
+.kb-locked span { flex: 1 1 180px; min-width: 0; }
+.kb-locked b { font-weight: 700; }
+.kb-locked .sheet-action { margin-left: auto; height: 30px; }
 .kb-reply-box { display: grid; gap: 6px; padding: 8px 8px 6px 12px; border-radius: 12px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
 .kb-reply-box:focus-within { box-shadow: inset 0 0 0 2px var(--accent-text); }
 .kb-reply-box textarea { width: 100%; min-height: 22px; max-height: 140px; border: 0; outline: 0; resize: none; background: none; color: var(--label); font: inherit; font-size: 13.5px; line-height: 20px; }

@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { initialsOf, NO_COUNTS, toBoardTask, type StudioTaskRow, type TaskCounts } from "./rules";
 import type { BoardPerson, BoardProject, TaskBoardState } from "./types";
@@ -8,12 +9,21 @@ import type { BoardPerson, BoardProject, TaskBoardState } from "./types";
 // The board reads like the projects page for admins: after the same admin check (hub role, second factor,
 // is_hub_admin()) with the server key, every project that is not archived and its open (not archived) tasks. Writes go
 // through the actions with the admin's own session, so Studio's RLS and triggers decide (lib/hub-tasks/actions.ts).
+// Studio's RLS needs a session confirmed with a code (aal2); a login whose second factor is off reads the board but
+// edits only after „Mit Code bestätigen“ (seen live 16.11.2026: the task window failed instead).
 
 /** Studio's team roles: only they may be assignees (Studio's trigger checks the same). */
 export const TEAM_ROLES = ["oalab_operator", "oalab_release_manager", "oalab_admin"];
 
 const TASK_COLUMNS = "id, task_number, project_id, title, status, priority, due_date, labels, assignee_user_ids, client_visible, board_order, version, created_by, created_at, updated_at";
-const failed = (error: string): TaskBoardState => ({ projects: [], tasks: [], people: [], viewerId: "", error });
+const failed = (error: string): TaskBoardState => ({ projects: [], tasks: [], people: [], viewerId: "", confirmed: false, error });
+
+/** Whether this session confirmed a code (aal2): the actions write only then (lib/hub-tasks/actions.ts). */
+async function sessionConfirmed() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims?.aal === "aal2";
+}
 const LOAD_ERROR = "Die Aufgaben konnten gerade nicht geladen werden. Bitte versuche es erneut.";
 
 type ProjectRow = { id: string; organization_id: string; display_name: string; status: string };
@@ -93,7 +103,7 @@ export const loadTaskBoard = cache(async (): Promise<TaskBoardState> => {
   const team = new Set((staff.data ?? []).map((row) => row.user_id));
   const mentioned = new Set<string>([admin.userId, ...team]);
   for (const task of boardTasks) { mentioned.add(task.createdBy); task.assigneeIds.forEach((id) => mentioned.add(id)); }
-  const people = await peopleFor(db, [...mentioned], team);
+  const [people, confirmed] = await Promise.all([peopleFor(db, [...mentioned], team), sessionConfirmed()]);
 
-  return { projects: boardProjects, tasks: boardTasks, people, viewerId: admin.userId, error: null };
+  return { projects: boardProjects, tasks: boardTasks, people, viewerId: admin.userId, confirmed, error: null };
 });
