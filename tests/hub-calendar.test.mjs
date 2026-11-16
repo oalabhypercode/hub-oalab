@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  addMonths, appointmentStatusIds, calendarWindow, checkRequestSlot, cleanTeamsUrl, dayOf, freeIntervals, isTeamsUrl,
-  monthWeeks, occupancy, slotStarts, teamsHosts, timeOf, wallTimeToUtc,
+  addMonths, appointmentStatusIds, calendarWindow, checkRequestSlot, cleanTeamsUrl, dayOf, formatDuration, freeIntervals, isCalendarView,
+  isoWeek, isTeamsUrl, layoutLanes, LIST_DAYS, minutesOn, mondayOf, monthWeeks, occupancy, slotStarts, stepDay, teamsHosts, timeOf, viewDays,
+  wallTimeToUtc, weekDays,
 } from "../lib/hub-calendar/rules.ts";
-import { deadlineHint, formatDeadline } from "../lib/hub-data.ts";
+import { CALENDAR_PATH, movedCalendarPath } from "../lib/hub-calendar/paths.ts";
+import { deadlineHint, formatDeadline, hubHref } from "../lib/hub-data.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const at = (day, time) => wallTimeToUtc(day, time);
@@ -119,15 +121,91 @@ test("project deadlines read as dates and as distance to today", () => {
   assert.equal(deadlineHint("2026-10-09", true, "2026-10-15"), "abgeschlossen");
 });
 
-test("project deadlines appear in the calendar and link back from the projects table", async () => {
+test("project deadlines and tasks with a date appear in the calendar, which opens where a link points", async () => {
+  const store = await source("components/hub/screens/calendar-store.ts");
+  // Studio projects without a target date are left out; customers see the tasks released to them, nothing else.
+  assert.match(store, /projects\.flatMap\(\(project\): CalendarGoal\[\] => project\.dueOn\s*\?/);
+  assert.match(store, /day: project\.dueOn/);
+  assert.match(store, /\(project\.tasks \?\? \[\]\)\.filter\(\(task\) => task\.visible\)/);
+  // Admins see the board's own rows: a task moved here carries the board's version, like a move in the board.
+  assert.match(store, /export function boardTasks\(board: TaskBoardState/);
   const calendar = await source("components/hub/screens/calendar.tsx");
-  // Studio projects without a target date are left out.
-  assert.match(calendar, /projects\s*\.flatMap\(\(project\): ProjectGoal\[\] => project\.dueOn \?/);
-  assert.match(calendar, /day: project\.dueOn/);
+  assert.match(calendar, /admin \? \(board && !board\.error \? boardTasks\(board, projects, calendar\.customers\) : \[\]\) : projectTasks\(projects\)/);
   // A deadline links to its day; a notice links its appointment, which opens on its day.
   assert.match(calendar, /const params = useSearchParams\(\);/);
-  assert.match(calendar, /const linked = appointments\.find\(\(item\) => item\.id === params\.get\("appointment"\)\);\s+const requested = linked \? dayOf\(linked\.start\) : params\.get\("day"\);/);
-  assert.match(calendar, /useState<Dialog \| null>\(\(\) => linked \? \{ kind: "detail", id: linked\.id \} : null\)/);
+  assert.match(calendar, /const linked = store\.appointments\.find\(\(item\) => item\.id === params\.get\("appointment"\)\);/);
+  assert.match(calendar, /const startDay = linked \? dayOf\(linked\.start\) : params\.get\("day"\);/);
+  assert.match(calendar, /useState<Panel \| null>\(\(\) => linked \? \{ kind: "appointment", id: linked\.id \} : null\)/);
+  // Tasks are Studio's rows: without a session confirmed by a code they stay read-only, with the way to the code.
+  assert.match(calendar, /const confirmHref = admin && store\.live && !calendar\.confirmed \? confirmSessionHref\(hubHref\(false, "calendar"\)\) : null;/);
+  assert.match(await source("lib/hub-calendar/server.ts"), /confirmed: canManage && claims\?\.claims\.aal === "aal2"/);
   const table = await source("components/hub/screens/projects-table.tsx");
   assert.match(table, /hubHref\(preview, "calendar"\)\}\?day=\$\{project\.dueOn\}/);
+});
+
+test("the calendar lives under Projekte; its old address forwards with the query", async () => {
+  assert.equal(CALENDAR_PATH, "/dashboard/projects/calendar");
+  assert.equal(hubHref(false, "calendar"), CALENDAR_PATH);
+  assert.equal(hubHref(true, "calendar"), "/preview/projects/calendar");
+  assert.equal(hubHref(false, "projects"), "/dashboard/projects");
+  assert.equal(movedCalendarPath("/dashboard/calendar"), CALENDAR_PATH);
+  assert.equal(movedCalendarPath("/preview/calendar"), "/preview/projects/calendar");
+  for (const path of ["/dashboard/projects/calendar", "/dashboard/calendar/x", "/dashboard", "/calendar", "/dashboard/files"]) assert.equal(movedCalendarPath(path), null, path);
+  // The proxy forwards before anything else (308 keeps the query), the page itself forwards as well.
+  const proxy = await source("lib/supabase/proxy.ts");
+  assert.match(proxy, /const moved = movedCalendarPath\(pathname\);\s+if \(moved\) \{\s+const url = request\.nextUrl\.clone\(\);\s+url\.pathname = moved;\s+return NextResponse\.redirect\(url, 308\);/);
+  assert.match(await source("app/dashboard/[section]/page.tsx"), /if \(validSection === "calendar"\) redirect\(hubHref\(false, "calendar"\)\);/);
+  assert.match(await source("app/preview/[section]/page.tsx"), /if \(validSection === "calendar"\) redirect\(hubHref\(true, "calendar"\)\);/);
+  // The page is a detail of Projekte, but the navigation marks the calendar.
+  const routes = await source("lib/hub-routes.ts");
+  assert.match(routes, /\{ section: "projects", detail: "calendar" \}/);
+  assert.match(routes, /if \(section === "projects" && detail === "calendar"\) return "calendar";/);
+  assert.match(routes, /if \(segment === "projects" && detail === "calendar"\) return "calendar";/);
+  assert.match(await source("components/hub/app-shell.tsx"), /const section: HubSection = pathSection\(pathname\);/);
+  const detail = await source("app/dashboard/[section]/[detail]/page.tsx");
+  assert.match(detail, /tasks \|\| \(calendar && admin\) \? loadTaskBoard\(\) : undefined,\s+calendar \? loadHubCalendar\(todayIso\(\)\) : undefined,/);
+  // In the sidebar it hangs under Projekte, next to Aufgaben.
+  const sidebar = await source("components/hub/glass-sidebar.tsx");
+  assert.match(sidebar, /<Link href=\{hubHref\(preview, "calendar"\)\} className=\{`sidebar-item sidebar-sub\$\{onCalendar \? " is-active" : ""\}`\}/);
+});
+
+test("the views: weeks from Monday with their ISO number, a step per view, four weeks of list", () => {
+  assert.equal(mondayOf("2026-11-16"), "2026-11-16");
+  assert.equal(mondayOf("2026-11-22"), "2026-11-16");
+  assert.deepEqual(weekDays("2026-11-19"), ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"]);
+  assert.equal(isoWeek("2026-11-16"), 47);
+  assert.equal(isoWeek("2026-11-22"), 47);
+  // 2026 starts on a Thursday: it has 53 weeks, and 3 January 2027 still belongs to week 53.
+  assert.equal(isoWeek("2026-01-01"), 1);
+  assert.equal(isoWeek("2027-01-03"), 53);
+  assert.equal(isoWeek("2027-01-04"), 1);
+  const month = viewDays("month", "2026-11-16");
+  assert.equal(month.length, 42);
+  assert.deepEqual([month[0], month.at(-1)], ["2026-10-26", "2026-12-06"]);
+  assert.deepEqual(viewDays("week", "2026-11-18"), weekDays("2026-11-16"));
+  assert.deepEqual(viewDays("day", "2026-11-18"), ["2026-11-18"]);
+  const list = viewDays("list", "2026-11-16");
+  assert.equal(list.length, LIST_DAYS);
+  assert.equal(list.at(-1), "2026-12-13");
+  // A month step lands on the 1st, back in the current month on today.
+  assert.equal(stepDay("month", "2026-11-16", 1, "2026-11-16"), "2026-12-01");
+  assert.equal(stepDay("month", "2026-12-01", -1, "2026-11-16"), "2026-11-16");
+  assert.equal(stepDay("week", "2026-11-16", 1, "2026-11-16"), "2026-11-23");
+  assert.equal(stepDay("day", "2026-11-16", -1, "2026-11-16"), "2026-11-15");
+  assert.equal(stepDay("list", "2026-11-16", 1, "2026-11-16"), "2026-12-14");
+  assert.ok(isCalendarView("week") && isCalendarView("list"));
+  assert.ok(!isCalendarView("agenda") && !isCalendarView(null));
+  assert.deepEqual([30, 45, 60, 90, 480].map(formatDuration), ["30 Min.", "45 Min.", "1 Std.", "1,5 Std.", "8 Std."]);
+});
+
+test("appointments find their place in the time grid, side by side where they overlap", () => {
+  // Wall-clock minutes, clamped to the day: an appointment over midnight ends at 24:00 and starts at 0:00 the next day.
+  assert.equal(minutesOn("2026-11-16", at("2026-11-16", "10:30")), 630);
+  assert.equal(minutesOn("2026-11-16", at("2026-11-17", "01:00")), 24 * 60);
+  assert.equal(minutesOn("2026-11-17", at("2026-11-16", "23:00")), 0);
+  const day = "2026-11-16";
+  const item = (id, from, to) => ({ id, start: at(day, from), end: at(day, to) });
+  const placed = layoutLanes([item("d", "12:00", "13:00"), item("b", "09:30", "11:00"), item("a", "09:00", "10:00"), item("c", "10:00", "10:30")]);
+  assert.deepEqual(placed.map(({ id, lane, lanes }) => [id, lane, lanes]), [["a", 0, 2], ["b", 1, 2], ["c", 0, 2], ["d", 0, 1]]);
+  assert.deepEqual(layoutLanes([]), []);
 });

@@ -38,8 +38,12 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
   // Under the name: the packages in short, for the oalab team its name.
   const meta = activePackages || (account.admin ? "oalab-Team" : account.freelancer ? "Freelancer" : "");
   const [menuOpen, setMenuOpen] = useState(false);
-  // „Aufgaben“ hangs under Projekte (the oalab team's board); on it, Projekte shows as its parent, not as the page.
+  // „Aufgaben“ (the oalab team's board) and „Kalender“ hang under Projekte; on them, Projekte shows as their parent.
+  // Freelancers have no Projekte, so the calendar stays their own entry (16.11.2026).
   const onTasks = /\/projects\/tasks\/?$/.test(usePathname() ?? "");
+  const onCalendar = section === "calendar";
+  const calendarUnderProjects = !account.freelancer;
+  const CalendarIcon = categories.calendar.icon;
   const corner = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -80,18 +84,23 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         ))}
         <span className="sidebar-caption">Bereiche</span>
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
-        {categoriesFor(account.freelancer).map((id) => {
+        {categoriesFor(account.freelancer).filter((id) => !(id === "calendar" && calendarUnderProjects)).map((id) => {
           const Icon = categories[id].icon;
           const props = item(categories[id].section);
-          const parent = id === "projects" && onTasks;
+          const parent = id === "projects" && (onTasks || onCalendar);
           const link = <Link key={id} {...props} className={parent ? "sidebar-item is-parent" : props.className} aria-current={parent ? undefined : props["aria-current"]}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" data-tip={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
-          // The design preview shows the board with examples, so its sidebar carries the entry as well.
-          if (id !== "projects" || !(manageUsers || preview)) return link;
+          if (id !== "projects") return link;
           return (
             <Fragment key={id}>
               {link}
-              <Link href={`${hubHref(preview, "projects")}/tasks`} className={`sidebar-item sidebar-sub${onTasks ? " is-active" : ""}`} aria-current={onTasks ? "page" : undefined}>
-                <SquareKanban size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>Aufgaben</span>
+              {/* The design preview shows the board with examples, so its sidebar carries the entry as well. */}
+              {(manageUsers || preview) && (
+                <Link href={`${hubHref(preview, "projects")}/tasks`} className={`sidebar-item sidebar-sub${onTasks ? " is-active" : ""}`} aria-current={onTasks ? "page" : undefined}>
+                  <SquareKanban size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>Aufgaben</span>
+                </Link>
+              )}
+              <Link href={hubHref(preview, "calendar")} className={`sidebar-item sidebar-sub${onCalendar ? " is-active" : ""}`} aria-current={onCalendar ? "page" : undefined}>
+                <CalendarIcon size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categories.calendar.name}</span>
               </Link>
             </Fragment>
           );

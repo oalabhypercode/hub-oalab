@@ -125,14 +125,6 @@ export function workWindow(day: string): Interval | null {
 
 export type OccupancyLevel = "closed" | "free" | "some" | "busy" | "full";
 
-export const occupancyLabels: Record<OccupancyLevel, string> = {
-  closed: "Kein Termintag",
-  free: "Frei",
-  some: "Gut verfÃ¼gbar",
-  busy: "Stark belegt",
-  full: "Ausgebucht",
-};
-
 /** How much of a day's working hours is booked. */
 export function occupancy(day: string, busy: Interval[]) {
   const window = workWindow(day);
@@ -263,4 +255,72 @@ export const formatTimeRange = ({ start, end }: Interval) => `${timeOf(start)}â€
 export function formatHours(minutes: number) {
   const hours = minutes / 60;
   return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(hours)} Std.`;
+}
+
+export const formatDuration = (minutes: number) => minutes < 60 ? `${minutes} Min.` : `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(minutes / 60)} Std.`;
+
+/* ---------- The calendar's views (Kalender unter Projekte, 16.11.2026): month, week, day, list ---------- */
+
+export const CALENDAR_VIEWS = ["month", "week", "day", "list"] as const;
+export type CalendarView = (typeof CALENDAR_VIEWS)[number];
+export const isCalendarView = (value: unknown): value is CalendarView => typeof value === "string" && (CALENDAR_VIEWS as readonly string[]).includes(value);
+/** How many days the list view shows from its first day. */
+export const LIST_DAYS = 28;
+
+export const mondayOf = (day: string) => addDays(day, -weekdayIndex(day));
+export const weekDays = (day: string) => Array.from({ length: 7 }, (_, index) => addDays(mondayOf(day), index));
+
+/** ISO week number ("KW 47"): the week belongs to the year of its Thursday. */
+export function isoWeek(day: string) {
+  const thursday = addDays(day, 3 - weekdayIndex(day));
+  const january4 = `${thursday.slice(0, 4)}-01-04`;
+  const firstThursday = addDays(january4, 3 - weekdayIndex(january4));
+  return 1 + Math.round((toDayUtc(thursday)! - toDayUtc(firstThursday)!) / (7 * DAY_MS));
+}
+
+/** The days a view shows around its anchor day: the month's weeks, the week, the day, or four weeks of list. */
+export function viewDays(view: CalendarView, day: string): string[] {
+  if (view === "month") return monthWeeks(monthOf(day)).flat();
+  if (view === "week") return weekDays(day);
+  if (view === "day") return [day];
+  return Array.from({ length: LIST_DAYS }, (_, index) => addDays(day, index));
+}
+
+/** The anchor day one step back or forward: a month, a week, a day or the list's four weeks. */
+export function stepDay(view: CalendarView, day: string, direction: 1 | -1, today: string) {
+  if (view === "month") {
+    const month = addMonths(monthOf(day), direction);
+    return month === monthOf(today) ? today : `${month}-01`;
+  }
+  return addDays(day, direction * (view === "week" ? 7 : view === "day" ? 1 : LIST_DAYS));
+}
+
+/** Wall-clock minutes of an instant on `day`, clamped to that day (an appointment over midnight ends at 24:00). */
+export function minutesOn(day: string, time: number) {
+  const other = dayOf(time);
+  return other < day ? 0 : other > day ? 24 * 60 : minutesOf(timeOf(time));
+}
+
+/**
+ * Side-by-side lanes for overlapping appointments of one day, sorted by start: each gets the first free lane, and every
+ * appointment of a group that overlaps knows how many lanes the group needs.
+ */
+export function layoutLanes<T extends Interval>(items: readonly T[]): (T & { lane: number; lanes: number })[] {
+  const sorted = [...items].sort((a, b) => a.start - b.start || a.end - b.end);
+  const placed: (T & { lane: number; lanes: number })[] = [];
+  let group: (T & { lane: number; lanes: number })[] = [];
+  let groupEnd = -Infinity;
+  const close = () => { const lanes = Math.max(1, ...group.map((item) => item.lane + 1)); group.forEach((item) => { item.lanes = lanes; }); group = []; };
+  for (const item of sorted) {
+    if (group.length && item.start >= groupEnd) close();
+    const taken = new Set(group.filter((other) => other.end > item.start).map((other) => other.lane));
+    let lane = 0;
+    while (taken.has(lane)) lane += 1;
+    const entry = { ...item, lane, lanes: 1 };
+    group.push(entry);
+    placed.push(entry);
+    groupEnd = Math.max(groupEnd, item.end);
+  }
+  if (group.length) close();
+  return placed;
 }

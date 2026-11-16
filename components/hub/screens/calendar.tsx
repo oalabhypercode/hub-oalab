@@ -1,378 +1,609 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Flag, Inbox } from "lucide-react";
+import { CalendarDays, CalendarPlus, Check, ChevronLeft, ChevronRight, Inbox, Layers, MousePointerClick, Plus, Search, SquareKanban, type LucideIcon } from "lucide-react";
+import { confirmSessionHref } from "@/lib/auth-redirect";
+import { categories } from "@/lib/categories";
 import {
-  addDays, addMonths, calendarWindow, clockOf, dayOf, formatDayLong, formatDayShort, formatHours, formatMonth, formatTimeRange,
-  freeIntervals, isDay, isWorkday, mergeIntervals, monthOf, monthWeeks, occupancy, occupancyLabels, slotStarts, timeOf, wallTimeToUtc, WORKDAY,
-  type OccupancyLevel,
+  calendarWindow, clockOf, dayOf, formatDayLong, formatDayShort, formatHours, formatMonth, freeIntervals, isCalendarView, isDay, isoWeek, LIST_DAYS,
+  monthOf, occupancy, stepDay, timeOf, viewDays, weekDays, workWindow, type CalendarView,
 } from "@/lib/hub-calendar/rules";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
-import { deadlineHint, hubHref } from "@/lib/hub-data";
+import { hubHref } from "@/lib/hub-data";
+import { taskFixtures } from "@/lib/hub-tasks/fixtures";
+import type { TaskBoardState } from "@/lib/hub-tasks/types";
+import { useStoredValue } from "@/lib/use-stored-value";
 import { HeaderActions } from "../app-shell";
-import { GlassCard, SectionHeader } from "../glass";
+import { GlassCard } from "../glass";
+import { SegmentedControl } from "../controls";
+import { useInfo } from "../info-box";
 import { LargeTitleHeader } from "../large-title-header";
-import { CategoryTitle } from "./workspace";
-import { AppointmentDetailDialog, AppointmentFormDialog, RequestDialog, StatusPill, TeamsJoin } from "./calendar-dialogs";
-import { useCalendarStore, type CalendarStore } from "./calendar-store";
+import { SheetActionMenu, ToolbarMenu } from "../sheet";
+import { CustomerSign } from "./customer-sign";
+import { AppointmentPanel, AskPanel, CustomerAppointmentPanel, GoalPanel, NewTaskPanel, RequestPanel, TaskPanel, type TaskProjectOption } from "./calendar-panels";
+import { boardTasks, projectGoals, projectTasks, useCalendarStore, type CalendarTask } from "./calendar-store";
+import { HOUR_PX, ListView, MonthView, WeekView, type CalendarViewProps, type DayLabel, type OpenTarget, type ViewAppointment } from "./calendar-views";
 import type { ScreenProps } from "./types";
 
-const weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const HOUR_PX = 48;
+/*
+ * „Kalender“ under Projekte (user 16.11.2026): like the other „je Kunde“ pages the customers on the left and a normal
+ * calendar on the right (month, week, day, list). Every task with a date stands on its day; dragging it changes the
+ * date in the board and in Studio as well. Appointments move by dragging, requests are answered in a panel, also at
+ * another free time. Customers see their own appointments, released tasks and target dates, and request a free time.
+ */
+
+type Panel =
+  | { kind: "appointment"; id: string }
+  | { kind: "new"; day: string; start: string; customerId: string | null; title?: string }
+  | { kind: "task"; id: string }
+  | { kind: "goal"; id: string }
+  | { kind: "newTask"; day: string }
+  | { kind: "ask"; day: string; start?: string };
+type Layer = "appts" | "requests" | "tasks" | "goals" | "cancelled" | "done";
+type Float = { x: number; y: number; day: string; minute: number | null };
+type Toast = { text: string; undo?: () => void };
+
+const LAYERS: { id: Layer; label: string; admin?: boolean }[] = [
+  { id: "appts", label: "Termine" },
+  { id: "requests", label: "Anfragen", admin: true },
+  { id: "tasks", label: "Aufgaben mit Datum" },
+  { id: "goals", label: "Zieltermine der Projekte" },
+  { id: "cancelled", label: "Abgesagte Termine" },
+  { id: "done", label: "Erledigte Aufgaben", admin: true },
+];
+const DEFAULT_LAYERS = "appts,requests,tasks,goals";
+const VIEW_NAMES: Record<CalendarView, string> = { month: "Monat", week: "Woche", day: "Tag", list: "Liste" };
 const MINUTE = 60_000;
-const legendLevels: OccupancyLevel[] = ["free", "some", "busy", "full"];
-const monthShort = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", month: "short" });
-
-type Dialog =
-  | { kind: "detail"; id: string }
-  | { kind: "form"; id?: string; day: string; start?: string; accept?: boolean }
-  | { kind: "request"; day: string; start?: string };
-
-/** A project's target date ("Terminierung") as an all-day entry; it never counts as booked time. */
-type ProjectGoal = { id: string; day: string; title: string; company?: string; category: string; done: boolean };
-
-const clockMinutes = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
 const byStart = (a: HubAppointment, b: HubAppointment) => a.start - b.start;
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-/** First weekday on or after `from`, never before today. */
-function firstWorkday(from: string, today: string) {
-  let day = from < today ? today : from;
-  while (!isWorkday(day)) day = addDays(day, 1);
-  return day;
+/** Dragging tasks to another day and appointments to another time, with the mouse or a finger. */
+function useCalendarDrag(root: React.RefObject<HTMLElement | null>, enabled: boolean, onTask: (id: string, day: string) => void, onAppointment: (id: string, day: string, minute: number) => void) {
+  const handlers = useRef({ onTask, onAppointment });
+  useEffect(() => { handlers.current = { onTask, onAppointment }; });
+  useEffect(() => {
+    const element = root.current;
+    if (!element || !enabled) return;
+    let drag: { kind: "task" | "appt"; id: string; source: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null; target: { day: string; minute: number | null } | null } | null = null;
+    const clear = () => {
+      element.querySelectorAll(".is-drop").forEach((node) => node.classList.remove("is-drop"));
+      element.querySelectorAll(".cal-drop-mark").forEach((node) => node.remove());
+    };
+    const minuteAt = (column: HTMLElement, clientY: number) => {
+      const body = column.closest<HTMLElement>(".cal-wk-body");
+      const start = Number(body?.dataset.start ?? 0);
+      return start + ((clientY - column.getBoundingClientRect().top) / HOUR_PX) * 60;
+    };
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const source = (event.target as Element | null)?.closest<HTMLElement>("[data-drag]");
+      if (!source || !element.contains(source)) return;
+      const [kind, id] = (source.dataset.drag ?? "").split(":");
+      const rect = source.getBoundingClientRect();
+      drag = { kind: kind === "task" ? "task" : "appt", id, source, x: event.clientX, y: event.clientY, dx: event.clientX - rect.left, dy: event.clientY - rect.top, ghost: null, target: null };
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!drag) return;
+      if (!drag.ghost) {
+        if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 5) return;
+        const ghost = drag.source.cloneNode(true) as HTMLElement;
+        const rect = drag.source.getBoundingClientRect();
+        ghost.classList.add("cal-ghost");
+        Object.assign(ghost.style, { width: `${rect.width}px`, height: `${rect.height}px`, left: "0px", top: "0px" });
+        document.body.append(ghost);
+        drag.ghost = ghost;
+        drag.source.classList.add("is-drag-source");
+        document.documentElement.classList.add("is-dragging");
+      }
+      event.preventDefault();
+      drag.ghost.style.transform = `translate(${event.clientX - drag.dx}px, ${event.clientY - drag.dy}px)`;
+      clear();
+      drag.target = null;
+      const under = document.elementFromPoint(event.clientX, event.clientY);
+      if (drag.kind === "task") {
+        const cell = under?.closest<HTMLElement>("[data-drop-day]");
+        if (cell && element.contains(cell)) {
+          const day = cell.dataset.dropDay!;
+          (cell.classList.contains("cal-col") ? element.querySelector<HTMLElement>(`.cal-ad[data-drop-day="${day}"]`) ?? cell : cell).classList.add("is-drop");
+          drag.target = { day, minute: null };
+        }
+      } else {
+        const column = under?.closest<HTMLElement>(".cal-col");
+        const cell = under?.closest<HTMLElement>(".cal-mc");
+        const length = Number(drag.source.dataset.length ?? 60);
+        if (column && element.contains(column)) {
+          const minute = Math.max(0, Math.round(minuteAt(column, event.clientY - drag.dy + 4) / 15) * 15);
+          const start = Number(column.closest<HTMLElement>(".cal-wk-body")?.dataset.start ?? 0);
+          const mark = document.createElement("div");
+          mark.className = "cal-drop-mark";
+          mark.style.top = `${((minute - start) / 60) * HOUR_PX}px`;
+          mark.style.height = `${(length / 60) * HOUR_PX}px`;
+          mark.textContent = `${clockOf(minute)}–${clockOf(Math.min(minute + length, 24 * 60))}`;
+          column.append(mark);
+          drag.target = { day: column.dataset.colDay!, minute };
+        } else if (cell && element.contains(cell)) {
+          cell.classList.add("is-drop");
+          drag.target = { day: cell.dataset.dropDay!, minute: null };
+        }
+      }
+    };
+    const onUp = () => {
+      if (!drag) return;
+      const current = drag;
+      drag = null;
+      clear();
+      if (!current.ghost) return;
+      current.ghost.remove();
+      current.source.classList.remove("is-drag-source");
+      document.documentElement.classList.remove("is-dragging");
+      // The click that follows the drop must not open the item.
+      const swallow = (event: Event) => { event.stopPropagation(); event.preventDefault(); };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+      if (!current.target) return;
+      if (current.kind === "task") handlers.current.onTask(current.id, current.target.day);
+      else handlers.current.onAppointment(current.id, current.target.day, current.target.minute ?? -1);
+    };
+    element.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      element.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [root, enabled]);
 }
 
-export function CalendarScreen({ calendar, projects, preview, asOf }: ScreenProps) {
-  const store = useCalendarStore(calendar);
-  const { canManage, appointments, busy, now, today } = store;
+export function CalendarScreen({ calendar, projects, preview, freelancer, fileState, asOf, taskBoard }: ScreenProps & { taskBoard?: TaskBoardState }) {
+  const admin = calendar.canManage;
+  const board = useMemo(() => admin ? (preview ? taskFixtures(asOf) : taskBoard) : undefined, [admin, preview, asOf, taskBoard]);
+  const taskList = useMemo<CalendarTask[]>(() => admin ? (board && !board.error ? boardTasks(board, projects, calendar.customers) : []) : projectTasks(projects), [admin, board, projects, calendar.customers]);
+  const store = useCalendarStore(calendar, taskList, board?.people ?? []);
+  const { today, now } = store;
+  const goals = useMemo(() => projectGoals(projects), [projects]);
+  const logos = useMemo(() => new Map(fileState.customers.flatMap((customer) => customer.logo ? [[customer.id, customer.logo] as const] : [])), [fileState.customers]);
   const range = useMemo(() => calendarWindow(today), [today]);
-  // The projects page links a deadline to its day (/calendar?day=2026-10-30), a notice its appointment
-  // (/calendar?appointment=<id>): the calendar opens on that day, with the appointment open.
+
+  // Where the page opens: a notice's appointment (?appointment=), a day (?day=, from the projects page), a customer.
   const params = useSearchParams();
-  const linked = appointments.find((item) => item.id === params.get("appointment"));
-  const requested = linked ? dayOf(linked.start) : params.get("day");
-  const startDay = isDay(requested) && monthOf(requested) >= range.firstMonth && monthOf(requested) <= range.lastMonth ? requested : today;
-  const [month, setMonth] = useState(() => monthOf(startDay));
-  const [selected, setSelected] = useState(startDay);
-
-  // Project deadlines of every project this login sees: customers their own, admins those of all customers.
-  // Studio projects without a target date have no place in the calendar.
-  const goals = useMemo(() => projects
-    .flatMap((project): ProjectGoal[] => project.dueOn ? [{ id: project.id, day: project.dueOn, title: project.name, company: project.company, category: project.category, done: project.status === "Abgeschlossen" }] : [])
-    .sort((a, b) => Number(a.done) - Number(b.done) || a.day.localeCompare(b.day)), [projects]);
-  const goalsByDay = useMemo(() => {
-    const days = new Map<string, ProjectGoal[]>();
-    for (const goal of goals) days.set(goal.day, [...(days.get(goal.day) ?? []), goal]);
-    return days;
-  }, [goals]);
-  const projectHref = (id: string) => `${hubHref(preview, "projects")}?project=${id}`;
-  const [dialog, setDialog] = useState<Dialog | null>(() => linked ? { kind: "detail", id: linked.id } : null);
+  const linked = store.appointments.find((item) => item.id === params.get("appointment"));
+  // The view: from the address, else the last one in this browser, else the week.
+  const [storedView, setStoredView] = useStoredValue("oalab-calendar-view", "week");
+  const [chosenView, setChosenView] = useState<CalendarView | null>(() => isCalendarView(params.get("view")) ? params.get("view") as CalendarView : null);
+  const view: CalendarView = chosenView ?? (isCalendarView(storedView) ? storedView : "week");
+  const startDay = linked ? dayOf(linked.start) : params.get("day");
+  const [day, setDay] = useState(() => isDay(startDay) ? startDay : today);
+  const [selected, setSelected] = useState<string | null>(() => admin && store.customers.some((customer) => customer.id === params.get("customer")) ? params.get("customer") : null);
+  const [paneOpen, setPaneOpen] = useState(() => Boolean(params.get("customer")));
+  const [panel, setPanel] = useState<Panel | null>(() => linked ? { kind: "appointment", id: linked.id } : null);
+  const [storedLayers, setStoredLayers] = useStoredValue("oalab-calendar-layers", DEFAULT_LAYERS);
+  const layers = useMemo(() => new Set(storedLayers.split(",").filter(Boolean) as Layer[]), [storedLayers]);
+  const on = useCallback((layer: Layer) => layers.has(layer), [layers]);
+  const [listQuery, setListQuery] = useState("");
+  const [listFilter, setListFilter] = useState<"all" | "appts" | "requests">("all");
+  const [float, setFloat] = useState<Float | null>(null);
   const [notice, setNotice] = useState("");
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastTimer = useRef(0);
+  const root = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
 
-  // Declined and cancelled appointments stay in the lists but leave the grid and the timeline.
-  const active = useMemo(() => appointments.filter((item) => item.status === "requested" || item.status === "confirmed").sort(byStart), [appointments]);
-  const byDay = useMemo(() => {
-    const days = new Map<string, HubAppointment[]>();
-    for (const item of active) days.set(dayOf(item.start), [...(days.get(dayOf(item.start)) ?? []), item]);
-    return days;
-  }, [active]);
-  const requests = canManage ? active.filter((item) => item.status === "requested" && item.end > now) : [];
-  const upcoming = canManage ? active.filter((item) => item.status === "confirmed" && item.end > now).slice(0, 8) : [...appointments].filter((item) => item.end > now).sort(byStart);
-  const canRequest = !canManage && store.customers.length > 0;
-  const dialogAppointment = dialog && dialog.kind !== "request" && dialog.id ? appointments.find((item) => item.id === dialog.id) : undefined;
+  const setView = (next: CalendarView) => { setChosenView(next); setStoredView(next); };
+  // The choice stays in the address (shareable, survives a reload) without asking the server again.
+  useEffect(() => {
+    const query = new URLSearchParams();
+    if (selected) query.set("customer", selected);
+    if (view !== "week") query.set("view", view);
+    if (day !== today) query.set("day", day);
+    if (panel?.kind === "appointment") query.set("appointment", panel.id);
+    const text = query.toString();
+    const next = `${window.location.pathname}${text ? `?${text}` : ""}`;
+    if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
+  }, [selected, view, day, panel, today]);
 
-  const open = (next: Dialog) => { setNotice(""); setDialog(next); };
-  const finish = (message: string) => { setDialog(null); setNotice(message); };
-  function showMonth(next: string) {
-    setMonth(next);
-    setSelected(next === monthOf(today) ? today : `${next}-01`);
+  const showToast = useCallback((text: string, undo?: () => void) => {
+    window.clearTimeout(toastTimer.current);
+    setToast({ text, undo });
+    toastTimer.current = window.setTimeout(() => setToast(null), undo ? 6500 : 3600);
+  }, []);
+  const finish = (message: string) => { setPanel(null); setNotice(message); };
+
+  /* ---------- What the calendar shows: the chosen customer, the layers ---------- */
+  const tasks = store.tasks;
+  const inScope = useCallback((customerId: string | null) => !admin || selected === null || customerId === selected, [admin, selected]);
+  const apptsOn = useCallback((date: string): ViewAppointment[] => store.appointments
+    .filter((item) => dayOf(item.start) === date || (dayOf(item.end - 1) === date && dayOf(item.start) < date))
+    .filter((item) => item.status === "requested" ? (admin ? on("requests") : true) : item.status === "confirmed" ? on("appts") : on("cancelled"))
+    .map((item) => ({ ...item, faded: admin && selected !== null && item.customer?.id !== selected }))
+    .filter((item) => !(item.faded && item.status !== "confirmed" && item.status !== "requested"))
+    .sort(byStart), [store.appointments, admin, selected, on]);
+  const tasksOn = useCallback((date: string) => on("tasks") ? tasks.filter((task) => task.dueOn === date && inScope(task.customerId) && (task.status !== "done" || (admin && on("done")))).sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || b.number - a.number) : [], [tasks, inScope, admin, on]);
+  const goalsOn = useCallback((date: string) => on("goals") ? goals.filter((goal) => goal.day === date && inScope(goal.customerId)) : [], [goals, inScope, on]);
+  const overdue = useMemo(() => on("tasks") ? tasks.filter((task) => task.dueOn && task.dueOn < today && task.status !== "done" && inScope(task.customerId)) : [], [tasks, today, inScope, on]);
+  const freeOn = useCallback((date: string) => admin || freelancer ? [] : freeIntervals(date, store.blocked, now), [admin, freelancer, store.blocked, now]);
+  const dayLabel = useCallback((date: string): DayLabel => {
+    if (!workWindow(date)) return { text: admin ? "Kein Termintag" : "", tone: "off" };
+    if (date < today) return { text: "", tone: "" };
+    if (admin) {
+      const load = occupancy(date, store.busy);
+      const free = load.totalMinutes - load.bookedMinutes;
+      return free > 0 ? { text: `${formatHours(free)} frei`, tone: "ok" } : { text: "Ausgebucht", tone: "todo" };
+    }
+    if (freelancer) return { text: "", tone: "" };
+    return freeIntervals(date, store.blocked, now).some((interval) => interval.end - interval.start >= 30 * MINUTE) ? { text: "Frei", tone: "ok" } : { text: "Belegt", tone: "off" };
+  }, [admin, freelancer, today, store.busy, store.blocked, now]);
+
+  const days = viewDays(view, view === "list" && day < today && monthOf(day) === monthOf(today) ? today : day);
+  const rangeDays = new Set(days);
+  const counts = {
+    confirmed: days.flatMap(apptsOn).filter((item) => !item.faded && item.status === "confirmed").length,
+    requested: days.flatMap(apptsOn).filter((item) => !item.faded && item.status === "requested" && item.end > now).length,
+    due: tasks.filter((task) => task.dueOn && rangeDays.has(task.dueOn) && task.status !== "done" && inScope(task.customerId)).length,
+  };
+  const openRequests = store.appointments.filter((item) => item.status === "requested" && item.end > now && inScope(item.customer?.id ?? null)).sort(byStart);
+
+  /* ---------- Writing: moving tasks and appointments by dragging ---------- */
+  const moveTaskTo = useCallback(async (id: string, date: string) => {
+    const task = tasks.find((item) => item.id === id);
+    if (!task || task.dueOn === date) return;
+    const before = task.dueOn;
+    const result = await store.saveTask(task, { dueOn: date });
+    if (!result.ok) { setNotice(""); showToast(result.error); return; }
+    showToast(`#${task.number} jetzt fällig am ${formatDayShort(date)} · gilt auch im Board`, () => { void store.saveTask({ ...task, dueOn: date }, { dueOn: before }); });
+  }, [tasks, store, showToast]);
+  const moveAppointmentTo = useCallback(async (id: string, date: string, minute: number) => {
+    const item = store.appointments.find((entry) => entry.id === id);
+    if (!item) return;
+    const start = minute >= 0 ? clockOf(minute) : timeOf(item.start);
+    if (dayOf(item.start) === date && timeOf(item.start) === start) return;
+    const before = { day: dayOf(item.start), start: timeOf(item.start) };
+    const result = await store.move(item, date, start);
+    if (!result.ok) { showToast(result.error); return; }
+    showToast(`„${item.title}“ → ${formatDayShort(date)}, ${start}${item.customer ? ` · ${item.customer.company} bekommt eine Meldung` : ""}`, () => { void store.move({ ...item }, before.day, before.start); });
+  }, [store, showToast]);
+  useCalendarDrag(root, admin, (id, date) => void moveTaskTo(id, date), (id, date, minute) => void moveAppointmentTo(id, date, minute));
+
+  /* ---------- Opening things ---------- */
+  const open = (target: OpenTarget) => { setFloat(null); setNotice(""); setPanel(target.kind === "appointment" ? { kind: "appointment", id: target.id } : target.kind === "task" ? { kind: "task", id: target.id } : { kind: "goal", id: target.id }); };
+  const firstStart = (date: string) => {
+    const window = workWindow(date);
+    if (!window) return "10:00";
+    const free = freeIntervals(date, store.busy, now).find((interval) => interval.end - interval.start >= 60 * MINUTE);
+    return free ? clockOf(Math.ceil((Math.max(free.start, window.start) - window.start) / (30 * MINUTE)) * 30 + 9 * 60) : "10:00";
+  };
+  const newAppointment = (date = day < today ? today : day, start?: string, title?: string, customerId: string | null = selected) => { setFloat(null); setNotice(""); setPanel({ kind: "new", day: date, start: start ?? firstStart(date), customerId, title }); };
+  const goToday = () => { setDay(today); };
+  const step = (direction: 1 | -1) => setDay((current) => {
+    const next = stepDay(view, current, direction, today);
+    return monthOf(next) < range.firstMonth || monthOf(next) > range.lastMonth ? current : next;
+  });
+
+  // Keys: ← → step, T today, N a new appointment (admins) while nobody types and no panel is open.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || panel) return;
+      if ((event.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable='true'], dialog, [role='menu']")) return;
+      if (event.key === "Escape" && float) { setFloat(null); return; }
+      if (event.key === "ArrowLeft") step(-1);
+      else if (event.key === "ArrowRight") step(1);
+      else if (event.key.toLowerCase() === "t") goToday();
+      else if (event.key.toLowerCase() === "n" && admin) { event.preventDefault(); newAppointment(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // A click into empty calendar space: admins get a small menu to create something right there.
+  function onEmptyClick(event: React.MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a, input")) return;
+    const column = target.closest<HTMLElement>(".cal-col");
+    const cell = target.closest<HTMLElement>("[data-cell]");
+    const date = column?.dataset.colDay ?? cell?.dataset.cell;
+    if (!date) return;
+    if (!admin) {
+      if (!freelancer && cell && view === "month" && freeOn(date).length) setPanel({ kind: "ask", day: date });
+      return;
+    }
+    let minute: number | null = null;
+    if (column) {
+      const start = Number(column.closest<HTMLElement>(".cal-wk-body")?.dataset.start ?? 0);
+      minute = Math.floor((start + ((event.clientY - column.getBoundingClientRect().top) / HOUR_PX) * 60) / 30) * 30;
+    }
+    setFloat({ x: event.clientX, y: event.clientY, day: date, minute });
   }
-  function select(day: string) {
-    setSelected(day);
-    if (monthOf(day) !== month) setMonth(monthOf(day));
-  }
-  function create(day: string, start?: string) {
-    const planned = day < today ? today : day;
-    open({ kind: "form", day: planned, start: start ?? slotStarts(planned, busy, 60, now)[0] });
-  }
+  useEffect(() => {
+    if (!float) return;
+    const close = (event: PointerEvent) => { if (!(event.target as Element | null)?.closest(".cal-float")) setFloat(null); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [float]);
+
+  /* ---------- Pieces of the page ---------- */
+  const tasksInfo = useInfo("Aufgaben im Kalender", {
+    steps: [
+      <><b>Jede Aufgabe mit Datum</b> steht an ihrem Fälligkeitstag.</>,
+      <><b>Ziehen</b> ändert das Datum, auch im Board und im Studio.</>,
+      <><b>Ein Klick</b> öffnet die Aufgabe.</>,
+    ],
+    ask: "Wie hängen Aufgaben und Kalender zusammen?",
+  });
+  // Tasks are Studio's rows: without a session confirmed by a code they stay read-only, with the way to the code.
+  const confirmHref = admin && store.live && !calendar.confirmed ? confirmSessionHref(hubHref(false, "calendar")) : null;
+  const facts = useMemo(() => new Map(store.customers.map((customer) => {
+    const upcoming = store.appointments.filter((item) => item.customer?.id === customer.id && item.end > now && (item.status === "confirmed" || item.status === "requested")).sort(byStart);
+    return [customer.id, {
+      upcoming,
+      requests: upcoming.filter((item) => item.status === "requested"),
+      overdue: tasks.filter((task) => task.customerId === customer.id && task.dueOn && task.dueOn < today && task.status !== "done"),
+    }];
+  })), [store.customers, store.appointments, tasks, now, today]);
+  const chosen = selected ? store.customers.find((customer) => customer.id === selected) ?? null : null;
+  const taskProjects: TaskProjectOption[] = (board?.projects ?? []).map((project) => ({ id: project.id, name: project.name, company: project.company, done: project.status === "complete" }));
+
+  const viewProps: CalendarViewProps = {
+    days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks: store.canEditTasks,
+    showCompany: admin && selected === null, tasksInfo: admin ? tasksInfo.button : undefined,
+    onOpen: open,
+    onDay: (date) => { setDay(date); setView(admin ? "day" : "week"); },
+    onOverdue: () => { setView("list"); setDay(today); },
+    onFree: (date, minute) => setPanel({ kind: "ask", day: date, start: clockOf(minute) }),
+  };
+  const content = view === "month" ? <MonthView {...viewProps} month={monthOf(day)} />
+    : view === "list" ? <ListView {...viewProps} logoOf={(id) => logos.get(id) ?? null} />
+    : <WeekView {...viewProps} />;
+
+  const title = view === "month" ? formatMonth(monthOf(day)) : view === "day" ? formatDayLong(day) : view === "week" ? weekTitle(day) : `${formatDayShort(days[0])} – ${formatDayShort(days[days.length - 1])}`;
+  const titleSub = view === "week" || view === "day" ? `KW ${isoWeek(day)}` : view === "list" ? `${LIST_DAYS / 7} Wochen` : "";
+  const viewOptions = (Object.keys(VIEW_NAMES) as CalendarView[]).filter((id) => admin || id !== "day").map((id) => ({ id, label: VIEW_NAMES[id], name: VIEW_NAMES[id] }));
+  const changedLayers = LAYERS.filter((layer) => admin || !layer.admin).filter((layer) => DEFAULT_LAYERS.split(",").includes(layer.id) !== on(layer.id)).length;
+  const toggleLayer = (layer: Layer) => { const next = new Set(layers); if (next.has(layer)) next.delete(layer); else next.add(layer); setStoredLayers([...next].join(",")); };
+
+  const toolbar = (
+    <div className="sheet-toolbar cal-toolbar">
+      <div className="cal-nav" role="group" aria-label="Zeitraum">
+        <button type="button" className="cal-nav-btn" onClick={() => step(-1)} aria-label="Zurück" data-tip="Zurück" data-tip-kbd="←"><ChevronLeft size={18} aria-hidden="true" /></button>
+        <button type="button" className={`cal-today${days.includes(today) ? " is-current" : ""}`} onClick={goToday} data-tip={formatDayLong(today)} data-tip-kbd="T">Heute</button>
+        <button type="button" className="cal-nav-btn" onClick={() => step(1)} aria-label="Weiter" data-tip="Weiter" data-tip-kbd="→"><ChevronRight size={18} aria-hidden="true" /></button>
+      </div>
+      <h2 className="cal-title" aria-live="polite">{title}{titleSub && <span className="cal-title-sub">{titleSub}</span>}</h2>
+      <span className="sheet-spacer" />
+      <ToolbarMenu icon={Layers} label="Anzeigen" badge={changedLayers} align="end">
+        <div className="sheet-choices" role="group" aria-label="Im Kalender zeigen">
+          {LAYERS.filter((layer) => admin || !layer.admin).map((layer) => (
+            <button key={layer.id} type="button" role="menuitemcheckbox" aria-checked={on(layer.id)} className="sheet-choice" onClick={() => toggleLayer(layer.id)}>
+              {layer.label}<Check className="hub-option-check" size={15} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </ToolbarMenu>
+      <SegmentedControl label="Ansicht" value={view} onChange={setView} options={viewOptions} />
+      {admin && <SheetActionMenu label="Kalender" actions={[
+        { icon: CalendarPlus, label: "Neuer Termin", hint: "Mit oder ohne Kunde", shortcut: "N", onSelect: () => newAppointment() },
+        { icon: SquareKanban, label: "Neue Aufgabe mit Datum", hint: "Steht danach auch im Board", onSelect: () => setPanel({ kind: "newTask", day: day < today ? today : day }) },
+      ]} />}
+    </div>
+  );
+  const strip = admin
+    ? openRequests.length > 0 && on("requests") && (
+      <div className="cal-strip is-requests">
+        <span className="cal-strip-icon"><Inbox size={15} aria-hidden="true" /></span>
+        <span className="cal-strip-text"><b>{plural(openRequests.length, "offene Anfrage", "offene Anfragen")}</b></span>
+        <span className="cal-strip-items">
+          {openRequests.map((item) => (
+            <button key={item.id} type="button" className="cal-req" onClick={() => { setDay(dayOf(item.start)); open({ kind: "appointment", id: item.id }); }} data-tip={item.title} data-tip-sub="Anfrage beantworten">
+              {item.customer && <CustomerSign customer={item.customer} logo={logos.get(item.customer.id) ?? null} size="xs" />}
+              <span className="cal-req-name">{item.customer?.company ?? "Kunde"}</span><span className="cal-req-when numeric">{formatDayShort(dayOf(item.start))}, {timeOf(item.start)}</span><ChevronRight size={14} aria-hidden="true" />
+            </button>
+          ))}
+        </span>
+      </div>
+    )
+    : !freelancer && view !== "list" && (
+      <div className="cal-strip is-free">
+        <span className="cal-strip-icon"><MousePointerClick size={15} aria-hidden="true" /></span>
+        <span className="cal-strip-text"><b>Grün heißt frei.</b> Klick auf eine freie Zeit, um dort einen Termin anzufragen. oalab bestätigt ihn dann.</span>
+      </div>
+    );
+  const legend = (
+    <span className="cal-legend">
+      {(admin
+        ? [["is-confirmed", "Termin"], ["is-requested", "Anfrage"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"], ["is-off", "Kein Termintag"]]
+        : [["is-confirmed", "Dein Termin"], ["is-requested", "Deine Anfrage"], ...(freelancer ? [] : [["is-free", "Frei"]]), ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"]]
+      ).map(([cls, label]) => <span key={cls} className="cal-key"><span className={`cal-key-swatch ${cls}`} aria-hidden="true" />{label}</span>)}
+    </span>
+  );
+  const footer = (
+    <div className="sheet-footer cal-footer">
+      <span>{plural(counts.confirmed, "Termin", "Termine")}{admin ? ` · ${plural(counts.requested, "Anfrage", "Anfragen")}` : ""} · {plural(counts.due, "Aufgabe", "Aufgaben")}</span>
+      {legend}
+    </div>
+  );
+  const pane = (
+    <section className="am-pane cal-pane" aria-label="Kalender">
+      {admin ? (
+        <header className="am-pane-head">
+          <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>
+          {chosen ? <CustomerSign customer={chosen} logo={logos.get(chosen.id) ?? null} size="lg" /> : <span className="am-tile is-lg cal-tile"><CalendarDays size={22} aria-hidden="true" /></span>}
+          <div className="am-pane-title">
+            <strong>{chosen ? chosen.company : "Alle Kunden"}</strong>
+            <span>{chosen
+              ? `${chosen.customerNumber} · ${facts.get(chosen.id)?.upcoming[0] ? `nächster Termin ${formatDayShort(dayOf(facts.get(chosen.id)!.upcoming[0].start))}, ${timeOf(facts.get(chosen.id)!.upcoming[0].start)}` : "kein Termin geplant"}`
+              : `${titleSub || title}: ${plural(counts.confirmed, "Termin", "Termine")} · ${plural(counts.requested, "Anfrage", "Anfragen")} · ${plural(counts.due, "Aufgabe", "Aufgaben")} fällig`}</span>
+          </div>
+          <Link className="sheet-action" href={`${hubHref(preview, "projects")}/tasks`} data-tip="Zum Aufgaben-Board"><SquareKanban size={15} aria-hidden="true" /><span className="cal-head-label">Aufgaben</span></Link>
+          <button type="button" className="sheet-action is-primary" onClick={() => newAppointment()} data-tip-compact="Neuer Termin" data-tip-kbd="N"><Plus size={15} aria-hidden="true" /><span className="cal-head-label" data-tip-label>Termin</span></button>
+        </header>
+      ) : (
+        <header className="am-pane-head">
+          {store.customers[0] ? <CustomerSign customer={store.customers[0]} logo={logos.get(store.customers[0].id) ?? null} size="lg" /> : <span className="am-tile is-lg cal-tile"><CalendarDays size={22} aria-hidden="true" /></span>}
+          <div className="am-pane-title">
+            <strong>{freelancer ? "Kalender" : "Deine Termine bei oalab"}</strong>
+            <span>{(() => { const next = store.appointments.filter((item) => item.status === "confirmed" && item.end > now).sort(byStart)[0]; return next ? `Nächster Termin: ${formatDayShort(dayOf(next.start))}, ${timeOf(next.start)} · ${next.title}` : "Noch kein Termin geplant"; })()}</span>
+          </div>
+          {!freelancer && store.customers.length > 0 && <button type="button" className="sheet-action is-primary" onClick={() => setPanel({ kind: "ask", day: day < today ? today : day })}><CalendarPlus size={15} aria-hidden="true" /><span className="cal-head-label">Termin anfragen</span></button>}
+        </header>
+      )}
+      {toolbar}
+      {strip}
+      {tasksInfo.box}
+      <div className={`am-scroll cal-scroll is-${view}`} ref={scroller} onClick={onEmptyClick}>{content}</div>
+      {footer}
+    </section>
+  );
+
+  // Week and day open at eight in the morning.
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element || (view !== "week" && view !== "day")) return;
+    const start = Number(element.querySelector<HTMLElement>(".cal-wk-body")?.dataset.start ?? 7 * 60);
+    element.scrollTop = Math.max(0, ((8 * 60 - start) / 60) * HOUR_PX - 14);
+  }, [view, selected]);
+  // Where the week is wider than the pane (phones), it opens with today's column right next to the hours; on admins'
+  // phones the pane appears only after a customer is picked, so that counts as opening too.
+  const firstDay = days[0];
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element || view !== "week" || !firstDay) return;
+    const column = element.querySelector<HTMLElement>(".cal-col.is-today");
+    const hours = element.querySelector<HTMLElement>(".cal-times")?.offsetWidth ?? 0;
+    element.scrollLeft = column && element.scrollWidth - element.clientWidth > 8 ? Math.max(0, column.offsetLeft - hours) : 0;
+  }, [view, firstDay, selected, paneOpen]);
+
+  /* ---------- The admins' list on the left ---------- */
+  const term = listQuery.trim().toLocaleLowerCase("de");
+  const listed = store.customers
+    .filter((customer) => listFilter === "all" || (listFilter === "appts" ? facts.get(customer.id)?.upcoming.length : facts.get(customer.id)?.requests.length))
+    .filter((customer) => !term || [customer.company, customer.customerNumber, ...(facts.get(customer.id)?.upcoming.map((item) => item.title) ?? [])].some((value) => value.toLocaleLowerCase("de").includes(term)))
+    .sort((a, b) => a.company.localeCompare(b.company, "de"));
+  const allUpcoming = store.appointments.filter((item) => item.end > now && item.status === "confirmed").length;
+  const list = admin && (
+    <div className="chat-list">
+      <div className="chat-list-head"><h2>Kunden<span>{store.customers.length}</span></h2></div>
+      <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={listQuery} onChange={(event) => setListQuery(event.target.value)} placeholder="Kunde oder Termin" aria-label="Kunden nach Name, Nummer oder Termin durchsuchen" /></label>
+      <div className="chat-filter" role="group" aria-label="Kunden zeigen">
+        <button type="button" aria-pressed={listFilter === "all"} onClick={() => setListFilter("all")}>Alle</button>
+        <button type="button" aria-pressed={listFilter === "appts"} onClick={() => setListFilter("appts")}>Mit Terminen<span>{store.customers.filter((customer) => facts.get(customer.id)?.upcoming.length).length}</span></button>
+        <button type="button" aria-pressed={listFilter === "requests"} onClick={() => setListFilter("requests")}>Anfragen<span>{store.customers.filter((customer) => facts.get(customer.id)?.requests.length).length}</span></button>
+      </div>
+      <ul className="chat-convs" role="list">
+        {!term && (
+          <li>
+            <button type="button" className="chat-conv" aria-current={selected === null ? "true" : undefined} onClick={() => { setSelected(null); setPaneOpen(true); }}>
+              <span className="am-tile cal-tile"><CalendarDays size={20} aria-hidden="true" /></span>
+              <span className="chat-conv-main"><span className="chat-conv-top"><strong>Alle Kunden</strong></span><span className="chat-conv-sub"><span className="chat-conv-last">{plural(allUpcoming, "Termin", "Termine")} geplant · {plural(openRequests.length, "Anfrage", "Anfragen")}</span></span></span>
+            </button>
+          </li>
+        )}
+        <li className="am-list-label">{listFilter === "appts" ? "Mit geplanten Terminen" : listFilter === "requests" ? "Mit offenen Anfragen" : "Kunden von A bis Z"}</li>
+        {listed.map((customer) => {
+          const fact = facts.get(customer.id);
+          const next = fact?.upcoming[0];
+          return (
+            <li key={customer.id}>
+              <button type="button" className="chat-conv" aria-current={selected === customer.id ? "true" : undefined} onClick={() => { setSelected(customer.id); setPaneOpen(true); }}>
+                <CustomerSign customer={customer} logo={logos.get(customer.id) ?? null} />
+                <span className="chat-conv-main">
+                  <span className="chat-conv-top"><strong>{customer.company}</strong>
+                    {fact?.requests.length ? <span className="chat-pill tone-todo" data-tip={plural(fact.requests.length, "offene Anfrage", "offene Anfragen")}>{fact.requests.length > 1 ? `${fact.requests.length} Anfragen` : "Anfrage"}</span>
+                      : fact?.overdue.length ? <span className="chat-pill tone-bad" data-tip={plural(fact.overdue.length, "Aufgabe überfällig", "Aufgaben überfällig")}>Überfällig</span> : null}
+                  </span>
+                  <span className="chat-conv-sub"><span className="chat-conv-last">{customer.customerNumber} · {next ? `${formatDayShort(dayOf(next.start))}, ${timeOf(next.start)}${next.status === "requested" ? " angefragt" : ""}` : "Kein Termin geplant"}</span></span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+        {!listed.length && <li className="chat-empty">{term ? `Kein Kunde passt zu „${listQuery.trim()}“.` : "Keine Kunden in dieser Auswahl."}</li>}
+      </ul>
+    </div>
+  );
+
+  /* ---------- Panels ---------- */
+  const panelAppointment = panel?.kind === "appointment" ? store.appointments.find((item) => item.id === panel.id) : undefined;
+  const panelTask = panel?.kind === "task" ? tasks.find((task) => task.id === panel.id) : undefined;
+  const panelGoal = panel?.kind === "goal" ? goals.find((goal) => goal.id === panel.id) : undefined;
+  const close = () => setPanel(null);
+  const panelNode = !panel ? null
+    : panel.kind === "appointment" && panelAppointment
+      ? admin
+        ? panelAppointment.status === "requested"
+          ? <RequestPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish} onOpenTask={(id) => setPanel({ kind: "task", id })}
+            related={tasks.filter((task) => task.customerId && task.customerId === panelAppointment.customer?.id && task.dueOn && task.status !== "done" && Math.abs(Date.parse(`${task.dueOn}T00:00:00Z`) - Date.parse(`${dayOf(panelAppointment.start)}T00:00:00Z`)) <= 3 * 86_400_000)} />
+          : <AppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish} />
+        : <CustomerAppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} canWithdraw={!freelancer} onClose={close} onDone={finish} />
+    : panel.kind === "new" ? <AppointmentPanel key={`new-${panel.day}-${panel.start}`} store={store} initial={panel} onClose={close} onDone={finish} />
+    : panel.kind === "task" && panelTask
+      ? <TaskPanel key={panelTask.id} store={store} task={panelTask} preview={preview} confirmHref={confirmHref} onClose={close} onDone={finish} onOpenAppointment={(id) => setPanel({ kind: "appointment", id })}
+        nextAppointment={store.appointments.filter((item) => item.customer?.id && item.customer.id === panelTask.customerId && item.end > now && (item.status === "confirmed" || item.status === "requested")).sort(byStart)[0] ?? null} />
+    : panel.kind === "goal" && panelGoal ? <GoalPanel key={panelGoal.id} goal={panelGoal} tasks={tasks.filter((task) => task.projectId === panelGoal.id)} preview={preview} today={today} onClose={close} onOpenTask={(id) => setPanel({ kind: "task", id })} />
+    : panel.kind === "newTask" ? <NewTaskPanel key={`task-${panel.day}`} store={store} projects={taskProjects} day={panel.day} confirmHref={confirmHref} onClose={close} onDone={finish} />
+    : panel.kind === "ask" ? <AskPanel key={`ask-${panel.day}-${panel.start ?? ""}`} store={store} initialDay={panel.day} initialStart={panel.start} onClose={close} onSent={finish} />
+    : null;
+
+  const floatItems: { icon: LucideIcon; label: string; hint?: string; run: () => void }[] = float ? [
+    { icon: CalendarPlus, label: "Termin anlegen", hint: float.minute !== null ? `${clockOf(float.minute)}–${clockOf(float.minute + 60)} Uhr` : undefined, run: () => newAppointment(float.day, float.minute !== null ? clockOf(float.minute) : undefined) },
+    { icon: SquareKanban, label: "Aufgabe mit diesem Datum", hint: "Steht danach auch im Board", run: () => setPanel({ kind: "newTask", day: float.day }) },
+    ...(float.minute !== null ? [{ icon: Inbox, label: "Zeit blockieren", hint: "Interner Termin, für Kunden belegt", run: () => newAppointment(float.day, clockOf(float.minute!), "Blockiert", null) }] : []),
+  ] : [];
 
   if (calendar.error) {
-    return <><LargeTitleHeader title="Kalender" icon={<CategoryTitle category="calendar" />} actions={<HeaderActions />} /><GlassCard className="section-first"><p className="t-headline">Kalender nicht verfügbar</p><p className="t-subheadline t-secondary">{calendar.error}</p></GlassCard></>;
+    return <><Header preview={preview} /><GlassCard className="section-first"><p className="t-headline">Kalender nicht verfügbar</p><p className="t-subheadline t-secondary">{calendar.error}</p></GlassCard></>;
   }
-
   return (
     <>
-      <LargeTitleHeader title="Kalender" icon={<CategoryTitle category="calendar" />} actions={<HeaderActions />} />
-      {!store.live && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">{canManage ? "Beispieltermine der drei Beispielkunden. Was du hier anlegst oder beantwortest, bleibt nur in diesem Browserfenster." : "Beispieltermine für die Vorschau. Anfragen bleiben in diesem Browserfenster und gehen nicht an oalab."}</p></GlassCard>}
-      {store.live && !canManage && !store.customers.length && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Dein Konto ist noch keinem Kunden zugeordnet. Die Auslastung siehst du schon, Termine anfragen kannst du nach der Zuordnung.</p></GlassCard>}
-
-      <div className="calendar-toolbar">
-        <div className="calendar-month-nav glass glass-float">
-          <button type="button" onClick={() => showMonth(addMonths(month, -1))} disabled={month <= range.firstMonth} aria-label="Vorheriger Monat"><ChevronLeft size={20} aria-hidden="true" /></button>
-          <h2 className="calendar-month-title" aria-live="polite">{formatMonth(month)}</h2>
-          <button type="button" onClick={() => showMonth(addMonths(month, 1))} disabled={month >= range.lastMonth} aria-label="Nächster Monat"><ChevronRight size={20} aria-hidden="true" /></button>
+      <Header preview={preview} />
+      {!store.live && <p className="calendar-notice section-first file-demo-note"><Inbox size={18} aria-hidden="true" />{admin ? "Beispieltermine und -aufgaben. Was du hier änderst, bleibt nur in diesem Browserfenster." : "Beispieltermine für die Vorschau. Anfragen bleiben in diesem Browserfenster und gehen nicht an oalab."}</p>}
+      {store.live && admin && board?.error && <p className="calendar-notice kb-error-note section-first" role="status">{board.error} Termine gehen trotzdem.</p>}
+      {notice && <p className="calendar-notice section-first" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
+      <div ref={root} className={`sheet section-first cal-sheet${admin ? " am" : " is-customer"}`} data-open={admin ? (paneOpen ? "" : undefined) : ""}>
+        {admin ? <div className="am-grid">{list}{pane}</div> : pane}
+      </div>
+      {panelNode}
+      {float && (
+        <div className="sheet-pop cal-float" role="menu" aria-label={formatDayLong(float.day)} style={{ left: Math.min(float.x - 12, (typeof window === "undefined" ? 1200 : window.innerWidth) - 290), top: float.y + 8 }}>
+          <div className="cal-float-title">{float.minute !== null ? `${formatDayShort(float.day)}, ${clockOf(float.minute)} Uhr` : formatDayLong(float.day)}</div>
+          {floatItems.map((item) => (
+            <button key={item.label} type="button" role="menuitem" className="sheet-action-item" onClick={() => { setFloat(null); item.run(); }}>
+              <span className="sheet-action-icon"><item.icon size={16} aria-hidden="true" /></span>
+              <span className="sheet-action-text"><strong>{item.label}</strong>{item.hint && <small>{item.hint}</small>}</span>
+            </button>
+          ))}
         </div>
-        <button type="button" className="glass glass-float glass-button glass-button-text" onClick={() => { setMonth(monthOf(today)); setSelected(today); }}>Heute</button>
-        {canManage && <button type="button" className="calendar-primary" onClick={() => create(selected)}><CalendarPlus size={18} aria-hidden="true" />Neuer Termin</button>}
-        {canRequest && <button type="button" className="calendar-primary" onClick={() => open({ kind: "request", day: firstWorkday(selected, today) })}><CalendarPlus size={18} aria-hidden="true" />Termin anfragen</button>}
-      </div>
-      {notice && <p className="calendar-notice glass" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
-
-      <div className="calendar-layout">
-        <GlassCard className="calendar-month-card">
-          <MonthGrid month={month} range={range} today={today} selected={selected} busy={busy} byDay={byDay} goalsByDay={goalsByDay} canManage={canManage} onSelect={select} />
-          <ul className="occupancy-legend" aria-label="Legende">
-            {legendLevels.map((level) => <li key={level}><span className={`occupancy-swatch occupancy-${level}`} aria-hidden="true" />{occupancyLabels[level]}</li>)}
-            {goals.length > 0 && <li><span className="legend-goal" aria-hidden="true" />Zieltermin</li>}
-          </ul>
-        </GlassCard>
-        <DayPanel
-          day={selected}
-          store={store}
-          items={byDay.get(selected) ?? []}
-          goals={goalsByDay.get(selected) ?? []}
-          projectHref={projectHref}
-          onOpen={(id) => open({ kind: "detail", id })}
-          onCreate={() => create(selected)}
-          onRequest={canRequest ? (start) => open({ kind: "request", day: selected, start }) : undefined}
-        />
-      </div>
-
-      {canManage && <>
-        <SectionHeader title="Offene Anfragen" />
-        {requests.length ? <AppointmentList label="Offene Anfragen" items={requests} showCustomer onOpen={(id) => open({ kind: "detail", id })} />
-          : <GlassCard><p className="t-subheadline t-secondary">Keine offenen Anfragen.</p></GlassCard>}
-      </>}
-      <SectionHeader title={canManage ? "Nächste Termine" : "Deine Termine"} />
-      {upcoming.length ? <AppointmentList label={canManage ? "Nächste Termine" : "Deine Termine und Anfragen"} items={upcoming} showCustomer={canManage} onOpen={(id) => open({ kind: "detail", id })} />
-        : <GlassCard><p className="t-subheadline t-secondary">{canManage ? "Keine anstehenden Termine." : "Du hast noch keine Termine. Frag einfach einen freien Zeitraum an."}</p></GlassCard>}
-      {goals.length > 0 && <>
-        <SectionHeader title="Zieltermine" />
-        <ul className="glass inset-list appointment-list goal-list" aria-label="Zieltermine der Projekte">
-          {goals.map((goal) => {
-            // Same reference day as the projects table, so both pages name the same distance (the preview: the fixtures' day).
-            const hint = deadlineHint(goal.day, goal.done, asOf);
-            return (
-              <li key={goal.id} className={`list-item appointment-item${goal.done ? " is-done" : ""}`}>
-                <Link href={projectHref(goal.id)} className="appointment-open">
-                  <span className="appointment-date" aria-hidden="true"><strong className="numeric">{Number(goal.day.slice(8))}</strong><small>{monthShort.format(Date.parse(`${goal.day}T00:00:00Z`))}</small></span>
-                  <span className="list-row-text">
-                    <span className="list-row-title">{goal.title}</span>
-                    <span className="list-row-subtitle">{[formatDayShort(goal.day), canManage ? goal.company : "", goal.category].filter(Boolean).join(" · ")}</span>
-                  </span>
-                  <span className={`goal-hint${hint.endsWith("überfällig") ? " is-overdue" : ""}`}>{hint}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </>}
-
-      {dialog?.kind === "detail" && dialogAppointment && (
-        <AppointmentDetailDialog key={dialogAppointment.id} appointment={dialogAppointment} store={store} onClose={() => setDialog(null)} onEdit={(accept) => open({ kind: "form", id: dialogAppointment.id, day: dayOf(dialogAppointment.start), accept })} />
       )}
-      {dialog?.kind === "form" && <AppointmentFormDialog store={store} appointment={dialogAppointment} day={dialog.day} start={dialog.start} accept={dialog.accept} onClose={() => setDialog(null)} onSaved={finish} />}
-      {dialog?.kind === "request" && <RequestDialog store={store} day={dialog.day} start={dialog.start} onClose={() => setDialog(null)} onSent={finish} />}
+      {toast && (
+        <div className="kb-toast" role="status">
+          <span>{toast.text}</span>
+          {toast.undo && <button type="button" onClick={() => { const undo = toast.undo; setToast(null); undo?.(); }}>Rückgängig</button>}
+        </div>
+      )}
     </>
   );
 }
 
-type GridProps = {
-  month: string;
-  range: { firstMonth: string; lastMonth: string };
-  today: string;
-  selected: string;
-  busy: CalendarStore["busy"];
-  byDay: Map<string, HubAppointment[]>;
-  goalsByDay: Map<string, ProjectGoal[]>;
-  canManage: boolean;
-  onSelect: (day: string) => void;
-};
-
-/**
- * Month grid: every working day shows how much of it is booked; admins see their appointments, customers only their own.
- * Project deadlines come first as all-day "Ziel" entries.
- */
-function MonthGrid({ month, range, today, selected, busy, byDay, goalsByDay, canManage, onSelect }: GridProps) {
-  return (
-    <div className="calendar-grid">
-      <div className="calendar-weekdays" aria-hidden="true">{weekdays.map((name) => <span key={name}>{name}</span>)}</div>
-      {monthWeeks(month).map((week) => (
-        <div key={week[0]} className="calendar-week">
-          {week.map((day) => {
-            const items = byDay.get(day) ?? [];
-            const goals = goalsByDay.get(day) ?? [];
-            const load = occupancy(day, busy);
-            const outside = monthOf(day) !== month;
-            const className = `calendar-cell${outside ? " is-outside" : ""}${day < today ? " is-past" : ""}${load.level === "closed" ? " is-closed" : ""}`;
-            const count = (items.length ? `, ${items.length} ${canManage ? (items.length === 1 ? "Termin" : "Termine") : (items.length === 1 ? "eigener Termin" : "eigene Termine")}` : "")
-              + (goals.length ? `, ${goals.length === 1 ? "1 Zieltermin" : `${goals.length} Zieltermine`}` : "");
-            const chips = [
-              ...goals.map((goal) => ({ id: goal.id, className: `calendar-chip calendar-chip-goal${goal.done ? " is-done" : ""}`, content: <>Ziel · {canManage && goal.company ? goal.company : goal.title}</> })),
-              ...items.map((item) => ({ id: item.id, className: `calendar-chip calendar-chip-${item.status}`, content: <><span className="numeric">{timeOf(item.start)}</span> {canManage && item.customer ? item.customer.company : item.title}</> })),
-            ];
-            // Phone grid: one diamond stands for all goals of the day, so appointments keep their dots.
-            const dots = [
-              ...(goals.length ? [{ id: "goals", className: `calendar-chip-goal${goals.every((goal) => goal.done) ? " is-done" : ""}` }] : []),
-              ...items.map((item) => ({ id: item.id, className: `calendar-chip-${item.status}` })),
-            ].slice(0, 3);
-            return (
-              <button
-                key={day}
-                type="button"
-                className={className}
-                aria-pressed={day === selected}
-                aria-current={day === today ? "date" : undefined}
-                aria-label={`${formatDayLong(day)}: ${occupancyLabels[load.level]}${count}`}
-                onClick={() => onSelect(day)}
-                disabled={monthOf(day) < range.firstMonth || monthOf(day) > range.lastMonth}
-              >
-                <span className="calendar-day-number numeric">{Number(day.slice(8))}</span>
-                {load.level !== "closed" && <span className={`occupancy-track occupancy-${load.level}`} aria-hidden="true"><span style={{ width: `${Math.round(load.ratio * 100)}%` }} /></span>}
-                {chips.length > 0 && (
-                  <span className="calendar-cell-items" aria-hidden="true">
-                    {chips.slice(0, 2).map((chip) => <span key={chip.id} className={chip.className}>{chip.content}</span>)}
-                    {chips.length > 2 && <span className="calendar-more">+{chips.length - 2}</span>}
-                    <span className="calendar-dots">{dots.map((dot) => <i key={dot.id} className={`calendar-dot ${dot.className}`} />)}</span>
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
+/** "16.–22. November 2026", across months "30. Nov. – 6. Dez. 2026". */
+function weekTitle(day: string) {
+  const [monday, , , , , , sunday] = weekDays(day);
+  const long = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", month: "long", year: "numeric" });
+  const short = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "numeric", month: "short" });
+  const at = (value: string) => Date.parse(`${value}T00:00:00Z`);
+  if (monthOf(monday) === monthOf(sunday)) return `${Number(monday.slice(8))}.–${Number(sunday.slice(8))}. ${long.format(at(sunday))}`;
+  return `${short.format(at(monday))} – ${short.format(at(sunday))} ${sunday.slice(0, 4)}`;
 }
 
-type DayPanelProps = {
-  day: string;
-  store: CalendarStore;
-  items: HubAppointment[];
-  goals: ProjectGoal[];
-  projectHref: (id: string) => string;
-  onOpen: (id: string) => void;
-  onCreate: () => void;
-  onRequest?: (start: string) => void;
-};
-
-/** The selected day: its project deadlines, occupancy, a timeline of booked times and, for customers, the free times to request. */
-function DayPanel({ day, store, items, goals, projectHref, onOpen, onCreate, onRequest }: DayPanelProps) {
-  const load = occupancy(day, store.busy);
-  const starts = onRequest ? slotStarts(day, store.blocked, 30, store.now) : [];
-  // One button per free interval that fits at least half an hour; it opens the request at the first possible start.
-  const free = onRequest ? freeIntervals(day, store.blocked, store.now).flatMap((interval) => {
-    const start = starts.find((slot) => wallTimeToUtc(day, slot) >= interval.start && wallTimeToUtc(day, slot) + 30 * MINUTE <= interval.end);
-    return start ? [{ interval, start }] : [];
-  }) : [];
-
+/** The title on the background with the way back to Projekte, like the task board. */
+function Header({ preview }: { preview: boolean }) {
   return (
-    <GlassCard as="section" className="calendar-day-card" aria-labelledby="calendar-day-title">
-      <div className="calendar-day-head">
-        <h2 className="t-headline" id="calendar-day-title">{formatDayLong(day)}</h2>
-        <p className="t-subheadline t-secondary">{load.level === "closed" ? "Kein Termintag" : `${formatHours(load.bookedMinutes)} von ${formatHours(load.totalMinutes)} belegt · ${occupancyLabels[load.level]}`}</p>
-      </div>
-      {goals.length > 0 && (
-        <ul className="day-goals" aria-label="Zieltermine an diesem Tag">
-          {goals.map((goal) => (
-            <li key={goal.id}>
-              <Link href={projectHref(goal.id)} className={`day-goal${goal.done ? " is-done" : ""}`}>
-                <Flag size={16} aria-hidden="true" />
-                <span><strong>{goal.title}</strong><small>{["Zieltermin", store.canManage ? goal.company : "", goal.category, goal.done ? "abgeschlossen" : ""].filter(Boolean).join(" · ")}</small></span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      <DayTimeline day={day} store={store} items={items} onOpen={onOpen} />
-      {onRequest && load.level !== "closed" && (
-        free.length ? (
-          <div className="free-slots">
-            <h3 className="t-footnote">Frei für deine Anfrage</h3>
-            <ul>{free.map(({ interval, start }) => <li key={interval.start}><button type="button" className="free-slot" onClick={() => onRequest(start)}>{formatTimeRange(interval)}</button></li>)}</ul>
-          </div>
-        ) : <p className="t-footnote t-secondary free-slots-empty">{day < dayOf(store.now) ? "Dieser Tag liegt in der Vergangenheit." : "An diesem Tag ist nichts mehr frei."}</p>
-      )}
-      {store.canManage && <button type="button" className="sheet-button calendar-day-create" onClick={onCreate}><CalendarPlus size={18} aria-hidden="true" />Termin an diesem Tag</button>}
-    </GlassCard>
-  );
-}
-
-/** Wall-clock minutes of an instant on `day` (clamped to the day). */
-function minutesOn(day: string, time: number) {
-  const other = dayOf(time);
-  return other < day ? 0 : other > day ? 24 * 60 : clockMinutes(timeOf(time));
-}
-
-function DayTimeline({ day, store, items, onOpen }: { day: string; store: CalendarStore; items: HubAppointment[]; onOpen: (id: string) => void }) {
-  const workStart = clockMinutes(WORKDAY.start);
-  const workEnd = clockMinutes(WORKDAY.end);
-  const blocks = items.map((item) => ({ item, from: minutesOn(day, item.start), to: minutesOn(day, item.end) }));
-  const first = Math.floor(Math.min(workStart, ...blocks.map((block) => block.from)) / 60) * 60;
-  const last = Math.ceil(Math.max(workEnd, ...blocks.map((block) => block.to)) / 60) * 60;
-  const y = (minutes: number) => ((minutes - first) / 60) * HOUR_PX;
-  const closed = !isWorkday(day);
-
-  // Customers see the whole calendar's booked times as anonymous blocks; their own appointments lie on top.
-  const busyBlocks = store.canManage ? [] : mergeIntervals(store.busy).filter((interval) => dayOf(interval.start) === day || dayOf(interval.end) === day)
-    .map((interval) => ({ from: minutesOn(day, interval.start), to: minutesOn(day, interval.end), interval }));
-  const laneEnds: number[] = [];
-  const placed = blocks.map((block) => {
-    let lane = laneEnds.findIndex((end) => end <= block.from);
-    if (lane < 0) { lane = laneEnds.length; laneEnds.push(block.to); } else laneEnds[lane] = block.to;
-    return { ...block, lane };
-  });
-  const lanes = Math.max(1, laneEnds.length);
-  const nowMinutes = dayOf(store.now) === day ? minutesOn(day, store.now) : null;
-
-  return (
-    <div className={`timeline${closed ? " is-closed" : ""}`} style={{ height: y(last) + 1 }}>
-      {Array.from({ length: (last - first) / 60 + 1 }, (_, index) => first + index * 60).map((minutes) => (
-        <div key={minutes} className="timeline-hour" style={{ top: y(minutes) }}><span className="numeric">{clockOf(minutes)}</span></div>
-      ))}
-      <div className="timeline-lanes">
-        {!closed && first < workStart && <div className="timeline-off" style={{ top: 0, height: y(workStart) }} aria-hidden="true" />}
-        {!closed && last > workEnd && <div className="timeline-off" style={{ top: y(workEnd), height: y(last) - y(workEnd) }} aria-hidden="true" />}
-        {closed && <div className="timeline-off timeline-closed" style={{ top: 0, height: y(last) }}><span>Wochenende · keine Termine</span></div>}
-        {busyBlocks.map(({ from, to, interval }) => <div key={interval.start} className="timeline-busy" style={{ top: y(from), height: Math.max(y(to) - y(from), 20) }}><span>Belegt · {formatTimeRange(interval)}</span></div>)}
-        {placed.map(({ item, from, to, lane }) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`timeline-block timeline-block-${item.status}`}
-            style={{ top: y(from), height: Math.max(y(to) - y(from), 24), left: `calc(${(lane / lanes) * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }}
-            onClick={() => onOpen(item.id)}
-          >
-            <strong>{item.title}</strong>
-            <span>{formatTimeRange(item)}{store.canManage ? ` · ${item.customer ? item.customer.company : "Intern"}` : ""}{item.status === "requested" ? " · angefragt" : ""}</span>
-          </button>
-        ))}
-        {nowMinutes !== null && nowMinutes >= first && nowMinutes <= last && <div className="timeline-now" style={{ top: y(nowMinutes) }} aria-hidden="true" />}
-      </div>
-    </div>
-  );
-}
-
-function AppointmentList({ items, showCustomer, onOpen, label }: { items: HubAppointment[]; showCustomer: boolean; onOpen: (id: string) => void; label: string }) {
-  return (
-    <ul className="glass inset-list appointment-list" aria-label={label}>
-      {items.map((item) => {
-        const day = dayOf(item.start);
-        return (
-          <li key={item.id} className="list-item appointment-item">
-            <button type="button" className="appointment-open" onClick={() => onOpen(item.id)}>
-              <span className="appointment-date" aria-hidden="true"><strong className="numeric">{Number(day.slice(8))}</strong><small>{monthShort.format(Date.parse(`${day}T00:00:00Z`))}</small></span>
-              <span className="list-row-text">
-                <span className="list-row-title">{item.title}</span>
-                <span className="list-row-subtitle">{formatDayShort(day)} · {formatTimeRange(item)}{showCustomer ? ` · ${item.customer ? `${item.customer.customerNumber} ${item.customer.company}` : "Intern"}` : ""}</span>
-              </span>
-              <StatusPill status={item.status} />
-            </button>
-            {item.status === "confirmed" && <TeamsJoin appointment={item} compact />}
-          </li>
-        );
-      })}
-    </ul>
+    <LargeTitleHeader
+      title="Kalender"
+      icon={<span className="title-icon"><CalendarDays size={24} color={categories.projects.fill} aria-hidden="true" /></span>}
+      leading={<Link href={hubHref(preview, "projects")} className="on-bg-link"><ChevronLeft size={22} strokeWidth={2.5} aria-hidden="true" />Projekte</Link>}
+      actions={<HeaderActions />}
+    />
   );
 }

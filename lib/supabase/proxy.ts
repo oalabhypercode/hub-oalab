@@ -5,12 +5,20 @@ import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
 import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, serviceOrigin, signedInRedirect } from "../auth-redirect";
 import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub-auth/second-factor";
 import { LEGAL_PATHS } from "../legal-links";
+import { movedCalendarPath } from "../hub-calendar/paths";
 import { localAdminEmail } from "../local-admin";
 import { usesOwnPlatform } from "../platform/config";
 import type { OwnSessionAuth } from "../platform/auth";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  // The calendar moved under Projekte (16.11.2026): the old address forwards with its query, also for links in old mails.
+  const moved = movedCalendarPath(pathname);
+  if (moved) {
+    const url = request.nextUrl.clone();
+    url.pathname = moved;
+    return NextResponse.redirect(url, 308);
+  }
   const isPreview = pathname === "/preview" || pathname.startsWith("/preview/");
   // The WhatsApp webhook is called by Meta without a session; it checks Meta's signature itself. The notification
   // schedule is called by the database without a session; it checks its token itself. The calendar links of the

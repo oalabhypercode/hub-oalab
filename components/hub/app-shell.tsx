@@ -10,6 +10,7 @@ import { categories } from "@/lib/categories";
 import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
+import { pathSection } from "@/lib/hub-routes";
 import { AppearanceProvider } from "./appearance-provider";
 import { AssistantPanel, type AssistantMode, type ChatTurn } from "./assistant-panel";
 import { applyProposalStatus, chatKey, MODE_KEY, openProposalIds, parseChat, serializeChat } from "@/lib/hub-assistant/chat-storage";
@@ -72,8 +73,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const [assistantProject, setAssistantProject] = useState<{ id: string; name: string } | null>(null);
   /** A question an ⓘ hands over; the key tells the panel a new one arrived, also when the text repeats. */
   const [assistantQuestion, setAssistantQuestion] = useState<{ text: string; key: number } | null>(null);
-  const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
-  const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
+  // The calendar under Projekte (/projects/calendar) keeps its own place in the tab bar and the sidebar.
+  const section: HubSection = pathSection(pathname);
   // Logins take their name, company and packages from the user management; the preview keeps its fixtures.
   const live = !preview ? hubAccount : null;
   const liveCustomer = live?.customers[0] ?? null;
