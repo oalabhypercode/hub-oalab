@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { verifyHubAdmin, verifyHubFreelancer } from "@/lib/hub-users/server";
-import { initialsOf, metadataName, NO_COUNTS, TASK_COLUMNS, toBoardTask, type StudioTaskRow, type TaskCounts } from "./rules";
+import { initialsOf, loginName, NO_COUNTS, TASK_COLUMNS, toBoardTask, type StudioTaskRow, type TaskCounts } from "./rules";
 import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskBoardState } from "./types";
 
 // The board reads like the projects page for admins: after the same admin check (hub role, second factor,
@@ -42,17 +42,18 @@ const LOGIN_NAMES = 40;
 
 /**
  * Names for user ids: the hub's profiles first, then the login itself, where Studio keeps the name of team accounts
- * created there (seen live 16.11.2026: three of them stood as „Teammitglied“ under „Beteiligte“). Whoever has neither
- * is "Teammitglied", their freelancer or "Unbekannt".
+ * created there (seen live 16.11.2026: three of them stood as „Teammitglied“ under „Beteiligte“). A login without a
+ * name shows its e-mail address to the oalab team, as in Studio; for freelancers it stays "Teammitglied", their
+ * freelancer or "Unbekannt".
  */
-async function peopleFor(db: Db, ids: string[], team: Set<string>, freelancerOf: ReadonlyMap<string, BoardFreelancer>): Promise<BoardPerson[]> {
+async function peopleFor(db: Db, ids: string[], team: Set<string>, freelancerOf: ReadonlyMap<string, BoardFreelancer>, viewer: Viewer): Promise<BoardPerson[]> {
   if (!ids.length) return [];
   const { data } = await db.from("hub_profiles").select("user_id, first_name, last_name").in("user_id", ids).returns<{ user_id: string; first_name: string | null; last_name: string | null }[]>();
   const names = new Map((data ?? []).map((row) => [row.user_id, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim()]));
   const unnamed = ids.filter((id) => !names.get(id)).slice(0, LOGIN_NAMES);
   const fromLogins = await Promise.all(unnamed.map(async (id) => {
     const found = await db.auth.admin.getUserById(id).catch(() => null);
-    return [id, metadataName(found?.data?.user?.user_metadata)] as const;
+    return [id, loginName(found?.data?.user, viewer === "admin")] as const;
   }));
   for (const [id, name] of fromLogins) if (name) names.set(id, name);
   return ids.map((id) => {
@@ -148,11 +149,11 @@ function boardProjectsOf(rows: ProjectRow[], details: DetailsRow[], organization
 }
 
 /** Everybody the board names: the team, the freelancers' logins, and whoever created or holds a card. */
-async function boardPeople(db: Db, viewerId: string, team: Set<string>, freelancers: BoardFreelancer[], tasks: BoardTask[]) {
+async function boardPeople(db: Db, viewerId: string, team: Set<string>, freelancers: BoardFreelancer[], tasks: BoardTask[], viewer: Viewer) {
   const freelancerOf = new Map(freelancers.flatMap((freelancer) => freelancer.loginIds.map((login) => [login, freelancer] as const)));
   const mentioned = new Set<string>([viewerId, ...team, ...freelancerOf.keys()]);
   for (const task of tasks) { mentioned.add(task.createdBy); task.assigneeIds.forEach((id) => mentioned.add(id)); }
-  return peopleFor(db, [...mentioned], team, freelancerOf);
+  return peopleFor(db, [...mentioned], team, freelancerOf, viewer);
 }
 
 /** The oalab team's board: every running project of every customer. */
@@ -180,7 +181,7 @@ async function adminBoard(viewerId: string, db: Db): Promise<TaskBoardState> {
 
   const counts = countsOf(comments.data ?? [], subtasks.data ?? [], files.data ?? []);
   const boardTasks = (tasks.data ?? []).map((row) => toBoardTask(row, counts.get(row.id)));
-  const [people, confirmed] = await Promise.all([boardPeople(db, viewerId, team, freelancers, boardTasks), sessionConfirmed()]);
+  const [people, confirmed] = await Promise.all([boardPeople(db, viewerId, team, freelancers, boardTasks, "admin"), sessionConfirmed()]);
   return {
     viewer: "admin",
     projects: boardProjectsOf(rows, details.data ?? [], organizations.data ?? [], links.data ?? []),
@@ -235,7 +236,7 @@ async function freelancerBoard(viewerId: string, session: SupabaseClient, db: Db
     viewer: "freelancer",
     projects: boardProjectsOf(rows, details.data ?? [], organizations.data ?? [], links.data ?? []),
     tasks: boardTasks,
-    people: await boardPeople(db, viewerId, team, freelancers, boardTasks),
+    people: await boardPeople(db, viewerId, team, freelancers, boardTasks, "freelancer"),
     freelancers,
     viewerId,
     // verifyHubFreelancer lets only sessions with a confirmed code through.

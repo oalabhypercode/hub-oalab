@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, dueInfo, initialsOf, isAudience, joinNames, matchesFilters, metadataName, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, TASK_COLUMNS, toBoardTask, TASK_STATUSES } from "../lib/hub-tasks/rules.ts";
+import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, dueInfo, initialsOf, isAudience, joinNames, loginName, matchesFilters, metadataName, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, TASK_COLUMNS, toBoardTask, TASK_STATUSES } from "../lib/hub-tasks/rules.ts";
 import { taskFixtures } from "../lib/hub-tasks/fixtures.ts";
 
 // Windows checkouts with autocrlf hold CRLF; the patterns below are written with \n.
@@ -264,6 +264,22 @@ test("team accounts without a hub profile show the name their login keeps (seen 
   const server = await source("lib/hub-tasks/server.ts");
   assert.match(server, /const unnamed = ids\.filter\(\(id\) => !names\.get\(id\)\)\.slice\(0, LOGIN_NAMES\);/);
   assert.match(server, /const found = await db\.auth\.admin\.getUserById\(id\)\.catch\(\(\) => null\);/);
-  assert.match(server, /return \[id, metadataName\(found\?\.data\?\.user\?\.user_metadata\)\] as const;/);
   assert.match(server, /names\.get\(id\) \|\| \(team\.has\(id\) \? "Teammitglied"/);
+});
+
+test("without a name, the team reads the login's e-mail address as in Studio; freelancers never (user 16.11.2026)", async () => {
+  const login = { user_metadata: {}, email: " team@example.com " };
+  assert.equal(loginName(login, true), "team@example.com");
+  assert.equal(loginName(login, false), "");
+  assert.equal(loginName({ user_metadata: { full_name: "Lea Brandt" }, email: "lea@example.com" }, true), "Lea Brandt");
+  assert.equal(loginName(null, true), "");
+  // An address gives its avatar the letters before the @.
+  assert.equal(initialsOf("team@example.com"), "TE");
+  assert.equal(initialsOf("lea.brandt@example.com"), "LB");
+  assert.equal(initialsOf("Jonas Keller"), "JK");
+  // Only the admins' board passes the address on.
+  const server = await source("lib/hub-tasks/server.ts");
+  assert.match(server, /return \[id, loginName\(found\?\.data\?\.user, viewer === "admin"\)\] as const;/);
+  assert.match(server, /boardPeople\(db, viewerId, team, freelancers, boardTasks, "admin"\)/);
+  assert.match(server, /boardPeople\(db, viewerId, team, freelancers, boardTasks, "freelancer"\)/);
 });
