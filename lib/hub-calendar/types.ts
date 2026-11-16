@@ -1,5 +1,5 @@
 import type { HubFileCustomer } from "../hub-files/types";
-import type { AppointmentStatus, Interval } from "./rules";
+import type { AppointmentStatus, Availability, Interval } from "./rules";
 
 /** An appointment as the calendar shows it, whether it comes from Supabase or from fixtures. */
 export type HubAppointment = {
@@ -37,6 +37,13 @@ export type HubCalendarState = {
    * a session; without it the calendar shows tasks read-only and offers „Mit Code bestätigen“ (like the task board).
    */
   confirmed?: boolean;
+  /**
+   * When oalab offers appointments: weekly plan, exceptions (admins with their notes, customers without) and the rules
+   * for requests. Before the migration (or when it cannot be read) the fixed hours as before.
+   */
+  availability: Availability;
+  /** False while the database has no availability yet: the calendar uses the fixed hours, the admin cannot save. */
+  availabilityReady: boolean;
   /** Berlin day the calendar opens on and the instant that separates past from future. */
   today: string;
   now: number;

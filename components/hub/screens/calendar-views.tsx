@@ -1,9 +1,9 @@
 "use client";
 
-import { ChevronDown, Flag, Hand, Plus, TriangleAlert, Video } from "lucide-react";
+import { CalendarOff, ChevronDown, Flag, Hand, Plus, TriangleAlert, Video } from "lucide-react";
 import {
-  clockOf, dayOf, formatDayLong, formatDayShort, layoutLanes, mergeIntervals, minutesOn, monthOf, monthWeeks, timeOf, weekdayIndex, workWindow,
-  type Interval,
+  availableSpans, clockOf, dayOf, dayOff, exceptionsOn, formatDayLong, formatDayShort, layoutLanes, mergeIntervals, minutesOn, monthOf, monthWeeks, subtractSpans,
+  timeOf, weekdayIndex, type Availability, type DaySpan, type Interval,
 } from "@/lib/hub-calendar/rules";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
 import { STATUS_NAMES } from "@/lib/hub-tasks/rules";
@@ -25,6 +25,8 @@ const monthLong = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", month: "lo
 export type ViewAppointment = HubAppointment & { faded: boolean };
 export type DayLabel = { text: string; tone: "ok" | "todo" | "bad" | "off" | "" };
 export type OpenTarget = { kind: "appointment"; id: string } | { kind: "task"; id: string } | { kind: "goal"; id: string };
+/** A green block while editing the availability: from the weekly plan, or extra time of that one day. */
+export type AvailBlock = { day: string; kind: "week"; from: number; to: number } | { day: string; kind: "extra"; id: string; from: number; to: number };
 
 export type CalendarViewProps = {
   days: string[];
@@ -45,10 +47,16 @@ export type CalendarViewProps = {
   /** Tasks show their customer only while every customer is shown. */
   showCompany: boolean;
   tasksInfo?: React.ReactNode;
+  /** When oalab offers appointments; admins see the rest grey, customers only their free time. */
+  availability: Availability;
+  /** Admins editing the availability: green blocks, „Tag aus“ per day, painting new time. */
+  editing: boolean;
   onOpen: (target: OpenTarget) => void;
   onDay: (day: string) => void;
   onOverdue: () => void;
   onFree: (day: string, start: number) => void;
+  onAvailBlock: (block: AvailBlock, event: React.MouseEvent<HTMLElement>) => void;
+  onDayOff: (day: string) => void;
 };
 
 const taskTip = (task: CalendarTask) => [task.company, task.projectName, STATUS_NAMES[task.status], task.customerTurn ? "liegt beim Kunden" : ""].filter(Boolean).join(" · ");
@@ -95,19 +103,20 @@ function OverdueChip({ tasks, onOverdue }: { tasks: CalendarTask[]; onOverdue: (
 
 /* ---------- Week and day: a time grid with an all-day row ---------- */
 
-/** 7:00 to 19:00, wider where an appointment or the working hours reach further. */
-function hourBounds(days: string[], apptsOn: CalendarViewProps["apptsOn"]) {
-  let from = 7 * 60;
-  let to = 19 * 60;
+/** 7:00 to 19:00, wider where an appointment or the availability reaches further; 6:00 to 22:00 while editing it. */
+function hourBounds(days: string[], apptsOn: CalendarViewProps["apptsOn"], availability: Availability, editing: boolean) {
+  let from = editing ? 6 * 60 : 7 * 60;
+  let to = editing ? 22 * 60 : 19 * 60;
   for (const day of days) {
     for (const item of apptsOn(day)) { from = Math.min(from, minutesOn(day, item.start)); to = Math.max(to, minutesOn(day, item.end)); }
+    for (const [a, b] of availableSpans(availability, day)) { from = Math.min(from, a); to = Math.max(to, b); }
   }
   return [Math.floor(from / 60) * 60, Math.min(24 * 60, Math.ceil(to / 60) * 60)] as const;
 }
 
 export function WeekView(props: CalendarViewProps) {
-  const { days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks, showCompany, tasksInfo, onOpen, onDay, onOverdue, onFree } = props;
-  const [from, to] = hourBounds(days, apptsOn);
+  const { days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks, showCompany, tasksInfo, availability, editing, onOpen, onDay, onOverdue, onFree, onAvailBlock, onDayOff } = props;
+  const [from, to] = hourBounds(days, apptsOn, availability, editing);
   const y = (minutes: number) => ((minutes - from) / 60) * HOUR_PX;
   const height = y(to);
   const single = days.length === 1;
@@ -122,14 +131,20 @@ export function WeekView(props: CalendarViewProps) {
           <div className="cal-gutter" />
           {days.map((day) => {
             const label = dayLabel(day);
-            const closed = !workWindow(day);
+            const closed = !availableSpans(availability, day).length;
+            const off = dayOff(availability, day);
             return (
               <div key={day} className={`cal-dh${day === today ? " is-today" : ""}${day < today ? " is-past" : ""}${closed ? " is-off" : ""}`}>
                 <button type="button" className="cal-dh-btn" onClick={() => onDay(day)} data-tip={single ? formatDayLong(day) : "Tagesansicht"} aria-label={formatDayLong(day)}>
                   <span className="cal-dh-wd">{weekdayNames[weekdayIndex(day)]}</span><span className="cal-dh-num numeric">{Number(day.slice(8))}</span>
                   {single && <span className="cal-dh-long">{monthLong.format(Date.parse(`${day}T00:00:00Z`))}</span>}
                 </button>
-                {label.text && <span className={`cal-dh-free tone-${label.tone}`}>{label.text}</span>}
+                {admin && editing && day >= today
+                  ? <button type="button" className={`cal-dh-off${off ? " is-on" : ""}`} aria-pressed={Boolean(off)} onClick={() => onDayOff(day)}
+                    data-tip={off ? "Abwesenheit entfernen" : "Den ganzen Tag nicht verfügbar"} data-tip-sub={formatDayShort(day)}>
+                    <CalendarOff size={12} aria-hidden="true" />{off ? "Abwesend" : "Tag aus"}
+                  </button>
+                  : label.text && <span className={`cal-dh-free tone-${label.tone}`}>{label.text}</span>}
               </div>
             );
           })}
@@ -159,18 +174,21 @@ export function WeekView(props: CalendarViewProps) {
           {hours.map((minutes) => <span key={minutes} className="cal-hour" style={{ top: y(minutes) }}><span className="numeric">{clockOf(minutes)}</span></span>)}
         </div>
         {days.map((day) => {
-          const window = workWindow(day);
-          const offRanges: [number, number][] = [];
-          if (admin) {
-            // What customers cannot request: outside the working hours (step 2 makes them editable).
-            if (!window) offRanges.push([from, to]);
-            else {
-              const start = minutesOn(day, window.start);
-              const end = minutesOn(day, window.end);
-              if (start > from) offRanges.push([from, start]);
-              if (end < to) offRanges.push([end, to]);
-            }
-          }
+          // Admins: what customers cannot request is grey; absences carry the team's note (customers never see it).
+          const spans = availableSpans(availability, day);
+          const absences = exceptionsOn(availability, day).filter((item) => item.kind === "off");
+          const wholeDay = dayOff(availability, day);
+          const offRanges: { span: DaySpan; label: string; absent: boolean }[] = !admin ? []
+            : wholeDay ? [{ span: [from, to], label: wholeDay.note || "Abwesend", absent: true }]
+            : subtractSpans([[from, to]], spans).map((span) => {
+              const absence = absences.find((item) => item.from !== null && item.to !== null && item.from < span[1] && span[0] < item.to);
+              return { span, label: absence ? absence.note || "Nicht verfügbar" : spans.length ? "" : "Kein Termintag", absent: Boolean(absence) };
+            });
+          // While editing: the bookable time as green blocks, the weekly plan and the extra time of that day apart.
+          const canEdit = admin && editing && day >= today && !wholeDay;
+          const offSpans = absences.flatMap((item): DaySpan[] => item.from === null || item.to === null ? [] : [[item.from, item.to]]);
+          const weekly = canEdit ? subtractSpans(availability.week[weekdayIndex(day)] ?? [], offSpans) : [];
+          const extras = canEdit ? exceptionsOn(availability, day).filter((item) => item.kind === "extra" && item.from !== null && item.to !== null) : [];
           const free = admin || day < nowDay ? [] : mergeIntervals(freeOn(day)).map((interval) => [minutesOn(day, interval.start), minutesOn(day, interval.end)] as [number, number]);
           const quiet: [number, number][] = [];
           if (!admin) {
@@ -180,8 +198,27 @@ export function WeekView(props: CalendarViewProps) {
           }
           const placed = layoutLanes(apptsOn(day));
           return (
-            <div key={day} className={`cal-col${day === today ? " is-today" : ""}${day < today ? " is-past" : ""}`} data-col-day={day} data-drop-day={day} style={{ height }}>
-              {offRanges.map(([a, b]) => <div key={`off-${a}`} className="cal-off" style={{ top: y(a), height: y(b) - y(a) }} aria-hidden="true">{!window && a === from && <span className="cal-off-label">Kein Termintag</span>}</div>)}
+            <div key={day} className={`cal-col${day === today ? " is-today" : ""}${day < today ? " is-past" : ""}${canEdit ? " is-editing" : ""}`} data-col-day={day} data-drop-day={day}
+              data-paint-day={canEdit ? day : undefined} style={{ height }}>
+              {offRanges.map(({ span: [a, b], label: text, absent }) => (
+                <div key={`off-${a}`} className={`cal-off${absent ? " is-absent" : ""}`} style={{ top: y(a), height: y(b) - y(a) }} aria-hidden="true">
+                  {text && y(b) - y(a) >= 24 && (a === from || absent) && <span className="cal-off-label">{absent && <CalendarOff size={12} aria-hidden="true" />}{text}</span>}
+                </div>
+              ))}
+              {weekly.map(([a, b]) => (
+                <button key={`av-${a}`} type="button" className="cal-av" style={{ top: y(a) + 1, height: y(b) - y(a) - 2 }}
+                  data-tip={`${clockOf(a)}–${clockOf(b)} Uhr, jede Woche`} data-tip-sub="Klick: herausnehmen" onClick={(event) => onAvailBlock({ day, kind: "week", from: a, to: b }, event)}>
+                  <span className="cal-av-label numeric">{clockOf(a)}–{b === 1440 ? "24:00" : clockOf(b)}</span>
+                </button>
+              ))}
+              {extras.map((item) => (
+                <button key={item.id} type="button" className="cal-av is-extra" style={{ top: y(item.from!) + 1, height: y(item.to!) - y(item.from!) - 2 }}
+                  data-tip={`${clockOf(item.from!)}–${clockOf(item.to!)} Uhr, nur an diesem Tag`} data-tip-sub={item.note || "Klick: entfernen"}
+                  onClick={(event) => onAvailBlock({ day, kind: "extra", id: item.id, from: item.from!, to: item.to! }, event)}>
+                  <span className="cal-av-label numeric">{clockOf(item.from!)}–{item.to === 1440 ? "24:00" : clockOf(item.to!)}</span>
+                  {item.note && <span className="cal-av-note">{item.note}</span>}
+                </button>
+              ))}
               {quiet.map(([a, b]) => <div key={`quiet-${a}`} className="cal-off is-quiet" style={{ top: y(a), height: y(b) - y(a) }} aria-hidden="true" />)}
               {free.filter(([a, b]) => b - a >= 30).map(([a, b]) => (
                 <button key={`free-${a}`} type="button" className="cal-free" style={{ top: y(a) + 1, height: y(b) - y(a) - 2 }}
@@ -201,7 +238,8 @@ export function WeekView(props: CalendarViewProps) {
                 const who = item.customer ? item.customer.company : "Intern";
                 const meta = `${timeOf(item.start)}–${timeOf(item.end)}${admin ? ` · ${who}` : ""}`;
                 const past = item.end <= now;
-                const canDrag = admin && item.status === "confirmed" && !past;
+                // While the availability is edited, appointments stay where they are.
+                const canDrag = admin && !editing && item.status === "confirmed" && !past;
                 return (
                   <button key={item.id} type="button"
                     className={`cal-ev is-${item.status}${item.faded ? " is-faded" : ""}${item.customer ? "" : " is-internal"}${past ? " is-past" : ""}${h < 36 ? " is-short" : h < 66 ? " is-compact" : ""}`}
@@ -226,7 +264,7 @@ export function WeekView(props: CalendarViewProps) {
 
 /* ---------- Month: the classic grid; "+ weitere" opens the day ---------- */
 
-export function MonthView({ days, today, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, canDragTasks, showCompany, onOpen, onDay, onOverdue, month }: CalendarViewProps & { month: string }) {
+export function MonthView({ days, today, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, canDragTasks, showCompany, availability, onOpen, onDay, onOverdue, month }: CalendarViewProps & { month: string }) {
   const weeks = monthWeeks(month);
   return (
     <div className="cal-mo" style={{ "--weeks": weeks.length } as React.CSSProperties}>
@@ -241,11 +279,13 @@ export function MonthView({ days, today, admin, apptsOn, tasksOn, goalsOn, overd
             ...tasksOn(day).map((task) => <TaskChip key={`t-${task.id}`} task={task} today={today} draggable={canDragTasks} showCompany={false} onOpen={onOpen} />),
             ...apptsOn(day).map((item) => <ApptChip key={`a-${item.id}`} item={item} admin={admin} showCompany={showCompany} onOpen={onOpen} />),
           ];
+          const open = availableSpans(availability, day).length > 0;
+          const absent = admin && Boolean(dayOff(availability, day));
           return (
-            <div key={day} className={`cal-mc${outside ? " is-outside" : ""}${day === today ? " is-today" : ""}${day < today ? " is-past" : ""}${workWindow(day) ? "" : " is-off"}`} data-drop-day={day} data-cell={day}>
+            <div key={day} className={`cal-mc${outside ? " is-outside" : ""}${day === today ? " is-today" : ""}${day < today ? " is-past" : ""}${open ? "" : " is-off"}${absent ? " is-absent" : ""}`} data-drop-day={day} data-cell={day}>
               <div className="cal-mc-top">
                 <button type="button" className="cal-mc-num numeric" onClick={() => onDay(day)} aria-label={formatDayLong(day)}>{Number(day.slice(8))}</button>
-                {label.text && !outside && workWindow(day) && <span className={`cal-mc-free tone-${label.tone}`}>{label.text}</span>}
+                {label.text && !outside && (open || absent) && <span className={`cal-mc-free tone-${label.tone}`}>{label.text}</span>}
               </div>
               <div className="cal-mc-items">
                 {chips.slice(0, 3)}

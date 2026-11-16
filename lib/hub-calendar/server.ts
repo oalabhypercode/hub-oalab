@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { calendarWindow, isAppointmentStatus } from "./rules";
+import { addDays, addMonths, availabilityFrom, calendarWindow, FIXED_AVAILABILITY, isAppointmentStatus, type Availability } from "./rules";
 import type { HubFileCustomer } from "../hub-files/types";
 import type { HubAppointment, HubCalendarState } from "./types";
 
@@ -27,6 +27,29 @@ export function describeCalendarError(error: { code?: string; message?: string }
   return "Der Kalender konnte gerade nicht geladen werden. Bitte versuche es erneut.";
 }
 
+type Client = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * When oalab offers appointments, for the days `from` … `to`. Admins read the weekly plan and the exceptions with
+ * their notes (row rules: admins only); everybody else gets hub_calendar_availability(), which leaves the notes out.
+ * Before the migration (or on any error) the calendar keeps the fixed hours, and the admin cannot save yet.
+ */
+export async function loadAvailability(supabase: Client, canManage: boolean, from: string, to: string): Promise<{ availability: Availability; ready: boolean }> {
+  const fixed = { availability: FIXED_AVAILABILITY, ready: false };
+  if (canManage) {
+    const [settings, exceptions] = await Promise.all([
+      supabase.from("hub_calendar_settings").select("week, notice_minutes, buffer_minutes, horizon_weeks, durations").maybeSingle(),
+      supabase.from("hub_calendar_exceptions").select("id, day, kind, from_minute, to_minute, note").gte("day", from).lte("day", to).order("day"),
+    ]);
+    if (settings.error || exceptions.error || !settings.data) return fixed;
+    return { availability: availabilityFrom(settings.data, exceptions.data ?? []), ready: true };
+  }
+  const { data, error } = await supabase.rpc("hub_calendar_availability", { range_start: from, range_end: to });
+  if (error || !data || typeof data !== "object") return fixed;
+  const value = data as Record<string, unknown>;
+  return { availability: availabilityFrom(value, Array.isArray(value.exceptions) ? value.exceptions : []), ready: true };
+}
+
 /**
  * Calendar of the signed-in Supabase user for the browsable window around `today`.
  * Row Level Security decides: admins see every appointment, customers only their own;
@@ -41,7 +64,8 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
   const to = new Date(window.to).toISOString();
   const base = { source: "supabase" as const, canManage, confirmed: canManage && claims?.claims.aal === "aal2", today, now: Date.now() };
 
-  const [appointments, customers, busy] = await Promise.all([
+  const lastDay = addDays(`${addMonths(window.lastMonth, 1)}-01`, -1);
+  const [appointments, customers, busy, open] = await Promise.all([
     supabase
       .from("hub_appointments")
       .select("id, title, description, starts_at, ends_at, status, teams_url, response_note, customer:hub_customers(id, customer_number, company)")
@@ -51,12 +75,15 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
       .returns<AppointmentRow[]>(),
     supabase.from("hub_customers").select("id, customer_number, company").order("customer_number").returns<CustomerRow[]>(),
     canManage ? Promise.resolve({ data: [] as BusyRow[], error: null }) : supabase.rpc("hub_calendar_busy", { range_start: from, range_end: to }),
+    loadAvailability(supabase, canManage, `${window.firstMonth}-01`, lastDay),
   ]);
   const error = appointments.error ?? busy.error;
-  if (error) return { ...base, appointments: [], busy: [], customers: [], error: describeCalendarError(error) };
+  if (error) return { ...base, appointments: [], busy: [], customers: [], availability: FIXED_AVAILABILITY, availabilityReady: false, error: describeCalendarError(error) };
 
   return {
     ...base,
+    availability: open.availability,
+    availabilityReady: open.ready,
     customers: (customers.data ?? []).map(toCustomer),
     busy: ((busy.data ?? []) as BusyRow[]).map((row) => ({ start: Date.parse(row.starts_at), end: Date.parse(row.ends_at) })),
     appointments: (appointments.data ?? []).map((row): HubAppointment => ({

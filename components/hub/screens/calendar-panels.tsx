@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Building2, CalendarCheck, CalendarPlus, CalendarX, Check, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Clock, Flag, FolderOpen, Hand, Hourglass, Inbox, Lock, Repeat, Send, SquareKanban, Timer, Trash2, Undo2, Video, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import {
-  addDays, addMonths, APPOINTMENT_DURATIONS, appointmentStatuses, calendarWindow, clockOf, dayOf, formatDayLong, formatDayShort, formatDuration, formatMonth, formatTimeRange,
-  isClock, isDay, mondayOf, monthOf, monthWeeks, overlaps, REQUEST_DURATIONS, slotStarts, timeOf, wallTimeToUtc, workWindow, WORKDAY, type AppointmentStatus,
+  addDays, addMonths, adminFree, APPOINTMENT_DURATIONS, appointmentStatuses, availableIntervals, calendarWindow, clockOf, customerFree, dayOf, formatDayLong, formatDayShort,
+  formatDuration, formatMonth, formatNotice, formatTimeRange, isClock, isDay, lastRequestDay, mondayOf, monthOf, monthWeeks, overlaps, startsIn, timeOf, wallTimeToUtc,
+  type AppointmentStatus, type Interval,
 } from "@/lib/hub-calendar/rules";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
 import { hubHref } from "@/lib/hub-data";
@@ -40,14 +41,16 @@ const Note = ({ icon: Icon, tone, children }: { icon: typeof Clock; tone?: "todo
   <p className={`cal-panel-note${tone ? ` is-${tone}` : ""}`}><Icon size={15} aria-hidden="true" /><span>{children}</span></p>
 );
 
-/** Start times every quarter hour from 6 to 21 o'clock; "frei" where the appointment would fit into the working hours. */
-function startOptions(day: string, minutes: number, busy: { start: number; end: number }[]) {
+/** Whether [start, start + minutes) lies inside one of the free intervals. */
+const fitsInto = (free: readonly Interval[], start: number, minutes: number) => free.some((item) => item.start <= start && start + minutes * MINUTE <= item.end);
+
+/** Start times every quarter hour from 6 to 21 o'clock; "frei" where the appointment fits into the free availability. */
+function startOptions(store: CalendarStore, day: string, minutes: number, busy: Interval[]) {
+  const free = isDay(day) ? adminFree(store.availability, day, busy, -Infinity) : [];
   const options = [];
   for (let value = 6 * 60; value <= 21 * 60; value += 15) {
     const time = clockOf(value);
-    const start = isDay(day) ? wallTimeToUtc(day, time) : 0;
-    const window = isDay(day) ? workWindow(day) : null;
-    const fits = Boolean(window && start >= window.start && start + minutes * MINUTE <= window.end && !busy.some((item) => overlaps(item, { start, end: start + minutes * MINUTE })));
+    const fits = isDay(day) && fitsInto(free, wallTimeToUtc(day, time), minutes);
     options.push({ value: time, label: `${time} Uhr`, group: value < 12 * 60 ? "Vormittag" : value < 17 * 60 ? "Nachmittag" : "Abend", meta: fits ? "frei" : undefined, lead: <Clock size={15} aria-hidden="true" /> });
   }
   return options;
@@ -59,13 +62,12 @@ function SlotChecks({ store, day, start, minutes, exceptId }: { store: CalendarS
   if (!isDay(day) || !isClock(start)) return null;
   const interval = { start: wallTimeToUtc(day, start), end: wallTimeToUtc(day, start) + minutes * MINUTE };
   const clash = store.appointments.filter((item) => item.id !== exceptId && (item.status === "confirmed" || item.status === "requested") && overlaps(item, interval));
-  const window = workWindow(day);
-  const inside = Boolean(window && interval.start >= window.start && interval.end <= window.end);
+  const inside = fitsInto(availableIntervals(store.availability, day), interval.start, minutes);
   return (
     <div className="cal-checks">
       {clash.length > 0 && <Check2 tone="bad">Überschneidet sich mit {clash.map((item) => `${timeOf(item.start)} „${item.title}“${item.status === "requested" ? " (Anfrage)" : ""}`).join(", ")}.</Check2>}
-      {!inside && <Check2 tone="warn">Außerhalb der Termintage (Mo–Fr, {WORKDAY.start}–{WORKDAY.end} Uhr). Du kannst trotzdem eintragen, Kunden könnten diese Zeit nicht anfragen.</Check2>}
-      {!clash.length && inside && <Check2 tone="ok">Frei und in den Termintagen.</Check2>}
+      {!inside && <Check2 tone="warn">Außerhalb deiner Verfügbarkeit. Du kannst trotzdem eintragen, Kunden könnten diese Zeit nicht anfragen.</Check2>}
+      {!clash.length && inside && <Check2 tone="ok">Frei und in deiner Verfügbarkeit.</Check2>}
     </div>
   );
 }
@@ -145,7 +147,7 @@ export function AppointmentPanel({ store, appointment, initial, onClose, onDone 
         <FieldGrid>
           <Field label="Titel" wide><input className="am-input" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="z. B. Abstimmung Website-Inhalte" disabled={busy} autoFocus={!appointment} /></Field>
           <Field label="Datum"><input className="am-input" type="date" value={day} onChange={(event) => setDay(event.target.value)} disabled={busy} /></Field>
-          <div className="um-field"><span className="am-label">Beginn</span><Select label="Beginn" value={start} onChange={setStart} options={startOptions(day, minutes, busyTimes)} disabled={busy} searchPlaceholder="Uhrzeit, z. B. 14" /></div>
+          <div className="um-field"><span className="am-label">Beginn</span><Select label="Beginn" value={start} onChange={setStart} options={startOptions(store, day, minutes, busyTimes)} disabled={busy} searchPlaceholder="Uhrzeit, z. B. 14" /></div>
           <div className="um-field"><span className="am-label">Dauer</span><Select label="Dauer" value={String(minutes)} onChange={(value) => setMinutes(Number(value))} options={durationOptions(minutes)} disabled={busy} /></div>
           <div className="um-field"><span className="am-label">Ende</span><span className="cal-static numeric">{isClock(start) ? clockOf(Number(start.slice(0, 2)) * 60 + Number(start.slice(3)) + minutes) : "–"} Uhr</span></div>
         </FieldGrid>
@@ -207,10 +209,11 @@ export function RequestPanel({ store, appointment, related, onClose, onDone, onO
   });
   const customer = appointment.customer;
   const busyTimes = store.appointments.filter((item) => item.id !== appointment.id && item.status === "confirmed").map(({ start: a, end: b }) => ({ start: a, end: b }));
+  // Other times only where oalab is available and free; the wished time stays offered as it is.
   const starts = useMemo(() => {
-    const free = isDay(day) ? slotStarts(day, busyTimes, minutes, store.now) : [];
+    const free = isDay(day) ? startsIn(day, adminFree(store.availability, day, busyTimes, store.now), minutes) : [];
     return [...new Set([...free, ...(day === wish.day ? [wish.start] : [])])].sort();
-  }, [day, minutes, busyTimes, store.now, wish.day, wish.start]);
+  }, [day, minutes, busyTimes, store.availability, store.now, wish.day, wish.start]);
   const moved = day !== wish.day || start !== wish.start || minutes !== wish.minutes;
 
   async function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>, message: string) {
@@ -475,15 +478,20 @@ export function NewTaskPanel({ store, projects, day, confirmHref, onClose, onDon
 
 export function AskPanel({ store, initialDay, initialStart, onClose, onSent }: { store: CalendarStore; initialDay: string; initialStart?: string; onClose: () => void; onSent: (message: string) => void }) {
   const range = calendarWindow(store.today);
+  const { availability } = store;
+  const durations = availability.rules.durations;
+  const lastDay = lastRequestDay(availability, store.today);
+  // Start times where `minutes` fit into the customer's free time: oalab's availability, the lead time and the buffer.
+  const startsOn = (value: string, minutes: number) => startsIn(value, customerFree(availability, value, store.busy, store.own, store.now, store.today), minutes);
   const firstFree = (from: string, minutes: number) => {
-    for (let day = from < store.today ? store.today : from, index = 0; index < 120; day = addDays(day, 1), index += 1) {
+    for (let day = from < store.today ? store.today : from, index = 0; index < 400 && day <= lastDay; day = addDays(day, 1), index += 1) {
       if (monthOf(day) > range.lastMonth) break;
-      if (slotStarts(day, store.blocked, minutes, store.now).length) return day;
+      if (startsOn(day, minutes).length) return day;
     }
     return from;
   };
-  const [minutes, setMinutes] = useState<number>(60);
-  const [day, setDay] = useState(() => slotStarts(initialDay, store.blocked, 60, store.now).length ? initialDay : firstFree(initialDay, 60));
+  const [minutes, setMinutes] = useState<number>(() => durations.includes(60) ? 60 : durations[0] ?? 60);
+  const [day, setDay] = useState(() => startsOn(initialDay, minutes).length ? initialDay : firstFree(initialDay, minutes));
   const [month, setMonth] = useState(monthOf(day));
   const [start, setStart] = useState(initialStart ?? "");
   const [title, setTitle] = useState("");
@@ -492,13 +500,13 @@ export function AskPanel({ store, initialDay, initialStart, onClose, onSent }: {
   const [error, setError] = useState("");
   const info = useInfo("Termin anfragen", {
     steps: [
-      <><b>Mo–Fr, {WORKDAY.start}–{WORKDAY.end} Uhr,</b> nur freie Zeiten.</>,
+      <><b>Grün</b> sind die Zeiten, die oalab für Anfragen frei hat.</>,
       <><b>Fest</b> ist der Termin, wenn oalab bestätigt.</>,
       <><b>Die Antwort</b> kommt per Glocke und E-Mail.</>,
     ],
     ask: "Wie frage ich einen Termin an?",
   });
-  const starts = isDay(day) ? slotStarts(day, store.blocked, minutes, store.now) : [];
+  const starts = isDay(day) ? startsOn(day, minutes) : [];
   const chosen = starts.includes(start) ? start : starts[0] ?? "";
   const morning = starts.filter((value) => value < "12:00");
   const afternoon = starts.filter((value) => value >= "12:00");
@@ -524,7 +532,7 @@ export function AskPanel({ store, initialDay, initialStart, onClose, onSent }: {
         <FieldGrid>
           <Field label="Thema" wide><input className="am-input" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="z. B. Website-Texte besprechen" disabled={sending} autoFocus /></Field>
           <div className="um-field is-wide"><span className="am-label">Dauer</span>
-            <SegmentedControl label="Dauer" value={String(minutes)} onChange={(value) => { setMinutes(Number(value)); setStart(""); }} options={REQUEST_DURATIONS.map((value) => ({ id: String(value), label: formatDuration(value), name: formatDuration(value) }))} />
+            <SegmentedControl label="Dauer" value={String(minutes)} onChange={(value) => { setMinutes(Number(value)); setStart(""); }} options={durations.map((value) => ({ id: String(value), label: formatDuration(value), name: formatDuration(value) }))} />
           </div>
         </FieldGrid>
       </PanelSection>
@@ -533,13 +541,13 @@ export function AskPanel({ store, initialDay, initialStart, onClose, onSent }: {
           <div className="cal-mini-head">
             <button type="button" className="cal-nav-btn" onClick={() => setMonth(addMonths(month, -1))} disabled={month <= monthOf(store.today)} aria-label="Vorheriger Monat"><ChevronLeft size={16} aria-hidden="true" /></button>
             <strong>{formatMonth(month)}</strong>
-            <button type="button" className="cal-nav-btn" onClick={() => setMonth(addMonths(month, 1))} disabled={month >= range.lastMonth} aria-label="Nächster Monat"><ChevronRight size={16} aria-hidden="true" /></button>
+            <button type="button" className="cal-nav-btn" onClick={() => setMonth(addMonths(month, 1))} disabled={month >= range.lastMonth || month >= monthOf(lastDay)} aria-label="Nächster Monat"><ChevronRight size={16} aria-hidden="true" /></button>
           </div>
           <div className="cal-mini-wd" aria-hidden="true">{["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((name) => <span key={name}>{name}</span>)}</div>
           <div className="cal-mini-grid">
             {monthWeeks(month).flat().map((value) => {
               const outside = monthOf(value) !== month;
-              const count = !outside && value >= store.today ? slotStarts(value, store.blocked, minutes, store.now).length : 0;
+              const count = !outside && value >= store.today ? startsOn(value, minutes).length : 0;
               return (
                 <button key={value} type="button" className={`cal-mini-day${outside ? " is-outside" : ""}${value === day ? " is-on" : ""}${value === store.today ? " is-today" : ""}${count ? " has-free" : ""}`}
                   disabled={!count || sending} aria-pressed={value === day} aria-label={`${formatDayLong(value)}${count ? `, ${count} freie Zeiten` : ", nichts frei"}`} onClick={() => { setDay(value); setStart(""); }}>
@@ -549,6 +557,7 @@ export function AskPanel({ store, initialDay, initialStart, onClose, onSent }: {
             })}
           </div>
           <p className="cal-mini-key"><span className="cal-mini-dot" aria-hidden="true" />Tage mit freier Zeit für {formatDuration(minutes)}</p>
+          <p className="cal-mini-key is-rules">{availability.rules.notice > 0 ? `Frühestens ${formatNotice(availability.rules.notice)} vorher, ` : ""}bis {formatDayShort(lastDay)}.</p>
         </div>
       </PanelSection>
       <PanelSection title="Uhrzeit" meta={isDay(day) ? formatDayShort(day) : undefined}>

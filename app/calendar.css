@@ -305,3 +305,66 @@ html.is-dragging, html.is-dragging * { cursor: grabbing !important; }
   .cal-wk { min-width: calc(var(--gutter) + var(--days) * 96px); }
   .cal-wk-head > .cal-gutter, .cal-wk-allday > .cal-gutter, .cal-times { position: sticky; left: 0; z-index: 5; background: var(--sheet); }
 }
+
+/* ---------- Availability (Kalender, Schritt 2, 16.11.2026) ---------- */
+
+/* Absences carry the team's note; the rest of the unavailable time stays plain grey */
+.cal-off.is-absent { background-color: color-mix(in srgb, var(--tone-bad-bg) 60%, var(--sheet-sunken)); }
+.cal-off.is-absent .cal-off-label { color: var(--tone-bad); }
+.cal-off-label { display: inline-flex; align-items: center; gap: 5px; }
+.cal-off-label svg { flex: none; }
+.cal-mc.is-absent { background: color-mix(in srgb, var(--tone-bad-bg) 55%, var(--sheet-sunken)); }
+
+/* The head button and the strip while editing */
+.cal-avail-action.is-on { color: var(--tone-ok); background: var(--tone-ok-bg); box-shadow: inset 0 0 0 1px var(--tone-ok-bar); }
+.cal-strip.is-edit { background-image: linear-gradient(to right, var(--tone-ok-bg), transparent 80%); }
+.cal-strip.is-edit .cal-strip-icon { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.cal-strip.is-edit .cal-strip-text { flex: 1 1 280px; }
+.cal-strip-acts { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+
+/* Editing: the bookable time as green blocks, painting new time */
+.cal-col.is-editing { cursor: crosshair; touch-action: none; }
+.cal-av { position: absolute; left: 3px; right: 3px; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 8px; border-radius: 8px; text-align: left; color: var(--tone-ok); background: color-mix(in srgb, var(--tone-ok-bg) 85%, transparent); box-shadow: inset 0 0 0 1.5px var(--tone-ok-bar); cursor: pointer; overflow: hidden; }
+.cal-av:hover { background: var(--tone-ok-bg); box-shadow: inset 0 0 0 2px var(--tone-ok-bar); }
+.cal-av.is-extra { box-shadow: none; outline: 1.5px dashed var(--tone-ok-bar); outline-offset: -1.5px; }
+.cal-av-label { font-size: 12px; font-weight: 650; }
+.cal-av-note { max-width: 100%; font-size: 11.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: .85; }
+.cal-paint { position: absolute; left: 3px; right: 3px; z-index: 4; padding: 5px 8px; border-radius: 8px; font-size: 12px; font-weight: 650; color: var(--tone-ok); background: color-mix(in srgb, var(--tone-ok-bg) 70%, transparent); outline: 2px dashed var(--tone-ok-bar); outline-offset: -2px; pointer-events: none; }
+.cal-dh-off { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--sheet-muted); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cal-dh-off:hover { color: var(--tone-bad); box-shadow: inset 0 0 0 1px var(--tone-bad-bar); }
+.cal-dh-off.is-on { color: var(--tone-bad); background: var(--tone-bad-bg); box-shadow: inset 0 0 0 1px var(--tone-bad-bar); }
+.cal-key-swatch.is-avail { background: var(--tone-ok-bg); box-shadow: inset 0 0 0 1px var(--tone-ok-bar); }
+.cal-float .sheet-action-item.is-danger { color: var(--danger); }
+.cal-float .sheet-action-item.is-danger .sheet-action-icon { color: var(--danger); }
+
+/* The panel „Verfügbarkeit“: weekly plan, exceptions, rules */
+.cal-wp { display: grid; gap: 2px; }
+.cal-wp-row { display: grid; grid-template-columns: auto 30px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 40px; padding: 4px 0; border-bottom: 1px solid var(--sheet-divider); }
+.cal-wp-row:last-child { border-bottom: 0; }
+.cal-wp-day { font-size: 13.5px; font-weight: 650; color: var(--label); }
+.cal-wp-row.is-off .cal-wp-day { color: var(--sheet-muted); }
+.cal-wp-spans { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.cal-wp-span { display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 6px; border-radius: 8px; background: var(--sheet-sunken); }
+.cal-wp-span .hub-select-trigger { height: 30px; padding: 0 4px; border-radius: 6px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--label); }
+.cal-wp-span .hub-select-trigger:hover:not(:disabled) { background: var(--sheet-hover); color: var(--accent-text); }
+.cal-wp-dash { color: var(--sheet-muted); }
+.cal-wp-none { font-size: 13px; color: var(--sheet-muted); }
+.cal-add-line { margin-top: 10px; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; font-size: 13px; font-weight: 600; color: var(--accent-text); }
+.cal-add-line:disabled { opacity: .45; cursor: default; }
+.cal-x-list { display: grid; gap: 6px; }
+.cal-x { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 4px 6px 8px; border-radius: 10px; background: var(--sheet-sunken); }
+.cal-x-icon { width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.cal-x.is-off .cal-x-icon { color: var(--tone-bad); background: var(--tone-bad-bg); }
+.cal-x.is-extra .cal-x-icon { color: var(--tone-ok); background: var(--tone-ok-bg); }
+.cal-x-text { display: grid; min-width: 0; }
+.cal-x-text strong { font-size: 13.5px; font-weight: 650; color: var(--label); }
+.cal-x-text small { font-size: 12px; color: var(--sheet-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cal-x-empty { font-size: 13px; color: var(--sheet-muted); }
+.cal-x-add { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.cal-x-form { margin-top: 10px; display: grid; gap: 12px; padding: 12px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cal-x-allday { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cal-foot-hint { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--sheet-muted); }
+.cal-preview-line { font-size: 13px; line-height: 18px; color: var(--label-body); }
+.cal-preview-line b { font-size: 15px; color: var(--tone-ok); }
+.cal-panel-note.is-warn { padding: 8px 10px; border-radius: 9px; background: var(--tone-todo-bg); color: var(--tone-todo); }
+.cal-mini-key.is-rules { margin-top: 2px; }

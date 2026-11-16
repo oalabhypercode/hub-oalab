@@ -1,17 +1,30 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  addMonths, appointmentStatusIds, calendarWindow, checkRequestSlot, cleanTeamsUrl, dayOf, formatDuration, freeIntervals, isCalendarView,
-  isoWeek, isTeamsUrl, layoutLanes, LIST_DAYS, minutesOn, mondayOf, monthWeeks, occupancy, slotStarts, stepDay, teamsHosts, timeOf, viewDays,
-  wallTimeToUtc, weekDays,
+  addDays, addMonths, adminFree, appointmentStatusIds, availabilityFrom, availableSpans, calendarWindow, checkAvailabilityRequest, cleanRules, cleanTeamsUrl,
+  cleanWeek, customerFree, dayOf, dayOff, DEFAULT_AVAILABILITY, FIXED_AVAILABILITY, formatDuration, formatNotice, isCalendarView, isoWeek, isTeamsUrl,
+  layoutLanes, LIST_DAYS, mergeSpans, minutesOn, mondayOf, monthWeeks, readAvailabilityRequest, readException, spanMinutes, startsIn, stepDay,
+  subtractSpans, teamsHosts, timeOf, viewDays, wallMinuteToUtc, wallTimeToUtc, weekDays, weekSummary,
 } from "../lib/hub-calendar/rules.ts";
 import { CALENDAR_PATH, movedCalendarPath } from "../lib/hub-calendar/paths.ts";
 import { deadlineHint, formatDeadline, hubHref } from "../lib/hub-data.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const at = (day, time) => wallTimeToUtc(day, time);
-const HOUR = 3_600_000;
+const spans = (list) => list.map(({ start, end }) => `${timeOf(start)}–${timeOf(end)}`);
+
+// An availability like the approved preview (16.11.2026): lunch break on Monday, short Friday, a fair on Wednesday
+// morning, Friday the 23rd off, extra Saturday; 24 hours' lead time, 15 minutes' buffer, 8 weeks, four durations.
+const plan = {
+  week: [[[540, 720], [780, 1020]], [[540, 1020]], [[540, 1020]], [[540, 1020]], [[540, 780]], [], []],
+  exceptions: [
+    { id: "x1", day: "2026-10-21", kind: "off", from: 540, to: 720, note: "Messe" },
+    { id: "x2", day: "2026-10-24", kind: "extra", from: 600, to: 780, note: "" },
+    { id: "x3", day: "2026-10-23", kind: "off", from: null, to: null, note: "Urlaub" },
+  ],
+  rules: { notice: 1440, buffer: 15, horizon: 8, durations: [30, 45, 60, 90] },
+};
 
 test("Berlin wall times convert correctly on both sides of the October DST switch", () => {
   assert.equal(new Date(at("2026-10-23", "10:00")).toISOString(), "2026-10-23T08:00:00.000Z");
@@ -34,44 +47,133 @@ test("month grids start on Monday and cover the whole month", () => {
   assert.deepEqual([window.firstMonth, window.lastMonth], ["2026-09", "2027-03"]);
 });
 
-test("occupancy counts booked minutes inside the working hours only", () => {
-  const day = "2026-10-20";
-  const busy = [
-    { start: at(day, "08:00"), end: at(day, "10:00") },
-    { start: at(day, "09:30"), end: at(day, "11:00") },
-    { start: at(day, "13:00"), end: at(day, "18:00") },
-  ];
-  const result = occupancy(day, busy);
-  assert.equal(result.bookedMinutes, 6 * 60);
-  assert.equal(result.level, "busy");
-  assert.equal(occupancy(day, []).level, "free");
-  assert.equal(occupancy("2026-10-24", busy).level, "closed");
-  assert.equal(occupancy(day, [{ start: at(day, "09:00"), end: at(day, "17:00") }]).level, "full");
+test("availability: the weekly plan plus extra time minus absences, day by day", () => {
+  assert.deepEqual(availableSpans(plan, "2026-10-19"), [[540, 720], [780, 1020]]);
+  assert.deepEqual(availableSpans(plan, "2026-10-21"), [[720, 1020]], "the fair takes the morning");
+  assert.deepEqual(availableSpans(plan, "2026-10-23"), [], "a day off");
+  assert.equal(dayOff(plan, "2026-10-23").note, "Urlaub");
+  assert.deepEqual(availableSpans(plan, "2026-10-24"), [[600, 780]], "extra time on a Saturday");
+  assert.deepEqual(availableSpans(plan, "2026-10-25"), []);
+  // Before the migration: the fixed hours of before.
+  assert.deepEqual(availableSpans(FIXED_AVAILABILITY, "2026-10-21"), [[540, 1020]]);
+  assert.deepEqual(availableSpans(FIXED_AVAILABILITY, "2026-10-24"), []);
+  assert.deepEqual(mergeSpans([[600, 660], [540, 600], [700, 720], [710, 800]]), [[540, 660], [700, 800]]);
+  assert.deepEqual(subtractSpans([[540, 1020]], [[720, 780], [1000, 1100]]), [[540, 720], [780, 1000]]);
+  assert.equal(spanMinutes([[540, 720], [700, 780]]), 240);
+  // Wall-clock minutes become instants on the right side of the clock change (25.10.2026); 1440 is the next midnight.
+  assert.equal(new Date(wallMinuteToUtc("2026-10-24", 600)).toISOString(), "2026-10-24T08:00:00.000Z");
+  assert.equal(new Date(wallMinuteToUtc("2026-10-25", 600)).toISOString(), "2026-10-25T09:00:00.000Z");
+  assert.equal(wallMinuteToUtc("2026-10-24", 1440), at("2026-10-25", "00:00"));
+  assert.equal(weekSummary(plan.week), "Mo 09:00–12:00, 13:00–17:00 · Di–Do 09:00–17:00 · Fr 09:00–13:00");
+  assert.equal(weekSummary(FIXED_AVAILABILITY.week), "Mo–Fr 09:00–17:00");
+  assert.equal(weekSummary([[], [], [], [], [], [], []]), "Keine festen Zeiten");
+  assert.deepEqual([0, 120, 1440, 2880].map(formatNotice), ["ohne Vorlauf", "2 Std.", "1 Tag", "2 Tage"]);
 });
 
-test("free slots skip booked times, the past and the end of the working day", () => {
-  const day = "2026-10-21";
-  const busy = [{ start: at(day, "10:00"), end: at(day, "11:00") }, { start: at(day, "14:00"), end: at(day, "16:30") }];
-  const morning = at(day, "08:00");
-  assert.deepEqual(freeIntervals(day, busy, morning).map(({ start, end }) => [timeOf(start), timeOf(end)]), [["09:00", "10:00"], ["11:00", "14:00"], ["16:30", "17:00"]]);
-  assert.deepEqual(slotStarts(day, busy, 60, morning), ["09:00", "11:00", "11:30", "12:00", "12:30", "13:00"]);
-  assert.deepEqual(slotStarts(day, busy, 30, at(day, "16:40")), []);
-  assert.deepEqual(slotStarts(day, busy, 30, at(day, "11:10")).slice(0, 2), ["11:30", "12:00"]);
+test("customers: free time inside the availability, after the lead time, with buffer, own requests and horizon", () => {
+  const today = "2026-10-19";
+  const now = at(today, "10:00");
+  const busy = [{ start: at("2026-10-20", "10:00"), end: at("2026-10-20", "11:00") }];
+  const own = [{ start: at("2026-10-22", "15:00"), end: at("2026-10-22", "16:00") }];
+  const free = (day, rules = plan, mine = own) => spans(customerFree(rules, day, busy, mine, now, today));
+  assert.deepEqual(free("2026-10-19"), [], "today lies inside the lead time");
+  assert.deepEqual(free("2026-10-20"), ["11:15–17:00"], "lead time until 10:00, the booked hour plus 15 minutes on both sides");
+  assert.deepEqual(free("2026-10-21"), ["12:00–17:00"]);
+  assert.deepEqual(free("2026-10-22"), ["09:00–15:00", "16:00–17:00"], "the own request blocks its hour");
+  assert.deepEqual(free("2026-10-23"), []);
+  assert.deepEqual(free("2026-10-24"), ["10:00–13:00"]);
+  assert.deepEqual(free(addDays(today, 8 * 7 + 1)), [], "beyond the horizon");
+  assert.deepEqual(free("2026-10-20", FIXED_AVAILABILITY, []), ["09:00–10:00", "11:00–17:00"], "the fixed hours: no lead time, no buffer");
+  assert.deepEqual(startsIn("2026-10-24", customerFree(plan, "2026-10-24", [], [], now, today), 90), ["10:00", "10:30", "11:00", "11:30"]);
+  // oalab itself: the availability minus booked times, without buffer or lead time.
+  assert.deepEqual(spans(adminFree(plan, "2026-10-20", busy, now)), ["09:00–10:00", "11:00–17:00"]);
+  assert.deepEqual(spans(adminFree(plan, "2026-10-19", busy, now)), ["10:00–12:00", "13:00–17:00"], "nothing in the past");
 });
 
-test("requests must be in the future, inside working hours and not overlap booked times", () => {
-  const day = "2026-10-21";
-  const busy = [{ start: at(day, "10:00"), end: at(day, "11:00") }];
-  const now = at("2026-10-20", "12:00");
-  assert.equal(checkRequestSlot({ day, start: "09:00", minutes: 60 }, busy, now).ok, true);
-  assert.equal(checkRequestSlot({ day, start: "09:30", minutes: 60 }, busy, now).ok, false);
-  assert.equal(checkRequestSlot({ day, start: "16:30", minutes: 60 }, busy, now).ok, false);
-  assert.equal(checkRequestSlot({ day: "2026-10-24", start: "10:00", minutes: 60 }, busy, now).ok, false);
-  assert.equal(checkRequestSlot({ day, start: "09:00", minutes: 60 }, busy, at(day, "09:30")).ok, false);
-  assert.equal(checkRequestSlot({ day, start: "09:00", minutes: 25 }, busy, now).ok, false);
-  assert.equal(checkRequestSlot({ day: "2026-02-30", start: "09:00", minutes: 60 }, busy, now).ok, false);
-  const slot = checkRequestSlot({ day, start: "11:00", minutes: 90 }, busy, now);
-  assert.equal(slot.ok && slot.interval.end - slot.interval.start, 1.5 * HOUR);
+test("requests: an offered duration, after the lead time, inside the horizon and the free time", () => {
+  const today = "2026-10-19";
+  const now = at(today, "10:00");
+  const busy = [{ start: at("2026-10-20", "13:00"), end: at("2026-10-20", "14:00") }];
+  const ask = (day, start, minutes) => checkAvailabilityRequest(plan, { day, start, minutes }, busy, [], now, today);
+  const slot = ask("2026-10-20", "11:00", 90);
+  assert.equal(slot.ok && slot.interval.end - slot.interval.start, 90 * 60_000);
+  assert.match(ask("2026-10-20", "11:00", 20).error, /angebotenen Dauern/);
+  assert.match(ask("2026-10-19", "09:00", 60).error, /Vergangenheit/);
+  assert.match(ask("2026-10-19", "15:00", 60).error, /mit Vorlauf anfragen \(1 Tag\)/);
+  assert.match(ask(addDays(today, 8 * 7 + 2), "10:00", 60).error, /8 Wochen/);
+  assert.match(ask("2026-10-21", "10:00", 60).error, /keine Termine an/, "the fair");
+  assert.match(ask("2026-10-25", "10:00", 60).error, /keine Termine an/, "Sunday");
+  assert.match(ask("2026-10-20", "12:30", 60).error, /schon belegt/);
+  assert.match(ask("2026-10-20", "14:00", 30).error, /schon belegt/, "inside the buffer");
+  assert.equal(ask("2026-10-20", "14:15", 30).ok, true);
+  assert.equal(ask("2026-10-02-30", "09:00", 60).ok, false);
+  const read = readAvailabilityRequest({ title: "  Logo  ", description: "Zwei Varianten", day: "2026-10-20", start: "11:00", minutes: 60 }, plan, busy, [], now, today);
+  assert.equal(read.ok && read.value.title, "Logo");
+  assert.match(readAvailabilityRequest({ title: " ", day: "2026-10-20", start: "11:00", minutes: 60 }, plan, busy, [], now, today).error, /Thema/);
+});
+
+test("availability input: weekly plans, rules and exceptions are cleaned or refused", () => {
+  assert.deepEqual(cleanWeek([[[600, 720], [540, 600]], [], [], [], [], [], []])[0], [[540, 720]]);
+  for (const week of [
+    [],
+    [[[540, 1025]], [], [], [], [], [], []],
+    [[[600, 540]], [], [], [], [], [], []],
+    [[[540, 1500]], [], [], [], [], [], []],
+    [[["09:00", 1020]], [], [], [], [], [], []],
+    Array.from({ length: 7 }, () => Array.from({ length: 9 }, (_, index) => [index * 60, index * 60 + 30])),
+  ]) assert.equal(cleanWeek(week), null, JSON.stringify(week).slice(0, 60));
+  assert.deepEqual(cleanRules({ notice: 1440, buffer: 15, horizon: 8, durations: [60, 30, 60] }), { notice: 1440, buffer: 15, horizon: 8, durations: [30, 60] });
+  for (const rules of [{ notice: 5, buffer: 15, horizon: 8, durations: [30] }, { notice: 1440, buffer: 15, horizon: 8, durations: [] }, { notice: 1440, buffer: 15, horizon: 8, durations: [20] }, null]) {
+    assert.equal(cleanRules(rules), null);
+  }
+  const today = "2026-10-19";
+  const off = readException({ kind: "off", from: "2026-10-20", until: "2026-10-22", allDay: true, note: "Urlaub" }, today);
+  assert.deepEqual(off.ok && off.rows.map((row) => [row.day, row.from, row.to, row.note]), [["2026-10-20", null, null, "Urlaub"], ["2026-10-21", null, null, "Urlaub"], ["2026-10-22", null, null, "Urlaub"]]);
+  const span = readException({ kind: "off", from: "2026-10-20", allDay: false, start: "09:00", end: "12:00" }, today);
+  assert.deepEqual(span.ok && span.rows, [{ day: "2026-10-20", kind: "off", from: 540, to: 720, note: "" }]);
+  const extra = readException({ kind: "extra", from: "2026-10-24", until: "2026-10-30", start: "10:00", end: "24:00" }, today);
+  assert.deepEqual(extra.ok && extra.rows.map((row) => [row.day, row.from, row.to]), [["2026-10-24", 600, 1440]], "extra time is one day");
+  assert.match(readException({ kind: "extra", from: "2026-10-24", allDay: true }, today).error, /Zeitspanne/);
+  assert.match(readException({ kind: "off", from: "2026-10-20", allDay: false, start: "09:10", end: "12:00" }, today).error, /Viertelstunden/);
+  assert.match(readException({ kind: "off", from: "2026-10-18", allDay: true }, today).error, /Vergangenheit/);
+  assert.match(readException({ kind: "off", from: "2026-10-20", until: "2027-01-31", allDay: true }, today).error, /Höchstens 62 Tage/);
+  assert.match(readException({ kind: "holiday", from: "2026-10-20" }, today).error, /Nicht verfügbar/);
+});
+
+test("availability from the database: notes only where admins read them, broken rows left out", () => {
+  const value = availabilityFrom(
+    { week: [[[540, 1020]], [], [], [], [], [], []], notice_minutes: 120, buffer_minutes: 0, horizon_weeks: 4, durations: [30, 60] },
+    [
+      { id: "a", day: "2026-10-20", kind: "off", from_minute: null, to_minute: null, note: "Urlaub" },
+      { day: "2026-10-21", kind: "extra", from_minute: 600, to_minute: 660 },
+      { day: "2026-10-22", kind: "extra", from_minute: null, to_minute: null },
+      { day: "kaputt", kind: "off" },
+    ],
+  );
+  assert.deepEqual(value.rules, { notice: 120, buffer: 0, horizon: 4, durations: [30, 60] });
+  assert.deepEqual(value.exceptions.map((item) => [item.day, item.kind, item.from, item.note]), [["2026-10-20", "off", null, "Urlaub"], ["2026-10-21", "extra", 600, ""]]);
+  assert.deepEqual(availabilityFrom({ week: "kaputt" }, []).week, DEFAULT_AVAILABILITY.week, "broken settings: the migration's start values");
+  assert.deepEqual(DEFAULT_AVAILABILITY.rules, { notice: 1440, buffer: 15, horizon: 8, durations: [30, 45, 60, 90] });
+  assert.deepEqual(FIXED_AVAILABILITY.rules, { notice: 0, buffer: 0, horizon: 26, durations: [30, 45, 60, 90] });
+});
+
+test("availability: loaded per role, checked on the server and by the database, saved by admins only", async () => {
+  const server = await source("lib/hub-calendar/server.ts");
+  assert.match(server, /supabase\.from\("hub_calendar_exceptions"\)\.select\("id, day, kind, from_minute, to_minute, note"\)/, "admins: with notes");
+  assert.match(server, /supabase\.rpc\("hub_calendar_availability", \{ range_start: from, range_end: to \}\)/, "customers: without notes");
+  assert.match(server, /if \(settings\.error \|\| exceptions\.error \|\| !settings\.data\) return fixed;/, "before the migration: the fixed hours");
+  const actions = await source("lib/hub-calendar/actions.ts");
+  assert.match(actions, /const read = readAvailabilityRequest\(input, availability, intervals\(busy\.data\), intervals\(own\.data\), now, dayOf\(now\)\);/);
+  assert.match(actions, /if \(error\?\.code === "42501"\) return \{ ok: false, error: "Diese Zeit ist gerade nicht mehr frei/, "the database's own check refused");
+  for (const name of ["saveAvailabilityWeek", "saveAvailabilityRules", "addAvailabilityException", "removeAvailabilityException"]) {
+    const body = actions.slice(actions.indexOf(`export async function ${name}(`));
+    assert.match(body, /^export async function \w+\([^)]*\)[^\n]*\{\r?\n {2}const supabase = await adminClient\(\);\r?\n {2}if \(!supabase\) return denied;/, name);
+  }
+  // The database change lives in service-oalab, the one migration history of the shared database.
+  assert.ok(!(await readdir(new URL("../supabase/migrations", import.meta.url))).some((name) => name.includes("availability")));
+  const screen = await source("components/hub/screens/calendar.tsx");
+  assert.match(screen, /customerFree\(availability, date, store\.busy, store\.own, now, today\)/, "the green times of customers");
+  assert.match(screen, /useAvailabilityPaint\(root, admin && editing && \(view === "week" \|\| view === "day"\), onPaint\);/, "painting only for admins in week and day");
 });
 
 test("only Microsoft Teams meeting links are accepted", () => {

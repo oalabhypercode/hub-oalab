@@ -1,8 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { closeAppointment, deleteAppointment, requestAppointment, saveAppointment, withdrawRequest } from "@/lib/hub-calendar/actions";
-import { cleanNote, dayOf, MAX_OPEN_REQUESTS, readAppointmentInput, readRequestInput, timeOf, type Interval } from "@/lib/hub-calendar/rules";
+import {
+  addAvailabilityException, closeAppointment, deleteAppointment, removeAvailabilityException, requestAppointment, saveAppointment, saveAvailabilityRules,
+  saveAvailabilityWeek, withdrawRequest,
+} from "@/lib/hub-calendar/actions";
+import {
+  cleanNote, cleanRules, cleanWeek, dayOf, MAX_OPEN_REQUESTS, readAppointmentInput, readAvailabilityRequest, readException, timeOf,
+  type Availability, type AvailabilityRules, type ExceptionInput, type Interval, type WeekPlan,
+} from "@/lib/hub-calendar/rules";
 import type { AppointmentInput, CalendarActionResult, HubAppointment, HubCalendarState, RequestInput } from "@/lib/hub-calendar/types";
 import type { Project } from "@/lib/hub-data";
 import { createTask, moveTask, updateTask } from "@/lib/hub-tasks/actions";
@@ -91,9 +97,56 @@ export function useCalendarStore(state: HubCalendarState, taskList: CalendarTask
   const busy = useMemo<Interval[]>(() => state.canManage
     ? appointments.filter((item) => item.status === "confirmed").map(({ start, end }) => ({ start, end }))
     : state.busy, [state.canManage, state.busy, appointments]);
-  // Times a customer cannot request: the booked calendar plus their own open requests.
-  const blocked = useMemo<Interval[]>(() => state.canManage ? busy
-    : [...busy, ...appointments.filter((item) => item.status === "requested").map(({ start, end }) => ({ start, end }))], [state.canManage, busy, appointments]);
+  // A customer's own open requests: they block that time for a second request of theirs.
+  const own = useMemo<Interval[]>(() => state.canManage ? []
+    : appointments.filter((item) => item.status === "requested" && item.end > state.now).map(({ start, end }) => ({ start, end })), [state.canManage, appointments, state.now]);
+
+  /* ---------- Availability: shown at once, rolled back when the server refuses ---------- */
+  // A local change counts until the server sends a new availability (after its refresh) or the change fails.
+  const [pending, setPending] = useState<{ base: Availability; value: Availability } | null>(null);
+  const availability = pending && pending.base === state.availability ? pending.value : state.availability;
+  const availabilityReady = !live || state.availabilityReady;
+
+  async function changeAvailability(next: Availability, action: () => Promise<CalendarActionResult<unknown>>): Promise<CalendarActionResult> {
+    if (!state.canManage) return { ok: false, error: "Die Verfügbarkeit legt dein oalab-Team fest." };
+    if (!availabilityReady) return { ok: false, error: "Die Verfügbarkeit ist in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus." };
+    const before = pending;
+    setPending({ base: state.availability, value: next });
+    if (!live) return done(null);
+    const result = await action();
+    if (!result.ok) { setPending(before); return result; }
+    return done(null);
+  }
+
+  /** The weekly plan, Monday to Sunday. */
+  function saveWeek(week: WeekPlan) {
+    const clean = cleanWeek(week);
+    if (!clean) return Promise.resolve({ ok: false as const, error: "Der Wochenplan passt nicht: Zeiten im Viertelstunden-Raster, von vor bis, höchstens acht Zeiträume am Tag." });
+    return changeAvailability({ ...availability, week: clean }, () => saveAvailabilityWeek(clean));
+  }
+
+  /** Lead time, buffer, horizon and durations. */
+  function saveRules(rules: AvailabilityRules) {
+    const clean = cleanRules(rules);
+    if (!clean) return Promise.resolve({ ok: false as const, error: "Diese Regeln passen nicht. Bitte mindestens eine Dauer wählen." });
+    return changeAvailability({ ...availability, rules: clean }, () => saveAvailabilityRules(clean));
+  }
+
+  /** An absence (one or more days) or extra time on one day. */
+  function addException(input: ExceptionInput) {
+    const read = readException(input, state.today);
+    if (!read.ok) return Promise.resolve(read);
+    if (!read.rows.length) return Promise.resolve({ ok: false as const, error: "Diese Tage liegen in der Vergangenheit." });
+    const stamp = Date.now();
+    const added = read.rows.map((row, index) => ({ ...row, id: `local-x-${stamp}-${index}` }));
+    const exceptions = [...availability.exceptions, ...added].sort((a, b) => a.day.localeCompare(b.day) || (a.from ?? -1) - (b.from ?? -1));
+    return changeAvailability({ ...availability, exceptions }, () => addAvailabilityException(input));
+  }
+
+  /** Removes an absence or extra time. */
+  function removeException(id: string) {
+    return changeAvailability({ ...availability, exceptions: availability.exceptions.filter((item) => item.id !== id) }, () => removeAvailabilityException(id));
+  }
 
   const change = (id: string, update: Partial<HubAppointment>) => setLocal((list) => list.map((item) => item.id === id ? { ...item, ...update } : item));
 
@@ -136,7 +189,7 @@ export function useCalendarStore(state: HubCalendarState, taskList: CalendarTask
     if (live) return requestAppointment(input);
     const customer = state.customers[0];
     if (!customer) return { ok: false as const, error: "Dein Konto ist noch keinem Kunden zugeordnet." };
-    const read = readRequestInput(input, blocked, state.now);
+    const read = readAvailabilityRequest(input, availability, busy, own, state.now, state.today);
     if (!read.ok) return read;
     if (local.filter((item) => item.status === "requested" && item.end > state.now).length >= MAX_OPEN_REQUESTS) {
       return { ok: false as const, error: `Du hast schon ${MAX_OPEN_REQUESTS} offene Anfragen. Bitte warte auf eine Antwort oder ziehe eine zurück.` };
@@ -225,8 +278,9 @@ export function useCalendarStore(state: HubCalendarState, taskList: CalendarTask
   }
 
   return {
-    live, appointments, busy, blocked, customers: state.customers, canManage: state.canManage, today: state.today, now: state.now,
+    live, appointments, busy, own, customers: state.customers, canManage: state.canManage, today: state.today, now: state.now,
     save, move, close, remove, request, withdraw,
+    availability, availabilityReady, saveWeek, saveRules, addException, removeException,
     tasks, people, canEditTasks, saveTask, newTask,
   };
 }
