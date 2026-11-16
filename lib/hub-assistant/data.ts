@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadLiveProjects } from "@/lib/hub-projects/server";
+import { loadLiveProjects, loadLiveProjectsForCheckedAdmin } from "@/lib/hub-projects/server";
 import { listAllUsers } from "@/lib/hub-users/server";
 import { packagesOf, readCustomerPackages } from "@/lib/hub-contracts/packages";
 import { heldPackages, packageCatalog } from "@/lib/service-packages";
@@ -24,10 +24,23 @@ type CustomerRow = {
  * cannot be loaded; the assistant then says so instead of answering without data.
  */
 export async function loadAssistantData(): Promise<AssistantData | null> {
+  return assistantData(loadLiveProjects);
+}
+
+/**
+ * The same data for the Claude connector, which has no browser session: its caller has checked the key and that its
+ * admin still is one (lib/hub-mcp/store.ts). Contact addresses stay out; the connector does not pass them on.
+ */
+export async function loadAssistantDataForCheckedAdmin(): Promise<AssistantData | null> {
+  const data = await assistantData(loadLiveProjectsForCheckedAdmin);
+  return data && { ...data, customers: data.customers.map((customer) => ({ ...customer, contactEmail: "" })) };
+}
+
+async function assistantData(projectsOf: typeof loadLiveProjects): Promise<AssistantData | null> {
   const db = createAdminClient();
   if (!db) return null;
   const [projects, customers, packageRows] = await Promise.all([
-    loadLiveProjects(),
+    projectsOf(),
     db.from("hub_customers").select("id, organization_id, company, customer_number, city, website, contact_email").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
   ]);

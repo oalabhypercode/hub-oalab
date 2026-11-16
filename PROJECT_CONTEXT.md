@@ -6,6 +6,15 @@
 **Stand:** 9. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
 
+### Vorgabe vom 16. November 2026: Claude-Connector (MCP), Schritte 1 und 2
+
+- Wunsch des Nutzers: in normalen Claude-Chats (claude.ai) etwa „stell mir einen Termin ein“ oder „mach mir die neuen Aufgaben“ sagen, und Claude erledigt es im Hub. Plan vom 16.11., alle sechs Entscheidungen freigegeben („Ja, alle Empfehlungen“), Umsetzung mit „UMSETZUNG FREIGEGEBEN“. Erst nur der Hub; die Serviceplattform folgt, wenn der Nutzer den Zeitpunkt für richtig hält, als weitere Werkzeuge im selben Connector (eigener Plan, eigene Freigabe).
+- Aufbau: eigene Anmeldung für Claude im Hub (OAuth 2.1 mit PKCE S256; die App wird an ihrem Client ID Metadata Document auf claude.ai oder claude.com erkannt, Rücksprung nur zu Claudes eigener Adresse, keine dynamische Registrierung). Der Anmeldeserver von Service bleibt unberührt. Adressen: `/api/mcp` (MCP über Streamable HTTP ohne Sitzungen, Antworten als JSON), `/api/mcp/oauth/{authorize,token,revoke}`, `/.well-known/oauth-protected-resource[/api/mcp]` und `/.well-known/oauth-authorization-server`; der Proxy lässt sie ohne Sitzung durch. Freigabeseite `/dashboard/settings/claude`: nur Admins, „Erlauben“ nur mit Code bestätigter Sitzung. Schalter `HUB_MCP_ENABLED` (aus heißt: alle Adressen 404), nur auf der eigenen Plattform.
+- Schlüssel: Zugriff 1 Stunde, Erneuerung 30 Tage mit Wechsel bei jeder Erneuerung; ein schon ersetzter Erneuerungsschlüssel beendet die Verbindung. In der Datenbank stehen nur SHA-256-Prüfsummen (`hub_claude_connections`, service-oalab#30, eine Zeile je Admin und App, kein Zugriff für Logins); offene Anfrage und Einmalcode liegen kurz in `auth.verifications`. Jede Nutzung prüft, ob der Admin noch aktiver Admin ist.
+- Werkzeuge in Schritt 2, nur Lesen: `search`, `get_customer` (ohne Kontaktdaten), `get_project`, `list_tasks` (dieselben wie im Hub-Assistenten) sowie `list_appointments`, `find_free_slots` und `check_appointment_time` mit den Regeln und Hinweistexten des Terminfensters. Antworten enthalten Links in den Hub. Adresse, Verbindungen und „Trennen“ stehen in der Profilkarte „Verbundene Apps“ (nur Admins, mit ⓘ); Verbinden und Trennen landen im Admin-Protokoll (`claude.connected`, `claude.disconnected`).
+- Schritt 3 folgt: Schreiben (Termine, Aufgaben mit Checkliste und Kommentaren, neue Projekte; nichts löschen oder archivieren), mit Rückfrage in Claude bei jedem Schreiben.
+- Datenschutz auf Wunsch des Nutzers geparkt („merke dir die Datenschutzthematik für später“): Anthropics AV-Vertrag gilt nur für Team, Enterprise und API. Die Datenschutzerklärung bleibt bis auf Weiteres unverändert.
+
 ### Vorgabe vom 9. November 2026: alle Demo-Zugänge raus
 
 - Wunsch des Nutzers: „Nimm bitte alle Demo Zugänge nun raus“. Entschieden: alles entfernen (Demo-Logins, Demo-Kunden samt Beispiel-PDFs, Demo-Code), die Designvorschau `/preview` nur noch lokal.

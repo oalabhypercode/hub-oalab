@@ -72,6 +72,8 @@ const places = [
   { file: "components/hub/screens/tasks.tsx", call: 'useInfo("Aufgaben-Board"', button: /<ProjectPeople [^\n]*\/>\s+[^\n]*<div className="kb-stat">Zuständig[^\n]*\s+\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/tasks-people.tsx", call: 'useInfo("Beteiligte"', button: /<div className="kb-people-head"><strong>Beteiligte<\/strong>\{info\.button\}<\/div>/, box: "{info.box}" },
   { file: "components/hub/screens/tasks-panel.tsx", call: 'useInfo("Sichtbar für"', button: /<AudienceChoice [^\n]*\/>\s+\{info\.button\}/, box: "{info.box}" },
+  // The Claude connector (since 16.11.2026): in the head of the admins' profile card „Verbundene Apps“.
+  { file: "components/hub/connected-apps-card.tsx", call: 'useInfo("Claude verbinden"', button: /Verbundene Apps\{info\.button\}<\/h2>/, box: "{info.box}" },
   // The web app (since 16.11.2026): the button „App installieren“ left of the bell and the row „Als App installieren“ in Profil.
   { file: "components/hub/web-app.tsx", call: 'useInfo("Als App installieren"', button: /label: "App installieren", content: <Download [^\n]*\/> \}\);\s*return <>\{guide\.button\}\{guide\.box\}<\/>;/, box: "{guide.box}" },
 ];

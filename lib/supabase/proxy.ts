@@ -6,6 +6,7 @@ import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, ser
 import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub-auth/second-factor";
 import { LEGAL_PATHS } from "../legal-links";
 import { movedCalendarPath } from "../hub-calendar/paths";
+import { isConnectorPath } from "../hub-mcp/config";
 import { localAdminEmail } from "../local-admin";
 import { usesOwnPlatform } from "../platform/config";
 import type { OwnSessionAuth } from "../platform/auth";
@@ -30,6 +31,9 @@ export async function updateSession(request: NextRequest) {
 
   // The preview is an isolated, public UI with fictional fixtures only.
   if (isPreview) return supabaseResponse;
+  // The Claude connector (lib/hub-mcp): Claude's servers call it without a session and bring their own key, which
+  // each address checks itself; no session work, no sign-in redirect. Its consent page stays under /dashboard.
+  if (isConnectorPath(pathname)) return supabaseResponse;
 
   function withSessionCookies(response: NextResponse) {
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
