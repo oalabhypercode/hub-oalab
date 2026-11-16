@@ -25,6 +25,7 @@ import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { TooltipLayer } from "./tooltip";
+import { WebAppSetup } from "./web-app";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { LogoImage, logoTileStyle, useShownLogo } from "./logo-mark";
@@ -221,6 +222,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
         )}
         {/* Hover hints of the whole hub (data-tip), in place of the browser's title tooltips. */}
         <TooltipLayer />
+        {/* The installed app's offline page (public/sw.js); importing the module also catches Chrome's install offer. */}
+        <WebAppSetup />
       </ShellContext.Provider>
     </AppearanceProvider>
   );
