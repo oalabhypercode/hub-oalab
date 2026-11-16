@@ -18,22 +18,28 @@ import { changedWords, projectKeyFrom, readProjectDraft, readProjectPatch, readP
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string; stale?: true };
 
-const denied = { ok: false as const, error: "Dafür brauchst du einen aktiven Admin-Zugang mit bestätigtem zweitem Faktor." };
+const denied = "Dafür brauchst du einen aktiven Admin-Zugang mit bestätigtem zweitem Faktor.";
+// An admin whose second factor is off signs in with the password alone (aal1); the page offers the code (16.11.2026).
+const needsCode = "Bitte bestätige deine Anmeldung zuerst einmal mit einem Code aus der Mail („Mit Code bestätigen“ oben auf der Seite). Nichts wurde gespeichert.";
 const gone = { ok: false as const, error: "Dieses Projekt gibt es nicht mehr." };
 const failed = { ok: false as const, error: "Das hat gerade nicht geklappt. Bitte versuche es erneut." };
 const noTeamRole = "Speichern abgelehnt: Dein Konto braucht im Studio eine Team-Rolle mit bestätigtem zweitem Faktor. Nichts wurde gespeichert.";
 
-/** An active admin (hub role, second factor, is_hub_admin()) whose own session carries the second factor (aal2). */
-async function teamActor() {
-  const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  if (!claims?.claims || claims.claims.aal !== "aal2") return null;
+type Team = { userId: string; supabase: Awaited<ReturnType<typeof createClient>>; db: NonNullable<ReturnType<typeof createAdminClient>> };
+
+/**
+ * An active admin (hub role, is_hub_admin()) whose own session confirmed a code (aal2), as Studio's RLS demands for
+ * every change; otherwise why not, in words: an admin without the code is sent to „Mit Code bestätigen“.
+ */
+async function teamActor(): Promise<Team | { refused: string }> {
   const admin = await verifyHubAdmin();
   const db = admin ? createAdminClient() : null;
-  return admin && db ? { userId: admin.userId, supabase, db } : null;
+  if (!admin || !db) return { refused: denied };
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  if (claims?.claims?.aal !== "aal2") return { refused: needsCode };
+  return { userId: admin.userId, supabase, db };
 }
-
-type Team = NonNullable<Awaited<ReturnType<typeof teamActor>>>;
 
 /** The version the page showed: null while Studio has no details row yet, undefined for anything else. */
 const versionOf = (value: unknown) => value === null ? null
@@ -52,11 +58,14 @@ async function customerOf(db: Team["db"], organizationId: string) {
   return data?.id ?? null;
 }
 
-/** Saves both addresses of a project; an empty field clears its address. */
+/**
+ * Saves both addresses of a project from the list; an empty field clears its address. Like every change on the page it
+ * needs a session confirmed with a code, so the page is read-only in one piece until then.
+ */
 export async function saveProjectUrls(input: { projectId?: unknown; liveUrl?: unknown; testUrl?: unknown }): Promise<ActionResult<{ liveUrl: string | null; testUrl: string | null }>> {
-  const admin = await verifyHubAdmin();
-  const db = admin ? createAdminClient() : null;
-  if (!admin || !db) return denied;
+  const ctx = await teamActor();
+  if ("refused" in ctx) return { ok: false, error: ctx.refused };
+  const { db } = ctx;
   if (!isUuid(input?.projectId)) return gone;
   const live = readProjectUrl(input.liveUrl);
   if (!live.ok) return { ok: false, error: `Live-Adresse: ${live.error}` };
@@ -68,7 +77,7 @@ export async function saveProjectUrls(input: { projectId?: unknown; liveUrl?: un
   if (write.error) return { ok: false, error: write.error.code === "23514" ? "Bitte nur Adressen mit https:// eintragen." : failed.error };
   if (!write.data) return gone;
 
-  await db.from("hub_admin_events").insert({ actor_id: admin.userId, action: "project.urls_saved", summary: `Adressen von „${write.data.display_name}“ gespeichert`.slice(0, 300), target_customer_id: await customerOf(db, write.data.organization_id) });
+  await db.from("hub_admin_events").insert({ actor_id: ctx.userId, action: "project.urls_saved", summary: `Adressen von „${write.data.display_name}“ gespeichert`.slice(0, 300), target_customer_id: await customerOf(db, write.data.organization_id) });
   refreshWorkspace();
   return { ok: true, data: { liveUrl: live.value, testUrl: preview.value } };
 }
@@ -82,7 +91,7 @@ const staleStatus = { ok: false as const, stale: true as const, error: "Der Stat
  */
 export async function setProjectStatus(input: { projectId?: unknown; status?: unknown; expectedVersion?: unknown }): Promise<ActionResult<{ status: StudioProjectStatus; version: number }>> {
   const ctx = await teamActor();
-  if (!ctx) return denied;
+  if ("refused" in ctx) return { ok: false, error: ctx.refused };
   if (!isUuid(input?.projectId)) return gone;
   if (!isStudioStatus(input.status)) return { ok: false, error: "Diesen Status gibt es nicht." };
   const expected = versionOf(input.expectedVersion);
@@ -135,7 +144,7 @@ function rowColumns(patch: ProjectPatch) {
  */
 export async function saveProjectDetails(input: { projectId?: unknown; expectedVersion?: unknown; patch?: unknown }): Promise<ActionResult<{ version: number | null; patch: ProjectPatch }>> {
   const ctx = await teamActor();
-  if (!ctx) return denied;
+  if ("refused" in ctx) return { ok: false, error: ctx.refused };
   if (!isUuid(input?.projectId)) return gone;
   const read = readProjectPatch(input.patch);
   if (!read.ok) return { ok: false, error: read.error };
@@ -194,7 +203,7 @@ export async function saveProjectDetails(input: { projectId?: unknown; expectedV
  */
 export async function createProject(input: { customerId?: unknown; status?: unknown; visible?: unknown; draft?: unknown }): Promise<ActionResult<{ id: string; name: string }>> {
   const ctx = await teamActor();
-  if (!ctx) return denied;
+  if ("refused" in ctx) return { ok: false, error: ctx.refused };
   if (!isUuid(input?.customerId)) return { ok: false, error: "Diesen Kunden gibt es nicht mehr." };
   const read = readProjectDraft(input.draft);
   if (!read.ok) return { ok: false, error: read.error };

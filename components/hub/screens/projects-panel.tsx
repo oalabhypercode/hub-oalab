@@ -3,8 +3,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleDot, ExternalLink, EyeOff, FlaskConical, FolderOpen, Gauge, Globe, LayoutGrid, LifeBuoy, MessageSquare, Pencil, Plus, Search, Trash2, Unplug } from "lucide-react";
+import { ArrowUpRight, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleDot, ExternalLink, EyeOff, FlaskConical, FolderOpen, Gauge, Globe, LayoutGrid, LifeBuoy, Lock, MessageSquare, Pencil, Plus, Search, Trash2, Unplug } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
+import { confirmSessionHref } from "@/lib/auth-redirect";
 import { formatDay } from "@/lib/hub-contracts/rules";
 import { domainStatuses, isDomainStatus } from "@/lib/hub-domains/rules";
 import { formatDeadline, hubHref, type Project, type StudioProjectStatus } from "@/lib/hub-data";
@@ -119,6 +120,12 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
   const entry = entries.find((item) => item.key === paneKey) ?? null;
   const panelProject = entry ? (linked && entryKey(linked) === entry.key ? linked : null) : view.find((project) => project.id === overviewPanel) ?? null;
   const [paneOpen, setPaneOpen] = useState(Boolean(entry));
+  // Without a session confirmed by a code Studio refuses every change, so the page stays read-only and offers the code,
+  // like the task board (16.11.2026). The code page sits outside the hub and returns to this customer and project.
+  const locked = !desk.confirmed;
+  const choice = params.toString();
+  const confirmHref = locked ? confirmSessionHref(`${hubHref(preview, "projects")}${choice ? `?${choice}` : ""}`) : null;
+  const codeFirst = "Erst „Mit Code bestätigen“ oben auf der Seite";
 
   function navigate(next: { customer?: string | null; project?: string | null }) {
     const url = new URL(window.location.href);
@@ -150,7 +157,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
     if (entry) navigate({ customer: entry.key }); else setOverviewPanel(null);
   };
   const startProject = () => {
-    if (creating || !leave()) return;
+    if (creating || locked || !leave()) return;
     if (entry) navigate({ customer: entry.key });
     setNotice(null);
     setCreating(true);
@@ -273,9 +280,20 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
   );
 
   const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
-  const noticeLine = notice && (notice.error
-    ? <p className="form-error section-first" role="alert">{notice.text}</p>
-    : <p className="calendar-notice section-first" role="status"><Check size={18} aria-hidden="true" />{notice.text}</p>);
+  // Read-only until the session confirms a code: information, not an error, with the way to the code (as on the board).
+  const lockLine = confirmHref && (
+    <div className="calendar-notice kb-lock-note" role="status">
+      <Lock size={18} aria-hidden="true" />
+      <span className="kb-lock-text"><b>Nur lesen.</b> Zum Bearbeiten bestätigst du deine Anmeldung einmal mit einem Code aus der Mail.</span>
+      <a className="sheet-action is-primary" href={confirmHref}>Mit Code bestätigen</a>
+    </div>
+  );
+  const noticeLine = <>
+    {lockLine}
+    {notice && (notice.error
+      ? <p className={`form-error${lockLine ? "" : " section-first"}`} role="alert">{notice.text}</p>
+      : <p className={`calendar-notice${lockLine ? "" : " section-first"}`} role="status"><Check size={18} aria-hidden="true" />{notice.text}</p>)}
+  </>;
   // „Neues Projekt“ needs a hub customer with an organization on the service platform, where projects live.
   const newFor = creating && entry?.customer?.organizationId ? { key: entry.key, customer: entry.customer } : null;
   const panel = newFor ? (
@@ -287,7 +305,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
         setNotice({ text: `Projekt „${project.name}“ angelegt.` });
       }} />
   ) : panelProject && (
-    <ProjectSidePanel key={panelProject.id} project={panelProject} asOf={asOf} busy={busy === panelProject.id} boardHref={taskBoardHref(preview, panelProject.id)}
+    <ProjectSidePanel key={panelProject.id} project={panelProject} asOf={asOf} busy={busy === panelProject.id} confirmHref={confirmHref} boardHref={taskBoardHref(preview, panelProject.id)}
       onStatus={(status) => changeStatus(panelProject, status)} onVisible={(visible) => changeVisible(panelProject, visible)} onClose={closePanel} onDirty={reportDirty}
       onSaved={(result, text) => { if (result.version !== null) remember(panelProject.id, { version: result.version }); setNotice({ text }); }}
       onStale={() => router.refresh()}
@@ -310,7 +328,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                 <div className="am-pane-title"><strong>Alle Projekte</strong><span>{[plural(view.length, "Projekt", "Projekte"), `${runningProjects} laufen`, `${count("hold")} pausiert`, `${count("complete")} fertig`].join(" · ")}</span></div>
               </header>
               {view.length
-                ? <ProjectsOverview projects={view} keyOf={entryKey} logos={logos} asOf={asOf} current={panelProject?.id ?? null} busy={busy} onOpen={openProject} onCustomer={chooseCustomer} onStatus={changeStatus} />
+                ? <ProjectsOverview projects={view} keyOf={entryKey} logos={logos} asOf={asOf} current={panelProject?.id ?? null} busy={busy} locked={locked} onOpen={openProject} onCustomer={chooseCustomer} onStatus={changeStatus} />
                 : <div className="sheet-empty"><p>Noch keine Projekte. Wähle links einen Kunden; dort legst du mit „Projekt“ das erste an.</p></div>}
             </section>
           </div>
@@ -322,6 +340,8 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
 
   /* ---------- One customer ---------- */
   const customer = entry.customer;
+  // Why „Neues Projekt“ waits: no organization on the service platform yet, or a session without the code.
+  const createBlock = !customer?.organizationId ? "Erst braucht der Kunde ein Konto auf der Serviceplattform" : locked ? codeFirst : null;
   const running = byUrgency(entry.projects.filter((project) => statusOf(project) !== "complete"));
   const finished = byUrgency(entry.projects.filter((project) => statusOf(project) === "complete"));
   const links = mainLinks(entry.projects);
@@ -354,7 +374,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
             </span>
           </span>
         </td>
-        <td className="pj-cell-status"><StatusPick project={project} busy={busy === project.id} onChange={(next) => changeStatus(project, next)} /></td>
+        <td className="pj-cell-status"><StatusPick project={project} busy={busy === project.id} locked={locked} onChange={(next) => changeStatus(project, next)} /></td>
         <td className="pj-cell-due"><DueCell project={project} asOf={asOf} /></td>
         <td className="pj-cell-progress"><ProgressCell project={project} /></td>
         <td className="pj-cell-links"><LinkButtons project={project} /></td>
@@ -447,8 +467,8 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
               )}
               <PaneJumps links={jumps} />
               {customer && (
-                <button type="button" className="sheet-action is-primary pj-new" onClick={startProject} disabled={!customer.organizationId || creating} aria-label="Neues Projekt"
-                  data-tip={customer.organizationId ? undefined : "Erst braucht der Kunde ein Konto auf der Serviceplattform"} data-tip-compact={customer.organizationId ? "Neues Projekt" : undefined}>
+                <button type="button" className="sheet-action is-primary pj-new" onClick={startProject} disabled={Boolean(createBlock) || creating} aria-label="Neues Projekt"
+                  data-tip={createBlock ?? undefined} data-tip-compact={createBlock ? undefined : "Neues Projekt"}>
                   <Plus size={15} aria-hidden="true" /><span className="pj-new-label" data-tip-label>Projekt</span>
                 </button>
               )}
@@ -463,7 +483,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                   {customer && (
                     <tr className="table-add-row">
                       <td colSpan={6}>
-                        <button type="button" className="table-add" onClick={startProject} disabled={!customer.organizationId || creating} data-tip={customer.organizationId ? undefined : "Erst braucht der Kunde ein Konto auf der Serviceplattform"}><Plus size={16} aria-hidden="true" />Projekt anlegen</button>
+                        <button type="button" className="table-add" onClick={startProject} disabled={Boolean(createBlock) || creating} data-tip={createBlock ?? undefined}><Plus size={16} aria-hidden="true" />Projekt anlegen</button>
                       </td>
                     </tr>
                   )}
@@ -487,7 +507,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                       <td className="pj-cell-acts">
                         <a className="row-action" href={url} target="_blank" rel="noopener noreferrer" aria-label={`${shortUrl(url)} öffnen (neuer Tab)`} data-tip="Öffnen" data-tip-sub="neuer Tab"><ExternalLink size={16} aria-hidden="true" /></a>
                         <CopyButton value={url} label="Adresse" />
-                        <button type="button" className="row-action" onClick={() => setEdit({ mode: "edit", projectId: project.id, kind, url, error: "" })} aria-label={`${linkLabel[kind]} von ${project.name} ändern`} data-tip="Ändern"><Pencil size={16} aria-hidden="true" /></button>
+                        {!locked && <button type="button" className="row-action" onClick={() => setEdit({ mode: "edit", projectId: project.id, kind, url, error: "" })} aria-label={`${linkLabel[kind]} von ${project.name} ändern`} data-tip="Ändern"><Pencil size={16} aria-hidden="true" /></button>}
                       </td>
                     </tr>
                   ))}
@@ -509,7 +529,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                   {edit?.mode === "add" ? linkForm(edit) : (
                     <tr className="table-add-row">
                       <td colSpan={2}>
-                        <button type="button" className="table-add" onClick={startAdd} disabled={!entry.projects.length} data-tip={entry.projects.length ? undefined : "Erst braucht der Kunde ein Projekt"}><Plus size={16} aria-hidden="true" />Live-Domain oder Testdomain hinterlegen</button>
+                        <button type="button" className="table-add" onClick={startAdd} disabled={!entry.projects.length || locked} data-tip={locked ? codeFirst : entry.projects.length ? undefined : "Erst braucht der Kunde ein Projekt"}><Plus size={16} aria-hidden="true" />Live-Domain oder Testdomain hinterlegen</button>
                       </td>
                     </tr>
                   )}

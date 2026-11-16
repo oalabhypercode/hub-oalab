@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { CircleDot, Eye, Hand, Save, Sparkles, SquareKanban } from "lucide-react";
+import { CircleDot, Eye, Hand, Lock, Save, Sparkles, SquareKanban } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import type { Project, ProjectTask, StudioProjectStatus } from "@/lib/hub-data";
 import { customerSees, isWaiting, statusOf, studioStatuses } from "@/lib/hub-projects/desk";
@@ -34,11 +34,16 @@ const asDraft = (fields: ProjectFields): ProjectDraft => ({
  * tasks lead to the project's board. The customers and the list stay usable next to it; Escape or the cross closes it,
  * and leaving with unsaved changes asks first (the page's `onDirty`).
  */
-export function ProjectSidePanel({ project, asOf, busy, boardHref, onStatus, onVisible, onAsk, onClose, onSaved, onStale, onDirty }: {
+export function ProjectSidePanel({ project, asOf, busy, confirmHref, boardHref, onStatus, onVisible, onAsk, onClose, onSaved, onStale, onDirty }: {
   project: Project;
   asOf: string;
   /** A status or visibility change of this project is on its way. */
   busy: boolean;
+  /**
+   * Read-only because the session has not confirmed a code: the way to the code page, as above the page. The panel
+   * covers that note on the right, so its footer offers the code as well (like the task window). Null otherwise.
+   */
+  confirmHref: string | null;
   /** The project's board under Projekte › Aufgaben, where its tasks are moved, created and edited. */
   boardHref: string;
   onStatus: (status: StudioProjectStatus) => void;
@@ -73,7 +78,8 @@ export function ProjectSidePanel({ project, asOf, busy, boardHref, onStatus, onV
   }
   const dirty = !sameDraft(draft, base);
   useDirtyReport(dirty, onDirty);
-  const disabled = saving;
+  const locked = confirmHref !== null;
+  const disabled = saving || locked;
   const tasks = project.tasks ?? [];
   const open = tasks.filter((task) => task.status !== "done");
 
@@ -114,7 +120,13 @@ export function ProjectSidePanel({ project, asOf, busy, boardHref, onStatus, onV
     }
   }
 
-  const footer = <>
+  const footer = confirmHref ? (
+    <div className="kb-locked" role="status">
+      <Lock size={15} aria-hidden="true" />
+      <span><b>Nur lesen.</b> Ändern geht nach einem Code aus der Mail.</span>
+      <a className="sheet-action is-primary" href={confirmHref}>Mit Code bestätigen</a>
+    </div>
+  ) : <>
     <SaveStatus state={dirty ? "dirty" : saved ? "saved" : "clean"} />
     {dirty && <button type="button" className="sheet-action is-quiet" onClick={() => { setDraft(base); setError(null); }} disabled={saving}>Verwerfen</button>}
     <button type="button" className="sheet-action is-primary" onClick={() => void save()} disabled={saving || busy || !dirty}>{saving ? <MiniLoader size={15} /> : <Save size={15} aria-hidden="true" />}Speichern</button>
@@ -125,12 +137,12 @@ export function ProjectSidePanel({ project, asOf, busy, boardHref, onStatus, onV
       icon={<span className={`pj-glyph is-lg tone-${studioStatuses[status].tone}`}><StudioGlyph status={status} size={18} /></span>}
       subtitle={`${project.company ?? "Ohne Kunde"} · ${studioStatuses[status].label}${visible ? "" : " · intern"}`}
       actions={onAsk && <button type="button" className="chat-icon-button is-muted" onClick={onAsk} aria-label="Assistent zu diesem Projekt fragen" data-tip="Assistent zu diesem Projekt fragen"><Sparkles size={18} aria-hidden="true" /></button>}>
-      <form ref={body} className="um-form" noValidate onSubmit={(event) => { event.preventDefault(); if (dirty && !saving && !busy) void save(); }}>
+      <form ref={body} className="um-form" noValidate onSubmit={(event) => { event.preventDefault(); if (dirty && !saving && !busy && !locked) void save(); }}>
         <PanelError error={error} />
-        <PanelSection title="Status" meta="wirkt sofort, auch im Studio">
-          <StatusPicks value={status} disabled={busy || saving} onPick={onStatus} />
+        <PanelSection title="Status" meta={locked ? "ändern nach „Mit Code bestätigen“" : "wirkt sofort, auch im Studio"}>
+          <StatusPicks value={status} disabled={busy || saving || locked} onPick={onStatus} />
           <p className="pj-pick-hint">{busy ? <MiniLoader size={14} /> : <Eye size={14} aria-hidden="true" />}<span>Der Kunde sieht: <b>{visible ? customerSees(status, waiting) : "nichts, das Projekt ist intern"}</b>{visible && waiting && status !== "complete" ? " (eine Aufgabe liegt bei ihm)" : ""}</span></p>
-          <VisibleRow visible={visible} busy={busy} disabled={busy || saving} onChange={onVisible} />
+          <VisibleRow visible={visible} busy={busy} disabled={busy || saving || locked} onChange={onVisible} />
         </PanelSection>
         <PanelSection title="Domains & Links" meta="ein Klick öffnet die Seite">
           <DomainFields draft={draft} stored={{ live: project.liveUrl, test: project.testUrl }} disabled={disabled} error={error} onChange={change} />

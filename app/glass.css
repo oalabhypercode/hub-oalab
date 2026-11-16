@@ -2908,6 +2908,8 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .pj-panel .am-panel-foot { display: flex; align-items: center; gap: 8px; }
 /* Editing in the panel and „Neues Projekt“ (Projekte V2 step 2): the visibility switch, milestone rows, error frames. */
 .pj-panel .pj-panel-error { margin: 14px 0 0; }
+/* Read-only without the code: the footer offers it, as in the task window (.kb-locked in tasks.css). */
+.pj-panel .am-panel-foot:has(.kb-locked) { display: block; padding: 10px 12px 12px; background: var(--sheet); }
 .pj-switch-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--sheet-sunken); }
 .pj-switch-text { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
 .pj-switch-text strong { color: var(--label); font-size: 13.5px; font-weight: 600; line-height: 18px; }

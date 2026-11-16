@@ -121,6 +121,11 @@ export type ProjectDesk = {
   /** Why the customers could not be loaded; the requests or the quota may fail on their own (`partial`). */
   error: string | null;
   partial: string | null;
+  /**
+   * Whether this session confirmed a code (aal2). An admin whose second factor is off signs in with the password alone;
+   * Studio refuses every change from such a session, so the page stays read-only and offers „Mit Code bestätigen“.
+   */
+  confirmed: boolean;
 };
 
 /** The customer's projects in one word for the list: whether one runs, is at risk or waits for the customer. */

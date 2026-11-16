@@ -46,7 +46,7 @@ const groupings: { id: Grouping; label: string; short: string }[] = [
  * to change right in the row and its colour over the row. A click on the customer opens the customer, a click on the
  * project its panel. Customers keep their own table (ProjectTable).
  */
-export function ProjectsOverview({ projects, keyOf, logos, asOf, current, busy, onOpen, onCustomer, onStatus }: {
+export function ProjectsOverview({ projects, keyOf, logos, asOf, current, busy, locked, onOpen, onCustomer, onStatus }: {
   projects: Project[];
   /** The customer entry a project belongs to in the list on the left. */
   keyOf: (project: Project) => string;
@@ -54,6 +54,8 @@ export function ProjectsOverview({ projects, keyOf, logos, asOf, current, busy, 
   asOf: string;
   current: string | null;
   busy: string | null;
+  /** The session has not confirmed a code: the status only shows. */
+  locked: boolean;
   onOpen: (project: Project) => void;
   onCustomer: (key: string) => void;
   onStatus: (project: Project, status: StudioProjectStatus) => void;
@@ -100,7 +102,7 @@ export function ProjectsOverview({ projects, keyOf, logos, asOf, current, busy, 
             {isWaiting(project) && isRunning(status) && <span className="pj-turn" data-tip="Kunde am Zug" data-tip-sub="Eine Aufgabe liegt beim Kunden"><Hand size={15} aria-hidden="true" /></span>}
           </span>
         </td>
-        <td className="pj-cell-status"><StatusPick project={project} busy={busy === project.id} onChange={(next) => onStatus(project, next)} /></td>
+        <td className="pj-cell-status"><StatusPick project={project} busy={busy === project.id} locked={locked} onChange={(next) => onStatus(project, next)} /></td>
         <td className="cell-milestone pj-col-ms" data-tip={milestone?.description || undefined}>{milestone ? milestone.title : <span className="cell-none">–</span>}</td>
         <td className="pj-cell-due pj-col-due"><DueCell project={project} asOf={asOf} /></td>
         <td className="pj-col-progress"><ProgressCell project={project} /></td>
