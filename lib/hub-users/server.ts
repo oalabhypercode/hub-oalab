@@ -87,6 +87,22 @@ export async function verifyHubAdmin(): Promise<{ userId: string } | null> {
   return { userId: data.claims.sub };
 }
 
+/**
+ * The signed-in login, if it is an active freelancer whose session confirmed its code (aal2). Freelancers always sign
+ * in with a code; the database asks the same of every freelancer rule (migration 202611160001_studio_freelancers), so
+ * this is the first gate and the RLS of the Studio tables the real one. Reads and writes then use this session.
+ */
+export async function verifyHubFreelancer(): Promise<{ userId: string; supabase: Awaited<ReturnType<typeof createClient>> } | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) return null;
+  if ((data.claims.app_metadata as Record<string, unknown> | undefined)?.app_role !== "oalab_freelancer") return null;
+  if (data.claims.aal !== "aal2") return null;
+  const { data: profile, error: profileError } = await supabase.from("hub_profiles").select("status").eq("user_id", data.claims.sub).maybeSingle<{ status: string }>();
+  if (profileError || profile?.status !== "active") return null;
+  return { userId: data.claims.sub, supabase };
+}
+
 /** Every Supabase Auth user, page by page. */
 export async function listAllUsers(db: SupabaseClient) {
   const users: User[] = [];

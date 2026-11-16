@@ -65,10 +65,13 @@ const places = [
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Domains & Links"', button: /label="Domains & Links"[^]*?\{linksInfo\.button\}<\/>\}/, box: "{linksInfo.box}" },
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Service"', button: /label="Service"[^]*?actions=\{serviceInfo\.button\}/, box: "{serviceInfo.box}" },
   { file: "components/hub/screens/projects-new-panel.tsx", call: 'useInfo("Neues Projekt"', button: /closeDisabled=\{saving\} footer=\{footer\} actions=\{info\.button\}/, box: "{info.box}" },
-  // The task board under Projekte (since 16.11.2026): at the end of the project's head.
   // Dictation in the assistant chat (since 16.11.2026, admins): in the bar „Hört zu …“ and in „Mikrofon wählen“.
   { file: "components/hub/dictation-bar.tsx", call: 'useInfo("Diktieren"', button: /<strong>\{listening \? "Hört zu …" : "Mikrofon startet …"\}<\/strong>[^]*?\{info\.button\}/, box: "{info.box}" },
-  { file: "components/hub/screens/tasks.tsx", call: 'useInfo("Aufgaben-Board"', button: /<div className="kb-stat">Zuständig[^\n]*\n\s*\{info\.button\}/, box: "{info.box}" },
+  // The task board under Projekte (since 16.11.2026): at the end of the project's head (its lines per role); with the
+  // freelancers (step 3) in the head of „Beteiligte“ and next to the choice „Sichtbar für“ in a task's window.
+  { file: "components/hub/screens/tasks.tsx", call: 'useInfo("Aufgaben-Board"', button: /<ProjectPeople [^\n]*\/>\s+[^\n]*<div className="kb-stat">Zuständig[^\n]*\s+\{info\.button\}/, box: "{info.box}" },
+  { file: "components/hub/screens/tasks-people.tsx", call: 'useInfo("Beteiligte"', button: /<div className="kb-people-head"><strong>Beteiligte<\/strong>\{info\.button\}<\/div>/, box: "{info.box}" },
+  { file: "components/hub/screens/tasks-panel.tsx", call: 'useInfo("Sichtbar für"', button: /<AudienceChoice [^\n]*\/>\s+\{info\.button\}/, box: "{info.box}" },
 ];
 
 /** The whole call `useInfo(…)`, brackets balanced. */

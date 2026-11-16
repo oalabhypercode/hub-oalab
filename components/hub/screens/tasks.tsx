@@ -7,11 +7,11 @@ import { CalendarClock, ChevronLeft, LayoutGrid, LayoutList, ListFilter, Lock, P
 import { confirmSessionHref } from "@/lib/auth-redirect";
 import { categories } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
-import { archiveTask, createTask, moveTask, renumberColumn, updateTask } from "@/lib/hub-tasks/actions";
+import { archiveTask, createTask, moveTask, renumberColumn, setProjectFreelancer, updateTask } from "@/lib/hub-tasks/actions";
 import { taskFixtures } from "@/lib/hub-tasks/fixtures";
 import { useStoredValue } from "@/lib/use-stored-value";
-import { activeFilterCount, byBoardOrder, matchesFilters, NO_FILTERS, orderBetween, progressOf, renumbered, STATUS_NAMES, TASK_STATUSES, type AssigneeFilter, type BoardFilters, type DueFilter } from "@/lib/hub-tasks/rules";
-import type { BoardPerson, BoardProject, BoardTask, TaskBoardState, TaskPatch, TaskResult, TaskStatus } from "@/lib/hub-tasks/types";
+import { activeFilterCount, assignableIn, audienceFields, audienceOf, audienceText, byBoardOrder, commentReaders, matchesFilters, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, STATUS_NAMES, TASK_STATUSES, type AssigneeFilter, type BoardFilters, type DueFilter } from "@/lib/hub-tasks/rules";
+import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskAudience, TaskBoardState, TaskPatch, TaskResult, TaskStatus } from "@/lib/hub-tasks/types";
 import { HeaderActions } from "../app-shell";
 import { SegmentedControl } from "../controls";
 import { useInfo } from "../info-box";
@@ -20,8 +20,9 @@ import { Select } from "../select";
 import { SheetActionMenu, SheetFooter, ToolbarMenu, SheetToolbar } from "../sheet";
 import { FilterSelect } from "../table-tools";
 import { useTaskDrag, type DragOver } from "./tasks-drag";
-import { NewTaskPanel, TaskPanel } from "./tasks-panel";
+import { NewTaskPanel, TaskPanel, type AudienceView } from "./tasks-panel";
 import { CompanyMark } from "./tasks-parts";
+import { ProjectPeople } from "./tasks-people";
 import { TaskBoard, TaskList, type TaskViewProps } from "./tasks-views";
 
 type View = "board" | "list";
@@ -32,21 +33,33 @@ const COLLAPSED_KEY = "oalab-tasks-collapsed";
 const PROJECT_KEY = "oalab-tasks-project";
 const POLL_MS = 30_000;
 const noCollapsed: Record<TaskStatus, boolean> = { backlog: false, todo: false, progress: false, review: false, done: false };
+const unavailable: TaskBoardState = { viewer: "admin", projects: [], tasks: [], people: [], freelancers: [], viewerId: "", confirmed: false, error: "Die Aufgaben konnten gerade nicht geladen werden." };
 
 /** A local change on top of the server's row; it applies while the server's version is not newer than `base`. */
 type Override = { patch: Partial<BoardTask>; base: number };
 const COUNTS: (keyof BoardTask)[] = ["comments", "checklist", "files"];
 const withoutCounts = (task: BoardTask): Partial<BoardTask> => Object.fromEntries(Object.entries(task).filter(([key]) => !COUNTS.includes(key as keyof BoardTask)));
 
+/** What a change of „Sichtbar für“ says afterwards (as in the design). */
+const audienceToast: Record<TaskAudience, string> = {
+  team: "Nur noch das oalab-Team sieht diese Aufgabe.",
+  shared: "Team und Freelancer des Projekts sehen die Aufgabe.",
+  customer: "Der Kunde sieht die Aufgabe jetzt im Projektfenster.",
+};
+
 /**
  * „Aufgaben“ under Projekte (user 15.11.2026): one board per project in Studio's columns, as cards or as a list.
- * Cards move at once in the browser; the change is written with the admin's session and the version the card had.
+ * Cards move at once in the browser; the change is written with the person's session and the version the card had.
  * If somebody was faster, the board reloads instead of overwriting. Every 30 seconds the page asks the server for news.
+ * Since 16.11.2026 freelancers work on it too: only on the projects an admin put them on, without „Nur Team“, without
+ * archiving and without choosing who sees a task. The design preview shows their view with ?role=freelancer.
  */
 export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | undefined; preview: boolean; asOf: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const source = useMemo(() => (preview ? taskFixtures(asOf) : board ?? { projects: [], tasks: [], people: [], viewerId: "", confirmed: false, error: "Die Aufgaben konnten gerade nicht geladen werden." }), [preview, asOf, board]);
+  const previewRole = searchParams.get("role") === "freelancer" ? "freelancer" : "admin";
+  const source = useMemo(() => (preview ? taskFixtures(asOf, previewRole) : board ?? unavailable), [preview, asOf, previewRole, board]);
+  const freelancerView = source.viewer === "freelancer";
   // Without a session confirmed by a code Studio refuses every change, so the board stays read-only and offers the code.
   const locked = !source.error && !source.confirmed;
   const canEdit = !source.error && source.confirmed;
@@ -68,15 +81,27 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   const override = useCallback((id: string, patch: Partial<BoardTask>, base: number) => setOverrides((current) => ({ ...current, [id]: { patch: { ...(current[id]?.patch ?? {}), ...patch }, base: Math.max(base, current[id]?.base ?? 0) } })), []);
   const forget = useCallback((id: string) => setOverrides((current) => { const next = { ...current }; delete next[id]; return next; }), []);
 
+  // „Beteiligte“: who is on a project shows at once; the next answer from the server replaces it.
+  const [staffing, setStaffing] = useState<{ base: BoardProject[]; byProject: Record<string, string[]> }>({ base: source.projects, byProject: {} });
+  const projectList = useMemo(() => {
+    const staffed = staffing.base === source.projects ? staffing.byProject : {};
+    return source.projects.map((project) => (staffed[project.id] ? { ...project, freelancerIds: staffed[project.id] } : project));
+  }, [source.projects, staffing]);
+
   const people = useMemo(() => new Map<string, BoardPerson>(source.people.map((person) => [person.id, person])), [source.people]);
-  const team = useMemo(() => source.people.filter((person) => person.kind === "team").sort((a, b) => a.name.localeCompare(b.name, "de")), [source.people]);
-  const projects = useMemo(() => new Map<string, BoardProject>(source.projects.map((project) => [project.id, project])), [source.projects]);
+  const projects = useMemo(() => new Map<string, BoardProject>(projectList.map((project) => [project.id, project])), [projectList]);
+  const assigneesFor = useCallback((id: string) => assignableIn(projects.get(id), source.people, source.freelancers), [projects, source.people, source.freelancers]);
+  /** The first names of a project's freelancers other than the viewer. */
+  const othersOn = useCallback((id: string) => projectFreelancerLogins(projects.get(id), source.freelancers).filter((login) => login !== source.viewerId).map((login) => people.get(login)?.name.split(" ")[0] ?? "").filter(Boolean), [projects, source.freelancers, source.viewerId, people]);
+  const audienceFor = useCallback((id: string, audience: TaskAudience): AudienceView => freelancerView
+    ? { mode: "text", text: audienceText(audience, othersOn(id)) }
+    : { mode: "choose", hasFreelancers: Boolean(projects.get(id)?.freelancerIds.length) }, [freelancerView, othersOn, projects]);
 
   // Project from the address (shareable), else the last one in this browser, else the first running project.
   const [lastProject, setLastProject] = useStoredValue(PROJECT_KEY, "");
-  const valid = (id: string | null) => Boolean(id) && (id === ALL || source.projects.some((project) => project.id === id));
+  const valid = (id: string | null) => Boolean(id) && (id === ALL || projectList.some((project) => project.id === id));
   const fromUrl = searchParams.get("project");
-  const projectId = valid(fromUrl) ? fromUrl! : valid(lastProject) ? lastProject : source.projects.find((project) => project.status !== "complete")?.id ?? source.projects[0]?.id ?? ALL;
+  const projectId = valid(fromUrl) ? fromUrl! : valid(lastProject) ? lastProject : projectList.find((project) => project.status !== "complete")?.id ?? projectList[0]?.id ?? ALL;
   const [storedView, setStoredView] = useStoredValue(VIEW_KEY, "board");
   const view: View = storedView === "list" ? "list" : "board";
   const [storedCollapsed, setStoredCollapsed] = useStoredValue(COLLAPSED_KEY, "{}");
@@ -209,7 +234,7 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
     if (preview) {
       const number = Math.max(0, ...tasks.map((task) => task.number)) + 1;
       const last = Math.max(0, ...tasks.filter((task) => task.projectId === target && task.status === status).map((task) => task.order));
-      created = { id: `fixture-${number}`, number, projectId: target, title, status, priority: patch.priority ?? "none", dueOn: patch.dueOn ?? null, labels: patch.labels ?? [], assigneeIds: patch.assigneeIds ?? [], visible: patch.visible ?? false, order: last + 1, version: 1, createdBy: source.viewerId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: 0, checklist: { done: 0, total: 0 }, files: 0 };
+      created = { id: `fixture-${number}`, number, projectId: target, title, status, priority: patch.priority ?? "none", dueOn: patch.dueOn ?? null, labels: patch.labels ?? [], assigneeIds: patch.assigneeIds ?? [], ...audienceFields(patch.audience ?? "shared"), order: last + 1, version: 1, createdBy: source.viewerId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: 0, checklist: { done: 0, total: 0 }, files: 0 };
     } else {
       const result = await createTask({ projectId: target, title, status, patch });
       if (!result.ok) { setError(result.error); return false; }
@@ -222,9 +247,12 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   }, [projectId, source.viewerId, preview, tasks, glow, showToast]);
 
   const patch = useCallback(async (task: BoardTask, change: TaskPatch) => {
-    const local: Partial<BoardTask> = { ...change };
-    return run(task.id, local, (current) => updateTask({ taskId: current.id, expectedVersion: current.version, patch: change }));
-  }, [run]);
+    const { audience, ...rest } = change;
+    const local: Partial<BoardTask> = { ...rest, ...(audience ? audienceFields(audience) : {}) };
+    const ok = await run(task.id, local, (current) => updateTask({ taskId: current.id, expectedVersion: current.version, patch: change }));
+    if (ok && audience) showToast(audienceToast[audience]);
+    return ok;
+  }, [run, showToast]);
 
   const archive = useCallback(async (task: BoardTask) => {
     if (!preview) {
@@ -236,6 +264,22 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
     showToast(`#${task.number} archiviert. Im Studio bleibt sie erhalten.`);
     return true;
   }, [preview, router, setAddress, showToast]);
+
+  /** „Beteiligte“: a freelancer on or off the project. Off, they also drop out as assignees there (the database). */
+  const staff = useCallback(async (project: BoardProject, freelancer: BoardFreelancer, on: boolean) => {
+    const wanted = on ? [...new Set([...project.freelancerIds, freelancer.id])] : project.freelancerIds.filter((id) => id !== freelancer.id);
+    let now = wanted;
+    if (!preview) {
+      const result = await setProjectFreelancer({ projectId: project.id, freelancerId: freelancer.id, on });
+      if (!result.ok) { setError(result.error); return false; }
+      now = result.data;
+    }
+    setStaffing((current) => ({ base: source.projects, byProject: { ...(current.base === source.projects ? current.byProject : {}), [project.id]: now } }));
+    if (!on && preview) for (const task of tasks) if (task.projectId === project.id && task.assigneeIds.some((id) => freelancer.loginIds.includes(id))) override(task.id, { assigneeIds: task.assigneeIds.filter((id) => !freelancer.loginIds.includes(id)) }, task.version);
+    showToast(on ? `${freelancer.name} ist jetzt im Projekt und sieht sein Board.` : `${freelancer.name} sieht das Projekt nicht mehr.`);
+    if (!preview) router.refresh();
+    return true;
+  }, [preview, source.projects, tasks, override, showToast, router]);
 
   const open = useCallback((task: BoardTask) => {
     if (justDragged()) return;
@@ -252,7 +296,7 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   const newTask = useCallback((status: TaskStatus = "todo") => { setAddress({ task: null }); setDraft(status); }, [setAddress]);
   // N opens „Neue Aufgabe“ while nobody types.
   useEffect(() => {
-    if (!canEdit) return;
+    if (!canEdit || !projectList.length) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== "n") return;
       if ((event.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable='true'], dialog")) return;
@@ -261,7 +305,7 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canEdit, newTask]);
+  }, [canEdit, projectList.length, newTask]);
 
   const chooseProject = (value: string) => { setLastProject(value); setComposer(null); setAddress({ project: value, task: null }); };
   const chooseView = (value: string) => { setStoredView(value === "list" ? "list" : "board"); setComposer(null); };
@@ -275,8 +319,8 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   const info = useInfo("Aufgaben-Board", {
     steps: [
       <><b>Ziehen</b> verschiebt Karten, am Handy erst kurz halten.</>,
-      <><b>Dieselben Aufgaben</b> wie im Studio, Änderungen gelten dort auch.</>,
-      <><b>Für Kunden</b> freigegebene stehen im Projektfenster.</>,
+      freelancerView ? <><b>Nur deine Projekte,</b> in die oalab dich eingetragen hat.</> : <><b>Dieselben Aufgaben</b> wie im Studio, Änderungen gelten dort auch.</>,
+      freelancerView ? <><b>Archivieren und Freigaben</b> bleiben beim oalab-Team.</> : <><b>Sichtbar für</b> legt fest, wer eine Aufgabe sieht.</>,
     ],
     ask: "Wie funktioniert das Aufgaben-Board?",
   });
@@ -287,11 +331,13 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   const assigned = [...new Set(projectTasks.flatMap((task) => task.assigneeIds))];
   const projectOptions = [
     { value: ALL, label: "Alle Projekte", lead: <span className="kb-mark is-m is-all"><LayoutGrid size={13} aria-hidden="true" /></span>, meta: `${tasks.filter((task) => task.status !== "done").length} offen` },
-    ...source.projects.map((item) => ({ value: item.id, label: item.name, group: item.company || "Ohne Kunde", lead: <CompanyMark company={item.company} size="m" />, meta: item.status === "complete" ? "abgeschlossen" : `${tasks.filter((task) => task.projectId === item.id && task.status !== "done").length} offen` })),
+    ...projectList.map((item) => ({ value: item.id, label: item.name, group: item.company || "Ohne Kunde", lead: <CompanyMark company={item.company} size="m" />, meta: item.status === "complete" ? "abgeschlossen" : `${tasks.filter((task) => task.projectId === item.id && task.status !== "done").length} offen` })),
   ];
   const assigneeOptions: { value: AssigneeFilter; label: string }[] = [{ value: "all", label: "Alle" }, { value: "me", label: "Mir zugewiesen" }, { value: "team", label: "Mit Zuständigen" }, { value: "none", label: "Niemand zugewiesen" }];
   const dueOptions: { value: DueFilter; label: string }[] = [{ value: "all", label: "Alle Termine" }, { value: "overdue", label: "Überfällig" }, { value: "week", label: "Diese Woche fällig" }, { value: "none", label: "Ohne Datum" }];
   const filterCount = activeFilterCount(filters);
+  // A freelancer whom no admin has put on a project yet sees why the board is empty.
+  const unassigned = freelancerView && !source.error && !projectList.length;
 
   const viewProps: TaskViewProps = {
     columns, people, projects, showProject: projectId === ALL, today, openId: openTask?.id ?? null, flash, drag, collapsed, showOlderDone, composer, canEdit,
@@ -304,15 +350,17 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
     onKeyMove: keyMove,
     onStatus: (task, status) => void place(task, status, 0),
   };
-  const runningProjects = source.projects.filter((item) => item.status !== "complete");
+  const runningProjects = projectList.filter((item) => item.status !== "complete");
+  const openProject = openTask ? projects.get(openTask.projectId) : undefined;
 
   return (
     <>
       <LargeTitleHeader
         title="Aufgaben"
         icon={<span className="title-icon"><SquareKanban size={24} color={categories.projects.fill} aria-hidden="true" /></span>}
-        // Back to the same project in the panel of „Projekte“, which keeps its choice in ?project= as well.
-        leading={<Link href={`${hubHref(preview, "projects")}${project ? `?project=${encodeURIComponent(project.id)}` : ""}`} className="on-bg-link"><ChevronLeft size={22} strokeWidth={2.5} aria-hidden="true" />Projekte</Link>}
+        // Back to the same project in the panel of „Projekte“, which keeps its choice in ?project= as well. Freelancers
+        // have no page „Projekte“: for them it is this board.
+        leading={freelancerView ? undefined : <Link href={`${hubHref(preview, "projects")}${project ? `?project=${encodeURIComponent(project.id)}` : ""}`} className="on-bg-link"><ChevronLeft size={22} strokeWidth={2.5} aria-hidden="true" />Projekte</Link>}
         actions={<HeaderActions />}
       />
       {source.error && <p className="calendar-notice kb-error-note" role="alert">{source.error}</p>}
@@ -324,58 +372,74 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
         </div>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="sheet kb-sheet section-first" ref={root}>
-        <div className="kb-project">
-          <div className="kb-project-pick">
-            {project ? <CompanyMark company={project.company} /> : <span className="kb-mark is-all" aria-hidden="true"><LayoutGrid size={18} /></span>}
-            <span className="kb-project-text">
-              <Select variant="bare" chevron label="Projekt" value={projectId} onChange={chooseProject} options={projectOptions} search className="kb-project-select" searchPlaceholder="Projekt oder Kunde" />
-              <span className="kb-project-sub">{project ? `${project.company} · ${projectTasks.length} ${projectTasks.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${source.projects.length} Projekte · ${projectTasks.length} Aufgaben`}</span>
-            </span>
-          </div>
-          <div className="kb-project-stats">
-            <div className="kb-stat">Fortschritt<strong><span className="kb-progress" aria-hidden="true"><span style={{ width: `${progress}%` }} /></span>{progress} %</strong></div>
-            {project?.dueOn && <div className="kb-stat">Ziel<strong>{new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" }).format(Date.parse(`${project.dueOn}T00:00:00Z`))}</strong></div>}
-            {assigned.length > 0 && <div className="kb-stat">Zuständig<strong><span className="kb-stack">{assigned.slice(0, 6).map((id) => <span key={id} className="kb-av" data-tip={people.get(id)?.name}>{people.get(id)?.initials ?? "?"}</span>)}</span></strong></div>}
-            {info.button}
+      {unassigned ? (
+        <div className="sheet kb-sheet section-first">
+          <div className="kb-empty">
+            <span className="kb-empty-icon"><SquareKanban size={26} aria-hidden="true" /></span>
+            <strong>Noch keinem Projekt zugeordnet.</strong>
+            <p>Sobald dich oalab in ein Projekt einträgt, steht hier sein Board mit allen Aufgaben, die du sehen darfst.</p>
           </div>
         </div>
-        {info.box}
-        <SheetToolbar query={filters.query} onQuery={(query) => setFilters((current) => ({ ...current, query }))} placeholder="Aufgaben durchsuchen" label="Aufgaben durchsuchen"
-          trailing={<>
-            <SegmentedControl label="Aufgaben eingrenzen" value={filters.mine ? "mine" : "all"} onChange={(value) => setFilters((current) => ({ ...current, mine: value === "mine" }))}
-              options={[{ id: "all", label: "Alle", name: `Alle: ${counts.all}`, count: counts.all }, { id: "mine", label: "Meine", name: `Meine: ${counts.mine}`, count: counts.mine }]} />
-            {!source.error && (
-              // Read-only keeps the choice of view; only „Neue Aufgabe“ needs the code.
-              <SheetActionMenu label="Aufgaben" actions={canEdit ? [{ icon: Plus, label: "Neue Aufgabe", hint: "Einzeln anlegen", shortcut: "N", onSelect: () => newTask() }] : []}
-                choices={{ label: "Ansicht", value: view, onChange: chooseView, options: [{ id: "board", label: "Board", icon: SquareKanban }, { id: "list", label: "Liste", icon: LayoutList }] }} />
-            )}
-          </>}>
-          <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>
-            <FilterSelect icon={Users} name="Zuständig" value={filters.assignee} onChange={(value) => setFilters((current) => ({ ...current, assignee: value as AssigneeFilter }))} options={assigneeOptions} />
-            <FilterSelect icon={Tag} name="Label" value={filters.label} onChange={(value) => setFilters((current) => ({ ...current, label: value }))} options={[{ value: "", label: "Alle Labels" }, ...knownLabels.map((label) => ({ value: label, label }))]} />
-            <FilterSelect icon={CalendarClock} name="Fällig" value={filters.due} onChange={(value) => setFilters((current) => ({ ...current, due: value as DueFilter }))} options={dueOptions} />
-            {filterCount > 0 && <button type="button" className="table-reset" onClick={() => setFilters((current) => ({ ...NO_FILTERS, query: current.query, mine: current.mine }))}>Filter zurücksetzen</button>}
-          </ToolbarMenu>
-        </SheetToolbar>
-        {view === "board" && <MobileTabs columns={columns} />}
-        <div className="kb-board-wrap">{view === "board" ? <TaskBoard {...viewProps} /> : <TaskList {...viewProps} />}</div>
-        <SheetFooter hint={canEdit ? <span className="kb-foot-hint">{view === "board" ? "Karten mit Maus oder Finger ziehen · am Rechner auch Alt + Pfeiltasten" : "Zeilen ziehen oder den Status wählen · am Rechner auch Alt + Pfeiltasten"}</span> : undefined}>
-          {projectTasks.length === 1 ? "1 Aufgabe" : `${projectTasks.length} Aufgaben`} · {projectTasks.filter((task) => task.status === "done").length} erledigt
-        </SheetFooter>
-      </div>
+      ) : (
+        <div className="sheet kb-sheet section-first" ref={root}>
+          <div className="kb-project">
+            <div className="kb-project-pick">
+              {project ? <CompanyMark company={project.company} /> : <span className="kb-mark is-all" aria-hidden="true"><LayoutGrid size={18} /></span>}
+              <span className="kb-project-text">
+                <Select variant="bare" chevron label="Projekt" value={projectId} onChange={chooseProject} options={projectOptions} search className="kb-project-select" searchPlaceholder="Projekt oder Kunde" />
+                <span className="kb-project-sub">{project ? `${project.company} · ${projectTasks.length} ${projectTasks.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${projectList.length} ${projectList.length === 1 ? "Projekt" : "Projekte"} · ${projectTasks.length} Aufgaben`}</span>
+              </span>
+            </div>
+            <div className="kb-project-stats">
+              <div className="kb-stat">Fortschritt<strong><span className="kb-progress" aria-hidden="true"><span style={{ width: `${progress}%` }} /></span>{progress} %</strong></div>
+              {project?.dueOn && <div className="kb-stat">Ziel<strong>{new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" }).format(Date.parse(`${project.dueOn}T00:00:00Z`))}</strong></div>}
+              {project
+                ? <ProjectPeople project={project} people={source.people} freelancers={source.freelancers} manage={!freelancerView} canEdit={canEdit} preview={preview} onToggle={(freelancer, on) => staff(project, freelancer, on)} />
+                : assigned.length > 0 && <div className="kb-stat">Zuständig<strong><span className="kb-stack">{assigned.slice(0, 6).map((id) => <span key={id} className={`kb-av${people.get(id)?.kind === "freelancer" ? " is-freelancer" : ""}`} data-tip={people.get(id)?.name}>{people.get(id)?.initials ?? "?"}</span>)}</span></strong></div>}
+              {info.button}
+            </div>
+          </div>
+          {info.box}
+          <SheetToolbar query={filters.query} onQuery={(query) => setFilters((current) => ({ ...current, query }))} placeholder="Aufgaben durchsuchen" label="Aufgaben durchsuchen"
+            trailing={<>
+              <SegmentedControl label="Aufgaben eingrenzen" value={filters.mine ? "mine" : "all"} onChange={(value) => setFilters((current) => ({ ...current, mine: value === "mine" }))}
+                options={[{ id: "all", label: "Alle", name: `Alle: ${counts.all}`, count: counts.all }, { id: "mine", label: "Meine", name: `Meine: ${counts.mine}`, count: counts.mine }]} />
+              {!source.error && (
+                // Read-only keeps the choice of view; only „Neue Aufgabe“ needs the code.
+                <SheetActionMenu label="Aufgaben" actions={canEdit ? [{ icon: Plus, label: "Neue Aufgabe", hint: "Einzeln anlegen", shortcut: "N", onSelect: () => newTask() }] : []}
+                  choices={{ label: "Ansicht", value: view, onChange: chooseView, options: [{ id: "board", label: "Board", icon: SquareKanban }, { id: "list", label: "Liste", icon: LayoutList }] }} />
+              )}
+            </>}>
+            <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>
+              <FilterSelect icon={Users} name="Zuständig" value={filters.assignee} onChange={(value) => setFilters((current) => ({ ...current, assignee: value as AssigneeFilter }))} options={assigneeOptions} />
+              <FilterSelect icon={Tag} name="Label" value={filters.label} onChange={(value) => setFilters((current) => ({ ...current, label: value }))} options={[{ value: "", label: "Alle Labels" }, ...knownLabels.map((label) => ({ value: label, label }))]} />
+              <FilterSelect icon={CalendarClock} name="Fällig" value={filters.due} onChange={(value) => setFilters((current) => ({ ...current, due: value as DueFilter }))} options={dueOptions} />
+              {filterCount > 0 && <button type="button" className="table-reset" onClick={() => setFilters((current) => ({ ...NO_FILTERS, query: current.query, mine: current.mine }))}>Filter zurücksetzen</button>}
+            </ToolbarMenu>
+          </SheetToolbar>
+          {view === "board" && <MobileTabs columns={columns} />}
+          <div className="kb-board-wrap">{view === "board" ? <TaskBoard {...viewProps} /> : <TaskList {...viewProps} />}</div>
+          <SheetFooter hint={canEdit ? <span className="kb-foot-hint">{view === "board" ? "Karten mit Maus oder Finger ziehen · am Rechner auch Alt + Pfeiltasten" : "Zeilen ziehen oder den Status wählen · am Rechner auch Alt + Pfeiltasten"}</span> : undefined}>
+            {projectTasks.length === 1 ? "1 Aufgabe" : `${projectTasks.length} Aufgaben`} · {projectTasks.filter((task) => task.status === "done").length} erledigt
+          </SheetFooter>
+        </div>
+      )}
 
       {openTask && !draft && (
         <TaskPanel
           key={openTask.id}
           task={openTask}
-          project={projects.get(openTask.projectId)}
+          project={openProject}
           people={people}
-          team={team}
+          assignees={assigneesFor(openTask.projectId)}
           knownLabels={knownLabels}
           today={today}
           preview={preview}
+          viewerId={source.viewerId}
           canEdit={canEdit}
+          canArchive={!freelancerView}
+          audience={audienceFor(openTask.projectId, audienceOf(openTask))}
+          readers={commentReaders(audienceOf(openTask), othersOn(openTask.projectId), freelancerView)}
           confirmHref={confirmHref}
           onClose={close}
           onPatch={(change) => patch(openTask, change)}
@@ -385,11 +449,13 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
           onCounts={(change) => override(openTask.id, change, openTask.version)}
         />
       )}
-      {draft && source.projects.length > 0 && (
+      {draft && projectList.length > 0 && (
         <NewTaskPanel
-          projects={runningProjects.length ? runningProjects : source.projects}
+          projects={runningProjects.length ? runningProjects : projectList}
           initialProjectId={project?.id ?? null}
-          team={team}
+          assigneesFor={assigneesFor}
+          audienceFor={audienceFor}
+          initialAssignees={freelancerView ? [source.viewerId] : []}
           people={people}
           knownLabels={knownLabels}
           initialStatus={draft}

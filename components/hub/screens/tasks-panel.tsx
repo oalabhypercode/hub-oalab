@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, CalendarDays, Check, Eye, FileText, History, ImageIcon, Link2, ListChecks, Lock, MessageSquare, Plus, Send, SignalHigh, Tag, Trash2, Users, X } from "lucide-react";
 import { addComment, deleteSubtask, loadTaskDetail, saveSubtask, taskFileLink } from "@/lib/hub-tasks/actions";
 import { taskDetailFixture } from "@/lib/hub-tasks/fixtures";
-import { dueInfo, MAX_TITLE, PRIORITY_NAMES, STATUS_NAMES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/hub-tasks/rules";
-import type { BoardPerson, BoardProject, BoardTask, TaskComment, TaskDetail, TaskPatch, TaskPriority, TaskStatus, TaskSubtask } from "@/lib/hub-tasks/types";
+import { audienceOf, dueInfo, MAX_TITLE, PRIORITY_NAMES, STATUS_NAMES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/hub-tasks/rules";
+import type { BoardPerson, BoardProject, BoardTask, TaskAudience, TaskComment, TaskDetail, TaskPatch, TaskPriority, TaskStatus, TaskSubtask } from "@/lib/hub-tasks/types";
 import { MiniLoader } from "@/components/brand-loader";
-import { Switch } from "../controls";
+import { useInfo } from "../info-box";
 import { Select, SuggestInput } from "../select";
 import { AssetPanel } from "./asset-panel";
-import { Avatar, CompanyMark, LabelPill, PriorityIcon, TaskGlyph } from "./tasks-parts";
+import { Avatar, CompanyMark, LabelPill, PriorityIcon, RoleTag, TaskGlyph } from "./tasks-parts";
 
 const moment = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const dayLong = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "long", year: "numeric" });
@@ -28,20 +28,55 @@ function useAutosize(value: string) {
   return ref;
 }
 
-type Fields = { status: TaskStatus; title: string; description: string; priority: TaskPriority; dueOn: string | null; labels: string[]; assigneeIds: string[]; visible: boolean };
+type Fields = { status: TaskStatus; title: string; description: string; priority: TaskPriority; dueOn: string | null; labels: string[]; assigneeIds: string[]; audience: TaskAudience };
+
+/**
+ * „Sichtbar für“: the team chooses one of three (`choose`, user 16.11.2026 as in the design); freelancers read who sees
+ * the card (`text`), because what they see is decided by the team and the database.
+ */
+export type AudienceView = { mode: "choose"; hasFreelancers: boolean } | { mode: "text"; text: string };
+
+const audienceOptions = (hasFreelancers: boolean) => [
+  { id: "team" as const, label: "Nur Team", icon: Lock, tip: "Nur das oalab-Team" },
+  // Without freelancers on the project the middle choice is the team, and whoever joins later.
+  { id: "shared" as const, label: hasFreelancers ? "+ Freelancer" : "Team", icon: Users, tip: hasFreelancers ? "Team und Freelancer des Projekts" : "Team und künftige Freelancer des Projekts" },
+  { id: "customer" as const, label: "+ Kunde", icon: Eye, tip: "Zusätzlich der Kunde im Projektfenster" },
+];
+
+function AudienceChoice({ value, hasFreelancers, disabled, onChange }: { value: TaskAudience; hasFreelancers: boolean; disabled: boolean; onChange: (value: TaskAudience) => void }) {
+  return (
+    <span className="kb-seg3" role="group" aria-label="Sichtbar für">
+      {audienceOptions(hasFreelancers).map(({ id, label, icon: Icon, tip }) => (
+        <button key={id} type="button" aria-pressed={value === id} disabled={disabled} data-tip={tip} onClick={() => value !== id && onChange(id)}>
+          <Icon size={13} strokeWidth={2.2} aria-hidden="true" />{label}
+        </button>
+      ))}
+    </span>
+  );
+}
 
 /** The properties shared by the task window and „Neue Aufgabe“. */
-function Properties({ fields, team, people, knownLabels, today, canEdit, onChange }: {
+function Properties({ fields, assignees, people, knownLabels, today, canEdit, audience, onChange }: {
   fields: Fields;
-  team: BoardPerson[];
+  /** Who may be assigned: the team, then the project's freelancers (rules.ts assignableIn). */
+  assignees: BoardPerson[];
   people: ReadonlyMap<string, BoardPerson>;
   knownLabels: string[];
   today: string;
   canEdit: boolean;
+  audience: AudienceView;
   onChange: (patch: Partial<Fields>) => void;
 }) {
   const [label, setLabel] = useState("");
-  const free = team.filter((person) => !fields.assigneeIds.includes(person.id));
+  const info = useInfo("Sichtbar für", {
+    steps: [
+      <><b>Nur Team:</b> Freelancer und Kunde sehen sie nicht.</>,
+      <><b>+ Freelancer:</b> alle Beteiligten des Projekts.</>,
+      <><b>+ Kunde:</b> zusätzlich im Projektfenster des Kunden.</>,
+    ],
+    ask: "Wer sieht welche Aufgaben im Board?",
+  });
+  const free = assignees.filter((person) => !fields.assigneeIds.includes(person.id));
   const addLabel = () => {
     const value = label.replace(/\s+/g, " ").trim();
     if (!value) return;
@@ -61,7 +96,7 @@ function Properties({ fields, team, people, knownLabels, today, canEdit, onChang
         {canEdit && free.length > 0 && (
           <span className="kb-add-select">
             <Select variant="bare" chevron={false} label="Person zuweisen" placeholder={fields.assigneeIds.length ? "+" : "Person zuweisen"} value="" onChange={(id) => onChange({ assigneeIds: [...fields.assigneeIds, id] })}
-              options={free.map((person) => ({ value: person.id, label: person.name, lead: <Avatar person={person} /> }))} />
+              options={free.map((person) => ({ value: person.id, label: person.name, lead: <Avatar person={person} />, group: person.kind === "freelancer" ? "Freelancer im Projekt" : "oalab-Team", meta: person.kind === "freelancer" ? "Freelancer" : undefined }))} />
           </span>
         )}
         {!fields.assigneeIds.length && !canEdit && <span className="kb-muted">Niemand</span>}
@@ -96,10 +131,13 @@ function Properties({ fields, team, people, knownLabels, today, canEdit, onChang
         {!fields.labels.length && !canEdit && <span className="kb-muted">Keine</span>}
       </dd>
 
-      <dt><Eye size={15} aria-hidden="true" />Für Kunden</dt>
+      <dt><Eye size={15} aria-hidden="true" />Sichtbar für</dt>
       <dd className="kb-visible">
-        {canEdit ? <Switch checked={fields.visible} onChange={(value) => onChange({ visible: value })} label="Für den Kunden sichtbar" /> : null}
-        <span className="kb-muted">{fields.visible ? "Der Kunde sieht sie im Fenster des Projekts." : "Nur das oalab-Team sieht sie."}</span>
+        {audience.mode === "choose" ? <>
+          <AudienceChoice value={fields.audience} hasFreelancers={audience.hasFreelancers} disabled={!canEdit} onChange={(value) => onChange({ audience: value })} />
+          {info.button}
+          {info.box}
+        </> : <span className="kb-readonly-note">{fields.audience === "customer" ? <Eye size={14} aria-hidden="true" /> : <Users size={14} aria-hidden="true" />}{audience.text}</span>}
       </dd>
     </dl>
   );
@@ -118,15 +156,23 @@ function StatusBar({ value, onChange, disabled }: { value: TaskStatus; onChange:
 }
 
 /** One card's window: its status as steps, its properties, description, checklist, images, history and comments. */
-export function TaskPanel({ task, project, people, team, knownLabels, today, preview, canEdit, confirmHref, onClose, onPatch, onMove, onArchive, onCopyLink, onCounts }: {
+export function TaskPanel({ task, project, people, assignees, knownLabels, today, preview, viewerId, canEdit, canArchive, audience, readers, confirmHref, onClose, onPatch, onMove, onArchive, onCopyLink, onCounts }: {
   task: BoardTask;
   project: BoardProject | undefined;
   people: ReadonlyMap<string, BoardPerson>;
-  team: BoardPerson[];
+  /** Who may be assigned in this card's project. */
+  assignees: BoardPerson[];
   knownLabels: string[];
   today: string;
   preview: boolean;
+  /** The signed-in person: the author of new comments in the preview. */
+  viewerId: string;
   canEdit: boolean;
+  /** Only the team archives; freelancers never see the button (and the database refuses it). */
+  canArchive: boolean;
+  audience: AudienceView;
+  /** Who reads the comments, under the comment field (rules.ts commentReaders). */
+  readers: string;
   /**
    * Read-only because the session has not confirmed a code: the way to the code page, as above the board. The window
    * covers that note on the right (seen live 16.11.2026), so its footer offers the code as well. Null otherwise.
@@ -217,7 +263,7 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
     if (!body || sending || !detail) return;
     setSending(true);
     let saved: TaskComment | null = null;
-    if (preview) saved = { id: `local-${Date.now()}`, authorId: "p-jonas", body, createdAt: new Date().toISOString() };
+    if (preview) saved = { id: `local-${Date.now()}`, authorId: viewerId, body, createdAt: new Date().toISOString() };
     else {
       const result = await addComment({ taskId: task.id, body });
       if (result.ok) saved = result.data;
@@ -252,7 +298,7 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
         node: (
           <div className="kb-comment">
             <Avatar person={author} size="m" />
-            <div><div className="kb-comment-head"><strong>{author?.name ?? "Unbekannt"}</strong>{author?.kind === "team" && <span className="kb-role">oalab</span>}<span>{when(entry.createdAt)}</span></div><div className="kb-comment-body">{entry.body}</div></div>
+            <div><div className="kb-comment-head"><strong>{author?.name ?? "Unbekannt"}</strong><RoleTag person={author} /><span>{when(entry.createdAt)}</span></div><div className="kb-comment-body">{entry.body}</div></div>
           </div>
         ),
       });
@@ -263,7 +309,7 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
   }, [detail, people, task.createdAt, task.createdBy]);
 
   const doneCount = subtasks.filter((item) => item.done).length;
-  const fields: Fields = { status: task.status, title: task.title, description, priority: task.priority, dueOn: task.dueOn, labels: task.labels, assigneeIds: task.assigneeIds, visible: task.visible };
+  const fields: Fields = { status: task.status, title: task.title, description, priority: task.priority, dueOn: task.dueOn, labels: task.labels, assigneeIds: task.assigneeIds, audience: audienceOf(task) };
 
   return (
     <AssetPanel
@@ -275,7 +321,7 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
       onClose={onClose}
       actions={<>
         <button type="button" className="chat-icon-button is-muted" onClick={onCopyLink} aria-label="Link zur Aufgabe kopieren" data-tip="Link kopieren"><Link2 size={18} aria-hidden="true" /></button>
-        {canEdit && (archiving
+        {canEdit && canArchive && (archiving
           ? <button type="button" className="sheet-action kb-archive-confirm" onClick={async () => { if (!(await onArchive())) setArchiving(false); }}>Archivieren?</button>
           : <button type="button" className="chat-icon-button is-muted" onClick={() => setArchiving(true)} aria-label="Aufgabe archivieren" data-tip="Archivieren" data-tip-sub="verschwindet aus dem Board, bleibt im Studio"><Archive size={18} aria-hidden="true" /></button>)}
       </>}
@@ -286,7 +332,7 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
             <textarea ref={commentRef} rows={1} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Kommentar schreiben …" aria-label="Kommentar"
               onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void send(); } }} />
             <div className="kb-reply-row">
-              <small><Users size={12} aria-hidden="true" /> Sehen: das oalab-Team</small>
+              <small>{fields.audience === "team" ? <Lock size={12} aria-hidden="true" /> : <Users size={12} aria-hidden="true" />} {readers}</small>
               <button type="button" className="sheet-action is-primary" onClick={() => void send()} disabled={sending || !comment.trim() || !detail}>{sending ? <MiniLoader size={14} /> : <Send size={14} aria-hidden="true" />}Senden</button>
             </div>
           </div>
@@ -302,7 +348,7 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
       <textarea ref={titleRef} className="kb-title-input" rows={1} value={title} readOnly={!canEdit} aria-label="Titel" maxLength={MAX_TITLE}
         onChange={(event) => setTitle(event.target.value)} onBlur={() => void saveTitle()}
         onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.stopPropagation(); setTitle(task.title); event.currentTarget.blur(); } }} />
-      <Properties fields={fields} team={team} people={people} knownLabels={knownLabels} today={today} canEdit={canEdit} onChange={(patch) => void onPatch(patch)} />
+      <Properties fields={fields} assignees={assignees} people={people} knownLabels={knownLabels} today={today} canEdit={canEdit} audience={audience} onChange={(patch) => void onPatch(patch)} />
       {error && <p role="alert" className="form-error">{error}</p>}
 
       <section className="um-sec">
@@ -356,10 +402,15 @@ export function TaskPanel({ task, project, people, team, knownLabels, today, pre
 }
 
 /** „Neue Aufgabe“: the same properties, nothing saved before „Aufgabe anlegen“. On „Alle Projekte“ it asks for the project. */
-export function NewTaskPanel({ projects, initialProjectId, team, people, knownLabels, initialStatus, today, onClose, onCreate }: {
+export function NewTaskPanel({ projects, initialProjectId, assigneesFor, audienceFor, initialAssignees, people, knownLabels, initialStatus, today, onClose, onCreate }: {
   projects: BoardProject[];
   initialProjectId: string | null;
-  team: BoardPerson[];
+  /** Who may be assigned in a project (the team and its freelancers). */
+  assigneesFor: (projectId: string) => BoardPerson[];
+  /** „Sichtbar für“ in a project: a choice for the team, a plain text for freelancers. */
+  audienceFor: (projectId: string, audience: TaskAudience) => AudienceView;
+  /** Freelancers start as the assignee of what they create (as in the design). */
+  initialAssignees: string[];
   people: ReadonlyMap<string, BoardPerson>;
   knownLabels: string[];
   initialStatus: TaskStatus;
@@ -367,20 +418,29 @@ export function NewTaskPanel({ projects, initialProjectId, team, people, knownLa
   onClose: () => void;
   onCreate: (projectId: string, status: TaskStatus, title: string, patch: TaskPatch) => Promise<boolean>;
 }) {
-  const [fields, setFields] = useState<Fields>({ status: initialStatus, title: "", description: "", priority: "none", dueOn: null, labels: [], assigneeIds: [], visible: false });
+  const [fields, setFields] = useState<Fields>({ status: initialStatus, title: "", description: "", priority: "none", dueOn: null, labels: [], assigneeIds: initialAssignees, audience: "shared" });
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const titleRef = useAutosize(fields.title);
   useEffect(() => { titleRef.current?.focus(); }, [titleRef]);
   const project = projects.find((item) => item.id === projectId);
+  const assignees = project ? assigneesFor(project.id) : assigneesFor("");
+  const audience = audienceFor(project?.id ?? "", fields.audience);
   const change = (patch: Partial<Fields>) => setFields((current) => ({ ...current, ...patch }));
+  // Another project has other freelancers: whoever is not on it drops out of the assignees.
+  const chooseProject = (value: string) => {
+    const allowed = new Set(assigneesFor(value).map((person) => person.id));
+    setProjectId(value);
+    setFields((current) => ({ ...current, assigneeIds: current.assigneeIds.filter((id) => allowed.has(id)) }));
+    setError("");
+  };
   const create = async () => {
     const title = fields.title.replace(/\s+/g, " ").trim();
     if (!project) { setError("Bitte wähle das Projekt."); return; }
     if (!title) { setError("Bitte gib der Aufgabe einen Titel."); titleRef.current?.focus(); return; }
     setBusy(true);
-    const ok = await onCreate(project.id, fields.status, title, { description: fields.description, priority: fields.priority, dueOn: fields.dueOn, labels: fields.labels, assigneeIds: fields.assigneeIds, visible: fields.visible });
+    const ok = await onCreate(project.id, fields.status, title, { description: fields.description, priority: fields.priority, dueOn: fields.dueOn, labels: fields.labels, assigneeIds: fields.assigneeIds, ...(audience.mode === "choose" ? { audience: fields.audience } : {}) });
     setBusy(false);
     if (!ok) setError("Die Aufgabe konnte nicht angelegt werden.");
   };
@@ -401,14 +461,14 @@ export function NewTaskPanel({ projects, initialProjectId, team, people, knownLa
       {!initialProjectId && (
         <div className="kb-project-field">
           <span className="am-label">Projekt</span>
-          <Select label="Projekt" placeholder="Projekt wählen" value={projectId} onChange={(value) => { setProjectId(value); setError(""); }} search
+          <Select label="Projekt" placeholder="Projekt wählen" value={projectId} onChange={chooseProject} search
             options={projects.map((item) => ({ value: item.id, label: item.name, group: item.company || "Ohne Kunde", lead: <CompanyMark company={item.company} size="s" /> }))} />
         </div>
       )}
       <textarea ref={titleRef} className="kb-title-input" rows={1} value={fields.title} placeholder="Titel der Aufgabe" aria-label="Titel" maxLength={MAX_TITLE}
         onChange={(event) => { change({ title: event.target.value }); setError(""); }}
         onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void create(); } }} />
-      <Properties fields={fields} team={team} people={people} knownLabels={knownLabels} today={today} canEdit onChange={change} />
+      <Properties fields={fields} assignees={assignees} people={people} knownLabels={knownLabels} today={today} canEdit audience={audience} onChange={change} />
       {error && <p role="alert" className="form-error">{error}</p>}
       <section className="um-sec">
         <div className="um-sec-head"><h3><FileText size={15} aria-hidden="true" />Beschreibung</h3></div>

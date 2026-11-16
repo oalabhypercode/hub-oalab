@@ -16,12 +16,14 @@ async function WorkspaceDetail({ params }: { params: Promise<{ section: string; 
   if (!isHubDetail(section, detail)) notFound();
   const identity = await getWorkspaceIdentity();
   const admin = identity.account?.role === "oalab_admin";
+  const freelancer = identity.account?.role === "oalab_freelancer";
   const tasks = section === "projects" && detail === "tasks";
   // The calendar under Projekte (16.11.2026): appointments for everyone; admins also see every task with a date, which
   // comes from the task board's reading (the same Studio rows), customers their released tasks from their projects.
   const calendar = section === "projects" && detail === "calendar";
-  // The task board is the oalab team's for now; freelancers follow in their own step, customers keep the project window.
-  if (tasks && !admin) notFound();
+  // The task board is the oalab team's and, since 16.11.2026, the freelancers' (only their projects, the database
+  // decides); customers keep the project window.
+  if (tasks && !admin && !freelancer) notFound();
   const [filesState, liveProjects, taskBoard, calendarState] = await Promise.all([
     loadHubFiles(),
     loadLiveProjects(),

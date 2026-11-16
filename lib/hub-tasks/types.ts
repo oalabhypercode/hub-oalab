@@ -12,8 +12,25 @@ export type BoardPerson = {
   id: string;
   name: string;
   initials: string;
-  /** "team": an active OALab team member Studio accepts as assignee; "other": known by name only (creator, author). */
-  kind: "team" | "other";
+  /**
+   * "team": an active OALab team member; "freelancer": a login of a freelancer working on one of the board's projects
+   * (Studio accepts both as assignees, freelancers only in their projects); "other": known by name only (creator, author).
+   */
+  kind: "team" | "freelancer" | "other";
+  /** Freelancers: the name of their freelancer entry (the company), for hover hints. */
+  company?: string;
+};
+
+/** A freelancer (an entry of the user management of the kind „Freelancer“) as the board knows it. */
+export type BoardFreelancer = {
+  id: string;
+  name: string;
+  /** FL-…, the number of the entry. */
+  number: string;
+  /** Its logins: they are the people on the cards (assignees, authors). */
+  loginIds: string[];
+  /** Organisations of the customers it looks after (hub_freelancer_customers): it may work on their projects. */
+  organizationIds: string[];
 };
 
 export type BoardProject = {
@@ -25,6 +42,8 @@ export type BoardProject = {
   dueOn: string | null;
   /** Studio's project status: planning, active, risk, hold, complete. */
   status: string;
+  /** Freelancers working on the project (studio_project_freelancers): they see it and every task except „Nur Team“. */
+  freelancerIds: string[];
 };
 
 export type BoardTask = {
@@ -40,6 +59,8 @@ export type BoardTask = {
   assigneeIds: string[];
   /** Released to the customer (Studio's client_visible): it then shows in the customer's project window. */
   visible: boolean;
+  /** „Nur Team“ (team_only): freelancers never see it, nor its checklist, comments, images and history. */
+  teamOnly: boolean;
   /** Studio's board_order: the place within the column. */
   order: number;
   /** Studio's row version; a change is written only while it still matches. */
@@ -53,10 +74,20 @@ export type BoardTask = {
 };
 
 export type TaskBoardState = {
+  /**
+   * Who looks: the oalab team (every running project) or a freelancer (only the projects an admin put them on, without
+   * „Nur Team“; no archiving, no choice of who sees a task). The database decides the same for every access.
+   */
+  viewer: "admin" | "freelancer";
   projects: BoardProject[];
   tasks: BoardTask[];
-  /** Everybody the board names: the team (assignable) and creators or authors. */
+  /** Everybody the board names: the team and the projects' freelancers (assignable), creators or authors. */
   people: BoardPerson[];
+  /**
+   * Admins: every freelancer who looks after the customer of a project (the choice under „Beteiligte“). Freelancers:
+   * those working on their own projects, without other customers.
+   */
+  freelancers: BoardFreelancer[];
   viewerId: string;
   /**
    * The session confirmed a code (aal2). Studio lets its team write only then, so without it the board is read-only
@@ -84,7 +115,13 @@ export type TaskDetail = {
 /** `stale`: somebody changed the row in the meantime; the board reloads instead of overwriting. */
 export type TaskResult<T> = { ok: true; data: T } | { ok: false; error: string; stale?: boolean };
 
-/** The fields a card or the task window may change. */
+/**
+ * Who sees a task besides the oalab team (rules.ts writes it as team_only and client_visible): „Nur Team“, „+ Freelancer“
+ * (the project's freelancers) or „+ Kunde“ (the freelancers and the customer in the project window).
+ */
+export type TaskAudience = "team" | "shared" | "customer";
+
+/** The fields a card or the task window may change. Freelancers change everything except the audience. */
 export type TaskPatch = {
   title?: string;
   description?: string;
@@ -92,5 +129,5 @@ export type TaskPatch = {
   dueOn?: string | null;
   labels?: string[];
   assigneeIds?: string[];
-  visible?: boolean;
+  audience?: TaskAudience;
 };
