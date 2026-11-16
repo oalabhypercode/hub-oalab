@@ -51,6 +51,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", title: "Fenster je Aufgabe", text: "Ein Klick auf eine Karte öffnet sie: Status, Zuständige, Fälligkeit, Priorität, Labels, Beschreibung, Checkliste und Kommentare lassen sich dort direkt ändern. Ein Link zur Aufgabe öffnet genau dieses Fenster." },
       { kind: "new", title: "Aus dem Projekt ins Board", text: "Im Fenster eines Projekts und im Projekte-Panel führt der Knopf „Aufgaben“ direkt zum Board dieses Projekts. Über „Projekte“ geht es zurück zum selben Projekt." },
       { kind: "improved", title: "Dieselben Aufgaben wie im Studio", text: "Das Board liest und schreibt die Aufgaben des Studios. Hat jemand eine Karte inzwischen geändert, überschreibt der Hub nichts, sondern zeigt den neuesten Stand; alle 30 Sekunden holt sich das Board Neuigkeiten." },
+      { kind: "fixed", title: "Board ohne Code: lesen und bestätigen", text: "Wer sich ohne Code angemeldet hat, sah im Fenster einer Aufgabe nur einen Fehler. Jetzt zeigt es Beschreibung, Checkliste und Verlauf, und über dem Board steht „Mit Code bestätigen“. Nach dem Code aus der Mail geht es zurück zum Board, und Bearbeiten klappt bis zum Abmelden." },
     ],
   },
   {

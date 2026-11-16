@@ -66,7 +66,8 @@ test("old notes and other pages stay without a greeting", () => {
 
 test("sign-ins note the greeting, and the hub shows it outside its load boundary", async () => {
   const form = await source("components/auth-form.tsx");
-  assert.match(form, /if \(\(mode === "login" \|\| mode === "mfa"\) && greetsAt\(result\.redirect\)\) noteGreeting\(result\.greeting \?\? ""\);/);
+  // A session that only confirms its code on purpose („Mit Code bestätigen“) goes back without a greeting.
+  assert.match(form, /if \(\(mode === "login" \|\| \(mode === "mfa" && !secondFactor\?\.back\)\) && greetsAt\(result\.redirect\)\) noteGreeting\(result\.greeting \?\? ""\);/);
   assert.match(form, /finally \{\s+if \(!leaving\) setLoading\(false\);/);
   const actions = await source("lib/hub-auth/actions.ts");
   assert.equal(actions.match(/greeting: await greetingFor\(/g)?.length, 3, "password sign-in, app code and e-mail code");

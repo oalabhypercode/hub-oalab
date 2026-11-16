@@ -91,7 +91,8 @@ export async function updateSession(request: NextRequest) {
   };
 
   // One login for Hub and Service: whoever arrives signed in (e.g. via „Zum Hub“) skips the login form.
-  const landing = pathname === SECOND_FACTOR_PAGE ? secondFactorPageRedirect(await codePageState(), next, serviceOrigin())
+  // `confirm=1`: the session asked for the code itself („Mit Code bestätigen“, lib/auth-redirect.ts).
+  const landing = pathname === SECOND_FACTOR_PAGE ? secondFactorPageRedirect(await codePageState(), next, serviceOrigin(), request.nextUrl.searchParams.get("confirm") === "1")
     : codePending ? secondFactorRedirect(pathname, request.nextUrl.search, next, isPublic)
     : signedIn ? signedInRedirect(pathname, next) : null;
   const response = landing

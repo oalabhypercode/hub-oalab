@@ -13,6 +13,11 @@
 .hub-content:has(.kb-sheet) { max-width: 1720px; }
 .kb-sheet { display: flex; flex-direction: column; overflow: clip; }
 .kb-error-note { background: var(--tone-todo-bg); color: var(--tone-todo); box-shadow: inset 3px 0 0 var(--tone-todo-bar), var(--glass-shadow); }
+/* Read-only until the session confirms a code: information, not an error, with the way to the code on the right */
+.kb-lock-note { flex-wrap: wrap; background: var(--tone-info-bg); color: var(--tone-info); box-shadow: inset 3px 0 0 var(--tone-info-bar), var(--glass-shadow); font-weight: 500; }
+.kb-lock-note b { font-weight: 700; }
+.kb-lock-text { flex: 1 1 280px; min-width: 0; }
+.kb-lock-note .sheet-action { margin-left: auto; height: 32px; }
 
 /* Project head */
 .kb-project { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; padding: 12px 16px 12px 12px; border-bottom: 1px solid var(--sheet-line); }
