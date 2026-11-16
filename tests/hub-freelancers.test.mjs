@@ -93,12 +93,22 @@ test("the asset management: freelancers read, admins set who looks after a custo
   assert.match(files, /const files = missingColumn\(firstFiles\.error\) \? await readFiles\("folder_id"\) : firstFiles;/);
 });
 
-test("freelancers have no projects and no way to the service platform in the hub", async () => {
+test("freelancers reach their task board through Projekte and have no way to the service platform in the hub", async () => {
   const sidebar = await source("components/hub/glass-sidebar.tsx");
-  // Without Projekte the calendar stays a freelancer's own entry; everybody else finds it under Projekte.
+  // The calendar stays a freelancer's own entry; everybody else finds it under Projekte.
   assert.match(sidebar, /const calendarUnderProjects = !account\.freelancer;/);
   assert.match(sidebar, /categoriesFor\(account\.freelancer\)\.filter\(\(id\) => !\(id === "calendar" && calendarUnderProjects\)\)\.map/);
-  assert.match(await source("lib/categories.ts"), /!\(freelancer && \(id === "projects" \|\| id === "contracts"\)\)/);
+  assert.match(sidebar, /\{calendarUnderProjects && \(\n\s+<Link href=\{hubHref\(preview, "calendar"\)\}/);
+  // Since 16.11.2026 „Projekte“ leads freelancers straight to the board of their projects, with „Aufgaben“ under it.
+  const categories = await source("lib/categories.ts");
+  assert.match(categories, /categoryOrder\.filter\(\(id\) => !\(freelancer && id === "contracts"\)\)/);
+  assert.match(categories, /export const projectsHref = \(base: string, freelancer: boolean\) => \(freelancer \? `\$\{base\}\/tasks` : base\);/);
+  assert.match(sidebar, /const href = id === "projects" \? projectsHref\(props\.href, account\.freelancer\) : props\.href;/);
+  assert.match(sidebar, /\{\(manageUsers \|\| preview \|\| account\.freelancer\) && \(/);
+  assert.match(await source("components/hub/screens/workspace.tsx"), /id === "projects" && freelancer\n\s+\? <ListRow key=\{id\} compact href=\{projectsHref\(hubHref\(preview, "projects"\), true\)\}/);
+  // No projects page of their own: the address of Projekte forwards them to the board, which they may open.
+  assert.match(await source("app/dashboard/[section]/page.tsx"), /if \(validSection === "projects" && identity\.account\?\.role === "oalab_freelancer"\) redirect\(`\$\{hubHref\(false, "projects"\)\}\/tasks`\);/);
+  assert.match(await source("app/dashboard/[section]/[detail]/page.tsx"), /if \(tasks && !admin && !freelancer\) notFound\(\);/);
   const chat = await source("components/hub/screens/private-chat.tsx");
   assert.match(chat, /\{!admin && !freelancer && \(/);
   const overview = await source("components/hub/screens/overview.tsx");

@@ -52,6 +52,37 @@
 .kb-prio-none { display: inline-block; width: 14px; }
 .kb-vis { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 5px; border-radius: 5px; font-size: 11px; font-weight: 600; }
 .kb-vis.is-customer { background: var(--tone-todo-bg); color: var(--tone-todo); }
+.kb-vis.is-team { background: var(--tone-off-bg); color: var(--tone-off); }
+
+/* Freelancers (since 16.11.2026): their own colour on avatars and in comments */
+.kb-av.is-freelancer { background: linear-gradient(135deg, #3634a3 0%, #0e7c86 100%); }
+.kb-role.is-freelancer { background: color-mix(in srgb, #3634a3 12%, transparent); color: color-mix(in srgb, #3634a3 82%, var(--label)); }
+:root[data-theme="dark"] .kb-role.is-freelancer { background: color-mix(in srgb, #8f8dff 18%, transparent); color: #b9b8ff; }
+
+/* „Beteiligte“ in the project head: the avatars open the window with the team and the customer's freelancers */
+.kb-people { position: relative; }
+.kb-people-btn { display: inline-flex; align-items: center; gap: 4px; margin: -3px -5px; padding: 3px 5px; border-radius: 999px; }
+.kb-people-btn:hover, .kb-people-btn[aria-expanded="true"] { background: var(--sheet-hover); }
+.kb-people-add { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-left: 2px; border: 1.5px dashed var(--sheet-line); border-radius: 50%; color: var(--accent-text); font-size: 15px; font-weight: 600; line-height: 1; }
+.sheet-pop.kb-people-pop { width: 340px; gap: 2px; padding: var(--menu-pad); color: var(--label-body); font-size: 13.5px; font-weight: 400; line-height: normal; }
+.kb-people-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 2px 9px; }
+.kb-people-head strong { margin-right: auto; color: var(--label); font-size: 14px; font-weight: 700; }
+.kb-people-row { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 9px; border-radius: var(--menu-item-radius); }
+.kb-people-row .kb-av { box-shadow: none; }
+.kb-people-text { display: grid; flex: 1 1 auto; min-width: 0; }
+.kb-people-text strong { overflow: hidden; color: var(--label); font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.kb-people-text small { overflow: hidden; color: var(--sheet-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.kb-pop-note { margin: 0; padding: 6px 9px 4px; color: var(--sheet-muted); font-size: 12px; line-height: 16px; white-space: normal; }
+.kb-pop-note + .kb-pop-note { padding-top: 0; }
+.kb-pop-note svg { vertical-align: -2px; }
+.kb-pop-link { display: inline-flex; align-items: center; gap: 3px; color: var(--accent-text); font-weight: 600; }
+.kb-pop-link:hover { text-decoration: underline; }
+
+/* A freelancer whom no admin has put on a project yet */
+.kb-empty { display: grid; justify-items: center; gap: 8px; padding: 56px 24px 64px; text-align: center; }
+.kb-empty-icon { display: inline-grid; place-items: center; width: 56px; height: 56px; margin-bottom: 4px; border-radius: 16px; background: color-mix(in srgb, #ff9500 14%, transparent); color: #ff9500; }
+.kb-empty strong { color: var(--label); font-size: 17px; font-weight: 700; }
+.kb-empty p { max-width: 380px; margin: 0; color: var(--sheet-muted); font-size: 14px; line-height: 20px; }
 .kb-project-tag { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--sheet-muted); font-size: 11.5px; font-weight: 500; }
 .kb-project-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -185,7 +216,15 @@ html.kb-dragging, html.kb-dragging * { cursor: grabbing !important; }
 .kb-due-hint.is-overdue { color: var(--tone-bad-bar); font-weight: 600; }
 .kb-label-add { display: inline-flex; }
 .kb-label-input { width: 140px; height: 28px; padding: 0 8px; font-size: 12.5px; }
-.kb-visible { gap: 10px; }
+.kb-visible { gap: 8px; }
+/* „Sichtbar für“: one of three, as in the design (Nur Team · + Freelancer · + Kunde) */
+.kb-seg3 { display: inline-flex; max-width: 100%; padding: 2px; overflow-x: auto; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); scrollbar-width: none; }
+.kb-seg3 button { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 7px; color: var(--sheet-muted); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.kb-seg3 button:hover:not(:disabled) { color: var(--label); }
+.kb-seg3 button[aria-pressed="true"] { background: var(--sheet-seg-on); box-shadow: 0 1px 2px #0000001a, 0 0 0 1px var(--sheet-line); color: var(--label); }
+.kb-seg3 button:disabled { cursor: default; }
+.kb-readonly-note { display: inline-flex; align-items: center; gap: 6px; color: var(--label-body); font-size: 13px; }
+.kb-readonly-note svg { flex: 0 0 auto; color: var(--sheet-icon); }
 .kb-muted { color: var(--sheet-muted); font-size: 12.5px; }
 .kb-panel .um-sec { padding: 16px 0; }
 .kb-panel .um-sec-head { margin-bottom: 10px; }
@@ -261,6 +300,10 @@ html.kb-dragging, html.kb-dragging * { cursor: grabbing !important; }
 @media (max-width: 1023px) {
   .kb-board, .kb-lv { height: max(430px, calc(100dvh - 300px)); }
 }
+/* Phones: „Beteiligte“ opens as the sheet at the bottom, like every toolbar panel */
+@media (max-width: 767px) {
+  .sheet-pop.kb-people-pop { width: auto; max-height: min(70dvh, 560px); overflow-y: auto; }
+}
 @media (max-width: 760px) {
   .kb-project { gap: 8px 14px; padding: 10px 10px 10px 8px; }
   .kb-project-stats { gap: 16px; width: 100%; margin-left: 0; padding-left: 6px; }
@@ -287,4 +330,6 @@ html.kb-dragging, html.kb-dragging * { cursor: grabbing !important; }
   .kb-lv-composer { padding: 8px 12px; }
   .kb-panel.am-panel.um-panel { width: auto; }
   .kb-props { grid-template-columns: 100px minmax(0, 1fr); }
+  /* The three choices of „Sichtbar für“ need the whole width: they take the row below their label */
+  .kb-props dd.kb-visible:has(.kb-seg3) { grid-column: 1 / -1; min-height: 0; margin-top: -4px; }
 }

@@ -2,7 +2,7 @@
  * Rules of the task board, self-contained (type imports only) so tests check them directly: Studio's limits, the place
  * of a card between its neighbours, the due-date wording on cards and rows, and the board's search and filters.
  */
-import type { BoardPerson, BoardTask, TaskPriority, TaskStatus } from "./types";
+import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskAudience, TaskPriority, TaskStatus } from "./types";
 
 export const TASK_STATUSES: readonly TaskStatus[] = ["backlog", "todo", "progress", "review", "done"];
 export const TASK_PRIORITIES: readonly TaskPriority[] = ["none", "low", "medium", "high", "urgent"];
@@ -148,6 +148,9 @@ export function matchesFilters(task: BoardTask, filters: BoardFilters, context: 
 
 export const activeFilterCount = (filters: BoardFilters) => [filters.assignee !== "all", Boolean(filters.label), filters.due !== "all"].filter(Boolean).length;
 
+/** The columns of `studio_tasks` the board reads (server and actions). */
+export const TASK_COLUMNS = "id, task_number, project_id, title, status, priority, due_date, labels, assignee_user_ids, client_visible, team_only, board_order, version, created_by, created_at, updated_at";
+
 /** One row of Studio's `studio_tasks` as the board reads it. */
 export type StudioTaskRow = {
   id: string;
@@ -160,6 +163,7 @@ export type StudioTaskRow = {
   labels: string[] | null;
   assignee_user_ids: string[] | null;
   client_visible: boolean;
+  team_only?: boolean | null;
   board_order: number | string;
   version: number | string;
   created_by: string;
@@ -183,6 +187,7 @@ export function toBoardTask(row: StudioTaskRow, counts: TaskCounts = NO_COUNTS):
     labels: row.labels ?? [],
     assigneeIds: row.assignee_user_ids ?? [],
     visible: Boolean(row.client_visible),
+    teamOnly: Boolean(row.team_only),
     order: Number(row.board_order) || 0,
     version: Number(row.version) || 1,
     createdBy: row.created_by,
@@ -196,3 +201,62 @@ export function toBoardTask(row: StudioTaskRow, counts: TaskCounts = NO_COUNTS):
 
 /** Share of done tasks in percent, like Studio's progress. */
 export const progressOf = (tasks: readonly Pick<BoardTask, "status">[]) => tasks.length ? Math.round((tasks.filter((task) => task.status === "done").length / tasks.length) * 100) : 0;
+
+// Who sees a task (user 16.11.2026, as in the approved design): one choice of three in the task window and in „Neue
+// Aufgabe“. The database knows two fields; the hub always writes both, so they never contradict each other.
+export const TASK_AUDIENCES: readonly TaskAudience[] = ["team", "shared", "customer"];
+export const isAudience = (value: unknown): value is TaskAudience => typeof value === "string" && (TASK_AUDIENCES as readonly string[]).includes(value);
+
+/** The choice a card stands on. A card released to the customer counts as „+ Kunde“, whatever else Studio set. */
+export const audienceOf = (task: Pick<BoardTask, "visible" | "teamOnly">): TaskAudience => (task.visible ? "customer" : task.teamOnly ? "team" : "shared");
+
+/** The two columns behind a choice. */
+export function audienceColumns(audience: TaskAudience): { team_only: boolean; client_visible: boolean } {
+  return { team_only: audience === "team", client_visible: audience === "customer" };
+}
+
+/** The same on a card in the browser (the server's row follows). */
+export const audienceFields = (audience: TaskAudience): Pick<BoardTask, "teamOnly" | "visible"> => ({ teamOnly: audience === "team", visible: audience === "customer" });
+
+/** Short first names in a sentence: „Mia“, „Mia und Tom“, „Mia, Tom und Lea“. */
+export function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} und ${names[names.length - 1]}`;
+}
+
+/** The logins of a project's freelancers, in the order of the freelancers. */
+export function projectFreelancerLogins(project: Pick<BoardProject, "freelancerIds"> | undefined, freelancers: readonly BoardFreelancer[]): string[] {
+  if (!project) return [];
+  const byId = new Map(freelancers.map((freelancer) => [freelancer.id, freelancer]));
+  return [...new Set(project.freelancerIds.flatMap((id) => byId.get(id)?.loginIds ?? []))];
+}
+
+/**
+ * Who reads a task's comments, under the comment field: comments never reach the customer (the hub writes them
+ * without client_visible), so „+ Kunde“ reads like „+ Freelancer“. `others` are the project's freelancers by first name,
+ * `self` says whether the viewer is one of them („du“).
+ */
+export function commentReaders(audience: TaskAudience, others: readonly string[], self: boolean): string {
+  if (audience === "team") return "Nur das oalab-Team sieht Kommentare";
+  const names = [...(self ? ["du"] : []), ...others];
+  return names.length ? `Sehen: ${joinNames(["oalab-Team", ...names])}` : "Sehen: das oalab-Team";
+}
+
+/** „Sichtbar für“ as freelancers read it: plain text, they choose nothing. */
+export function audienceText(audience: TaskAudience, others: readonly string[]): string {
+  const names = ["oalab-Team", "du", ...others, ...(audience === "customer" ? ["der Kunde"] : [])];
+  return joinNames(names);
+}
+
+/**
+ * Who may be assigned in a project: the team first, then the project's freelancers. Studio's trigger accepts exactly
+ * these (studio_validate_record since the freelancer migration of 16.11.2026).
+ */
+export function assignableIn(project: Pick<BoardProject, "freelancerIds"> | undefined, people: readonly BoardPerson[], freelancers: readonly BoardFreelancer[]): BoardPerson[] {
+  const byName = (a: BoardPerson, b: BoardPerson) => a.name.localeCompare(b.name, "de");
+  const logins = new Set(projectFreelancerLogins(project, freelancers));
+  return [
+    ...people.filter((person) => person.kind === "team").sort(byName),
+    ...people.filter((person) => person.kind === "freelancer" && logins.has(person.id)).sort(byName),
+  ];
+}
