@@ -36,10 +36,17 @@ export const isWaiting = (project: Pick<Project, "status" | "tasks">) => project
   ? project.tasks.some((task) => task.status !== "done" && task.customer && task.visible)
   : project.status === "Dein Feedback";
 
-/** The project with a status set on this page, until the page's data carries that version (or a newer one) itself. */
-export function withStatus<P extends Project>(project: P, set: { status: StudioProjectStatus; version: number } | undefined): P {
-  if (!set || (project.studio?.version ?? 0) > set.version) return project;
-  return { ...project, status: customerSees(set.status, isWaiting(project)), studio: { ...project.studio, status: set.status, version: set.version } };
+/** What this page saved in Studio: the new version and, when they changed, the status and whether the customer sees it. */
+export type StudioSaved = { version: number; status?: StudioProjectStatus; visible?: boolean };
+
+/** The project with what this page saved, until the page's data carries that version (or a newer one) itself. */
+export function withStudio<P extends Project>(project: P, saved: StudioSaved | undefined): P {
+  if (!saved || (project.studio?.version ?? 0) > saved.version) return project;
+  return {
+    ...project,
+    ...(saved.status ? { status: customerSees(saved.status, isWaiting(project)) } : {}),
+    studio: { ...project.studio, status: saved.status ?? statusOf(project), version: saved.version, ...(saved.visible === undefined ? {} : { visible: saved.visible }) },
+  };
 }
 
 /** What the customer reads in the hub for a Studio status (the hub's rule in map.ts: only "complete" finishes). */
