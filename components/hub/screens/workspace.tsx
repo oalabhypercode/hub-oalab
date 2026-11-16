@@ -20,6 +20,7 @@ import { useHubShell } from "../shell-context";
 import { WhatsAppCard } from "../whatsapp-card";
 import { NotificationSettingsCard } from "../notification-settings-card";
 import { SecondFactorCard } from "../second-factor-card";
+import { ConnectedAppsCard } from "../connected-apps-card";
 import { InstallRow } from "../web-app";
 import type { ScreenProps } from "./types";
 
@@ -140,6 +141,7 @@ export function ProfileScreen({ preview, email }: ScreenProps & { email: string 
         </GlassCard>}
         {!preview && <NotificationSettingsCard admin={account.admin} />}
         {!preview && <WhatsAppCard />}
+        {!preview && account.admin && <ConnectedAppsCard />}
       </div>
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">

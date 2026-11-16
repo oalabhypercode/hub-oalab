@@ -179,3 +179,13 @@ export const loadLiveProjects = cache(async (): Promise<LiveProjectsState> => {
   const admin = Boolean(await verifyHubAdmin());
   return assemble(await createClient(), db, admin);
 });
+
+/**
+ * Every project as an admin sees it, without a browser session: for the Claude connector, whose key the caller has
+ * already checked (lib/hub-mcp/store.ts, still an active admin). Admins read everything with the server key anyway.
+ */
+export async function loadLiveProjectsForCheckedAdmin(): Promise<LiveProjectsState> {
+  const db = createAdminClient();
+  if (!db) return unavailable("Projekte sind noch nicht eingerichtet: Es fehlt der Server-Schlüssel (SUPABASE_SECRET_KEY).");
+  return assemble(db, db, true);
+}

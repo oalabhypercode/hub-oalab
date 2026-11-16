@@ -1516,6 +1516,24 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .factor-secret { padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); font-size: 15px; line-height: 20px; letter-spacing: 0.06em; text-align: center; word-break: break-all; color: var(--label); }
 .factor-notice { color: var(--label); }
 
+/* Claude connector (lib/hub-mcp): the consent page and the profile card „Verbundene Apps“. */
+.claude-consent { max-width: 560px; }
+.claude-consent-label { margin: 4px 0 0; color: var(--label); font-weight: 600; }
+.claude-consent-scopes { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.claude-consent-scopes li { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); font-size: 15px; line-height: 20px; color: var(--label); }
+.claude-consent-scopes svg { flex: 0 0 auto; margin-top: 2px; color: var(--tone-ok); }
+.claude-consent-warn { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--tone-todo-bg); color: var(--tone-todo); font-weight: 550; }
+.claude-consent-warn svg { flex: 0 0 auto; margin-top: 1px; }
+.claude-consent-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.claude-consent-actions a { text-decoration: none; }
+.connected-apps-address { display: flex; align-items: center; gap: 8px; }
+.connected-apps-address .account-input { flex: 1 1 auto; min-width: 0; font-size: 15px; }
+.connected-apps-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+.connected-apps-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); }
+.connected-apps-list li > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.connected-apps-list strong { font-size: 16px; line-height: 21px; color: var(--label); }
+.connected-apps-list small { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+
 /* Calendar: month grid with the occupancy of every working day, day timeline, requests and appointments */
 .calendar-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin: 20px 0 14px; }
 .calendar-month-nav { display: inline-flex; align-items: center; gap: 2px; height: 44px; padding: 0 4px; border-radius: 999px; }
