@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { countRequests, customerSteps, projectSites, readProjectUrl, restatesSite, shortUrl, toHubProject, toProjectTask } from "../lib/hub-projects/map.ts";
+import { countRequests, customerSteps, projectSites, restatesSite, shortUrl, toHubProject, toProjectTask } from "../lib/hub-projects/map.ts";
+import { blankDraft, changedWords, changesOf, draftOf, isDay, mergeDraft, projectKeyFrom, readProjectDraft, readProjectPatch, readProjectUrl, sameDraft } from "../lib/hub-projects/edit.ts";
 import { deadlineHint, formatDeadline } from "../lib/hub-data.ts";
-import { byUrgency, customerSees, customerState, isStudioStatus, mainLinks, nextMilestone, statusOf, studioStatusOrder, studioStatuses, veilCounts, veilOf, withStatus } from "../lib/hub-projects/desk.ts";
+import { byUrgency, customerSees, customerState, isStudioStatus, mainLinks, nextMilestone, statusOf, studioStatusOrder, studioStatuses, veilCounts, veilOf, withStudio } from "../lib/hub-projects/desk.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const row = { id: "p1", organization_id: "o1", display_name: "Website-Relaunch", status: "active" };
@@ -147,29 +148,144 @@ test("Projekte V2: the customer's state in the list, the links in its head and t
   assert.equal(nextMilestone({ milestones: [{ title: "A", at: "2026-11-01" }] }, "2026-11-16"), null);
 });
 
-test("Projekte V2: a status set on the page shows until the page's data carries that version", () => {
+test("Projekte V2: what the page saved shows until the page's data carries that version", () => {
   const project = { id: "p", name: "X", status: "In Umsetzung", studio: { status: "active", version: 3, visible: true }, tasks: [] };
-  const set = withStatus(project, { status: "complete", version: 4 });
+  const set = withStudio(project, { status: "complete", version: 4 });
   assert.equal(set.studio.status, "complete");
   assert.equal(set.studio.version, 4);
   assert.equal(set.status, "Abgeschlossen");
   assert.equal(set.studio.visible, true);
+  // Visibility alone keeps the status and the customer's word, and carries the new version for the next change.
+  const hidden = withStudio(project, { version: 4, visible: false });
+  assert.equal(hidden.studio.visible, false);
+  assert.equal(hidden.studio.status, "active");
+  assert.equal(hidden.status, "In Umsetzung");
+  // A saved text field only moves the version on.
+  assert.equal(withStudio(project, { version: 6 }).studio.version, 6);
   // A newer version from Studio wins over what the page set.
-  assert.equal(withStatus({ ...project, studio: { status: "hold", version: 5 } }, { status: "complete", version: 4 }).studio.status, "hold");
-  assert.equal(withStatus(project, undefined), project);
+  assert.equal(withStudio({ ...project, studio: { status: "hold", version: 5 } }, { status: "complete", version: 4 }).studio.status, "hold");
+  assert.equal(withStudio(project, undefined), project);
 });
 
 test("Projekte V2: the status is written with the admin's own session, only with 2FA and the version the page showed", async () => {
   const actions = await source("lib/hub-projects/actions.ts");
-  const write = actions.slice(actions.indexOf("export async function setProjectStatus"));
-  assert.match(write, /claims\.claims\.aal !== "aal2"\) return denied/);
-  assert.match(write, /await verifyHubAdmin\(\)/);
+  const actor = actions.slice(actions.indexOf("async function teamActor"), actions.indexOf("type Team ="));
+  assert.match(actor, /claims\.claims\.aal !== "aal2"\) return null/);
+  assert.match(actor, /await verifyHubAdmin\(\)/);
+  const write = actions.slice(actions.indexOf("export async function setProjectStatus"), actions.indexOf("const staleDetails"));
+  assert.match(write, /const ctx = await teamActor\(\);\s+if \(!ctx\) return denied;/);
   assert.match(write, /isStudioStatus\(input\.status\)/);
-  assert.match(write, /supabase\.from\("studio_project_details"\)\.update\(\{ status \}\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
-  assert.match(write, /supabase\.from\("studio_project_details"\)\.insert\(/);
+  assert.match(write, /ctx\.supabase\.from\("studio_project_details"\)\.update\(\{ status \}\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
+  assert.match(write, /ctx\.supabase\.from\("studio_project_details"\)\.insert\(/);
   assert.doesNotMatch(write, /db\.from\("studio_project_details"\)/, "never with the service role: Studio's RLS and triggers check and log the change");
   assert.match(write, /action: "project\.status_set"/);
   assert.match(write, /refreshWorkspace\(\)/);
+});
+
+test("Projekte V2 step 2: what the panel takes, checked like Studio checks it", () => {
+  const typed = { name: "  Website   Relaunch ", description: " Neue Seite \n", startDate: "2026-11-16", dueDate: "2026-12-20", liveUrl: "kunde.de", testUrl: "", milestones: [
+    { id: "a", name: "Livegang", date: "2026-12-18" }, { id: "b", name: "", date: "" }, { id: "c", name: "Design", date: "2026-11-30" },
+  ] };
+  const read = readProjectDraft(typed);
+  assert.ok(read.ok);
+  assert.deepEqual(read.value, { name: "Website Relaunch", description: "Neue Seite", startDate: "2026-11-16", dueDate: "2026-12-20", liveUrl: "https://kunde.de", testUrl: null,
+    milestones: [{ name: "Design", date: "2026-11-30" }, { name: "Livegang", date: "2026-12-18" }] }, "empty rows drop out, milestones sort by day");
+  const fail = (patch) => readProjectDraft({ ...typed, ...patch });
+  assert.deepEqual(fail({ name: "  " }), { ok: false, field: "name", error: "Bitte gib dem Projekt einen Namen." });
+  assert.equal(fail({ name: "x".repeat(161) }).field, "name");
+  assert.equal(fail({ dueDate: "2026-11-01" }).error, "Der Zieltermin liegt vor dem Start.");
+  assert.equal(fail({ startDate: "2026-02-30" }).field, "startDate");
+  assert.equal(fail({ milestones: [{ id: "x", name: "Nur ein Name", date: "" }] }).error, "Jeder Meilenstein braucht ein Datum und einen Namen.");
+  assert.equal(fail({ milestones: Array.from({ length: 41 }, (_, index) => ({ id: `${index}`, name: `M${index}`, date: "2026-12-01" })) }).field, "milestones");
+  assert.equal(fail({ testUrl: "http://test.kunde.de" }).error, "Testdomain: Bitte eine sichere Adresse mit https:// eintragen.");
+  assert.ok(isDay("2028-02-29"));
+  assert.ok(!isDay("2027-02-29"));
+  assert.ok(!isDay("16.11.2026"));
+});
+
+test("Projekte V2 step 2: a change carries only what differs, both days together, and nothing unknown", () => {
+  const base = { name: "Shop", description: "", startDate: "2026-11-01", dueDate: null, liveUrl: null, testUrl: null, milestones: [] };
+  assert.deepEqual(changesOf(base, { ...base }), {});
+  assert.deepEqual(changesOf(base, { ...base, dueDate: "2026-12-01" }), { startDate: "2026-11-01", dueDate: "2026-12-01" });
+  assert.deepEqual(changesOf(base, { ...base, name: "Shop 2", milestones: [{ name: "Go", date: "2026-11-20" }] }), { name: "Shop 2", milestones: [{ name: "Go", date: "2026-11-20" }] });
+  assert.equal(changedWords(["milestones", "name", "dueDate"]), "Name, Zieltermin und Meilensteine");
+  assert.equal(changedWords(["clientVisible"]), "Sichtbarkeit");
+
+  assert.deepEqual(readProjectPatch({ clientVisible: true }), { ok: true, value: { clientVisible: true } });
+  assert.deepEqual(readProjectPatch({ liveUrl: "www.kunde.de/" }), { ok: true, value: { liveUrl: "https://www.kunde.de" } });
+  assert.deepEqual(readProjectPatch({ dueDate: "" }), { ok: true, value: { dueDate: null } });
+  assert.equal(readProjectPatch({}).ok, false, "at least one field");
+  assert.equal(readProjectPatch({ status: "active" }).ok, false, "the status has its own action");
+  assert.equal(readProjectPatch({ clientVisible: "ja" }).ok, false);
+  assert.equal(readProjectPatch({ startDate: "2026-12-02", dueDate: "2026-12-01" }).error, "Der Zieltermin liegt vor dem Start.");
+  assert.equal(readProjectPatch(null).ok, false);
+});
+
+test("Projekte V2 step 2: the panel's draft, what counts as changed and newer data while typing", () => {
+  const project = { name: "Shop", description: "Alt", startedOn: "2026-11-01", dueOn: null, liveUrl: "https://kunde.de", milestones: [{ title: "Go", description: "", at: "2026-11-20", kind: "milestone" }] };
+  const draft = draftOf(project);
+  assert.deepEqual(draft, { name: "Shop", description: "Alt", startDate: "2026-11-01", dueDate: "", liveUrl: "https://kunde.de", testUrl: "", milestones: [{ id: "m0", name: "Go", date: "2026-11-20" }] });
+  assert.deepEqual(blankDraft("2026-11-16"), { name: "", description: "", startDate: "2026-11-16", dueDate: "", liveUrl: "", testUrl: "", milestones: [] });
+  // Spaces, an empty milestone row and other row ids are no change.
+  assert.ok(sameDraft(draft, { ...draft, name: " Shop ", milestones: [{ id: "x", name: "Go ", date: "2026-11-20" }, { id: "y", name: "", date: "" }] }));
+  assert.ok(!sameDraft(draft, { ...draft, dueDate: "2026-12-01" }));
+  // Someone changed the description in Studio while the name is being typed: the name stays, the description follows.
+  const typing = { ...draft, name: "Shop neu" };
+  const merged = mergeDraft(typing, draft, { ...draft, description: "Neu aus dem Studio" });
+  assert.equal(merged.name, "Shop neu");
+  assert.equal(merged.description, "Neu aus dem Studio");
+});
+
+test("Projekte V2 step 2: the project key comes from the name, exactly like Studio makes it", () => {
+  assert.equal(projectKeyFrom("Website Relaunch 2027", []), "website-relaunch-2027");
+  assert.equal(projectKeyFrom("Müller & Söhne: Größe", []), "mueller-soehne-groesse");
+  assert.equal(projectKeyFrom("Website Relaunch 2027", ["website-relaunch-2027", "website-relaunch-2027-2"]), "website-relaunch-2027-3");
+  assert.equal(projectKeyFrom("2027", []), "projekt");
+  assert.equal(projectKeyFrom("X", []), "x-projekt");
+  for (const name of ["Ä", "Café crème", "a".repeat(200), "!!!"]) assert.match(projectKeyFrom(name, []), /^[a-z][a-z0-9_-]{1,63}$/);
+});
+
+test("Projekte V2 step 2: saving and creating go through Studio's checks with the admin's own session", async () => {
+  const actions = await source("lib/hub-projects/actions.ts");
+  const save = actions.slice(actions.indexOf("export async function saveProjectDetails"), actions.indexOf("export async function createProject"));
+  assert.match(save, /const ctx = await teamActor\(\);\s+if \(!ctx\) return denied;/);
+  assert.match(save, /readProjectPatch\(input\.patch\)/);
+  assert.match(save, /ctx\.supabase\.from\("studio_project_details"\)\.update\(studio\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
+  assert.doesNotMatch(save, /db\.from\("studio_project_details"\)/, "Studio's part never with the service role");
+  assert.match(save, /ctx\.db\.from\("customer_projects"\)\.update\(own\)/, "name and addresses on the project row");
+  assert.match(save, /action: "project\.saved"/);
+  assert.match(save, /refreshWorkspace\(\)/);
+  const create = actions.slice(actions.indexOf("export async function createProject"));
+  assert.match(create, /const ctx = await teamActor\(\);\s+if \(!ctx\) return denied;/);
+  assert.match(create, /readProjectDraft\(input\.draft\)/);
+  assert.match(create, /\(customer\.data\.kind \?\? "customer"\) !== "customer"/, "never for freelancers");
+  assert.match(create, /organization\.data\?\.status !== "active"/);
+  assert.match(create, /project_key: projectKeyFrom\(fields\.name,/);
+  assert.match(create, /ctx\.supabase\.from\("studio_project_details"\)\.insert\(/);
+  assert.doesNotMatch(create, /db\.from\("studio_project_details"\)/);
+  assert.match(create, /ctx\.db\.from\("customer_projects"\)\.delete\(\)\.eq\("id", projectId\)/, "a project Studio refused is taken back");
+  assert.match(create, /action: "project\.created"/);
+  assert.match(create, /refreshWorkspace\(\)/);
+});
+
+test("Projekte V2 step 2: the page asks before unsaved changes are lost and offers „Neues Projekt“ only with a service platform account", async () => {
+  const panel = await source("components/hub/screens/projects-panel.tsx");
+  assert.match(panel, /window\.confirm\("Deine Änderungen sind noch nicht gespeichert\. Verwerfen\?"\)/);
+  for (const name of ["chooseCustomer", "openProject", "closePanel", "startProject"]) {
+    const body = panel.slice(panel.indexOf(name.includes("Customer") ? `function ${name}` : `const ${name} =`));
+    assert.match(body.slice(0, 400), /leave\(\)/, `${name} asks first`);
+  }
+  assert.match(panel, /creating && entry\?\.customer\?\.organizationId/);
+  assert.match(panel, /<NewProjectPanel /);
+  assert.match(panel, /disabled=\{!customer\.organizationId \|\| creating\}/);
+  const side = await source("components/hub/screens/projects-side-panel.tsx");
+  assert.match(side, /useDirtyReport\(dirty, onDirty\)/);
+  assert.match(side, /saveProjectDetails\(\{ projectId: project\.id, expectedVersion: project\.studio\?\.version \?\? null, patch \}\)/);
+  assert.match(side, /project\.studio\?\.visible === true/, "without a Studio row a project is internal");
+  const created = await source("components/hub/screens/projects-new-panel.tsx");
+  assert.match(created, /useState<StudioProjectStatus>\("planning"\)/);
+  assert.match(created, /useState\(false\)/);
+  assert.match(created, /createProject\(\{ customerId: customer\.id, status, visible, draft \}\)/);
 });
 
 test("Projekte V2: every customer on the left, loaded only on the page and only for admins", async () => {

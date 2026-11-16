@@ -123,25 +123,6 @@ export function shortUrl(url: string): string {
   }
 }
 
-/**
- * An address typed into the panel ("abc.de", " https://abc.de/ ") as it is stored: https, no spaces, at most 2048
- * characters; empty clears. Returns an error text for anything else.
- */
-export function readProjectUrl(value: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
-  const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return { ok: true, value: null };
-  if (/^http:\/\//i.test(text)) return { ok: false, error: "Bitte eine sichere Adresse mit https:// eintragen." };
-  const withScheme = /^https:\/\//i.test(text) ? text : `https://${text}`;
-  if (/\s/.test(withScheme) || withScheme.length > 2048) return { ok: false, error: "Die Adresse darf keine Leerzeichen enthalten." };
-  try {
-    const url = new URL(withScheme);
-    if (!url.hostname.includes(".")) return { ok: false, error: "Das sieht nicht nach einer Web-Adresse aus, etwa kunde.de." };
-    return { ok: true, value: url.pathname === "/" && !url.search && !url.hash ? url.origin : url.href };
-  } catch {
-    return { ok: false, error: "Das sieht nicht nach einer Web-Adresse aus, etwa kunde.de." };
-  }
-}
-
 export type ProjectSite = { key: "live" | "website" | "test"; url: string; label: string; sub: string };
 
 /**

@@ -1,138 +1,161 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { CircleCheck, CircleDot, ExternalLink, Eye, EyeOff, FlaskConical, Globe, Hand, Milestone, Save, Sparkles, SquareKanban, Target } from "lucide-react";
+import { CircleDot, Eye, Hand, Save, Sparkles, SquareKanban } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { formatDeadline, type Project, type ProjectTask, type StudioProjectStatus } from "@/lib/hub-data";
-import { customerSees, isWaiting, nextMilestone, statusOf, studioStatusOrder, studioStatuses } from "@/lib/hub-projects/desk";
-import { shortUrl } from "@/lib/hub-projects/map";
-import { saveProjectUrls } from "@/lib/hub-projects/actions";
-import { CopyButton } from "./contracts-domains";
-import { useContractAction } from "./contracts-parts";
+import type { Project, ProjectTask, StudioProjectStatus } from "@/lib/hub-data";
+import { customerSees, isWaiting, statusOf, studioStatuses } from "@/lib/hub-projects/desk";
+import { changesOf, draftOf, mergeDraft, readProjectDraft, sameDraft, type ProjectDraft, type ProjectFields, type ProjectPatch } from "@/lib/hub-projects/edit";
+import { saveProjectDetails } from "@/lib/hub-projects/actions";
+import { formatDeadline } from "@/lib/hub-data";
 import { AssetPanel } from "./asset-panel";
+import { DomainFields, FieldError, focusInvalid, MilestoneEditor, PanelError, ProjectFieldsSection, StatusPicks, VisibleRow, type DraftError } from "./projects-edit-parts";
 import { StudioGlyph } from "./projects-parts";
-import { PanelSection } from "./users-panel";
+import { PanelSection, SaveStatus, useDirtyReport } from "./users-panel";
 
 const taskLabel: Record<ProjectTask["status"], string> = { backlog: "Backlog", todo: "Offen", progress: "In Arbeit", review: "In Prüfung", done: "Erledigt" };
+const failed = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
+
+/** The fields as Studio stores them, back in the panel's form („kunde.de“ now reads „https://kunde.de“). */
+const asDraft = (fields: ProjectFields): ProjectDraft => ({
+  name: fields.name,
+  description: fields.description,
+  startDate: fields.startDate ?? "",
+  dueDate: fields.dueDate ?? "",
+  liveUrl: fields.liveUrl ?? "",
+  testUrl: fields.testUrl ?? "",
+  milestones: fields.milestones.map((milestone, index) => ({ id: `s${index}`, ...milestone })),
+});
 
 /**
- * Everything about one project at the right edge, like the User Management's panel: the status to set with one click,
- * its live and test domain, what Studio holds about it (description, dates, milestones) and its open tasks with the way
- * to its task board. The customers and the list stay usable next to it; Escape or the cross closes it.
+ * Everything about one project at the right edge, like the User Management's panel (Projekte V2 step 2): status and
+ * visibility take effect at once, name, description, days, milestones and both domains wait for „Speichern“. The open
+ * tasks lead to the project's board. The customers and the list stay usable next to it; Escape or the cross closes it,
+ * and leaving with unsaved changes asks first (the page's `onDirty`).
  */
-export function ProjectSidePanel({ project, asOf, busy, boardHref, onStatus, onAsk, onClose, onSaved }: {
+export function ProjectSidePanel({ project, asOf, busy, boardHref, onStatus, onVisible, onAsk, onClose, onSaved, onStale, onDirty }: {
   project: Project;
   asOf: string;
+  /** A status or visibility change of this project is on its way. */
   busy: boolean;
   /** The project's board under Projekte › Aufgaben, where its tasks are moved, created and edited. */
   boardHref: string;
   onStatus: (status: StudioProjectStatus) => void;
+  onVisible: (visible: boolean) => void;
   onAsk?: () => void;
   onClose: () => void;
-  onSaved: (message: string) => void;
+  /** After „Speichern“: Studio's new version and what was saved, with the line for the page's notice. */
+  onSaved: (saved: { version: number | null; patch: ProjectPatch }, message: string) => void;
+  /** Studio holds a newer state: the page loads it, the panel keeps what is being typed. */
+  onStale: () => void;
+  onDirty: (dirty: boolean) => void;
 }) {
   const status = statusOf(project);
   const waiting = isWaiting(project);
-  const [draft, setDraft] = useState({ live: project.liveUrl ?? "", test: project.testUrl ?? "" });
-  const { busy: saving, error, run } = useContractAction();
-  const dirty = draft.live.trim() !== (project.liveUrl ?? "") || draft.test.trim() !== (project.testUrl ?? "");
+  // Without a Studio row the customer sees nothing of it yet, like Studio's default.
+  const visible = project.studio?.visible === true;
+  const stored = draftOf(project);
+  const storedKey = JSON.stringify(stored);
+  const [seen, setSeen] = useState(storedKey);
+  const [base, setBase] = useState(stored);
+  const [draft, setDraft] = useState(stored);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<DraftError | null>(null);
+  const body = useRef<HTMLFormElement>(null);
+
+  // Newer data from the server (after saving, or a change in Studio): untouched fields follow, typed ones stay.
+  if (storedKey !== seen) {
+    setSeen(storedKey);
+    setDraft(mergeDraft(draft, base, stored));
+    setBase(stored);
+  }
+  const dirty = !sameDraft(draft, base);
+  useDirtyReport(dirty, onDirty);
+  const disabled = saving;
   const tasks = project.tasks ?? [];
   const open = tasks.filter((task) => task.status !== "done");
-  const next = nextMilestone(project, asOf);
-  const disabled = saving !== null;
 
-  const save = () => run("save", () => saveProjectUrls({ projectId: project.id, liveUrl: draft.live, testUrl: draft.test }), (saved) => {
-    setDraft({ live: saved.liveUrl ?? "", test: saved.testUrl ?? "" });
-    onSaved(`Domains von „${project.name}“ gespeichert.`);
-  });
-  const footer = dirty ? (
-    <>
-      <span className="um-foot-state is-dirty">Nicht gespeichert</span>
-      <button type="button" className="sheet-action is-quiet" onClick={() => setDraft({ live: project.liveUrl ?? "", test: project.testUrl ?? "" })} disabled={disabled}>Verwerfen</button>
-      <button type="button" className="sheet-action is-primary" onClick={save} disabled={disabled}>{saving ? <MiniLoader size={15} /> : <Save size={15} aria-hidden="true" />}Speichern</button>
-    </>
-  ) : undefined;
-
-  const urlField = (kind: "live" | "test") => {
-    const value = draft[kind];
-    const stored = kind === "live" ? project.liveUrl : project.testUrl;
-    const Icon = kind === "live" ? Globe : FlaskConical;
-    const label = kind === "live" ? "Live-Domain" : "Testdomain";
-    return (
-      <div className="um-field is-wide">
-        <span className="am-label">{label}</span>
-        <label className={`pj-url is-${kind}`}>
-          <Icon size={16} aria-hidden="true" />
-          <input value={value} onChange={(event) => setDraft({ ...draft, [kind]: event.target.value })} placeholder={kind === "live" ? "kunde.de" : "test.kunde.de"} aria-label={label}
-            inputMode="url" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={2048} disabled={disabled} />
-          {stored && value.trim() === stored && <>
-            <a className="row-action" href={stored} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${shortUrl(stored)} öffnen (neuer Tab)`} data-tip="Öffnen" data-tip-sub="neuer Tab"><ExternalLink size={15} aria-hidden="true" /></a>
-            <CopyButton value={stored} label={label} />
-          </>}
-        </label>
-        <small className="pj-form-hint">{kind === "live" ? "Die echte Website; dieselbe Adresse wie „Live schalten“ auf der Serviceplattform." : "Hier landen Service-Änderungen zuerst, bevor der Kunde sie freigibt."}</small>
-      </div>
-    );
+  const change = (patch: Partial<ProjectDraft>) => {
+    setDraft((current) => ({ ...current, ...patch }));
+    setSaved(false);
+    setError(null);
   };
+
+  async function save() {
+    const next = readProjectDraft(draft);
+    if (!next.ok) {
+      setError({ field: next.field, text: next.error });
+      focusInvalid(body.current);
+      return;
+    }
+    const before = readProjectDraft(base);
+    const patch = before.ok ? changesOf(before.value, next.value) : next.value;
+    if (!Object.keys(patch).length) { setDraft(base); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await saveProjectDetails({ projectId: project.id, expectedVersion: project.studio?.version ?? null, patch });
+      if (!result.ok) {
+        setError({ field: null, text: result.error });
+        if (result.stale) onStale();
+        return;
+      }
+      const shown = asDraft(next.value);
+      setBase(shown);
+      setDraft(shown);
+      setSaved(true);
+      onSaved(result.data, `„${next.value.name}“ gespeichert.`);
+    } catch {
+      setError({ field: null, text: failed });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const footer = <>
+    <SaveStatus state={dirty ? "dirty" : saved ? "saved" : "clean"} />
+    {dirty && <button type="button" className="sheet-action is-quiet" onClick={() => { setDraft(base); setError(null); }} disabled={saving}>Verwerfen</button>}
+    <button type="button" className="sheet-action is-primary" onClick={() => void save()} disabled={saving || busy || !dirty}>{saving ? <MiniLoader size={15} /> : <Save size={15} aria-hidden="true" />}Speichern</button>
+  </>;
 
   return (
     <AssetPanel className="um-panel pj-panel" label={`Projekt ${project.name}`} title={project.name} onClose={onClose} footer={footer}
       icon={<span className={`pj-glyph is-lg tone-${studioStatuses[status].tone}`}><StudioGlyph status={status} size={18} /></span>}
-      subtitle={`${project.company ?? "Ohne Kunde"} · ${studioStatuses[status].label}`}
+      subtitle={`${project.company ?? "Ohne Kunde"} · ${studioStatuses[status].label}${visible ? "" : " · intern"}`}
       actions={onAsk && <button type="button" className="chat-icon-button is-muted" onClick={onAsk} aria-label="Assistent zu diesem Projekt fragen" data-tip="Assistent zu diesem Projekt fragen"><Sparkles size={18} aria-hidden="true" /></button>}>
-      <PanelSection title="Status" meta="wirkt sofort, auch im Studio">
-        <div className="pj-status-pick" role="group" aria-label="Status">
-          {studioStatusOrder.map((item) => (
-            <button key={item} type="button" aria-pressed={status === item} className={`pj-pick tone-${studioStatuses[item].tone}`} onClick={() => { if (item !== status) onStatus(item); }} disabled={busy}>
-              <StudioGlyph status={item} size={16} /><span>{studioStatuses[item].label}</span>
-            </button>
-          ))}
-        </div>
-        <p className="pj-pick-hint">{busy ? <MiniLoader size={14} /> : <Eye size={14} aria-hidden="true" />}<span>Der Kunde sieht: <b>{customerSees(status, waiting)}</b>{waiting && status !== "complete" ? " (eine Aufgabe liegt bei ihm)" : ""}</span></p>
-        {project.studio?.visible === false && <p className="pj-pick-hint"><EyeOff size={14} aria-hidden="true" /><span>Der Kunde sieht dieses Projekt noch nicht; freigegeben wird es im Studio.</span></p>}
-      </PanelSection>
-      <PanelSection title="Domains & Links" meta="ein Klick öffnet die Seite">
-        <div className="pj-fields">{urlField("live")}{urlField("test")}</div>
-        {error && <p className="form-error" role="alert">{error}</p>}
-      </PanelSection>
-      <PanelSection title="Projekt" meta="pflegt das Team im Studio">
-        <dl className="pj-facts">
-          <div><dt>Beschreibung</dt><dd>{project.description || <span className="pj-none">Keine Beschreibung</span>}</dd></div>
-          <div><dt>Start</dt><dd className="numeric">{formatDeadline(project.startedOn)}</dd></div>
-          <div><dt>Ziel</dt><dd className="numeric">{formatDeadline(project.dueOn)}</dd></div>
-        </dl>
-      </PanelSection>
-      <PanelSection title="Meilensteine" meta={project.milestones.length ? `${project.milestones.length}` : undefined}>
-        {project.milestones.length ? (
-          <ul className="pj-ms-list">
-            {project.milestones.map((milestone, index) => {
-              const past = milestone.at.slice(0, 10) < asOf;
-              const isNext = next === milestone;
-              const Mark = past ? CircleCheck : isNext ? Target : Milestone;
-              return (
-                <li key={`${milestone.at}-${index}`} className={`${past ? "is-past" : ""}${isNext ? " is-next" : ""}`}>
-                  <span className="pj-ms-mark"><Mark size={16} aria-hidden="true" /></span><span>{milestone.title}</span><time className="numeric" dateTime={milestone.at}>{formatDeadline(milestone.at.slice(0, 10))}</time>
+      <form ref={body} className="um-form" noValidate onSubmit={(event) => { event.preventDefault(); if (dirty && !saving && !busy) void save(); }}>
+        <PanelError error={error} />
+        <PanelSection title="Status" meta="wirkt sofort, auch im Studio">
+          <StatusPicks value={status} disabled={busy || saving} onPick={onStatus} />
+          <p className="pj-pick-hint">{busy ? <MiniLoader size={14} /> : <Eye size={14} aria-hidden="true" />}<span>Der Kunde sieht: <b>{visible ? customerSees(status, waiting) : "nichts, das Projekt ist intern"}</b>{visible && waiting && status !== "complete" ? " (eine Aufgabe liegt bei ihm)" : ""}</span></p>
+          <VisibleRow visible={visible} busy={busy} disabled={busy || saving} onChange={onVisible} />
+        </PanelSection>
+        <PanelSection title="Domains & Links" meta="ein Klick öffnet die Seite">
+          <DomainFields draft={draft} stored={{ live: project.liveUrl, test: project.testUrl }} disabled={disabled} error={error} onChange={change} />
+          <FieldError error={error} fields={["liveUrl", "testUrl"]} />
+        </PanelSection>
+        <ProjectFieldsSection draft={draft} meta={visible ? "Name und Beschreibung sieht der Kunde" : "sieht der Kunde, sobald du es freigibst"} disabled={disabled} error={error} onChange={change} />
+        <PanelSection title="Meilensteine" meta={draft.milestones.length ? `${draft.milestones.length}` : undefined}>
+          <MilestoneEditor rows={draft.milestones} asOf={asOf} disabled={disabled} error={error} onChange={(milestones) => change({ milestones })} />
+          <FieldError error={error} fields={["milestones"]} />
+        </PanelSection>
+        <PanelSection title="Aufgaben" meta={tasks.length ? `${tasks.length - open.length} von ${tasks.length} erledigt` : undefined}
+          action={<Link className="am-label-action" href={boardHref} data-tip="Aufgaben-Board dieses Projekts"><SquareKanban size={13} aria-hidden="true" />Zum Board</Link>}>
+          {open.length ? (
+            <ul className="pj-tasks">
+              {open.map((task) => (
+                <li key={task.id}>
+                  <span className="pj-task-mark">{task.customer ? <Hand size={15} aria-hidden="true" /> : <CircleDot size={15} aria-hidden="true" />}</span>
+                  <span>{task.title}</span>
+                  <small>{[`#${task.number}`, task.customer ? "Kunde" : "oalab", taskLabel[task.status], task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : "", task.visible ? "" : "intern"].filter(Boolean).join(" · ")}</small>
                 </li>
-              );
-            })}
-          </ul>
-        ) : <p className="pj-empty">Noch keine Meilensteine im Studio.</p>}
-      </PanelSection>
-      <PanelSection title="Aufgaben" meta={tasks.length ? `${tasks.length - open.length} von ${tasks.length} erledigt` : undefined}
-        action={<Link className="am-label-action" href={boardHref} data-tip="Aufgaben-Board dieses Projekts"><SquareKanban size={13} aria-hidden="true" />Zum Board</Link>}>
-        {open.length ? (
-          <ul className="pj-tasks">
-            {open.map((task) => (
-              <li key={task.id}>
-                <span className="pj-task-mark">{task.customer ? <Hand size={15} aria-hidden="true" /> : <CircleDot size={15} aria-hidden="true" />}</span>
-                <span>{task.title}</span>
-                <small>{[`#${task.number}`, task.customer ? "Kunde" : "oalab", taskLabel[task.status], task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : "", task.visible ? "" : "intern"].filter(Boolean).join(" · ")}</small>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="pj-empty">{tasks.length ? "Alle Aufgaben erledigt." : "Noch keine Aufgaben. Im Board legst du welche an."}</p>}
-      </PanelSection>
+              ))}
+            </ul>
+          ) : <p className="pj-empty">{tasks.length ? "Alle Aufgaben erledigt." : "Noch keine Aufgaben. Im Board legst du welche an."}</p>}
+        </PanelSection>
+      </form>
     </AssetPanel>
   );
 }

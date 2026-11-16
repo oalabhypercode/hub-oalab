@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpRight, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleDot, ExternalLink, EyeOff, FlaskConical, FolderOpen, Gauge, Globe, LayoutGrid, LifeBuoy, MessageSquare, Pencil, Plus, Search, Trash2, Unplug } from "lucide-react";
@@ -9,9 +9,10 @@ import { formatDay } from "@/lib/hub-contracts/rules";
 import { domainStatuses, isDomainStatus } from "@/lib/hub-domains/rules";
 import { formatDeadline, hubHref, type Project, type StudioProjectStatus } from "@/lib/hub-data";
 import { packageCatalog, serviceRequestLimit } from "@/lib/service-packages";
-import { byUrgency, customerState, isRunning, isWaiting, mainLinks, nextMilestone, statusOf, studioStatuses, withStatus, type DeskCustomer, type ProjectDesk } from "@/lib/hub-projects/desk";
-import { readProjectUrl, shortUrl } from "@/lib/hub-projects/map";
-import { saveProjectUrls, setProjectStatus } from "@/lib/hub-projects/actions";
+import { byUrgency, customerState, isRunning, isWaiting, mainLinks, nextMilestone, statusOf, studioStatuses, withStudio, type DeskCustomer, type ProjectDesk, type StudioSaved } from "@/lib/hub-projects/desk";
+import { readProjectUrl } from "@/lib/hub-projects/edit";
+import { shortUrl } from "@/lib/hub-projects/map";
+import { saveProjectDetails, saveProjectUrls, setProjectStatus } from "@/lib/hub-projects/actions";
 import { useInfo } from "../info-box";
 import { quickLinks, taskBoardHref } from "../project-links";
 import { Select } from "../select";
@@ -20,6 +21,7 @@ import { useHubShell } from "../shell-context";
 import { CopyButton, DomainDialog } from "./contracts-domains";
 import { tableHit } from "./contracts-parts";
 import { CustomerSign } from "./customer-sign";
+import { NewProjectPanel } from "./projects-new-panel";
 import { ProjectsOverview } from "./projects-overview";
 import { DueCell, LinkButtons, ProgressCell, rowMarks, StatusPick, StudioGlyph, VeilKey } from "./projects-parts";
 import { ProjectSidePanel } from "./projects-side-panel";
@@ -54,7 +56,8 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<Show>("all");
   const [overviewPanel, setOverviewPanel] = useState<string | null>(null);
-  const [statusSet, setStatusSet] = useState<Record<string, { status: StudioProjectStatus; version: number }>>({});
+  const [saved, setSaved] = useState<Record<string, StudioSaved>>({});
+  const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const [edit, setEdit] = useState<LinkEdit | null>(null);
@@ -86,8 +89,17 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
     ask: "Was zeigt der Service-Teil bei Projekte?",
   });
 
-  // A status set here shows at once, until the page's data carries that version itself.
-  const view = useMemo(() => projects.map((project) => withStatus(project, statusSet[project.id])), [projects, statusSet]);
+  // A status or visibility set here shows at once, until the page's data carries that version itself.
+  const view = useMemo(() => projects.map((project) => withStudio(project, saved[project.id])), [projects, saved]);
+  const remember = (projectId: string, next: StudioSaved) => setSaved((current) => ({ ...current, [projectId]: { ...current[projectId], ...next } }));
+  // The open panel reports unsaved changes; another project, another customer or closing asks before they are lost.
+  const dirty = useRef(false);
+  const reportDirty = useCallback((value: boolean) => { dirty.current = value; }, []);
+  const leave = () => {
+    if (dirty.current && !window.confirm("Deine Änderungen sind noch nicht gespeichert. Verwerfen?")) return false;
+    dirty.current = false;
+    return true;
+  };
   const entries = useMemo<Entry[]>(() => {
     const byKey = new Map<string, Entry>(desk.customers.map((customer) => [customer.id, { key: customer.id, company: customer.company, customer, projects: [] }]));
     for (const project of view) {
@@ -118,23 +130,64 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
     window.history.replaceState(null, "", url);
   }
   function chooseCustomer(key: string | null) {
+    if (!leave()) return;
     navigate({ customer: key });
     setOverviewPanel(null);
+    setCreating(false);
     setEdit(null);
     setNotice(null);
     setPaneOpen(true);
   }
-  const openProject = (project: Project) => { if (entry) navigate({ customer: entry.key, project: project.id }); else setOverviewPanel(project.id); };
-  const closePanel = () => { if (entry) navigate({ customer: entry.key }); else setOverviewPanel(null); };
+  const openProject = (project: Project) => {
+    if (project.id === panelProject?.id && !creating) return;
+    if (!leave()) return;
+    setCreating(false);
+    if (entry) navigate({ customer: entry.key, project: project.id }); else setOverviewPanel(project.id);
+  };
+  const closePanel = () => {
+    if (!leave()) return;
+    setCreating(false);
+    if (entry) navigate({ customer: entry.key }); else setOverviewPanel(null);
+  };
+  const startProject = () => {
+    if (creating || !leave()) return;
+    if (entry) navigate({ customer: entry.key });
+    setNotice(null);
+    setCreating(true);
+  };
 
   async function changeStatus(project: Project, status: StudioProjectStatus) {
     setBusy(project.id);
     setNotice(null);
     try {
       const result = await setProjectStatus({ projectId: project.id, status, expectedVersion: project.studio?.version ?? null });
-      if (!result.ok) { setNotice({ text: result.error, error: true }); return; }
-      setStatusSet((current) => ({ ...current, [project.id]: result.data }));
+      if (!result.ok) {
+        setNotice({ text: result.error, error: true });
+        if (result.stale) router.refresh();
+        return;
+      }
+      remember(project.id, result.data);
       setNotice({ text: `„${project.name}“ steht jetzt auf ${studioStatuses[status].label}.` });
+    } catch {
+      setNotice({ text: "Das hat gerade nicht geklappt. Bitte versuche es erneut.", error: true });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Releases a project to the customer or takes it back; like the status, at once. */
+  async function changeVisible(project: Project, visible: boolean) {
+    setBusy(project.id);
+    setNotice(null);
+    try {
+      const result = await saveProjectDetails({ projectId: project.id, expectedVersion: project.studio?.version ?? null, patch: { clientVisible: visible } });
+      if (!result.ok) {
+        setNotice({ text: result.error, error: true });
+        if (result.stale) router.refresh();
+        return;
+      }
+      if (result.data.version !== null) remember(project.id, { version: result.data.version, visible });
+      setNotice({ text: visible ? `„${project.name}“ sieht der Kunde jetzt unter Projekte.` : `„${project.name}“ ist wieder intern; der Kunde sieht es nicht mehr.` });
     } catch {
       setNotice({ text: "Das hat gerade nicht geklappt. Bitte versuche es erneut.", error: true });
     } finally {
@@ -223,9 +276,21 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
   const noticeLine = notice && (notice.error
     ? <p className="form-error section-first" role="alert">{notice.text}</p>
     : <p className="calendar-notice section-first" role="status"><Check size={18} aria-hidden="true" />{notice.text}</p>);
-  const panel = panelProject && (
+  // „Neues Projekt“ needs a hub customer with an organization on the service platform, where projects live.
+  const newFor = creating && entry?.customer?.organizationId ? { key: entry.key, customer: entry.customer } : null;
+  const panel = newFor ? (
+    <NewProjectPanel key={`new-${newFor.key}`} customer={newFor.customer} asOf={asOf} onClose={closePanel} onDirty={reportDirty}
+      onCreated={(project) => {
+        dirty.current = false;
+        setCreating(false);
+        navigate({ customer: newFor.key, project: project.id });
+        setNotice({ text: `Projekt „${project.name}“ angelegt.` });
+      }} />
+  ) : panelProject && (
     <ProjectSidePanel key={panelProject.id} project={panelProject} asOf={asOf} busy={busy === panelProject.id} boardHref={taskBoardHref(preview, panelProject.id)}
-      onStatus={(status) => changeStatus(panelProject, status)} onClose={closePanel} onSaved={(text) => setNotice({ text })}
+      onStatus={(status) => changeStatus(panelProject, status)} onVisible={(visible) => changeVisible(panelProject, visible)} onClose={closePanel} onDirty={reportDirty}
+      onSaved={(result, text) => { if (result.version !== null) remember(panelProject.id, { version: result.version }); setNotice({ text }); }}
+      onStale={() => router.refresh()}
       onAsk={manageUsers ? () => askAboutProject({ id: panelProject.id, name: panelProject.name }) : undefined} />
   );
 
@@ -246,7 +311,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
               </header>
               {view.length
                 ? <ProjectsOverview projects={view} keyOf={entryKey} logos={logos} asOf={asOf} current={panelProject?.id ?? null} busy={busy} onOpen={openProject} onCustomer={chooseCustomer} onStatus={changeStatus} />
-                : <div className="sheet-empty"><p>Noch keine Projekte. Projekte entstehen im Studio auf der Serviceplattform.</p></div>}
+                : <div className="sheet-empty"><p>Noch keine Projekte. Wähle links einen Kunden; dort legst du mit „Projekt“ das erste an.</p></div>}
             </section>
           </div>
         </div>
@@ -283,7 +348,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
               <span className="pj-name">
                 <button type="button" className="pj-open" onClick={(event) => { event.stopPropagation(); openProject(project); }} aria-label={`${project.name}: alle Angaben öffnen`}><strong>{project.name}</strong></button>
                 {isWaiting(project) && isRunning(status) && <span className="chat-pill tone-todo" data-tip="Eine Aufgabe liegt beim Kunden">Kunde am Zug</span>}
-                {project.studio?.visible === false && <span className="pj-hidden" data-tip="Der Kunde sieht dieses Projekt noch nicht"><EyeOff size={13} aria-hidden="true" />intern</span>}
+                {project.studio?.visible !== true && <span className="pj-hidden" data-tip="Der Kunde sieht dieses Projekt noch nicht"><EyeOff size={13} aria-hidden="true" />intern</span>}
               </span>
               <small>{sub}</small>
             </span>
@@ -381,13 +446,27 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                 </div>
               )}
               <PaneJumps links={jumps} />
+              {customer && (
+                <button type="button" className="sheet-action is-primary pj-new" onClick={startProject} disabled={!customer.organizationId || creating} aria-label="Neues Projekt"
+                  data-tip={customer.organizationId ? undefined : "Erst braucht der Kunde ein Konto auf der Serviceplattform"} data-tip-compact={customer.organizationId ? "Neues Projekt" : undefined}>
+                  <Plus size={15} aria-hidden="true" /><span className="pj-new-label" data-tip-label>Projekt</span>
+                </button>
+              )}
             </header>
             <div className="am-scroll pj-scroll">
               <table className="file-table pj-table">
                 <caption className="visually-hidden">Projekte von {entry.company}</caption>
                 <TableGroup colSpan={6} label="Projekte" count={running.length} glyph={<FolderOpen size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("projects")} onToggle={() => groups.toggle("projects")}
-                  actions={statusInfo.button} empty={entry.projects.length ? "Gerade läuft kein Projekt." : customer?.organizationId ? "Für diesen Kunden gibt es noch kein Projekt. Projekte entstehen im Studio." : "Noch kein Projekt: Dieser Kunde ist noch nicht auf der Serviceplattform."}>
+                  actions={statusInfo.button}>
                   {running.map(projectRow)}
+                  {!running.length && <tr className="table-empty-row"><td colSpan={6}>{entry.projects.length ? "Gerade läuft kein Projekt." : customer?.organizationId || !customer ? "Für diesen Kunden gibt es noch kein Projekt." : "Noch kein Projekt: Dieser Kunde ist noch nicht auf der Serviceplattform."}</td></tr>}
+                  {customer && (
+                    <tr className="table-add-row">
+                      <td colSpan={6}>
+                        <button type="button" className="table-add" onClick={startProject} disabled={!customer.organizationId || creating} data-tip={customer.organizationId ? undefined : "Erst braucht der Kunde ein Konto auf der Serviceplattform"}><Plus size={16} aria-hidden="true" />Projekt anlegen</button>
+                      </td>
+                    </tr>
+                  )}
                 </TableGroup>
               </table>
               <table className="file-table pj-table">

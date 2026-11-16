@@ -2672,6 +2672,12 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .pj-chip .pj-chip-text, .pj-chip .pj-chip-arrow { display: none; }
   .pj-chip { width: 32px; padding: 0; justify-content: center; }
 }
+/* „+ Projekt“ at the end of the head; in a narrow pane only its plus, named by the hint. */
+.pj .am-pane-head .pj-new { flex: 0 0 auto; }
+@container pjpane (max-width: 760px) {
+  .pj .pj-new-label { display: none; }
+  .pj .am-pane-head .pj-new { width: 30px; padding: 0; justify-content: center; }
+}
 
 /* The groups on the right, one table each. */
 .pj-scroll { padding-bottom: 20px; }
@@ -2871,7 +2877,7 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .pj-ov .project-card { font-size: 15px; }
 }
 
-/* The panel of a project: the status in five steps, its domains, what Studio holds and the open tasks. */
+/* The panel of a project: the status in five steps, its domains, its fields and milestones, and the open tasks. */
 .pj-panel .am-panel-title > span { display: block; }
 .pj-status-pick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .pj-pick { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 10px 2px 9px; border-radius: 10px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 600; line-height: 15px; }
@@ -2890,26 +2896,37 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .pj-pick-hint b { color: var(--label-body); font-weight: 600; }
 .pj-fields { display: grid; gap: 12px; }
 .pj-fields .pj-url { flex: none; }
-.pj-facts { display: grid; gap: 8px; margin: 0; }
-.pj-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline; }
-.pj-facts dt { color: var(--sheet-muted); font-size: 12.5px; line-height: 18px; }
-.pj-facts dd { margin: 0; color: var(--label); font-size: 13.5px; line-height: 19px; white-space: pre-line; overflow-wrap: anywhere; }
-.pj-ms-list, .pj-tasks { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.pj-ms-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 34px; border-bottom: 1px solid var(--sheet-divider); color: var(--label); font-size: 13px; }
-.pj-ms-list li.is-past { color: var(--sheet-muted); }
-.pj-ms-list time { color: var(--sheet-muted); font-size: 12px; }
+.pj-tasks { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .pj-ms-mark { display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-icon); }
-.pj-ms-list li.is-past .pj-ms-mark { color: var(--tone-ok); }
-.pj-ms-list li.is-next .pj-ms-mark, .pj-ms-list li.is-next time { color: var(--accent-text); }
 .pj-tasks li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 36px; padding: 0 2px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; }
-.pj-ms-list li:last-child, .pj-tasks li:last-child { border-bottom: 0; }
+.pj-tasks li:last-child { border-bottom: 0; }
 .pj-tasks li span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); }
 .pj-tasks li small { color: var(--sheet-muted); font-size: 12px; white-space: nowrap; }
 .pj-task-mark { display: inline-flex; color: var(--sheet-icon); }
 .pj-task-mark:has(.lucide-hand) { color: var(--tone-todo); }
 .pj-empty { color: var(--sheet-muted); font-size: 13px; line-height: 18px; }
 .pj-panel .am-panel-foot { display: flex; align-items: center; gap: 8px; }
+/* Editing in the panel and „Neues Projekt“ (Projekte V2 step 2): the visibility switch, milestone rows, error frames. */
+.pj-panel .pj-panel-error { margin: 14px 0 0; }
+.pj-switch-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--sheet-sunken); }
+.pj-switch-text { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.pj-switch-text strong { color: var(--label); font-size: 13.5px; font-weight: 600; line-height: 18px; }
+.pj-switch-text small { color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+.pj-switch-busy { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 51px; height: 31px; }
+.switch:disabled { opacity: 0.5; cursor: default; }
+.pj-panel textarea.pj-desc { min-height: 84px; }
+.pj-ms-edit { display: grid; gap: 8px; }
+.pj-ms-row { display: grid; grid-template-columns: 22px 148px minmax(0, 1fr) 30px; gap: 8px; align-items: center; }
+.pj-ms-row .am-input { height: 36px; }
+.pj-ms-row.is-past .am-input { color: var(--sheet-muted); }
+.pj-ms-row.is-past .pj-ms-mark { color: var(--tone-ok); }
+.pj-ms-row.is-next .pj-ms-mark { color: var(--accent-text); }
+.pj-add-line { display: inline-flex; align-items: center; gap: 6px; justify-self: start; height: 30px; padding: 0 4px; border-radius: 6px; color: var(--accent-text); font-size: 13px; font-weight: 600; }
+.pj-add-line:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.pj-add-line:disabled { color: var(--sheet-muted); }
+.pj-panel :is(.am-input, .am-textarea)[aria-invalid="true"], .pj-panel .pj-url:has(input[aria-invalid="true"]) { box-shadow: inset 0 0 0 2px var(--danger); }
 @media (max-width: 767px) {
+  .pj-ms-row { grid-template-columns: 22px 136px minmax(0, 1fr) 30px; }
   .pj-status-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .pj-tasks li { grid-template-columns: 18px minmax(0, 1fr); }
   .pj-tasks li small { grid-column: 2; white-space: normal; }

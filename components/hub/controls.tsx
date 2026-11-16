@@ -35,8 +35,8 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
 }
 
 /** iOS-style switch (51 × 31). */
-export function Switch({ checked, onChange, label, id }: { checked: boolean; onChange: (value: boolean) => void; label: string; id?: string }) {
-  return <button id={id} type="button" role="switch" aria-checked={checked} aria-label={label} className="switch" onClick={() => onChange(!checked)}><span className="switch-knob" /></button>;
+export function Switch({ checked, onChange, label, id, disabled = false }: { checked: boolean; onChange: (value: boolean) => void; label: string; id?: string; disabled?: boolean }) {
+  return <button id={id} type="button" role="switch" aria-checked={checked} aria-label={label} className="switch" disabled={disabled} onClick={() => onChange(!checked)}><span className="switch-knob" /></button>;
 }
 
 export function Slider({ label, value, min, max, step, onChange, format, id }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void; format: (value: number) => string; id: string }) {

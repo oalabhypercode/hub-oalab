@@ -60,6 +60,7 @@ const places = [
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Projektstatus"', button: /label="Projekte"[^]*?actions=\{statusInfo\.button\}/, box: "{statusInfo.box}" },
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Domains & Links"', button: /label="Domains & Links"[^]*?\{linksInfo\.button\}<\/>\}/, box: "{linksInfo.box}" },
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Service"', button: /label="Service"[^]*?actions=\{serviceInfo\.button\}/, box: "{serviceInfo.box}" },
+  { file: "components/hub/screens/projects-new-panel.tsx", call: 'useInfo("Neues Projekt"', button: /closeDisabled=\{saving\} footer=\{footer\} actions=\{info\.button\}/, box: "{info.box}" },
   // The task board under Projekte (since 16.11.2026): at the end of the project's head.
   { file: "components/hub/screens/tasks.tsx", call: 'useInfo("Aufgaben-Board"', button: /<div className="kb-stat">Zuständig[^\n]*\n\s*\{info\.button\}/, box: "{info.box}" },
 ];
