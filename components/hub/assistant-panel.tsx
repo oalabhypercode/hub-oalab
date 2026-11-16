@@ -11,8 +11,11 @@ import { proposalNote, type ProposalView, type TaskChoice } from "@/lib/hub-assi
 import { confirmCustomerProposal, confirmProjectUpdate, confirmTaskProposal, confirmTaskUpdates, discardTaskProposal, type CustomerCreated } from "@/lib/hub-assistant/actions";
 import { changeNote, projectChangeLine, taskChangeLines, type ChangeLine, type ChangeView } from "@/lib/hub-assistant/updates";
 import { contactLines, customerNote, type CustomerChoice, type CustomerView } from "@/lib/hub-assistant/customers";
+import { joinDictation } from "@/lib/hub-assistant/dictation";
 import { formatDeadline } from "@/lib/hub-data";
+import { DictationBar, DictationButton } from "./dictation-bar";
 import { useInfo, type InfoCard } from "./info-box";
+import { useDictation } from "./use-dictation";
 import { Modal } from "./modal";
 import { Select } from "./select";
 
@@ -102,6 +105,13 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
   /** What the assistant is looking up right now, e.g. "Suche „Müller“ …". */
   const [status, setStatus] = useState("");
   const list = useRef<HTMLDivElement>(null);
+  // Dictation (admins, since 16.11.2026): the browser turns speech into text for this field; Claude only gets the text.
+  const dictation = useDictation({
+    onFinal: (spoken) => setDraft((current) => joinDictation(current, spoken).slice(0, limit)),
+    onEnd: () => input.current?.focus(),
+  });
+  const canDictate = admin && dictation.supported;
+  const pendingWords = dictation.state === "listening" ? dictation.interim : "";
 
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
@@ -226,10 +236,17 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
     }
   }
 
+  /** Sends the field; words still being recognised go along, and the dictation ends with the question. */
+  function submit() {
+    const text = pendingWords ? joinDictation(draft, pendingWords) : draft;
+    if (dictation.state !== "idle") dictation.cancel();
+    ask(text);
+  }
+
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      ask(draft);
+      submit();
     }
   }
 
@@ -285,8 +302,9 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
           <button type="button" onClick={onClearProject} aria-label={`Bezug auf ${project.name} entfernen`}><X size={14} aria-hidden="true" /></button>
         </p>
       )}
+      {available && canDictate && <DictationBar dictation={dictation} />}
       {available && (
-        <form className="assistant-input" onSubmit={(event) => { event.preventDefault(); ask(draft); }}>
+        <form className="assistant-input" onSubmit={(event) => { event.preventDefault(); submit(); }}>
           <textarea
             ref={input}
             value={draft}
@@ -298,7 +316,8 @@ export function AssistantPanel({ turns, setTurns, admin, available, mode, onMode
             aria-label="Frage an den Assistenten"
             disabled={busy}
           />
-          <button type="submit" className="assistant-send" disabled={busy || !draft.trim()} aria-label="Frage senden">{busy ? <MiniLoader size={18} /> : <ArrowUp size={18} aria-hidden="true" />}</button>
+          {canDictate && <DictationButton dictation={dictation} disabled={busy} />}
+          <button type="submit" className="assistant-send" disabled={busy || !(draft.trim() || pendingWords)} aria-label="Frage senden">{busy ? <MiniLoader size={18} /> : <ArrowUp size={18} aria-hidden="true" />}</button>
         </form>
       )}
       <div className="assistant-footer">

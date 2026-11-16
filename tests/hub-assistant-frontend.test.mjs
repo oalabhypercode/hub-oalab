@@ -5,6 +5,9 @@ import {
   CHAT_VERSION, MAX_STORED_CHARS, MAX_STORED_TURNS, applyProposalStatus, chatKey, isExpired, openProposalIds, parseChat, serializeChat,
 } from "../lib/hub-assistant/chat-storage.ts";
 import { actionOutcome, actionSummary, actionTarget, kindLabels, outcomeLabels } from "../lib/hub-assistant/log-rules.ts";
+import {
+  chosenMic, DICTATION_LANG, dictationError, formatDictationTime, joinDictation, MAX_DICTATION_MS, micChoices, micErrorCode, MIC_STORAGE_KEY, SILENCE_STOP_MS, storedMic,
+} from "../lib/hub-assistant/dictation.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -102,4 +105,72 @@ test("the KI-Protokoll is an admin section read with the server key only after t
   const log = await source("lib/hub-assistant/log.ts");
   assert.match(log, /^import "server-only";/);
   assert.ok(log.indexOf("verifyHubAdmin()") < log.indexOf("createAdminClient()"));
+});
+
+test("dictated words join the field with one space; a sentence starts with a capital letter", () => {
+  assert.equal(joinDictation("", "  drei   aufgaben anlegen "), "Drei aufgaben anlegen");
+  assert.equal(joinDictation("Bitte", "zwei aufgaben"), "Bitte zwei aufgaben");
+  assert.equal(joinDictation("Lege an:", "texte prüfen"), "Lege an: Texte prüfen");
+  assert.equal(joinDictation("Fertig?  ", "ja"), "Fertig? Ja");
+  assert.equal(joinDictation("Erstens.\n", "zweitens"), "Erstens.\nZweitens");
+  assert.equal(joinDictation("Text", "   "), "Text");
+  assert.equal(joinDictation("   ", "über die startseite"), "Über die startseite");
+});
+
+test("dictation explains its stops in German; a stop on purpose says nothing", () => {
+  assert.match(dictationError("not-allowed"), /gesperrt.*Adresszeile/);
+  assert.equal(dictationError("service-not-allowed"), dictationError("not-allowed"));
+  assert.match(dictationError("audio-capture"), /Kein Mikrofon/);
+  assert.match(dictationError("no-speech"), /nichts gehört/);
+  assert.match(dictationError("network"), /Internetverbindung/);
+  assert.match(dictationError("language-not-supported"), /Deutsch/);
+  assert.equal(dictationError("aborted"), "");
+  assert.match(dictationError("something-new"), /abgebrochen/);
+  assert.equal(micErrorCode("NotAllowedError"), "not-allowed");
+  assert.equal(micErrorCode("NotReadableError"), "audio-capture");
+  assert.equal(micErrorCode("AbortError"), "unknown");
+  assert.deepEqual([formatDictationTime(0), formatDictationTime(7400), formatDictationTime(84_000)], ["0:00", "0:07", "1:24"]);
+  assert.equal(DICTATION_LANG, "de-DE");
+  assert.equal(SILENCE_STOP_MS, 6000);
+  assert.equal(MAX_DICTATION_MS, 5 * 60_000);
+});
+
+test("microphones: Chromium's aliases are left out, the remembered one counts only while the browser has it", () => {
+  const devices = [
+    { kind: "audioinput", deviceId: "default", label: "Standard - Headset" },
+    { kind: "audioinput", deviceId: "communications", label: "Kommunikation - Headset" },
+    { kind: "audioinput", deviceId: "a1", label: "Headset" },
+    { kind: "audioinput", deviceId: "b2", label: "" },
+    { kind: "videoinput", deviceId: "c3", label: "Kamera" },
+  ];
+  const mics = micChoices(devices);
+  assert.deepEqual(mics, [{ deviceId: "a1", label: "Headset" }, { deviceId: "b2", label: "Mikrofon 2" }]);
+  assert.deepEqual(chosenMic(mics, storedMic(mics[0])), { known: true, mic: mics[0] });
+  assert.deepEqual(chosenMic(mics, storedMic(null)), { known: true, mic: null }, "the standard microphone is a choice too");
+  assert.deepEqual(chosenMic(mics, JSON.stringify({ id: "gone" })), { known: false, mic: null }, "an unplugged microphone asks again");
+  assert.deepEqual(chosenMic(mics, null), { known: false, mic: null });
+  assert.deepEqual(chosenMic(mics, "{kaputt"), { known: false, mic: null });
+  assert.equal(MIC_STORAGE_KEY, "oalab-hub-mic");
+});
+
+test("the chat offers dictation to admins only; German, continuous, the microphone's track only on desktop Chrome and Edge", async () => {
+  const panel = await source("components/hub/assistant-panel.tsx");
+  assert.match(panel, /const canDictate = admin && dictation\.supported;/);
+  assert.match(panel, /\{available && canDictate && <DictationBar dictation=\{dictation\} \/>\}/);
+  assert.match(panel, /\{canDictate && <DictationButton dictation=\{dictation\} disabled=\{busy\} \/>\}\n\s+<button type="submit" className="assistant-send"/);
+  // Sending while listening takes the words in progress along and ends the dictation; nothing is sent by itself.
+  assert.match(panel, /const text = pendingWords \? joinDictation\(draft, pendingWords\) : draft;\n\s+if \(dictation\.state !== "idle"\) dictation\.cancel\(\);\n\s+ask\(text\);/);
+  const hook = await source("components/hub/use-dictation.ts");
+  assert.match(hook, /recognition\.lang = DICTATION_LANG;\n\s+recognition\.continuous = true;\n\s+recognition\.interimResults = true;/);
+  assert.match(hook, /data\.mobile === false && data\.brands\?\.some\(\(item\) => item\.brand === "Chromium"\)/);
+  assert.match(hook, /if \(track\) recognition\.start\(track\); else recognition\.start\(\);/);
+  // Without desktop Chromium the page opens no microphone of its own (Safari and phones pick theirs).
+  assert.match(hook, /if \(!desktopChromium\(\)\) \{\n\s+setState\("starting"\);\n\s+void begin\(null, false, null, token\);/);
+  assert.match(hook, /useSyncExternalStore\(noSubscription, canDictate, \(\) => false\)/);
+  // No audio ever leaves the page through the hub: nothing in the dictation talks to a server.
+  assert.doesNotMatch(hook, /fetch\(|\/api\//);
+  const knowledge = await source("lib/hub-assistant/knowledge.ts");
+  assert.ok(knowledge.includes(`Nach ${SILENCE_STOP_MS / 1000} Sekunden ohne neue Wörter`));
+  assert.ok(knowledge.includes(`höchstens ${MAX_DICTATION_MS / 60_000} Minuten am Stück`));
+  assert.match(knowledge, /Firefox kann nicht diktieren/);
 });
