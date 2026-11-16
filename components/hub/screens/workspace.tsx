@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bot, Building2, KeyRound, LogOut, MessageCircleQuestion, Palette, Scale, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
+import { Bot, Building2, KeyRound, LogOut, MessageCircleQuestion, Palette, Scale, ScrollText, ShieldCheck, Sparkles, SquareKanban, UserCog, UserRound } from "lucide-react";
 import { categories, categoriesFor, categoryLabel, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, previewAccount, sectionLabels } from "@/lib/hub-data";
 import { packageCatalog } from "@/lib/service-packages";
@@ -57,7 +57,11 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
       <SectionHeader title="Bereiche" />
       {shownCategories.length ? (
         <InsetGroupedList label="Bereiche" className="list-icons">
-          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />)}
+          {shownCategories.flatMap((id) => [
+            <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />,
+            // Phones reach the oalab team's task board under Projekte from here.
+            ...(id === "projects" && manageUsers ? [<ListRow key="tasks" compact href={`${hubHref(preview, "projects")}/tasks`} icon={<SquareKanban size={24} color={categories.projects.fill} aria-hidden="true" />} title="Aufgaben" subtitle="Board und Liste der Projekte" />] : []),
+          ])}
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}
       {/* The tab bar has no room for them, so phones reach the user management and the AI log from here. */}

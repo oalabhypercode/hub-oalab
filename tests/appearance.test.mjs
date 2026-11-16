@@ -4,7 +4,8 @@ import test from "node:test";
 import vm from "node:vm";
 import { appearanceInlineScript, backgroundPresets, DARK_BACKGROUND_SHADE, defaultAppearance, normalizeAppearance, REDUCE_MOTION_COOKIE, reduceMotionCookie, resolveAppearance } from "../lib/appearance.ts";
 
-const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+// Windows checkouts with autocrlf hold CRLF; the patterns below are written with \n.
+const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 const rgb = (hex) => hex.replace("#", "").match(/../g).map((part) => parseInt(part, 16));
 const luminance = (color) => {
   const [r, g, b] = color.map((value) => value / 255).map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);

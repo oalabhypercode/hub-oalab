@@ -298,7 +298,7 @@ export function ProjectsPanel({ projects, customers, asOf, preview, fileState }:
                   collapsed={groups.isCollapsed("tasks")}
                   onToggle={() => groups.toggle("tasks")}
                   actions={manageUsers && <button type="button" className="table-group-action" onClick={() => askAboutProject({ id: project.id, name: project.name })} data-tip="Aufgaben mit dem Assistenten planen" aria-label="Aufgaben mit dem Assistenten planen"><Sparkles size={15} aria-hidden="true" /></button>}
-                  empty={tabTerm ? "Keine Aufgabe passt zur Suche." : "Noch keine Aufgaben. Der Assistent schlägt welche vor, angelegt werden sie im Studio."}
+                  empty={tabTerm ? "Keine Aufgabe passt zur Suche." : "Noch keine Aufgaben. Im Board unter Aufgaben legst du welche an, oder der Assistent schlägt welche vor."}
                 >
                   {tasks.map((task) => (
                     <tr key={task.id} className={`file-row${task.status === "done" ? " is-done" : ""}`}>
@@ -327,7 +327,7 @@ export function ProjectsPanel({ projects, customers, asOf, preview, fileState }:
   );
 }
 
-/** Jumps to everything around the customer, as quiet icons in the pane's head; digits 1–5 open them too. */
+/** Jumps to everything around the customer and the project's board, as quiet icons in the pane's head; digits open them too. */
 function PaneJumps({ links }: { links: ReturnType<typeof quickLinks> }) {
   const nav = useRef<HTMLElement>(null);
   useEffect(() => {

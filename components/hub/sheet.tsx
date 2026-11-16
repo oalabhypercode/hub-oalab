@@ -67,13 +67,15 @@ export function ToolbarMenu({ icon: Icon, label, value, badge = 0, align = "star
   );
 }
 
-export type SheetAction = { icon: LucideIcon; label: string; hint?: string; badge?: number; onSelect: () => void };
+export type SheetAction = { icon: LucideIcon; label: string; hint?: string; badge?: number; shortcut?: string; onSelect: () => void };
+/** A choice below the actions, such as the view of the task board: it applies and closes the menu. */
+export type SheetMenuChoices = { label: string; value: string; options: { id: string; label: string; icon: LucideIcon }[]; onChange: (value: string) => void };
 
 /**
  * A tab's actions behind one gear in the accent colour (user 9.11.2026): a click opens them as a menu in the look of the
  * toolbar's panels. ↑/↓ move through the actions, Escape closes and gives the focus back to the gear.
  */
-export function SheetActionMenu({ label, actions }: { label: string; actions: SheetAction[] }) {
+export function SheetActionMenu({ label, actions, choices }: { label: string; actions: SheetAction[]; choices?: SheetMenuChoices }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -95,24 +97,35 @@ export function SheetActionMenu({ label, actions }: { label: string; actions: Sh
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const items = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const items = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? [])];
     const at = items.indexOf(document.activeElement as HTMLElement);
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   };
-  const names = actions.map((action) => action.label).join(", ");
+  const names = [...actions.map((action) => action.label), ...(choices ? [choices.label] : [])].join(", ");
   return (
     <div className="sheet-menu sheet-action-menu" ref={box} onKeyDown={onKeyDown}>
       <button ref={trigger} type="button" className="sheet-gear" aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} aria-label={`${label}: ${names}`} data-tip={names} onClick={() => setOpen((now) => !now)}>
         <Settings size={17} aria-hidden="true" />
       </button>
       <div id={menuId} className="sheet-pop is-end sheet-action-pop" role="menu" aria-label={label} hidden={!open}>
-        {actions.map(({ icon: Icon, label: name, hint, badge, onSelect }) => (
-          <button key={name} type="button" role="menuitem" className="sheet-action-item" onClick={() => { setOpen(false); onSelect(); }}>
+        {actions.map(({ icon: Icon, label: name, hint, badge, shortcut, onSelect }) => (
+          <button key={name} type="button" role="menuitem" className="sheet-action-item" aria-keyshortcuts={shortcut} onClick={() => { setOpen(false); onSelect(); }}>
             <span className="sheet-action-icon"><Icon size={16} aria-hidden="true" /></span>
             <span className="sheet-action-text"><strong>{name}</strong>{hint && <small>{hint}</small>}</span>
-            {badge ? <span className="sheet-menu-badge numeric" aria-label={`${badge} offen`}>{badge}</span> : null}
+            {badge ? <span className="sheet-menu-badge numeric" aria-label={`${badge} offen`}>{badge}</span> : shortcut ? <kbd className="sheet-action-key" aria-hidden="true">{shortcut}</kbd> : null}
           </button>
         ))}
+        {choices && <>
+          <hr className="sheet-action-sep" />
+          <div className="sheet-action-caption">{choices.label}</div>
+          <div className="sheet-choices" role="group" aria-label={choices.label}>
+            {choices.options.map(({ id, label: name, icon: Icon }) => (
+              <button key={id} type="button" role="menuitemradio" aria-checked={choices.value === id} className="sheet-choice" onClick={() => { setOpen(false); choices.onChange(id); }}>
+                <Icon size={16} className="sheet-choice-icon" aria-hidden="true" />{name}<Check className="hub-option-check" size={15} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </>}
       </div>
     </div>
   );
