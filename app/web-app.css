@@ -33,20 +33,3 @@
 body::before { content: ""; position: fixed; z-index: 90; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: color-mix(in srgb, var(--bg-base) var(--bg-shade, 100%), #000); pointer-events: none; opacity: 0; }
 :root:has(.am-panel, .chat[data-open], .assistant-dock) body::before { opacity: 1; }
 :root[data-on-background="dark"] body::before { opacity: 1; background: #1c1c1e; }
-
-/* ---------- „Hub als App nutzen“ on the overview ---------- */
-/* The look of the design preview's note (hub-notice), with the phone in front, „So geht’s“ or „Installieren“, and ×. */
-.install-hint { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 4px 6px 4px 16px; border-radius: 999px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
-.install-hint-text { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--label-body); font-weight: 600; }
-.install-hint-text > svg { flex: 0 0 auto; color: var(--accent-text); }
-.install-hint-text > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.install-hint-detail { font-weight: 400; color: var(--label-secondary); }
-.install-hint-actions { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; }
-.install-hint-link { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border-radius: 999px; color: var(--accent-text); font-size: inherit; font-weight: 600; white-space: nowrap; }
-.install-hint-close { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--label-secondary); }
-.install-hint-link:hover, .install-hint-close:hover { background: var(--fill-tertiary); }
-.install-hint-link[aria-expanded="true"] { background: var(--fill-tertiary); }
-@media (max-width: 767px) {
-  .install-hint { border-radius: 16px; font-size: 12px; padding: 4px 4px 4px 14px; }
-  .install-hint-detail { display: none; }
-}

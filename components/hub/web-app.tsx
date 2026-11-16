@@ -1,26 +1,26 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { Download, Smartphone, X } from "lucide-react";
-import { hintHidden, INSTALL_HINT_HIDDEN, INSTALL_HINT_KEY, installPlatform, type InstallPlatform } from "@/lib/web-app/rules";
+import { Download, Smartphone } from "lucide-react";
+import { installPlatform, type InstallPlatform } from "@/lib/web-app/rules";
+import { GlassButton } from "./glass";
 import { useInfo } from "./info-box";
 import { ListRow, ListRowContent } from "./list";
 
 /**
- * The hub as an installable web app (plan of 16.11.2026, stage 1): the service worker of the installed app, the hint
- * „Hub als App nutzen“ on the overview and the row „Als App installieren“ in Profil. iPhone and iPad install through
- * Safari's share menu, which no page can open: the hint explains the three steps. Chrome on Android offers its own
- * install dialog, which „Installieren“ opens.
+ * The hub as an installable web app (plan of 16.11.2026, stage 1): the service worker of the installed app, the button
+ * „App installieren“ left of the bell and the row „Als App installieren“ in Profil. iPhone and iPad install through
+ * the browser's share menu, which no page can open: the button explains the three steps. Chrome on Android offers its
+ * own install dialog, which the button opens.
  */
 
-/** Chrome's install offer: kept for „Installieren“, good for one use. */
+/** Chrome's install offer: kept for the button, good for one use. */
 type InstallOffer = Event & { prompt: () => Promise<void> };
 
-// Shared by the hint, the profile row and the shell. Chrome makes its offer once per page load, often before the overview
-// is drawn; the shell imports this module on every hub page, so it is caught in time.
+// Shared by the button, the profile row and the shell. Chrome makes its offer once per page load, often before the
+// header is drawn; the shell imports this module on every hub page, so it is caught in time.
 let offer: InstallOffer | null = null;
 let installed = false;
-let hidden: boolean | null = null;
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((listener) => listener());
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
@@ -28,7 +28,7 @@ const noSubscription = () => () => {};
 
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
-    // The hint offers it instead of Chrome's own bar.
+    // The button offers it instead of Chrome's own bar.
     event.preventDefault();
     offer = event as InstallOffer;
     changed();
@@ -41,20 +41,12 @@ function detectPlatform() {
   return installPlatform({ userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints, standalone });
 }
 
-function readHidden() {
-  if (hidden === null) {
-    try { hidden = hintHidden(localStorage.getItem(INSTALL_HINT_KEY)); } catch { hidden = false; }
-  }
-  return hidden;
-}
-
 /** On the server and before hydration nothing shows; the browser then decides. */
 function useInstallState() {
   const platform = useSyncExternalStore(noSubscription, detectPlatform, () => null);
   const currentOffer = useSyncExternalStore(subscribe, () => offer, () => null);
   const justInstalled = useSyncExternalStore(subscribe, () => installed, () => false);
-  const hintIsHidden = useSyncExternalStore(subscribe, readHidden, () => true);
-  return { platform: justInstalled ? null : platform, canInstall: currentOffer !== null, hintIsHidden };
+  return { platform: justInstalled ? null : platform, canInstall: currentOffer !== null };
 }
 
 async function install() {
@@ -66,18 +58,12 @@ async function install() {
   await current.prompt().catch(() => {});
 }
 
-function hideHint() {
-  hidden = true;
-  try { localStorage.setItem(INSTALL_HINT_KEY, INSTALL_HINT_HIDDEN); } catch { /* hidden until the next visit */ }
-  changed();
-}
-
 /** The card „Kurz erklärt“ with the steps of the device; `trigger` is the button that opens it. */
-function useInstallGuide(platform: InstallPlatform, trigger: { className: string; content: React.ReactNode }) {
+function useInstallGuide(platform: InstallPlatform, trigger: { className: string; content: React.ReactNode; label?: string }) {
   const ios = platform === "ios";
   return useInfo("Als App installieren", {
     steps: [
-      ios ? <><b>Teilen öffnen:</b> in Safari über „…“ oder das Teilen-Symbol.</> : <><b>Menü öffnen:</b> in Chrome oben rechts auf ⋮ tippen.</>,
+      ios ? <><b>Teilen öffnen:</b> Teilen-Symbol tippen, in Safari unter „…“.</> : <><b>Menü öffnen:</b> in Chrome oben rechts auf ⋮ tippen.</>,
       ios ? <><b>„Zum Home-Bildschirm“</b> wählen, eventuell weiter unten.</> : <><b>„App installieren“</b> oder „Zum Startbildschirm“ wählen.</>,
       ios ? <><b>„Als Web-App öffnen“</b> anlassen und „Hinzufügen“ tippen.</> : <><b>Bestätigen,</b> schon liegt das Icon auf dem Startbildschirm.</>,
     ],
@@ -97,27 +83,22 @@ export function WebAppSetup() {
   return null;
 }
 
-/** „Hub als App nutzen“ on the overview: phones and tablets in the browser, until it is tapped away on this device. */
-export function InstallHint() {
-  const { platform, canInstall, hintIsHidden } = useInstallState();
-  return platform && !hintIsHidden ? <InstallHintBar platform={platform} canInstall={canInstall} /> : null;
+/**
+ * „App installieren“ left of the bell (HeaderActions, wish of 16.11.2026): phones and tablets in the browser, for every
+ * role; gone in the installed app and on computers. Android with Chrome's offer opens its dialog, else the steps.
+ */
+export function InstallButton() {
+  const { platform, canInstall } = useInstallState();
+  if (!platform) return null;
+  return canInstall ? <GlassButton icon={Download} label="App installieren" onClick={install} /> : <InstallGuideButton platform={platform} />;
 }
 
-function InstallHintBar({ platform, canInstall }: { platform: InstallPlatform; canInstall: boolean }) {
-  const guide = useInstallGuide(platform, { className: "install-hint-link", content: "So geht’s" });
-  return (
-    <div className="glass install-hint" role="note">
-      <span className="install-hint-text"><Smartphone size={15} aria-hidden="true" /><span>Hub als App nutzen <span className="install-hint-detail">– mit Icon auf dem {homeScreen(platform)}</span></span></span>
-      <span className="install-hint-actions">
-        {canInstall ? <button type="button" className="install-hint-link" onClick={install}><Download size={14} aria-hidden="true" />Installieren</button> : guide.button}
-        <button type="button" className="install-hint-close" aria-label="Hinweis ausblenden" data-tip="Ausblenden" onClick={hideHint}><X size={15} aria-hidden="true" /></button>
-      </span>
-      {guide.box}
-    </div>
-  );
+function InstallGuideButton({ platform }: { platform: InstallPlatform }) {
+  const guide = useInstallGuide(platform, { className: "glass glass-float glass-button", label: "App installieren", content: <Download size={20} strokeWidth={2} aria-hidden="true" /> });
+  return <>{guide.button}{guide.box}</>;
 }
 
-/** Profil › Einstellungen: the way in after the hint was tapped away; gone in the installed app and on computers. */
+/** Profil › Einstellungen: the same way in, with words; gone in the installed app and on computers. */
 export function InstallRow() {
   const { platform, canInstall } = useInstallState();
   if (!platform) return null;

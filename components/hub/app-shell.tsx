@@ -25,7 +25,7 @@ import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { TooltipLayer } from "./tooltip";
-import { WebAppSetup } from "./web-app";
+import { InstallButton, WebAppSetup } from "./web-app";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { LogoImage, logoTileStyle, useShownLogo } from "./logo-mark";
@@ -241,6 +241,8 @@ function MobileAvatar({ href, initials, logo }: { href: string; initials: string
 export function HeaderActions() {
   const { openPanel, unread } = useHubShell();
   return <>
+    {/* Left of the bell on phones and tablets in the browser: the hub as an app (components/hub/web-app.tsx). */}
+    <InstallButton />
     <GlassButton icon={Bell} label="Benachrichtigungen" badge={unread} onClick={() => openPanel("notifications")} />
     <GlassButton icon={MessageCircleQuestion} label="Assistent & Hilfe" onClick={() => openPanel("help")} />
   </>;

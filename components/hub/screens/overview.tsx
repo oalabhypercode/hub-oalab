@@ -15,7 +15,6 @@ import { LargeTitleHeader } from "../large-title-header";
 import { InsetGroupedList, ListRow, MiniProgress } from "../list";
 import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
-import { InstallHint } from "../web-app";
 import { WelcomeStage } from "../welcome-stage";
 import { FileIcon } from "./files-parts";
 import type { ScreenProps } from "./types";
@@ -28,8 +27,6 @@ export function OverviewScreen({ model, preview, populated, favorites, toggleSte
   return (
     <>
       <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
-      {/* Phones and tablets in the browser: the hub as an app, until tapped away (components/hub/web-app.tsx). */}
-      <InstallHint />
       {account.admin
         ? <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} logo={logo} /><ServiceCard account={account} /></div>
         : <div className="section-first welcome-row has-host"><WelcomeStage account={account} logo={logo} preview={preview} />{account.freelancer
