@@ -29,13 +29,14 @@ export function rowMarks(project: Project, current: boolean) {
 
 /**
  * The status as a small, calm choice field: the row carries the colour, the field only the sign. It opens the hub's
- * own list with Studio's five statuses; picking one saves it right away. A click in it never opens the row.
+ * own list with Studio's five statuses; picking one saves it right away. A click in it never opens the row. Locked
+ * (a session without the code) it only shows the status.
  */
-export function StatusPick({ project, busy, onChange }: { project: Project; busy: boolean; onChange: (status: StudioProjectStatus) => void }) {
+export function StatusPick({ project, busy, locked = false, onChange }: { project: Project; busy: boolean; locked?: boolean; onChange: (status: StudioProjectStatus) => void }) {
   const status = statusOf(project);
   const waiting = isWaiting(project);
   return (
-    <span className="pj-status-wrap" data-tip={busy ? "Wird gespeichert …" : "Status ändern"} data-tip-sub={`Kunde sieht: ${customerSees(status, waiting)}`}
+    <span className="pj-status-wrap" data-tip={locked ? "Ändern nach „Mit Code bestätigen“" : busy ? "Wird gespeichert …" : "Status ändern"} data-tip-sub={`Kunde sieht: ${customerSees(status, waiting)}`}
       onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
       <Select
         variant="bare"
@@ -44,7 +45,7 @@ export function StatusPick({ project, busy, onChange }: { project: Project; busy
         className={`pj-status tone-${studioStatuses[status].tone}${busy ? " is-busy" : ""}`}
         label={`Status von ${project.name}`}
         value={status}
-        disabled={busy}
+        disabled={busy || locked}
         onChange={(next) => { if (next !== status) onChange(next as StudioProjectStatus); }}
         options={studioStatusOrder.map((item) => ({ value: item, label: studioStatuses[item].label, lead: <StudioGlyph status={item} />, meta: `Kunde: ${customerSees(item, waiting)}` }))}
       />

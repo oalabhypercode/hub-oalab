@@ -82,7 +82,14 @@ type RequestRow = { id: string; request_number: number; title: string; state: st
 const REQUESTS = "id, request_number, title, state, organization_id, project_id, updated_at, released_at, resolved_at";
 // On the test domain, waiting for the customer: the service platform's "Deine Freigabe" and "Testseite bereit".
 const approvalStates = new Set(["beta_ready", "release_review"]);
-const deskFailed = (error: string): ProjectDesk => ({ customers: [], month: null, error, partial: null });
+const deskFailed = (error: string): ProjectDesk => ({ customers: [], month: null, error, partial: null, confirmed: false });
+
+/** Whether this session confirmed a code (aal2): the project actions write only then (lib/hub-projects/actions.ts). */
+async function sessionConfirmed() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims?.aal === "aal2";
+}
 
 const readable = (domain: string) => {
   try {
@@ -110,10 +117,11 @@ export const loadProjectDesk = cache(async (): Promise<ProjectDesk | undefined> 
   if (!await verifyHubAdmin()) return undefined;
   const db = createAdminClient();
   if (!db) return deskFailed("Projekte sind noch nicht eingerichtet: Es fehlt der Server-Schlüssel (SUPABASE_SECRET_KEY).");
-  const [customers, packages, quota] = await Promise.all([
+  const [customers, packages, quota, confirmed] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number, website, organization_id, kind").order("company").returns<DeskCustomerRow[]>(),
     readCustomerPackages(db),
     loadServiceQuotaForAdmin(db).catch(() => emptyServiceQuota("failed")),
+    sessionConfirmed(),
   ]);
   if (customers.error) return deskFailed("Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   // Freelancers hold no projects and no packages: only entries of the kind customer.
@@ -143,6 +151,7 @@ export const loadProjectDesk = cache(async (): Promise<ProjectDesk | undefined> 
   return {
     error: null,
     partial,
+    confirmed,
     month: quota.ready && quota.window ? quotaMonth(quota.window).month : null,
     customers: rows.map((row): DeskCustomer => {
       const counted = quotaByCustomer.get(row.id);

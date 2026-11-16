@@ -169,11 +169,13 @@ test("Projekte V2: what the page saved shows until the page's data carries that 
 
 test("Projekte V2: the status is written with the admin's own session, only with 2FA and the version the page showed", async () => {
   const actions = await source("lib/hub-projects/actions.ts");
-  const actor = actions.slice(actions.indexOf("async function teamActor"), actions.indexOf("type Team ="));
-  assert.match(actor, /claims\.claims\.aal !== "aal2"\) return null/);
-  assert.match(actor, /await verifyHubAdmin\(\)/);
+  const actor = actions.slice(actions.indexOf("async function teamActor"), actions.indexOf("/** The version the page showed"));
+  assert.match(actor, /await verifyHubAdmin\(\);[^]*if \(!admin \|\| !db\) return \{ refused: denied \};/);
+  // An admin without the code (second factor off, password alone) hears how to get it.
+  assert.match(actor, /claims\?\.claims\?\.aal !== "aal2"\) return \{ refused: needsCode \};/);
+  assert.match(actions, /const needsCode = "Bitte bestätige deine Anmeldung zuerst einmal mit einem Code aus der Mail/);
   const write = actions.slice(actions.indexOf("export async function setProjectStatus"), actions.indexOf("const staleDetails"));
-  assert.match(write, /const ctx = await teamActor\(\);\s+if \(!ctx\) return denied;/);
+  assert.match(write, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
   assert.match(write, /isStudioStatus\(input\.status\)/);
   assert.match(write, /ctx\.supabase\.from\("studio_project_details"\)\.update\(\{ status \}\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
   assert.match(write, /ctx\.supabase\.from\("studio_project_details"\)\.insert\(/);
@@ -248,7 +250,7 @@ test("Projekte V2 step 2: the project key comes from the name, exactly like Stud
 test("Projekte V2 step 2: saving and creating go through Studio's checks with the admin's own session", async () => {
   const actions = await source("lib/hub-projects/actions.ts");
   const save = actions.slice(actions.indexOf("export async function saveProjectDetails"), actions.indexOf("export async function createProject"));
-  assert.match(save, /const ctx = await teamActor\(\);\s+if \(!ctx\) return denied;/);
+  assert.match(save, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
   assert.match(save, /readProjectPatch\(input\.patch\)/);
   assert.match(save, /ctx\.supabase\.from\("studio_project_details"\)\.update\(studio\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
   assert.doesNotMatch(save, /db\.from\("studio_project_details"\)/, "Studio's part never with the service role");
@@ -256,7 +258,7 @@ test("Projekte V2 step 2: saving and creating go through Studio's checks with th
   assert.match(save, /action: "project\.saved"/);
   assert.match(save, /refreshWorkspace\(\)/);
   const create = actions.slice(actions.indexOf("export async function createProject"));
-  assert.match(create, /const ctx = await teamActor\(\);\s+if \(!ctx\) return denied;/);
+  assert.match(create, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
   assert.match(create, /readProjectDraft\(input\.draft\)/);
   assert.match(create, /\(customer\.data\.kind \?\? "customer"\) !== "customer"/, "never for freelancers");
   assert.match(create, /organization\.data\?\.status !== "active"/);
@@ -277,7 +279,8 @@ test("Projekte V2 step 2: the page asks before unsaved changes are lost and offe
   }
   assert.match(panel, /creating && entry\?\.customer\?\.organizationId/);
   assert.match(panel, /<NewProjectPanel /);
-  assert.match(panel, /disabled=\{!customer\.organizationId \|\| creating\}/);
+  assert.match(panel, /const createBlock = !customer\?\.organizationId \? "Erst braucht der Kunde ein Konto auf der Serviceplattform" : locked \? codeFirst : null;/);
+  assert.equal((panel.match(/disabled=\{Boolean\(createBlock\) \|\| creating\}/g) ?? []).length, 2, "head button and add row");
   const side = await source("components/hub/screens/projects-side-panel.tsx");
   assert.match(side, /useDirtyReport\(dirty, onDirty\)/);
   assert.match(side, /saveProjectDetails\(\{ projectId: project\.id, expectedVersion: project\.studio\?\.version \?\? null, patch \}\)/);
@@ -286,6 +289,40 @@ test("Projekte V2 step 2: the page asks before unsaved changes are lost and offe
   assert.match(created, /useState<StudioProjectStatus>\("planning"\)/);
   assert.match(created, /useState\(false\)/);
   assert.match(created, /createProject\(\{ customerId: customer\.id, status, visible, draft \}\)/);
+});
+
+test("Projekte without the code: read-only, with „Mit Code bestätigen“ above the page and in the project's panel", async () => {
+  // The page learns whether the session confirmed a code (aal2) from its own data, like the task board.
+  const server = await source("lib/hub-projects/server.ts");
+  assert.match(server, /async function sessionConfirmed\(\) \{[^]*?return data\?\.claims\?\.aal === "aal2";/);
+  const desk = server.slice(server.indexOf("export const loadProjectDesk"));
+  assert.match(desk, /sessionConfirmed\(\),\s*\]\);/);
+  assert.match(desk, /\n\s+confirmed,\n/);
+  assert.match(server, /const deskFailed = [^\n]*confirmed: false/);
+  // Every change on the page waits for the code, the addresses in the list as well.
+  const actions = await source("lib/hub-projects/actions.ts");
+  const urls = actions.slice(actions.indexOf("export async function saveProjectUrls"), actions.indexOf("const staleStatus"));
+  assert.match(urls, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
+  assert.equal((actions.match(/await teamActor\(\)/g) ?? []).length, 4, "addresses, status, saving and creating");
+
+  const panel = await source("components/hub/screens/projects-panel.tsx");
+  assert.match(panel, /const locked = !desk\.confirmed;/);
+  assert.match(panel, /confirmSessionHref\(`\$\{hubHref\(preview, "projects"\)\}\$\{choice \? `\?\$\{choice\}` : ""\}`\)/, "back to the same customer and project");
+  assert.match(panel, /<div className="calendar-notice kb-lock-note" role="status">[^]*?<b>Nur lesen\.<\/b>[^]*?href=\{confirmHref\}>Mit Code bestätigen<\/a>/);
+  assert.match(panel, /<StatusPick project=\{project\} busy=\{busy === project\.id\} locked=\{locked\}/);
+  assert.match(panel, /<ProjectsOverview [^\n]*locked=\{locked\}/);
+  assert.match(panel, /\{!locked && <button type="button" className="row-action" onClick=\{\(\) => setEdit\(/, "no pencil without the code");
+  assert.match(panel, /disabled=\{!entry\.projects\.length \|\| locked\}/);
+  assert.match(panel, /if \(creating \|\| locked \|\| !leave\(\)\) return;/);
+  assert.match(await source("components/hub/screens/projects-overview.tsx"), /locked=\{locked\} onChange=/);
+  assert.match(await source("components/hub/screens/projects-parts.tsx"), /disabled=\{busy \|\| locked\}/);
+
+  const side = await source("components/hub/screens/projects-side-panel.tsx");
+  assert.match(side, /const locked = confirmHref !== null;\s+const disabled = saving \|\| locked;/);
+  assert.match(side, /<StatusPicks value=\{status\} disabled=\{busy \|\| saving \|\| locked\}/);
+  assert.match(side, /<VisibleRow [^\n]*disabled=\{busy \|\| saving \|\| locked\}/);
+  assert.match(side, /<div className="kb-locked" role="status">[^]*?href=\{confirmHref\}>Mit Code bestätigen<\/a>/);
+  assert.match(await source("app/glass.css"), /\.pj-panel \.am-panel-foot:has\(\.kb-locked\) \{ display: block;/);
 });
 
 test("Projekte V2: every customer on the left, loaded only on the page and only for admins", async () => {

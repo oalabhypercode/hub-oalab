@@ -132,6 +132,10 @@ test("the waterfall stylesheet is loaded everywhere and switches off with reduce
   assert.match(layout, /import "\.\/motion\.css";/);
   assert.match(layout, /<PageWaterfall \/>/);
   assert.match(motion, /:root\[data-reduce-motion="true"\] \{ --waterfall: none; \}/);
+  // The cascade waits for the loading logo only; a note that stays (role status) must not keep later panels fading in.
+  const waterfall = await source("components/page-waterfall.tsx");
+  assert.match(waterfall, /!document\.querySelector\("\.hub-content > \.brand-loader"\)/);
+  assert.doesNotMatch(waterfall, /\[role='status'\]/);
   // No rule follows the device's own setting any more, neither in the styles nor in the avatars.
   for (const path of ["app/motion.css", "app/globals.css", "app/hub.css", "app/glass.css", "app/loader.css", "app/welcome-host.css", "components/hub/welcome-stage.tsx", "components/hub/messages-host.tsx", "components/hub/appearance-provider.tsx", "lib/appearance.ts"]) {
     assert.doesNotMatch(await source(path), /prefers-reduced-motion/, path);

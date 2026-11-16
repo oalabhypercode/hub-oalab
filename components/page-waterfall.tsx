@@ -22,11 +22,13 @@ export function PageWaterfall() {
     lastPathname.current = pathname;
 
     // Settles when the last block has faded in, or on the first interaction if the cascade finished before
-    // hydration. Never while the page is still showing its loading logo.
+    // hydration. Never while the page is still showing its loading logo. Only the logo: a note that stays on the
+    // page (role status, such as „Nur lesen“ with „Mit Code bestätigen“) kept the page from settling, and every panel
+    // opened afterwards faded in like a new page (16.11.2026).
     const settle = (event: Event) => {
       if (root.dataset.waterfall === "settled" || (event instanceof AnimationEvent && event.animationName !== WATERFALL)) return;
       const cascading = document.getAnimations().some((animation) => animation instanceof CSSAnimation && animation.animationName === WATERFALL);
-      if (!cascading && !document.querySelector(".hub-content > [role='status']")) root.dataset.waterfall = "settled";
+      if (!cascading && !document.querySelector(".hub-content > .brand-loader")) root.dataset.waterfall = "settled";
     };
     const events = ["animationend", "pointerdown", "keydown"];
     for (const type of events) document.addEventListener(type, settle, true);
