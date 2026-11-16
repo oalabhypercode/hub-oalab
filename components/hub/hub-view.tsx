@@ -28,8 +28,10 @@ import { PatchNotesScreen } from "./screens/patch-notes";
 import { AssistantLogScreen } from "./screens/assistant-log";
 import { ContractsScreen } from "./screens/contracts";
 import { KeychainScreen } from "./screens/keychain";
+import { TasksScreen } from "./screens/tasks";
 import type { KeychainState } from "@/lib/hub-keychain/types";
 import type { ProjectDesk } from "@/lib/hub-projects/desk";
+import type { TaskBoardState } from "@/lib/hub-tasks/types";
 import type { ContractsState } from "@/lib/hub-contracts/types";
 import { contractFixtures } from "@/lib/hub-contracts/fixtures";
 import { quotaFixtures } from "@/lib/hub-service-quota/fixtures";
@@ -70,9 +72,11 @@ type HubViewProps = {
   keychain?: KeychainState;
   /** Projekte for a real admin: every customer with domains, packages, quota and open requests; only on its own page. */
   projectDesk?: ProjectDesk;
+  /** The task board under Projekte („Aufgaben“); the preview shows examples. */
+  taskBoard?: TaskBoardState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -103,7 +107,8 @@ export function HubView({ section = "overview", detail, preview = false, email =
     return { ...examples, serviceQuota: quotaFixtures({ admin, customerIds: examples.customers.map((customer) => customer.id) }) };
   }, [contracts, admin, preview, fileState.files]);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
-  const selectedProject = projects.find((project) => project.id === searchParams.get("project"));
+  // The task board uses ?project= to pick its board, so the project window stays closed there.
+  const selectedProject = detail === "tasks" ? undefined : projects.find((project) => project.id === searchParams.get("project"));
   // Admins open a project on „Projekte“ in the page's own panel; the window stays for customers and every other page.
   // On „Projekte“ the admins' page opens a project in its own panel; without that page (no verified admin) the window stays.
   const panelShowsProject = admin && !preview && section === "projects" && !detail && Boolean(projectDesk && !projectDesk.error);
@@ -118,6 +123,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
   return (
     <>
       {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} />
+        : detail === "tasks" ? <TasksScreen board={taskBoard} preview={preview} asOf={asOf} />
         : detail && isMetricId(detail) ? <MetricDetailScreen {...screen} metricId={detail} />
         : section === "overview" ? <OverviewScreen {...screen} />
         : section === "insights" ? <InsightsScreen {...screen} />

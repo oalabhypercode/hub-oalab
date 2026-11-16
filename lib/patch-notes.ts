@@ -39,13 +39,18 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 23,
     date: "2026-11-16",
-    title: "Projekte mit allen Kunden und Status in der Zeile",
-    summary: "Unter Projekte stehen links jetzt alle Kunden, rechts beim gewählten Kunden alle seine Projekte, Domains & Links und sein Service auf einen Blick. Den Status eines Projekts setzt man direkt in der Zeile, und die ganze Zeile trägt seine Farbe. Ein Klick auf ein Projekt öffnet rechts eine Leiste mit allen Angaben.",
+    title: "Projekte mit allen Kunden, Status in der Zeile und Aufgaben-Board",
+    summary: "Unter Projekte stehen links jetzt alle Kunden, rechts beim gewählten Kunden alle seine Projekte mit dem Status in der Zeile, Domains & Links und sein Service. Neu ist der Bereich Aufgaben: je Projekt ein Board mit den Spalten Backlog, Offen, In Arbeit, In Prüfung und Erledigt, wahlweise als Liste, mit denselben Aufgaben wie im Studio. Ein Klick auf ein Projekt öffnet rechts eine Leiste mit allen Angaben und dem Weg ins Board.",
     changes: [
       { kind: "new", title: "Alle Kunden auf einen Blick", text: "Links stehen jetzt alle Kunden, auch die ohne Projekt, mit den Filtern Laufend und Ohne Projekt. Rechts zeigt der gewählte Kunde alle seine Projekte zugleich, dazu Domains & Links, seinen Service mit Paket, Kontingent und offenen Anfragen sowie die abgeschlossenen Projekte." },
       { kind: "new", title: "Projektstatus direkt setzen", text: "Den Status eines Projekts (Planung, In Arbeit, Gefährdet, Pausiert, Fertig) ändert man jetzt mit einem Klick in der Zeile; er gilt sofort auch im Studio. Die ganze Zeile trägt die Farbe ihres Status, so fallen gefährdete und pausierte Projekte gleich auf." },
       { kind: "new", title: "Projekt in der Seitenleiste", text: "Ein Klick auf ein Projekt öffnet rechts eine Leiste mit Status, Live- und Testdomain, Beschreibung, Terminen, Meilensteinen und offenen Aufgaben. Live- und Testdomain lassen sich dort und direkt in der Liste eintragen, ändern und kopieren." },
       { kind: "improved", title: "Alle Projekte mit Status und Domains", text: "Die Übersicht aller Projekte zeigt jetzt Status, nächsten Meilenstein, Zieltermin, Fortschritt und die Domains und lässt sich nach Status oder Kunde gruppieren. Ein Klick auf den Kunden öffnet ihn, ein Klick auf das Projekt seine Angaben." },
+      { kind: "new", title: "Aufgaben-Board unter Projekte", text: "Unter Projekte › Aufgaben stehen die Aufgaben eines Projekts als Karten in fünf Spalten. Karten ziehst du mit der Maus oder am Handy nach kurzem Halten an ihren neuen Platz, am Rechner geht es auch mit Alt und den Pfeiltasten. Ein Verschieben lässt sich gleich rückgängig machen." },
+      { kind: "new", title: "Liste nach Status", text: "Über das Zahnrad wechselst du zwischen Board und Liste. Die Liste zeigt dieselben Aufgaben nach Status gruppiert, mit Zuständigen, Fälligkeit, Priorität und Labels, und auch dort lassen sich Zeilen ziehen." },
+      { kind: "new", title: "Fenster je Aufgabe", text: "Ein Klick auf eine Karte öffnet sie: Status, Zuständige, Fälligkeit, Priorität, Labels, Beschreibung, Checkliste und Kommentare lassen sich dort direkt ändern. Ein Link zur Aufgabe öffnet genau dieses Fenster." },
+      { kind: "new", title: "Aus dem Projekt ins Board", text: "Im Fenster eines Projekts und im Projekte-Panel führt der Knopf „Aufgaben“ direkt zum Board dieses Projekts. Über „Projekte“ geht es zurück zum selben Projekt." },
+      { kind: "improved", title: "Dieselben Aufgaben wie im Studio", text: "Das Board liest und schreibt die Aufgaben des Studios. Hat jemand eine Karte inzwischen geändert, überschreibt der Hub nichts, sondern zeigt den neuesten Stand; alle 30 Sekunden holt sich das Board Neuigkeiten." },
     ],
   },
   {

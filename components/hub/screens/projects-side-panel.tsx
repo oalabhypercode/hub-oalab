@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CircleCheck, CircleDot, ExternalLink, Eye, EyeOff, FlaskConical, Globe, Hand, Milestone, Save, Sparkles, Target } from "lucide-react";
+import Link from "next/link";
+import { CircleCheck, CircleDot, ExternalLink, Eye, EyeOff, FlaskConical, Globe, Hand, Milestone, Save, Sparkles, SquareKanban, Target } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { formatDeadline, type Project, type ProjectTask, type StudioProjectStatus } from "@/lib/hub-data";
 import { customerSees, isWaiting, nextMilestone, statusOf, studioStatusOrder, studioStatuses } from "@/lib/hub-projects/desk";
@@ -17,13 +18,15 @@ const taskLabel: Record<ProjectTask["status"], string> = { backlog: "Backlog", t
 
 /**
  * Everything about one project at the right edge, like the User Management's panel: the status to set with one click,
- * its live and test domain, what Studio holds about it (description, dates, milestones) and its open tasks. The
- * customers and the list stay usable next to it; Escape or the cross closes it. Projects themselves change in Studio.
+ * its live and test domain, what Studio holds about it (description, dates, milestones) and its open tasks with the way
+ * to its task board. The customers and the list stay usable next to it; Escape or the cross closes it.
  */
-export function ProjectSidePanel({ project, asOf, busy, onStatus, onAsk, onClose, onSaved }: {
+export function ProjectSidePanel({ project, asOf, busy, boardHref, onStatus, onAsk, onClose, onSaved }: {
   project: Project;
   asOf: string;
   busy: boolean;
+  /** The project's board under Projekte › Aufgaben, where its tasks are moved, created and edited. */
+  boardHref: string;
   onStatus: (status: StudioProjectStatus) => void;
   onAsk?: () => void;
   onClose: () => void;
@@ -116,7 +119,8 @@ export function ProjectSidePanel({ project, asOf, busy, onStatus, onAsk, onClose
           </ul>
         ) : <p className="pj-empty">Noch keine Meilensteine im Studio.</p>}
       </PanelSection>
-      <PanelSection title="Aufgaben aus Studio" meta={tasks.length ? `${tasks.length - open.length} von ${tasks.length} erledigt` : undefined}>
+      <PanelSection title="Aufgaben" meta={tasks.length ? `${tasks.length - open.length} von ${tasks.length} erledigt` : undefined}
+        action={<Link className="am-label-action" href={boardHref} data-tip="Aufgaben-Board dieses Projekts"><SquareKanban size={13} aria-hidden="true" />Zum Board</Link>}>
         {open.length ? (
           <ul className="pj-tasks">
             {open.map((task) => (
@@ -127,7 +131,7 @@ export function ProjectSidePanel({ project, asOf, busy, onStatus, onAsk, onClose
               </li>
             ))}
           </ul>
-        ) : <p className="pj-empty">{tasks.length ? "Alle Aufgaben erledigt." : "Noch keine Aufgaben im Studio."}</p>}
+        ) : <p className="pj-empty">{tasks.length ? "Alle Aufgaben erledigt." : "Noch keine Aufgaben. Im Board legst du welche an."}</p>}
       </PanelSection>
     </AssetPanel>
   );

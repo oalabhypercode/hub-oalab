@@ -12,6 +12,7 @@ import "./glass.css";
 import "./welcome-host.css";
 import "./loader.css";
 import "./motion.css";
+import "./tasks.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`

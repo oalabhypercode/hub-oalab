@@ -1,11 +1,17 @@
 import { hubSections, type HubSection } from "./hub-data";
 import { metricOrder } from "./hub-metrics";
 
-/** Second-level hub routes: metric detail pages and the appearance settings. */
+/** Second-level hub routes: metric detail pages, the appearance settings and the task board under Projekte. */
 export const hubDetailParams = [
   ...metricOrder.map((detail) => ({ section: "metrics", detail })),
   { section: "settings", detail: "appearance" },
+  { section: "projects", detail: "tasks" },
 ];
+
+/** The section a detail page belongs to, for the navigation and the page itself. */
+export function detailSection(section: string): HubSection {
+  return section === "settings" ? "settings" : section === "projects" ? "projects" : "overview";
+}
 
 export function parseHubSection(section: string): HubSection | undefined {
   return hubSections.find((item) => item === section);

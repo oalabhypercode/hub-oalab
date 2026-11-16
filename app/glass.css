@@ -869,6 +869,14 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .sheet-action-text { display: flex; flex-direction: column; min-width: 0; }
 .sheet-action-text strong { font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
 .sheet-action-text small { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+/* A shortcut at the end of an action, a choice below the actions (the task board's view). */
+.sheet-action-key { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line), 0 1px 0 var(--sheet-line); color: var(--label-secondary); font: 600 11px/1 var(--font-text); }
+.sheet-action-sep { margin: 4px 2px; border: 0; border-top: 1px solid var(--sheet-line); }
+.sheet-action-caption { padding: 6px 10px 4px; color: var(--sheet-muted); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.sheet-action-pop .sheet-choice { width: 100%; }
+.sheet-choice-icon { flex: 0 0 auto; color: var(--sheet-icon); }
+.sheet-choice[aria-checked="true"] .sheet-choice-icon { color: inherit; }
+@media (hover: none), (pointer: coarse) { .sheet-action-key { display: none; } }
 .sheet-action:disabled { opacity: 0.55; cursor: not-allowed; }
 .sheet-hint { padding: 10px 20px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; color: var(--sheet-muted); }
 .sheet-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px 8px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-select); }

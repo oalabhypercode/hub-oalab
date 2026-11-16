@@ -13,7 +13,7 @@ import { byUrgency, customerState, isRunning, isWaiting, mainLinks, nextMileston
 import { readProjectUrl, shortUrl } from "@/lib/hub-projects/map";
 import { saveProjectUrls, setProjectStatus } from "@/lib/hub-projects/actions";
 import { useInfo } from "../info-box";
-import { quickLinks } from "../project-links";
+import { quickLinks, taskBoardHref } from "../project-links";
 import { Select } from "../select";
 import { SheetFooter, TableGroup, useCollapsedGroups } from "../sheet";
 import { useHubShell } from "../shell-context";
@@ -224,7 +224,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
     ? <p className="form-error section-first" role="alert">{notice.text}</p>
     : <p className="calendar-notice section-first" role="status"><Check size={18} aria-hidden="true" />{notice.text}</p>);
   const panel = panelProject && (
-    <ProjectSidePanel key={panelProject.id} project={panelProject} asOf={asOf} busy={busy === panelProject.id}
+    <ProjectSidePanel key={panelProject.id} project={panelProject} asOf={asOf} busy={busy === panelProject.id} boardHref={taskBoardHref(preview, panelProject.id)}
       onStatus={(status) => changeStatus(panelProject, status)} onClose={closePanel} onSaved={(text) => setNotice({ text })}
       onAsk={manageUsers ? () => askAboutProject({ id: panelProject.id, name: panelProject.name }) : undefined} />
   );
