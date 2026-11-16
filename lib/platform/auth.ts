@@ -149,7 +149,9 @@ async function setPassword(userId: string, password: string) {
   const hash = await hashPassword(password);
   const updated = await sql("update auth.accounts set password = $2, updated_at = now() where user_id = $1 and provider_id = 'credential'", [userId, hash]);
   if (!updated.rowCount) {
-    await sql("insert into auth.accounts (id, user_id, account_id, provider_id, password) values (gen_random_uuid(), $1, $1::text, 'credential', $2)", [userId, hash]);
+    // user_id (uuid) and account_id (text) each get their own parameter: one parameter for both gave Postgres two types
+    // for it, and it refused every first password.
+    await sql("insert into auth.accounts (id, user_id, account_id, provider_id, password) values (gen_random_uuid(), $1, $2, 'credential', $3)", [userId, userId, hash]);
   }
 }
 

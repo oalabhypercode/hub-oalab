@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { banUntil, mergeMetadata, restRequestUrl, sessionCookieName, usesOwnPlatform } from "../lib/platform/config.ts";
 import { signJwt } from "../lib/platform/jwt.ts";
@@ -68,4 +70,38 @@ test("authenticator codes follow RFC 6238 (SHA-1, six digits, 30 s) with one ste
   assert.equal(verifyTotp(secret, "287082", 59_000 + 90_000), false);
   assert.equal(verifyTotp(secret, "28708", 59_000), false);
   assert.equal(verifyTotp("not base32!", "287082", 59_000), false);
+});
+
+// Postgres gives each $n one type. Used in an insert's values once bare (typed by its column) and once with a cast, or
+// with two casts, it refuses the whole statement: "inconsistent types deduced for parameter" (first passwords until
+// 16.11.2026).
+function mixedParameters(statement) {
+  const start = statement.search(/\bvalues\b/i);
+  if (start < 0) return [];
+  const rest = statement.slice(start);
+  const end = rest.search(/\b(?:on conflict|returning)\b/i);
+  const casts = new Map();
+  for (const [, number, cast = ""] of (end < 0 ? rest : rest.slice(0, end)).matchAll(/\$(\d+)(?:::([a-z_]+(?:\[\])?))?/gi)) {
+    casts.set(number, new Set([...(casts.get(number) ?? []), cast.toLowerCase()]));
+  }
+  return [...casts].filter(([, kinds]) => kinds.size > 1).map(([number, kinds]) => `$${number} as ${[...kinds].map((kind) => kind || "column type").join(" and ")}`);
+}
+
+function sourceFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? sourceFiles(join(dir, entry.name)) : /\.tsx?$/.test(entry.name) ? [join(dir, entry.name)] : [],
+  );
+}
+
+test("no insert gives one parameter two types, so a first password reaches the database", () => {
+  const before = "insert into auth.accounts (id, user_id, account_id, provider_id, password) values (gen_random_uuid(), $1, $1::text, 'credential', $2)";
+  assert.deepEqual(mixedParameters(before), ["$1 as column type and text"]);
+  const found = [];
+  for (const file of [...sourceFiles("lib"), ...sourceFiles("app")]) {
+    for (const [, , statement] of readFileSync(file, "utf8").matchAll(/(["`])((?:\\.|(?!\1)[\s\S])*?)\1/g)) {
+      if (/\binsert\s+into\b/i.test(statement)) found.push(...mixedParameters(statement).map((problem) => `${file}: ${problem}`));
+    }
+  }
+  assert.deepEqual(found, []);
+  assert.match(readFileSync("lib/platform/auth.ts", "utf8"), /values \(gen_random_uuid\(\), \$1, \$2, 'credential', \$3\)", \[userId, userId, hash\]\)/);
 });
