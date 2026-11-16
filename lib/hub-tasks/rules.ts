@@ -111,6 +111,17 @@ export function dueInfo(iso: string | null, today: string, done: boolean): DueIn
   return { short, row, long: format(iso, { weekday: "long", day: "numeric", month: "long" }), hint, tone };
 }
 
+/**
+ * A person's name as their login keeps it (user_metadata): Studio writes `full_name`, the hub's sign-up first and last
+ * name. Empty when the login has none.
+ */
+export function metadataName(metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") return "";
+  const record = metadata as Record<string, unknown>;
+  const text = (value: unknown) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 160) : "");
+  return text(record.full_name) || `${text(record.first_name)} ${text(record.last_name)}`.trim() || text(record.name);
+}
+
 /** Two letters for an avatar: first and last name, or the first two letters of a single word. */
 export function initialsOf(name: string): string {
   const words = name.replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/[\s-]+/).filter(Boolean);

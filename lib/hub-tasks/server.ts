@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { verifyHubAdmin, verifyHubFreelancer } from "@/lib/hub-users/server";
-import { initialsOf, NO_COUNTS, TASK_COLUMNS, toBoardTask, type StudioTaskRow, type TaskCounts } from "./rules";
+import { initialsOf, metadataName, NO_COUNTS, TASK_COLUMNS, toBoardTask, type StudioTaskRow, type TaskCounts } from "./rules";
 import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskBoardState } from "./types";
 
 // The board reads like the projects page for admins: after the same admin check (hub role, second factor,
@@ -37,11 +37,24 @@ type DetailsRow = { project_id: string; status: string; start_date: string | nul
 type LinkRow = { project_id: string; freelancer_id: string };
 const empty = { data: [], error: null };
 
-/** Names for user ids: the hub's profiles first; whoever has none is "Teammitglied", their freelancer or "Unbekannt". */
+/** At most this many logins per board get their name from the login itself (a few team accounts, not every customer). */
+const LOGIN_NAMES = 40;
+
+/**
+ * Names for user ids: the hub's profiles first, then the login itself, where Studio keeps the name of team accounts
+ * created there (seen live 16.11.2026: three of them stood as „Teammitglied“ under „Beteiligte“). Whoever has neither
+ * is "Teammitglied", their freelancer or "Unbekannt".
+ */
 async function peopleFor(db: Db, ids: string[], team: Set<string>, freelancerOf: ReadonlyMap<string, BoardFreelancer>): Promise<BoardPerson[]> {
   if (!ids.length) return [];
   const { data } = await db.from("hub_profiles").select("user_id, first_name, last_name").in("user_id", ids).returns<{ user_id: string; first_name: string | null; last_name: string | null }[]>();
   const names = new Map((data ?? []).map((row) => [row.user_id, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim()]));
+  const unnamed = ids.filter((id) => !names.get(id)).slice(0, LOGIN_NAMES);
+  const fromLogins = await Promise.all(unnamed.map(async (id) => {
+    const found = await db.auth.admin.getUserById(id).catch(() => null);
+    return [id, metadataName(found?.data?.user?.user_metadata)] as const;
+  }));
+  for (const [id, name] of fromLogins) if (name) names.set(id, name);
   return ids.map((id) => {
     const freelancer = team.has(id) ? undefined : freelancerOf.get(id);
     const name = names.get(id) || (team.has(id) ? "Teammitglied" : freelancer?.name ?? "Unbekannt");

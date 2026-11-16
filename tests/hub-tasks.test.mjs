@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, dueInfo, initialsOf, isAudience, joinNames, matchesFilters, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, TASK_COLUMNS, toBoardTask, TASK_STATUSES } from "../lib/hub-tasks/rules.ts";
+import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, dueInfo, initialsOf, isAudience, joinNames, matchesFilters, metadataName, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, TASK_COLUMNS, toBoardTask, TASK_STATUSES } from "../lib/hub-tasks/rules.ts";
 import { taskFixtures } from "../lib/hub-tasks/fixtures.ts";
 
 // Windows checkouts with autocrlf hold CRLF; the patterns below are written with \n.
@@ -249,4 +249,21 @@ test("the board as freelancers see it: their projects, no archive, no choice of 
   assert.match(people, /if \(!manage\) return <div className="kb-stat">Beteiligte<strong>\{stack\}<\/strong><\/div>;/);
   assert.match(people, /<Switch checked=\{on\} disabled=\{!canEdit \|\| busy !== null\}/);
   assert.match(people, /beim Kunden unter „Betreut von“ fest\./);
+});
+
+test("team accounts without a hub profile show the name their login keeps (seen live 16.11.2026)", async () => {
+  // Studio writes full_name, the hub's sign-up first and last name; anything else stays empty.
+  assert.equal(metadataName({ full_name: "  Jonas  Keller " }), "Jonas Keller");
+  assert.equal(metadataName({ first_name: "Lea", last_name: "Brandt" }), "Lea Brandt");
+  assert.equal(metadataName({ full_name: "", first_name: "Sam" }), "Sam");
+  assert.equal(metadataName({ name: "Studio" }), "Studio");
+  assert.equal(metadataName({ full_name: 42 }), "");
+  assert.equal(metadataName(null), "");
+  assert.equal(metadataName("Jonas"), "");
+  // The board asks the login only for people without a name in the hub, and only for a few of them.
+  const server = await source("lib/hub-tasks/server.ts");
+  assert.match(server, /const unnamed = ids\.filter\(\(id\) => !names\.get\(id\)\)\.slice\(0, LOGIN_NAMES\);/);
+  assert.match(server, /const found = await db\.auth\.admin\.getUserById\(id\)\.catch\(\(\) => null\);/);
+  assert.match(server, /return \[id, metadataName\(found\?\.data\?\.user\?\.user_metadata\)\] as const;/);
+  assert.match(server, /names\.get\(id\) \|\| \(team\.has\(id\) \? "Teammitglied"/);
 });

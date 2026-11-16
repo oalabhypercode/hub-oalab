@@ -71,6 +71,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", title: "Beteiligte im Projektkopf", text: "Ein Klick auf die Avatare im Kopf eines Boards zeigt das Team und die Freelancer, die den Kunden betreuen. Ein Schalter holt einen Freelancer ins Projekt oder nimmt ihn wieder heraus; danach sieht er das Projekt sofort nicht mehr." },
       { kind: "new", title: "Sichtbar für: Team, Freelancer, Kunde", text: "Im Fenster einer Aufgabe und in „Neue Aufgabe“ legst du fest, wer sie sieht: nur das Team, auch die Freelancer des Projekts oder zusätzlich der Kunde im Projektfenster. Karten mit „Nur Team“ tragen ein Schloss, und unter dem Kommentarfeld steht, wer mitliest." },
       { kind: "improved", title: "Freelancer als Zuständige", text: "Zuständig sein können jetzt auch die Freelancer des Projekts. In der Auswahl stehen sie unter dem Team und tragen eine eigene Farbe, ebenso in Kommentaren." },
+      { kind: "fixed", title: "Namen des Teams im Board", text: "Teammitglieder, die nur im Studio angelegt sind, standen unter „Beteiligte“ und in der Auswahl der Zuständigen nur als „Teammitglied“. Jetzt zeigt das Board ihren Namen aus ihrem Konto, so wie das Studio." },
     ],
   },
   {
