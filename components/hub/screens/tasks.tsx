@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarClock, ChevronLeft, LayoutGrid, LayoutList, ListFilter, Plus, SquareKanban, Tag, Users } from "lucide-react";
+import { CalendarClock, ChevronLeft, LayoutGrid, LayoutList, ListFilter, Lock, Plus, SquareKanban, Tag, Users } from "lucide-react";
+import { confirmSessionHref } from "@/lib/auth-redirect";
 import { categories } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
 import { archiveTask, createTask, moveTask, renumberColumn, updateTask } from "@/lib/hub-tasks/actions";
@@ -45,8 +46,10 @@ const withoutCounts = (task: BoardTask): Partial<BoardTask> => Object.fromEntrie
 export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | undefined; preview: boolean; asOf: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const source = useMemo(() => (preview ? taskFixtures(asOf) : board ?? { projects: [], tasks: [], people: [], viewerId: "", error: "Die Aufgaben konnten gerade nicht geladen werden." }), [preview, asOf, board]);
-  const canEdit = !source.error;
+  const source = useMemo(() => (preview ? taskFixtures(asOf) : board ?? { projects: [], tasks: [], people: [], viewerId: "", confirmed: false, error: "Die Aufgaben konnten gerade nicht geladen werden." }), [preview, asOf, board]);
+  // Without a session confirmed by a code Studio refuses every change, so the board stays read-only and offers the code.
+  const locked = !source.error && !source.confirmed;
+  const canEdit = !source.error && source.confirmed;
 
   // The board = the server's rows plus what happened here since: changes (until the server knows a newer version),
   // new cards (until the server lists them) and archived cards.
@@ -310,6 +313,14 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
         actions={<HeaderActions />}
       />
       {source.error && <p className="calendar-notice kb-error-note" role="alert">{source.error}</p>}
+      {locked && (
+        <div className="calendar-notice kb-lock-note" role="status">
+          <Lock size={18} aria-hidden="true" />
+          <span className="kb-lock-text"><b>Nur lesen.</b> Zum Bearbeiten bestätigst du deine Anmeldung einmal mit einem Code aus der Mail.</span>
+          {/* A full page load: the code page sits outside the hub and returns to this board, project and card. */}
+          <a className="sheet-action is-primary" href={confirmSessionHref(`${hubHref(preview, "projects")}/tasks${searchParams.toString() ? `?${searchParams.toString()}` : ""}`)}>Mit Code bestätigen</a>
+        </div>
+      )}
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="sheet kb-sheet section-first" ref={root}>
         <div className="kb-project">
@@ -332,8 +343,9 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
           trailing={<>
             <SegmentedControl label="Aufgaben eingrenzen" value={filters.mine ? "mine" : "all"} onChange={(value) => setFilters((current) => ({ ...current, mine: value === "mine" }))}
               options={[{ id: "all", label: "Alle", name: `Alle: ${counts.all}`, count: counts.all }, { id: "mine", label: "Meine", name: `Meine: ${counts.mine}`, count: counts.mine }]} />
-            {canEdit && (
-              <SheetActionMenu label="Aufgaben" actions={[{ icon: Plus, label: "Neue Aufgabe", hint: "Einzeln anlegen", shortcut: "N", onSelect: () => newTask() }]}
+            {!source.error && (
+              // Read-only keeps the choice of view; only „Neue Aufgabe“ needs the code.
+              <SheetActionMenu label="Aufgaben" actions={canEdit ? [{ icon: Plus, label: "Neue Aufgabe", hint: "Einzeln anlegen", shortcut: "N", onSelect: () => newTask() }] : []}
                 choices={{ label: "Ansicht", value: view, onChange: chooseView, options: [{ id: "board", label: "Board", icon: SquareKanban }, { id: "list", label: "Liste", icon: LayoutList }] }} />
             )}
           </>}>

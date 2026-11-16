@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { safeAuthRedirect, secondFactorDestination, secondFactorPageRedirect, secondFactorRedirect, serviceDestination, serviceOrigin, signedInRedirect } from "../lib/auth-redirect.ts";
+import { confirmSessionHref, safeAuthRedirect, secondFactorDestination, secondFactorPageRedirect, secondFactorRedirect, serviceDestination, serviceOrigin, signedInRedirect } from "../lib/auth-redirect.ts";
 import { codeClock, codeTimes, hasMailbox, isMailCodeCheck, mailCodeHash, maskEmail, newMailCode, readMailCode } from "../lib/hub-auth/mail-code.ts";
 import { authMessage } from "../lib/hub-auth/messages.ts";
 import { chosenSecondFactor, codeMethod, hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../lib/hub-auth/second-factor.ts";
@@ -113,6 +113,19 @@ test("the code page keeps who owes a code, also for Service team pages, and send
   assert.equal(page({ signedIn: true, confirmed: false, wanted: false }, "/dashboard/calendar"), "/dashboard/calendar");
   assert.equal(page({ signedIn: true, confirmed: true, wanted: true }, "https://service.oalab.de/ops"), "https://service.oalab.de/ops");
   assert.equal(page({ signedIn: true, confirmed: true, wanted: true }, "https://example.com"), "/dashboard");
+});
+
+test("„Mit Code bestätigen“ keeps a login without a second factor on the code page and returns to its hub page", () => {
+  const page = (state, next, asked) => secondFactorPageRedirect(state, next, SERVICE, asked);
+  const off = { signedIn: true, confirmed: false, wanted: false };
+  assert.equal(page(off, "/dashboard/projects/tasks?project=p", true), null);
+  // Without asking, such a login is not held there (e.g. an old address after switching the code off).
+  assert.equal(page(off, "/dashboard/projects/tasks?project=p", false), "/dashboard/projects/tasks?project=p");
+  assert.equal(page({ signedIn: true, confirmed: true, wanted: false }, "/dashboard/projects/tasks", true), "/dashboard/projects/tasks");
+  assert.equal(page({ signedIn: false, confirmed: false, wanted: false }, "/dashboard/projects/tasks", true), "/auth/login");
+  assert.equal(confirmSessionHref("/dashboard/projects/tasks?project=p&task=3"), "/auth/mfa?next=%2Fdashboard%2Fprojects%2Ftasks%3Fproject%3Dp%26task%3D3&confirm=1");
+  // Hub pages only: anything else returns to the overview.
+  assert.equal(confirmSessionHref("https://evil.example/x"), "/auth/mfa?next=%2Fdashboard&confirm=1");
 });
 
 test("a password-only session of a login with the e-mail code goes to the code page first", () => {
