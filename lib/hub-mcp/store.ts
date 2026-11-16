@@ -8,7 +8,7 @@ import { newSecret, secretHash } from "./oauth";
 
 // What the Claude connector keeps: the admin's open question (consent page) and the one-time code in the shared
 // `auth.verifications` (hashed, short-lived, like the hub's other links), the connections in hub_claude_connections
-// (migration service-oalab 202611160003; only checksums of the keys). All of it as the app role on the server; no
+// (migration service-oalab 202611160004; only checksums of the keys). All of it as the app role on the server; no
 // login reads any of it through PostgREST.
 
 /** The connector runs only on the own platform and with its switch on. */
