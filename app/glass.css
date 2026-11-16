@@ -69,6 +69,8 @@
   /* Rows of customers and freelancers: red without a Zugang, yellow while nobody signed in yet. */
   --veil-none: rgb(217 58 47 / 0.09); --veil-none-bar: #d93a2f;
   --veil-open: rgb(234 179 8 / 0.17); --veil-open-bar: #d9a300;
+  /* Projects in work and in planning (Projekte, 16.11.2026): a softer green and blue veil. */
+  --veil-ok: rgb(46 155 75 / 0.08); --veil-info: rgb(47 111 208 / 0.07);
   --danger: #b3261e;
   --danger-fill: #b3261e;
   --track-neutral: rgba(60, 60, 67, 0.28);
@@ -1834,6 +1836,7 @@ a.teams-join:active { transform: scale(0.97); }
   --tone-bad-bg: #3d1a18; --tone-bad: #ffb1aa;
   --veil-none: rgb(255 107 96 / 0.14); --veil-none-bar: #ff6b60;
   --veil-open: rgb(250 204 21 / 0.13); --veil-open-bar: #facc15;
+  --veil-ok: rgb(110 220 140 / 0.09); --veil-info: rgb(120 170 255 / 0.09);
   --danger: #ffb1aa;
   --track-neutral: rgba(255, 255, 255, 0.14);
   --selected-pill: rgba(255, 255, 255, 0.12);
@@ -2636,40 +2639,281 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .cdm-admin-table .cell-date small { margin-left: 4px; }
 }
 
-/* Projekte (admins): the customer panel in the frame of „Vertrag & Domain“ – website, domains, state and tasks. */
+/* Projekte (admins, Projekte V2 since 16.11.2026): every customer on the left like „Vertrag & Domain“, on the right the
+   chosen one with all projects (status in the row, its colour over the row), domains and links, Service and the
+   finished projects; a project opens its panel at the right edge. */
 .pp-tile-icon { color: var(--cat-projects-text); }
 .pp-jumps { flex: 0 0 auto; gap: 2px; }
 .pp-jump { width: 36px; height: 36px; border-radius: 10px; transition: background-color 120ms ease, transform 160ms cubic-bezier(0.3, 1.4, 0.5, 1); }
 .pp-jump:active { transform: scale(0.92); transition-duration: 80ms; }
-.pp-jump:focus-visible, .pp-url:focus-visible, .pp-adopt:focus-visible, .pp-inline-link:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-gap), 0 0 0 4px var(--accent-text); }
-.pp-url .am-file-text strong { font-size: 14.5px; line-height: 19px; font-weight: 600; }
-.cdm-file-icon.pp-icon-live { background: rgb(52 199 89 / 0.12); color: rgb(31, 157, 72); }
-.cdm-file-icon.pp-icon-test { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
-.cdm-file-icon:is(.pp-icon-customer, .pp-icon-state) { background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
-.cdm-file-icon.pp-icon-task { background: rgb(88 86 214 / 0.1); color: rgb(88, 86, 214); }
-:root[data-theme="dark"] .cdm-file-icon.pp-icon-test { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
-:root[data-theme="dark"] .cdm-file-icon:is(.pp-icon-customer, .pp-icon-state) { background: var(--sheet-seg); color: var(--sheet-muted); }
-:root[data-theme="dark"] .cdm-file-icon.pp-icon-task { background: rgb(94 92 230 / 0.2); color: rgb(169, 167, 255); }
-.file-dot.pp-dot-live i { background: var(--tone-ok-bar); }
-.file-dot.pp-dot-test i { background: var(--tone-todo-bar); }
-.file-dot.pp-dot-customer i { background: var(--sheet-icon); }
-.pp-progress { display: inline-flex; align-items: center; gap: 10px; }
-.pp-progress .list-progress { width: 120px; }
-.pp-progress b { font-weight: 600; color: var(--label); }
-.pp-inline-link { border-radius: 4px; color: var(--accent-text); }
-.pp-inline-link:hover { text-decoration: underline; text-underline-offset: 3px; }
-.pp-adopt { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); color: var(--accent-text); font-size: 12.5px; font-weight: 600; white-space: nowrap; transition: background-color 120ms ease; }
-.pp-adopt:hover:not(:disabled) { background: rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k))); }
-.pp-adopt:disabled { opacity: 0.6; }
-/* „Worum es geht“: the description in full, over the whole row. */
-.am .file-table tr.pp-about td { height: auto; padding-top: 12px; padding-bottom: 12px; }
-.pp-about .am-file { align-items: flex-start; }
-.pp-about .am-file-text small { overflow: visible; white-space: normal; font-size: 13px; line-height: 19px; color: var(--label-body); }
-.pp-table tr.is-done .am-file-text strong { color: var(--sheet-muted); text-decoration: line-through; }
+.pp-jump:focus-visible, .pj-open:focus-visible, .pj-chip:focus-visible, .pj-link-btn:focus-visible, .pj-host:focus-visible, .pj-customer-link:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-gap), 0 0 0 4px var(--accent-text); }
+.pj .am-pane { container: pjpane / inline-size; }
+.chat-pill.tone-bad { background: var(--tone-bad-bg); color: var(--tone-bad); }
+
+/* The list: one line per customer with the state of its projects. */
+.pj .chat-conv-top { gap: 8px; }
+.pj-list-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; vertical-align: 1px; background: var(--tone-off-bar); }
+.pj-list-dot.tone-ok { background: var(--tone-ok-bar); }
+.pj-list-dot.tone-bad { background: var(--tone-bad-bar); }
+.pj-list-dot.tone-todo { background: var(--tone-todo-bar); }
+.pj-list-dot.tone-info { background: var(--tone-info-bar); }
+
+/* The head: the customer's live and test domain as chips, always one click away. */
+.pj-head-links { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }
+.pj-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 250px; height: 32px; padding: 0 10px 0 9px; border-radius: 999px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font-size: 12.5px; font-weight: 600; white-space: nowrap; text-decoration: none; }
+.pj-chip:hover { background: var(--sheet-hover); color: var(--accent-text); }
+.pj-chip > svg { flex: 0 0 auto; }
+.pj-chip .pj-chip-text { overflow: hidden; text-overflow: ellipsis; }
+.pj-chip .pj-chip-arrow { color: var(--sheet-icon); }
+.pj-chip.is-live > svg:first-child { color: var(--tone-ok); }
+.pj-chip.is-test > svg:first-child { color: var(--tone-todo); }
+/* Next to the shortcuts the name keeps its room: below this width the chips show only their sign. */
+@container pjpane (max-width: 980px) {
+  .pj-chip .pj-chip-text, .pj-chip .pj-chip-arrow { display: none; }
+  .pj-chip { width: 32px; padding: 0; justify-content: center; }
+}
+
+/* The groups on the right, one table each. */
+.pj-scroll { padding-bottom: 20px; }
+.pj-scroll > .pj-table + .pj-table { margin-top: 14px; }
+.pj-table { table-layout: auto; }
+.pj-table td { height: 52px; }
+.pj-table .table-group-actions { gap: 4px; }
+.pj-table .table-add-row td { height: 44px; }
+.pj-table .table-empty-row td { height: 46px; padding-left: 64px; }
+.pj-row { cursor: pointer; }
+
+/* The row veil (user 15.11.2026, like User Management › Zugänge since 9.11.2026): the status colours the whole row, full
+   on the left half and fading out to the right, with a rounded bar on the left; the open row wears the accent. */
+.pj tr.veil-risk { --row-veil: var(--veil-none); --row-mark: var(--veil-none-bar); }
+.pj tr.veil-hold { --row-veil: var(--veil-open); --row-mark: var(--veil-open-bar); }
+.pj tr.veil-active { --row-veil: var(--veil-ok); --row-mark: var(--tone-ok-bar); }
+.pj tr.veil-planning { --row-veil: var(--veil-info); --row-mark: var(--tone-info-bar); }
+.pj tr.has-veil { background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 50%, transparent 100%); }
+.pj tr.is-current { --row-mark: var(--accent-text); background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
+.pj tr:is(.has-veil, .is-current) > td:first-child { position: relative; }
+.pj tr:is(.has-veil, .is-current) > td:first-child::before { content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 4px; background: var(--row-mark); }
+/* Hover and the open row colour the row under its veil instead of the cells, which would cover it. */
+.pj tbody tr:is(.has-veil, .is-current) > td, .pj tbody tr:is(.has-veil, .is-current):hover > td { background-color: transparent !important; }
+.pj tbody tr.has-veil:hover { background-color: var(--sheet-hover); }
+.pj tbody tr.is-current:hover { background-color: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); }
+.veil-dot.is-ok { background: var(--tone-ok-bar); }
+.veil-dot.is-info { background: var(--tone-info-bar); }
+
+/* A project: its sign on a calm tile, name and next milestone, the status, the target day, progress and domains. */
+.pj-glyph { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; background: var(--tone-off-bg); }
+.pj-glyph .status-glyph { width: 16px; height: 16px; }
+.pj-glyph.tone-ok { background: var(--tone-ok-bg); }
+.pj-glyph.tone-bad { background: var(--tone-bad-bg); }
+.pj-glyph.tone-todo { background: var(--tone-todo-bg); }
+.pj-glyph.tone-info { background: var(--tone-info-bg); }
+/* In a row the row carries the colour: the tile stays white, the sign keeps its colour. */
+.pj-row .pj-glyph { background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.pj-glyph.is-lg { width: 40px; height: 40px; border-radius: 11px; }
+.pj-glyph.is-lg .status-glyph { width: 18px; height: 18px; }
+.pj-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pj-open { display: inline-flex; min-width: 0; max-width: 100%; padding: 0; border: 0; border-radius: 4px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.pj-open strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-row:hover .pj-open strong { color: var(--accent-text); }
+.pj-hidden { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; color: var(--sheet-muted); font-size: 11.5px; font-weight: 600; }
+.pj-name .chat-pill, .pj-name .pj-hidden { flex: 0 0 auto; }
+/* The first cell takes the room that is left and cuts long names; the others keep their width. */
+@media (min-width: 768px) {
+  .pj-table tr.file-row > td:first-child { width: 100%; max-width: 0; }
+}
+.pj-table .am-file { width: 100%; }
+.pj-table .am-file-text { flex: 1 1 auto; min-width: 0; }
+.pj-cell-status, .pj-cell-due, .pj-cell-progress, .pj-cell-links, .pj-cell-open, .pj-cell-acts, .pj-cell-date { width: 1%; white-space: nowrap; }
+.pj-cell-due .numeric { display: block; color: var(--label-body); }
+.pj-cell-due small { display: block; color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+.pj-cell-due small.is-overdue { color: var(--tone-bad); font-weight: 600; }
+.pj-cell-open { color: var(--sheet-icon); padding-left: 0 !important; }
+.pj-cell-open svg { display: block; }
+.pj-cell-acts { text-align: right; }
+.pj-cell-acts .row-action { width: 32px; height: 32px; }
+.pj-cell-date { color: var(--sheet-muted); font-variant-numeric: tabular-nums; }
+.pj-none { color: var(--sheet-icon); }
+
+/* The status: a small, calm choice field (the row carries the colour) that opens the hub's list with Studio's five
+   statuses; hover lightens it, and while the list is open it wears the accent ring of the search fields. */
+.pj-status-wrap { display: inline-flex; }
+.hub-select-trigger.pj-status { gap: 5px; height: 24px; padding: 0 5px 0 7px; border-radius: 999px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 500; line-height: 16px; white-space: nowrap; transition: box-shadow 0.12s ease, background-color 0.12s ease; }
+.pj-status .hub-select-lead { min-width: 0; }
+.pj-status .status-glyph { width: 12px; height: 12px; }
+.pj-status .hub-select-chevron { width: 12px; height: 12px; color: var(--sheet-icon); }
+.pj-status:hover:not(:disabled) { background-color: var(--sheet-hover); }
+.pj-status:hover:not(:disabled) .hub-select-chevron { color: var(--sheet-muted); }
+.pj-status[aria-expanded="true"] { background-color: var(--sheet); box-shadow: var(--select-open-ring); }
+.pj-status[aria-expanded="true"] .hub-select-chevron { color: var(--accent-text); }
+.pj-status:focus-visible { outline: 0; box-shadow: var(--select-open-ring); }
+.hub-select-trigger.pj-status:disabled { opacity: 0.6; cursor: progress; }
+
+/* The domains of a project right in its row. */
+.pj-link-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: var(--sheet-muted); }
+.pj-link-btn:hover { background: var(--sheet-hover); }
+.pj-link-btn.is-live { color: var(--tone-ok); }
+.pj-link-btn.is-test { color: var(--tone-todo); }
+.pj-link-btn.is-empty { color: var(--sheet-icon); opacity: 0.4; }
+
+/* Domains & links: the projects' live and test domains, then the domains of „Vertrag & Domain“. */
+.pj-kind { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; }
+.pj-kind.is-live { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.pj-kind.is-test { background: var(--tone-todo-bg); color: var(--tone-todo); }
+.pj-kind.is-domain { background: var(--tone-info-bg); color: var(--tone-info); }
+.pj-host { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; border-radius: 4px; color: var(--accent-text); font-size: 13.5px; font-weight: 600; line-height: 18px; text-decoration: none; }
+.pj-host span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-host svg { flex: 0 0 auto; opacity: 0.7; }
+.pj-host:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.pj-kind-label { display: inline-flex; align-items: center; gap: 8px; }
+/* The form to add or change a domain, right in the list. */
+.pj-table tr.pj-inline td { height: auto; padding-top: 14px; padding-bottom: 14px; background: var(--sheet-sunken); }
+.pj-table tr.pj-inline:hover td { background: var(--sheet-sunken); }
+.pj-form { display: grid; gap: 10px; max-width: 760px; }
+.pj-form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pj-form-row > .am-label { min-width: 74px; }
+.pj-form .chat-filter.pj-kind-filter { margin: 0; align-self: center; }
+.pj-url { display: flex; align-items: center; gap: 8px; flex: 1 1 280px; min-width: 0; height: 38px; padding: 0 4px 0 11px; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.pj-url:focus-within { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.pj-url > svg { flex: 0 0 auto; color: var(--sheet-muted); }
+.pj-url.is-live > svg:first-child { color: var(--tone-ok); }
+.pj-url.is-test > svg:first-child { color: var(--tone-todo); }
+.pj-url input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--label); font: inherit; font-size: 13.5px; }
+.pj-url input::placeholder { color: var(--sheet-icon); }
+/* The box shows the focus (accent inside), so the field itself draws no second ring. */
+.pj-url input:focus-visible { outline: 0; box-shadow: none; }
+.pj-url .row-action { width: 30px; height: 30px; flex: 0 0 auto; }
+.pj-form-pick { flex: 0 1 300px; min-width: 200px; }
+.pj-mark { color: var(--sheet-muted); }
+.pj-mark .status-glyph { width: 13px; height: 13px; }
+.pj-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pj-form-actions .pj-spacer { flex: 1 1 auto; }
+.pj-form-hint { color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+.pj-form-error { color: var(--tone-bad); font-size: 12.5px; font-weight: 600; }
+
+/* Service: package, this month's count, the open requests and what is done. */
+.pj-meter { justify-content: flex-end; }
+.pj-meter .cdm-meter { width: 160px; flex: 0 0 auto; }
+.pj-table .am-file-text small .chat-pill { padding: 0 7px; font-size: 11px; line-height: 16px; }
+.pj-table .am-file-text small b { color: var(--label-body); font-weight: 600; }
+
+/* A narrow pane (laptop with the list, tablet): columns step back. */
+@media (min-width: 768px) {
+  @container pjpane (max-width: 720px) {
+    .pj-cell-progress { display: none; }
+    .pj-meter .cdm-meter { width: 110px; }
+  }
+  @container pjpane (max-width: 600px) {
+    .pj-cell-links, .pj-cell-open { display: none; }
+  }
+}
+
+/* Phones: each row in two lines, like the hub's other tables. */
 @media (max-width: 767px) {
-  .pp .am-pane-head { flex-wrap: wrap; row-gap: 6px; }
+  .pp .am-pane-head { flex-wrap: wrap; row-gap: 10px; }
   .pp-jumps { order: 3; flex-basis: 100%; justify-content: space-between; }
-  .pp-adopt { height: 30px; }
+  .pj-head-links { order: 5; flex: 1 0 100%; }
+  .pj-head-links .pj-chip { flex: 1 1 0; width: auto; max-width: none; padding: 0 10px 0 9px; justify-content: center; }
+  .pj-head-links .pj-chip .pj-chip-text { display: inline; }
+  .pj-head-links .pj-chip .pj-chip-arrow { display: block; }
+  /* Line 1: sign, name and the arrow; line 2 under the name: status, how much time is left, the domains. */
+  .sheet .pj-table tbody tr.file-row { gap: 8px 10px; }
+  .sheet .pj-table tbody tr.file-row > td:first-child { order: 1; flex: 1 1 0px; min-width: 0; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-open, .pj-cell-acts) { order: 2; width: auto; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-status, .pj-cell-due, .pj-cell-links, .pj-cell-meter) { order: 4; width: auto; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-status, .pj-cell-meter) { margin-left: 42px; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-due { display: flex; align-items: center; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-due .numeric { display: none; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-due small { display: inline; font-size: 12.5px; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-links { margin-left: auto; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-progress, .pj-cell-date:not(.pj-cell-meter)) { display: none; }
+  .pj-meter { justify-content: flex-start; }
+  .pj-form-row > .am-label { min-width: 0; }
+  .sheet .pj-table tbody tr.pj-inline { display: block; }
+  .sheet .pj-table tbody tr.pj-inline > td { display: block; padding: 14px; }
+  .pj-link-btn.is-empty { display: none; }
+  /* Rows become cards here: the bar runs along the whole card instead of the first cell. */
+  .pj tr:is(.has-veil, .is-current) > td:first-child::before { display: none; }
+  .pj tbody tr:is(.has-veil, .is-current) { box-shadow: inset 4px 0 0 var(--row-mark); }
+}
+
+/* Alle Projekte: every project of every customer, the customer leading. */
+.pj-ov .project-table td { height: 44px; }
+.pj-ov .cell-customer { width: 1%; white-space: nowrap; }
+.pj-ov .cell-project .cell-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.pj-ov .project-card { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); font-weight: 500; }
+.pj-ov .project-card:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.pj-ov .cell-title .status-glyph, .pj-turn { flex: 0 0 auto; }
+/* The project link stretches over the row (hub rule); the controls in it stay above that layer. */
+.pj-ov .project-row :is(.pj-customer-link, .pj-status-wrap, .pj-link-btn, .pj-turn) { position: relative; z-index: 1; }
+.pj-turn { display: inline-flex; color: var(--tone-todo); }
+.pj-ov .progress-line .list-progress { width: 40px; }
+.pj-ov .cell-milestone { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-ov :is(.pj-cell-status, .pj-col-due, .pj-col-progress, .pj-col-links) { width: 1%; white-space: nowrap; }
+.pj-customer-link { display: inline-flex; align-items: center; gap: 8px; max-width: 180px; border-radius: 6px; color: var(--label-body); font-weight: 500; }
+.pj-customer-link span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-customer-link:hover span:last-child { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.pj-customer-link .am-avatar, .pj-ov .table-group-glyph .am-avatar { width: 22px; height: 22px; border-radius: 6px; font-size: 9.5px; }
+@media (min-width: 768px) {
+  .pj-ov .cell-project { width: 100%; max-width: 0; overflow: hidden; }
+  @container pjpane (max-width: 860px) { .pj-ov .pj-col-ms { display: none; } }
+  @container pjpane (max-width: 640px) { .pj-ov .pj-col-links, .pj-ov .pj-col-progress { display: none; } }
+  @container pjpane (max-width: 520px) { .pj-ov .pj-col-due { display: none; } .pj-customer-link { max-width: 120px; } }
+}
+@media (max-width: 767px) {
+  .sheet .pj-ov .project-table tr.project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "customer customer" "title status" "due links"; gap: 4px 12px; }
+  .sheet .pj-ov .cell-customer { grid-area: customer; }
+  .sheet .pj-ov .cell-project { grid-area: title; }
+  .sheet .pj-ov .pj-cell-status { grid-area: status; width: auto; }
+  .sheet .pj-ov .pj-col-due { grid-area: due; display: flex; align-items: baseline; gap: 6px; width: auto; padding-left: 22px; }
+  .sheet .pj-ov .pj-col-due .numeric, .sheet .pj-ov .pj-col-due small { display: inline; }
+  .sheet .pj-ov .pj-col-links { grid-area: links; justify-self: end; width: auto; }
+  .sheet .pj-ov :is(.pj-col-ms, .pj-col-progress) { display: none; }
+  .pj-ov .project-card { font-size: 15px; }
+}
+
+/* The panel of a project: the status in five steps, its domains, what Studio holds and the open tasks. */
+.pj-panel .am-panel-title > span { display: block; }
+.pj-status-pick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.pj-pick { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 10px 2px 9px; border-radius: 10px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 600; line-height: 15px; }
+.pj-pick .status-glyph { width: 16px; height: 16px; }
+.pj-pick:hover:not(:disabled) { background: var(--sheet-hover); }
+.pj-pick:disabled { cursor: progress; }
+.pj-pick:focus-visible { outline: 0; box-shadow: var(--select-open-ring); }
+.pj-pick[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px currentColor; }
+.pj-pick.tone-ok[aria-pressed="true"] { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.pj-pick.tone-bad[aria-pressed="true"] { background: var(--tone-bad-bg); color: var(--tone-bad); }
+.pj-pick.tone-todo[aria-pressed="true"] { background: var(--tone-todo-bg); color: var(--tone-todo); }
+.pj-pick.tone-info[aria-pressed="true"] { background: var(--tone-info-bg); color: var(--tone-info); }
+.pj-pick.tone-off[aria-pressed="true"] { background: var(--tone-off-bg); color: var(--tone-off); }
+.pj-pick-hint { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: var(--sheet-muted); font-size: 12.5px; line-height: 17px; }
+.pj-pick-hint > svg { flex: 0 0 auto; }
+.pj-pick-hint b { color: var(--label-body); font-weight: 600; }
+.pj-fields { display: grid; gap: 12px; }
+.pj-fields .pj-url { flex: none; }
+.pj-facts { display: grid; gap: 8px; margin: 0; }
+.pj-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.pj-facts dt { color: var(--sheet-muted); font-size: 12.5px; line-height: 18px; }
+.pj-facts dd { margin: 0; color: var(--label); font-size: 13.5px; line-height: 19px; white-space: pre-line; overflow-wrap: anywhere; }
+.pj-ms-list, .pj-tasks { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.pj-ms-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 34px; border-bottom: 1px solid var(--sheet-divider); color: var(--label); font-size: 13px; }
+.pj-ms-list li.is-past { color: var(--sheet-muted); }
+.pj-ms-list time { color: var(--sheet-muted); font-size: 12px; }
+.pj-ms-mark { display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-icon); }
+.pj-ms-list li.is-past .pj-ms-mark { color: var(--tone-ok); }
+.pj-ms-list li.is-next .pj-ms-mark, .pj-ms-list li.is-next time { color: var(--accent-text); }
+.pj-tasks li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 36px; padding: 0 2px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; }
+.pj-ms-list li:last-child, .pj-tasks li:last-child { border-bottom: 0; }
+.pj-tasks li span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); }
+.pj-tasks li small { color: var(--sheet-muted); font-size: 12px; white-space: nowrap; }
+.pj-task-mark { display: inline-flex; color: var(--sheet-icon); }
+.pj-task-mark:has(.lucide-hand) { color: var(--tone-todo); }
+.pj-empty { color: var(--sheet-muted); font-size: 13px; line-height: 18px; }
+.pj-panel .am-panel-foot { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 767px) {
+  .pj-status-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pj-tasks li { grid-template-columns: 18px minmax(0, 1fr); }
+  .pj-tasks li small { grid-column: 2; white-space: normal; }
+  .pj-tasks li { padding: 6px 2px; row-gap: 2px; }
 }
 
 /* The customer's tabs (admins): package choice inside the row, a save bar only while something changed, the six domain

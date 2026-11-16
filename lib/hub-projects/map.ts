@@ -19,6 +19,8 @@ export type StudioDetailsRow = {
   due_date: string | null;
   milestones: unknown;
   version?: number;
+  /** Read for admins only: whether the customer sees the project. */
+  client_visible?: boolean;
 };
 export type StudioTaskRow = {
   id: string;
@@ -36,21 +38,19 @@ export type RequestCounts = { open: number; done: number };
 /** A domain of the customer from „Vertrag & Domain“, as the project panel lists it (admins only). */
 export type ProjectDomain = { id: string; domain: string; display: string; status: string; renewsOn: string | null };
 
-/** The hub customer behind projects, for the admins' project panel: number, website and domains. */
-export type ProjectCustomer = { id: string; company: string; customerNumber: string; website: string | null; domains: ProjectDomain[] };
-
-/** Studio projects of a real login, or why they could not be loaded; admins also get the customers behind them. */
-export type LiveProjectsState = { projects: Project[]; error: string | null; customers?: ProjectCustomer[] };
+/** Studio projects of a real login, or why they could not be loaded. */
+export type LiveProjectsState = { projects: Project[]; error: string | null };
 
 const taskStatuses = ["backlog", "todo", "progress", "review", "done"] as const;
 const isCustomerLabel = (label: string) => label.trim().toLowerCase() === CUSTOMER_LABEL.toLowerCase();
-/** Request states Studio counts as finished respectively still open. */
-const doneRequestStates = new Set(["released", "resolved"]);
-const closedRequestStates = new Set(["draft", "released", "resolved", "rejected", "cancelled", "superseded", "archived"]);
+/** Request states Studio counts as finished respectively no longer open (drafts are not open yet). */
+export const doneRequestStates: ReadonlySet<string> = new Set(["released", "resolved"]);
+export const closedRequestStates: readonly string[] = ["draft", "released", "resolved", "rejected", "cancelled", "superseded", "archived"];
+const closed: ReadonlySet<string> = new Set(closedRequestStates);
 
 export function countRequests(rows: readonly { state: string }[]): RequestCounts {
   return {
-    open: rows.filter((row) => !closedRequestStates.has(row.state)).length,
+    open: rows.filter((row) => !closed.has(row.state)).length,
     done: rows.filter((row) => doneRequestStates.has(row.state)).length,
   };
 }
@@ -203,7 +203,11 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     milestones: toMilestones(details?.milestones),
     progressBasis: tasks.length ? "tasks" : requests.done + requests.open ? "requests" : "none",
     requests,
-    studio: { status: studioStatusOf(project, details), version: details?.version ? Number(details.version) : null },
+    studio: {
+      status: studioStatusOf(project, details),
+      version: details?.version ? Number(details.version) : null,
+      ...(typeof details?.client_visible === "boolean" ? { visible: details.client_visible } : {}),
+    },
     tasks: [...tasks].sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999") || a.number - b.number),
   };
 }
