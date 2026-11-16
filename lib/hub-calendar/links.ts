@@ -67,7 +67,8 @@ const NOTE_LENGTH = 1000;
 
 /** What lands in the private calendar: title with "oalab", the time, the Teams link and the way back into the hub. */
 export function calendarEvent(appointment: CalendarAppointment, origin: string, now: Date): CalendarEvent {
-  const url = `${origin}/dashboard/calendar`;
+  // The calendar under Projekte (CALENDAR_PATH in paths.ts; kept here as text so this file stays self-contained).
+  const url = `${origin}/dashboard/projects/calendar`;
   const notes = [
     appointment.teams_url ? `Teams-Besprechung beitreten:\n${appointment.teams_url}` : "",
     clip(appointment.description.trim(), NOTE_LENGTH),

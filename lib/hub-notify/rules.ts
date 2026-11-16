@@ -197,11 +197,14 @@ export const mailsWanted = (metadata: Record<string, unknown> | null | undefined
  * The appointment's id rides in the notice's link: the bell still opens the calendar, and the mail finds the
  * appointment by it for the calendar buttons (no extra column in hub_inbox).
  */
-export const appointmentHref = (appointmentId: string) => `/dashboard/calendar?appointment=${appointmentId}`;
+export const appointmentHref = (appointmentId: string) => `/dashboard/projects/calendar?appointment=${appointmentId}`;
 
-/** The appointment a notice links to, or null. */
+/**
+ * The appointment a notice links to, or null. Notices written before the calendar moved under Projekte (16.11.2026)
+ * still carry the old address, which forwards; both are read.
+ */
 export function noticeAppointment(href: string) {
-  return /^\/dashboard\/calendar\?appointment=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(href)?.[1] ?? null;
+  return /^\/dashboard\/(?:projects\/)?calendar\?appointment=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(href)?.[1] ?? null;
 }
 
 /** Appointment notices for the customer; null when nothing worth telling changed. */

@@ -52,7 +52,7 @@ type HubViewProps = {
   asOf: string;
   /** Real files for signed-in users; absent for the preview. */
   filesState?: HubFilesState;
-  /** Real calendar on the calendar page; absent for the preview. */
+  /** Real calendar on the calendar page (under Projekte); absent for the preview. */
   calendarState?: HubCalendarState;
   /** Role of the login from the user management. */
   role?: HubRole | null;
@@ -132,7 +132,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "files" ? <FilesScreen {...screen} />
         : section === "contracts" ? <ContractsScreen {...screen} state={contractState} />
         : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />
-        : section === "calendar" ? <CalendarScreen {...screen} />
+        : section === "calendar" ? <CalendarScreen {...screen} taskBoard={taskBoard} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />
         : section === "keychain" && keychain ? <KeychainScreen state={keychain} />

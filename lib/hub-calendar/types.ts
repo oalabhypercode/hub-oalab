@@ -32,6 +32,11 @@ export type HubCalendarState = {
   customers: HubFileCustomer[];
   /** Admin view: create, edit and answer requests. For "supabase" decided on the server from the verified role; fixture changes never leave the browser. */
   canManage: boolean;
+  /**
+   * Admins: whether this session confirmed a code (aal2). Tasks are Studio's rows, and Studio changes them only for such
+   * a session; without it the calendar shows tasks read-only and offers „Mit Code bestätigen“ (like the task board).
+   */
+  confirmed?: boolean;
   /** Berlin day the calendar opens on and the instant that separates past from future. */
   today: string;
   now: number;

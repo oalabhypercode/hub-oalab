@@ -1,12 +1,11 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { HubView } from "@/components/hub/hub-view";
 import { HubContentLoading } from "@/components/hub/loading";
-import { adminSections, hubSections } from "@/lib/hub-data";
+import { adminSections, hubHref, hubSections } from "@/lib/hub-data";
 import { parseHubSection, todayIso } from "@/lib/hub-routes";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
 import { loadHubFiles } from "@/lib/hub-files/server";
-import { loadHubCalendar } from "@/lib/hub-calendar/server";
 import { loadUserManagement } from "@/lib/hub-users/server";
 import { loadLiveProjects, loadProjectDesk } from "@/lib/hub-projects/server";
 import { loadAssistantLog } from "@/lib/hub-assistant/log";
@@ -21,14 +20,15 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   const { section } = await params;
   const validSection = parseHubSection(section);
   if (!validSection) notFound();
+  // The calendar hangs under Projekte now; the proxy forwards the old address with its query, this is the fallback.
+  if (validSection === "calendar") redirect(hubHref(false, "calendar"));
   const identity = await getWorkspaceIdentity();
   // Admin-only sections need an admin session; everyone else gets a plain 404.
   if (adminSections.includes(validSection) && identity.account?.role !== "oalab_admin") notFound();
   // „Vertrag & Domain“ is for admins and customers; freelancers have no entry and get a plain 404 as well.
   if (validSection === "contracts" && identity.account?.role === "oalab_freelancer") notFound();
-  const [filesState, calendarState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk] = await Promise.all([
+  const [filesState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk] = await Promise.all([
     loadHubFiles(),
-    validSection === "calendar" ? loadHubCalendar(todayIso()) : undefined,
     validSection === "users" ? loadUserManagement() : undefined,
     loadLiveProjects(),
     validSection === "ai-log" ? loadAssistantLog() : undefined,
@@ -43,7 +43,7 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
     // Projekte for admins: every customer with domains, packages, quota and open requests (undefined for everyone else).
     validSection === "projects" ? loadProjectDesk() : undefined,
   ]);
-  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} calendarState={calendarState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} projectDesk={projectDesk} />;
+  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} projectDesk={projectDesk} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {

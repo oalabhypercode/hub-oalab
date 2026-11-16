@@ -39,7 +39,7 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
   const window = calendarWindow(today);
   const from = new Date(window.from).toISOString();
   const to = new Date(window.to).toISOString();
-  const base = { source: "supabase" as const, canManage, today, now: Date.now() };
+  const base = { source: "supabase" as const, canManage, confirmed: canManage && claims?.claims.aal === "aal2", today, now: Date.now() };
 
   const [appointments, customers, busy] = await Promise.all([
     supabase

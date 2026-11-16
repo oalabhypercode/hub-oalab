@@ -93,9 +93,14 @@ test("appointment notices tell new, confirmed, moved, cancelled and declined apa
   const appointmentId = "0b6f4f0e-2c1a-4d7e-9a51-3f2e8d7c6b5a";
   const notice = (patch) => appointmentNotice({ id: appointmentId, title: "Abstimmung", startsAt, status: "confirmed", before: null, ...patch });
   assert.equal(notice({}).kind, "appointment.created");
-  assert.equal(notice({}).href, `/dashboard/calendar?appointment=${appointmentId}`);
+  // Since 16.11.2026 the calendar lives under Projekte; notices sent before keep their old address and still count.
+  assert.equal(notice({}).href, `/dashboard/projects/calendar?appointment=${appointmentId}`);
   assert.equal(noticeAppointment(notice({ status: "cancelled" }).href), appointmentId);
-  for (const href of ["/dashboard/calendar", "/dashboard/files", `/dashboard/calendar?appointment=${appointmentId}&x=1`, "/dashboard/calendar?appointment=1"]) assert.equal(noticeAppointment(href), null, href);
+  assert.equal(noticeAppointment(`/dashboard/calendar?appointment=${appointmentId}`), appointmentId, "an older notice");
+  for (const href of [
+    "/dashboard/calendar", "/dashboard/projects/calendar", "/dashboard/files", `/dashboard/calendar?appointment=${appointmentId}&x=1`,
+    `/dashboard/projects/calendar?appointment=${appointmentId}&x=1`, "/dashboard/projects/calendar?appointment=1", `/dashboard/projects/tasks?appointment=${appointmentId}`,
+  ]) assert.equal(noticeAppointment(href), null, href);
   // ICU writes "Fr., 6. November um 10:00"; older versions put a comma instead of "um".
   assert.match(notice({}).body, /^Fr\., 6\. November(,| um) 10:00 Uhr$/);
   assert.equal(notice({ before: { status: "requested", startsAt } }).kind, "appointment.confirmed");
@@ -150,9 +155,10 @@ test("new, confirmed and moved appointments get calendar buttons once, while sti
   const a = "0b6f4f0e-2c1a-4d7e-9a51-3f2e8d7c6b5a";
   const b = "1c7a5e1f-3d2b-4e8f-8b62-4a3f9e8d7c6b";
   const c = "2d8b6f2a-4e3c-4f9a-9c73-5b4a0f9e8d7c";
-  const href = (id) => `/dashboard/calendar?appointment=${id}`;
+  const href = (id) => `/dashboard/projects/calendar?appointment=${id}`;
   const rows = [
-    { id: 1, kind: "appointment.created", href: href(a) },
+    // A notice from before 16.11.2026, with the calendar's old address.
+    { id: 1, kind: "appointment.created", href: `/dashboard/calendar?appointment=${a}` },
     { id: 2, kind: "appointment.changed", href: href(a) },
     { id: 3, kind: "appointment.confirmed", href: href(b) },
     { id: 4, kind: "appointment.created", href: href(c) },

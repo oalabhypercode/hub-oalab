@@ -45,9 +45,11 @@ const places = [
   { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Service-Anfragen"', button: /label=\{`Service-Anfragen\$\{month \? ` im \$\{month\.month\}` : ""\}`\}[^]*?actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Deine Anfragen"', button: /<td className="cell-action">\{info\.button\}\{info\.box\}<\/td>/, box: "{info.box}" },
   { file: "components/hub/screens/private-chat.tsx", call: 'useInfo(admin ? "Private Chats" : "Chat"', button: /<h2>Gespräche\{info\.button\}<\/h2>/, box: "{info.box}" },
-  { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Termin anfragen"', button: /<Modal title="Termin anfragen" onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
-  { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Anfrage beantworten"', button: /<Modal title=\{appointment\.title\} onClose=\{onClose\} actions=\{answering \? info\.button : undefined\}>/, box: "{answering && info.box}" },
-  { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Termin und Teams-Link"', button: /"Neuer Termin"\} onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
+  // The calendar under Projekte (since 16.11.2026): in the head of its panels; for admins at the week's row „ganztägig“.
+  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin anfragen"', button: /title="Termin anfragen" subtitle="bei oalab · nur freie Zeiten" actions=\{info\.button\}/, box: "{info.box}" },
+  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Anfrage beantworten"', button: /title=\{appointment\.title\} subtitle=\{`Anfrage von [^\n]*actions=\{info\.button\}/, box: "{info.box}" },
+  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin und Teams-Link"', button: /title=\{appointment \? appointment\.title : "Neuer Termin"\}[^]*?actions=\{info\.button\} footer=\{footer\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/calendar.tsx", call: 'useInfo("Aufgaben im Kalender"', button: /tasksInfo: admin \? tasksInfo\.button : undefined/, box: "{tasksInfo.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Vertragsgenerator"', button: /<Modal title="Vertrag erstellen"[^>]*actions=\{generatorInfo\.button\}/, box: "{generatorInfo.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Beim Kunden ablegen"', button: /<legend>Beim Kunden ablegen\{fileInfo\.button\}<\/legend>/, box: "{fileInfo.box}" },
   { file: "components/hub/screens/contract-template-versions.tsx", call: 'useInfo("Vertragsvorlagen"', button: /label="Vertragsvorlagen"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
@@ -129,8 +131,10 @@ test("every card says it in at most three short lines and hands the rest to the 
 test("the cards and the assistant's details say what the code does", async () => {
   const upload = await source("components/hub/screens/asset-upload.tsx");
   assert.match(upload, /<b>Bis \{MAX_UPLOAD_BATCH\} Dateien,<\/b> je höchstens \{formatBytes\(MAX_FILE_BYTES\)\}/, "upload limits come from the catalog");
-  const calendar = await source("components/hub/screens/calendar-dialogs.tsx");
+  const calendar = await source("components/hub/screens/calendar-panels.tsx");
   assert.match(calendar, /\{WORKDAY\.start\}–\{WORKDAY\.end\} Uhr/, "working hours come from the rules");
+  // The admins' card about tasks sits where the tasks are: at the week's row „ganztägig“.
+  assert.match(await source("components/hub/screens/calendar-views.tsx"), /<span>ganz&shy;tägig<\/span>\{tasksInfo\}/);
   const access = await source("components/hub/screens/contracts-access.tsx");
   assert.match(access, /\{REVEAL_SECONDS\} Sekunden<\/b>/, "reveal time comes from the rules");
   const whatsapp = await source("components/hub/whatsapp-card.tsx");

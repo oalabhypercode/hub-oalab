@@ -297,7 +297,7 @@ test("Projekte without the code: read-only, with „Mit Code bestätigen“ abov
   assert.match(server, /async function sessionConfirmed\(\) \{[^]*?return data\?\.claims\?\.aal === "aal2";/);
   const desk = server.slice(server.indexOf("export const loadProjectDesk"));
   assert.match(desk, /sessionConfirmed\(\),\s*\]\);/);
-  assert.match(desk, /\n\s+confirmed,\n/);
+  assert.match(desk, /\n\s+confirmed,\r?\n/);
   assert.match(server, /const deskFailed = [^\n]*confirmed: false/);
   // Every change on the page waits for the code, the addresses in the list as well.
   const actions = await source("lib/hub-projects/actions.ts");

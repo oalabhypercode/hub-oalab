@@ -10,7 +10,7 @@ export function generateStaticParams() { return hubDetailParams; }
 async function PreviewDetail({ params }: { params: Promise<{ section: string; detail: string }> }) {
   const { section, detail } = await params;
   if (!isHubDetail(section, detail)) notFound();
-  return <HubView section={detailSection(section)} detail={detail} preview userKey="preview" asOf={DEMO_AS_OF} />;
+  return <HubView section={detailSection(section, detail)} detail={detail} preview userKey="preview" asOf={DEMO_AS_OF} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string; detail: string }> }) {

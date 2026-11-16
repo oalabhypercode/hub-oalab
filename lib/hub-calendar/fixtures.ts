@@ -52,6 +52,8 @@ export function calendarFixtures({ admin, customerNumber }: { admin: boolean; cu
     busy: appointments.filter((item) => item.status === "confirmed").map(({ start, end }) => ({ start, end })),
     customers: Object.values(customers).filter((customer) => admin || customer.customerNumber === customerNumber),
     canManage: admin,
+    // The preview's changes never leave the browser, so its tasks move without a code.
+    confirmed: admin,
     today: DEMO_AS_OF,
     now: wallTimeToUtc(DEMO_AS_OF, "08:00"),
   };

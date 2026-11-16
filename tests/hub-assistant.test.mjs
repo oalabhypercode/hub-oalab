@@ -5,7 +5,7 @@ import { cleanConversation, MAX_QUESTION_CHARS, MAX_TURNS } from "../lib/hub-ass
 import { ASSISTANT_MODEL, assistantSystem, HUB_KNOWLEDGE } from "../lib/hub-assistant/knowledge.ts";
 import { sectionLabels } from "../lib/hub-data.ts";
 import { fileCategories } from "../lib/hub-files/catalog.ts";
-import { appointmentStatuses, occupancyLabels, WORKDAY } from "../lib/hub-calendar/rules.ts";
+import { appointmentStatuses, WORKDAY } from "../lib/hub-calendar/rules.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -35,7 +35,10 @@ test("the knowledge base covers every area, file category, appointment status an
   for (const label of Object.values(sectionLabels)) assert.ok(HUB_KNOWLEDGE.includes(label), `area ${label}`);
   for (const name of Object.values(fileCategories)) assert.ok(HUB_KNOWLEDGE.includes(name), `file category ${name}`);
   for (const status of Object.values(appointmentStatuses)) assert.ok(HUB_KNOWLEDGE.includes(status), `status ${status}`);
-  for (const [level, label] of Object.entries(occupancyLabels)) if (level !== "closed") assert.ok(HUB_KNOWLEDGE.includes(label), `occupancy ${label}`);
+  // What the calendar under Projekte writes over its days and rows: free time for customers, what is left for admins.
+  for (const label of ["Frei", "Belegt", "Ausgebucht", "Kein Termintag", "ganztägig", "Zeit blockieren", "Mit neuer Zeit bestätigen"]) {
+    assert.ok(HUB_KNOWLEDGE.includes(`„${label}“`), `calendar ${label}`);
+  }
   assert.ok(HUB_KNOWLEDGE.includes(`von ${Number(WORKDAY.start.slice(0, 2))} bis ${Number(WORKDAY.end.slice(0, 2))} Uhr`));
 });
 

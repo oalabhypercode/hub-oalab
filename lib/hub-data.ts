@@ -219,9 +219,13 @@ export function currentMilestone(project: Project, asOf: string): Milestone | un
   return project.milestones.filter((item) => item.at.slice(0, 10) <= asOf).at(-1) ?? project.milestones[0];
 }
 
+/**
+ * The address of a section. The calendar hangs under Projekte next to the task board (decision of 16.11.2026), so it
+ * lives at /projects/calendar; the old address /calendar forwards there (lib/supabase/proxy.ts).
+ */
 export function hubHref(preview: boolean, section: HubSection = "overview") {
   const base = preview ? "/preview" : "/dashboard";
-  return section === "overview" ? base : `${base}/${section}`;
+  return section === "overview" ? base : section === "calendar" ? `${base}/projects/calendar` : `${base}/${section}`;
 }
 
 export function metricHref(preview: boolean, metric: string) {

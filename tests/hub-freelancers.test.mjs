@@ -95,7 +95,9 @@ test("the asset management: freelancers read, admins set who looks after a custo
 
 test("freelancers have no projects and no way to the service platform in the hub", async () => {
   const sidebar = await source("components/hub/glass-sidebar.tsx");
-  assert.match(sidebar, /categoriesFor\(account\.freelancer\)\.map/);
+  // Without Projekte the calendar stays a freelancer's own entry; everybody else finds it under Projekte.
+  assert.match(sidebar, /const calendarUnderProjects = !account\.freelancer;/);
+  assert.match(sidebar, /categoriesFor\(account\.freelancer\)\.filter\(\(id\) => !\(id === "calendar" && calendarUnderProjects\)\)\.map/);
   assert.match(await source("lib/categories.ts"), /!\(freelancer && \(id === "projects" \|\| id === "contracts"\)\)/);
   const chat = await source("components/hub/screens/private-chat.tsx");
   assert.match(chat, /\{!admin && !freelancer && \(/);
