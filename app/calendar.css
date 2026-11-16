@@ -52,7 +52,7 @@
 
 /* ---------- Week and day ---------- */
 .cal-scroll.is-week, .cal-scroll.is-day, .cal-scroll.is-month { overflow: auto; }
-.cal-wk { --gutter: 56px; position: relative; min-width: calc(var(--gutter) + var(--days) * 108px); }
+.cal-wk { --gutter: 56px; position: relative; min-width: calc(var(--gutter) + var(--days) * 80px); }
 .cal-wk.is-day { min-width: 0; }
 .cal-wk-top { position: sticky; top: 0; z-index: 6; background: var(--sheet); box-shadow: 0 1px 0 var(--sheet-line); }
 .cal-wk-head, .cal-wk-allday, .cal-wk-body { display: grid; grid-template-columns: var(--gutter) repeat(var(--days), minmax(0, 1fr)); }
@@ -287,7 +287,7 @@ html.is-dragging, html.is-dragging * { cursor: grabbing !important; }
 
 /* Narrow panes and phones */
 @container calpane (max-width: 640px) {
-  .cal-wk { --gutter: 44px; min-width: calc(var(--gutter) + var(--days) * 96px); }
+  .cal-wk { --gutter: 44px; }
   .cal-mo-grid { grid-auto-rows: minmax(70px, 1fr); }
   .cal-mc-items { flex-direction: row; flex-wrap: wrap; gap: 3px; }
   .cal-mc .cal-chip { width: 8px; height: 8px; padding: 0; border-radius: 50%; outline: 0; }
@@ -298,4 +298,10 @@ html.is-dragging, html.is-dragging * { cursor: grabbing !important; }
   .cal-mc .cal-chip:is(.is-goal, .is-overdue, .is-overdue-sum) { background: var(--tone-bad-bar); }
   .cal-mc-free { display: none; }
   .cal-legend { display: none; }
+}
+/* Phones: seven days do not fit. The week scrolls sideways, the hours stay at the left edge, and the page opens it
+   with today's column next to them (calendar.tsx). */
+@container calpane (max-width: 520px) {
+  .cal-wk { min-width: calc(var(--gutter) + var(--days) * 96px); }
+  .cal-wk-head > .cal-gutter, .cal-wk-allday > .cal-gutter, .cal-times { position: sticky; left: 0; z-index: 5; background: var(--sheet); }
 }

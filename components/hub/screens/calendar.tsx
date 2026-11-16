@@ -464,6 +464,16 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     const start = Number(element.querySelector<HTMLElement>(".cal-wk-body")?.dataset.start ?? 7 * 60);
     element.scrollTop = Math.max(0, ((8 * 60 - start) / 60) * HOUR_PX - 14);
   }, [view, selected]);
+  // Where the week is wider than the pane (phones), it opens with today's column right next to the hours; on admins'
+  // phones the pane appears only after a customer is picked, so that counts as opening too.
+  const firstDay = days[0];
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element || view !== "week" || !firstDay) return;
+    const column = element.querySelector<HTMLElement>(".cal-col.is-today");
+    const hours = element.querySelector<HTMLElement>(".cal-times")?.offsetWidth ?? 0;
+    element.scrollLeft = column && element.scrollWidth - element.clientWidth > 8 ? Math.max(0, column.offsetLeft - hours) : 0;
+  }, [view, firstDay, selected, paneOpen]);
 
   /* ---------- The admins' list on the left ---------- */
   const term = listQuery.trim().toLocaleLowerCase("de");
