@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: { "/dashboard/**": ["./lib/contract-templates/templates/*.docx"] },
   // The dev terminal would print every Server Action call with its arguments: passwords and sign-in codes included.
   logging: { serverFunctions: false },
+  // The web app's service worker (public/sw.js) is never cached on the way, so a new version reaches every phone.
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
+  },
 };
 
 export default nextConfig;

@@ -69,6 +69,8 @@ const places = [
   // Dictation in the assistant chat (since 16.11.2026, admins): in the bar „Hört zu …“ and in „Mikrofon wählen“.
   { file: "components/hub/dictation-bar.tsx", call: 'useInfo("Diktieren"', button: /<strong>\{listening \? "Hört zu …" : "Mikrofon startet …"\}<\/strong>[^]*?\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/tasks.tsx", call: 'useInfo("Aufgaben-Board"', button: /<div className="kb-stat">Zuständig[^\n]*\n\s*\{info\.button\}/, box: "{info.box}" },
+  // The web app (since 16.11.2026): „So geht’s“ in the hint on the overview and the row „Als App installieren“ in Profil.
+  { file: "components/hub/web-app.tsx", call: 'useInfo("Als App installieren"', button: /\{canInstall \? <button[^\n]*Installieren<\/button> : guide\.button\}/, box: "{guide.box}" },
 ];
 
 /** The whole call `useInfo(…)`, brackets balanced. */

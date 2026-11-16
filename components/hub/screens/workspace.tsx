@@ -20,6 +20,7 @@ import { useHubShell } from "../shell-context";
 import { WhatsAppCard } from "../whatsapp-card";
 import { NotificationSettingsCard } from "../notification-settings-card";
 import { SecondFactorCard } from "../second-factor-card";
+import { InstallRow } from "../web-app";
 import type { ScreenProps } from "./types";
 
 export function CategoryTitle({ category }: { category: CategoryId }) {
@@ -140,6 +141,8 @@ export function ProfileScreen({ preview, email }: ScreenProps & { email: string 
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" subtitle="Hell oder dunkel, Hintergrund, Glas und Bewegung" />
+        {/* Phones and tablets in the browser; gone in the installed app (components/hub/web-app.tsx). */}
+        <InstallRow />
         <ListRow compact onClick={() => openPanel("help")} icon={<MessageCircleQuestion size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
         <ListRow compact onClick={signOut} icon={<LogOut size={24} color="var(--system-gray)" aria-hidden="true" />} title={preview ? "Vorschau verlassen" : signingOut ? "Wird abgemeldet …" : "Abmelden"} chevron={false} />
       </InsetGroupedList>
