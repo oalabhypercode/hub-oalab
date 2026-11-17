@@ -7,7 +7,8 @@ import {
 } from "../lib/hub-customer-import/rules.ts";
 import { normalizeCompany, readCustomer, serviceCustomerRefusal } from "../lib/hub-users/rules.ts";
 
-const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+// Windows checkouts may carry CRLF line endings; the slices below look for LF ("\n}\n").
+const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 
 /** The hub's own check of a draft, as the import dialog runs it. */
 const check = (draft) => {

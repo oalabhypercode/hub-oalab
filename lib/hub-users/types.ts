@@ -59,6 +59,15 @@ export type ManagedCustomer = {
   kind: CustomerKind;
   /** Customers: the freelancers who look after them. Freelancers: the customers they look after. */
   linkedIds: string[];
+  /**
+   * When it was archived (in the user management or, for a customer, its organization in Service); null while active.
+   * An archived entry is out of sight everywhere but here (lib/hub-archive).
+   */
+  archivedAt: string | null;
+  /** Who archived it; null when that happened in Service or the login is gone. */
+  archivedBy: string | null;
+  /** The logins the archive blocked; restoring frees exactly these. */
+  archivedLoginIds: string[];
 };
 
 export type ManagedEvent = {

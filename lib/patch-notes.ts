@@ -37,6 +37,17 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 24,
+    date: "2026-11-17",
+    title: "Kunden archivieren und löschen",
+    summary: "Im User Management lassen sich Kunden und Freelancer jetzt archivieren und endgültig löschen, ganz unten in ihren Stammdaten. Archivierte verschwinden überall im Hub außer im User Management, ihre Zugänge sind gesperrt, und „Wiederherstellen“ holt alles zurück. Löschen zeigt vorher, was wegfällt, und entfernt nach Eingabe der Nummer alles, was der Hub zum Eintrag speichert; die Firma bleibt in Service archiviert stehen.",
+    changes: [
+      { kind: "new", title: "Kunden archivieren", text: "Ganz unten in den Stammdaten eines Kunden oder Freelancers steht jetzt „Archivieren …“. Der Eintrag verschwindet dann aus Asset Management, Projekten, Kalender, Nachrichten, Vertrag & Domain, Schlüsselbund, Assistent und Claude, seine Zugänge sind sofort gesperrt, und gelöscht wird nichts. Archivierte stehen in der Liste unten unter „Archiviert“; „Wiederherstellen“ holt alles zurück, auch die Zugänge." },
+      { kind: "new", title: "Kunden endgültig löschen", text: "„Löschen …“ zeigt vorher, was wegfällt: Zugänge, Dateien, die nur dieser Kunde hat, Ordner, Termine, Pakete, Domains, Zugangsdaten und Chat. Nach Eingabe der Kundennummer ist alles weg; ein Zugang, auf den die Serviceplattform noch verweist, wird gesperrt statt gelöscht. Die Firma bleibt in Service archiviert stehen, mit ihren Anfragen." },
+      { kind: "fixed", title: "Entfernte Kunden bleiben weg", text: "Ein aus dem Hub entfernter Kunde mit archivierter Firma tauchte bei der nächsten Änderung in Service wieder im Hub auf. Das passiert nicht mehr." },
+    ],
+  },
+  {
     number: 23,
     date: "2026-11-16",
     title: "Kalender unter Projekte, freie Zeiten und der Hub als App",

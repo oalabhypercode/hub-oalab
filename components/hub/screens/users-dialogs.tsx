@@ -19,6 +19,7 @@ import { customerOption } from "../select-options";
 import { StatusGlyph, type GlyphKind } from "../sheet";
 import { AssetPanel } from "./asset-panel";
 import { EntryChips, EntryNav, Field, FieldGrid, HistoryList, PanelSection, PanelTabs, ReadonlyField, Row, RowIcon, RowList, SaveStatus, Segmented, useDirtyReport } from "./users-panel";
+import { useEntryRemoval } from "./users-removal";
 
 /*
  * The User Management's panels: a login, a registration, a customer and a freelancer, each new or existing. They open at
@@ -736,7 +737,10 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
     ask: "Wie funktioniert der Kundenstamm?",
   });
   useDirtyReport(entry.dirty, onDirty);
-  const members = customer ? users.filter((user) => customer.memberIds.includes(user.id)) : [];
+  const removal = useEntryRemoval({ entry: customer, users, onNotice, onClose });
+  // An archived customer's logins: the members, and those its archive blocked (Service's sync took them off the customer).
+  const members = customer ? users.filter((user) => customer.memberIds.includes(user.id) || customer.archivedLoginIds.includes(user.id)) : [];
+  const archived = Boolean(customer?.archivedAt);
   const { draft } = entry;
   const save = () => run("save", () => saveCustomer({ ...draft, id: customer?.id, freelancerIds: freelancersEnabled ? entry.linked : undefined }), (data) => {
     onNotice(customer ? `${draft.company} gespeichert.` : `Kunde ${draft.company} angelegt.`);
@@ -746,7 +750,8 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
   });
 
   const dataTab = <>
-    {customer && !members.length && <NoLoginNotice entry={customer} onNewUser={onNewUser} />}
+    {removal.notice}
+    {customer && !archived && !members.length && <NoLoginNotice entry={customer} onNewUser={onNewUser} />}
     {customer && (
       <PanelSection title="Logo und Pakete">
         <RowList>
@@ -779,6 +784,7 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
+    {removal.section}
   </>;
 
   const footer = <>
@@ -797,8 +803,8 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
       onClose={() => onClose()} footer={footer}>
       {!customer || tab === "data" ? dataTab
         : tab === "logins" ? (
-          <PanelSection title="Zugänge" action={<button type="button" className="sheet-action" onClick={() => onNewUser(customer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
-            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">Noch kein Zugang: Niemand kann sich für diesen Kunden anmelden. „Zugang anlegen“ legt einen an; er gilt auch in Service.</p>}
+          <PanelSection title="Zugänge" action={!archived && <button type="button" className="sheet-action" onClick={() => onNewUser(customer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
+            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">{archived ? "Der Kunde ist archiviert und hat keinen Zugang." : "Noch kein Zugang: Niemand kann sich für diesen Kunden anmelden. „Zugang anlegen“ legt einen an; er gilt auch in Service."}</p>}
           </PanelSection>
         ) : <PanelSection title="Verlauf"><HistoryList events={events} /></PanelSection>}
     </AssetPanel>
@@ -833,7 +839,9 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
     ask: "Wie funktioniert ein Freelancer im Hub?",
   });
   useDirtyReport(entry.dirty, onDirty);
-  const members = freelancer ? users.filter((user) => freelancer.memberIds.includes(user.id)) : [];
+  const removal = useEntryRemoval({ entry: freelancer, users, onNotice, onClose });
+  const members = freelancer ? users.filter((user) => freelancer.memberIds.includes(user.id) || freelancer.archivedLoginIds.includes(user.id)) : [];
+  const archived = Boolean(freelancer?.archivedAt);
   const { draft } = entry;
   const save = () => run("save", () => saveFreelancer({ ...draft, id: freelancer?.id, customerIds: entry.linked }), (data) => {
     onNotice(freelancer ? `${draft.company} gespeichert.` : `Freelancer ${draft.company} angelegt.`);
@@ -843,7 +851,8 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
   });
 
   const dataTab = <>
-    {freelancer && !members.length && <NoLoginNotice entry={freelancer} onNewUser={onNewUser} />}
+    {removal.notice}
+    {freelancer && !archived && !members.length && <NoLoginNotice entry={freelancer} onNewUser={onNewUser} />}
     {freelancer && (
       <PanelSection title="Logo">
         <RowList>
@@ -867,6 +876,7 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
       </PanelSection>
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
+    {removal.section}
   </>;
 
   const footer = <>
@@ -886,8 +896,8 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
       {info.box}
       {!freelancer || tab === "data" ? dataTab
         : tab === "logins" ? (
-          <PanelSection title="Zugänge" action={<button type="button" className="sheet-action" onClick={() => onNewUser(freelancer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
-            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">Noch kein Zugang: Der Freelancer kann sich nicht anmelden. „Zugang anlegen“ legt einen mit der Rolle Freelancer an.</p>}
+          <PanelSection title="Zugänge" action={!archived && <button type="button" className="sheet-action" onClick={() => onNewUser(freelancer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
+            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">{archived ? "Der Freelancer ist archiviert und hat keinen Zugang." : "Noch kein Zugang: Der Freelancer kann sich nicht anmelden. „Zugang anlegen“ legt einen mit der Rolle Freelancer an."}</p>}
           </PanelSection>
         ) : <PanelSection title="Verlauf"><HistoryList events={events} /></PanelSection>}
     </AssetPanel>

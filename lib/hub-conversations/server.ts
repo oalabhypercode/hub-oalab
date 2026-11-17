@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import { readArchive } from "@/lib/hub-archive/server";
 import { conversationState, isSender, requestReference, type ConversationSender } from "./rules";
 import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread } from "./types";
 
@@ -94,12 +95,17 @@ function summarize(request: RequestRow, newest: MessageRow[], people: Map<string
 
 const failed = (error: string): ConversationsState => ({ source: "service", conversations: [], error });
 
-/** Every customer's service conversations with their newest message, for the admins' tab "Service". */
+/**
+ * Every customer's service conversations with their newest message, for the admins' tab "Service". Those of archived
+ * or deleted customers stay in Service, archived with their organization, and out of this list (lib/hub-archive).
+ */
 export const loadConversations = cache(async (): Promise<ConversationsState> => {
   const db = createAdminClient();
   if (!db) return failed("Gespräche sind noch nicht eingerichtet: Es fehlt der Server-Schlüssel (SUPABASE_SECRET_KEY).");
   if (!(await conversationReader())) return failed(unavailable);
-  const requests = await db.from("service_requests").select(REQUESTS).is("trashed_at", null)
+  const archive = await readArchive(db);
+  const query = db.from("service_requests").select(REQUESTS).is("trashed_at", null);
+  const requests = await (archive.organizationIds.size ? query.not("organization_id", "in", `(${[...archive.organizationIds].join(",")})`) : query)
     .order("updated_at", { ascending: false }).limit(LIST_LIMIT).returns<RequestRow[]>();
   if (requests.error) return failed(unavailable);
   const rows = requests.data ?? [];
