@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyHubAdmin, verifyHubFreelancer } from "@/lib/hub-users/server";
+import { readEntriesWithoutActiveLogin } from "@/lib/hub-users/deactivated";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import type { BoardTask, TaskComment, TaskDetail, TaskPatch, TaskResult, TaskSubtask } from "./types";
 import {
@@ -122,7 +123,8 @@ export async function archiveTask(input: { taskId: string; expectedVersion: numb
 /**
  * „Beteiligte“ (admins): puts a freelancer who looks after the project's customer on the project, or takes them off.
  * On it they see the project and every task except „Nur Team“; off it they lose it at once and drop out as assignees
- * there (the database's trigger). Saved with the admin's own session (RLS: hub admin with aal2).
+ * there (the database's trigger). Saved with the admin's own session (RLS: hub admin with aal2). A freelancer whose
+ * every login is deactivated is put on no project; one already on it stays there unseen (lib/hub-users/deactivated.ts).
  */
 export async function setProjectFreelancer(input: { projectId: string; freelancerId: string; on: boolean }): Promise<TaskResult<string[]>> {
   const ctx = await actor();
@@ -133,14 +135,21 @@ export async function setProjectFreelancer(input: { projectId: string; freelance
   if (!projectId || !freelancerId || typeof input?.on !== "boolean") return fail("Diese Änderung ist ungültig.");
   const project = await ctx.db.from("customer_projects").select("organization_id, status").eq("id", projectId).maybeSingle<{ organization_id: string; status: string }>();
   if (!project.data || project.data.status === "archived") return fail("Das Projekt gibt es nicht mehr oder es ist archiviert.");
+  if (input.on) {
+    const inactive = await readEntriesWithoutActiveLogin(ctx.db, [freelancerId]);
+    if (!inactive) return fail("Das hat nicht geklappt. Bitte versuche es erneut.");
+    if (inactive.size) return fail("Dieser Freelancer hat keinen aktiven Zugang mehr. Im User Management lässt sich ein Zugang wieder aktivieren.");
+  }
   const { error } = input.on
     ? await ctx.supabase.from("studio_project_freelancers").insert({ project_id: projectId, organization_id: project.data.organization_id, freelancer_id: freelancerId })
     : await ctx.supabase.from("studio_project_freelancers").delete().eq("project_id", projectId).eq("freelancer_id", freelancerId);
   // Already on it (a second tab, a double click): that is the state asked for.
   if (error && error.code !== "23505") return fail(writeError(error, false));
   const now = await ctx.db.from("studio_project_freelancers").select("freelancer_id").eq("project_id", projectId).returns<{ freelancer_id: string }[]>();
+  const ids = (now.data ?? []).map((row) => row.freelancer_id);
+  const unseen = await readEntriesWithoutActiveLogin(ctx.db, ids);
   refreshWorkspace();
-  return { ok: true, data: (now.data ?? []).map((row) => row.freelancer_id) };
+  return { ok: true, data: ids.filter((freelancer) => !unseen?.has(freelancer)) };
 }
 
 /** Everything of a card that is not on the board: description, checklist, comments, images and history. */

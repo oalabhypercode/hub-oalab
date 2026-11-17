@@ -11,9 +11,10 @@ export const isFileAudience = (value: unknown): value is FileAudience => fileAud
 
 /**
  * The customers list carries each logo (admins and freelancers), its kind (a customer or a freelancer) and, for admins,
- * the freelancers who look after a customer; customers inside a file's assignments carry none of that.
+ * the freelancers who look after a customer; customers inside a file's assignments carry none of that. `inactive`
+ * (admins): a freelancer whose every login is deactivated in the user management, no choice under „Betreut von“.
  */
-export type HubFileCustomer = { id: string; customerNumber: string; company: string; logo?: CustomerLogo; kind?: "customer" | "freelancer"; freelancerIds?: string[] };
+export type HubFileCustomer = { id: string; customerNumber: string; company: string; logo?: CustomerLogo; kind?: "customer" | "freelancer"; freelancerIds?: string[]; inactive?: boolean };
 
 /** One level of folders per customer; a file's folder is stored per customer assignment. */
 export type HubFolder = { id: string; customerId: string; name: string };

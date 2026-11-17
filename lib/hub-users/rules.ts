@@ -54,6 +54,21 @@ export function displayStatus(status: AccountStatus, lastSignInAt: string | null
   return status === "active" && !lastSignInAt ? "invited" : status;
 }
 
+/**
+ * Entries (customers, freelancers) that have logins, every one of them deactivated (status „disabled“). Outside the
+ * user management nobody picks a deactivated login any more (user 17.11.2026), so such a freelancer is no choice
+ * either; an entry without any login stays one.
+ */
+export function entriesWithoutActiveLogin(members: readonly { customer_id: string; user_id: string }[], deactivated: ReadonlySet<string>): Set<string> {
+  const withLogin = new Set<string>();
+  const withActive = new Set<string>();
+  for (const member of members) {
+    withLogin.add(member.customer_id);
+    if (!deactivated.has(member.user_id)) withActive.add(member.customer_id);
+  }
+  return new Set([...withLogin].filter((id) => !withActive.has(id)));
+}
+
 export type Check<T> = { ok: true; value: T } | { ok: false; error: string };
 
 /** Single-line text: control characters and runs of whitespace become one space, at most `max` characters. */

@@ -5,7 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { verifyHubAdmin, verifyHubFreelancer } from "@/lib/hub-users/server";
 import { readArchive } from "@/lib/hub-archive/server";
-import { initialsOf, loginName, NO_COUNTS, TASK_COLUMNS, toBoardTask, type StudioTaskRow, type TaskCounts } from "./rules";
+import { readDeactivatedLogins } from "@/lib/hub-users/deactivated";
+import { initialsOf, loginName, NO_COUNTS, TASK_COLUMNS, toBoardTask, withoutDeactivated, type StudioTaskRow, type TaskCounts } from "./rules";
 import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskBoardState } from "./types";
 
 // The board reads like the projects page for admins: after the same admin check (hub role, second factor,
@@ -17,6 +18,9 @@ import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskBoardSt
 // Freelancers (step 3, 16.11.2026) read with their *own* session: the database lists the projects an admin put them on
 // and in them every task except „Nur Team“ and the archive (migration 202611160001_studio_freelancers). Only the names
 // of exactly these projects, their customers and the people on them come with the server key.
+//
+// Logins deactivated in the user management (17.11.2026) are nobody's choice here: not in the team, not among a
+// freelancer's logins, not on the cards; only the history keeps their names (rules.ts withoutDeactivated).
 
 /** Studio's team roles: only they and the project's freelancers may be assignees (Studio's trigger checks the same). */
 export const TEAM_ROLES = ["oalab_operator", "oalab_release_manager", "oalab_admin"];
@@ -152,18 +156,22 @@ function boardProjectsOf(rows: ProjectRow[], details: DetailsRow[], organization
     .sort((a, b) => a.company.localeCompare(b.company, "de") || a.name.localeCompare(b.name, "de"));
 }
 
-/** Everybody the board names: the team, the freelancers' logins, and whoever created or holds a card. */
-async function boardPeople(db: Db, viewerId: string, team: Set<string>, freelancers: BoardFreelancer[], tasks: BoardTask[], viewer: Viewer) {
+/**
+ * Everybody the board names: the team, the freelancers' logins, and whoever created or holds a card. `former`:
+ * deactivated logins of the team and the freelancers, named in the history only.
+ */
+async function boardPeople(db: Db, viewerId: string, team: Set<string>, freelancers: BoardFreelancer[], tasks: BoardTask[], viewer: Viewer, former: readonly string[]) {
   const freelancerOf = new Map(freelancers.flatMap((freelancer) => freelancer.loginIds.map((login) => [login, freelancer] as const)));
-  const mentioned = new Set<string>([viewerId, ...team, ...freelancerOf.keys()]);
+  const mentioned = new Set<string>([viewerId, ...team, ...freelancerOf.keys(), ...former]);
   for (const task of tasks) { mentioned.add(task.createdBy); task.assigneeIds.forEach((id) => mentioned.add(id)); }
   return peopleFor(db, [...mentioned], team, freelancerOf, viewer);
 }
 
 /**
  * Who may hold a task of this project, with names as the admins' board shows them: the active oalab team and the
- * logins of the freelancers on the project (Studio's trigger accepts exactly these). For the Claude connector, which
- * assigns by id. Null when the project is gone, belongs to an archived customer (lib/hub-archive) or a read failed.
+ * logins of the freelancers on the project (Studio's trigger accepts exactly these), without deactivated logins. For
+ * the Claude connector, which assigns by id. Null when the project is gone, belongs to an archived customer
+ * (lib/hub-archive) or a read failed.
  */
 export async function loadAssignees(db: Db, projectId: string): Promise<BoardPerson[] | null> {
   const [project, archive] = await Promise.all([
@@ -171,15 +179,17 @@ export async function loadAssignees(db: Db, projectId: string): Promise<BoardPer
     readArchive(db),
   ]);
   if (project.error || !project.data || archive.organizationIds.has(project.data.organization_id)) return null;
-  const [team, links, freelancers] = await Promise.all([
+  const [team, links, freelancers, deactivated] = await Promise.all([
     loadTeam(db),
     db.from("studio_project_freelancers").select("freelancer_id").eq("project_id", projectId).returns<{ freelancer_id: string }[]>(),
     loadFreelancers(db, [project.data.organization_id]),
+    readDeactivatedLogins(db),
   ]);
-  if (!team || links.error || !freelancers) return null;
+  if (!team || links.error || !freelancers || !deactivated) return null;
+  const shown = withoutDeactivated(team, freelancers, deactivated);
   const onProject = new Set((links.data ?? []).map((row) => row.freelancer_id));
-  const freelancerOf = new Map(freelancers.filter((freelancer) => onProject.has(freelancer.id)).flatMap((freelancer) => freelancer.loginIds.map((login) => [login, freelancer] as const)));
-  return peopleFor(db, [...new Set([...team, ...freelancerOf.keys()])], team, freelancerOf, "admin");
+  const freelancerOf = new Map(shown.freelancers.filter((freelancer) => onProject.has(freelancer.id)).flatMap((freelancer) => freelancer.loginIds.map((login) => [login, freelancer] as const)));
+  return peopleFor(db, [...new Set([...shown.team, ...freelancerOf.keys()])], shown.team, freelancerOf, "admin");
 }
 
 /** The oalab team's board: every running project of every customer that is not archived (lib/hub-archive). */
@@ -193,7 +203,7 @@ async function adminBoard(viewerId: string, db: Db): Promise<TaskBoardState> {
   const projectIds = rows.map((row) => row.id);
   const organizationIds = [...new Set(rows.map((row) => row.organization_id))];
 
-  const [details, tasks, organizations, comments, subtasks, files, links, team, freelancers] = await Promise.all([
+  const [details, tasks, organizations, comments, subtasks, files, links, team, freelancers, deactivated] = await Promise.all([
     projectIds.length ? db.from("studio_project_details").select("project_id, status, start_date, due_date").in("project_id", projectIds).returns<DetailsRow[]>() : empty,
     projectIds.length ? db.from("studio_tasks").select(TASK_COLUMNS).in("project_id", projectIds).eq("archived", false).returns<StudioTaskRow[]>() : empty,
     organizationIds.length ? db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>() : empty,
@@ -204,19 +214,21 @@ async function adminBoard(viewerId: string, db: Db): Promise<TaskBoardState> {
     loadTeam(db),
     // „Beteiligte“: who looks after the customer of a project, and so may work on it.
     loadFreelancers(db, organizationIds),
+    readDeactivatedLogins(db),
   ]);
   const error = details.error ?? tasks.error ?? organizations.error ?? comments.error ?? subtasks.error ?? files.error ?? links.error;
-  if (error || !team || !freelancers) return failed(LOAD_ERROR);
+  if (error || !team || !freelancers || !deactivated) return failed(LOAD_ERROR);
 
+  const shown = withoutDeactivated(team, freelancers, deactivated);
   const counts = countsOf(comments.data ?? [], subtasks.data ?? [], files.data ?? []);
-  const boardTasks = (tasks.data ?? []).map((row) => toBoardTask(row, counts.get(row.id)));
-  const [people, confirmed] = await Promise.all([boardPeople(db, viewerId, team, freelancers, boardTasks, "admin"), sessionConfirmed()]);
+  const boardTasks = (tasks.data ?? []).map((row) => toBoardTask(row, counts.get(row.id), deactivated));
+  const [people, confirmed] = await Promise.all([boardPeople(db, viewerId, shown.team, shown.freelancers, boardTasks, "admin", shown.former), sessionConfirmed()]);
   return {
     viewer: "admin",
-    projects: boardProjectsOf(rows, details.data ?? [], organizations.data ?? [], links.data ?? []),
+    projects: boardProjectsOf(rows, details.data ?? [], organizations.data ?? [], (links.data ?? []).filter((link) => !shown.hiddenEntries.has(link.freelancer_id))),
     tasks: boardTasks,
     people,
-    freelancers,
+    freelancers: shown.freelancers,
     viewerId,
     confirmed,
     error: null,
@@ -246,7 +258,7 @@ async function freelancerBoard(viewerId: string, session: SupabaseClient, db: Db
   const projectIds = rows.map((row) => row.id);
   const organizationIds = [...new Set(rows.map((row) => row.organization_id))];
 
-  const [details, tasks, organizations, comments, subtasks, files, links, team] = await Promise.all([
+  const [details, tasks, organizations, comments, subtasks, files, links, team, deactivated] = await Promise.all([
     db.from("studio_project_details").select("project_id, status, start_date, due_date").in("project_id", projectIds).returns<DetailsRow[]>(),
     // Cards, checklists, comments and images with the freelancer's session: no „Nur Team“, nothing archived (RLS).
     session.from("studio_tasks").select(TASK_COLUMNS).in("project_id", projectIds).eq("archived", false).returns<StudioTaskRow[]>(),
@@ -257,20 +269,22 @@ async function freelancerBoard(viewerId: string, session: SupabaseClient, db: Db
     // Who else works on these projects (for „Sichtbar für“ and as assignees); the session itself lists only its own rows.
     db.from("studio_project_freelancers").select("project_id, freelancer_id").in("project_id", projectIds).returns<LinkRow[]>(),
     loadTeam(db),
+    readDeactivatedLogins(db),
   ]);
   const error = details.error ?? tasks.error ?? organizations.error ?? comments.error ?? subtasks.error ?? files.error ?? links.error;
-  if (error || !team) return failed(LOAD_ERROR, "freelancer");
+  if (error || !team || !deactivated) return failed(LOAD_ERROR, "freelancer");
   const freelancers = await loadFreelancers(db, organizationIds, [...new Set((links.data ?? []).map((link) => link.freelancer_id))]);
   if (!freelancers) return failed(LOAD_ERROR, "freelancer");
 
+  const shown = withoutDeactivated(team, freelancers, deactivated);
   const counts = countsOf(comments.data ?? [], subtasks.data ?? [], files.data ?? []);
-  const boardTasks = (tasks.data ?? []).map((row) => toBoardTask(row, counts.get(row.id)));
+  const boardTasks = (tasks.data ?? []).map((row) => toBoardTask(row, counts.get(row.id), deactivated));
   return {
     viewer: "freelancer",
-    projects: boardProjectsOf(rows, details.data ?? [], organizations.data ?? [], links.data ?? []),
+    projects: boardProjectsOf(rows, details.data ?? [], organizations.data ?? [], (links.data ?? []).filter((link) => !shown.hiddenEntries.has(link.freelancer_id))),
     tasks: boardTasks,
-    people: await boardPeople(db, viewerId, team, freelancers, boardTasks, "freelancer"),
-    freelancers,
+    people: await boardPeople(db, viewerId, shown.team, shown.freelancers, boardTasks, "freelancer", shown.former),
+    freelancers: shown.freelancers,
     viewerId,
     // verifyHubFreelancer lets only sessions with a confirmed code through.
     confirmed: true,

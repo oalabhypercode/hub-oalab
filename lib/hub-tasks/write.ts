@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { readDeactivatedLogins } from "@/lib/hub-users/deactivated";
 import { audienceColumns, cleanDay, cleanLabels, cleanText, cleanTitle, isAudience, isPriority, isStatus, MAX_TITLE, ORDER_LIMIT, TASK_COLUMNS, toBoardTask, type StudioTaskRow } from "./rules";
 import type { BoardTask, TaskComment, TaskPatch, TaskResult, TaskSubtask } from "./types";
 
@@ -90,6 +91,24 @@ function patchColumns(patch: TaskPatch, freelancer: boolean): { ok: true; data: 
   return { ok: true, data: columns };
 }
 
+export const DEACTIVATED_ASSIGNEE = "Zuständig können nur aktive Zugänge sein: Eine gewählte Person ist im User Management deaktiviert.";
+
+/** Studio knows nothing of the hub's deactivation (lib/hub-users/deactivated.ts): the hub refuses such an assignee itself. */
+async function deactivatedAssignee(ctx: TaskContext, columns: Record<string, unknown>): Promise<string | null> {
+  const ids = columns.assignee_user_ids as string[] | undefined;
+  if (!ids?.length) return null;
+  const deactivated = await readDeactivatedLogins(ctx.db, ids);
+  if (!deactivated) return "Das hat nicht geklappt. Bitte versuche es erneut.";
+  return deactivated.size ? DEACTIVATED_ASSIGNEE : null;
+}
+
+/** The saved card as the board shows it: deactivated assignees stay hidden, as on the board itself. */
+async function shownTask(ctx: TaskContext, row: StudioTaskRow): Promise<BoardTask> {
+  const ids = row.assignee_user_ids ?? [];
+  const deactivated = ids.length ? await readDeactivatedLogins(ctx.db, ids) : null;
+  return toBoardTask(row, undefined, deactivated ?? undefined);
+}
+
 /** Moves a card to a column and a place (board_order). */
 export async function moveTaskAs(ctx: TaskContext, input: { taskId: string; status: string; order: number; expectedVersion: number }): Promise<TaskResult<BoardTask>> {
   const taskId = idOf(input?.taskId);
@@ -99,7 +118,7 @@ export async function moveTaskAs(ctx: TaskContext, input: { taskId: string; stat
   const { data, error } = await ctx.supabase.from("studio_tasks").update({ status: input.status, board_order: order }).eq("id", taskId).eq("version", version).select(TASK_COLUMNS).maybeSingle<StudioTaskRow>();
   if (error) return fail(writeError(error, ctx.freelancer));
   if (!data) return whyNotWritten(ctx, taskId);
-  return { ok: true, data: toBoardTask(data) };
+  return { ok: true, data: await shownTask(ctx, data) };
 }
 
 /** A new card in a project's column. Without a place it goes to the end of the column. */
@@ -111,6 +130,8 @@ export async function createTaskAs(ctx: TaskContext, input: { projectId: string;
   if (!title) return fail(`Der Titel fehlt oder ist länger als ${MAX_TITLE} Zeichen.`);
   const columns = patchColumns(input?.patch ?? {}, ctx.freelancer);
   if (!columns.ok) return fail(columns.error);
+  const refused = await deactivatedAssignee(ctx, columns.data);
+  if (refused) return fail(refused);
 
   // Freelancers only in their own projects: their session lists them before the server key reads the project.
   if (ctx.freelancer) {
@@ -145,7 +166,7 @@ export async function createTaskAs(ctx: TaskContext, input: { projectId: string;
     .select(TASK_COLUMNS)
     .single<StudioTaskRow>();
   if (error || !data) return fail(writeError(error, ctx.freelancer));
-  return { ok: true, data: toBoardTask(data) };
+  return { ok: true, data: await shownTask(ctx, data) };
 }
 
 /** Changes title, description, priority, due date, labels, assignees or who sees the card. */
@@ -156,10 +177,12 @@ export async function updateTaskAs(ctx: TaskContext, input: { taskId: string; ex
   const columns = patchColumns(input?.patch ?? {}, ctx.freelancer);
   if (!columns.ok) return fail(columns.error);
   if (!Object.keys(columns.data).length) return fail("Es gibt nichts zu speichern.");
+  const refused = await deactivatedAssignee(ctx, columns.data);
+  if (refused) return fail(refused);
   const { data, error } = await ctx.supabase.from("studio_tasks").update(columns.data).eq("id", taskId).eq("version", version).eq("archived", false).select(TASK_COLUMNS).maybeSingle<StudioTaskRow>();
   if (error) return fail(writeError(error, ctx.freelancer));
   if (!data) return whyNotWritten(ctx, taskId);
-  return { ok: true, data: toBoardTask(data) };
+  return { ok: true, data: await shownTask(ctx, data) };
 }
 
 /** A comment under the card. It never reaches the customer (Studio's client_visible false). */
