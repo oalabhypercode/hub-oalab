@@ -202,9 +202,13 @@ export async function revoke(token: string, clientId: string | null) {
   )).rows[0] ?? null;
 }
 
-/** One line in the admin log (Hub › Logins), like the other admin actions; failures do not stop the connector. */
-export async function logEvent(actorId: string, action: `claude.${string}`, summary: string) {
+/**
+ * One line in the admin log (Hub › Logins), like the other admin actions, with the customer it concerns where there is
+ * one; failures do not stop the connector.
+ */
+export async function logEvent(actorId: string, action: `claude.${string}`, summary: string, targetCustomerId?: string | null) {
   const db = createAdminClient();
   if (!db) return;
-  await db.from("hub_admin_events").insert({ actor_id: actorId, action, summary: summary.slice(0, 300) }).then(() => undefined, () => undefined);
+  await db.from("hub_admin_events").insert({ actor_id: actorId, action, summary: summary.slice(0, 300), ...(targetCustomerId ? { target_customer_id: targetCustomerId } : {}) })
+    .then(() => undefined, () => undefined);
 }

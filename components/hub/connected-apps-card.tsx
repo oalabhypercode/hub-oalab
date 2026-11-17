@@ -68,7 +68,7 @@ export function ConnectedAppsCard() {
       {!state && !error && <p className="t-subheadline t-secondary"><MiniLoader size={16} /> Wird geladen …</p>}
       {state && !state.enabled && <p className="t-subheadline t-secondary">Der Claude-Connector ist noch ausgeschaltet. Sobald er an ist, verbindest du Claude hier mit dem Hub.</p>}
       {state?.enabled && <>
-        <p className="t-subheadline t-secondary">Mit Claude fragst du in deinen Chats nach Kunden, Projekten, Aufgaben und Terminen; Claude liest sie mit deinen Rechten im Hub.</p>
+        <p className="t-subheadline t-secondary">Mit Claude fragst du in deinen Chats nach Kunden, Projekten, Aufgaben und Terminen und lässt Termine, Aufgaben und neue Projekte eintragen. Claude arbeitet dabei mit deinen Rechten im Hub und fragt vor jeder Änderung.</p>
         <label className="settings-label" htmlFor="claude-address">Adresse für Claude</label>
         <div className="connected-apps-address">
           <input id="claude-address" className="account-input" readOnly value={state.address} onFocus={(event) => event.currentTarget.select()} />
@@ -89,6 +89,9 @@ export function ConnectedAppsCard() {
               </li>
             ))}
           </ul>}
+        {state.connections.some((item) => !item.scopes.includes("hub:write")) && (
+          <p className="t-footnote t-secondary">Eine Verbindung mit nur „Lesen“ stammt von vor dem Schreiben. Trenne sie und verbinde Claude neu, dann darf Claude auch eintragen.</p>
+        )}
       </>}
       {notice && <p className="t-footnote factor-notice" role="status">{notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}

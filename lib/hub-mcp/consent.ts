@@ -14,7 +14,7 @@ export type ConsentState =
   | { kind: "off" }
   | { kind: "expired" }
   | { kind: "not-admin"; request: string }
-  | { kind: "confirm" | "ready"; request: string; clientName: string; email: string; scopes: string[]; confirmHref: string };
+  | { kind: "confirm" | "ready"; request: string; clientName: string; email: string; scopes: string[]; writes: boolean; confirmHref: string };
 
 export async function loadConsent(request: string): Promise<ConsentState> {
   if (!connectorReady()) return { kind: "off" };
@@ -29,6 +29,7 @@ export async function loadConsent(request: string): Promise<ConsentState> {
     clientName: pending.clientName,
     email: identity.email,
     scopes: pending.scopes.map((scope) => scopeLabels[scope]),
+    writes: pending.scopes.includes("hub:write"),
     confirmHref: confirmSessionHref(`${CONSENT_PATH}?request=${request}`),
   };
 }

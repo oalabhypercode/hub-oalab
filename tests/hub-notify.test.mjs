@@ -241,7 +241,9 @@ test("the schedule needs its token, rows are written by the server and read only
   const actions = await source("lib/hub-notify/actions.ts");
   assert.match(actions, /^"use server";/);
   assert.doesNotMatch(actions, /createAdminClient/);
-  assert.match(await source("lib/hub-calendar/actions.ts"), /await notifyCustomers\(/);
+  // The appointment window and the Claude connector save through the same code, so both notify (lib/hub-calendar/write.ts).
+  assert.match(await source("lib/hub-calendar/write.ts"), /await notifyCustomers\(/);
+  assert.match(await source("lib/hub-calendar/actions.ts"), /writeAppointment\(supabase, id, input\)/);
   // Files reach the customers and the freelancers who look after them, each as "Sichtbar für" allows.
   assert.match(await source("lib/hub-files/actions.ts"), /await notifyFileShared\(/);
   assert.match(server, /export async function notifyFileShared\(fileId: string, customerIds: string\[\], notice: Notice/);

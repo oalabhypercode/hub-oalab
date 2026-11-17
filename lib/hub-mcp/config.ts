@@ -1,6 +1,7 @@
 /**
  * Claude-Connector (MCP) of the hub: addresses, lifetimes and what a connection may do. Admins connect Claude
- * (claude.ai) to the hub; Claude then reads through hub.oalab.de/api/mcp with the rights of the admin who allowed it.
+ * (claude.ai) to the hub; Claude then reads, and writes where allowed, through hub.oalab.de/api/mcp with the rights of
+ * the admin who allowed it.
  * The sign-in for it is the hub's own (OAuth 2.1 with PKCE, the client described by its Client ID Metadata Document);
  * Service OALab's sign-in server stays untouched. Self-contained (no imports): proxy, routes and tests share it.
  */
@@ -44,8 +45,11 @@ export const scopeLabels: Record<HubScope, string> = {
   "hub:read": "Lesen: Kunden, Projekte, Aufgaben und Termine",
   "hub:write": "Schreiben: Termine, Aufgaben und neue Projekte anlegen und ändern",
 };
-/** What this version of the hub offers; writing follows in step 3. */
-export const OFFERED_SCOPES: readonly HubScope[] = ["hub:read"];
+/**
+ * What the hub offers (step 3: writing too). Claude asks for every offered right, the consent page shows them, and a
+ * connection made before keeps only reading until it is connected anew.
+ */
+export const OFFERED_SCOPES: readonly HubScope[] = ["hub:read", "hub:write"];
 
 /**
  * Who may connect: Claude's apps, recognised by the address of their Client ID Metadata Document, and only with
