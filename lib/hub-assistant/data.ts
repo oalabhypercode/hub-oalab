@@ -5,6 +5,7 @@ import { listAllUsers } from "@/lib/hub-users/server";
 import { packagesOf, readCustomerPackages } from "@/lib/hub-contracts/packages";
 import { heldPackages, packageCatalog } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
+import { readArchive } from "@/lib/hub-archive/server";
 import type { AssistantData } from "./tools";
 import type { CustomerContext } from "./customers";
 
@@ -39,15 +40,17 @@ export async function loadAssistantDataForCheckedAdmin(): Promise<AssistantData 
 async function assistantData(projectsOf: typeof loadLiveProjects): Promise<AssistantData | null> {
   const db = createAdminClient();
   if (!db) return null;
-  const [projects, customers, packageRows] = await Promise.all([
+  const [projects, customers, packageRows, archive] = await Promise.all([
     projectsOf(),
     db.from("hub_customers").select("id, organization_id, company, customer_number, city, website, contact_email").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
+    // Archived customers stay out of the assistant and the Claude connector, as everywhere outside the user management.
+    readArchive(db),
   ]);
   if (projects.error || customers.error) return null;
   return {
     projects: projects.projects,
-    customers: (customers.data ?? []).map((row) => ({
+    customers: (customers.data ?? []).filter((row) => !archive.customerIds.has(row.id)).map((row) => ({
       id: row.id,
       organizationId: row.organization_id,
       company: row.company,

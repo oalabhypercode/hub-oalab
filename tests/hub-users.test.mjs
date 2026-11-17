@@ -116,7 +116,7 @@ test("the hub no longer reads or writes the old package column; packages come fr
     assert.doesNotMatch(await source(path), /service_packages/, path);
   }
   const server = await source("lib/hub-users/server.ts");
-  assert.match(server, /readCustomerPackages\(db\),\n {4}\]\);/);
+  assert.match(server, /readCustomerPackages\(db\),\n/);
   // A customer login reads its packages with its own session (RLS: its own customers only).
   assert.match(server, /const packageRead = readCustomerPackages\(supabase\);/);
 });
@@ -268,10 +268,10 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   // „Zugänge“ instead of „Konten“ in the User Management.
   assert.match(page, /\{ id: "users", label: "Zugänge", count: users, name: `Zugänge: \$\{users\}` \}/);
   assert.doesNotMatch(page + panels, /Konto|Konten/);
-  // On top of the entry's data, and in the column „Zugänge“ of both tables.
-  assert.match(panels, /\{customer && !members\.length && <NoLoginNotice entry=\{customer\} onNewUser=\{onNewUser\} \/>\}/);
-  assert.match(panels, /\{freelancer && !members\.length && <NoLoginNotice entry=\{freelancer\} onNewUser=\{onNewUser\} \/>\}/);
-  assert.match(page, /\{freelancer\.memberIds\.length \|\| <AddLogin name=\{freelancer\.company\} onClick=\{\(\) => newLoginFor\(freelancer\.id\)\} \/>\}/);
+  // On top of the entry's data, and in the column „Zugänge“ of both tables (not for archived entries, 17.11.2026).
+  assert.match(panels, /\{customer && !archived && !members\.length && <NoLoginNotice entry=\{customer\} onNewUser=\{onNewUser\} \/>\}/);
+  assert.match(panels, /\{freelancer && !archived && !members\.length && <NoLoginNotice entry=\{freelancer\} onNewUser=\{onNewUser\} \/>\}/);
+  assert.match(page, / : freelancer\.memberIds\.length \|\| <AddLogin name=\{freelancer\.company\} onClick=\{\(\) => newLoginFor\(freelancer\.id\)\} \/>\}/);
   assert.match(page, /: <AddLogin name=\{customer\.company\} onClick=\{\(\) => newLoginFor\(customer\.id\)\} \/>\}/);
   // The new login starts with the entry, its role and its contact address; nothing is sent before „Zugang anlegen“.
   assert.match(page, /role: entry\.kind === "freelancer" \? "oalab_freelancer" : "oalab_customer"/);
@@ -283,8 +283,8 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   assert.match(page, /dialog\.userId \? Boolean\(editUser\) : !dialog\.customerId \|\| Boolean\(loginEntry\)/);
   // Their rows: red without a login, yellow while nobody signed in yet, plain once active; the footer says how many.
   assert.match(page, /const loginVeil: Record<LoginState, string> = \{ none: " is-no-login", created: " is-awaiting-login", invited: " is-awaiting-login", active: "" \};/);
-  assert.match(page, /className=\{`data-row\$\{loginVeil\[loginsOf\(freelancer\)\.state\]\}/);
-  assert.match(page, /className=\{`data-row\$\{loginVeil\[logins\.state\]\}/);
+  assert.match(page, /className=\{`data-row\$\{archived \? " is-muted" : loginVeil\[loginsOf\(freelancer\)\.state\]\}/);
+  assert.match(page, /className=\{`data-row\$\{archived \? " is-muted" : loginVeil\[logins\.state\]\}/);
   assert.match(page, /<VeilKey states=\{\(tab === "customers" \? customers : freelancers\)\.map\(\(entry\) => loginsOf\(entry\)\.state\)\} \/>/);
   const css = await source("app/glass.css");
   assert.match(css, /\.data-table tbody tr\.is-no-login \{ --row-veil: var\(--veil-none\);/);

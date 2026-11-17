@@ -14,6 +14,9 @@ import { fillsFor, IMPORT_BATCH } from "@/lib/hub-customer-import/rules";
 import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, LOGIN_BATCH, readAnnounceDay } from "@/lib/hub-invitations/rules";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { ACTIVATION_LINK_HOURS, LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
+import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
+import { LOGO_BUCKET } from "@/lib/hub-logos/rules";
+import { readArchive } from "@/lib/hub-archive/server";
 import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
 import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
 
@@ -173,16 +176,18 @@ type LinkSide = { customerId: string; freelancerIds: string[] } | { freelancerId
 /**
  * Who looks after whom, as the admin ticked it: the freelancers of one customer or the customers of one freelancer.
  * Only differences are written. The database checks the kind of both sides (a wrong id fails, nothing else changes).
+ * Archived entries are not offered in the form, so their links stay as they are and none is added to them.
  */
 async function replaceLinks(ctx: Context, side: LinkSide): Promise<ActionResult<{ added: number; removed: number }>> {
   const byCustomer = "customerId" in side;
   const fixed = byCustomer ? side.customerId : side.freelancerId;
-  const wanted = Array.from(new Set((byCustomer ? side.freelancerIds : side.customerIds).filter((id) => typeof id === "string" && uuid.test(id)))).slice(0, 500);
+  const archive = await readArchive(ctx.db);
+  const wanted = Array.from(new Set((byCustomer ? side.freelancerIds : side.customerIds).filter((id) => typeof id === "string" && uuid.test(id) && !archive.customerIds.has(id)))).slice(0, 500);
   const [own, other] = byCustomer ? ["customer_id", "freelancer_id"] as const : ["freelancer_id", "customer_id"] as const;
   const current = await ctx.db.from("hub_freelancer_customers").select("freelancer_id, customer_id").eq(own, fixed).returns<{ freelancer_id: string; customer_id: string }[]>();
   if (current.error) return failed("Die Zuordnung der Freelancer konnte nicht gelesen werden.");
   const existing = new Set((current.data ?? []).map((row) => row[other]));
-  const removed = [...existing].filter((id) => !wanted.includes(id));
+  const removed = [...existing].filter((id) => !wanted.includes(id) && !archive.customerIds.has(id));
   const added = wanted.filter((id) => !existing.has(id));
   if (removed.length) {
     const { error } = await ctx.db.from("hub_freelancer_customers").delete().eq(own, fixed).in(other, removed);
@@ -807,4 +812,186 @@ export async function setCustomerFreelancers(input: { customerId: string; freela
   if (!linked.ok) return linked;
   refreshWorkspace();
   return { ok: true, data: { count: freelancerIds.length } };
+}
+
+// Archive, restore and delete (17.11.2026) ----------------------------------------------------------------------------
+// The database does the work in one transaction each (migration 202611170001 in service-oalab, on top of 202611160003):
+// it blocks or frees the profiles, archives or reactivates the Service organization and deletes what hangs on the
+// entry. Here come the steps it cannot take: signing logins in or out (Auth), the stored bytes (Storage) and the log.
+
+type ArchiveOutcome = { status: "archived" | "restored" | "unchanged" | "missing"; logins?: string[] };
+type DeleteOutcome = { status: "deleted" | "missing" | "mismatch"; files?: string[]; logo?: string | null; removed?: number; detached?: number; blocked?: string[] };
+
+/** The database functions of the archive are missing (migration not applied yet). */
+const missingArchive = (error: { code?: string; message?: string } | null) => Boolean(error && (error.code === "PGRST202" || error.code === "42883" || error.code === "42703" || /hub_(archive|restore|delete)_customer|archived_/i.test(error.message ?? "")));
+const archiveNotReady = "Archivieren und Löschen sind in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus.";
+
+type Entry = { id: string; kind: CustomerKind; customerNumber: string; organizationId: string | null };
+
+async function loadEntry(ctx: Context, customerId: unknown): Promise<Entry | null> {
+  if (typeof customerId !== "string" || !uuid.test(customerId)) return null;
+  const { data } = await ctx.db.from("hub_customers").select("id, customer_number, organization_id").eq("id", customerId).maybeSingle<{ id: string; customer_number: string; organization_id: string | null }>();
+  if (!data) return null;
+  return { id: data.id, kind: await kindOf(ctx, data.id) ?? "customer", customerNumber: data.customer_number, organizationId: data.organization_id };
+}
+
+const entryWord = (entry: Entry) => entry.kind === "freelancer" ? "Freelancer" : "Kunde";
+const loginCount = (count: number) => count === 1 ? "1 Zugang" : `${count} Zugänge`;
+const gone = "Diesen Eintrag gibt es nicht mehr.";
+
+/** Blocks (or frees) the sign-in of logins whose profile the database just blocked (or freed). Returns the misses. */
+async function setSignIn(ctx: Context, userIds: string[], blocked: boolean) {
+  let missed = 0;
+  for (const id of userIds) {
+    if (typeof id !== "string" || !uuid.test(id)) continue;
+    const { error } = await ctx.db.auth.admin.updateUserById(id, { ban_duration: blocked ? BLOCKED : "none" });
+    if (error) missed += 1;
+  }
+  return missed;
+}
+
+/**
+ * Archives a customer or a freelancer: it disappears from every screen of the hub but the user management, its active
+ * logins are blocked and its Service organization is archived. Nothing is deleted; restoring brings it all back.
+ */
+export async function archiveCustomer(input: { customerId: string }): Promise<ActionResult<{ blocked: number; incomplete: number }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const { data, error } = await ctx.db.rpc("hub_archive_customer", { target: entry.id, actor: ctx.actorId });
+  if (error) return failed(missingArchive(error) ? archiveNotReady : "Das Archivieren ist nicht gelungen. Es wurde nichts geändert.");
+  const result = data as ArchiveOutcome;
+  if (result.status === "missing") return failed(gone);
+  if (result.status !== "archived") return failed(`Dieser ${entryWord(entry)} ist schon archiviert.`);
+  const logins = result.logins ?? [];
+  // Their profiles are blocked already, so they see nothing any more; this also ends the sign-in.
+  const incomplete = await setSignIn(ctx, logins, true);
+  await log(ctx, entry.kind === "freelancer" ? "freelancer.archived" : "customer.archived", `${entryWord(entry)} archiviert${logins.length ? `, ${loginCount(logins.length)} gesperrt` : ""}`, { customerId: entry.id });
+  refreshWorkspace();
+  return { ok: true, data: { blocked: logins.length, incomplete } };
+}
+
+/** Brings an archived customer or freelancer back: the logins the archive blocked, its organization in Service, everything. */
+export async function restoreCustomer(input: { customerId: string }): Promise<ActionResult<{ freed: number; incomplete: number }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const { data, error } = await ctx.db.rpc("hub_restore_customer", { target: entry.id, actor: ctx.actorId });
+  if (error) return failed(missingArchive(error) ? archiveNotReady : "Das Wiederherstellen ist nicht gelungen. Es wurde nichts geändert.");
+  const result = data as ArchiveOutcome;
+  if (result.status === "missing") return failed(gone);
+  if (result.status !== "restored") return failed(`Dieser ${entryWord(entry)} ist nicht archiviert.`);
+  const logins = result.logins ?? [];
+  const incomplete = await setSignIn(ctx, logins, false);
+  await log(ctx, entry.kind === "freelancer" ? "freelancer.restored" : "customer.restored", `${entryWord(entry)} wiederhergestellt${logins.length ? `, ${loginCount(logins.length)} wieder aktiv` : ""}`, { customerId: entry.id });
+  refreshWorkspace();
+  return { ok: true, data: { freed: logins.length, incomplete } };
+}
+
+export type CustomerRemovalPreview = {
+  logins: number;
+  /** Files only this entry holds (they are deleted) and files shared with others (they stay there). */
+  files: number;
+  sharedFiles: number;
+  folders: number;
+  appointments: number;
+  upcoming: number;
+  packages: number;
+  domains: number;
+  /** Accesses and mailboxes of the Schlüsselbund. */
+  accesses: number;
+  messages: number;
+  /** What Service keeps, archived with the organization; null for entries that live only in the hub. */
+  service: { requests: number; projects: number } | null;
+};
+
+const HEAD = { count: "exact" as const, head: true };
+const counted = (query: PromiseLike<{ count: number | null; error: unknown }>) => Promise.resolve(query).then(({ count, error }) => error ? 0 : count ?? 0);
+
+/** What deleting an entry takes with it, for the confirmation in the panel. Counts only, no names. */
+export async function previewCustomerRemoval(input: { customerId: string }): Promise<ActionResult<CustomerRemovalPreview>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const id = entry.id;
+  const organization = entry.organizationId;
+  const [assignments, members, blocked, clients, folders, appointments, upcoming, packages, domains, logins, mailboxes, messages, requests, projects] = await Promise.all([
+    ctx.db.from("hub_file_assignments").select("file_id").eq("customer_id", id).returns<{ file_id: string }[]>(),
+    ctx.db.from("hub_customer_members").select("user_id").eq("customer_id", id).returns<{ user_id: string }[]>(),
+    ctx.db.from("hub_customers").select("archived_logins").eq("id", id).maybeSingle<{ archived_logins: string[] | null }>(),
+    organization ? ctx.db.from("memberships").select("user_id").eq("organization_id", organization).in("role", ["client_owner", "client_member"]).neq("status", "revoked").returns<{ user_id: string }[]>() : null,
+    counted(ctx.db.from("hub_folders").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_appointments").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_appointments").select("id", HEAD).eq("customer_id", id).gt("starts_at", new Date().toISOString()).in("status", ["requested", "confirmed"])),
+    counted(ctx.db.from("hub_customer_packages").select("customer_id", HEAD).eq("customer_id", id).not("package_id", "is", null)),
+    counted(ctx.db.from("hub_customer_domains").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_customer_logins").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_customer_mailboxes").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_private_messages").select("id", HEAD).eq("customer_id", id)),
+    organization ? counted(ctx.db.from("service_requests").select("id", HEAD).eq("organization_id", organization)) : 0,
+    organization ? counted(ctx.db.from("customer_projects").select("id", HEAD).eq("organization_id", organization)) : 0,
+  ]);
+  if (assignments.error || members.error) return failed("Was zu diesem Eintrag gehört, konnte gerade nicht gelesen werden. Bitte versuche es erneut.");
+  const fileIds = [...new Set((assignments.data ?? []).map((row) => row.file_id))];
+  const elsewhere = fileIds.length ? await ctx.db.from("hub_file_assignments").select("file_id").in("file_id", fileIds).neq("customer_id", id).returns<{ file_id: string }[]>() : null;
+  if (elsewhere?.error) return failed("Was zu diesem Eintrag gehört, konnte gerade nicht gelesen werden. Bitte versuche es erneut.");
+  const shared = new Set((elsewhere?.data ?? []).map((row) => row.file_id));
+  const people = new Set([
+    ...(members.data ?? []).map((row) => row.user_id),
+    ...(blocked.error ? [] : blocked.data?.archived_logins ?? []),
+    ...(clients && !clients.error ? clients.data ?? [] : []).map((row) => row.user_id),
+  ]);
+  return {
+    ok: true,
+    data: {
+      logins: people.size,
+      files: fileIds.filter((fileId) => !shared.has(fileId)).length,
+      sharedFiles: shared.size,
+      folders, appointments, upcoming, packages, domains, accesses: logins + mailboxes, messages,
+      service: organization ? { requests, projects } : null,
+    },
+  };
+}
+
+export type CustomerDeletion = { removed: number; blocked: number; detached: number; files: number; storageFailed: boolean };
+
+/**
+ * Deletes a customer or a freelancer for good, with everything the hub holds for it; the number has to be typed again
+ * as confirmation. Its logins go too (one Service still needs is blocked instead, one at home elsewhere only leaves);
+ * the Service organization stays, archived with its requests, since Service keeps an unchangeable audit trail.
+ */
+export async function deleteCustomer(input: { customerId: string; confirmNumber: string }): Promise<ActionResult<CustomerDeletion>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const typed = typeof input?.confirmNumber === "string" ? input.confirmNumber.trim().toUpperCase() : "";
+  const mismatch = `Zur Bestätigung bitte die Nummer ${entry.customerNumber} genau eintragen.`;
+  if (typed !== entry.customerNumber.toUpperCase()) return failed(mismatch);
+  const { data, error } = await ctx.db.rpc("hub_delete_customer", { target: entry.id, actor: ctx.actorId, confirm_number: entry.customerNumber });
+  if (error) return failed(missingArchive(error) ? archiveNotReady : "Das Löschen ist nicht gelungen. Es wurde nichts gelöscht.");
+  const result = data as DeleteOutcome;
+  if (result.status === "missing") return failed(gone);
+  if (result.status !== "deleted") return failed(mismatch);
+  // The records are gone, so nobody reaches these bytes any more; removing them frees the space.
+  const files = (result.files ?? []).filter((path) => typeof path === "string");
+  let storageFailed = false;
+  for (let start = 0; start < files.length; start += 100) {
+    const removed = await ctx.db.storage.from(HUB_FILES_BUCKET).remove(files.slice(start, start + 100));
+    if (removed.error) storageFailed = true;
+  }
+  if (result.logo) {
+    const removed = await ctx.db.storage.from(LOGO_BUCKET).remove([result.logo]);
+    if (removed.error) storageFailed = true;
+  }
+  const blocked = result.blocked ?? [];
+  await setSignIn(ctx, blocked, true);
+  const parts = [result.removed ? `${loginCount(result.removed)} gelöscht` : "", blocked.length ? `${loginCount(blocked.length)} gesperrt` : ""].filter(Boolean);
+  // The entry is gone, so the log names its number instead of pointing at it.
+  await log(ctx, entry.kind === "freelancer" ? "freelancer.deleted" : "customer.deleted", `${entryWord(entry)} ${entry.customerNumber} endgültig gelöscht${parts.length ? ` (${parts.join(", ")})` : ""}`);
+  refreshWorkspace();
+  return { ok: true, data: { removed: result.removed ?? 0, blocked: blocked.length, detached: result.detached ?? 0, files: files.length, storageFailed } };
 }

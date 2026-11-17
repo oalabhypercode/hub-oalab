@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Activity, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Megaphone, Rows3, Send, Settings, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, Archive, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Megaphone, Rows3, Send, Settings, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
 import { displayStatusLabels, roleLabels, type DisplayStatus, type HubRole } from "@/lib/hub-users/rules";
 import { customerLoginState, isFirstInvitation, isInvitable, loginStateLabels, type LoginState } from "@/lib/hub-invitations/rules";
 import type { ManagedCustomer, ManagedUser, UserManagementState } from "@/lib/hub-users/types";
@@ -87,21 +87,27 @@ const namesOf = (ids: string[], entries: ManagedCustomer[]) => {
  */
 export function UserManagementScreen({ state }: { state: UserManagementState }) {
   const { users, events } = state;
-  // Every entry (customers and freelancers) for the logins; the tabs list each kind on its own.
+  // Every entry (customers and freelancers) for the logins; the tabs list each kind on its own. Archived entries
+  // (17.11.2026) stay out of the lists and choices and wait in the folded group „Archiviert“ at the end of their tab.
   const entries = state.customers;
-  const customers = entries.filter((entry) => entry.kind === "customer");
-  const freelancers = entries.filter((entry) => entry.kind === "freelancer");
+  const liveEntries = entries.filter((entry) => !entry.archivedAt);
+  const allCustomers = entries.filter((entry) => entry.kind === "customer");
+  const allFreelancers = entries.filter((entry) => entry.kind === "freelancer");
+  const customers = allCustomers.filter((entry) => !entry.archivedAt);
+  const freelancers = allFreelancers.filter((entry) => !entry.archivedAt);
   // The project dialog links its customer (/users?customer=<id>): the page opens on the customers with theirs open.
   const linkedId = useSearchParams().get("customer");
-  const linked = customers.find((customer) => customer.id === linkedId) ?? null;
+  const linked = allCustomers.find((customer) => customer.id === linkedId) ?? null;
   const [dialog, setDialog] = useState<Dialog | null>(() => linked ? { kind: "customer", customerId: linked.id } : null);
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<Tab>(linked ? "customers" : "users");
   const groups = useCollapsedGroups();
+  const [archiveOpen, setArchiveOpen] = useState(() => Boolean(linked?.archivedAt));
   // The panel reports unsaved changes; another row, another tab or closing asks before they are lost.
   const dirty = useRef(false);
   const reportDirty = useCallback((value: boolean) => { dirty.current = value; }, []);
-  const customerOf = (user: ManagedUser) => entries.find((customer) => customer.id === user.customerIds[0]) ?? null;
+  // A login of an archived customer in Service is no member any more; the archive remembers whose it was.
+  const customerOf = (user: ManagedUser) => entries.find((customer) => customer.id === user.customerIds[0]) ?? entries.find((entry) => entry.archivedLoginIds.includes(user.id)) ?? null;
   const pending = users.filter((user) => user.status === "pending");
   const leave = () => !dirty.current || window.confirm("Deine Änderungen sind noch nicht gespeichert. Verwerfen?");
   const open = (next: Dialog) => {
@@ -171,11 +177,13 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
     login: (customer) => loginsOf(customer).lastSignInAt ?? "",
     city: (customer) => customer.city,
   };
-  const shownCustomers = sortRows(customers.filter((customer) =>
+  const customerMatches = (customer: ManagedCustomer) =>
     (packageFilter === ALL || (customer.packages as string[]).includes(packageFilter))
     && (loginFilter === ALL || loginsOf(customer).state === loginFilter)
-    && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website, loginStateLabels[loginsOf(customer).state], ...customer.packages.map((id) => packageCatalog[id].name)]),
-  ), customerSortValue[customerSort.key], customerSort.dir, { tieBreak: (customer) => customer.company });
+    && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website, loginStateLabels[loginsOf(customer).state], ...customer.packages.map((id) => packageCatalog[id].name)]);
+  const shownCustomers = sortRows(customers.filter(customerMatches), customerSortValue[customerSort.key], customerSort.dir, { tieBreak: (customer) => customer.company });
+  // Archived customers: searchable, but without the filters for packages and logins (they have neither in use).
+  const shownArchivedCustomers = sortRows(allCustomers.filter((customer) => customer.archivedAt && matchesSearch(customerQuery, [customer.company, customer.customerNumber, customer.city, customer.contactEmail, customer.website])), customerSortValue[customerSort.key], customerSort.dir, { tieBreak: (customer) => customer.company });
   const customerFilters = [packageFilter, loginFilter].filter((value) => value !== ALL).length;
   const customersNarrowed = customerQuery.trim() !== "" || customerFilters > 0;
   const withoutLogin = customers.filter((customer) => !customer.memberIds.length).length;
@@ -191,17 +199,21 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
 
   // Freelancers: by name, searchable by name, number, place and their customers.
   const [freelancerQuery, setFreelancerQuery] = useState("");
-  const shownFreelancers = [...freelancers]
-    .filter((freelancer) => matchesSearch(freelancerQuery, [freelancer.company, freelancer.customerNumber, freelancer.city, freelancer.contactEmail, namesOf(freelancer.linkedIds, customers)]))
-    .sort((a, b) => a.company.localeCompare(b.company, "de"));
+  const freelancerMatches = (freelancer: ManagedCustomer) => matchesSearch(freelancerQuery, [freelancer.company, freelancer.customerNumber, freelancer.city, freelancer.contactEmail, namesOf(freelancer.linkedIds, customers)]);
+  const byName = (a: ManagedCustomer, b: ManagedCustomer) => a.company.localeCompare(b.company, "de");
+  const shownFreelancers = freelancers.filter(freelancerMatches).sort(byName);
+  const shownArchivedFreelancers = allFreelancers.filter((freelancer) => freelancer.archivedAt && freelancerMatches(freelancer)).sort(byName);
+  const shownArchived = tab === "freelancers" ? shownArchivedFreelancers : shownArchivedCustomers;
 
   const reviewUser = dialog?.kind === "review" ? users.find((user) => user.id === dialog.userId) : undefined;
   const editUser = dialog?.kind === "user" && dialog.userId ? users.find((user) => user.id === dialog.userId) : undefined;
   // A new login for an entry waits until the entry is in the data (right after creating it, with the refreshed page).
   const loginEntry = dialog?.kind === "user" && !dialog.userId && dialog.customerId ? entries.find((entry) => entry.id === dialog.customerId) : undefined;
   const userPanelReady = dialog?.kind === "user" && (dialog.userId ? Boolean(editUser) : !dialog.customerId || Boolean(loginEntry));
-  const editCustomer = dialog?.kind === "customer" && dialog.customerId ? customers.find((customer) => customer.id === dialog.customerId) : undefined;
-  const editFreelancer = dialog?.kind === "freelancer" && dialog.customerId ? freelancers.find((freelancer) => freelancer.id === dialog.customerId) : undefined;
+  const editCustomer = dialog?.kind === "customer" && dialog.customerId ? allCustomers.find((customer) => customer.id === dialog.customerId) : undefined;
+  const editFreelancer = dialog?.kind === "freelancer" && dialog.customerId ? allFreelancers.find((freelancer) => freelancer.id === dialog.customerId) : undefined;
+  // A login chooses among the entries in use; one that already belongs to an archived entry keeps it in the choice.
+  const choiceEntries = entries.filter((entry) => !entry.archivedAt || Boolean(editUser?.customerIds.includes(entry.id)));
   const switcher = <span className="users-switch"><TabSwitch tab={tab} onTab={showTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />{tabsInfo.button}{tabsInfo.box}</span>;
   const manage = <ManageButtons tab={tab} withoutLogin={withoutLogin} invitable={invitable.filter(isFirstInvitation).length} onCustomer={() => open({ kind: "customer" })} onImport={() => open({ kind: "import" })} onLogins={() => open({ kind: "logins" })} onInvite={() => open({ kind: "invite" })} onAnnounce={() => open({ kind: "announce" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} />;
   const title = <TitleIcon icon={sectionIcons.users!} />;
@@ -252,8 +264,50 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   const entryDialog = (kind: "customer" | "freelancer", customerId: string): Dialog => ({ kind, customerId });
   const rows: { id: string; dialog: Dialog }[] = tab === "users"
     ? (grouping === "status" ? userGroups.filter((group) => !groups.isCollapsed(group.status)).flatMap((group) => group.rows) : shownUsers).map((user) => ({ id: user.id, dialog: dialogFor(user) }))
-    : (tab === "customers" ? shownCustomers : shownFreelancers).map((entry) => ({ id: entry.id, dialog: entryDialog(tab === "customers" ? "customer" : "freelancer", entry.id) }));
+    : [...(tab === "customers" ? shownCustomers : shownFreelancers), ...(archiveOpen ? shownArchived : [])].map((entry) => ({ id: entry.id, dialog: entryDialog(tab === "customers" ? "customer" : "freelancer", entry.id) }));
   const at = openId === undefined ? -1 : rows.findIndex((row) => row.id === openId);
+
+  // A customer's row; archived ones stand muted at the end, with the logins their archive blocked.
+  const customerRow = (customer: ManagedCustomer) => {
+    const logins = loginsOf(customer);
+    const archived = Boolean(customer.archivedAt);
+    return (
+      <tr key={customer.id} className={`data-row${archived ? " is-muted" : loginVeil[logins.state]}${openId === customer.id ? " is-open" : ""}`}>
+        <td className="cell-person">
+          <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
+          {!archived && customer.linkedIds.length > 0 && <span className="role-tag" data-tip={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
+        </td>
+        <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
+        <td className="cell-packages">{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].short).join(" · ") : <span className="cell-none">–</span>}</td>
+        <td className="cell-logins cell-login-state">{archived ? <ArchivedLogins entry={customer} />
+          : customer.memberIds.length ? <span className="status-cell"><StatusGlyph kind={loginStateGlyph[logins.state]} />{`${customer.memberIds.length} · ${loginStateLabels[logins.state]}`}</span> : <AddLogin name={customer.company} onClick={() => newLoginFor(customer.id)} />}</td>
+        <td className="cell-login col-login">{logins.lastSignInAt ? <time dateTime={logins.lastSignInAt} data-tip={formatFileDateTime(logins.lastSignInAt)}>{formatFileDate(logins.lastSignInAt)}</time> : <span className="cell-none">{customer.memberIds.length ? "noch nie" : "–"}</span>}</td>
+        <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
+        <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} data-tip="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
+      </tr>
+    );
+  };
+  const freelancerRow = (freelancer: ManagedCustomer) => {
+    const archived = Boolean(freelancer.archivedAt);
+    return (
+      <tr key={freelancer.id} className={`data-row${archived ? " is-muted" : loginVeil[loginsOf(freelancer).state]}${openId === freelancer.id ? " is-open" : ""}`}>
+        <td className="cell-person">
+          <button type="button" className="row-open" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })}><LogoMark logo={freelancer.logo} initials={companyMark(freelancer.company)} className="company-mark" /><strong>{freelancer.company}</strong></button>
+        </td>
+        <td className="cell-number"><NumberChip value={freelancer.customerNumber} /></td>
+        <td className="cell-packages">{!archived && freelancer.linkedIds.length ? namesOf(freelancer.linkedIds, customers) : <span className="cell-none">{archived ? "–" : "noch keine"}</span>}</td>
+        <td className="cell-logins numeric">{archived ? <ArchivedLogins entry={freelancer} /> : freelancer.memberIds.length || <AddLogin name={freelancer.company} onClick={() => newLoginFor(freelancer.id)} />}</td>
+        <td className="cell-city">{[freelancer.postalCode, freelancer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
+        <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })} aria-label={`${freelancer.company} bearbeiten`} data-tip="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
+      </tr>
+    );
+  };
+  /** The folded group of archived entries at the end of the customers' or the freelancers' table. */
+  const archiveGroup = (colSpan: number, row: (entry: ManagedCustomer) => React.ReactNode) => shownArchived.length > 0 && (
+    <TableGroup colSpan={colSpan} label="Archiviert" count={shownArchived.length} glyph={<Archive size={14} aria-hidden="true" />} collapsed={!archiveOpen} onToggle={() => setArchiveOpen((value) => !value)}>
+      {shownArchived.map(row)}
+    </TableGroup>
+  );
   const panelProps = {
     onClose: close, onNotice: setNotice, onDirty: reportDirty,
     onPrev: at > 0 ? () => { open(rows[at - 1].dialog); } : undefined,
@@ -321,7 +375,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
             </div>
           ) : <SheetEmpty text={users.length ? "Keine Zugänge für diese Suche oder Filter." : "Noch keine Zugänge."} onReset={usersNarrowed ? resetUsers : undefined} />
         ) : tab === "freelancers" ? (
-          shownFreelancers.length ? (
+          shownFreelancers.length || shownArchivedFreelancers.length ? (
             <div className="sheet-scroll">
               <table className="data-table customer-table">
                 <caption className="visually-hidden">Freelancer mit Nummer, betreuten Kunden, Zugängen und Ort</caption>
@@ -335,24 +389,12 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                     <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
                   </tr>
                 </thead>
-                <tbody>
-                  {shownFreelancers.map((freelancer) => (
-                    <tr key={freelancer.id} className={`data-row${loginVeil[loginsOf(freelancer).state]}${openId === freelancer.id ? " is-open" : ""}`}>
-                      <td className="cell-person">
-                        <button type="button" className="row-open" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })}><LogoMark logo={freelancer.logo} initials={companyMark(freelancer.company)} className="company-mark" /><strong>{freelancer.company}</strong></button>
-                      </td>
-                      <td className="cell-number"><NumberChip value={freelancer.customerNumber} /></td>
-                      <td className="cell-packages">{freelancer.linkedIds.length ? namesOf(freelancer.linkedIds, customers) : <span className="cell-none">noch keine</span>}</td>
-                      <td className="cell-logins numeric">{freelancer.memberIds.length || <AddLogin name={freelancer.company} onClick={() => newLoginFor(freelancer.id)} />}</td>
-                      <td className="cell-city">{[freelancer.postalCode, freelancer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
-                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "freelancer", customerId: freelancer.id })} aria-label={`${freelancer.company} bearbeiten`} data-tip="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
+                <tbody>{shownFreelancers.map(freelancerRow)}</tbody>
+                {archiveGroup(6, freelancerRow)}
               </table>
             </div>
-          ) : <SheetEmpty text={freelancers.length ? "Kein Freelancer passt zu dieser Suche." : "Noch keine Freelancer. Lege den ersten mit „Freelancer anlegen“ an."} onReset={freelancerQuery.trim() ? () => setFreelancerQuery("") : undefined} />
-        ) : shownCustomers.length ? (
+          ) : <SheetEmpty text={allFreelancers.length ? "Kein Freelancer passt zu dieser Suche." : "Noch keine Freelancer. Lege den ersten mit „Freelancer anlegen“ an."} onReset={freelancerQuery.trim() ? () => setFreelancerQuery("") : undefined} />
+        ) : shownCustomers.length || shownArchivedCustomers.length ? (
           <div className="sheet-scroll">
             <table className="data-table customer-table">
               <caption className="visually-hidden">Kunden mit Kundennummer, Unternehmen, Paketen, Zugängen mit Status, letztem Login und Ort</caption>
@@ -367,36 +409,19 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
                   <th scope="col"><span className="visually-hidden">Bearbeiten</span></th>
                 </tr>
               </thead>
-              <tbody>
-                {shownCustomers.map((customer) => {
-                  const logins = loginsOf(customer);
-                  return (
-                    <tr key={customer.id} className={`data-row${loginVeil[logins.state]}${openId === customer.id ? " is-open" : ""}`}>
-                      <td className="cell-person">
-                        <button type="button" className="row-open" onClick={() => open({ kind: "customer", customerId: customer.id })}><LogoMark logo={customer.logo} initials={companyMark(customer.company)} className="company-mark" /><strong>{customer.company}</strong></button>
-                        {customer.linkedIds.length > 0 && <span className="role-tag" data-tip={`Betreut von ${namesOf(customer.linkedIds, freelancers)}`}>Freelancer</span>}
-                      </td>
-                      <td className="cell-number"><NumberChip value={customer.customerNumber} /></td>
-                      <td className="cell-packages">{customer.packages.length ? customer.packages.map((id) => packageCatalog[id].short).join(" · ") : <span className="cell-none">–</span>}</td>
-                      <td className="cell-logins cell-login-state">{customer.memberIds.length ? <span className="status-cell"><StatusGlyph kind={loginStateGlyph[logins.state]} />{`${customer.memberIds.length} · ${loginStateLabels[logins.state]}`}</span> : <AddLogin name={customer.company} onClick={() => newLoginFor(customer.id)} />}</td>
-                      <td className="cell-login col-login">{logins.lastSignInAt ? <time dateTime={logins.lastSignInAt} data-tip={formatFileDateTime(logins.lastSignInAt)}>{formatFileDate(logins.lastSignInAt)}</time> : <span className="cell-none">{customer.memberIds.length ? "noch nie" : "–"}</span>}</td>
-                      <td className="cell-city">{[customer.postalCode, customer.city].filter(Boolean).join(" ") || <span className="cell-none">–</span>}</td>
-                      <td className="cell-action"><button type="button" className="row-action" onClick={() => open({ kind: "customer", customerId: customer.id })} aria-label={`${customer.company} bearbeiten`} data-tip="Bearbeiten"><Settings size={16} aria-hidden="true" /></button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
+              <tbody>{shownCustomers.map(customerRow)}</tbody>
+              {archiveGroup(7, customerRow)}
             </table>
           </div>
-        ) : <SheetEmpty text={customers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."} onReset={customersNarrowed ? () => { setCustomerQuery(""); setPackageFilter(ALL); setLoginFilter(ALL); } : undefined} />}
+        ) : <SheetEmpty text={allCustomers.length ? "Keine Kunden für diese Suche oder Filter." : "Noch keine Kunden. Lege den ersten mit „Kunde anlegen“ an."} onReset={customersNarrowed ? () => { setCustomerQuery(""); setPackageFilter(ALL); setLoginFilter(ALL); } : undefined} />}
         <SheetFooter hint={tab === "users" ? (pending.length ? `${pending.length === 1 ? "1 Registrierung wartet" : `${pending.length} Registrierungen warten`} auf Freigabe` : undefined)
           : <VeilKey states={(tab === "customers" ? customers : freelancers).map((entry) => loginsOf(entry).state)} />}>
-          {users.filter((user) => user.status === "active").length} aktive Zugänge · {customers.length === 1 ? "1 Kunde" : `${customers.length} Kunden`}{freelancers.length ? ` · ${freelancers.length} Freelancer` : ""}
+          {users.filter((user) => user.status === "active").length} aktive Zugänge · {customers.length === 1 ? "1 Kunde" : `${customers.length} Kunden`}{freelancers.length ? ` · ${freelancers.length} Freelancer` : ""}{entries.length > liveEntries.length ? ` · ${entries.length - liveEntries.length} archiviert` : ""}
         </SheetFooter>
       </div>
 
-      {reviewUser && <ReviewPanel key={reviewUser.id} user={reviewUser} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} {...panelProps} />}
-      {dialog?.kind === "user" && userPanelReady && <UserPanel key={dialog.userId ?? `new-${dialog.customerId ?? ""}`} user={editUser} presetCustomerId={dialog.customerId} presetRole={dialog.role} entryCreated={dialog.entryCreated} customers={entries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onReview={(userId) => open({ kind: "review", userId })} {...panelProps} />}
+      {reviewUser && <ReviewPanel key={reviewUser.id} user={reviewUser} customers={liveEntries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} {...panelProps} />}
+      {dialog?.kind === "user" && userPanelReady && <UserPanel key={dialog.userId ?? `new-${dialog.customerId ?? ""}`} user={editUser} presetCustomerId={dialog.customerId} presetRole={dialog.role} entryCreated={dialog.entryCreated} customers={choiceEntries} nextNumber={state.nextCustomerNumber} nextFreelancerNumber={state.nextFreelancerNumber} freelancers={state.freelancers} mailConfigured={state.mailConfigured} events={events.filter((event) => editUser && event.targetUserId === editUser.id)} onReview={(userId) => open({ kind: "review", userId })} {...panelProps} />}
       {dialog?.kind === "customer" && (!dialog.customerId || editCustomer) && <CustomerPanel key={dialog.customerId ?? "new"} customer={editCustomer} users={users} nextNumber={state.nextCustomerNumber} freelancers={freelancers} freelancersEnabled={state.freelancers} events={events.filter((event) => editCustomer && event.targetCustomerId === editCustomer.id)} onOpenUser={openFromEntry} onNewUser={newLoginFor} onCreated={afterCreate("customer")} {...panelProps} />}
       {dialog?.kind === "import" && <CustomerImportDialog customers={entries} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "logins" && <CustomerLoginsDialog customers={customers} users={users} onClose={() => setDialog(null)} onNotice={setNotice} />}
@@ -416,6 +441,12 @@ function VeilKey({ states }: { states: LoginState[] }) {
     {none > 0 && <span className="veil-key"><span className="veil-dot is-none" aria-hidden="true" />{none} ohne Zugang</span>}
     {open > 0 && <span className="veil-key"><span className="veil-dot is-open" aria-hidden="true" />{open} noch nie angemeldet</span>}
   </span>;
+}
+
+/** In the column „Zugänge“ of an archived entry: how many logins its archive blocked. */
+function ArchivedLogins({ entry }: { entry: ManagedCustomer }) {
+  const count = entry.archivedLoginIds.length;
+  return count ? <span className="status-cell" data-tip="Mit dem Archivieren gesperrt; „Wiederherstellen“ gibt sie frei"><StatusGlyph kind="disabled" />{count} gesperrt</span> : <span className="cell-none">–</span>;
 }
 
 /** In the column „Zugänge“ of a customer or a freelancer without a login: one click opens „Zugang anlegen“ for it. */

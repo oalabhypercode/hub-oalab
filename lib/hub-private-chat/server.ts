@@ -8,6 +8,8 @@ import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { chatHref } from "@/lib/hub-notify/rules";
+import { loadArchive } from "@/lib/hub-archive/server";
+import { noArchive } from "@/lib/hub-archive/rules";
 import { chatUnread, isChatSide, readByOtherSide, type ChatSide } from "./rules";
 import type { PrivateChatMessage, PrivateChatResult, PrivateChatState, PrivateChatSummary, PrivateChatThread } from "./types";
 
@@ -106,9 +108,10 @@ export const loadPrivateChats = cache(async (): Promise<PrivateChatState> => {
   const viewer = await chatViewer();
   if (!viewer) return failed("customer", CHAT_UNAVAILABLE);
   const supabase = await createClient();
-  const customers = await readCustomers(supabase, viewer);
+  const [customers, archive] = await Promise.all([readCustomers(supabase, viewer), viewer.side === "oalab" ? loadArchive() : noArchive]);
   if (customers.error) return failed(viewer.side, CHAT_UNAVAILABLE);
-  const rows = customers.data ?? [];
+  // Archived customers' chats stay out of the admins' list (lib/hub-archive); their logins are blocked anyway.
+  const rows = (customers.data ?? []).filter((row) => !archive.customerIds.has(row.id));
   if (!rows.length) return { source: "live", viewer: viewer.side, chats: [], error: null };
   const messageQuery = supabase.from("hub_private_messages").select(MESSAGES);
   const [messages, reads] = await Promise.all([

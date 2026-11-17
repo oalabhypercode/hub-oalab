@@ -43,6 +43,8 @@ type CustomerRow = {
   created_at: string;
 };
 type EventRow = { id: number; created_at: string; actor_id: string | null; target_user_id: string | null; target_customer_id: string | null; action: string; summary: string };
+type OrganizationRow = { id: string; customer_number: string; status: string; archived_at: string | null };
+type ArchivedRow = { id: string; archived_at: string; archived_by: string | null; archived_logins: string[] | null };
 
 const CUSTOMER_COLUMNS = "id, customer_number, company, contact_email, phone, website, street, postal_code, city, country, organization_id, created_at";
 
@@ -159,7 +161,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Zugänge verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, activations, announcements, packageRows] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, activations, announcements, packageRows, archived] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
@@ -167,8 +169,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       db.from("hub_admin_events").select("id, created_at, actor_id, target_user_id, target_customer_id, action, summary").order("created_at", { ascending: false }).limit(300).returns<EventRow[]>(),
       // Optional until its migration is applied: without the table the history simply shows no mails.
       db.from("hub_notifications").select("id, created_at, kind, user_id, status").order("created_at", { ascending: false }).limit(300).returns<NotificationRow[]>(),
-      // Numbers taken in Service count too: a new customer becomes a Service organization.
-      db.from("organizations").select("customer_number").returns<{ customer_number: string }[]>(),
+      // Numbers taken in Service count too: a new customer becomes a Service organization. Its archive counts as well.
+      db.from("organizations").select("id, customer_number, status, archived_at").returns<OrganizationRow[]>(),
       // The customers' logos, the same as in the asset management; a failure only leaves the letters.
       loadCustomerLogos(db).catch(() => new Map<string, never>()),
       loadFreelancerLinks(db),
@@ -179,6 +181,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       db.from("hub_admin_events").select("target_user_id, created_at").eq("action", "user.announcement").order("created_at", { ascending: false }).limit(5000).returns<{ target_user_id: string | null; created_at: string }[]>(),
       // The packages of „Vertrag & Domain“; without their migration the list simply shows none.
       readCustomerPackages(db),
+      // The archive (migration 202611170001 in service-oalab); before it, only Service's archive counts.
+      db.from("hub_customers").select("id, archived_at, archived_by, archived_logins").not("archived_at", "is", null).returns<ArchivedRow[]>(),
     ]);
     const invitedAt = new Map<string, string>();
     for (const row of activations.data ?? []) if (row.user_id && !invitedAt.has(row.user_id)) invitedAt.set(row.user_id, row.created_at);
@@ -232,17 +236,27 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       const user = users.find((item) => item.id === id);
       return user ? `${user.firstName} ${user.lastName}`.trim() || user.email : "Gelöschter Zugang";
     };
+    const archiveOf = new Map((archived.error ? [] : archived.data ?? []).map((row) => [row.id, row]));
+    const organizationOf = new Map((organizations.data ?? []).map((row) => [row.id, row]));
     return {
       users,
-      customers: customerRows.map((row): ManagedCustomer => ({
-        ...toCustomer(row, heldPackages(packagesOf(packageRows.byCustomer, row.id))),
-        inService: Boolean(row.organization_id),
-        createdAt: row.created_at,
-        memberIds: memberships.filter((member) => member.customer_id === row.id).map((member) => member.user_id),
-        logo: logos.get(row.id) ?? null,
-        kind: freelancerLinks.kindOf(row.id),
-        linkedIds: freelancerLinks.linkedIds(row.id),
-      })),
+      customers: customerRows.map((row): ManagedCustomer => {
+        const archive = archiveOf.get(row.id);
+        const organization = row.organization_id ? organizationOf.get(row.organization_id) : undefined;
+        const archivedInService = organization && (organization.status === "archived" || organization.archived_at) ? organization.archived_at ?? row.created_at : null;
+        return {
+          ...toCustomer(row, heldPackages(packagesOf(packageRows.byCustomer, row.id))),
+          inService: Boolean(row.organization_id),
+          createdAt: row.created_at,
+          memberIds: memberships.filter((member) => member.customer_id === row.id).map((member) => member.user_id),
+          logo: logos.get(row.id) ?? null,
+          kind: freelancerLinks.kindOf(row.id),
+          linkedIds: freelancerLinks.linkedIds(row.id),
+          archivedAt: archive?.archived_at ?? archivedInService,
+          archivedBy: archive?.archived_by ? nameOf(archive.archived_by) : null,
+          archivedLoginIds: archive?.archived_logins ?? [],
+        };
+      }),
       events: [
         ...(events.data ?? []).map((row): ManagedEvent => ({
           id: row.id,

@@ -31,6 +31,8 @@ const places = [
   { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Einladungen"', button: /<Modal title="Einladungen senden" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-import.tsx", call: 'useInfo("Import aus Sevdesk"', button: /<Modal title="Kunden importieren" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-dialogs.tsx", call: 'useInfo("Freelancer"', button: /title=\{freelancer \? freelancer\.company : "Freelancer anlegen"\}[^]*?actions=\{<>\{info\.button\}\{freelancer && <EntryNav/, box: "{info.box}" },
+  // Archive, restore and delete (since 17.11.2026): at the end of a customer's or freelancer's master data.
+  { file: "components/hub/screens/users-removal.tsx", call: 'useInfo("Archivieren oder löschen"', button: /<PanelSection title=\{title\} info=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Pakete"', button: /label="Pakete"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Freigabe im Verlauf"', button: /actions=\{index === 0 \? info\.button : undefined\}/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Verlauf"', button: /"Zeitpunkt eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
