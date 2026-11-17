@@ -19,6 +19,7 @@ import { LOGO_BUCKET } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
 import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
 import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
+import { readEntriesWithoutActiveLogin } from "./deactivated";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
 // considers them an active admin before the service role touches anything. Inputs are validated here again,
@@ -177,8 +178,9 @@ type LinkSide = { customerId: string; freelancerIds: string[] } | { freelancerId
  * Who looks after whom, as the admin ticked it: the freelancers of one customer or the customers of one freelancer.
  * Only differences are written. The database checks the kind of both sides (a wrong id fails, nothing else changes).
  * Archived entries are not offered in the form, so their links stay as they are and none is added to them.
+ * `activeOnly` (outside the user management): no new link to a freelancer whose every login is deactivated.
  */
-async function replaceLinks(ctx: Context, side: LinkSide): Promise<ActionResult<{ added: number; removed: number }>> {
+async function replaceLinks(ctx: Context, side: LinkSide, activeOnly = false): Promise<ActionResult<{ added: number; removed: number }>> {
   const byCustomer = "customerId" in side;
   const fixed = byCustomer ? side.customerId : side.freelancerId;
   const archive = await readArchive(ctx.db);
@@ -189,6 +191,11 @@ async function replaceLinks(ctx: Context, side: LinkSide): Promise<ActionResult<
   const existing = new Set((current.data ?? []).map((row) => row[other]));
   const removed = [...existing].filter((id) => !wanted.includes(id) && !archive.customerIds.has(id));
   const added = wanted.filter((id) => !existing.has(id));
+  if (activeOnly && added.length) {
+    const inactive = await readEntriesWithoutActiveLogin(ctx.db, byCustomer ? added : [fixed]);
+    if (!inactive) return failed("Die Zuordnung der Freelancer konnte nicht geprüft werden.");
+    if (inactive.size) return failed("Ein Freelancer ohne aktiven Zugang kann keinen Kunden betreuen. Im User Management lässt sich sein Zugang wieder aktivieren.");
+  }
   if (removed.length) {
     const { error } = await ctx.db.from("hub_freelancer_customers").delete().eq(own, fixed).in(other, removed);
     if (error) return failed("Die Zuordnung der Freelancer konnte nicht geändert werden.");
@@ -808,7 +815,7 @@ export async function setCustomerFreelancers(input: { customerId: string; freela
   const customerId = typeof input?.customerId === "string" && uuid.test(input.customerId) ? input.customerId : null;
   if (!customerId || await kindOf(ctx, customerId) !== "customer") return failed("Diesen Kunden gibt es nicht mehr.");
   const freelancerIds = Array.isArray(input?.freelancerIds) ? input.freelancerIds.filter((value): value is string => typeof value === "string") : [];
-  const linked = await replaceLinks(ctx, { customerId, freelancerIds });
+  const linked = await replaceLinks(ctx, { customerId, freelancerIds }, true);
   if (!linked.ok) return linked;
   refreshWorkspace();
   return { ok: true, data: { count: freelancerIds.length } };

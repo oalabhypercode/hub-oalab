@@ -26,10 +26,13 @@ export function servedByNames(customer: HubFileCustomer, freelancers: HubFileCus
 
 /**
  * Admins pick the freelancers who look after one customer, from the head of the customer in the asset management. The
- * freelancers then see the customer and the files shared with them; the customer notices nothing.
+ * freelancers then see the customer and the files shared with them; the customer notices nothing. `freelancers` are
+ * the ones to choose from; a link to one that is not among them (every login deactivated) stays as it is, unseen.
  */
 export function ServedByDialog({ customer, freelancers, onClose, onSaved }: { customer: HubFileCustomer; freelancers: HubFileCustomer[]; onClose: () => void; onSaved: (message: string) => void }) {
-  const [selected, setSelected] = useState(customer.freelancerIds ?? []);
+  const offered = (id: string) => freelancers.some((freelancer) => freelancer.id === id);
+  const [selected, setSelected] = useState((customer.freelancerIds ?? []).filter(offered));
+  const unseen = (customer.freelancerIds ?? []).filter((id) => !offered(id));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const info = useInfo("Betreut von", {
@@ -44,7 +47,7 @@ export function ServedByDialog({ customer, freelancers, onClose, onSaved }: { cu
     setBusy(true);
     setError("");
     try {
-      const result = await setCustomerFreelancers({ customerId: customer.id, freelancerIds: selected });
+      const result = await setCustomerFreelancers({ customerId: customer.id, freelancerIds: [...selected, ...unseen] });
       if (!result.ok) { setError(result.error); return; }
       onSaved(selected.length ? `${customer.company} wird jetzt von ${selected.length === 1 ? "einem Freelancer" : `${selected.length} Freelancern`} mitbetreut.` : `${customer.company} betreut jetzt nur das oalab-Team.`);
     } catch {

@@ -196,8 +196,11 @@ export type StudioTaskRow = {
 export type TaskCounts = { comments: number; done: number; total: number; files: number };
 export const NO_COUNTS: TaskCounts = { comments: 0, done: 0, total: 0, files: 0 };
 
-/** A board card from its Studio row; unknown statuses land in "Offen", unknown priorities in "Keine". */
-export function toBoardTask(row: StudioTaskRow, counts: TaskCounts = NO_COUNTS): BoardTask {
+/**
+ * A board card from its Studio row; unknown statuses land in "Offen", unknown priorities in "Keine". `hidden` logins
+ * (deactivated in the user management) drop out of the assignees; saving the assignees then removes them for good.
+ */
+export function toBoardTask(row: StudioTaskRow, counts: TaskCounts = NO_COUNTS, hidden?: ReadonlySet<string>): BoardTask {
   return {
     id: row.id,
     number: Number(row.task_number),
@@ -207,7 +210,7 @@ export function toBoardTask(row: StudioTaskRow, counts: TaskCounts = NO_COUNTS):
     priority: isPriority(row.priority) ? row.priority : "none",
     dueOn: row.due_date,
     labels: row.labels ?? [],
-    assigneeIds: row.assignee_user_ids ?? [],
+    assigneeIds: (row.assignee_user_ids ?? []).filter((id) => !hidden?.has(id)),
     visible: Boolean(row.client_visible),
     teamOnly: Boolean(row.team_only),
     order: Number(row.board_order) || 0,
@@ -244,6 +247,25 @@ export const audienceFields = (audience: TaskAudience): Pick<BoardTask, "teamOnl
 export function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} und ${names[names.length - 1]}`;
+}
+
+/**
+ * The board without logins deactivated in the user management (user 17.11.2026): nobody picks them any more. The team
+ * keeps its active members, a freelancer its active logins; a freelancer whose every login is deactivated drops out
+ * (`hiddenEntries`), one without any login stays. `former` are the logins that dropped out: the history (comments,
+ * changes) still names them, as people of no kind, so they are neither assignees nor „Beteiligte“.
+ */
+export function withoutDeactivated(team: ReadonlySet<string>, freelancers: readonly BoardFreelancer[], deactivated: ReadonlySet<string>) {
+  const former = new Set([...team].filter((id) => deactivated.has(id)));
+  const kept: BoardFreelancer[] = [];
+  const hiddenEntries = new Set<string>();
+  for (const freelancer of freelancers) {
+    const loginIds = freelancer.loginIds.filter((id) => !deactivated.has(id));
+    freelancer.loginIds.filter((id) => deactivated.has(id)).forEach((id) => former.add(id));
+    if (freelancer.loginIds.length && !loginIds.length) hiddenEntries.add(freelancer.id);
+    else kept.push({ ...freelancer, loginIds });
+  }
+  return { team: new Set([...team].filter((id) => !deactivated.has(id))), freelancers: kept, hiddenEntries, former: [...former] };
 }
 
 /** The logins of a project's freelancers, in the order of the freelancers. */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, dueInfo, initialsOf, isAudience, joinNames, loginName, matchesFilters, metadataName, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, TASK_COLUMNS, toBoardTask, TASK_STATUSES } from "../lib/hub-tasks/rules.ts";
+import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, dueInfo, initialsOf, isAudience, joinNames, loginName, matchesFilters, metadataName, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, TASK_COLUMNS, toBoardTask, TASK_STATUSES, withoutDeactivated } from "../lib/hub-tasks/rules.ts";
 import { taskFixtures } from "../lib/hub-tasks/fixtures.ts";
 
 // Windows checkouts with autocrlf hold CRLF; the patterns below are written with \n.
@@ -175,6 +175,56 @@ test("assignees: the team first, then the project's freelancers, nobody from oth
   assert.equal(board.people.find((person) => person.id === "p-mia").kind, "freelancer");
 });
 
+test("deactivated logins are nobody's choice: not in the team, not among a freelancer's logins, not on the cards", () => {
+  const freelancers = [
+    { id: "fl-a", name: "A", number: "FL-1", loginIds: ["u-a1", "u-a2"], organizationIds: ["o"] },
+    { id: "fl-b", name: "B", number: "FL-2", loginIds: ["u-b"], organizationIds: ["o"] },
+    { id: "fl-c", name: "C", number: "FL-3", loginIds: [], organizationIds: ["o"] },
+  ];
+  const shown = withoutDeactivated(new Set(["u-jonas", "u-lea"]), freelancers, new Set(["u-lea", "u-a2", "u-b", "u-customer"]));
+  assert.deepEqual([...shown.team], ["u-jonas"]);
+  // A keeps its active login; B lost its only one and drops out; C never had one and stays a choice.
+  assert.deepEqual(shown.freelancers.map((entry) => [entry.id, entry.loginIds]), [["fl-a", ["u-a1"]], ["fl-c", []]]);
+  assert.deepEqual([...shown.hiddenEntries], ["fl-b"]);
+  // The history still names them; a deactivated customer login is no person of the board.
+  assert.deepEqual(shown.former.sort(), ["u-a2", "u-b", "u-lea"]);
+  assert.deepEqual(freelancers[0].loginIds, ["u-a1", "u-a2"], "the input stays as it is");
+
+  const row = { id: "t", task_number: 1, project_id: "p", title: "x", status: "todo", priority: "none", due_date: null, labels: [], assignee_user_ids: ["u-jonas", "u-lea"], client_visible: false, board_order: 1, version: 1, created_by: "u-lea", created_at: "c", updated_at: "u" };
+  assert.deepEqual(toBoardTask(row, undefined, new Set(["u-lea"])).assigneeIds, ["u-jonas"]);
+  assert.equal(toBoardTask(row, undefined, new Set(["u-lea"])).createdBy, "u-lea");
+  assert.deepEqual(toBoardTask(row).assigneeIds, ["u-jonas", "u-lea"]);
+
+  const project = { freelancerIds: ["fl-a", "fl-b"] };
+  const people = [
+    { id: "u-jonas", name: "Jonas", initials: "JO", kind: "team" },
+    { id: "u-lea", name: "Lea", initials: "LE", kind: "other" },
+    { id: "u-a1", name: "Ada", initials: "AD", kind: "freelancer" },
+    { id: "u-a2", name: "Ali", initials: "AL", kind: "other" },
+  ];
+  assert.deepEqual(assignableIn(project, people, shown.freelancers).map((person) => person.id), ["u-jonas", "u-a1"]);
+});
+
+test("the board, the calendar, the connector and „Betreut von“ all leave deactivated logins out", async () => {
+  const server = await source("lib/hub-tasks/server.ts");
+  assert.equal(server.match(/withoutDeactivated\(team, freelancers, deactivated\)/g)?.length, 3, "admin board, freelancer board, connector");
+  assert.equal(server.match(/toBoardTask\(row, counts\.get\(row\.id\), deactivated\)/g)?.length, 2);
+  assert.equal(server.match(/!shown\.hiddenEntries\.has\(link\.freelancer_id\)/g)?.length, 2);
+  // Writes refuse a deactivated assignee and hand back the card as the board shows it.
+  const write = await source("lib/hub-tasks/write.ts");
+  assert.equal(write.match(/const refused = await deactivatedAssignee\(ctx, columns\.data\);/g)?.length, 2);
+  assert.equal(write.match(/data: await shownTask\(ctx, data\)/g)?.length, 3);
+  assert.doesNotMatch(write, /data: toBoardTask\(data\)/);
+  const actions = await source("lib/hub-tasks/actions.ts");
+  assert.match(actions, /if \(input\.on\) \{\n    const inactive = await readEntriesWithoutActiveLogin\(ctx\.db, \[freelancerId\]\);/);
+  const files = await source("lib/hub-files/server.ts");
+  assert.match(files, /if \(inactive\?\.has\(row\.id\)\) customer\.inactive = true;/);
+  const assets = await source("components/hub/screens/asset-management.tsx");
+  assert.match(assets, /customer\.kind === "freelancer" && !customer\.inactive/);
+  const users = await source("lib/hub-users/actions.ts");
+  assert.match(users, /replaceLinks\(ctx, \{ customerId, freelancerIds \}, true\)/);
+});
+
 test("the freelancer's example board is what the database shows them", () => {
   const admin = taskFixtures("2026-11-15");
   const freelancer = taskFixtures("2026-11-15", "freelancer");
@@ -290,6 +340,6 @@ test("without a name, the team reads the login's e-mail address as in Studio; fr
   // Only the admins' board passes the address on.
   const server = await source("lib/hub-tasks/server.ts");
   assert.match(server, /return \[id, loginName\(found\?\.data\?\.user, viewer === "admin"\)\] as const;/);
-  assert.match(server, /boardPeople\(db, viewerId, team, freelancers, boardTasks, "admin"\)/);
-  assert.match(server, /boardPeople\(db, viewerId, team, freelancers, boardTasks, "freelancer"\)/);
+  assert.match(server, /boardPeople\(db, viewerId, shown\.team, shown\.freelancers, boardTasks, "admin", shown\.former\)/);
+  assert.match(server, /boardPeople\(db, viewerId, shown\.team, shown\.freelancers, boardTasks, "freelancer", shown\.former\)/);
 });

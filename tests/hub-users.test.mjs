@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, normalizeCompany,
+  cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, entriesWithoutActiveLogin, normalizeCompany,
   readCustomer, readPerson, readRegistration, serviceCustomerRefusal, suggestCustomer,
 } from "../lib/hub-users/rules.ts";
 
@@ -195,6 +195,22 @@ test("waiting, rejected and deactivated logins never reach the hub, the assistan
   assert.match(page, /export function UserManagementScreen/);
   const route = await source("app/dashboard/[section]/page.tsx");
   assert.match(route, /adminSections\.includes\(validSection\) && identity\.account\?\.role !== "oalab_admin"\) notFound\(\)/);
+});
+
+test("an entry whose every login is deactivated is no choice; one without any login still is", async () => {
+  const members = [
+    { customer_id: "fl-a", user_id: "u-1" }, { customer_id: "fl-a", user_id: "u-2" },
+    { customer_id: "fl-b", user_id: "u-3" },
+    { customer_id: "fl-c", user_id: "u-4" }, { customer_id: "fl-c", user_id: "u-5" },
+  ];
+  assert.deepEqual([...entriesWithoutActiveLogin(members, new Set(["u-1", "u-3", "u-4", "u-5"]))].sort(), ["fl-b", "fl-c"]);
+  assert.deepEqual([...entriesWithoutActiveLogin(members, new Set())], []);
+  assert.deepEqual([...entriesWithoutActiveLogin([], new Set(["u-1"]))], []);
+  // „Deaktiviert“ in the user management is hub_profiles.status „disabled“, the status the helpers read.
+  const actions = await source("lib/hub-users/actions.ts");
+  assert.match(actions, /status: active \? "active" : "disabled"/);
+  const deactivated = await source("lib/hub-users/deactivated.ts");
+  assert.match(deactivated, /from\("hub_profiles"\)\.select\("user_id"\)\.eq\("status", "disabled"\)/);
 });
 
 test("the registration form sends what the trigger reads and shows the privacy notice", async () => {

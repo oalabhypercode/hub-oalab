@@ -1,5 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { readEntriesWithoutActiveLogin } from "@/lib/hub-users/deactivated";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { loadArchive } from "@/lib/hub-archive/server";
@@ -69,6 +71,9 @@ export async function loadHubFiles(): Promise<HubFilesState> {
   const error = files.error ?? folders.error;
   if (error) return { source: "supabase", files: [], customers: [], folders: [], canManage, error: describeStorageError(error) };
   const linkRows = (links && !links.error ? links.data ?? [] : []).filter((link) => !archive.customerIds.has(link.freelancer_id) && !archive.customerIds.has(link.customer_id));
+  // Admins pick no freelancer whose every login is deactivated (lib/hub-users/deactivated.ts); a failed read hides none.
+  const adminDb = canManage ? createAdminClient() : null;
+  const inactive = adminDb ? await readEntriesWithoutActiveLogin(adminDb, (customers.data ?? []).filter((row) => row.kind === "freelancer").map((row) => row.id)).catch(() => null) : null;
   // An archived customer's assignments drop out; a file only archived customers hold goes with them.
   const inSight = (row: FileRow) => (row.hub_file_assignments ?? []).filter((assignment) => !assignment.customer || !archive.customerIds.has(assignment.customer.id));
   return {
@@ -81,6 +86,7 @@ export async function loadHubFiles(): Promise<HubFilesState> {
       const customer: HubFileCustomer = { ...toCustomer(row), kind: row.kind === "freelancer" ? "freelancer" : "customer" };
       if (logo) customer.logo = logo;
       if (canManage) customer.freelancerIds = linkRows.filter((link) => link.customer_id === row.id).map((link) => link.freelancer_id);
+      if (inactive?.has(row.id)) customer.inactive = true;
       return customer;
     }),
     folders: (folders.data ?? []).filter((row) => !archive.customerIds.has(row.customer_id)).map((row): HubFolder => ({ id: row.id, customerId: row.customer_id, name: row.name })),

@@ -69,7 +69,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const { customers, canManage, source } = fileState;
   const freelancerView = Boolean(fileState.freelancer);
   const ownId = fileState.freelancer?.ownId ?? null;
-  const freelancerEntries = useMemo(() => customers.filter((customer) => customer.kind === "freelancer"), [customers]);
+  // „Betreut von“ names and offers no freelancer whose every login is deactivated (lib/hub-users/deactivated.ts).
+  const freelancerEntries = useMemo(() => customers.filter((customer) => customer.kind === "freelancer" && !customer.inactive), [customers]);
   const { appearance, update } = useAppearance();
   const listView = appearance.listView;
   const minimal = listView === "minimal";
