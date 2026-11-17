@@ -1,6 +1,6 @@
 /**
  * Patch notes of the hub: one package per go-live day, newest first. Every change that reaches `main` adds its
- * entries here (rule in CLAUDE.md). Self-contained (no imports) so tests can check it directly.
+ * entries here (rule in AGENTS.md). Self-contained (no imports) so tests can check it directly.
  *
  * Admins see every entry. Customers see only entries marked `customers: true`, and only packages that contain one;
  * the package summary is for admins. Texts are plain German for people who use the hub, never names, addresses,
