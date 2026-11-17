@@ -29,7 +29,13 @@ const copy = {
  */
 type SecondFactorState = { method: "email" | "totp"; email: string; codeSent: boolean; times?: CodeTimes | null; hubOnly?: boolean; confirmOnly?: boolean; back?: string | null };
 
-export function AuthForm({ mode, secondFactor, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode; secondFactor?: SecondFactorState }) {
+/**
+ * New password only: `linkToken` is the password link the page opened without using it; „Passwort speichern“ redeems it,
+ * and once it is redeemed a retry goes on with the session it opened. `account` is the login's address, shown read-only
+ * so password managers save the new password under it.
+ */
+export function AuthForm({ mode, secondFactor, linkToken, account, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode; secondFactor?: SecondFactorState; linkToken?: string; account?: string }) {
+  const [token, setToken] = useState(linkToken ?? null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
@@ -86,9 +92,13 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
       } else if (mode === "forgot") {
         result = await requestPasswordResetAction({ email: email.trim() });
       } else {
-        result = await updatePasswordAction({ password });
+        result = await updatePasswordAction({ password, token });
       }
-      if (!result.ok) { setError(result.error); return; }
+      if (!result.ok) {
+        if (result.redeemed) setToken(null);
+        setError(result.error);
+        return;
+      }
       if (mode === "forgot") { setSuccess(true); return; }
       // A fresh document: no client router cache or UI state from a previous account survives the auth boundary.
       if (result.redirect) {
@@ -155,6 +165,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
         {mode === "mfa" && codeSent && <div className="auth-field"><label htmlFor="code">{byApp ? "Code aus deiner Authenticator-App" : "Code aus deiner E-Mail"}</label><input id="code" name="one-time-code" className="auth-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="______" required autoFocus value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} disabled={loading} /></div>}
         {notice && <p className="code-notice" role="status">{notice}</p>}
         {mode !== "update" && mode !== "mfa" && <div className="auth-field"><label htmlFor="email">E-Mail-Adresse</label><input id="email" name="email" type="email" autoComplete="email" placeholder="du@unternehmen.de" required value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} /></div>}
+        {mode === "update" && account && <div className="auth-field"><label htmlFor="email">Anmeldung mit</label><input id="email" name="email" type="email" autoComplete="username" value={account} readOnly /></div>}
         {mode !== "forgot" && mode !== "mfa" && <div className="auth-field"><div className="auth-label-row"><label htmlFor="password">{mode === "update" ? "Neues Passwort" : "Passwort"}</label>{mode === "login" && <Link href="/auth/forgot-password">Passwort vergessen?</Link>}</div><div className="password-field"><input id="password" name="password" type={visible ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder={mode === "login" ? "Dein Passwort" : "Mindestens 8 Zeichen"} required minLength={mode === "login" ? undefined : 8} value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} /><button type="button" aria-label={visible ? "Passwort verbergen" : "Passwort anzeigen"} aria-pressed={visible} onClick={() => setVisible((value) => !value)}>{visible ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}</button></div></div>}
         {(mode === "signup" || mode === "update") && <div className="auth-field"><label htmlFor="repeat-password">Passwort wiederholen</label><input id="repeat-password" name="repeat-password" type={visible ? "text" : "password"} autoComplete="new-password" required minLength={8} placeholder="Noch einmal zur Sicherheit" value={repeatPassword} onChange={(event) => setRepeatPassword(event.target.value)} disabled={loading} /></div>}
         {mode === "signup" && <>

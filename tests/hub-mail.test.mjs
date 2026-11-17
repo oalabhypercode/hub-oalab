@@ -139,7 +139,9 @@ test("the sign-in code mail shows the six digits large in the body and keeps the
 test("the announcement names the day by its weekday, guides through the first sign-in and greets without a name", () => {
   const day = new Date("2026-11-11T12:00:00Z");
   const mail = accessAnnouncementMail({ day, sender: "hub@oalab.de", days: 7, hubUrl: "https://hub.oalab.de" }, legal);
-  assert.equal(mail.subject, "Ab Mittwoch: dein Zugang zum oalab Client Hub");
+  // The subject adds the date: the mail comes days before and stays in the inbox (17.11.2026).
+  assert.equal(mail.subject, "Ab Mittwoch, 11. November: dein Zugang zum oalab Client Hub");
+  assert.equal(accessAnnouncementMail({ day: new Date("2026-11-25T12:00:00Z"), sender: "hub@oalab.de", days: 7, hubUrl: "https://hub.oalab.de" }).subject, "Ab Mittwoch, 25. November: dein Zugang zum oalab Client Hub");
   assert.match(mail.html, />Dein Zugang kommt am Mittwoch<\/h1>/);
   assert.match(mail.html, />Mittwoch, 11\. November 2026<\/div>/);
   assert.match(mail.html, /<div style="display:none[^>]*>Am Mittwoch, 11\. November 2026 kommt dein persönlicher Aktivierungslink von hub@oalab\.de\./);

@@ -6,6 +6,13 @@
 **Stand:** 17. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
 
+### Vorgabe vom 17. November 2026: Start für alle Kunden am 25. November, Passwort-Link erst beim Speichern einlösen
+
+- Plan vom Nutzer freigegeben („Ja, mit Fix“): Ankündigung an alle Kunden-Zugänge am Freitag, 20.11., Einladungen mit Aktivierungslink am Mittwoch, 25.11., vorher ein Ende-zu-Ende-Test mit einer externen Testadresse. Die Ankündigung erreicht nur Kunden-Zugänge ohne Anmeldung; Kunden ohne Zugang bekommen nichts, deshalb entstehen die Zugänge vorher mit „Zugänge anlegen“ (ohne Mail).
+- Befund der Analyse: `/auth/confirm` löste einen Passwort-Link schon beim Öffnen ein (auch bei HEAD, das Next.js mit GET beantwortet), legte die Sitzung an und setzte die letzte Anmeldung. Virenscanner, die Links vorab aufrufen (etwa bei Microsoft 365), verbrauchten ihn so vor dem Kunden, und wer die Seite ohne Speichern schloss, stand als „Aktiv“ ohne Passwort da.
+- Neu: Ein Passwort-Link (`type=recovery`, Aktivierung und „Passwort vergessen“) führt nur noch auf `/auth/update-password?token_hash=…` (`passwordLinkPage` in `lib/auth-redirect.ts`). Die Seite prüft den Link nur lesend (`peekLink` in `lib/platform/auth.ts`, `passwordLinkState` in `lib/hub-auth/recovery.ts`), zeigt einen verbrauchten oder abgelaufenen sofort als „Der Link ist nicht mehr gültig“ und nennt sonst die E-Mail-Adresse des Zugangs als Benutzername für Passwort-Manager. Erst „Passwort speichern“ löst ihn ein (`updatePasswordAction` mit `token`: verifyOtp, Mail-Code-Bestätigung wie bisher, dann das Passwort). Logins mit App gehen danach über die Code-Seite zurück zum Formular. Registrierungslinks laufen unverändert.
+- Die Ankündigung nennt das Datum jetzt auch im Betreff („Ab Mittwoch, 25. November: dein Zugang zum oalab Client Hub“).
+
 ### Vorgabe vom 17. November 2026: Kunden archivieren und endgültig löschen
 
 - Wunsch des Nutzers vor dem offiziellen Start: Test- und Scheinkunden aus der Datenbank entfernen. Der Claude-Connector löscht bewusst nichts (Plan vom 16.11.), und im Hub gab es bis dahin nur „Zugang löschen“. Entschieden: Löschen und Archivieren, beides im User Management; Zugänge gehen beim Löschen mit; Service-Anfragen werden nie gelöscht, sie bleiben archiviert in Service.
@@ -383,7 +390,7 @@
   - Offene Registrierungen als Karten mit allen Angaben, Dialog „Prüfen“: Rolle (Kunde/Admin), bestehender Kunde (Vorschlag über Kundennummer oder Firmennamen) oder neuer Kunde mit nächster freier Kundennummer und Servicepaketen. „Freigeben“ schickt der Person eine E-Mail mit dem Login-Link; die Nachricht steht zusätzlich zum Kopieren oder fürs eigene Mailprogramm bereit.
   - Ablehnen mit Begründung, die die Person per E-Mail bekommt und auf `/auth/pending` sieht. Abgelehnte Registrierungen bleiben gespeichert (Entscheidung vom 22. Oktober 2026) und lassen sich später freigeben oder löschen.
   - Benutzer-Tabelle (Kunden-Nr. mit Kopieren, Name + E-Mail, Unternehmen, Rolle, farbiger Status, letzter Login) und Kunden-Tabelle (Kunden-Nr., Unternehmen, Servicepakete, Logins, Ort), beide mit Suche, erweiterter Suche und Sortierung.
-  - Benutzer anlegen: Login mit Rolle und Kunde; der Admin erhält einen einmaligen Aktivierungslink zum Kopieren oder „Im Mailprogramm öffnen“; auf Wunsch verschickt ihn der Hub selbst (siehe E-Mail-Benachrichtigungen unten). Der Link ist ein Supabase-Recovery-Link über `/auth/confirm` → `/auth/update-password`.
+  - Benutzer anlegen: Login mit Rolle und Kunde; der Admin erhält einen einmaligen Aktivierungslink zum Kopieren oder „Im Mailprogramm öffnen“; auf Wunsch verschickt ihn der Hub selbst (siehe E-Mail-Benachrichtigungen unten). Der Link ist ein Supabase-Recovery-Link über `/auth/confirm` → `/auth/update-password`; seit 18. November 2026 wird er erst beim Speichern des Passworts eingelöst.
   - Bearbeiten: Person, Rolle, Kunde, Passwort-Link (kopieren oder per E-Mail), deaktivieren/reaktivieren, endgültig löschen nach Eingabe der E-Mail-Adresse (Entscheidung: Deaktivieren als Standard, Löschen mit Bestätigung; seit dem 29. Oktober über `hub_delete_login`, siehe Fix oben). Verlauf je Konto und Kunde.
   - Status: Wartet auf Freigabe, Aktivierung offen (aktiv, aber noch nie angemeldet), Aktiv, Deaktiviert, Abgelehnt.
 - **Registrierung:** Pflicht sind Vorname, Nachname, Unternehmen, Telefon, E-Mail, Passwort; optional Position, Website, Kundennummer, Nachricht. Datenschutzhinweis am Formular (Art. 6 Abs. 1 lit. b DSGVO, keine Einwilligungs-Checkbox). Prüfung im Browser und in der Datenbank (`lib/hub-users/rules.ts`, Trigger kürzt und bereinigt).
@@ -670,8 +677,8 @@ Das Repository basiert auf dem Next.js-/Supabase-Starter-Kit. Schritt 1 wurde au
 | `/auth/pending` | Mit Login | Stand einer Registrierung: wartet, abgelehnt (mit Hinweis) oder deaktiviert; aktive Konten werden zum Hub weitergeleitet |
 | `/auth/sign-up-success` | Öffentlich | Hinweis zur E-Mail-Bestätigung |
 | `/auth/forgot-password` | Öffentlich | Passwort-Reset anfordern |
-| `/auth/update-password` | Auth-Flow | Neues Passwort setzen |
-| `/auth/confirm` | Auth-Callback | E-Mail-Token bestätigen; Recovery zum Passwortformular |
+| `/auth/update-password` | Auth-Flow | Neues Passwort setzen; mit `token_hash` löst erst „Passwort speichern“ den Passwort-Link ein |
+| `/auth/confirm` | Auth-Callback | E-Mail-Token bestätigen; Passwort-Links nur weiter zum Passwortformular, ohne Einlösen |
 | `/auth/callback` | Auth-Callback | PKCE-Code gegen Session tauschen |
 | `/auth/error` | Öffentlich | Authentifizierungsfehler anzeigen |
 | `/dashboard` | Geschützt | Persönliche Übersicht |

@@ -18,6 +18,23 @@ export function safeAuthRedirect(value: string | null | undefined): string {
   }
 }
 
+/** A one-time link's token as it travels in the address (`token_hash`): letters, digits, `-` and `_` only, else null. */
+export function readLinkToken(value: string | readonly string[] | null | undefined): string | null {
+  const token = typeof value === "string" ? value : value?.[0];
+  return typeof token === "string" && /^[A-Za-z0-9_-]{16,256}$/.test(token) ? token : null;
+}
+
+/**
+ * Where a password link (`type=recovery`, activation or reset) leads: the page for the new password, with its token
+ * still unused. Only „Passwort speichern“ redeems it (updatePasswordAction), so a mail scanner that fetches every link,
+ * with GET or HEAD, no longer uses it up before the person comes, and nobody counts as signed in before a password
+ * exists. Null for other links, which app/auth/confirm redeems as before.
+ */
+export function passwordLinkPage(type: string | null | undefined, tokenHash: string | null | undefined): string | null {
+  const token = readLinkToken(tokenHash);
+  return type === "recovery" && token ? `/auth/update-password?token_hash=${encodeURIComponent(token)}` : null;
+}
+
 /** Pages that only ask for a login. Someone already signed in (e.g. coming from Service OALab) skips them. */
 const SIGN_IN_PAGES = new Set(["/", "/auth/login", "/auth/sign-up"]);
 

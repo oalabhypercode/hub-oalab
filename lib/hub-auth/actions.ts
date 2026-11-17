@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { headers } from "next/headers";
-import { safeAuthRedirect, SECOND_FACTOR_PAGE, secondFactorDestination, serviceOrigin } from "@/lib/auth-redirect";
+import { readLinkToken, safeAuthRedirect, SECOND_FACTOR_PAGE, secondFactorDestination, serviceOrigin } from "@/lib/auth-redirect";
 import { greetsAt } from "@/lib/greeting";
 import { mailLoginCode, mailPasswordLink, mailRegistrationConfirmation } from "@/lib/hub-mail/notify";
 import { cleanEmail, readRegistration } from "@/lib/hub-users/rules";
@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
 import { codeTimes, isMailCodeCheck, MAIL_CODE_MINUTES, mailCodeHash, newMailCode, readMailCode, type CodeTimes } from "./mail-code";
 import { authMessage, authRateLimits, clientAddress, type AuthRateAction } from "./messages";
+import { confirmRecoveryByMail } from "./recovery";
 import { codeMethod, hasConfirmedApp, isFreelancerLogin, secondFactorMethod } from "./second-factor";
 import { sessionOf, tokenClaims, type CodeSession } from "./session-token";
 
@@ -23,7 +24,7 @@ import { sessionOf, tokenClaims, type CodeSession } from "./session-token";
  * `greeting`: first name for the greeting when a sign-in opens the hub (lib/greeting.ts); may be empty. `code`: when a
  * new e-mail code went out and until when it counts, so the code page names that mail.
  */
-export type AuthResult = { ok: true; redirect?: string; greeting?: string; code?: CodeTimes } | { ok: false; error: string };
+export type AuthResult = { ok: true; redirect?: string; greeting?: string; code?: CodeTimes } | { ok: false; error: string; redeemed?: boolean };
 
 const failure = (code?: string | null): AuthResult => ({ ok: false, error: authMessage(code) });
 const passwordOk = (value: unknown, min: number): value is string => typeof value === "string" && value.length >= min && value.length <= 512;
@@ -240,15 +241,31 @@ export async function requestPasswordResetAction(input: { email: string }): Prom
   return mail === "failed" ? failure("mail_failed") : { ok: true };
 }
 
-/** Sets a new password for the signed-in login (after the password link). */
-export async function updatePasswordAction(input: { password: string }): Promise<AuthResult> {
+/**
+ * Sets the new password. With the `token` of a password link it redeems the link first, which signs the login in (as
+ * opening the link did until 18.11.2026) and counts as the e-mail code of logins that use one; the page behind the link
+ * opened without using it (lib/auth-redirect.ts). A link that no longer counts leads to the page that explains it. If
+ * the password fails after the link was redeemed, `redeemed` tells the form to go on with the session the link opened.
+ * Without a token the signed-in login sets it, e.g. after the code page of a login with an app.
+ */
+export async function updatePasswordAction(input: { password: string; token?: string | null }): Promise<AuthResult> {
   if (!hasEnvVars) return failure("setup");
   if (!passwordOk(input.password, 8)) return failure("weak_password");
   const supabase = await createClient();
+  const withLink = input.token !== undefined && input.token !== null && input.token !== "";
+  if (withLink) {
+    const token = readLinkToken(input.token);
+    if (!token) return { ok: true, redirect: "/auth/error" };
+    const { data, error } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: token });
+    if (error) return error.code === "user_banned" ? failure("user_banned") : { ok: true, redirect: "/auth/error" };
+    if (await confirmRecoveryByMail(data.user, data.session)) await supabase.auth.refreshSession();
+  }
   const { data: claims } = await supabase.auth.getClaims();
-  if (!claims?.claims) return failure("session_not_found");
+  if (!claims?.claims) return withLink ? { ok: false, error: authMessage(null), redeemed: true } : failure("session_not_found");
   const { error } = await supabase.auth.updateUser({ password: input.password });
-  if (error) return failure(error.code);
+  // A login with an app enters its code first; the code page then leads back to this page.
+  if (error?.code === "insufficient_aal") return { ok: true, redirect: `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent("/auth/update-password")}` };
+  if (error) return { ok: false, error: authMessage(error.code), ...(withLink ? { redeemed: true } : {}) };
   return { ok: true, redirect: "/dashboard" };
 }
 

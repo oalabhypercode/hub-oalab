@@ -1,9 +1,28 @@
 import "server-only";
 import type { Session, User } from "@supabase/supabase-js";
+import { peekLink } from "@/lib/platform/auth";
+import { usesOwnPlatform } from "@/lib/platform/config";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isMailCodeCheck, mailCodeHash, newMailCode } from "./mail-code";
 import { hasConfirmedApp, secondFactorMethod } from "./second-factor";
 import { sessionOf } from "./session-token";
+
+export type PasswordLinkState = { usable: true; email: string | null } | { usable: false };
+
+/**
+ * Whether a password link still counts, looked at without using it, and the address of its login: the page shows it,
+ * so password managers save the new password under it. Supabase Auth cannot be asked ahead, and a failed look must not
+ * block anyone: then the form finds out when it saves.
+ */
+export async function passwordLinkState(tokenHash: string): Promise<PasswordLinkState> {
+  if (!usesOwnPlatform()) return { usable: true, email: null };
+  try {
+    const link = await peekLink("recovery", tokenHash);
+    return link ? { usable: true, email: link.email } : { usable: false };
+  } catch {
+    return { usable: true, email: null };
+  }
+}
 
 /**
  * A password link of a login with the e-mail code came from the same mailbox the code would go to, so it confirms the

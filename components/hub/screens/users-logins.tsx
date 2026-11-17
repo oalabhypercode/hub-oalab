@@ -272,6 +272,7 @@ export function InvitationsDialog({ users, customers, mailConfigured, onClose, o
 }
 
 const weekdayOf = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long" });
+const dateOf = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "long" });
 
 /**
  * „Ankündigung senden“: before the invitations, one mail to the customer logins nobody has signed in with yet: the day
@@ -296,7 +297,8 @@ export function AnnouncementsDialog({ users, customers, mailConfigured, onClose,
     ask: "Was steht in der Ankündigung an die Kunden?",
   });
   const validDay = day >= range.min && day <= range.max;
-  const weekday = validDay ? weekdayOf.format(new Date(`${day}T12:00:00Z`)) : "";
+  // The subject names the day as the mail does: weekday and date (lib/hub-mail/templates.ts, accessAnnouncementMail).
+  const subjectDay = validDay ? `${weekdayOf.format(new Date(`${day}T12:00:00Z`))}, ${dateOf.format(new Date(`${day}T12:00:00Z`))}` : "";
   const running = progress !== null && progress.done < progress.total && !progress.error;
   const finished = progress !== null && !running;
   const selected = candidates.filter((item) => chosen.has(item.user.id));
@@ -349,7 +351,7 @@ export function AnnouncementsDialog({ users, customers, mailConfigured, onClose,
         <div className="import-preview">
           {!mailConfigured && <p className="field-warning" role="alert"><MailX size={18} aria-hidden="true" />Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Ankündigung raus.</p>}
           <label className="upload-field"><span>Die Einladungen kommen am</span><input type="date" value={day} min={range.min} max={range.max} onChange={(event) => setDay(event.target.value)} required disabled={running} /></label>
-          <p className="field-hint">{validDay ? <>Betreff: „Ab {weekday}: dein Zugang zum oalab Client Hub“. Die Mail nennt diesen Tag und erklärt Schritt für Schritt das erste Anmelden, ohne Namen und für alle gleich.</> : `Bitte einen Tag von heute bis in ${ANNOUNCE_DAYS_AHEAD} Tagen wählen.`}</p>
+          <p className="field-hint">{validDay ? <>Betreff: „Ab {subjectDay}: dein Zugang zum oalab Client Hub“. Die Mail nennt diesen Tag und erklärt Schritt für Schritt das erste Anmelden, ohne Namen und für alle gleich.</> : `Bitte einen Tag von heute bis in ${ANNOUNCE_DAYS_AHEAD} Tagen wählen.`}</p>
           <div className="import-summary">
             <span className="import-count is-new">{candidates.filter((item) => isFirstAnnouncement(item.user)).length} noch ohne Ankündigung</span>
             {candidates.some((item) => !isFirstAnnouncement(item.user)) && <span className="import-count is-update">{candidates.filter((item) => !isFirstAnnouncement(item.user)).length} schon angekündigt oder eingeladen</span>}
