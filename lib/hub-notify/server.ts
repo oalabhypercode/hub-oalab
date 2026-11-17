@@ -9,13 +9,21 @@ import { listAllUsers, roleOf } from "@/lib/hub-users/server";
 import { sendTelegram } from "@/lib/hub-telegram/server";
 import { telegramChatMessage } from "@/lib/hub-telegram/rules";
 import {
-  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, mailsWanted, nextCursor, noticeAppointment, readFrom, skipsMail,
-  type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow,
+  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, hasTaskChange, mailsWanted, mergeTaskNotice, nextCursor,
+  noticeAppointment, projectHref, readFrom, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
+  type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
 
 // Notices reach customers in the bell and as one bundled mail. Rows are written only with the service role; the
 // person reads and marks their own rows with their session (RLS in the migration hub_notifications). Nothing here
-// throws: a notice that cannot be written never breaks the action that caused it.
+// throws: a notice that cannot be written never breaks the action that caused it. It says so in the server log,
+// with the kind of notice and the database's code only (no names, no addresses).
+
+function logFailure(what: string, error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  const message = error instanceof Error ? error.message.slice(0, 120) : "";
+  console.error(`[hub-notify] ${what} failed`, code || message || "unknown");
+}
 
 export type InboxItem = { id: number; kind: string; title: string; body: string; href: string; createdAt: string; read: boolean };
 export type InboxState = { items: InboxItem[]; unread: number };
@@ -30,9 +38,11 @@ async function customerLogins(db: SupabaseClient, customerIds: string[]) {
   return (active.data ?? []).map((row) => row.user_id);
 }
 
-async function insertNotices(db: SupabaseClient, userIds: string[], notice: Notice) {
+async function insertNotices(db: SupabaseClient, userIds: string[], notice: Notice, mail: "pending" | "skipped" = "pending") {
   if (!userIds.length) return 0;
-  const { error } = await db.from("hub_inbox").insert(userIds.map((userId) => ({ user_id: userId, ...notice })));
+  // Bell-only notices (admins hear of freelancers' task changes) never wait for a mail.
+  const { error } = await db.from("hub_inbox").insert(userIds.map((userId) => ({ user_id: userId, ...notice, ...(mail === "skipped" ? { mail_state: "skipped" } : {}) })));
+  if (error) logFailure(`notice ${notice.kind}`, error);
   return error ? -1 : userIds.length;
 }
 
@@ -42,8 +52,9 @@ export async function notifyCustomers(customerIds: string[], notice: Notice) {
   if (!db) return;
   try {
     await insertNotices(db, await customerLogins(db, customerIds), notice);
-  } catch {
+  } catch (error) {
     // The action succeeded; the bell simply misses this one.
+    logFailure(`notice ${notice.kind}`, error);
   }
 }
 
@@ -61,6 +72,8 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
       db.from("hub_freelancer_customers").select("freelancer_id, customer_id").in("customer_id", customerIds).returns<{ freelancer_id: string; customer_id: string }[]>(),
     ]);
     if (assignments.error || links.error) {
+      // Without the freelancer columns only the customers hear of it; say so, a freelancer misses this one.
+      logFailure("file notice: freelancer read", assignments.error ?? links.error);
       if (only.customer) await insertNotices(db, await customerLogins(db, customerIds), notice);
       return;
     }
@@ -69,8 +82,97 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
     const freelancers = only.freelancer ? [...new Set((links.data ?? []).filter((link) => audienceOf.get(link.customer_id) !== "customer").map((link) => link.freelancer_id))] : [];
     const recipients = new Set([...(await customerLogins(db, forCustomers)), ...(await customerLogins(db, freelancers))]);
     await insertNotices(db, [...recipients], notice);
-  } catch {
+  } catch (error) {
     // The action succeeded; the bell simply misses this one.
+    logFailure(`notice ${notice.kind}`, error);
+  }
+}
+
+/** The card's fields that decide who sees it (the rest of TaskSnapshot does not matter here). */
+type SightRow = { status: string; labels: string[] | null; client_visible: boolean; team_only?: boolean | null; archived?: boolean };
+const sightOf = (row: SightRow): TaskSight => ({
+  teamOnly: Boolean(row.team_only),
+  clientVisible: Boolean(row.client_visible),
+  archived: Boolean(row.archived),
+  customerState: taskState({ status: row.status, labels: row.labels, client_visible: Boolean(row.client_visible), archived: Boolean(row.archived) }),
+});
+
+/**
+ * Writes a card's notice for these logins: into the line each one has not read yet (and whose mail is not on its
+ * way), else as a new line. A merged line moves to the top of the bell and waits its quarter of an hour for the mail
+ * again, so a burst of changes still becomes one mail.
+ */
+async function deliverTaskNotice(db: SupabaseClient, userIds: string[], draft: TaskNoticeDraft, mail: "pending" | "skipped") {
+  if (!userIds.length) return;
+  const open = await db.from("hub_inbox").select("id, user_id, kind, body").in("user_id", userIds).eq("href", draft.href).in("kind", [...TASK_NOTICE_KINDS])
+    .is("read_at", null).in("mail_state", ["pending", "skipped"]).order("created_at", { ascending: false }).returns<{ id: number; user_id: string; kind: string; body: string }[]>();
+  if (open.error) logFailure("task notice: read", open.error);
+  const latest = new Map<string, { id: number; kind: string; body: string }>();
+  for (const row of open.data ?? []) if (!latest.has(row.user_id)) latest.set(row.user_id, row);
+  const at = new Date().toISOString();
+  for (const row of latest.values()) {
+    const merged = mergeTaskNotice(row, draft);
+    const { error } = await db.from("hub_inbox").update({ kind: merged.kind, title: merged.title, body: merged.body, created_at: at }).eq("id", row.id);
+    if (error) logFailure("task notice: merge", error);
+  }
+  await insertNotices(db, userIds.filter((id) => !latest.has(id)), taskNotice(draft), mail);
+}
+
+/**
+ * Someone changed a card on the task board (the board, the assistant or the Claude connector; decision of
+ * 17.11.2026): the project's freelancers hear of it unless the card is „Nur Team“, the customer when it is released to
+ * them and the change is one they see, the admins (bell only) when a freelancer made it. Never the person who made
+ * it. `before` is the card before the change when it may have changed who sees it or whom it waits for; without it
+ * the card counts as unchanged in that respect (null for a new card).
+ */
+export async function notifyTaskChange(input: { taskId: string; actorId: string; actorFreelancer: boolean; change: TaskChange; before?: SightRow | null }) {
+  if (!hasTaskChange(input.change)) return;
+  const db = createAdminClient();
+  if (!db) return;
+  try {
+    const task = await db.from("studio_tasks").select("project_id, task_number, title, status, labels, client_visible, team_only, archived").eq("id", input.taskId)
+      .maybeSingle<{ project_id: string; task_number: number | string; title: string } & SightRow>();
+    if (task.error || !task.data) {
+      if (task.error) logFailure("task notice: card", task.error);
+      return;
+    }
+    const card = task.data;
+    const [project, details, actor] = await Promise.all([
+      db.from("customer_projects").select("id, organization_id, display_name, status").eq("id", card.project_id).maybeSingle<NoticeProject>(),
+      db.from("studio_project_details").select("client_visible").eq("project_id", card.project_id).maybeSingle<{ client_visible: boolean }>(),
+      db.from("hub_profiles").select("first_name").eq("user_id", input.actorId).maybeSingle<{ first_name: string | null }>(),
+    ]);
+    if (!project.data || project.data.status === "archived") return;
+    const after = sightOf(card);
+    const before = input.before === undefined ? (input.change.created ? null : after) : input.before && sightOf(input.before);
+    const audience = taskAudience({ before, after, projectReleased: Boolean(details.data?.client_visible), change: input.change });
+    const number = Number(card.task_number);
+    const draft = (kind: TaskNoticeDraft["kind"], viewer: "team" | "customer", href: string): TaskNoticeDraft => ({
+      kind, taskTitle: card.title, prefix: taskNoticePrefix(project.data!.display_name, number), href,
+      parts: taskChangeParts(input.change, viewer, viewer === "team" ? actor.data?.first_name ?? "" : ""),
+    });
+    const others = (ids: string[]) => ids.filter((id) => id !== input.actorId);
+    const board = taskBoardHref(card.project_id, number);
+
+    if (audience.freelancers) {
+      const onProject = await db.from("studio_project_freelancers").select("freelancer_id").eq("project_id", card.project_id).returns<{ freelancer_id: string }[]>();
+      if (onProject.error) logFailure("task notice: freelancers", onProject.error);
+      const logins = others(await customerLogins(db, (onProject.data ?? []).map((row) => row.freelancer_id)));
+      await deliverTaskNotice(db, logins, draft(audience.freelancers, "team", board), "pending");
+    }
+    if (input.actorFreelancer) {
+      // The admins see every card; for them a card is only new when it was created.
+      await deliverTaskNotice(db, others(await activeAdminLogins(db)), draft(input.change.created ? "task.created" : "task.changed", "team", board), "skipped");
+    }
+    if (audience.customers) {
+      const customers = await db.from("hub_customers").select("id").eq("organization_id", project.data.organization_id).eq("kind", "customer").returns<{ id: string }[]>();
+      if (customers.error) logFailure("task notice: customers", customers.error);
+      const logins = others(await customerLogins(db, (customers.data ?? []).map((row) => row.id)));
+      await deliverTaskNotice(db, logins, draft(audience.customers, "customer", projectHref(card.project_id)), "pending");
+    }
+  } catch (error) {
+    // The change is saved; only its notice is lost.
+    logFailure("task notice", error);
   }
 }
 
@@ -112,8 +214,9 @@ export async function notifyChat(input: { side: "customer" | "oalab"; customerId
       await db.from("hub_inbox").update({ title: more.title, body: more.body }).in("id", [...waiting.values()]);
     }
     await insertNotices(db, to.filter((id) => !waiting.has(id)), chatNotice(notice));
-  } catch {
+  } catch (error) {
     // The message is saved; only its notice is lost.
+    logFailure(`notice ${input.side === "customer" ? "chat.message" : "chat.reply"}`, error);
   }
 }
 

@@ -27,6 +27,7 @@ import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, typ
 import { TooltipLayer } from "./tooltip";
 import { InstallButton, WebAppSetup } from "./web-app";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
+import { useStoredValue } from "@/lib/use-stored-value";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { LogoImage, logoTileStyle, useShownLogo } from "./logo-mark";
 
@@ -159,13 +160,23 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const metricResults = preview ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = preview || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
   const assistantDocked = assistantOpen && assistantMode === "dock";
+  // The bell (17.11.2026): the number of unread notices, and it rings while one of them is newer than the last look
+  // into the bell. Opening it is that look; the number stays until the notices are read. Kept per login and browser.
+  const unreadCount = preview ? (read ? 0 : 1) : inbox?.unread ?? 0;
+  const newestUnread = preview ? 1 : (inbox?.items ?? []).reduce((latest, item) => item.read ? latest : Math.max(latest, Date.parse(item.createdAt) || 0), 0);
+  const [bellSeen, setBellSeen] = useStoredValue(`oalab-bell-seen:${userId ?? "preview"}`, "0");
+  const ringing = unreadCount > 0 && newestUnread > (Number(bellSeen) || 0);
   const shell: ShellContextValue = {
     preview, pending, initials, logo, account, manageUsers,
-    openPanel: (next) => next === "help" ? setAssistantOpen(true) : setPanel(next),
+    openPanel: (next) => {
+      if (next === "help") { setAssistantOpen(true); return; }
+      if (next === "notifications" && newestUnread) setBellSeen(String(newestUnread));
+      setPanel(next);
+    },
     askAboutProject: (project) => { setAssistantProject(project); setAssistantOpen(true); },
     askAssistant: (question) => { setAssistantQuestion((current) => ({ text: question, key: (current?.key ?? 0) + 1 })); setAssistantOpen(true); },
     assistantDocked: assistantMode === "dock",
-    unread: preview ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError,
+    unread: unreadCount > 0, unreadCount, ringing, signOut, signingOut, logoutError,
   };
   const changeAssistantMode = (mode: AssistantMode) => {
     setAssistantMode(mode);
@@ -210,7 +221,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
             {preview ? <>
               <div className="notification-item"><span className="notification-symbol"><MessageSquare size={19} color={categories.messages.fill} aria-hidden="true" /></span><div><strong>Deine Meinung ist gefragt.</strong><p>Die erste Brand Direction ist bereit für dein Feedback.</p><span>Beispiel · 14. Oktober 2026</span><Link className="text-link" href={hubHref(preview, "messages")} onClick={() => setPanel(null)}>Nachricht ansehen <ArrowUpRight size={15} aria-hidden="true" /></Link></div></div>
               <button className="sheet-button" onClick={() => setRead(true)}><Check size={17} aria-hidden="true" />{read ? "Alle als gelesen markiert" : "Alle als gelesen markieren"}</button>
-            </> : inbox ? <NotificationsPanel items={inbox.items} admin={account.admin} onClose={() => setPanel(null)} />
+            </> : inbox ? <NotificationsPanel items={inbox.items} role={account.admin ? "admin" : account.freelancer ? "freelancer" : "customer"} onClose={() => setPanel(null)} />
               : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
           </Modal>
         )}
@@ -239,11 +250,12 @@ function MobileAvatar({ href, initials, logo }: { href: string; initials: string
 
 /** Notification and help buttons for page headers. */
 export function HeaderActions() {
-  const { openPanel, unread } = useHubShell();
+  const { openPanel, unreadCount, ringing } = useHubShell();
   return <>
     {/* Left of the bell on phones and tablets in the browser: the hub as an app (components/hub/web-app.tsx). */}
     <InstallButton />
-    <GlassButton icon={Bell} label="Benachrichtigungen" badge={unread} onClick={() => openPanel("notifications")} />
+    <GlassButton icon={Bell} label={unreadCount ? `Benachrichtigungen, ${unreadCount} ungelesen` : "Benachrichtigungen"} badge={unreadCount}
+      className={`bell-button${ringing ? " is-ringing" : ""}`} onClick={() => openPanel("notifications")} />
     <GlassButton icon={MessageCircleQuestion} label="Assistent & Hilfe" onClick={() => openPanel("help")} />
   </>;
 }

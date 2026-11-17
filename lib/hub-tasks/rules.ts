@@ -3,6 +3,7 @@
  * of a card between its neighbours, the due-date wording on cards and rows, and the board's search and filters.
  */
 import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskAudience, TaskPriority, TaskStatus } from "./types";
+import type { TaskChange, TaskField } from "../hub-notify/rules";
 
 export const TASK_STATUSES: readonly TaskStatus[] = ["backlog", "todo", "progress", "review", "done"];
 export const TASK_PRIORITIES: readonly TaskPriority[] = ["none", "low", "medium", "high", "urgent"];
@@ -238,6 +239,29 @@ export const audienceOf = (task: Pick<BoardTask, "visible" | "teamOnly">): TaskA
 /** The two columns behind a choice. */
 export function audienceColumns(audience: TaskAudience): { team_only: boolean; client_visible: boolean } {
   return { team_only: audience === "team", client_visible: audience === "customer" };
+}
+
+/** A card as the notices compare it before and after a change (`description` only where it was read). */
+export type TaskSnapshot = Pick<StudioTaskRow, "status" | "title" | "priority" | "due_date" | "labels" | "assignee_user_ids" | "client_visible" | "team_only"> & { description?: string | null };
+export const SNAPSHOT_COLUMNS = "status, title, description, priority, due_date, labels, assignee_user_ids, client_visible, team_only";
+
+const sameList = (a: readonly string[] | null | undefined, b: readonly string[] | null | undefined) => (a ?? []).join("\n") === (b ?? []).join("\n");
+const sameSet = (a: readonly string[] | null | undefined, b: readonly string[] | null | undefined) => sameList([...(a ?? [])].sort(), [...(b ?? [])].sort());
+
+/** What really changed on a card, for the bell: a save that changes nothing tells nobody anything. */
+export function diffTask(before: TaskSnapshot, after: TaskSnapshot): TaskChange {
+  const change: TaskChange = {};
+  if (before.status !== after.status) change.status = isStatus(after.status) ? STATUS_NAMES[after.status] : after.status;
+  if ((before.due_date ?? null) !== (after.due_date ?? null)) change.due = after.due_date ?? null;
+  const fields: TaskField[] = [];
+  if (before.title !== after.title) fields.push("title");
+  if (before.description !== undefined && after.description !== undefined && (before.description ?? "") !== (after.description ?? "")) fields.push("description");
+  if (before.priority !== after.priority) fields.push("priority");
+  if (!sameList(before.labels, after.labels)) fields.push("labels");
+  if (!sameSet(before.assignee_user_ids, after.assignee_user_ids)) fields.push("assignees");
+  if (Boolean(before.client_visible) !== Boolean(after.client_visible) || Boolean(before.team_only) !== Boolean(after.team_only)) fields.push("audience");
+  if (fields.length) change.fields = fields;
+  return change;
 }
 
 /** The same on a card in the browser (the server's row follows). */

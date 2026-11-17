@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, dueInfo, initialsOf, isAudience, joinNames, loginName, matchesFilters, metadataName, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, TASK_COLUMNS, toBoardTask, TASK_STATUSES, withoutDeactivated } from "../lib/hub-tasks/rules.ts";
+import { activeFilterCount, assignableIn, audienceColumns, audienceFields, audienceOf, audienceText, byBoardOrder, cleanDay, cleanLabels, cleanText, cleanTitle, commentReaders, diffTask, dueInfo, initialsOf, isAudience, joinNames, loginName, matchesFilters, metadataName, NO_FILTERS, orderBetween, progressOf, projectFreelancerLogins, renumbered, SNAPSHOT_COLUMNS, TASK_COLUMNS, toBoardTask, TASK_STATUSES, withoutDeactivated } from "../lib/hub-tasks/rules.ts";
 import { taskFixtures } from "../lib/hub-tasks/fixtures.ts";
 
 // Windows checkouts with autocrlf hold CRLF; the patterns below are written with \n.
@@ -342,4 +342,18 @@ test("without a name, the team reads the login's e-mail address as in Studio; fr
   assert.match(server, /return \[id, loginName\(found\?\.data\?\.user, viewer === "admin"\)\] as const;/);
   assert.match(server, /boardPeople\(db, viewerId, shown\.team, shown\.freelancers, boardTasks, "admin", shown\.former\)/);
   assert.match(server, /boardPeople\(db, viewerId, shown\.team, shown\.freelancers, boardTasks, "freelancer", shown\.former\)/);
+});
+
+test("the bell hears only what really changed on a card: a new place in the same column tells nobody", () => {
+  const card = { status: "todo", title: "Startseite", description: "Text", priority: "none", due_date: null, labels: ["Design"], assignee_user_ids: ["a", "b"], client_visible: false, team_only: false };
+  assert.deepEqual(diffTask(card, { ...card }), {});
+  assert.deepEqual(diffTask(card, { ...card, assignee_user_ids: ["b", "a"] }), {});
+  assert.deepEqual(diffTask(card, { ...card, status: "progress" }), { status: "In Arbeit" });
+  assert.deepEqual(diffTask(card, { ...card, due_date: "2026-11-20" }), { due: "2026-11-20" });
+  assert.deepEqual(diffTask({ ...card, due_date: "2026-11-20" }, card), { due: null });
+  assert.deepEqual(diffTask(card, { ...card, title: "Neu", labels: ["Design", "Kunde"], priority: "high", team_only: true }), { fields: ["title", "priority", "labels", "audience"] });
+  // The description counts only where both sides were read (the saved row leaves it out).
+  assert.deepEqual(diffTask(card, { ...card, description: undefined }), {});
+  assert.deepEqual(diffTask(card, { ...card, description: "Neu" }), { fields: ["description"] });
+  assert.match(SNAPSHOT_COLUMNS, /^status, title, description, priority, due_date, labels, assignee_user_ids, client_visible, team_only$/);
 });

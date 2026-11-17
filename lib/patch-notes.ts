@@ -37,6 +37,18 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 25,
+    date: "2026-11-18",
+    title: "Meldungen zu Aufgaben und eine Glocke, die auffällt",
+    summary: "Wer eine Aufgabe im Board sieht, erfährt jetzt in der Glocke, wenn jemand anderes sie anlegt, verschiebt, bearbeitet, kommentiert oder abhakt: die Freelancer des Projekts außer bei „Nur Team“, Kunden bei freigegebenen Aufgaben (nur neu, Status, Titel und Fälligkeit) und Admins, wenn ein Freelancer etwas geändert hat. Je Aufgabe bleibt es eine Zeile, solange sie ungelesen ist; Freelancer und Kunden bekommen die Meldungen auch in der gebündelten E-Mail, Admins nur in der Glocke. Die Glocke zeigt jetzt die Zahl ungelesener Meldungen, und solange seit dem letzten Blick hinein etwas dazugekommen ist, pulsiert ein Ring um sie. Scheitert eine Meldung, steht das jetzt im Server-Log.",
+    changes: [
+      { kind: "new", title: "Meldungen zu deinen Aufgaben", text: "Kommt eine Aufgabe für dich dazu oder ändern sich Status, Titel oder Fälligkeit einer Aufgabe, die oalab für dich freigegeben hat, steht das jetzt in der Glocke und in der gebündelten E-Mail. Ein Klick führt zum Projekt.", customers: true },
+      { kind: "new", title: "Meldungen aus dem Aufgaben-Board", text: "Legt jemand eine Aufgabe an oder verschiebt, bearbeitet, kommentiert oder hakt sie ab, bekommen alle anderen, die die Karte sehen, eine Meldung: die Freelancer des Projekts (nicht bei „Nur Team“) mit E-Mail, Admins nur in der Glocke, wenn ein Freelancer etwas geändert hat. Je Aufgabe bleibt es eine Zeile, solange sie ungelesen ist, mit der neuesten Änderung vorn; ein Klick öffnet die Karte im Board. Das gilt auch für Änderungen über den Assistenten und über Claude." },
+      { kind: "improved", title: "Die Glocke fällt auf", text: "An der Glocke steht jetzt die Zahl ungelesener Meldungen. Ist seit deinem letzten Blick hinein etwas dazugekommen, pulsiert ein Ring um sie und sie schwingt ab und zu; mit „Bewegung reduzieren“ steht der Ring still.", customers: true },
+      { kind: "fixed", title: "Fehlende Meldungen fallen auf", text: "Konnte der Hub eine Meldung nicht schreiben, ging das bisher still unter. Jetzt steht es mit der Art der Meldung im Server-Log, ohne Namen oder Adressen." },
+    ],
+  },
+  {
     number: 24,
     date: "2026-11-17",
     title: "Kalender und Projekte immer auf dem neuesten Stand",

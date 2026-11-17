@@ -8,7 +8,7 @@ import { readEntriesWithoutActiveLogin } from "@/lib/hub-users/deactivated";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import type { BoardTask, TaskComment, TaskDetail, TaskPatch, TaskResult, TaskSubtask } from "./types";
 import {
-  addCommentAs, createTaskAs, fail, idOf as id, moveTaskAs, numberOf as number, saveSubtaskAs, TEAM_DECIDES, updateTaskAs, whyNotWritten, writeError,
+  addCommentAs, createTaskAs, fail, idOf as id, moveTaskAs, numberOf as number, saveSubtaskAs, TEAM_DECIDES, tellOthers, updateTaskAs, whyNotWritten, writeError,
   type TaskContext,
 } from "./write";
 
@@ -116,6 +116,7 @@ export async function archiveTask(input: { taskId: string; expectedVersion: numb
   const { data, error } = await ctx.supabase.from("studio_tasks").update({ archived: true }).eq("id", taskId).eq("version", version).select("id").maybeSingle<{ id: string }>();
   if (error) return fail(writeError(error, ctx.freelancer));
   if (!data) return whyNotWritten(ctx, taskId);
+  tellOthers(ctx, taskId, { archived: true });
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -205,6 +206,7 @@ export async function deleteSubtask(input: { taskId: string; subtaskId: string; 
   const { data, error } = await ctx.supabase.from("studio_subtasks").delete().eq("id", subtaskId).eq("task_id", taskId).eq("version", version).select("id").maybeSingle<{ id: string }>();
   if (error) return fail(writeError(error, ctx.freelancer));
   if (!data) return fail("Dieser Punkt wurde inzwischen geändert.", true);
+  tellOthers(ctx, taskId, { checklist: { state: "removed" } });
   refreshWorkspace();
   return { ok: true, data: null };
 }

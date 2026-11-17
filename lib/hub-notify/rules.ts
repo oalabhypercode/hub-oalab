@@ -13,7 +13,8 @@
 export type NoticeKind =
   | "task.customer" | "project.changed" | "file.shared"
   | "appointment.created" | "appointment.changed" | "appointment.confirmed" | "appointment.cancelled" | "appointment.declined"
-  | "chat.message" | "chat.reply";
+  | "chat.message" | "chat.reply"
+  | TaskNoticeKind;
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -229,6 +230,140 @@ export function appointmentNotice(input: {
 
 /** A file shared with the customer; the link opens it in the files page. */
 export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });
+
+// Task board notices (17.11.2026) --------------------------------------------------------------------------------
+//
+// Whoever sees a card hears in the bell when someone else creates or changes it: the project's freelancers (unless
+// „Nur Team“), the customer for cards released to them (only what they see: new, status, title, due date) and, when a
+// freelancer made the change, the admins (bell only). One line per card and person while it is unread: further
+// changes are written into it, newest first, like the chat does. The customer's „Du bist am Zug“ stays with the
+// sweep above; a change that hands the card to the customer leaves it to that notice.
+
+export type TaskNoticeKind = "task.created" | "task.changed";
+export const TASK_NOTICE_KINDS: readonly TaskNoticeKind[] = ["task.created", "task.changed"];
+export const isTaskNotice = (kind: string): kind is TaskNoticeKind => (TASK_NOTICE_KINDS as readonly string[]).includes(kind);
+
+/** Fields of a card whose change the bell names (status and due date have words of their own). */
+export type TaskField = "title" | "description" | "priority" | "labels" | "assignees" | "audience";
+
+/**
+ * What happened to a card. `status` comes worded („In Arbeit“), `due` as Studio's day (null: removed), `comment` and
+ * the checklist point as written.
+ */
+export type TaskChange = {
+  created?: true;
+  status?: string;
+  fields?: TaskField[];
+  due?: string | null;
+  comment?: string;
+  checklist?: { state: "added" | "done" | "open" | "renamed"; title: string } | { state: "removed" };
+  archived?: true;
+};
+
+export const hasTaskChange = (change: TaskChange) =>
+  Boolean(change.created || change.status || change.fields?.length || change.due !== undefined || change.comment || change.checklist || change.archived);
+
+const FIELD_WORDS: Record<TaskField, string> = { title: "Titel", description: "Beschreibung", priority: "Priorität", labels: "Labels", assignees: "Zuständige", audience: "Sichtbarkeit" };
+const FIELD_ORDER = Object.keys(FIELD_WORDS) as TaskField[];
+// The parts of a line are joined with " · ", so a quote never carries one.
+const quote = (text: string, length: number) => `„${clip(oneLine(text).replace(/·/g, "-"), length)}“`;
+
+/**
+ * The parts of a bell line for one change, newest first. The team (freelancers, admins) reads everything and who did
+ * it; the customer reads only what they see of a card, without names.
+ */
+export function taskChangeParts(change: TaskChange, viewer: "team" | "customer", actor = ""): string[] {
+  const parts: string[] = [];
+  if (change.archived && viewer === "team") parts.push("Archiviert");
+  if (change.status) parts.push(`Status: ${change.status}`);
+  if (change.due !== undefined) parts.push(change.due ? `Fällig: ${formatDay(change.due)}` : "Fälligkeit entfernt");
+  const fields = FIELD_ORDER.filter((field) => change.fields?.includes(field) && (viewer === "team" || field === "title"));
+  if (fields.length) parts.push(`Geändert: ${fields.map((field) => FIELD_WORDS[field]).join(", ")}`);
+  if (viewer === "team") {
+    if (change.comment) parts.push(`Kommentar: ${quote(change.comment, 80)}`);
+    const point = change.checklist;
+    if (point) {
+      parts.push(point.state === "removed"
+        ? "Checkliste: ein Punkt entfernt"
+        : `Checkliste: ${quote(point.title, 50)} ${{ added: "neu", done: "erledigt", open: "wieder offen", renamed: "umbenannt" }[point.state]}`);
+    }
+    const who = oneLine(actor);
+    if (who) parts.push(`von ${who}`);
+  }
+  return parts;
+}
+
+/** What a customer sees of a change: a new card, its status, title or due date. */
+export const customerSeesChange = (change: TaskChange) => Boolean(change.created || change.status || change.due !== undefined || change.fields?.includes("title"));
+
+/** A card as the notices judge it: who may see it, and whether it lies with the customer (taskState). */
+export type TaskSight = { teamOnly: boolean; clientVisible: boolean; archived: boolean; customerState: "customer" | "other" };
+
+/**
+ * Which notice a change brings to the project's freelancers and to the customer: "task.created" when the card only
+ * now becomes visible to them, "task.changed" when they saw it before, null when nothing goes to them. `before` is the
+ * card before the change (null for a new one). An archived card tells the freelancers once; the customer never hears
+ * of archiving.
+ */
+export function taskAudience(input: { before: TaskSight | null; after: TaskSight; projectReleased: boolean; change: TaskChange }): { freelancers: TaskNoticeKind | null; customers: TaskNoticeKind | null } {
+  const { change, projectReleased } = input;
+  // Archiving is judged by who saw the card until now.
+  const live = (card: TaskSight) => change.archived ? { ...card, archived: false } : card;
+  const after = live(input.after);
+  const before = input.before && live(input.before);
+  const freelancersSee = (card: TaskSight) => !card.archived && !card.teamOnly;
+  const customersSee = (card: TaskSight) => !card.archived && card.clientVisible && projectReleased;
+  const newFor = (sees: (card: TaskSight) => boolean) => Boolean(change.created) || before === null || !sees(before);
+
+  const freelancers = freelancersSee(after) ? (newFor(freelancersSee) ? "task.created" : "task.changed") : null;
+  let customers: TaskNoticeKind | null = null;
+  if (!change.archived && customersSee(after)) {
+    // Handed to the customer just now: „Du bist am Zug“ says it.
+    const handed = after.customerState === "customer" && before?.customerState !== "customer";
+    if (newFor(customersSee)) customers = handed ? null : "task.created";
+    else if (customerSeesChange(change) && !handed) customers = "task.changed";
+  }
+  return { freelancers, customers };
+}
+
+/** Where a task notice leads: the card in the board (team, freelancers) or the project (customers). */
+export const taskBoardHref = (projectId: string, taskNumber: number) => `/dashboard/projects/tasks?project=${projectId}&task=${taskNumber}`;
+
+/** The start of every line of a card: "Website · #12". */
+export const taskNoticePrefix = (project: string, taskNumber: number) => `${oneLine(project)} · #${taskNumber}`;
+
+export type TaskNoticeDraft = { kind: TaskNoticeKind; taskTitle: string; prefix: string; parts: string[]; href: string };
+
+const TASK_TITLES: Record<TaskNoticeKind, string> = { "task.created": "Neue Aufgabe", "task.changed": "Aufgabe geändert" };
+/** A line keeps at most this many parts; older ones drop out. */
+const TASK_PARTS = 6;
+const joinParts = (prefix: string, parts: string[]) => clip([prefix, ...parts.slice(0, TASK_PARTS)].join(" · "), 300);
+
+/** A new bell line for a card. */
+export function taskNotice(draft: TaskNoticeDraft): Notice {
+  return { kind: draft.kind, title: clip(`${TASK_TITLES[draft.kind]}: ${oneLine(draft.taskTitle)}`, 200), body: joinParts(draft.prefix, draft.parts), href: draft.href };
+}
+
+/** Which part of a line a part fills; a newer part of the same kind replaces the older one. */
+const slotOf = (part: string) => /^(Archiviert|Status|Fällig|Geändert|Kommentar|Checkliste|von )/.exec(part)?.[1] ?? part;
+
+/**
+ * Writes a change into the line the person has not read yet: newest parts first, an older part of the same kind
+ * drops out, the changed fields add up. A new card stays "Neue Aufgabe" however often it changes before it is read.
+ */
+export function mergeTaskNotice(previous: { kind: string; body: string }, draft: TaskNoticeDraft): Notice {
+  const kind: TaskNoticeKind = previous.kind === "task.created" || draft.kind === "task.created" ? "task.created" : "task.changed";
+  const start = `${draft.prefix} · `;
+  const older = previous.body.startsWith(start) ? previous.body.slice(start.length).split(" · ") : [];
+  const fieldsOf = (part: string | undefined) => part?.startsWith("Geändert: ") ? part.slice("Geändert: ".length).split(", ") : [];
+  const newer = draft.parts.map((part) => {
+    if (slotOf(part) !== "Geändert") return part;
+    const words = [...new Set([...fieldsOf(part), ...fieldsOf(older.find((old) => slotOf(old) === "Geändert"))])].filter((word) => word && !word.endsWith("…"));
+    return `Geändert: ${words.join(", ")}`;
+  });
+  const taken = new Set(newer.map(slotOf));
+  return taskNotice({ ...draft, kind, parts: [...newer, ...older.filter((part) => !taken.has(slotOf(part)))] });
+}
 
 /** Only these notices offer "In deinen Kalender eintragen"; cancelled and declined ones do not. */
 const CALENDAR_KINDS = new Set<string>(["appointment.created", "appointment.confirmed", "appointment.changed"]);

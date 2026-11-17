@@ -10,24 +10,29 @@ import { categories } from "@/lib/categories";
 const when = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 function symbolOf(kind: string): { icon: LucideIcon; color: string } {
-  if (kind === "task.customer") return { icon: ListTodo, color: categories.projects.fill };
+  if (kind === "task.customer" || kind === "task.created" || kind === "task.changed") return { icon: ListTodo, color: categories.projects.fill };
   if (kind === "project.changed") return { icon: FolderOpen, color: categories.projects.fill };
   if (kind === "file.shared") return { icon: Files, color: categories.files.fill };
   if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill };
   return { icon: CalendarDays, color: categories.calendar.fill };
 }
 
+/** What the empty bell promises, per role. */
+const EMPTY_TEXT = {
+  admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt oder ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert.",
+  freelancer: "Hier erscheint, wenn jemand eine Aufgabe in deinen Projekten anlegt, ändert oder kommentiert oder eine Datei für dich dazukommt.",
+  customer: "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe für dich dazukommt, sich ändert oder bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt.",
+};
+
 /** The bell of a real login: its notices, newest first; opening one marks it read. */
-export function NotificationsPanel({ items, admin, onClose }: { items: InboxItem[]; admin: boolean; onClose: () => void }) {
+export function NotificationsPanel({ items, role, onClose }: { items: InboxItem[]; role: keyof typeof EMPTY_TEXT; onClose: () => void }) {
   const [read, setRead] = useState(() => new Set(items.filter((item) => item.read).map((item) => item.id)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const unread = items.filter((item) => !read.has(item.id));
 
   if (!items.length) {
-    return <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>{admin
-      ? "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt."
-      : "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt."}</p></div>;
+    return <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>{EMPTY_TEXT[role]}</p></div>;
   }
 
   function open(item: InboxItem) {

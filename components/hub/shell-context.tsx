@@ -45,6 +45,10 @@ export type ShellContextValue = {
   /** The assistant opens as a sidebar next to the page (a dialog on top of it would block that sidebar). */
   assistantDocked: boolean;
   unread: boolean;
+  /** Unread notices in the bell. */
+  unreadCount: number;
+  /** Something in the bell is newer than the last look into it: the bell rings (components/hub/app-shell.tsx). */
+  ringing: boolean;
   signOut: () => void;
   signingOut: boolean;
   logoutError: string;
