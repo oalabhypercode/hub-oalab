@@ -1,6 +1,6 @@
 # oalab Corporate Identity
 
-Stand: 19. Oktober 2026. Diese Vorgaben gelten für Anmeldung, Client Hub und zukünftige oalab-Oberflächen. Die Startseite zeigt direkt den Login. Der Plattformname lautet **oalab**, durchgehend kleingeschrieben. Die Produktbezeichnung ist **oalab Client Hub**.
+Diese Vorgaben gelten für Anmeldung, Client Hub und zukünftige oalab-Oberflächen. Die Startseite zeigt direkt den Login. Der Plattformname lautet **oalab**, durchgehend kleingeschrieben. Die Produktbezeichnung ist **oalab Client Hub**.
 
 ## Logos
 
@@ -50,7 +50,7 @@ Der Client Hub nutzt die Designsprache Liquid Glass: Ein kräftiger Hintergrund 
 - **Hintergrund:** Standard ist das Preset „oalab“ mit Grundfarbe `#3A0624` und den Farbflächen Bordeaux `#7E004B`, Rot `#8F1D21` und Orange `#B4400F`. Weitere Presets und alle Grenzwerte stehen ausschließlich in `lib/appearance.ts`. Weißer Text erreicht auf jeder Preset-Farbe mindestens 4,5:1. Bei sehr hellen eigenen Farben wechselt der Text auf dem Hintergrund automatisch auf Schwarz.
 - **Glas:** Weiß mit 80 % Deckkraft (einstellbar 70–95 %), 24 px Unschärfe (8–40 px). Glas wird nie auf Glas gestapelt.
 - **Akzent:** Links, aktive Navigation, Auswahlringe, Schalter, Häkchen, der heutige Tag im Kalender und Fokusrahmen verwenden Bordeaux. Der Fokus ist ein weißer Ring mit Bordeaux-Außenring und damit auf Glas und Hintergrund sichtbar. Hauptbuttons tragen den Verlauf der Hub-Mails (`--accent-gradient`, Bordeaux nach `#9B1440`).
-- **Töne:** Status, Hinweise und Fehler nutzen fünf Töne mit denselben Werten wie die Hub-Mails: Zu tun (Orange), Zur Info (Blau), Erledigt (Grün), Aus (Grau), Problem (Rot), jeweils mit Hintergrund, Textfarbe und einem Balken links für Hinweise (`--tone-*` in `app/glass.css`). Feste Farbwerte für Zustände gibt es nicht mehr.
+- **Töne:** Status, Hinweise und Fehler nutzen fünf Töne mit denselben Werten wie die Hub-Mails: Zu tun (Orange), Zur Info (Blau), Erledigt (Grün), Aus (Grau), Problem (Rot), jeweils mit Hintergrund, Textfarbe und einem Balken links für Hinweise (`--tone-*` in `app/glass.css`). Keine festen Farbwerte für Zustände.
 - **Kategorien:** Jede Kategorie hat genau eine Farbe, die bei Icon, Kartentitel und Diagramm wiederkehrt. Flächen und Icons nutzen die Fill-Farbe, farbiger Text die Text-Farbe (`--cat-*-text` in `app/glass.css`, verwendet über `lib/categories.ts`). Diese erreicht auf 70 % Glas über jedem Hintergrund 4,5:1.
 - **Dunkler Modus:** Erscheinungsbild Automatisch (Standard, folgt dem Gerät), Hell oder Dunkel unter Profil › Darstellung. Dunkles Glas `#1C181B`, Text `#F6F0F3`, Akzent Rosé `#F4A6C9` mit dunkler Schrift auf Akzentflächen, Töne und Bereichsfarben wie im dunklen Modus der Hub-Mails, Tabellen auf `#1C181B`. Der Hintergrund behält seine Farben und wird dunkler gezeigt. Neue Farben kommen als Token mit hellem und dunklem Wert in `app/glass.css`, nie als fester Wert in einer Regel.
 - **Zahlen:** Kennzahlen stehen groß in `ui-rounded` (auf Apple-Geräten SF Pro Rounded, sonst Inter), die Einheit klein und halbfett dahinter. Inter bleibt die Schrift für alle übrigen Texte.
@@ -59,4 +59,4 @@ Der Client Hub nutzt die Designsprache Liquid Glass: Ein kräftiger Hintergrund 
 
 Markenwerte werden ausschließlich in `app/brand.css` gepflegt und über CSS-Variablen wiederverwendet. `app/glass.css` gestaltet den Client Hub, `app/hub.css` die Authentifizierung und gemeinsame Basisstile, `app/motion.css` die Einblend-Animation und „Bewegung reduzieren“. Neue Seiten übernehmen das Root-Layout und die gemeinsamen Logo-Komponenten.
 
-Bei Änderungen sind Login und Workspace jeweils auf Desktop und Mobilgeräten zu prüfen. Logo, Lesbarkeit, Tastaturfokus und horizontale Überläufe gehören zur Abnahme. Neue Markenentscheidungen werden hier und in `PROJECT_CONTEXT.md` dokumentiert.
+Bei Änderungen sind Login und Workspace jeweils auf Desktop und Mobilgeräten zu prüfen. Logo, Lesbarkeit, Tastaturfokus und horizontale Überläufe gehören zur Abnahme. Neue Markenentscheidungen ersetzen hier die alte Regel; Produktfolgen in `PROJECT_CONTEXT.md`.

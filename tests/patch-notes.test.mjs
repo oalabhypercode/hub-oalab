@@ -54,5 +54,5 @@ test("the section is reachable for everyone and every change must add an entry",
   assert.match(await source("components/hub/screens/workspace.tsx"), /hubHref\(preview, "patch-notes"\)/);
   assert.match(await source("components/hub/hub-view.tsx"), /section === "patch-notes" \? <PatchNotesScreen \/>/);
   assert.doesNotMatch(await source("lib/hub-data.ts"), /adminSections: readonly HubSection\[\] = \[[^\]]*patch-notes/);
-  assert.match(await source("CLAUDE.md"), /lib\/patch-notes\.ts/);
+  assert.match(await source("AGENTS.md"), /lib\/patch-notes\.ts/);
 });

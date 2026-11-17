@@ -1,213 +1,55 @@
-# OALAB Projects – Client Hub
+# oalab Client Hub
 
-Ein gemeinsamer Workspace für oalab und seine Kunden. Die Plattform heißt **oalab Client Hub** und verwendet die gelieferten oalab-Logos, den Bordeaux-Rot-Orange-Verlauf und die einheitliche Schrift **Inter**.
+Gemeinsamer Workspace von oalab und Kunden: Login, Kunden, Konten, Pakete, Vertrag & Domain, Dateien, Kalender, Projekte, Nachrichten, Assistent. Live: [hub.oalab.de](https://hub.oalab.de/) (Startseite = Login).
 
-Projektstand, Entscheidungen und offene Produktfragen werden in [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) gepflegt.
-
-Logo-Einsatz, Markenfarben und Typografie sind in [CI_GUIDELINES.md](./CI_GUIDELINES.md) festgelegt. Die zentralen Markentokens stehen in `app/brand.css`.
-
-[hub.oalab.de](https://hub.oalab.de/) zeigt direkt den Login; eine separate Landingpage gibt es nicht. Demo-Zugänge gibt es seit dem 9. November 2026 nicht mehr: Die Demo-Logins, die öffentliche Demo und die Demo-Kunden sind entfernt.
-
-## Aktueller Umfang
-
-Schritt 1 umfasst das responsive Frontend mit Navigation und Dashboard sowie die neu gestalteten Login-, Registrierungs- und Passwortseiten. Die Gestaltung orientiert sich an [Prolab](https://www.framer.com/marketplace/templates/prolab/).
-
-- **Designvorschau:** [/preview](http://localhost:3000/preview) – ausdrücklich gekennzeichnete fiktive Projekte, Dateien und Nachrichten. Nur auf einem lokalen Entwicklungsserver (`npm run dev`); live und in jedem Produktionsbuild ist sie eine 404-Seite.
-- **Anmelden:** [/auth/login](http://localhost:3000/auth/login) – bestehende Supabase-Authentifizierung im neuen Design.
-- **Workspace:** [/dashboard](http://localhost:3000/dashboard) – nach der Anmeldung. Konten kommen erst nach der Freigabe im User Management in den Hub und sehen dann Unternehmen, Kundennummer und Servicepakete aus der Datenbank; bis dahin zeigt [/auth/pending](http://localhost:3000/auth/pending) den Stand.
-
-Der Hub ist im Liquid-Glass-Stil gestaltet (Struktur nach Apple Health): Übersicht mit Insights, Favoriten, Highlights und Listen, Detailseiten je Kennzahl mit Zeitraum-Umschalter, Entdecken sowie die Kategorien Projekte, Dateien, Nachrichten und Kalender. Die Sprechblase „Assistent & Hilfe“ oben rechts öffnet einen KI-Assistenten (Claude), der Fragen zu den Funktionen beantwortet. Hintergrund und Glas lassen sich unter Profil › Darstellung einstellen. Ab 1024 px navigiert eine Glas-Sidebar; auf Tablet und Smartphone stehen dieselben Einträge in einer schwebenden Tab-Bar am unteren Rand, daneben ein Such-Button für „Entdecken“. In der Vorschau lassen sich Projekte filtern, Details öffnen und Seiten beziehungsweise Beispielprojekte durchsuchen. Admins verwalten Registrierungen, Logins und Kunden im User Management. Live-Nachrichten und echte Projektverwaltung folgen in weiteren Schritten.
+- Produktstand und offene Punkte: [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md)
+- Marke, Farben, Schrift, Glas: [CI_GUIDELINES.md](./CI_GUIDELINES.md)
+- Einrichtung von Mail, Benachrichtigungen, Telegram, Assistent, WhatsApp, Anmeldung: [docs/einrichtung.md](./docs/einrichtung.md)
+- Arbeitsregeln für KI (Git, Patch Notes): [AGENTS.md](./AGENTS.md)
 
 ## Lokal starten
 
-Voraussetzung: Node.js 24 und npm.
+- Node.js 24, npm; `npm ci`
+- `.env.local` aus `.env.example` (nie einchecken)
+- `npm run dev` → [localhost:3000](http://localhost:3000); Designvorschau [/preview](http://localhost:3000/preview) nur im Dev-Server (live 404)
+- `HUB_LOCAL_ADMIN_EMAIL=<Admin-Adresse>`: ohne Anmeldung als dieser Admin; nur Dev-Server, nur 127.0.0.1/localhost; eigenes `-H` schaltet ab (`lib/local-admin.ts`, `scripts/dev.mjs`)
+- `HUB_LOCAL_TUNNEL_SCRIPT`: `npm run dev` öffnet und hält den Tunnel zum OALab-Server (nur Omeds Mac, `service-oalab/scripts/hub-lokal.sh`); ohne Tunnel `ECONNREFUSED 127.0.0.1:15433`
+- Ohne `SMTP_*` gehen lokal keine Mails raus (Testmodus)
+- Hub und Service lokal mit gemeinsamem Login: `OALAB_AUTH_COOKIE_DOMAIN=oalab.localhost`, `hub.oalab.localhost` und `service.oalab.localhost` öffnen
 
-```sh
-npm ci
-```
+## Betrieb
 
-Eine lokale `.env.local` mit den eigenen öffentlichen Supabase-Konfigurationswerten anlegen:
+- Coolify-App `oalab-hub` auf Server 2, gebaut aus `main`; jeder Push auf `main` ist in 2–4 Minuten live
+- Eigene Plattform (`OALAB_PLATFORM=own`, `lib/platform/`): PostgreSQL über internes PostgREST, Login über Better Auth (geteilt mit Service), Dateien in Garage
+- Variablen in Coolify bei der App (Laufzeit, nicht Build)
+- Datenbank-Schema und Migrationen: `service-oalab/supabase/migrations/`; `npm run db:push` hier wendet nichts an
+- Betrieb des Servers: `service-oalab/docs/operations/eigener-server.md`
+- Vercel-Projekt `oalabs-projects/oalab-client-hub` und Supabase `hxljfihyejwpugnsffcc` nur Rückweg: baut nicht, eingefroren, nicht löschen
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=<SUPABASE_PROJECT_URL>
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<SUPABASE_PUBLISHABLE_KEY>
-```
+## Umgebungsvariablen
 
-```sh
-npm run dev
-```
-
-Anschließend [localhost:3000](http://localhost:3000) öffnen. Die Startseite zeigt denselben Login wie `/auth/login`. Die Designvorschau ist auch ohne Supabase-Konfiguration erreichbar.
-
-**Lokal immer Admin:** Steht `HUB_LOCAL_ADMIN_EMAIL=<Admin-Adresse>` in `.env.local`, öffnet `npm run dev` den Hub auf [localhost:3000](http://localhost:3000) ohne Anmeldung als dieser Admin. Der Schalter wirkt nur im Entwicklungsserver, der dann nur auf 127.0.0.1 hört, und nur für Aufrufe über localhost; gebaute Versionen, andere Adressen und ein eigenes `-H` ignorieren ihn (`lib/local-admin.ts`, `scripts/dev.mjs`). Mit `HUB_LOCAL_TUNNEL_SCRIPT` öffnet `npm run dev` vorher den Tunnel zum OALab-Server und hält ihn offen (nur Omeds Mac, `service-oalab/scripts/hub-lokal.sh`). Ohne `SMTP_*` gehen lokal keine Mails raus.
-
-## Betrieb und Vercel
-
-Seit 08.11.2026 läuft [hub.oalab.de](https://hub.oalab.de/) auf der eigenen OALab-Plattform: Coolify-App `oalab-hub` auf Server 2, gebaut aus `main` (jeder Push geht in 2–4 Minuten live), Daten in PostgreSQL und Garage statt Supabase (siehe `lib/platform/` und im Service-Repo `docs/operations/eigener-server.md`).
-
-Das Vercel-Projekt `oalabs-projects/oalab-client-hub` bleibt als Weg zurück bis mindestens 22.11.2026 bestehen, baut aber nichts mehr (Ignored Build Step `exit 0`); sein letztes Production-Deployment ist weiter unter [oalab-client-hub.vercel.app](https://oalab-client-hub.vercel.app/) erreichbar. Bei einem manuellen CLI-Deployment zunächst mit `vercel link --project oalab-client-hub --scope oalabs-projects` das bestehende Projekt auswählen, anschließend `vercel deploy --prod --scope oalabs-projects`. Keine lokalen Secret-Dateien hochladen und keine fremden Projektvariablen überschreiben. Die früheren Vercel-Variablen der öffentlichen Demo (`ENABLE_PUBLIC_DEMO_LOGIN`, `PUBLIC_DEMO_ORIGIN`, `OALAB_DEMO_SESSION_SECRET`) liest der Code seit dem 9. November 2026 nicht mehr.
-
-## Dateiablage einrichten
-
-Die Dateiablage (Bucket `hub-files`) liegt seit 25. Oktober 2026 im gemeinsamen Supabase-Projekt `hxljfihyejwpugnsffcc`; ihr Schema pflegt `service-oalab/supabase/migrations`. Die folgenden Werte brauchte nur die frühere Migration in das alte Hub-Projekt `tjbslvwvisxjjcxfhbgm` (`.env.local`, niemals einchecken):
-
-```env
-SUPABASE_ACCESS_TOKEN=<persönlicher Supabase Access Token>
-SUPABASE_DB_PASSWORD=<Datenbank-Passwort des Projekts>
-```
-
-```sh
-npm run db:check   # zeigt, welche Migrationen angewendet würden
-npm run db:push    # wendet supabase/migrations an
-```
-
-Die Skripte lesen die Werte aus `.env.local` und geben sie nicht aus.
-
-In der Dateiablage gilt:
-
-- **Hochladen:** Admins laden bis zu 20 Dateien auf einmal hoch.
-- **Herunterladen:** Mehrere markierte Dateien lädt man als ZIP herunter. Der Browser baut die ZIP-Datei selbst (`lib/hub-files/zip.ts`, Bibliothek `fflate`, bis 500 MB).
-- **Ordner:** Ordner sind kundenbezogen und haben eine Ebene (`supabase/migrations/20261022170000_hub_folders.sql`). Kunden legen sie für ihr Unternehmen an, Admins für jeden Kunden. Kunden dürfen per Spaltenrecht nur den Ordner ihrer Zuordnungen ändern.
-
-## User Management
-
-Admins verwalten unter „Verwaltung → User Management“ (`/dashboard/users`) Registrierungen, Logins und Kunden. Grundlage ist die Migration `supabase/migrations/20261022190000_hub_user_management.sql`.
-
-- **Registrierung mit Freigabe:** „Jetzt registrieren“ fragt Vorname, Nachname, Unternehmen, Telefon, E-Mail und Passwort ab, optional Position, Website, Kundennummer und Nachricht. Ein Datenbank-Trigger legt dazu ein Profil „wartet auf Freigabe“ an. Bis zur Freigabe führt jede Anmeldung auf `/auth/pending`; KI-Assistent, WhatsApp und Kalender-Auslastung bleiben gesperrt. Sobald die Person ihre E-Mail-Adresse bestätigt hat, bekommt das oalab-Team eine E-Mail mit allen Angaben und die Person eine Eingangsbestätigung (siehe [E-Mails](#e-mails)).
-- **Freigeben:** Rolle wählen und den Login einem bestehenden Kunden zuordnen oder einen neuen Kunden mit Servicepaketen anlegen; er entsteht auch in Service, mit einer freien Kundennummer `OA-` plus fünfstelliger Zahl. Die Person bekommt danach eine E-Mail mit dem Login-Link. Ablehnen geht mit einer Begründung, die die Person per E-Mail bekommt und nach dem Login sieht; abgelehnte Registrierungen bleiben gespeichert.
-- **Konten anlegen:** Der Admin legt Login, Rolle und Kunde an und erhält einen einmaligen Aktivierungslink (Supabase-Recovery-Link über `/auth/confirm`). Mit dem Häkchen „Aktivierungslink per E-Mail an die Person senden“ verschickt der Hub den Link selbst; angezeigt wird er zusätzlich zum Kopieren.
-- **Bearbeiten, Sperren, Löschen:** Rolle und Kunde ändern, Passwort-Link erzeugen (zum Kopieren oder per E-Mail an die Person), deaktivieren (Supabase-Sperre plus inaktives Profil, wirkt sofort auf alle Daten) und reaktivieren, endgültig löschen nach erneuter Eingabe der E-Mail-Adresse.
-- **Kunden:** Unternehmen, Kundennummer, Servicepakete, Kontakt und Anschrift. Kunden sehen diese Angaben nach dem Login in Sidebar, Übersicht und Profil.
-- **Sicherheit:** Jede Aktion (`lib/hub-users/actions.ts`) prüft zuerst mit der Sitzung des Aufrufers, ob die Datenbank ihn als aktiven Admin führt (`is_hub_admin()` liest Rolle und Status aus der Datenbank, nicht aus dem Token). Erst dann arbeitet der Server mit dem Secret Key (`lib/supabase/admin.ts`, nur serverseitig). Browser dürfen Profile und Protokoll nur lesen. Schutzregeln: kein Selbst-Sperren oder -Herabstufen, der letzte aktive Admin bleibt erhalten, Demo-Konten sind schreibgeschützt. Jede Aktion steht im Protokoll `hub_admin_events`, ohne Namen, Adressen oder Links.
-
-Für den Livebetrieb braucht Vercel (Production) zusätzlich `SUPABASE_SECRET_KEY` als Secret. In Supabase sollten „Confirm email“ aktiv und die Gültigkeit der E-Mail-Links („Email OTP expiration“) auf 24 Stunden gesetzt sein, damit weitergegebene Aktivierungslinks nicht nach einer Stunde verfallen. Bestätigungs- und Passwort-E-Mails an echte Adressen brauchen einen eigenen SMTP-Versand in Supabase (siehe [E-Mails](#e-mails)).
-
-## E-Mails
-
-Der Hub verschickt seine E-Mails selbst per SMTP über das Netcup-Postfach `hub@oalab.de` (`lib/hub-mail/`, Paket `nodemailer`). Absender ist `oalab Client Hub <hub@oalab.de>`, Antworten gehen an `info@oalab.de`.
-
-| E-Mail | an | ausgelöst durch |
-| --- | --- | --- |
-| Neue Registrierung mit allen Angaben und Button ins User Management; Antworten gehen an die Person | oalab-Team (`HUB_TEAM_EMAIL`) | Die Person hat ihre E-Mail-Adresse bestätigt und sieht zum ersten Mal `/auth/pending` |
-| Eingangsbestätigung | Person | wie oben |
-| Zugang freigeschaltet, mit Login-Link | Person | „Freigeben“ |
-| Registrierung nicht freigegeben, mit Begründung | Person | „Ablehnen“ |
-| Aktivierungs- oder Passwort-Link | Person | Häkchen beim Anlegen oder „Link per E-Mail senden“ |
-| „Neu im Client Hub“: gebündelte Benachrichtigungen | Kunden-Logins | Siehe [Benachrichtigungen](#benachrichtigungen) |
-
-- Team-Mail und Eingangsbestätigung gehen pro Login genau einmal raus: Der Server reserviert vor dem Versand eine Zeile in `hub_notifications` (eindeutiger Index). Ein fehlgeschlagener Versand wird beim nächsten Aufruf der Warteseite wiederholt.
-- `hub_notifications` (Migration `supabase/migrations/20261022210000_hub_notifications.sql`) speichert nur Art, Login, Ergebnis und Message-ID, keine Adressen, Betreffzeilen oder Inhalte. Admins sehen die Einträge im Verlauf des Benutzers. Server-Logs nennen nur die Art der Mail; jede Mail trägt sie auch im Kopf `X-Hub-Mail` (für Postfach-Filter).
-- Ohne SMTP-Zugang (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`) läuft der Hub im Testmodus: Die Mails werden gebaut, aber nicht verschickt und als „nicht verschickt“ vermerkt. Das User Management zeigt dann einen Hinweis.
-- Die Bestätigungs- und Passwort-Mails von Supabase selbst nutzen die deutschen Vorlagen in `supabase/templates/` (eingetragen in `supabase/config.toml`).
-
-Einrichtung für den Livebetrieb (das Passwort nur bei Netcup, in Vercel, in Supabase und in `.env.local` eintragen, nie ins Repository):
-
-1. Im Netcup-Kundenbereich das Postfach `hub@oalab.de` mit eigenem, starkem Passwort anlegen. Der SMTP-Server steht in den E-Mail-Einstellungen; für oalab.de ist es derzeit `mxe989.netcup.net`, Port `465` (SSL/TLS).
-2. In Vercel (Production) `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` (`hub@oalab.de`) und `SMTP_PASSWORD` (als „Sensitive“) eintragen, für lokale Tests dieselben Werte in `.env.local`. Der Absender `MAIL_FROM` muss das Postfach selbst oder ein Alias davon sein. Optional sind `MAIL_REPLY_TO`, `HUB_TEAM_EMAIL` (mehrere Adressen mit Komma) und `NEXT_PUBLIC_SITE_URL` für die Links in den Mails, siehe `.env.example`.
-3. In Supabase unter Authentication → Emails → SMTP Settings „Custom SMTP“ einschalten: Host und Port wie oben, Benutzer `hub@oalab.de` mit dessen Passwort, Absender `hub@oalab.de` mit dem Namen `oalab Client Hub`. Ohne eigenen SMTP schickt Supabase nur wenige Mails pro Stunde und nur an Mitglieder des Supabase-Teams.
-4. In Supabase unter Authentication → Emails → Templates den Inhalt von `supabase/templates/confirmation.html` bei „Confirm signup“ und von `recovery.html` bei „Reset password“ einfügen, Betreff wie in `supabase/config.toml`. Die Links laufen per Token-Hash über `/auth/confirm` und funktionieren deshalb auch auf einem anderen Gerät. Unter Authentication → URL Configuration muss die „Site URL“ die Live-Adresse des Hubs sein, ohne Schrägstrich am Ende.
-5. Danach „Confirm email“ einschalten und „Email OTP expiration“ auf 24 Stunden setzen (siehe [User Management](#user-management)).
-
-6. DNS: Der SPF-Eintrag von oalab.de schließt Netcup bereits ein (`include:_spf.webhosting.systems`). Damit die Mails nicht im Spam landen, sind DKIM für oalab.de (falls der Netcup-Tarif es anbietet) und ein DMARC-Eintrag `_dmarc` empfehlenswert; bisher gibt es keinen, für den Anfang reicht `v=DMARC1; p=none;`.
-
-Die Mails laufen über den Mailserver von Netcup in Deutschland. Netcup verarbeitet dabei Namen, E-Mail-Adressen und Registrierungsangaben im Auftrag; der Auftragsverarbeitungsvertrag mit Netcup liegt vor, und die Datenschutzerklärung des Hubs nennt Netcup.
-
-## Impressum und Datenschutz
-
-Impressum (`/impressum`) und Datenschutzerklärung (`/datenschutz`) sind eigene, öffentliche Seiten des Hubs (`app/impressum`, `app/datenschutz`, Texte in `components/legal/`, Anbieterangaben in `lib/legal-details.ts`). In Vercel ist dafür nichts einzutragen.
-
-- Erreichbar in höchstens zwei Klicks (§ 5 DDG, Art. 13 DSGVO): Fußzeilen von Login, Registrierung, 404 und den Rechtsseiten, Menü am Zahnrad, „Mehr“ → „Rechtliches“, Profil, jede Hub-Mail und die Supabase-Vorlagen für Bestätigung und Passwort.
-- Die Mails verlinken absolut über `NEXT_PUBLIC_SITE_URL` (sonst `https://hub.oalab.de`). Nach einer Änderung an `supabase/templates/` die Vorlagen im Supabase-Dashboard unter Authentication → Emails neu einfügen.
-- Die Datenschutzerklärung beschreibt, was der Code wirklich nutzt. Kommt ein Dienst hinzu oder ändert sich einer (zum Beispiel WhatsApp live, mehr Inhalt an Telegram, ein neuer Hoster), wird der Text im selben PR angepasst und `PRIVACY_POLICY_DATE` mitgezogen. `tests/legal-pages.test.mjs` prüft die Links, die genannten Anbieter und Cookies und veraltete Angaben wie § 5 TMG.
-- Die Texte sind ein Entwurf ohne Rechtsberatung; vor dem Livegang einmal anwaltlich prüfen lassen.
-
-## Benachrichtigungen
-
-Kunden sehen in der Glocke, was für sie neu ist, und bekommen dazu eine gebündelte E-Mail (`lib/hub-notify/`):
-
-| Meldung | ausgelöst durch |
-| --- | --- |
-| „Du bist am Zug: …“ | Eine freigegebene, nicht erledigte Aufgabe mit Label „Kunde“ liegt jetzt beim Kunden (Studio oder Assistent) |
-| „Projekt aktualisiert: …“ | Status oder Zieltermin eines freigegebenen Projekts ändert sich im Studio |
-| „Neue Datei: …“ | Ein Admin ordnet dem Kunden eine Datei zu |
-| Termin angelegt, bestätigt, verschoben, abgesagt, Anfrage abgelehnt | Kalender im Hub |
-| „Neue Nachricht von oalab“ | oalab antwortet im privaten Chat unter Nachrichten (an die Logins der Firma) |
-| „Neue Nachricht von …“ (an Admins) | Ein Kunde schreibt im privaten Chat; die E-Mail kommt nach 5 Minuten und nur, solange niemand aus dem Team gelesen hat |
-
-- Dateien und Termine schreibt der Hub beim Speichern in `hub_inbox`. Studio-Änderungen liest er alle fünf Minuten aus `studio_activity`; `hub_notice_marks` hält den letzten Stand je Aufgabe und Projekt, damit jede Änderung genau einmal gemeldet wird. Vorhandene Tabellen bleiben unverändert (Migration `202610300001_hub_notifications.sql` in `service-oalab`).
-- Den Takt gibt pg_cron in der Datenbank vor: Er ruft `/api/notifications/sweep` mit dem Token aus Supabase Vault auf. Die Route antwortet nur mit `HUB_NOTIFY_TOKEN`.
-- Die E-Mail geht etwa 15 Minuten nach der ersten neuen Meldung raus und enthält alle bis dahin neuen Meldungen, auch schon in der Glocke gelesene (höchstens zehn Einträge, der Rest steht im Hub). Eine einzelne Meldung kommt als eigene Mail mit passender Überschrift und einem Button direkt zur Stelle, mehrere als Liste mit eigenem Link je Meldung. Kunden schalten sie im Profil unter „Benachrichtigungen“ ab (Metadaten des Logins `hub_mail_notifications`); die Glocke bleibt.
-- Links führen direkt zur Stelle: Projekte öffnen das Projekt, Termine den Kalender an diesem Tag mit dem Termin (`?appointment=<id>`), neue Dateien die Datei (`?file=<id>`).
-- Neue, bestätigte und verschobene Termine bekommen in der E-Mail „In deinen Kalender eintragen“: Apple Kalender, Google Kalender, Outlook (Microsoft 365) und eine .ics-Datei für andere Apps, in der Mail zu einem einzelnen Termin als eigener Block mit vier Buttons, in Sammel-Mails als kompakte Links. Die Buttons sind signierte Links auf `/api/calendar/<Termin>/…` (HMAC mit `HUB_NOTIFY_TOKEN`, ohne Login nutzbar); die Route liest den Termin beim Öffnen neu und liefert die .ics-Datei oder leitet zu Google bzw. Outlook weiter. Abgesagte Termine landen so nie mit alter Zeit im Kalender. Die Termin-ID steckt im Link der Meldung (`/dashboard/calendar?appointment=<id>`), siehe `lib/hub-calendar/links.ts`.
-
-Einrichtung: Nach der Migration den Wert von `oalab_hub_notify_token` aus Supabase (Project Settings → Vault) als `HUB_NOTIFY_TOKEN` in Vercel (Production, „Sensitive“) eintragen, für lokale Tests auch in `.env.local`, und neu deployen.
-
-### Telegram für Admins
-
-Jede Nachricht, die ein Kunde im privaten Chat schreibt, kommt auch in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text (über 3.500 Zeichen gekürzt), dazu der Knopf „Im Hub öffnen“. Geantwortet wird im Hub (`lib/hub-telegram/`). Das läuft kostenlos über die offizielle Bot API von Telegram, ohne eigenen Server und ohne Webhook. Die Gruppe löscht ihre Nachrichten nach 24 Stunden (Einstellung in Telegram, Entscheidung des Nutzers vom 12. November 2026).
-
-1. In Telegram dem Bot @BotFather `/newbot` schicken, Namen und Benutzernamen (endet auf „bot“) wählen. BotFather antwortet mit dem Token.
-2. Eine Gruppe mit allen Admins anlegen, den Bot hinzufügen und in der Gruppe `/start@<benutzername_des_bots>` senden.
-3. Im Browser `https://api.telegram.org/bot<TOKEN>/getUpdates` öffnen. Bei `"chat"` steht die Nummer der Gruppe (beginnt mit `-100`).
-4. In Coolify bei der App des Hubs unter „Environment Variables“ eintragen (nur zur Laufzeit, nicht beim Bauen) und neu deployen:
+Alle nur serverseitig, nie mit `NEXT_PUBLIC_`, außer wo genannt. Beispiele: `.env.example`.
 
 | Variable | Typ | Zweck |
 | --- | --- | --- |
+| `OALAB_PLATFORM` | Config | `own` = eigene Plattform |
+| `DATABASE_URL`, `OALAB_DATABASE_*` | Secret | PostgreSQL |
+| `OALAB_REST_URL`, `OALAB_REST_JWT_SECRET` | Secret | internes PostgREST |
+| `BETTER_AUTH_SECRET` | Secret | Sitzungen (wie Service) |
+| `OALAB_OBJECT_STORAGE_*` | Secret | Garage |
+| `NEXT_PUBLIC_SITE_URL` | Config | Adresse für Links in Mails |
+| `OALAB_AUTH_COOKIE_DOMAIN`, `OALAB_SERVICE_URL` | Config | nur lokaler Test mit Service |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | Secret | Mailversand über `hub@oalab.de` |
+| `MAIL_FROM`, `MAIL_REPLY_TO`, `HUB_TEAM_EMAIL` | Config | Absender, Antworten, Team-Empfänger |
+| `HUB_NOTIFY_TOKEN` | Secret | Benachrichtigungstakt, signierte Kalender-Links |
+| `HUB_VAULT_KEY` | Secret | Verschlüsselung der Kunden-Zugänge (32 Byte, Base64); überall derselbe |
+| `HUB_MCP_ENABLED` | Config | Claude-Connector an/aus |
+| `ANTHROPIC_API_KEY` | Secret | Assistent |
 | `TELEGRAM_BOT_TOKEN` | Secret | Token des Bots von BotFather |
 | `TELEGRAM_CHAT_ID` | Config | Nummer der Gruppe der Admins |
-
-5. Im Profil unter „Benachrichtigungen“ mit „Testmeldung senden“ prüfen.
-
-Ohne beide Werte sendet der Hub nichts an Telegram, auch keine Fehlermeldung. Bot-Chats sind nicht Ende-zu-Ende-verschlüsselt. Auf dem Sperrbildschirm lässt sich die Vorschau in Telegram unter Einstellungen → Mitteilungen abschalten. Wird der Token bekannt, macht ihn `/revoke` bei BotFather ungültig.
-
-## KI-Assistent (Claude)
-
-Der Chat hinter „Assistent & Hilfe“ beantwortet Fragen zu den Funktionen des Hubs mit **Claude Opus 5.5** über das offizielle SDK `@anthropic-ai/sdk`. Grundlage ist die Wissensbasis in `lib/hub-assistant/knowledge.ts`; sie muss bei jeder Funktionsänderung mitgezogen werden (`tests/hub-assistant.test.mjs` prüft Bereiche, Dateikategorien und Terminstatus). Die Route `app/api/assistant/route.ts` antwortet nur angemeldeten Supabase-Nutzern, liest die Rolle (Admin oder Kunde) aus dem Token und schickt nur den Gesprächsverlauf an Anthropic, keine Kundendaten. Vorschau und öffentliche Demo senden keine Fragen.
-
-Schlüssel in `.env.local` eintragen (niemals einchecken) und für den Livebetrieb als Secret in Vercel (Production) anlegen:
-
-```env
-ANTHROPIC_API_KEY=<API-Schlüssel aus der Claude Console>
-```
-
-Ohne Schlüssel zeigt der Chat „Der Assistent ist noch nicht eingerichtet“.
-
-**Claude Code im Repo:** Der Projektbefehl `/hub-hilfe` (`.claude/commands/hub-hilfe.md`) beantwortet dieselben Fragen im Terminal anhand der Wissensbasis und des Codes, nur lesend. Voraussetzung ist ein angemeldetes Claude Code (`claude`, dann `/login`).
-
-```sh
-claude "/hub-hilfe Wie nehme ich eine Terminanfrage an?"
-claude -p "/hub-hilfe Wo finden Kunden ihre Dateien?"
-```
-
-## WhatsApp-Anbindung
-
-Kunden und Admins können dem KI-Assistenten auch per WhatsApp schreiben. Die Anbindung läuft über die offizielle **WhatsApp Cloud API** von Meta (Graph API v26.0), ohne Zwischenanbieter.
-
-- **Verbinden:** Nur verbundene Nummern bekommen KI-Antworten. Im Profil unter „WhatsApp verbinden“ erzeugt man einen Code (gültig 15 Minuten) und sendet „VERBINDEN 123456“ an die oalab-Nummer.
-- **Ablauf:** Der Webhook `app/api/whatsapp/route.ts` prüft die Signatur jeder Lieferung, bestätigt sofort und antwortet dann im Hintergrund mit derselben Wissensbasis wie der Chat.
-- **Grenzen:** 30 Fragen pro Nummer und Tag; „TEAM“ nennt den Kontakt (`WHATSAPP_SUPPORT_CONTACT`, Standard info@oalab.de). Der Verlauf wird nach 48 Stunden gelöscht.
-
-**Kosten:** Pro Nummer und Monat sind 1.000 Antworten bei Meta frei. Danach berechnet Meta jede Antwort; dafür muss im Meta-Konto eine Zahlungsmethode hinterlegt sein, sonst werden weitere Antworten nicht zugestellt. Dazu kommen die Kosten für Claude.
-
-**Einrichtung bei Meta:**
-
-1. Auf developers.facebook.com eine App vom Typ „Business“ anlegen und das Produkt **WhatsApp** hinzufügen. Für Tests stellt Meta eine Testnummer bereit; für den Betrieb eine eigene Nummer hinzufügen, die nicht in der normalen WhatsApp-App registriert ist.
-2. Im Business Manager einen Systembenutzer mit der Berechtigung `whatsapp_business_messaging` anlegen und einen dauerhaften Token erzeugen.
-3. Unter WhatsApp → Konfiguration den Webhook eintragen: Rückruf-URL `https://oalab-client-hub.vercel.app/api/whatsapp`, Verifizierungstoken = `WHATSAPP_VERIFY_TOKEN`. Danach das Feld **messages** abonnieren.
-4. Die Werte in Vercel (Production) eintragen und neu deployen:
-
-| Variable | Typ | Zweck |
-| --- | --- | --- |
-| `WHATSAPP_ACCESS_TOKEN` | Secret | Dauerhafter Token des Systembenutzers |
-| `WHATSAPP_PHONE_NUMBER_ID` | Config | Telefonnummer-ID aus WhatsApp → API-Setup |
-| `WHATSAPP_APP_SECRET` | Secret | App-Geheimcode (App-Einstellungen → Allgemein), prüft die Signatur |
-| `WHATSAPP_VERIFY_TOKEN` | Secret | Selbst gewählte Zeichenkette, gleich wie im Webhook-Formular |
-| `WHATSAPP_BUSINESS_NUMBER` | Config | Die WhatsApp-Nummer international ohne „+“, für den Link im Profil |
-| `WHATSAPP_SUPPORT_CONTACT` | Config | Optional, Kontakt für „TEAM“ (Standard info@oalab.de) |
-| `SUPABASE_SECRET_KEY` | Secret | Der Webhook läuft ohne Login und schreibt nur in die WhatsApp-Tabellen |
-| `ANTHROPIC_API_KEY` | Secret | Antworten von Claude |
-
-Lokal erreicht Meta `localhost` nicht. Zum Testen echter Nachrichten braucht es eine öffentliche URL, z. B. ein Vercel-Preview-Deployment oder einen Tunnel. `tests/hub-whatsapp.test.mjs` prüft Signatur, Nachrichtenauswertung, Codes und Verlauf ohne Meta.
+| `WHATSAPP_*` | Secret/Config | WhatsApp-Anbindung, siehe Einrichtung |
+| `HUB_LOCAL_ADMIN_EMAIL`, `HUB_LOCAL_TUNNEL_SCRIPT` | lokal | nur `.env.local` |
+| `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SECRET_KEY` | Config/Secret | nur Supabase-Rückweg |
 
 ## Prüfungen
 
@@ -218,31 +60,16 @@ npm test
 npm run build
 ```
 
-Die Unit-Tests prüfen Auth-Weiterleitungen, das gemeinsame Login-Cookie und die Server-Aktionen für Login und Registrierung, Branding, Textkontrast und Darstellungslogik des Hubs, Upload-Regeln, Ordnernamen, ZIP-Dateinamen, RLS-Migrationen und Musterdateien der Dateiablage, die Kalenderregeln samt Migration und Projekt-Terminierungen, Suche und Sortierung der Tabellen, Eingaberegeln, Migration und Admin-Prüfungen des User Managements sowie Gesprächsregeln und Wissensbasis des KI-Assistenten, die WhatsApp-Anbindung (Signatur, Nachrichten, Codes, Verlauf, RLS) und die E-Mails (Vorlagen und Maskierung, SMTP-Zugang und -Nachricht, Versandprotokoll, Supabase-Vorlagen). Bestätigungs- und Passwort-E-Mails sind noch separat zu prüfen.
+- `npm test`: Node-Tests in `tests/` (Liste in `package.json`)
+- Windows mit `core.autocrlf=true`: Musterdatei-Test der Beispiel-PDFs schlägt fehl (bekannt, kein Befund)
 
-## Supabase-Authentifizierung
+## Wo was liegt
 
-**Ein Login für Hub und Service (seit 25. Oktober 2026):** Der Hub nutzt das Supabase-Projekt von Service OALab (`hxljfihyejwpugnsffcc`). Beide Apps schreiben die Sitzung in dasselbe HttpOnly-Cookie `sb-oalab-auth-token` (`lib/supabase/cookies.ts`, gleiche Werte in `service-oalab/apps/web/lib/supabase/config.ts`). Auf `oalab.de` und Subdomains trägt es `Domain=oalab.de`, Secure und SameSite=Lax; wer im Hub angemeldet ist, öffnet service.oalab.de ohne zweite Anmeldung, und Abmelden in einer App beendet die Sitzung in beiden. Vorschauen und localhost bleiben hostgebunden; für einen lokalen Test beider Apps `OALAB_AUTH_COOKIE_DOMAIN=oalab.localhost` setzen und die Apps unter `hub.oalab.localhost` und `service.oalab.localhost` öffnen. Alte Cookies des früheren Hub-Projekts entfernt der Proxy; Hub-Konten melden sich nach der Umstellung einmal neu an. Das gemeinsame Projekt liegt seit dem Abend des 25. Oktober 2026 in der Supabase-Organisation **OALAB** (Konto `oalabhypercode`); Adresse und Schlüssel blieben beim Umzug gleich. Das alte Hub-Projekt `oalab-client-hub-dev` (`tjbslvwvisxjjcxfhbgm`) ist pausiert.
-
-Login, Registrierung, „Passwort vergessen“ und Abmelden laufen über Server-Aktionen (`lib/hub-auth/actions.ts`), nie im Browser. Die öffentliche Registrierung bleibt im Supabase-Projekt abgeschaltet: Der Hub legt das wartende Konto mit dem Secret Key an und schickt den Bestätigungslink selbst per SMTP (`registration.confirmation`). Login, Registrierung und Passwort-Links sind je Adresse und Netz begrenzt (`hub_take_auth_rate`). Die Rollen für Service kommen weiter aus `memberships`; eine Sperre im Hub (`hub_profiles.status` `disabled` oder `rejected`) sperrt auch dort. Das Schema mit allen `hub_*`-Tabellen pflegt `service-oalab/supabase/migrations` (`202610250001_hub_schema.sql`); `npm run db:push` in diesem Repo wendet nichts mehr an.
-
-**Zweiter Faktor nach Wahl (seit 26. Oktober 2026, ohne Zusatzkosten):** Jedes Konto wählt im Profil („Zwei-Faktor-Schutz“) genau eine Methode: Aus, Code per E-Mail oder Authenticator-App (`app_metadata.second_factor = "email" | "totp"`); beim Login fragt der Hub nur diese ab. Admins können im User Management auf E-Mail oder Aus zurücksetzen, etwa nach einem verlorenen Handy; die App wird dabei entfernt. Eine App ohne gewählte Methode zählt als App, eine gewählte, aber entfernte App als E-Mail.
-- **Authenticator-App:** Einrichtung im Profil mit QR-Code und Schlüssel, bestätigt mit dem ersten Code. Beim Login prüft Supabase MFA den Code selbst (`challengeAndVerify`) und hebt die Sitzung auf `aal2`. Wer die App verlässt, verliert sie, sonst verlangt Supabase sie weiter.
-- **Code per E-Mail:** Der Hub verschickt ihn nach dem Passwort über `hub@oalab.de` an die Login-Adresse; er gilt 10 Minuten und erlaubt fünf Versuche, „Neuen Code senden“ ist je Adresse und Netz begrenzt (`login_code`). Die Datenbank kennt nur den Hash, gebunden an die Supabase-Sitzung (`oalab_mail_codes`, `oalab_mail_code_sessions`). Nach dem richtigen Code stellt der Access-Token-Hook `public.oalab_access_token_hook` die Tokens dieser Sitzung mit `aal2` aus, höchstens 30 Tage lang. Fehlt der Hook, bricht der Hub den Code-Login mit einer Meldung ab.
-- **Passwort zurücksetzen:** Aus: Link, neues Passwort. E-Mail: Der Link zählt als Code (`lib/hub-auth/recovery.ts`), also kein zweiter Code. App: Link, App-Code, neues Passwort; Supabase verlangt ihn, und er schützt bei einem geknackten Postfach.
-- Hub-Seiten, -Aktionen, der Assistent und die Team-Bereiche von Service verlangen `aal2`. Service schickt Team-Konten ohne `aal2` auf `/auth/mfa?next=<Service-Adresse>` im Hub und bekommt sie danach zurück (`serviceDestination`, lokal mit `OALAB_SERVICE_URL`). Migration: `service-oalab/supabase/migrations/202610260001_mail_second_factor.sql`. `npm run auth:second-factor` zeigt alle Konten mit zweitem Faktor.
-
-Der Workspace prüft die Sitzung im Proxy und erneut auf dem Server; einen Zugang ohne Login gibt es nicht. Die Vorschau enthält keine echten Kundendaten.
-
-Für PKCE-E-Mail-Flows müssen in Supabase die passenden Redirect-URLs erlaubt sein:
-
-- `<origin>/auth/callback?next=/dashboard`
-- `<origin>/auth/callback?next=/auth/update-password`
-
-Die eigenen Vorlagen in `supabase/templates/` sind Token-Hash-Templates und nutzen `/auth/confirm`. Recovery-Links führen standardmäßig zum Formular für ein neues Passwort. Den aktuellen Projektzugang und offene Auth-Entscheidungen beschreibt [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md).
-
-## Technische Basis
-
-Next.js 16.4, React 19, TypeScript, Tailwind CSS und Supabase SSR. Die zentralen CI-Tokens stehen in `app/brand.css`, die Hub-Oberfläche in `app/glass.css`, Login- und Basisstile in `app/hub.css`, die Einblend-Animation und „Bewegung reduzieren“ in `app/motion.css`. Hintergrund-Presets und Glas-Grenzwerte liegen in `lib/appearance.ts`, Kategorien in `lib/categories.ts`, Kennzahlen, Insights und Highlights in `lib/hub-metrics.ts` und fiktive Inhalte in `lib/hub-data.ts`.
-
-Keine Secret Keys, Passwörter oder personenbezogenen Kundendaten ins Repository einchecken.
+- Stile: `app/brand.css` (Marke), `app/glass.css` (Hub, Tokens hell/dunkel), `app/hub.css` (Auth, Basis), `app/motion.css` (Einblenden, „Bewegung reduzieren“)
+- Darstellung, Presets, Grenzwerte: `lib/appearance.ts`; Kategorien: `lib/categories.ts`; Kennzahlen: `lib/hub-metrics.ts`; Beispieldaten: `lib/hub-data.ts`
+- Bildschirme: `components/hub/screens/`; Navigation: `components/hub/navigation.ts`
+- Bereiche: `lib/hub-*/` (je Bereich Regeln, Server, Aktionen; `write.ts` = gemeinsamer Schreibweg für Hub und Claude-Connector)
+- Mails: `lib/hub-mail/`; Rechtstexte: `components/legal/`, `lib/legal-details.ts`
+- Patch Notes: `lib/patch-notes.ts`; Assistent-Wissen: `lib/hub-assistant/knowledge.ts`
+- Claude-Code-Befehl `/hub-hilfe`: `.claude/commands/hub-hilfe.md`
+- Keine Secret Keys, Passwörter oder Kundendaten ins Repository (Repo ist öffentlich)
