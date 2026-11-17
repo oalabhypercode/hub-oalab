@@ -10,6 +10,8 @@ import { loadServiceQuotaForAdmin } from "@/lib/hub-service-quota/server";
 import { emptyServiceQuota } from "@/lib/hub-service-quota/types";
 import { quotaMonth } from "@/lib/hub-service-quota/rules";
 import { conversationState, requestReference } from "@/lib/hub-conversations/rules";
+import { readArchive } from "@/lib/hub-archive/server";
+import { noArchive } from "@/lib/hub-archive/rules";
 import { closedRequestStates, countRequests, doneRequestStates, toHubProject, toProjectTask, websiteUrl, type LiveProjectsState, type StudioDetailsRow, type StudioProjectRow, type StudioTaskRow } from "./map";
 import type { DeskCustomer, DeskRequest, ProjectDesk } from "./desk";
 
@@ -36,16 +38,19 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
 
   // Customers read details and tasks with their own session, so Studio's RLS keeps internal tasks away from them.
   const reader = admin ? db : viewer;
-  const [projects, details, tasks, requests] = await Promise.all([
+  const [projects, details, tasks, requests, archive] = await Promise.all([
     db.from("customer_projects").select("id, organization_id, display_name, status, test_url, live_url").in("id", ids).neq("status", "archived").returns<StudioProjectRow[]>(),
     reader.from("studio_project_details").select(admin ? ADMIN_DETAILS : DETAILS).in("project_id", ids).returns<StudioDetailsRow[]>(),
     reader.from("studio_tasks").select(TASKS).in("project_id", ids).eq("archived", false).returns<StudioTaskRow[]>(),
     db.from("service_requests").select("project_id, state").in("project_id", ids).is("trashed_at", null).returns<{ project_id: string; state: string }[]>(),
+    // Projects of archived (or deleted) customers stay out of the admins' view; Service keeps them.
+    admin ? readArchive(db) : noArchive,
   ]);
   const error = projects.error ?? details.error ?? tasks.error ?? requests.error;
   if (error) return unavailable("Die Projekte konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
-  const organizationIds = [...new Set((projects.data ?? []).map((row) => row.organization_id))];
+  const shown = (projects.data ?? []).filter((row) => !archive.organizationIds.has(row.organization_id));
+  const organizationIds = [...new Set(shown.map((row) => row.organization_id))];
   const [organizations, customers] = organizationIds.length
     ? await Promise.all([
       db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>(),
@@ -61,7 +66,7 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
   const detailsById = new Map((details.data ?? []).map((row) => [row.project_id, row]));
   return {
     error: null,
-    projects: (projects.data ?? [])
+    projects: shown
       .map((project) => toHubProject({
         project,
         details: detailsById.get(project.id) ?? null,
@@ -117,15 +122,16 @@ export const loadProjectDesk = cache(async (): Promise<ProjectDesk | undefined> 
   if (!await verifyHubAdmin()) return undefined;
   const db = createAdminClient();
   if (!db) return deskFailed("Projekte sind noch nicht eingerichtet: Es fehlt der Server-Schlüssel (SUPABASE_SECRET_KEY).");
-  const [customers, packages, quota, confirmed] = await Promise.all([
+  const [customers, packages, quota, archive, confirmed] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number, website, organization_id, kind").order("company").returns<DeskCustomerRow[]>(),
     readCustomerPackages(db),
     loadServiceQuotaForAdmin(db).catch(() => emptyServiceQuota("failed")),
+    readArchive(db),
     sessionConfirmed(),
   ]);
   if (customers.error) return deskFailed("Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
-  // Freelancers hold no projects and no packages: only entries of the kind customer.
-  const rows = (customers.data ?? []).filter((row) => (row.kind ?? "customer") === "customer");
+  // Freelancers hold no projects and no packages: only entries of the kind customer, and no archived ones.
+  const rows = (customers.data ?? []).filter((row) => (row.kind ?? "customer") === "customer" && !archive.customerIds.has(row.id));
   const ids = rows.map((row) => row.id);
   const organizationIds = [...new Set(rows.flatMap((row) => row.organization_id ? [row.organization_id] : []))];
   // The month as the quota counts it (German time); without the quota there is no month to count finished ones in.

@@ -3,8 +3,15 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 9. November 2026
+**Stand:** 17. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
+
+### Vorgabe vom 17. November 2026: Kunden archivieren und endgültig löschen
+
+- Wunsch des Nutzers vor dem offiziellen Start: Test- und Scheinkunden aus der Datenbank entfernen. Der Claude-Connector löscht bewusst nichts (Plan vom 16.11.), und im Hub gab es bis dahin nur „Zugang löschen“. Entschieden: Löschen und Archivieren, beides im User Management; Zugänge gehen beim Löschen mit; Service-Anfragen werden nie gelöscht, sie bleiben archiviert in Service.
+- Archivieren: Der Kunde oder Freelancer verschwindet überall im Hub außer im User Management (Asset Management samt Ordnern und Dateien nur dieses Kunden, Projekte, Aufgaben-Board, Kalender samt Terminen, Nachrichten, Vertrag & Domain, Schlüsselbund, Assistent, Claude-Connector). Seine aktiven Zugänge werden gesperrt (nie Admins oder das oalab-Team) und gemerkt, die Service-Organisation wird archiviert. Als archiviert gilt ein Eintrag, wenn `hub_customers.archived_at` gesetzt ist oder seine Organisation in Service archiviert ist (`lib/hub-archive`). Freelancer sehen archivierte Kunden, ihre Dateien und Studio-Projekte nicht mehr (Datenbankregeln). „Wiederherstellen“ macht alles rückgängig, mit genau den gemerkten Zugängen.
+- Löschen: nach einer Vorschau (was wegfällt, was bleibt) und Eingabe der Nummer. Im Hub geht alles mit, was am Eintrag hängt; Dateien nur dieses Eintrags und sein Logo verlassen auch den Speicher. Zugänge werden gelöscht; braucht Service einen noch, wird er gesperrt und gelöst. Die Service-Organisation bleibt archiviert stehen (unveränderliches Protokoll), ihre Kundennummer bleibt dort vergeben.
+- Datenbank: service-oalab#31, Migration `202611170001_hub_customer_archive` mit `hub_archive_customer`, `hub_restore_customer`, `hub_delete_customer` (je eine Transaktion, nur Service-Rolle). Sie baut auf service-oalab#29 auf (`202611160003`: der Abgleich legt zu archivierten Organisationen keinen Hub-Kunden mehr an, ein gelöschter bleibt also weg). Beide werden zusammen über den Coolify-Import eingespielt.
 
 ### Vorgabe vom 16. November 2026: Claude-Connector (MCP), Schritte 1 bis 3
 

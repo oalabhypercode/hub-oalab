@@ -439,6 +439,20 @@ test("writing goes through the hub's own save code, with the admin's claims, log
     assert.ok(writes.includes(action), action);
   }
   assert.match(writes, /createProjectAs\(team, [^\n]*"claude"\)/);
+  // Archived customers (lib/hub-archive) are out of sight for the hub and the reading tools, so nothing is written for
+  // them: their appointments count as gone, they are no customer to book or create for, their projects take no tasks.
+  assert.match(writes, /&& !isArchivedCustomer\(archive, data\.id\) \? data : null;/);
+  assert.match(writes, /return data && !isArchivedCustomer\(archive, data\.customer_id\) \? data : null;/);
+  assert.match(writes, /archived: project\.data\.status === "archived" \|\| isArchivedOrganization\(archive, project\.data\.organization_id\)/);
+  for (const name of ["createTasks", "updateTask", "moveTask", "addTaskComment"]) {
+    const start = writes.indexOf(`async function ${name}(`);
+    const body = writes.slice(writes.indexOf("\n", start), writes.indexOf("\n}\n", start));
+    assert.match(body, /if \(!project \|\| project\.archived\) return refuse\(noProject\);/, name);
+    const firstWrite = body.search(/\b(createTaskAs|updateTaskAs|moveTaskAs|addCommentAs|onCurrentTask)\(/);
+    assert.ok(firstWrite > 0 && body.indexOf("project.archived") < firstWrite, `${name}: checked before writing`);
+  }
+  assert.match(writes.slice(writes.indexOf("async function createProject(")), /if \(!\(await customerOf\(w, read\.value\.customerId\)\)\) return refuse\(noCustomer\);/);
+  assert.match(await source("lib/hub-tasks/server.ts"), /archive\.organizationIds\.has\(project\.data\.organization_id\)\) return null;/, "no assignees for an archived customer's project");
 
   // The hub's windows save through the same cores; the cores are no Server Actions.
   const calendar = await source("lib/hub-calendar/actions.ts");

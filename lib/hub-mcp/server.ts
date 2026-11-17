@@ -4,6 +4,7 @@ import { siteOrigin } from "@/lib/site-origin";
 import { todayIso } from "@/lib/hub-routes";
 import { loadAssistantDataForCheckedAdmin } from "@/lib/hub-assistant/data";
 import { loadAvailability } from "@/lib/hub-calendar/server";
+import { readArchive } from "@/lib/hub-archive/server";
 import { addDays, isAppointmentStatus, wallTimeToUtc } from "@/lib/hub-calendar/rules";
 import { loadAssignees } from "@/lib/hub-tasks/server";
 import { hasScope, checkClientDocument, type ClientDocument } from "./oauth";
@@ -54,15 +55,16 @@ type AppointmentRow = {
 };
 
 /**
- * Appointments and availability for the days `from` … `to` as an admin sees them (all appointments; the weekly plan
- * and exceptions), read with the server key after the key check. Null when the calendar cannot be read.
+ * Appointments and availability for the days `from` … `to` as an admin sees them (all appointments but those of
+ * archived customers, as in the hub's calendar; the weekly plan and exceptions), read with the server key after the
+ * key check. Null when the calendar cannot be read.
  */
 async function loadCalendar(from: string, to: string): Promise<CalendarData | null> {
   const db = createAdminClient();
   if (!db) return null;
   const start = new Date(wallTimeToUtc(from, "00:00")).toISOString();
   const end = new Date(wallTimeToUtc(addDays(to, 1), "00:00")).toISOString();
-  const [appointments, open] = await Promise.all([
+  const [appointments, open, archive] = await Promise.all([
     db.from("hub_appointments")
       .select("id, title, description, starts_at, ends_at, status, teams_url, customer:hub_customers(id, customer_number, company)")
       .lt("starts_at", end)
@@ -70,12 +72,13 @@ async function loadCalendar(from: string, to: string): Promise<CalendarData | nu
       .order("starts_at")
       .returns<AppointmentRow[]>(),
     loadAvailability(db, true, from, to),
+    readArchive(db),
   ]);
   if (appointments.error) return null;
   return {
     availability: open.availability,
     availabilityReady: open.ready,
-    appointments: (appointments.data ?? []).map((row): CalendarAppointment => ({
+    appointments: (appointments.data ?? []).filter((row) => !row.customer || !archive.customerIds.has(row.customer.id)).map((row): CalendarAppointment => ({
       id: row.id,
       title: row.title,
       description: row.description,

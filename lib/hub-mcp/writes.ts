@@ -1,6 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isArchivedCustomer, isArchivedOrganization, type ArchiveState } from "@/lib/hub-archive/rules";
+import { readArchive } from "@/lib/hub-archive/server";
 import { connectorClaims } from "@/lib/platform/auth";
 import { createOwnClaimsClient } from "@/lib/platform/client";
 import { appointmentStatuses, formatDayShort, isAppointmentStatus, timeOf, wallTimeToUtc } from "@/lib/hub-calendar/rules";
@@ -24,16 +26,22 @@ import {
 // customer's notices and the names in Studio's history are the same as if the admin had saved in the hub. Checks read
 // with the server key, as the board does for admins. Every change also gets a line in the admin log (`claude.*`).
 // Nothing here deletes or archives; the hub pages show the change on their next load (no Server Action, no refresh()).
+// Archived customers (lib/hub-archive) are out of sight in the hub and for the reading tools, so Claude writes nothing
+// for them either: no appointment, task or project of an archived customer or of a project of its organization.
 
 type Json = Record<string, unknown>;
 type Db = NonNullable<ReturnType<typeof createAdminClient>>;
-type Writer = { userId: string; db: Db; supabase: SupabaseClient; origin: string; today: string };
+type Writer = { userId: string; db: Db; supabase: SupabaseClient; origin: string; today: string; archive?: Promise<ArchiveState> };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const json = (value: unknown): ToolResult => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 const refuse = (message: string): ToolResult => ({ content: [{ type: "text", text: message }], isError: true });
-const noCustomer = "Diesen Kunden gibt es nicht. Nimm die ID aus search.";
+const noCustomer = "Diesen Kunden gibt es nicht oder er ist archiviert. Nimm die ID aus search.";
 const noAppointment = "Diesen Termin gibt es nicht. Nimm die ID aus list_appointments.";
+const noProject = "Das Projekt gibt es nicht mehr oder es ist archiviert.";
+
+/** What the hub keeps out of sight, read once per call. */
+const archiveOf = (w: Writer) => (w.archive ??= readArchive(w.db));
 
 /** Runs one writing tool for a checked connection with the right to write (lib/hub-mcp/server.ts checks both). */
 export async function runWriteTool(connection: Connection, name: string, args: Json, context: { origin: string; today: string }): Promise<ToolResult> {
@@ -63,19 +71,26 @@ export async function runWriteTool(connection: Connection, name: string, args: J
 
 const calendarClient = (w: Writer) => w.supabase as unknown as CalendarClient;
 
-/** A customer of the hub (not a freelancer entry), with its company; null when unknown. */
+/** A customer of the hub (not a freelancer entry, not archived), with its company; null otherwise. */
 async function customerOf(w: Writer, customerId: string | null) {
   if (!customerId || !uuid.test(customerId)) return null;
-  const { data } = await w.db.from("hub_customers").select("id, company, kind").eq("id", customerId).maybeSingle<{ id: string; company: string; kind: string | null }>();
-  return data && (data.kind ?? "customer") === "customer" ? data : null;
+  const [{ data }, archive] = await Promise.all([
+    w.db.from("hub_customers").select("id, company, kind").eq("id", customerId).maybeSingle<{ id: string; company: string; kind: string | null }>(),
+    archiveOf(w),
+  ]);
+  return data && (data.kind ?? "customer") === "customer" && !isArchivedCustomer(archive, data.id) ? data : null;
 }
 
 type StoredRow = { id: string; title: string; description: string; starts_at: string; ends_at: string; status: string; teams_url: string | null; customer_id: string | null };
 
+/** An appointment as stored; one of an archived customer counts as gone, as in the hub's calendar. */
 async function storedAppointment(w: Writer, id: unknown) {
   if (typeof id !== "string" || !uuid.test(id)) return null;
-  const { data } = await w.db.from("hub_appointments").select("id, title, description, starts_at, ends_at, status, teams_url, customer_id").eq("id", id).maybeSingle<StoredRow>();
-  return data ?? null;
+  const [{ data }, archive] = await Promise.all([
+    w.db.from("hub_appointments").select("id, title, description, starts_at, ends_at, status, teams_url, customer_id").eq("id", id).maybeSingle<StoredRow>(),
+    archiveOf(w),
+  ]);
+  return data && !isArchivedCustomer(archive, data.customer_id) ? data : null;
 }
 
 function appointmentAnswer(w: Writer, id: string, input: AppointmentInput, status: string, company: string | null) {
@@ -161,12 +176,23 @@ async function cancelAppointment(w: Writer, args: Json): Promise<ToolResult> {
 
 const taskContext = (w: Writer): TaskContext => ({ userId: w.userId, supabase: w.supabase, read: w.db as unknown as SupabaseClient, db: w.db, freelancer: false });
 
-/** The project of a task tool: its name and the hub customer of its organization, for the answer and the log. */
+/**
+ * The project of a task tool: its name and the hub customer of its organization, for the answer and the log. A project
+ * archived itself or belonging to an archived customer (lib/hub-archive) counts as archived: Claude writes nothing there.
+ */
 async function projectOf(w: Writer, projectId: string) {
-  const project = await w.db.from("customer_projects").select("id, display_name, organization_id, status").eq("id", projectId).maybeSingle<{ id: string; display_name: string; organization_id: string; status: string }>();
+  if (!uuid.test(projectId)) return null;
+  const [project, archive] = await Promise.all([
+    w.db.from("customer_projects").select("id, display_name, organization_id, status").eq("id", projectId).maybeSingle<{ id: string; display_name: string; organization_id: string; status: string }>(),
+    archiveOf(w),
+  ]);
   if (!project.data) return null;
   const customer = await w.db.from("hub_customers").select("id").eq("organization_id", project.data.organization_id).eq("kind", "customer").limit(1).maybeSingle<{ id: string }>();
-  return { name: project.data.display_name, archived: project.data.status === "archived", customerId: customer.data?.id };
+  return {
+    name: project.data.display_name,
+    archived: project.data.status === "archived" || isArchivedOrganization(archive, project.data.organization_id),
+    customerId: customer.data?.id,
+  };
 }
 
 type FoundTask = { id: string; version: number; title: string; archived: boolean };
@@ -198,7 +224,7 @@ async function createTasks(w: Writer, args: Json): Promise<ToolResult> {
   const read = readNewTasks(args);
   if (!read.ok) return refuse(read.error);
   const project = await projectOf(w, projectId);
-  if (!project || project.archived) return refuse("Das Projekt gibt es nicht mehr oder es ist archiviert.");
+  if (!project || project.archived) return refuse(noProject);
 
   const ctx = taskContext(w);
   const created: Json[] = [];
@@ -243,11 +269,12 @@ async function updateTask(w: Writer, args: Json): Promise<ToolResult> {
   const patch = readTaskPatch(fields);
   if (!patch.ok) return refuse(patch.error);
   if (!Object.keys(patch.value).length) return refuse("Es gibt nichts zu ändern.");
+  const project = await projectOf(w, ref.value.projectId);
+  if (!project || project.archived) return refuse(noProject);
   const ctx = taskContext(w);
   const result = await onCurrentTask(w, ref.value, (task) => updateTaskAs(ctx, { taskId: task.id, expectedVersion: task.version, patch: patch.value }));
   if (!result.ok) return refuse(result.error);
-  const project = await projectOf(w, ref.value.projectId);
-  await logEvent(w.userId, "claude.task.updated", `Aufgabe „${result.data.title}“${project ? ` in „${project.name}“` : ""} über Claude geändert`, project?.customerId);
+  await logEvent(w.userId, "claude.task.updated", `Aufgabe „${result.data.title}“ in „${project.name}“ über Claude geändert`, project.customerId);
   return json({
     saved: true,
     message: `„${result.data.title}“ ist gespeichert.`,
@@ -260,6 +287,8 @@ async function moveTask(w: Writer, args: Json): Promise<ToolResult> {
   if (!ref.ok) return refuse(ref.error);
   if (!isStatus(args.status)) return refuse("Diese Spalte gibt es nicht.");
   const status = args.status;
+  const project = await projectOf(w, ref.value.projectId);
+  if (!project || project.archived) return refuse(noProject);
   const ctx = taskContext(w);
   const result = await onCurrentTask(w, ref.value, async (task) => {
     const column = await w.db.from("studio_tasks").select("board_order").eq("project_id", ref.value.projectId).eq("status", status).eq("archived", false).neq("id", task.id).returns<{ board_order: number }[]>();
@@ -267,8 +296,7 @@ async function moveTask(w: Writer, args: Json): Promise<ToolResult> {
     return moveTaskAs(ctx, { taskId: task.id, status, order, expectedVersion: task.version });
   });
   if (!result.ok) return refuse(result.error);
-  const project = await projectOf(w, ref.value.projectId);
-  await logEvent(w.userId, "claude.task.moved", `Aufgabe „${result.data.title}“ über Claude nach „${STATUS_NAMES[status]}“ verschoben`, project?.customerId);
+  await logEvent(w.userId, "claude.task.moved", `Aufgabe „${result.data.title}“ in „${project.name}“ über Claude nach „${STATUS_NAMES[status]}“ verschoben`, project.customerId);
   return json({
     saved: true,
     message: `„${result.data.title}“ steht jetzt in „${STATUS_NAMES[status]}“.`,
@@ -280,12 +308,13 @@ async function addTaskComment(w: Writer, args: Json): Promise<ToolResult> {
   const ref = readTaskRef(args);
   if (!ref.ok) return refuse(ref.error);
   if (typeof args.text !== "string") return refuse("Bitte den Kommentar als Text angeben.");
+  const project = await projectOf(w, ref.value.projectId);
+  if (!project || project.archived) return refuse(noProject);
   const task = await findTask(w, ref.value);
   if (!task || task.archived) return refuse("Diese Aufgabe gibt es in dem Projekt nicht. Nimm task_number aus get_project oder list_tasks.");
   const result = await addCommentAs(taskContext(w), { taskId: task.id, body: args.text });
   if (!result.ok) return refuse(result.error);
-  const project = await projectOf(w, ref.value.projectId);
-  await logEvent(w.userId, "claude.task.commented", `Kommentar zu „${task.title}“ über Claude geschrieben`, project?.customerId);
+  await logEvent(w.userId, "claude.task.commented", `Kommentar zu „${task.title}“ in „${project.name}“ über Claude geschrieben`, project.customerId);
   return json({
     saved: true,
     message: `Der Kommentar steht unter „${task.title}“. Kunden sehen ihn nicht.`,
@@ -298,6 +327,7 @@ async function addTaskComment(w: Writer, args: Json): Promise<ToolResult> {
 async function createProject(w: Writer, args: Json): Promise<ToolResult> {
   const read = readNewProject(args);
   if (!read.ok) return refuse(read.error);
+  if (!(await customerOf(w, read.value.customerId))) return refuse(noCustomer);
   const team: ProjectTeam = { userId: w.userId, supabase: w.supabase as unknown as ProjectTeam["supabase"], db: w.db };
   // createProjectAs writes the admin log line itself (claude.project.created).
   const result = await createProjectAs(team, { customerId: read.value.customerId, status: read.value.status, visible: read.value.visible, draft: read.value.draft }, "claude");

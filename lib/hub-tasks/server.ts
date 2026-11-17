@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { verifyHubAdmin, verifyHubFreelancer } from "@/lib/hub-users/server";
+import { readArchive } from "@/lib/hub-archive/server";
 import { initialsOf, loginName, NO_COUNTS, TASK_COLUMNS, toBoardTask, type StudioTaskRow, type TaskCounts } from "./rules";
 import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask, TaskBoardState } from "./types";
 
@@ -85,12 +86,15 @@ async function loadFreelancers(db: Db, organizationIds: string[], only?: readonl
   }
   const ids = [...serves.keys()];
   if (!ids.length) return [];
-  const [entries, members] = await Promise.all([
+  const [entries, members, archive] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number").in("id", ids).eq("kind", "freelancer").returns<{ id: string; company: string; customer_number: string }[]>(),
     db.from("hub_customer_members").select("customer_id, user_id").in("customer_id", ids).returns<{ customer_id: string; user_id: string }[]>(),
+    readArchive(db),
   ]);
   if (entries.error || members.error) return null;
+  // An archived freelancer no longer works on anything.
   return (entries.data ?? [])
+    .filter((entry) => !archive.customerIds.has(entry.id))
     .map((entry) => ({
       id: entry.id,
       name: entry.company,
@@ -159,11 +163,14 @@ async function boardPeople(db: Db, viewerId: string, team: Set<string>, freelanc
 /**
  * Who may hold a task of this project, with names as the admins' board shows them: the active oalab team and the
  * logins of the freelancers on the project (Studio's trigger accepts exactly these). For the Claude connector, which
- * assigns by id. Null when the project is gone or a read failed.
+ * assigns by id. Null when the project is gone, belongs to an archived customer (lib/hub-archive) or a read failed.
  */
 export async function loadAssignees(db: Db, projectId: string): Promise<BoardPerson[] | null> {
-  const project = await db.from("customer_projects").select("organization_id").eq("id", projectId).neq("status", "archived").maybeSingle<{ organization_id: string }>();
-  if (project.error || !project.data) return null;
+  const [project, archive] = await Promise.all([
+    db.from("customer_projects").select("organization_id").eq("id", projectId).neq("status", "archived").maybeSingle<{ organization_id: string }>(),
+    readArchive(db),
+  ]);
+  if (project.error || !project.data || archive.organizationIds.has(project.data.organization_id)) return null;
   const [team, links, freelancers] = await Promise.all([
     loadTeam(db),
     db.from("studio_project_freelancers").select("freelancer_id").eq("project_id", projectId).returns<{ freelancer_id: string }[]>(),
@@ -175,11 +182,14 @@ export async function loadAssignees(db: Db, projectId: string): Promise<BoardPer
   return peopleFor(db, [...new Set([...team, ...freelancerOf.keys()])], team, freelancerOf, "admin");
 }
 
-/** The oalab team's board: every running project of every customer. */
+/** The oalab team's board: every running project of every customer that is not archived (lib/hub-archive). */
 async function adminBoard(viewerId: string, db: Db): Promise<TaskBoardState> {
-  const projects = await db.from("customer_projects").select("id, organization_id, display_name, status").neq("status", "archived").returns<ProjectRow[]>();
+  const [projects, archive] = await Promise.all([
+    db.from("customer_projects").select("id, organization_id, display_name, status").neq("status", "archived").returns<ProjectRow[]>(),
+    readArchive(db),
+  ]);
   if (projects.error) return failed(LOAD_ERROR);
-  const rows = projects.data ?? [];
+  const rows = (projects.data ?? []).filter((row) => !archive.organizationIds.has(row.organization_id));
   const projectIds = rows.map((row) => row.id);
   const organizationIds = [...new Set(rows.map((row) => row.organization_id))];
 
@@ -224,10 +234,14 @@ async function freelancerBoard(viewerId: string, session: SupabaseClient, db: Db
   const none: TaskBoardState = { viewer: "freelancer", projects: [], tasks: [], people: [], freelancers: [], viewerId, confirmed: true, error: null };
   if (!ownIds.length) return none;
 
-  // Names of exactly these projects; archived ones are closed for freelancers as in the database's rules.
-  const projects = await db.from("customer_projects").select("id, organization_id, display_name, status").in("id", ownIds).neq("status", "archived").returns<ProjectRow[]>();
+  // Names of exactly these projects; archived ones, and those of archived customers, are closed for freelancers as in
+  // the database's rules (migration 202611170001 in service-oalab).
+  const [projects, archive] = await Promise.all([
+    db.from("customer_projects").select("id, organization_id, display_name, status").in("id", ownIds).neq("status", "archived").returns<ProjectRow[]>(),
+    readArchive(db),
+  ]);
   if (projects.error) return failed(LOAD_ERROR, "freelancer");
-  const rows = projects.data ?? [];
+  const rows = (projects.data ?? []).filter((row) => !archive.organizationIds.has(row.organization_id));
   if (!rows.length) return none;
   const projectIds = rows.map((row) => row.id);
   const organizationIds = [...new Set(rows.map((row) => row.organization_id))];
