@@ -25,6 +25,7 @@ import { SegmentedControl } from "../controls";
 import { useInfo } from "../info-box";
 import { LargeTitleHeader } from "../large-title-header";
 import { SheetActionMenu, ToolbarMenu } from "../sheet";
+import { useRefreshOnReturn } from "../use-refresh-on-return";
 import { CustomerSign } from "./customer-sign";
 import { AvailabilityPanel, type ExceptionPreset } from "./calendar-availability";
 import { AppointmentPanel, AskPanel, CustomerAppointmentPanel, GoalPanel, NewTaskPanel, RequestPanel, TaskPanel, type TaskProjectOption } from "./calendar-panels";
@@ -242,6 +243,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const taskList = useMemo<CalendarTask[]>(() => admin ? (board && !board.error ? boardTasks(board, projects, calendar.customers) : []) : projectTasks(projects), [admin, board, projects, calendar.customers]);
   const store = useCalendarStore(calendar, taskList, board?.people ?? []);
   const { today, now } = store;
+  // Appointments made elsewhere meanwhile (a colleague, a customer's request, Claude) show when the page is opened again.
+  useRefreshOnReturn(store.live);
   const goals = useMemo(() => projectGoals(projects), [projects]);
   const logos = useMemo(() => new Map(fileState.customers.flatMap((customer) => customer.logo ? [[customer.id, customer.logo] as const] : [])), [fileState.customers]);
   const range = useMemo(() => calendarWindow(today), [today]);

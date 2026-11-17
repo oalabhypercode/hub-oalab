@@ -185,6 +185,37 @@ function claimsOf(current: Current): Claims {
   };
 }
 
+/**
+ * The Claude connector's claims (lib/hub-mcp/writes.ts): the admin who allowed the connection, as PostgREST sees a
+ * session of theirs that confirmed a code (aal2, which „Erlauben“ demanded), but without a session: no `session_id`, so
+ * what is bound to a session (the keychain) stays closed. The role comes from the login as it is now. Null when the
+ * login is gone or banned.
+ */
+export async function connectorClaims(userId: string): Promise<Claims | null> {
+  const user = await userById(userId);
+  if (!user || (user.banned_until && new Date(user.banned_until).getTime() > Date.now())) return null;
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    iss: "oalab-hub",
+    aud: "authenticated",
+    role: "authenticated",
+    sub: user.id,
+    email: user.email,
+    phone: "",
+    aal: "aal2",
+    amr: [{ method: "oauth", timestamp: now }],
+    app_metadata: { provider: "email", providers: ["email"], ...(user.raw_app_meta_data ?? {}) },
+    user_metadata: user.raw_user_meta_data ?? {},
+    is_anonymous: false,
+  };
+}
+
+/** A fresh PostgREST token for fixed claims (the connector's), valid as long as a session's. */
+export function claimsToken(claims: Claims) {
+  const now = Math.floor(Date.now() / 1000);
+  return signJwt({ ...claims, iat: now, exp: now + REST_TOKEN_SECONDS }, restJwtSecret());
+}
+
 /** Tokens for PostgREST: the person's claims, anon without a session, service_role for the admin client. */
 export function restToken(claims: Claims | null, role: "anon" | "service_role" = "anon") {
   const now = Math.floor(Date.now() / 1000);

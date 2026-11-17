@@ -37,6 +37,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 24,
+    date: "2026-11-17",
+    title: "Kalender und Projekte immer auf dem neuesten Stand",
+    summary: "Claude legt über den Connector jetzt auch Termine, Aufgaben und neue Projekte an und ändert sie, mit Rückfrage vor jeder Änderung und einer Zeile im Admin-Protokoll; bestehende Verbindungen werden dafür einmal neu verbunden. Kalender und Projektseite laden beim Zurückkommen den neuesten Stand.",
+    changes: [
+      { kind: "new", title: "Claude trägt im Hub ein", text: "Über den Claude-Connector legt Claude jetzt auch Termine an, verschiebt und sagt sie ab, legt Aufgaben mit Checkliste an, ändert, verschiebt und kommentiert sie und legt neue Projekte an, genau so, als hättest du es im Hub gespeichert. Vor jeder Änderung fragt Claude nach, jede steht im Admin-Protokoll, und löschen kann Claude nichts. Hast du Claude schon verbunden, trenne die Verbindung im Profil unter „Verbundene Apps“ einmal und verbinde neu, damit Claude auch schreiben darf." },
+      { kind: "improved", title: "Frischer Stand beim Zurückkommen", text: "Kommst du nach einer Weile zum Kalender oder zu den Projekten zurück, zeigt die Seite von selbst den neuesten Stand, etwa einen gerade bestätigten Termin. Was du in einem Fenster tippst, bleibt dabei stehen.", customers: true },
+    ],
+  },
+  {
     number: 23,
     date: "2026-11-16",
     title: "Kalender unter Projekte, freie Zeiten und der Hub als App",

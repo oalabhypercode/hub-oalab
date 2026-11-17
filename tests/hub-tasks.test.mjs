@@ -99,12 +99,20 @@ test("writes go through the admin's own session with a version check", async () 
   assert.deepEqual(guards.map((match) => match[1]).sort(), exported.sort());
   assert.deepEqual(guards.filter((match) => match[2] === "reader").map((match) => match[1]).sort(), ["loadTaskDetail", "taskFileLink"]);
   for (const match of guards) assert.equal(match[3].startsWith("!ctx"), match[2] === "reader", match[1]);
+  // Creating, changing, moving, commenting and the checklist run through lib/hub-tasks/write.ts, which the Claude
+  // connector uses too; those cores are no Server Actions.
+  const writes = await source("lib/hub-tasks/write.ts");
+  assert.match(writes, /^import "server-only";/);
+  assert.doesNotMatch(writes, /"use server"/);
+  for (const core of ["moveTaskAs", "createTaskAs", "updateTaskAs", "addCommentAs", "saveSubtaskAs"]) assert.match(actions, new RegExp(`return refreshed\\(await ${core}\\(ctx, input\\)\\);`), core);
   // Every update of a task or a checklist point carries the version the browser saw.
-  for (const write of actions.matchAll(/ctx\.supabase\.from\("studio_(tasks|subtasks)"\)\.update\(/g)) {
-    const line = actions.slice(write.index, actions.indexOf("\n", write.index));
-    assert.match(line, /\.eq\("version", version\)/, line);
+  for (const file of [actions, writes]) {
+    for (const write of file.matchAll(/ctx\.supabase\.from\("studio_(tasks|subtasks)"\)\.update\(/g)) {
+      const line = file.slice(write.index, file.indexOf("\n", write.index));
+      assert.match(line, /\.eq\("version", version\)/, line);
+    }
   }
-  assert.doesNotMatch(actions, /revalidatePath|revalidateTag/);
+  assert.doesNotMatch(actions + writes, /revalidatePath|revalidateTag/);
   const server = await source("lib/hub-tasks/server.ts");
   assert.match(server, /return data\?\.claims\?\.aal === "aal2";/);
   assert.match(server, /verifyHubAdmin\(\)/);
@@ -185,6 +193,7 @@ test("the freelancer's example board is what the database shows them", () => {
 
 test("freelancers read and write with their own session; the team's things stay with the team", async () => {
   const actions = await source("lib/hub-tasks/actions.ts");
+  const writes = await source("lib/hub-tasks/write.ts");
   const users = await source("lib/hub-users/server.ts");
   // An active freelancer whose session confirmed its code; the database asks the same of every freelancer rule.
   const verify = users.slice(users.indexOf("export async function verifyHubFreelancer"), users.indexOf("/** Every Supabase Auth user"));
@@ -194,23 +203,24 @@ test("freelancers read and write with their own session; the team's things stay 
   // Reads of a freelancer go through their session, never the server key; writes always do.
   assert.match(actions, /return freelancer \? \{ userId: freelancer\.userId, read: freelancer\.supabase as unknown as SupabaseClient, freelancer: true \} : null;/);
   assert.match(actions, /return \{ userId: freelancer\.userId, supabase: session, read: session, db, freelancer: true \};/);
-  for (const name of ["loadTaskDetail", "taskFileLink", "addComment", "saveSubtask"]) {
-    const start = actions.indexOf(`export async function ${name}`);
-    const body = actions.slice(start, actions.indexOf("\n}\n", start));
+  for (const [file, name] of [[actions, "loadTaskDetail"], [actions, "taskFileLink"], [writes, "addCommentAs"], [writes, "saveSubtaskAs"]]) {
+    const start = file.indexOf(`export async function ${name}`);
+    assert.ok(start >= 0, name);
+    const body = file.slice(start, file.indexOf("\n}\n", start));
     assert.doesNotMatch(body, /ctx\.db\./, `${name} reads with ctx.read`);
   }
   // Archiving, the audience and „Beteiligte“ stay with the team, before the database says the same.
   assert.match(actions, /export async function archiveTask[^\n]*\n  const ctx = await actor\(\);\n  if \("error" in ctx\) return ctx;\n  if \(ctx\.freelancer\) return fail\(TEAM_DECIDES\);/);
   assert.match(actions, /export async function setProjectFreelancer[^\n]*\n  const ctx = await actor\(\);\n  if \("error" in ctx\) return ctx;\n  if \(ctx\.freelancer\) return denied;/);
-  assert.match(actions, /if \(patch\.audience !== undefined\) \{\n    if \(freelancer\) return \{ ok: false, error: TEAM_DECIDES \};/);
+  assert.match(writes, /if \(patch\.audience !== undefined\) \{\n    if \(freelancer\) return \{ ok: false, error: TEAM_DECIDES \};/);
   // A freelancer creates only in a project their session lists, and never for the customer or „Nur Team“.
-  assert.match(actions, /if \(ctx\.freelancer\) \{\n    const own = await ctx\.read\.from\("studio_project_freelancers"\)/);
-  assert.match(actions, /client_visible: false,\n      team_only: false,/);
+  assert.match(writes, /if \(ctx\.freelancer\) \{\n    const own = await ctx\.read\.from\("studio_project_freelancers"\)/);
+  assert.match(writes, /client_visible: false,\n      team_only: false,/);
   // German answers to the database's refusals.
-  assert.match(actions, /if \(message\.includes\("STUDIO_FREELANCER_FIELD_LOCKED"\)\) return TEAM_DECIDES;/);
-  assert.match(actions, /STUDIO_ASSIGNEE_MUST_BE_ACTIVE_TEAM_MEMBER"\)\) return "Zuständig können nur aktive Mitglieder des oalab-Teams und Freelancer dieses Projekts sein\."/);
-  assert.match(actions, /\? "Speichern abgelehnt: Dieses Projekt oder diese Aufgabe ist für dich nicht mehr freigegeben\. Lade die Seite neu\."/);
-  assert.match(actions, /STUDIO_FREELANCER_MUST_SERVE_CUSTOMER/);
+  assert.match(writes, /if \(message\.includes\("STUDIO_FREELANCER_FIELD_LOCKED"\)\) return TEAM_DECIDES;/);
+  assert.match(writes, /STUDIO_ASSIGNEE_MUST_BE_ACTIVE_TEAM_MEMBER"\)\) return "Zuständig können nur aktive Mitglieder des oalab-Teams und Freelancer dieses Projekts sein\."/);
+  assert.match(writes, /\? "Speichern abgelehnt: Dieses Projekt oder diese Aufgabe ist für dich nicht mehr freigegeben\. Lade die Seite neu\."/);
+  assert.match(writes, /STUDIO_FREELANCER_MUST_SERVE_CUSTOMER/);
 });
 
 test("the freelancer's board comes from their session, only the names from the server key", async () => {

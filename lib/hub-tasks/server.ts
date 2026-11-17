@@ -156,6 +156,25 @@ async function boardPeople(db: Db, viewerId: string, team: Set<string>, freelanc
   return peopleFor(db, [...mentioned], team, freelancerOf, viewer);
 }
 
+/**
+ * Who may hold a task of this project, with names as the admins' board shows them: the active oalab team and the
+ * logins of the freelancers on the project (Studio's trigger accepts exactly these). For the Claude connector, which
+ * assigns by id. Null when the project is gone or a read failed.
+ */
+export async function loadAssignees(db: Db, projectId: string): Promise<BoardPerson[] | null> {
+  const project = await db.from("customer_projects").select("organization_id").eq("id", projectId).neq("status", "archived").maybeSingle<{ organization_id: string }>();
+  if (project.error || !project.data) return null;
+  const [team, links, freelancers] = await Promise.all([
+    loadTeam(db),
+    db.from("studio_project_freelancers").select("freelancer_id").eq("project_id", projectId).returns<{ freelancer_id: string }[]>(),
+    loadFreelancers(db, [project.data.organization_id]),
+  ]);
+  if (!team || links.error || !freelancers) return null;
+  const onProject = new Set((links.data ?? []).map((row) => row.freelancer_id));
+  const freelancerOf = new Map(freelancers.filter((freelancer) => onProject.has(freelancer.id)).flatMap((freelancer) => freelancer.loginIds.map((login) => [login, freelancer] as const)));
+  return peopleFor(db, [...new Set([...team, ...freelancerOf.keys()])], team, freelancerOf, "admin");
+}
+
 /** The oalab team's board: every running project of every customer. */
 async function adminBoard(viewerId: string, db: Db): Promise<TaskBoardState> {
   const projects = await db.from("customer_projects").select("id, organization_id, display_name, status").neq("status", "archived").returns<ProjectRow[]>();

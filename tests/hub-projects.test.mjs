@@ -257,8 +257,15 @@ test("Projekte V2 step 2: saving and creating go through Studio's checks with th
   assert.match(save, /ctx\.db\.from\("customer_projects"\)\.update\(own\)/, "name and addresses on the project row");
   assert.match(save, /action: "project\.saved"/);
   assert.match(save, /refreshWorkspace\(\)/);
-  const create = actions.slice(actions.indexOf("export async function createProject"));
-  assert.match(create, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
+  const action = actions.slice(actions.indexOf("export async function createProject"));
+  assert.match(action, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
+  // The page and the Claude connector create through the same code (lib/hub-projects/write.ts), no Server Action.
+  assert.match(action, /const result = await createProjectAs\(ctx, input\);/);
+  assert.match(action, /refreshWorkspace\(\)/);
+  const core = await source("lib/hub-projects/write.ts");
+  assert.match(core, /^import "server-only";/);
+  assert.doesNotMatch(core, /"use server"/);
+  const create = core.slice(core.indexOf("export async function createProjectAs"));
   assert.match(create, /readProjectDraft\(input\.draft\)/);
   assert.match(create, /\(customer\.data\.kind \?\? "customer"\) !== "customer"/, "never for freelancers");
   assert.match(create, /organization\.data\?\.status !== "active"/);
@@ -266,8 +273,7 @@ test("Projekte V2 step 2: saving and creating go through Studio's checks with th
   assert.match(create, /ctx\.supabase\.from\("studio_project_details"\)\.insert\(/);
   assert.doesNotMatch(create, /db\.from\("studio_project_details"\)/);
   assert.match(create, /ctx\.db\.from\("customer_projects"\)\.delete\(\)\.eq\("id", projectId\)/, "a project Studio refused is taken back");
-  assert.match(create, /action: "project\.created"/);
-  assert.match(create, /refreshWorkspace\(\)/);
+  assert.match(create, /action: via === "claude" \? "claude\.project\.created" : "project\.created"/);
 });
 
 test("Projekte V2 step 2: the page asks before unsaved changes are lost and offers „Neues Projekt“ only with a service platform account", async () => {

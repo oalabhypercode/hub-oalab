@@ -8,7 +8,7 @@ import { CORS_HEADERS, jsonAnswer, notFound, NO_STORE, preflight } from "@/lib/h
 
 // The Claude connector (MCP, Streamable HTTP without sessions): one JSON-RPC message per POST, the answer as JSON.
 // Every message needs a valid key of an active admin's connection; without one the 401 points Claude to the
-// sign-in (lib/hub-mcp/oauth.ts). Claude reads with the rights the admin allowed; nothing here writes yet.
+// sign-in (lib/hub-mcp/oauth.ts). Claude reads, and writes where the admin allowed it (lib/hub-mcp/writes.ts).
 
 const MAX_BODY = 1024 * 1024;
 

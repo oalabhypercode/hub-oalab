@@ -2,7 +2,8 @@ import "server-only";
 import { createServerClient, type CookieMethodsServer, type CookieOptionsWithName } from "@supabase/ssr";
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import { restOrigin, restRequestUrl, usesOwnPlatform } from "./config";
-import { OwnSessionAuth, ownAdminAuth, restToken, type CookieAdapter, type RequestMeta } from "./auth";
+import { claimsToken, OwnSessionAuth, ownAdminAuth, restToken, type CookieAdapter, type RequestMeta } from "./auth";
+import type { Claims } from "./db";
 import { ownStorage } from "./storage";
 
 // One supabase-js client for both platforms. On Supabase nothing changes; on the own platform `from`/`rpc` go to the
@@ -51,6 +52,15 @@ export function createOwnServerClient(options: ServerOptions, meta: RequestMeta 
     return current ? { role: "authenticated", claims: current } : { role: "anon", claims: null };
   });
   return assemble(data, auth, storage);
+}
+
+/**
+ * A client with fixed claims, for the Claude connector (lib/platform/auth.ts connectorClaims): `from`/`rpc` under the
+ * admin's RLS, without cookies, sign-in or storage. Each request gets a fresh short-lived token.
+ */
+export function createOwnClaimsClient(claims: Claims) {
+  const data = restClient(async () => claimsToken(claims));
+  return assemble(data, null, null);
 }
 
 /** The service-role client (the secret key's counterpart): bypasses RLS, manages logins. */

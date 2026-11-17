@@ -67,6 +67,7 @@ export function ClaudeConsent({ state }: { state: ConsentState }) {
             <ul className="claude-consent-scopes">
               {state.scopes.map((scope) => <li key={scope}><Check size={16} aria-hidden="true" /><span>{scope}</span></li>)}
             </ul>
+            {state.writes && <p className="t-footnote t-secondary">Vor jeder Änderung fragt Claude dich, ob es sie machen darf, solange du das in Claude nicht abschaltest. Jede Änderung steht im Admin-Protokoll, und Termine mit Kunde schicken dem Kunden eine Meldung wie im Hub.</p>}
             <p className="t-footnote t-secondary">Löschen kann Claude nichts. Die Verbindung siehst und trennst du jederzeit im Profil unter „Verbundene Apps“.</p>
             <p className="claude-consent-warn t-footnote"><TriangleAlert size={15} aria-hidden="true" /><span>Erlaube das nur, wenn du die Verbindung gerade selbst in Claude gestartet hast.</span></p>
             {state.kind === "confirm"

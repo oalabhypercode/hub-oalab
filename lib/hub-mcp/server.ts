@@ -5,8 +5,10 @@ import { todayIso } from "@/lib/hub-routes";
 import { loadAssistantDataForCheckedAdmin } from "@/lib/hub-assistant/data";
 import { loadAvailability } from "@/lib/hub-calendar/server";
 import { addDays, isAppointmentStatus, wallTimeToUtc } from "@/lib/hub-calendar/rules";
+import { loadAssignees } from "@/lib/hub-tasks/server";
 import { hasScope, checkClientDocument, type ClientDocument } from "./oauth";
 import { calendarRange, runHubTool, toolOf, type CalendarAppointment, type CalendarData, type ToolContext } from "./tools";
+import { runWriteTool } from "./writes";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -88,14 +90,21 @@ async function loadCalendar(from: string, to: string): Promise<CalendarData | nu
 
 const refusal = (message: string): ToolResult => ({ content: [{ type: "text", text: message }], isError: true });
 
-/** One tool call of a checked connection: loads exactly what the tool needs, then lets lib/hub-mcp/tools.ts answer. */
+/**
+ * One tool call of a checked connection: loads exactly what a reading tool needs and lets lib/hub-mcp/tools.ts answer;
+ * a writing tool runs in lib/hub-mcp/writes.ts.
+ */
 export async function callHubTool(connection: Connection, name: string, args: Record<string, unknown>, origin: string): Promise<ToolResult | null> {
   const tool = toolOf(name);
   if (!tool) return null;
-  if (!hasScope(connection.scopes, tool.scope)) return refusal("Dafür fehlt dieser Verbindung die Erlaubnis. Verbinde Claude im Hub neu und erlaube es dort.");
+  if (!hasScope(connection.scopes, tool.scope)) return refusal("Dafür fehlt dieser Verbindung die Erlaubnis. Trenne Claude im Hub unter „Verbundene Apps“ und verbinde neu; dann fragt der Hub danach.");
   const context: ToolContext = { origin, today: todayIso(), now: Date.now() };
+  if (tool.needs === "write") return runWriteTool(connection, name, args, context);
   if (tool.needs === "assistant") {
     context.assistant = (await loadAssistantDataForCheckedAdmin()) ?? undefined;
+    // Who can take a task, for assignee_ids: only where Claude may write.
+    const db = name === "get_project" && hasScope(connection.scopes, "hub:write") && typeof args.project_id === "string" ? createAdminClient() : null;
+    if (db) context.people = (await loadAssignees(db, args.project_id as string).catch(() => null)) ?? undefined;
   } else {
     const range = calendarRange(name, args, context.today);
     if (!range.ok) return refusal(range.error);

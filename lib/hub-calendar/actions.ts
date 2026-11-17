@@ -3,21 +3,20 @@
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
 import {
-  cleanNote, cleanRules, cleanWeek, dayOf, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readAvailabilityRequest, readException, wallMinuteToUtc,
+  cleanRules, cleanWeek, dayOf, isDay, MAX_OPEN_REQUESTS, readAvailabilityRequest, readException, wallMinuteToUtc,
   type ExceptionInput,
 } from "./rules";
 import { loadAvailability } from "./server";
 import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
+import { closeAppointmentAs, unknownAppointment, writeAppointment } from "./write";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
-import { appointmentNotice } from "@/lib/hub-notify/rules";
-import { notifyCustomers } from "@/lib/hub-notify/server";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
-// Row Level Security in Supabase enforces the same rules a second time.
+// Row Level Security in Supabase enforces the same rules a second time. Saving and closing an appointment run through
+// lib/hub-calendar/write.ts, which the Claude connector uses as well.
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const denied = { ok: false as const, error: "Dafür brauchst du einen echten Admin-Login." };
-const unknownAppointment = { ok: false as const, error: "Unbekannter Termin." };
 
 async function signedInClient() {
   const supabase = await createClient();
@@ -38,40 +37,18 @@ async function adminClient() {
 export async function saveAppointment(id: string | null, input: AppointmentInput): Promise<CalendarActionResult<{ id: string }>> {
   const supabase = await adminClient();
   if (!supabase) return denied;
-  if (id !== null && !uuid.test(String(id))) return unknownAppointment;
-  const read = readAppointmentInput(input);
-  if (!read.ok) return read;
-  const { title, description, customerId, interval, teamsUrl } = read.value;
-  if (customerId && !uuid.test(customerId)) return { ok: false, error: "Unbekannter Kunde." };
-  const row = {
-    title, description, customer_id: customerId, teams_url: teamsUrl, status: "confirmed", response_note: "",
-    starts_at: new Date(interval.start).toISOString(), ends_at: new Date(interval.end).toISOString(),
-  };
-  // The state before saving decides the customer's notice: new, confirmed request or moved.
-  const before = id ? (await supabase.from("hub_appointments").select("status, starts_at, customer_id").eq("id", id).maybeSingle<{ status: string; starts_at: string; customer_id: string | null }>()).data : null;
-  const { data, error } = id
-    ? await supabase.from("hub_appointments").update(row).eq("id", id).select("id").maybeSingle()
-    : await supabase.from("hub_appointments").insert(row).select("id").single();
-  if (error || !data) return { ok: false, error: "Der Termin konnte nicht gespeichert werden." };
-  const sameCustomer = before && before.customer_id === customerId ? { status: before.status, startsAt: before.starts_at } : null;
-  const notice = customerId ? appointmentNotice({ id: data.id, title, startsAt: row.starts_at, before: sameCustomer, status: "confirmed" }) : null;
-  if (customerId && notice) await notifyCustomers([customerId], notice);
-  refreshWorkspace();
-  return { ok: true, data: { id: data.id } };
+  const result = await writeAppointment(supabase, id, input);
+  if (result.ok) refreshWorkspace();
+  return result;
 }
 
 /** Admin: decline a request or cancel an appointment; the note is shown to the customer. */
 export async function closeAppointment(id: string, status: "declined" | "cancelled", note: string): Promise<CalendarActionResult> {
   const supabase = await adminClient();
   if (!supabase) return denied;
-  if (!uuid.test(String(id ?? "")) || (status !== "declined" && status !== "cancelled")) return unknownAppointment;
-  const { data, error } = await supabase.from("hub_appointments").update({ status, response_note: cleanNote(note) }).eq("id", id)
-    .select("id, title, starts_at, customer_id").maybeSingle<{ id: string; title: string; starts_at: string; customer_id: string | null }>();
-  if (error || !data) return { ok: false, error: "Der Termin konnte nicht geändert werden." };
-  const notice = data.customer_id ? appointmentNotice({ id: data.id, title: data.title, startsAt: data.starts_at, before: null, status, note: cleanNote(note) }) : null;
-  if (data.customer_id && notice) await notifyCustomers([data.customer_id], notice);
-  refreshWorkspace();
-  return { ok: true, data: null };
+  const result = await closeAppointmentAs(supabase, id, status, note);
+  if (result.ok) refreshWorkspace();
+  return result;
 }
 
 /** Admin: remove an appointment completely. */
