@@ -365,6 +365,31 @@ export function mergeTaskNotice(previous: { kind: string; body: string }, draft:
   return taskNotice({ ...draft, kind, parts: [...newer, ...older.filter((part) => !taken.has(slotOf(part)))] });
 }
 
+// Live sync (stage 1 of „Echtzeit“, 18.11.2026) ---------------------------------------------------------------------
+
+/** The newest lines of the bell the live check compares. */
+export const LIVE_LINES = 10;
+
+/**
+ * What an open tab compares with the server every few seconds (app/api/live, components/hub/use-live-sync.ts): the
+ * unread count, the newest lines of the bell (a merged line changes its text and time) and, for admins, the waiting
+ * registrations. Both sides build it with this function from the same rows, so it only differs when something
+ * changed: then the page reads itself anew.
+ */
+export function liveVersion(input: { unread: number; items: { id: number; createdAt: string; read: boolean; title: string; body: string }[]; pending: number }) {
+  // A short checksum of a line's text (FNV-1a), so a chat line that only changes its words still counts.
+  const sum = (text: string) => {
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < text.length; index += 1) hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193);
+    return (hash >>> 0).toString(36);
+  };
+  const lines = [...input.items]
+    .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0) || b.id - a.id)
+    .slice(0, LIVE_LINES)
+    .map((item) => `${item.id}.${Date.parse(item.createdAt) || 0}.${item.read ? 1 : 0}.${sum(`${item.title}\n${item.body}`)}`);
+  return [input.unread, input.pending, ...lines].join("|");
+}
+
 /** Only these notices offer "In deinen Kalender eintragen"; cancelled and declined ones do not. */
 const CALENDAR_KINDS = new Set<string>(["appointment.created", "appointment.confirmed", "appointment.changed"]);
 

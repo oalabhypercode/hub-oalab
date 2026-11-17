@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   CHAT_MAIL_WAIT_MINUTES, MAIL_WAIT_MINUTES, appointmentNotice, calendarRows, chatHref, chatNotice, describeProjectChange, detectStudioNotices, dueDigests, fileNotice,
   mailsWanted, mergeTaskNotice, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
-  TASK_NOTICE_KINDS, hasTaskChange, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix,
+  TASK_NOTICE_KINDS, hasTaskChange, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, LIVE_LINES, liveVersion,
 } from "../lib/hub-notify/rules.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
 import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
@@ -489,4 +489,47 @@ test("the bell shows the unread count and rings until it was opened, still with 
   assert.match(css, /\.bell-button\.is-ringing > svg \{[^}]*animation: bell-swing/);
   assert.match(css, /:root\[data-reduce-motion="true"\] \.bell-button\.is-ringing::after \{ animation: none; opacity: 0\.8; transform: none; \}/);
   assert.match(css, /:root\[data-reduce-motion="true"\] \.bell-button\.is-ringing > svg \{ animation: none; \}/);
+});
+
+// Live sync (stage 1 of „Echtzeit“, 18.11.2026) ---------------------------------------------------------------------
+
+test("the live version changes with the bell: new, merged and read lines and waiting registrations, nothing else", () => {
+  const line = (id, minute, patch = {}) => ({ id, createdAt: `2026-11-18T10:${String(minute).padStart(2, "0")}:00.000+00:00`, read: false, title: "Aufgabe geändert: Startseite", body: "Website · #12", ...patch });
+  const base = { unread: 2, items: [line(2, 5), line(1, 1)], pending: 0 };
+  const version = liveVersion(base);
+  // Same rows, other order or another spelling of the same time: the same version.
+  assert.equal(liveVersion({ ...base, items: [line(1, 1), line(2, 5)] }), version);
+  assert.equal(liveVersion({ ...base, items: [line(2, 5, { createdAt: "2026-11-18T10:05:00Z" }), line(1, 1)] }), version);
+  // A new line, a merged line (new time or only new words), a read line, a new registration: another version.
+  assert.notEqual(liveVersion({ ...base, unread: 3, items: [line(3, 9), ...base.items] }), version);
+  assert.notEqual(liveVersion({ ...base, items: [line(2, 7), line(1, 1)] }), version);
+  assert.notEqual(liveVersion({ ...base, items: [line(2, 5, { body: "Website · #12 · Kommentar: „Ok“" }), line(1, 1)] }), version);
+  assert.notEqual(liveVersion({ ...base, unread: 1, items: [line(2, 5, { read: true }), line(1, 1)] }), version);
+  assert.notEqual(liveVersion({ ...base, pending: 1 }), version);
+  // Only the newest lines count, like the server reads them.
+  const many = Array.from({ length: 30 }, (_, index) => line(index + 1, index));
+  assert.equal(liveVersion({ unread: 30, items: many, pending: 0 }), liveVersion({ unread: 30, items: many.slice(-LIVE_LINES), pending: 0 }));
+});
+
+test("open tabs ask for the live version every 15 seconds and when they come back, with the person's own session", async () => {
+  const route = await source("app/api/live/route.ts");
+  assert.match(route, /const supabase = await createClient\(\);/);
+  assert.doesNotMatch(route, /createAdminClient|service_role/);
+  assert.match(route, /if \(!claims\) return Response\.json\(\{ version: null \}, \{ status: 401, headers: fresh \}\);/);
+  assert.match(route, /\.order\("created_at", \{ ascending: false \}\)\.limit\(LIVE_LINES\)/);
+  assert.match(route, /const fresh = \{ "Cache-Control": "no-store" \};/);
+  const hook = await source("components/hub/use-live-sync.ts");
+  assert.match(hook, /export const LIVE_POLL_MS = 15_000;/);
+  assert.match(hook, /fetch\("\/api\/live", \{ cache: "no-store"/);
+  assert.match(hook, /document\.visibilityState !== "visible"/);
+  // Typing waits; a version the page could not catch up with is not chased twice.
+  assert.match(hook, /if \(stopped \|\| waiting === null \|\| typing\(\)\) return;/);
+  assert.match(hook, /if \(waiting === shown\.current \|\| waiting === refreshedFor\) \{ waiting = null; return; \}/);
+  assert.match(hook, /router\.refresh\(\);/);
+  const shell = await source("components/hub/app-shell.tsx");
+  assert.match(shell, /useLiveSync\(!preview && !pending && Boolean\(userId\) && inbox !== null, liveVersion\(\{ unread: inbox\?\.unread \?\? 0, items: inbox\?\.items \?\? \[\], pending: pendingRegistrations \}\)\);/);
+  // The layout counts the registrations the same way as the live check.
+  const layout = await source("app/dashboard/layout.tsx");
+  assert.match(layout, /identity\.account\?\.role === "oalab_admin" \? countPendingRegistrations\(\) : 0/);
+  assert.match(await source("lib/hub-users/server.ts"), /from\("hub_profiles"\)\.select\("user_id", \{ count: "exact", head: true \}\)\.eq\("status", "pending"\)/);
 });

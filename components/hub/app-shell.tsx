@@ -17,6 +17,8 @@ import { applyProposalStatus, chatKey, MODE_KEY, openProposalIds, parseChat, ser
 import { proposalStatuses } from "@/lib/hub-assistant/actions";
 import { NotificationsPanel } from "./notifications-panel";
 import type { InboxState } from "@/lib/hub-notify/server";
+import { liveVersion } from "@/lib/hub-notify/rules";
+import { useLiveSync } from "./use-live-sync";
 import { BackgroundLayer } from "./background-layer";
 import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
@@ -166,6 +168,9 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const newestUnread = preview ? 1 : (inbox?.items ?? []).reduce((latest, item) => item.read ? latest : Math.max(latest, Date.parse(item.createdAt) || 0), 0);
   const [bellSeen, setBellSeen] = useStoredValue(`oalab-bell-seen:${userId ?? "preview"}`, "0");
   const ringing = unreadCount > 0 && newestUnread > (Number(bellSeen) || 0);
+  // Real logins stay up to date without reloading: the tab compares the bell with the server every 15 seconds and
+  // when it comes back, and reads the page anew when something changed (components/hub/use-live-sync.ts).
+  useLiveSync(!preview && !pending && Boolean(userId) && inbox !== null, liveVersion({ unread: inbox?.unread ?? 0, items: inbox?.items ?? [], pending: pendingRegistrations }));
   const shell: ShellContextValue = {
     preview, pending, initials, logo, account, manageUsers,
     openPanel: (next) => {
