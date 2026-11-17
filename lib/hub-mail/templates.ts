@@ -574,20 +574,22 @@ ${footer}
 // ---------- The mails ----------
 
 const weekdayName = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long" });
+const dayOfMonth = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "long" });
 const fullDay = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
 /**
  * To a customer login before its invitation (User Management → Zugänge → „Ankündigung senden“, 10.11.2026): the day
  * the activation link comes, Ali and Omed as the faces of hub and service platform, a short guide to the first
  * sign-in, what the hub offers and what to do now. The same text for everyone, without names (user's wish). `day` is
- * the day of the invitations (at most a week ahead, so its weekday is enough), `sender` the hub's address, `days` how
- * long the activation link lives, `hubUrl` where to sign in later.
+ * the day of the invitations (at most a week ahead, so the text names it by its weekday; the subject adds the date, as
+ * the mail arrives days before and stays in the inbox, 17.11.2026), `sender` the hub's address, `days` how long the
+ * activation link lives, `hubUrl` where to sign in later.
  */
 export function accessAnnouncementMail(input: { day: Date; sender: string; days: number; hubUrl: string }, legal?: MailLegal): MailContent {
   const weekday = weekdayName.format(input.day);
   const hub = safeUrl(input.hubUrl);
   return render({
-    subject: `Ab ${weekday}: dein Zugang zum oalab Client Hub`,
+    subject: `Ab ${weekday}, ${dayOfMonth.format(input.day)}: dein Zugang zum oalab Client Hub`,
     preheader: `Am ${fullDay.format(input.day)} kommt dein persönlicher Aktivierungslink von ${input.sender}.`,
     area: "account",
     heading: `Dein Zugang kommt am ${weekday}`,

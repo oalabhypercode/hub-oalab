@@ -51,6 +51,16 @@ const iso = (value: Date | string | null | undefined) => (value ? new Date(value
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const enrollIdentifier = (userId: string) => `hub-totp-enroll:${userId}`;
 const linkIdentifier = (kind: string, token: string) => `hub-link:${kind}:${sha256(token)}`;
+/** The kinds a link of `type` may be: a password link is a recovery, every other one a sign-up or magic link. */
+const linkKinds = (type: string | undefined) => (type === "recovery" ? ["recovery"] : ["signup", "magiclink"]);
+/** The login a one-time link belongs to, from its stored value; empty when unreadable. */
+function linkUserId(value: string) {
+  try {
+    return String((JSON.parse(value) as { userId?: unknown }).userId ?? "");
+  } catch {
+    return "";
+  }
+}
 
 /** Supabase's user object, built from the shared `auth.users` row. */
 export function supabaseUser(row: UserRow, factors?: Factor[]) {
@@ -162,6 +172,21 @@ async function userById(id: string) {
 
 async function userByEmail(email: string) {
   return (await sql<UserRow>(`select ${USER_COLUMNS} from auth.users u where u.email = lower(trim($1))`, [email])).rows[0] ?? null;
+}
+
+/**
+ * A one-time link of `admin.generateLink`, looked at without using it: the address of its login while the link still
+ * counts, null once it is unknown, used, expired or its login blocked. The page behind a password link asks on every
+ * visit, mail scanners included, so this only reads; `verifyOtp` alone redeems.
+ */
+export async function peekLink(type: string, tokenHash: string): Promise<{ email: string } | null> {
+  if (!tokenHash) return null;
+  const row = (await sql<{ value: string }>(
+    "select value from auth.verifications where identifier = any($1::text[]) and expires_at > now() limit 1",
+    [linkKinds(type).map((kind) => linkIdentifier(kind, tokenHash))],
+  )).rows[0];
+  const user = row ? await userById(linkUserId(row.value)) : null;
+  return user && !isBanned(user) ? { email: user.email } : null;
 }
 
 /** The claims PostgREST and the call sites see, the same fields Supabase's access token carried. */
@@ -426,19 +451,14 @@ export class OwnSessionAuth {
   /** The links of `admin.generateLink`: one use, then a fresh `aal1` session like Supabase's verify endpoint. */
   async verifyOtp(input: { type?: string; token_hash?: string }) {
     const fail = () => ({ data: { user: null, session: null }, error: authError("otp_expired", "Email link is invalid or has expired", 403) });
-    const kinds = input?.type === "recovery" ? ["recovery"] : ["signup", "magiclink"];
     if (!input?.token_hash) return fail();
     const used = (await sql<{ value: string; expires_at: Date }>(
       "delete from auth.verifications where identifier = any($1::text[]) returning value, expires_at",
-      [kinds.map((kind) => linkIdentifier(kind, input.token_hash!))],
+      [linkKinds(input.type).map((kind) => linkIdentifier(kind, input.token_hash!))],
     )).rows[0];
     if (!used || new Date(used.expires_at).getTime() < Date.now()) return fail();
-    let userId = "";
-    try {
-      userId = String((JSON.parse(used.value) as { userId?: unknown }).userId ?? "");
-    } catch {
-      return fail();
-    }
+    const userId = linkUserId(used.value);
+    if (!userId) return fail();
     const user = (await sql<UserRow>(
       `update auth.users u set email_confirmed_at = coalesce(u.email_confirmed_at, now()), email_verified = true, updated_at = now()
        where u.id = $1 returning ${USER_COLUMNS}`,

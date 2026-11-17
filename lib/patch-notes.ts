@@ -37,6 +37,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 25,
+    date: "2026-11-18",
+    title: "Passwort-Link gilt bis zum Speichern",
+    summary: "Der Link aus Einladung und „Passwort vergessen“ wird erst eingelöst, wenn das neue Passwort gespeichert ist. Virenscanner, die Links im Postfach vorab aufrufen, und ein zwischendurch geschlossenes Fenster verbrauchen ihn nicht mehr, und „Aktiv“ heißt im User Management jetzt, dass ein Passwort gesetzt ist. Die Seite zeigt die E-Mail-Adresse des Zugangs, damit Passwort-Manager das Passwort richtig ablegen. Die Ankündigung nennt den Tag der Einladungen jetzt auch mit Datum im Betreff.",
+    changes: [
+      { kind: "fixed", title: "Passwort-Link hält bis zum Speichern", text: "Der Link aus deiner Einladung oder aus „Passwort vergessen“ öffnet jetzt nur die Seite für das neue Passwort; eingelöst wird er erst mit „Passwort speichern“. So bleibt er gültig, wenn ein Virenscanner ihn vorab prüft oder du die Seite zwischendurch schließt. Die Seite zeigt außerdem, für welche E-Mail-Adresse das Passwort gilt, damit dein Passwort-Manager es richtig speichert.", customers: true },
+      { kind: "improved", title: "Ankündigung mit Datum im Betreff", text: "Der Betreff der Ankündigung nennt jetzt Wochentag und Datum, etwa „Ab Mittwoch, 25. November: dein Zugang zum oalab Client Hub“. Die Mail kommt Tage vor der Einladung und ist so auch später im Postfach eindeutig." },
+    ],
+  },
+  {
     number: 24,
     date: "2026-11-17",
     title: "Kalender und Projekte immer auf dem neuesten Stand",

@@ -79,7 +79,7 @@ test("loading shows the turning logo: pages, auth fallbacks and every former spi
   const loading = await source("components/hub/loading.tsx");
   assert.match(loading, /<BrandLoader label="Dein Workspace wird geladen" className=\{section \? "section-first" : undefined\} \/>/);
   assert.match(await source("components/brand-loader.tsx"), /<div role="status" aria-label=\{label\} className=\{cn\("brand-loader", className\)\}>/);
-  for (const page of ["app/auth/mfa/page.tsx", "app/auth/pending/page.tsx"]) {
+  for (const page of ["app/auth/mfa/page.tsx", "app/auth/pending/page.tsx", "app/auth/update-password/page.tsx"]) {
     assert.match(await source(page), /fallback=\{<div className="auth-form auth-form-loading" role="status" aria-label="Wird geladen"><MiniLoader size=\{24\} \/><\/div>\}/, page);
   }
   const files = [];
