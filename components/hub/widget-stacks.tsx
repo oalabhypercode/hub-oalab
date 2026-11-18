@@ -2,16 +2,21 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, ArrowUpRight, CalendarClock, CalendarDays, ChevronDown, ChevronRight, ChevronUp, FolderOpen, Gauge, ListChecks, Settings, Video, type LucideIcon } from "lucide-react";
+import { Activity, ArrowUpRight, Building2, CalendarClock, CalendarDays, ChevronDown, ChevronRight, ChevronUp, Files, FolderOpen, Gauge, ListChecks, Settings, Video, type LucideIcon } from "lucide-react";
 import { formatDeadline, hubHref, type Project } from "@/lib/hub-data";
 import { addDays, dayOf, formatDayShort, timeOf } from "@/lib/hub-calendar/rules";
-import { activityByDay, dueByDay, openRequests, progressRows, quotaView, serviceRows, serviceSummary, taskCounts } from "@/lib/hub-insights/rules";
-import { DEFAULT_STACKS, WIDGET_IDS, moveWidget, openingIndex, readStacks, toggleWidget, type StackConfig, type StackSlot, type StacksConfig, type WidgetId } from "@/lib/hub-overview/rules";
+import { activityByDay, boardCounts, boardCustomers, boardDueByDay, dueByDay, openRequests, progressRows, quotaView, serviceRows, serviceSummary, taskCounts } from "@/lib/hub-insights/rules";
+import { formatFileDay } from "@/lib/hub-files/catalog";
+import type { HubFileCustomer, HubStoredFile } from "@/lib/hub-files/types";
+import type { BoardProject, BoardTask } from "@/lib/hub-tasks/types";
+import { WIDGET_SETS, defaultStacks, moveWidget, openingIndex, readStacks, toggleWidget, type StackConfig, type StackSlot, type StacksConfig, type WidgetId } from "@/lib/hub-overview/rules";
 import type { OverviewWidgetsData } from "@/lib/hub-overview/types";
 import { quotaMonth } from "@/lib/hub-service-quota/rules";
 import { STATUS_NAMES } from "@/lib/hub-tasks/rules";
 import { SERVICE_PLATFORM_URL, packageCatalog, serviceRequestLimits, type ServicePackageId } from "@/lib/service-packages";
 import { StatusGlyph, type GlyphKind } from "./sheet";
+import { CustomerSign } from "./screens/customer-sign";
+import { FileIcon } from "./screens/files-parts";
 import { TaskGlyph } from "./screens/tasks-parts";
 
 /**
@@ -110,31 +115,42 @@ function RingWithLegend({ rows, label, center, scope }: { rows: LegendRow[]; lab
 
 // ---------- the six widgets ----------
 type Widget = { name: string; icon: LucideIcon; link?: { href: string; label: string; external?: boolean }; attention: boolean; body: ReactNode };
-type WidgetInput = { admin: boolean; preview: boolean; data: OverviewWidgetsData; projects: Project[]; stamps: string[]; servicePackage: ServicePackageId | null };
+/** A freelancer's board on the overview: their projects without „Nur Team“, or why it did not load. */
+export type OverviewBoard = { projects: BoardProject[]; tasks: BoardTask[]; viewerId: string; error: string | null };
+type WidgetInput = {
+  admin: boolean; preview: boolean; data: OverviewWidgetsData; projects: Project[]; stamps: string[]; servicePackage: ServicePackageId | null;
+  /** Freelancers (18.11.2026): their own set of widgets from their board, customers and files. */
+  freelancer?: { board: OverviewBoard | null; customers: HubFileCustomer[]; files: HubStoredFile[]; ownId: string | null };
+};
+const boardHref = (preview: boolean) => `${hubHref(preview, "projects")}/tasks`;
+const boardMissing = (board: OverviewBoard | null) => <div className="ch-bars-body"><Empty title="Board gerade nicht verfügbar" text={board?.error ?? "Deine Aufgaben konnten gerade nicht geladen werden."} /></div>;
 
-function statusWidget({ admin, preview, projects }: WidgetInput): Widget {
-  const counts = taskCounts(projects, admin);
+function statusWidget({ admin, preview, projects, freelancer }: WidgetInput): Widget {
+  if (freelancer && (!freelancer.board || freelancer.board.error)) return { name: "Aufgaben nach Status", icon: ListChecks, link: { href: boardHref(preview), label: "Board" }, attention: false, body: boardMissing(freelancer.board) };
+  const counts = freelancer?.board ? boardCounts(freelancer.board.tasks) : taskCounts(projects, admin);
   const total = STATUS_ORDER.reduce((sum, key) => sum + counts[key], 0);
   const percent = (n: number) => total ? Math.round((n / total) * 100) : 0;
   const rows: LegendRow[] = STATUS_ORDER.map((key) => ({ key, name: STATUS_NAMES[key], value: counts[key], color: `var(--st-${key})`, glyph: <TaskGlyph status={key} />, tip: `${STATUS_NAMES[key]}: ${count(counts[key], "Aufgabe", "Aufgaben")} (${percent(counts[key])} %)` }));
   return {
     name: "Aufgaben nach Status", icon: ListChecks, attention: false,
-    link: admin ? { href: `${hubHref(preview, "projects")}/tasks`, label: "Board" } : { href: hubHref(preview, "projects"), label: "Projekte" },
+    link: admin || freelancer ? { href: boardHref(preview), label: "Board" } : { href: hubHref(preview, "projects"), label: "Projekte" },
     body: total
-      ? <RingWithLegend rows={rows} label={rows.map((row) => `${row.name} ${row.value}`).join(", ")} center={<div className="ch-center"><b>{total - counts.done}</b><span>offen</span><small>von {total}</small></div>} scope={admin ? "Alle laufenden Projekte" : "Für dich freigegeben"} />
-      : <div className="ch-donut-body"><div className="ch-donut-wrap"><Ring segments={[]} label="Noch keine Aufgaben" /><div className="ch-center is-empty"><b>0</b><span>Aufgaben</span></div></div><Empty title="Noch keine Aufgaben" text={admin ? "Auf dem Board liegt gerade keine Aufgabe." : "Sobald oalab Aufgaben für dein Projekt freigibt, siehst du hier, wo sie stehen."} /></div>,
+      ? <RingWithLegend rows={rows} label={rows.map((row) => `${row.name} ${row.value}`).join(", ")} center={<div className="ch-center"><b>{total - counts.done}</b><span>offen</span><small>von {total}</small></div>} scope={admin ? "Alle laufenden Projekte" : freelancer ? "Deine Projekte" : "Für dich freigegeben"} />
+      : <div className="ch-donut-body"><div className="ch-donut-wrap"><Ring segments={[]} label="Noch keine Aufgaben" /><div className="ch-center is-empty"><b>0</b><span>Aufgaben</span></div></div><Empty title="Noch keine Aufgaben" text={admin || freelancer ? "Auf dem Board liegt gerade keine Aufgabe." : "Sobald oalab Aufgaben für dein Projekt freigibt, siehst du hier, wo sie stehen."} /></div>,
   };
 }
 
-function dueWidget({ admin, preview, data, projects }: WidgetInput): Widget {
-  const due = dueByDay(projects, data.today, admin);
+function dueWidget({ admin, preview, data, projects, freelancer }: WidgetInput): Widget {
+  if (freelancer && (!freelancer.board || freelancer.board.error)) return { name: "Fällig in 2 Wochen", icon: CalendarClock, link: { href: boardHref(preview), label: "Board" }, attention: false, body: boardMissing(freelancer.board) };
+  // Freelancers: the tasks assigned to them, their own deadlines.
+  const due = freelancer?.board ? boardDueByDay(freelancer.board.tasks, freelancer.board.viewerId, data.today) : dueByDay(projects, data.today, admin);
   const total = due.days.reduce((sum, n) => sum + n, 0);
   const days = due.days.map((n, i) => ({ n, day: addDays(data.today, i) }));
   const max = Math.max(1, due.overdue, ...due.days);
   const peak = due.days.indexOf(Math.max(...due.days));
   const height = (n: number) => ({ "--h": `${Math.round((n / max) * 100)}%` }) as CSSProperties;
   const weekend = (day: string) => [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay());
-  const link = admin ? { href: `${hubHref(preview, "projects")}/tasks`, label: "Board" } : { href: hubHref(preview, "calendar"), label: "Kalender" };
+  const link = admin || freelancer ? { href: boardHref(preview), label: "Board" } : { href: hubHref(preview, "calendar"), label: "Kalender" };
   if (!total && !due.overdue) return { name: "Fällig in 2 Wochen", icon: CalendarClock, link, attention: false, body: <div className="ch-bars-body"><Empty title="Keine Fristen in den nächsten zwei Wochen" text={admin ? "Sobald Aufgaben einen Termin haben, siehst du hier, an welchen Tagen es eng wird." : "Sobald etwas mit Termin ansteht, siehst du hier, an welchen Tagen."} /></div> };
   return {
     name: "Fällig in 2 Wochen", icon: CalendarClock, link, attention: due.overdue > 0,
@@ -284,19 +300,66 @@ function activityWidget({ admin, data, stamps }: WidgetInput): Widget {
   };
 }
 
-const BUILDERS: Record<WidgetId, (input: WidgetInput) => Widget> = { status: statusWidget, due: dueWidget, quota: quotaWidget, progress: progressWidget, week: weekWidget, activity: activityWidget };
+function customersWidget({ preview, freelancer }: WidgetInput): Widget {
+  const href = hubHref(preview, "customers");
+  const rows = freelancer ? boardCustomers(freelancer.customers, freelancer.board?.projects ?? [], freelancer.board?.tasks ?? []) : [];
+  const more = Math.max(0, rows.length - 4);
+  return {
+    name: "Deine Kunden", icon: Building2, link: { href, label: "Kunden" }, attention: false,
+    body: rows.length ? (
+      <div className="pg-body">
+        <ul className="in-list">{rows.slice(0, 4).map((row) => (
+          <li key={row.company}>
+            <Link href={row.customerId ? `${href}?customer=${encodeURIComponent(row.customerId)}` : href} className="in-row">
+              <CustomerSign customer={{ id: row.customerId ?? row.company, company: row.company }} size="sm" />
+              <span className="in-row-text"><strong>{row.company}</strong><small>{row.open ? count(row.open, "offene Aufgabe", "offene Aufgaben") : "keine offene Aufgabe"}</small></span>
+            </Link>
+          </li>
+        ))}</ul>
+        {more > 0 && <p className="ch-scope pg-more">und {count(more, "weiterer Kunde", "weitere Kunden")}</p>}
+      </div>
+    ) : <div className="pg-body"><Empty title="Noch keine Kunden" text="Sobald oalab dir Kunden zuordnet, stehen sie hier mit ihren offenen Aufgaben." /></div>,
+  };
+}
+
+function filesWidget({ preview, data, freelancer }: WidgetInput): Widget {
+  const href = hubHref(preview, "files");
+  const files = freelancer?.files.slice(0, 4) ?? [];
+  const where = (file: HubStoredFile) => {
+    const ids = file.customers.map((customer) => customer.id);
+    return freelancer?.ownId && ids.includes(freelancer.ownId) ? "Meine Dateien" : freelancer?.customers.find((customer) => ids.includes(customer.id))?.company ?? "";
+  };
+  return {
+    name: "Neue Dateien", icon: Files, link: { href, label: "Asset Management" }, attention: false,
+    body: files.length ? (
+      <div className="pg-body">
+        <ul className="in-list">{files.map((file) => (
+          <li key={file.id}>
+            <Link href={`${href}?file=${encodeURIComponent(file.id)}`} className="in-row">
+              <span className="in-icon"><FileIcon file={file} size={16} /></span>
+              <span className="in-row-text"><strong>{file.title}</strong><small>{[where(file), formatFileDay(file.createdAt, data.today)].filter(Boolean).join(" · ")}</small></span>
+            </Link>
+          </li>
+        ))}</ul>
+      </div>
+    ) : <div className="pg-body"><Empty title="Noch keine Dateien" text="Dateien deiner Kunden und von oalab für dich erscheinen hier und im Asset Management." /></div>,
+  };
+}
+
+const BUILDERS: Record<WidgetId, (input: WidgetInput) => Widget> = { status: statusWidget, due: dueWidget, quota: quotaWidget, progress: progressWidget, week: weekWidget, activity: activityWidget, customers: customersWidget, files: filesWidget };
 
 // ---------- a stack ----------
-function StackSheet({ slot, config, widgets, onChange, onDone }: { slot: StackSlot; config: StackConfig; widgets: Record<WidgetId, Widget>; onChange: (next: StackConfig) => void; onDone: () => void }) {
+function StackSheet({ slot, config, widgets, onChange, onDone }: { slot: StackSlot; config: StackConfig; widgets: Partial<Record<WidgetId, Widget>>; onChange: (next: StackConfig) => void; onDone: () => void }) {
+  const ids = Object.keys(widgets) as WidgetId[];
   const rank = (id: WidgetId) => { const i = config.items.indexOf(id); return i < 0 ? 99 : i; };
-  const rows = [...WIDGET_IDS].sort((a, b) => rank(a) - rank(b) || WIDGET_IDS.indexOf(a) - WIDGET_IDS.indexOf(b));
+  const rows = [...ids].sort((a, b) => rank(a) - rank(b) || ids.indexOf(a) - ids.indexOf(b));
   return (
     <div className="sheet-pop is-end stk-pop" role="dialog" aria-label={`Widgets ${SLOT_NAMES[slot]} anpassen`}>
       <p className="stk-pop-title">Widgets in diesem Feld</p>
       <div className="stk-rows">{rows.map((id) => {
         const on = config.items.includes(id);
         const index = config.items.indexOf(id);
-        const { icon: Icon, name } = widgets[id];
+        const { icon: Icon, name } = widgets[id]!;
         return (
           <div key={id} className={`stk-row${on ? " is-on" : ""}`}>
             <button type="button" className="sheet-choice" role="checkbox" aria-checked={on} disabled={on && config.items.length === 1} onClick={() => onChange(toggleWidget(config, id))}>
@@ -318,14 +381,14 @@ function StackSheet({ slot, config, widgets, onChange, onDone }: { slot: StackSl
   );
 }
 
-function Stack({ slot, config, widgets, onChange }: { slot: StackSlot; config: StackConfig; widgets: Record<WidgetId, Widget>; onChange: (next: StackConfig) => void }) {
+function Stack({ slot, config, widgets, onChange }: { slot: StackSlot; config: StackConfig; widgets: Partial<Record<WidgetId, Widget>>; onChange: (next: StackConfig) => void }) {
   const [chosen, setChosen] = useState<number | null>(null);
   const [moves, setMoves] = useState(0);
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const swipe = useRef<{ x: number; done: boolean } | null>(null);
-  const index = Math.min(chosen ?? openingIndex(config, (id) => widgets[id].attention), config.items.length - 1);
-  const widget = widgets[config.items[index]];
+  const index = Math.min(chosen ?? openingIndex(config, (id) => widgets[id]?.attention === true), config.items.length - 1);
+  const widget = widgets[config.items[index]]!;
   const Icon = widget.icon;
   const go = (next: number) => { setChosen((next + config.items.length) % config.items.length); setMoves((value) => value + 1); };
 
@@ -367,7 +430,7 @@ function Stack({ slot, config, widgets, onChange }: { slot: StackSlot; config: S
         {widget.body}
       </div>
       {config.items.length > 1 && <div className="stk-dots" role="tablist" aria-label={`Widgets ${SLOT_NAMES[slot]}`} onKeyDown={keys}>{config.items.map((id, i) => (
-        <button key={id} type="button" role="tab" aria-selected={i === index} tabIndex={i === index ? 0 : -1} aria-label={widgets[id].name} data-tip={widgets[id].name} onClick={() => go(i)} />
+        <button key={id} type="button" role="tab" aria-selected={i === index} tabIndex={i === index ? 0 : -1} aria-label={widgets[id]?.name} data-tip={widgets[id]?.name} onClick={() => go(i)} />
       ))}</div>}
     </section>
   );
@@ -379,8 +442,9 @@ export function WidgetStacks({ userKey, ...input }: WidgetInput & { userKey: str
   const stored = useSyncExternalStore(subscribeStacks, () => readStored(key), noStored);
   // Without storage (blocked) the choice still applies here until the page reloads.
   const [local, setLocal] = useState<StacksConfig | null>(null);
-  const stacks: StacksConfig = local ?? (stored ? readStacks(stored) : DEFAULT_STACKS);
-  const widgets = Object.fromEntries(WIDGET_IDS.map((id) => [id, BUILDERS[id](input)])) as Record<WidgetId, Widget>;
+  const set = input.freelancer ? "freelancer" : "team";
+  const stacks: StacksConfig = local ?? (stored ? readStacks(stored, set) : defaultStacks(set));
+  const widgets = Object.fromEntries(WIDGET_SETS[set].map((id) => [id, BUILDERS[id](input)])) as Partial<Record<WidgetId, Widget>>;
   const save = (slot: StackSlot, next: StackConfig) => {
     setLocal({ ...stacks, [slot]: next });
     try { localStorage.setItem(key, JSON.stringify({ ...stacks, [slot]: next })); } catch { /* kept in `local` above */ }

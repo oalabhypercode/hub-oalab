@@ -1,23 +1,22 @@
 "use client";
 
+import { Sparkles, SquareKanban } from "lucide-react";
 import { hubHref, type HubSection } from "@/lib/hub-data";
-import { formatFileDay } from "@/lib/hub-files/catalog";
 import { previewNotices } from "@/lib/hub-insights/fixtures";
-import { previewWidgets, withPreviewTasks } from "@/lib/hub-overview/fixtures";
+import { previewBoard, previewWidgets, withPreviewTasks } from "@/lib/hub-overview/fixtures";
 import type { OverviewFacts, OverviewWidgetsData } from "@/lib/hub-overview/types";
+import type { TaskBoardState } from "@/lib/hub-tasks/types";
 import { isServicePackageId } from "@/lib/service-packages";
 import { adminNotices } from "../admin-notices";
 import { HeaderActions } from "../app-shell";
-import { FreelancerCard, WelcomeCard } from "../cards";
-import { GlassCard, SectionHeader, SectionLink, TitleIcon } from "../glass";
+import { WelcomeCard } from "../cards";
+import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
-import { InsetGroupedList, ListRow } from "../list";
 import { sectionIcons } from "../navigation";
-import { NotificationCenter } from "../notification-center";
+import { NotificationCenter, type QuietState } from "../notification-center";
 import { useHubShell } from "../shell-context";
 import { WelcomeStage } from "../welcome-stage";
-import { WidgetStacks } from "../widget-stacks";
-import { FileIcon } from "./files-parts";
+import { WidgetStacks, type OverviewBoard } from "../widget-stacks";
 import type { ScreenProps } from "./types";
 
 /** The admins' welcome card in the design preview (fictional). */
@@ -26,50 +25,44 @@ const previewFacts: OverviewFacts = { customers: 4, withService: 3 };
 /**
  * The overview (design „V5“, user 18.11.2026): one long welcome card, below it the bell's notices like a phone's
  * notification centre and beside them two widget stacks. Where projects stand in detail lives on Insights. Freelancers
- * keep their welcome with the card of their customers and the newest files.
+ * (same day) get the same frame: the customers they look after and the way to their board in the welcome card, their
+ * bell, and widgets from their board, customers and files.
  */
-export function OverviewScreen({ model, preview, admin, fileState, projects, asOf, userKey, facts, widgets }: ScreenProps & { userKey: string; facts?: OverviewFacts | null; widgets?: OverviewWidgetsData | null }) {
+export function OverviewScreen({ model, preview, admin, fileState, projects, asOf, userKey, facts, widgets, board }: ScreenProps & { userKey: string; facts?: OverviewFacts | null; widgets?: OverviewWidgetsData | null; board?: TaskBoardState }) {
   const { account, initials, logo, inbox, pendingRegistrations } = useHubShell();
+  const freelancer = account.freelancer;
   const notices = preview ? previewNotices(asOf, admin) : inbox?.items ?? [];
   const widgetData = preview ? previewWidgets(asOf, admin) : widgets ?? null;
   const widgetProjects = preview ? withPreviewTasks(projects, asOf) : projects;
   // Admins: what waits for them joins the notices (registrations, requests, overdue tasks, full quotas, projects).
   const derived = admin && widgetData ? adminNotices({ data: widgetData, projects: widgetProjects, registrations: pendingRegistrations, preview }) : [];
+  const boardHref = `${hubHref(preview, "projects")}/tasks`;
+  // Freelancers: the customers they look after (not their own entry) and their board (their projects, no „Nur Team“).
+  const looksAfter = fileState.customers.filter((customer) => customer.kind !== "freelancer");
+  const freelancerBoard: OverviewBoard | null = !freelancer ? null
+    : preview ? previewBoard(widgetProjects, asOf, userKey)
+      : board ? { projects: board.projects, tasks: board.tasks, viewerId: board.viewerId, error: board.error } : null;
+  const quiet: QuietState = freelancer
+    ? { text: "Neue Aufgaben in deinen Projekten, Dateien, Freigaben bei Kunden und Antworten auf Terminanfragen erscheinen hier.", href: boardHref, label: "Zu deinen Aufgaben", icon: SquareKanban }
+    : admin
+      ? { text: "Alles erledigt. Neue Registrierungen, Terminanfragen, Fristen, volle Kontingente und Nachrichten erscheinen hier.", href: hubHref(preview, "insights"), label: "Zahlen und Listen in Insights", icon: Sparkles }
+      : { text: "Neue Dateien, Termine, Antworten und Aufgaben erscheinen hier, sobald es sie gibt.", href: hubHref(preview, "insights"), label: "Stand deiner Projekte in Insights", icon: Sparkles };
 
   return (
     <>
       <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
-      {account.freelancer
-        ? <div className="section-first welcome-row has-host"><WelcomeStage account={account} logo={logo} preview={preview} /><FreelancerCard customers={fileState.customers.filter((customer) => customer.kind !== "freelancer").length} href={hubHref(preview, "files")} /></div>
-        : <div className="section-first welcome-row is-merged">{admin
-          ? <WelcomeCard account={account} initials={initials} logo={logo} facts={facts ?? (preview ? previewFacts : null)} />
-          : <WelcomeStage account={account} logo={logo} preview={preview} />}</div>}
-      {account.freelancer
-        ? <FreelancerOverview preview={preview} fileState={fileState} asOf={asOf} />
-        : <div className={`nt-zone${widgetData ? " has-charts" : ""}`}>
-          <NotificationCenter items={notices} derived={derived} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} />
-          {widgetData && <WidgetStacks userKey={userKey} admin={admin} preview={preview} data={widgetData} projects={widgetProjects} stamps={[...notices.map((item) => item.createdAt), ...fileState.files.map((file) => file.createdAt)]} servicePackage={admin ? null : account.packages.find(isServicePackageId) ?? null} />}
-        </div>}
+      <div className="section-first welcome-row is-merged">{admin
+        ? <WelcomeCard account={account} initials={initials} logo={logo} facts={facts ?? (preview ? previewFacts : null)} />
+        : <WelcomeStage account={account} logo={logo} preview={preview} freelancer={freelancer ? { customers: looksAfter.map((customer) => customer.company), boardHref } : undefined} />}</div>
+      <div className={`nt-zone${widgetData ? " has-charts" : ""}`}>
+        <NotificationCenter items={notices} derived={derived} preview={preview} quiet={quiet} userKey={userKey} />
+        {widgetData && <WidgetStacks userKey={userKey} admin={admin} preview={preview} data={widgetData} projects={widgetProjects}
+          stamps={[...notices.map((item) => item.createdAt), ...fileState.files.map((file) => file.createdAt)]}
+          servicePackage={admin || freelancer ? null : account.packages.find(isServicePackageId) ?? null}
+          freelancer={freelancer ? { board: freelancerBoard, customers: looksAfter, files: fileState.files, ownId: fileState.freelancer?.ownId ?? null } : undefined} />}
+      </div>
     </>
   );
-}
-
-/**
- * Freelancers have no projects: their overview shows the newest files at their customers and from oalab, each with
- * where it lies, and leads into their asset management.
- */
-function FreelancerOverview({ preview, fileState, asOf }: Pick<ScreenProps, "preview" | "fileState" | "asOf">) {
-  const ownId = fileState.freelancer?.ownId ?? null;
-  const recent = fileState.files.slice(0, 6);
-  const where = (customerIds: string[]) => customerIds.includes(ownId ?? "") ? "Meine Dateien" : fileState.customers.find((customer) => customerIds.includes(customer.id))?.company ?? "";
-  return <>
-    <SectionHeader title="Neue Dateien" action={<SectionLink href={hubHref(preview, "files")}>Alle anzeigen</SectionLink>} />
-    {fileState.error ? <LoadNotice text={fileState.error} /> : recent.length ? (
-      <InsetGroupedList label="Neue Dateien">
-        {recent.map((file) => <ListRow key={file.id} href={`${hubHref(preview, "files")}?file=${encodeURIComponent(file.id)}`} compact icon={<FileIcon file={file} size={20} />} title={file.title} subtitle={[where(file.customers.map((customer) => customer.id)), formatFileDay(file.createdAt, asOf)].filter(Boolean).join(" · ")} />)}
-      </InsetGroupedList>
-    ) : <GlassCard className="empty-card"><p className="t-headline">Noch keine Dateien.</p><p className="t-subheadline t-secondary">Sobald oalab dir Kunden zuordnet oder Dateien für dich bereitstellt, erscheinen sie hier und im Asset Management.</p></GlassCard>}
-  </>;
 }
 
 /** A load error of real data, in place of the content it replaces. */

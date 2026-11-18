@@ -75,29 +75,42 @@ export const addHiddenIds = (stored: readonly number[], ids: readonly number[]) 
 
 // ---------- The two widget stacks beside the notifications (like the phone's widget stacks) ----------
 
-export const WIDGET_IDS = ["status", "due", "quota", "progress", "week", "activity"] as const;
+export const WIDGET_IDS = ["status", "due", "quota", "progress", "week", "activity", "customers", "files"] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
+export type WidgetSet = "team" | "freelancer";
+
+/**
+ * Which widgets a login can stack: admins and customers the first six; freelancers (18.11.2026) have no quota and no
+ * projects of their own, but the customers they look after and their newest files.
+ */
+export const WIDGET_SETS: Record<WidgetSet, readonly WidgetId[]> = {
+  team: ["status", "due", "quota", "progress", "week", "activity"],
+  freelancer: ["status", "due", "week", "activity", "customers", "files"],
+};
 export type StackSlot = "top" | "bottom";
 export type StackConfig = { items: WidgetId[]; smart: boolean };
 export type StacksConfig = Record<StackSlot, StackConfig>;
 
 /** What a field shows until someone changes it: tasks, quota and progress above; due dates, the week and activity below. */
 export const DEFAULT_STACKS: StacksConfig = { top: { items: ["status", "quota", "progress"], smart: false }, bottom: { items: ["due", "week", "activity"], smart: false } };
+/** Freelancers: their tasks, customers and files above; their due dates, week and activity below. */
+export const FREELANCER_STACKS: StacksConfig = { top: { items: ["status", "customers", "files"], smart: false }, bottom: { items: ["due", "week", "activity"], smart: false } };
+export const defaultStacks = (set: WidgetSet = "team") => set === "freelancer" ? FREELANCER_STACKS : DEFAULT_STACKS;
 
-const isWidget = (value: unknown): value is WidgetId => typeof value === "string" && (WIDGET_IDS as readonly string[]).includes(value);
-
-/** The stored choice, cleaned: known widgets once each; a field left empty falls back to its default. */
-export function readStacks(raw: string | null): StacksConfig {
+/** The stored choice, cleaned: widgets of the login's set once each; a field left empty falls back to its default. */
+export function readStacks(raw: string | null, set: WidgetSet = "team"): StacksConfig {
+  const defaults = defaultStacks(set);
+  const allowed = (value: unknown): value is WidgetId => typeof value === "string" && (WIDGET_SETS[set] as readonly string[]).includes(value);
   try {
     const value = JSON.parse(raw || "null") as Partial<Record<StackSlot, { items?: unknown; smart?: unknown }>> | null;
     const clean = (slot: StackSlot): StackConfig => {
       const saved = value?.[slot];
-      const items: WidgetId[] = Array.isArray(saved?.items) ? [...new Set((saved.items as unknown[]).filter(isWidget))] : [];
-      return { items: items.length ? items : DEFAULT_STACKS[slot].items, smart: saved?.smart === true };
+      const items: WidgetId[] = Array.isArray(saved?.items) ? [...new Set((saved.items as unknown[]).filter(allowed))] : [];
+      return { items: items.length ? items : defaults[slot].items, smart: saved?.smart === true };
     };
     return { top: clean("top"), bottom: clean("bottom") };
   } catch {
-    return DEFAULT_STACKS;
+    return defaults;
   }
 }
 

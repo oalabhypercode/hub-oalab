@@ -2,6 +2,7 @@ import { addDays } from "@/lib/hub-calendar/rules";
 import type { Project, ProjectTask } from "@/lib/hub-data";
 import { previewInsights } from "@/lib/hub-insights/fixtures";
 import { weekStartOf } from "@/lib/hub-insights/rules";
+import type { BoardProject, BoardTask } from "@/lib/hub-tasks/types";
 import type { OverviewWidgetsData } from "./types";
 
 // Fictional content for the design preview (/preview, local only) and for checks with fixtures; never real data.
@@ -25,4 +26,23 @@ export function withPreviewTasks(projects: readonly Project[], asOf: string): Pr
       dueOn: days === null ? null : addDays(asOf, days), customer: i === 1, visible: true,
     })),
   });
+}
+
+/**
+ * A freelancer's board in the preview (local checks only; /preview is the customer's view): the fictional tasks of the
+ * first projects as board tasks, every second one assigned to the viewer.
+ */
+export function previewBoard(projects: readonly Project[], asOf: string, viewerId: string): { projects: BoardProject[]; tasks: BoardTask[]; viewerId: string; error: null } {
+  const withTasks = withPreviewTasks(projects, asOf).filter((project) => project.tasks?.length);
+  const at = new Date(`${asOf}T08:00:00Z`).toISOString();
+  return {
+    viewerId,
+    error: null,
+    projects: withTasks.map((project) => ({ id: project.id, name: project.name, organizationId: "", company: project.company ?? "Nordlicht Studio", startedOn: project.startedOn, dueOn: project.dueOn, status: "active", freelancerIds: [viewerId] })),
+    tasks: withTasks.flatMap((project) => (project.tasks ?? []).map((task, index): BoardTask => ({
+      id: task.id, number: task.number, projectId: project.id, title: task.title, status: task.status, priority: "medium", dueOn: task.dueOn, labels: [],
+      assigneeIds: index % 2 === 0 ? [viewerId] : [], visible: task.visible, teamOnly: false, order: index, version: 1, createdBy: viewerId, createdAt: at, updatedAt: at,
+      comments: 0, checklist: { done: 0, total: 0 }, files: 0,
+    }))),
+  };
 }
