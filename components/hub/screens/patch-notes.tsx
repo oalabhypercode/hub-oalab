@@ -7,16 +7,19 @@ import { LargeTitleHeader } from "../large-title-header";
 import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
 
-/** Every change to the hub, one package per go-live. Real admins see all entries, everyone else the ones for customers. */
+/**
+ * Every change to the hub, one package per go-live. Real admins see all entries, freelancers the ones for them (since
+ * 18.11.2026), everyone else the ones for customers.
+ */
 export function PatchNotesScreen() {
-  const { manageUsers } = useHubShell();
-  const packages = patchPackagesFor(manageUsers);
+  const { manageUsers, account } = useHubShell();
+  const packages = patchPackagesFor(manageUsers ? "admin" : account.freelancer ? "freelancer" : "customer");
   return (
     <>
       <LargeTitleHeader title="Patch Notes" icon={<TitleIcon icon={sectionIcons["patch-notes"]!} />} actions={<HeaderActions />} />
       <p className="section-first t-subheadline patch-intro">
         {manageUsers
-          ? "Alle Änderungen am Hub, ein Paket pro Livegang. Einträge mit „Intern“ sehen nur Admins."
+          ? "Alle Änderungen am Hub, ein Paket pro Livegang. Einträge mit „Intern“ sehen nur Admins, mit „Freelancer“ zusätzlich die Freelancer."
           : "Was sich am Client Hub geändert hat, ein Paket pro Livegang."}
       </p>
       {packages.map((item) => (
@@ -29,7 +32,7 @@ export function PatchNotesScreen() {
               <li key={change.title}>
                 <span className={`project-status patch-kind patch-kind-${change.kind}`}>{patchKindLabels[change.kind]}</span>
                 <div>
-                  <p className="t-headline">{change.title}{manageUsers && !change.customers && <span className="patch-internal">Intern</span>}</p>
+                  <p className="t-headline">{change.title}{manageUsers && !change.customers && <span className="patch-internal">{change.freelancers ? "Freelancer" : "Intern"}</span>}</p>
                   <p className="t-subheadline t-secondary">{change.text}</p>
                 </div>
               </li>
