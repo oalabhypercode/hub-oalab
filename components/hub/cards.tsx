@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, ChevronRight, Handshake } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { categories } from "@/lib/categories";
 import type { Highlight, MetricSnapshot } from "@/lib/hub-metrics";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
@@ -38,24 +38,6 @@ export function WelcomeCard({ account, initials, logo = null, facts }: { account
         </dl>
         <ServiceButton />
       </div>
-    </section>
-  );
-}
-
-/**
- * Freelancers instead of the service packages: how many customers they look after and the way to their asset
- * management. They have no access to the service platform, so there is no button to it.
- */
-export function FreelancerCard({ customers, href }: { customers: number; href: string }) {
-  return (
-    <section className="glass glass-card-feature service-card" aria-labelledby="freelancer-title">
-      <div className="card-head">
-        <Handshake size={17} color="var(--accent)" strokeWidth={2.2} aria-hidden="true" />
-        <h2 className="card-head-title service-title" id="freelancer-title">Deine Kunden</h2>
-      </div>
-      <p className="service-package-name">{customers === 1 ? "1 Kunde" : `${customers} Kunden`}</p>
-      <p className="t-subheadline t-secondary">Ihre Dateien und die von oalab für dich liegen im Asset Management.</p>
-      <Link className="service-cta" href={href}>Zum Asset Management <ChevronRight size={18} aria-hidden="true" /></Link>
     </section>
   );
 }

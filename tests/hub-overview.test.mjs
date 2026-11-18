@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { addHiddenIds, DEFAULT_STACKS, EARLIER_LIMIT, HIDDEN_LIMIT, moveWidget, openingIndex, readHiddenIds, readStacks, relativeWhen, splitNotices, stackByArea, toggleWidget } from "../lib/hub-overview/rules.ts";
+import { addHiddenIds, DEFAULT_STACKS, EARLIER_LIMIT, FREELANCER_STACKS, HIDDEN_LIMIT, moveWidget, openingIndex, readHiddenIds, readStacks, relativeWhen, splitNotices, stackByArea, toggleWidget, WIDGET_SETS } from "../lib/hub-overview/rules.ts";
 
 // The overview (design „V5“, 18.11.2026): one long welcome card and the bell's notices like a phone's. Fictional data only.
 
@@ -67,12 +67,17 @@ test("what × hid: ids only, each once, the oldest dropped beyond the limit", ()
   assert.equal(addHiddenIds(full, [HIDDEN_LIMIT + 1]).length, HIDDEN_LIMIT);
 });
 
-test("the overview: one long welcome card, then the notifications; freelancers keep their card and files", async () => {
+test("the overview: one long welcome card, then the notifications; freelancers get the same frame with their board", async () => {
   const overview = await source("components/hub/screens/overview.tsx");
-  assert.match(overview, /: <div className="section-first welcome-row is-merged">\{admin\n\s+\? <WelcomeCard account=\{account\} initials=\{initials\} logo=\{logo\} facts=\{facts \?\? \(preview \? previewFacts : null\)\} \/>\n\s+: <WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/>\}<\/div>\}/);
+  assert.ok(overview.includes([
+    '<div className="section-first welcome-row is-merged">{admin',
+    "        ? <WelcomeCard account={account} initials={initials} logo={logo} facts={facts ?? (preview ? previewFacts : null)} />",
+    "        : <WelcomeStage account={account} logo={logo} preview={preview} freelancer={freelancer ? { customers: looksAfter.map((customer) => customer.company), boardHref } : undefined} />}</div>",
+  ].join("\n")), "one long welcome card for everybody");
   assert.ok(overview.includes("const notices = preview ? previewNotices(asOf, admin) : inbox?.items ?? [];"));
-  assert.ok(overview.includes('<NotificationCenter items={notices} derived={derived} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} />'));
-  assert.match(overview, /\? <FreelancerOverview preview=\{preview\} fileState=\{fileState\} asOf=\{asOf\} \/>/);
+  assert.ok(overview.includes("<NotificationCenter items={notices} derived={derived} preview={preview} quiet={quiet} userKey={userKey} />"));
+  assert.ok(overview.includes('label: "Zu deinen Aufgaben", icon: SquareKanban'), "freelancers' quiet state leads to their board");
+  assert.doesNotMatch(overview, /FreelancerOverview|FreelancerCard/, "freelancers' files moved into a widget");
   assert.doesNotMatch(overview, /Favoriten|Highlights|LiveOverview|InsightsCard/, "what stands where lives on Insights");
   const stage = await source("components/hub/welcome-stage.tsx");
   assert.match(stage, /const customer = !account\.admin && !account\.freelancer;/);
@@ -102,7 +107,7 @@ test("the admins' facts load on the overview only, after the admin check, withou
   assert.match(server, /heldPackages\(packagesOf\(packages\.byCustomer, id\)\)\.some\(isServicePackageId\)/);
   assert.ok((await source("app/dashboard/page.tsx")).includes("loadOverviewFacts(role)"));
   assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "overview" \? loadOverviewFacts\(identity\.account\?\.role \?\? null\) : undefined/);
-  assert.ok((await source("components/hub/hub-view.tsx")).includes("<OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} widgets={preview ? undefined : overviewWidgets} />"));
+  assert.ok((await source("components/hub/hub-view.tsx")).includes("<OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} widgets={preview ? undefined : overviewWidgets} board={preview ? undefined : taskBoard} />"));
 });
 
 test("widget stacks: tasks, quota and progress above, due dates, week and activity below, until someone changes them", () => {
@@ -133,11 +138,33 @@ test("the widgets sit beside the notifications for admins and customers, stored 
   assert.ok(overview.includes("const widgetData = preview ? previewWidgets(asOf, admin) : widgets ?? null;"), "the preview draws fictional data");
   const stacks = await source("components/hub/widget-stacks.tsx");
   assert.ok(stacks.includes("const stacksKey = (userKey: string) => `oalab-hub-widgets:${userKey}`;"));
-  assert.ok(stacks.includes("const BUILDERS: Record<WidgetId, (input: WidgetInput) => Widget> = { status: statusWidget, due: dueWidget, quota: quotaWidget, progress: progressWidget, week: weekWidget, activity: activityWidget };"));
+  assert.ok(stacks.includes("const BUILDERS: Record<WidgetId, (input: WidgetInput) => Widget> = { status: statusWidget, due: dueWidget, quota: quotaWidget, progress: progressWidget, week: weekWidget, activity: activityWidget, customers: customersWidget, files: filesWidget };"));
+  assert.ok(stacks.includes("const widgets = Object.fromEntries(WIDGET_SETS[set].map((id) => [id, BUILDERS[id](input)]))"), "each login stacks its own set");
   const server = await source("lib/hub-overview/server.ts");
-  assert.ok(server.includes('if (role !== "oalab_admin" && role !== "oalab_customer") return null;\n  const today = todayIso();\n  const weekStart = weekStartOf(today);'), "freelancers have no widgets");
+  assert.ok(server.includes([
+    '  if (role !== "oalab_admin" && role !== "oalab_customer" && role !== "oalab_freelancer") return null;',
+    "  const today = todayIso();",
+    "  const weekStart = weekStartOf(today);",
+  ].join("\n")), "admins, customers and freelancers");
   assert.ok((await source("app/dashboard/page.tsx")).includes("loadOverviewWidgets(role)"));
   const css = await source("app/overview.css");
   assert.ok(css.includes(".ch-donut .ch-part { fill: none; stroke-width: 18; stroke-linecap: round;"), "rounded ends");
   assert.ok(css.includes(".nt-zone.has-charts { display: grid; grid-template-columns: minmax(0, 3fr) minmax(312px, 2fr); gap: var(--grid-gap); align-items: stretch;"), "the column ends flush with the notifications");
+});
+
+test("freelancers stack their own six widgets: their tasks, customers and files, due dates, week and activity", () => {
+  assert.deepEqual(WIDGET_SETS.freelancer, ["status", "due", "week", "activity", "customers", "files"]);
+  assert.deepEqual(FREELANCER_STACKS, { top: { items: ["status", "customers", "files"], smart: false }, bottom: { items: ["due", "week", "activity"], smart: false } });
+  assert.deepEqual(readStacks(null, "freelancer"), FREELANCER_STACKS);
+  const stored = readStacks(JSON.stringify({ top: { items: ["quota", "files", "progress"] }, bottom: { items: ["quota"] } }), "freelancer");
+  assert.deepEqual(stored.top.items, ["files"], "no quota and no projects for freelancers");
+  assert.deepEqual(stored.bottom, FREELANCER_STACKS.bottom, "a field left empty takes the freelancers' default");
+  assert.deepEqual(readStacks(JSON.stringify({ top: { items: ["customers", "status"] } })).top, { items: ["status"], smart: false }, "the team's set knows no customers widget");
+});
+
+test("a freelancer's welcome: the customers they look after and the way to their board, never the service platform", async () => {
+  const stage = await source("components/hub/welcome-stage.tsx");
+  assert.ok(stage.includes('{account.freelancer && freelancer && <Link className="service-cta welcome-cta" href={freelancer.boardHref}>Zum Board'));
+  assert.ok(stage.includes("{customer && <ServiceButton />}"), "the service button stays the customers'");
+  for (const page of ["app/dashboard/page.tsx", "app/dashboard/[section]/page.tsx"]) assert.ok(/oalab_freelancer"\)? \? loadTaskBoard\(\) : undefined/.test(await source(page)), page);
 });

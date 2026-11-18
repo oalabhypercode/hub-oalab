@@ -12,14 +12,13 @@ import { quotaMonth } from "@/lib/hub-service-quota/rules";
 import { SERVICE_PLATFORM_URL, isServicePackageId, packageCatalog, serviceRequestLimits } from "@/lib/service-packages";
 import type { InboxItem } from "@/lib/hub-notify/server";
 import { HeaderActions } from "../app-shell";
-import { TitleIcon } from "../glass";
+import { GlassCard, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { sectionIcons } from "../navigation";
 import { noticeSymbol, noticeWhen } from "../notice-symbols";
 import { StatusGlyph, type GlyphKind } from "../sheet";
 import { useHubShell } from "../shell-context";
 import { CustomerSign } from "./customer-sign";
-import { EmptyState } from "./overview";
 import type { ScreenProps } from "./types";
 
 /**
@@ -29,7 +28,12 @@ import type { ScreenProps } from "./types";
 export function InsightsScreen({ model, preview, admin, freelancer, projects, asOf, insights }: ScreenProps & { insights?: InsightsData }) {
   const { inbox } = useHubShell();
   const header = <LargeTitleHeader title="Insights" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.insights!} />} actions={<HeaderActions />} />;
-  if (freelancer) return <>{header}<EmptyState section="insights" preview={preview} /></>;
+  // Freelancers' own tiles follow after a preview (18.11.2026); until then the page says where their work is.
+  if (freelancer) return <>{header}<GlassCard className="empty-state section-first">
+    <h2 className="t-title3">Deine Insights folgen.</h2>
+    <p className="t-body t-secondary">Hier fassen wir bald zusammen, was in deinen Projekten ansteht. Bis dahin findest du deine Aufgaben im Board und alles Neue auf der Übersicht.</p>
+    <div className="in-actions"><Link className="sheet-action is-primary" href={`${hubHref(preview, "projects")}/tasks`}>Zum Board</Link><Link className="sheet-action" href={hubHref(preview)}>Zur Übersicht</Link></div>
+  </GlassCard></>;
   const data = insights ?? previewInsights(asOf, admin);
   const notices = preview ? previewNotices(asOf, admin) : inbox?.items ?? [];
   return <>{header}{admin

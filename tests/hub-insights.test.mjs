@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activityByDay, adminTodos, dueByDay, dueTasks, hasProgress, openRequests, orderProjects, progressRows, quotaView, serviceRows, serviceSummary, taskCounts, todoId, watchProjects, weekStartOf } from "../lib/hub-insights/rules.ts";
+import { activityByDay, adminTodos, boardCounts, boardCustomers, boardDueByDay, dueByDay, dueTasks, hasProgress, openRequests, orderProjects, progressRows, quotaView, serviceRows, serviceSummary, taskCounts, todoId, watchProjects, weekStartOf } from "../lib/hub-insights/rules.ts";
 import { quotaStatus } from "../lib/hub-service-quota/rules.ts";
 
 // Insights (design „V5“, 18.11.2026): the tiles' rules and how the page is wired. Fictional data only.
@@ -115,7 +115,8 @@ test("Insights loads its data on its own page only, and freelancers keep the pla
   assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "insights" \? loadInsights\(identity\.account\?\.role \?\? null\) : undefined/);
   assert.match(await source("components/hub/hub-view.tsx"), /<InsightsScreen \{\.\.\.screen\} insights=\{preview \? undefined : insights\} \/>/);
   const screen = await source("components/hub/screens/insights.tsx");
-  assert.match(screen, /if \(freelancer\) return <>\{header\}<EmptyState section="insights"/);
+  assert.ok(screen.includes('if (freelancer) return <>{header}<GlassCard className="empty-state section-first">'), "freelancers: a plain card with the way to their board");
+  assert.ok(screen.includes("Deine Insights folgen.") && !screen.includes("Insights entstehen mit deinen Projekten"), "it promises nothing that does not come");
   assert.match(screen, /const data = insights \?\? previewInsights\(asOf, admin\);/, "the design preview draws fictional data");
   assert.match(screen, /const notices = preview \? previewNotices\(asOf, admin\) : inbox\?\.items \?\? \[\];/);
   assert.match(await source("app/layout.tsx"), /import "\.\/web-app\.css";\nimport "\.\/overview\.css";/);
@@ -214,4 +215,26 @@ test("a derived line's id is negative and stable for its key", () => {
   assert.equal(todoId("quota:c1:5"), todoId("quota:c1:5"));
   assert.notEqual(todoId("quota:c1:5"), todoId("quota:c1:6"));
   assert.ok(Number.isSafeInteger(todoId("x".repeat(500))));
+});
+
+test("a freelancer's widgets: their board by column, their own deadlines, their customers by open tasks", () => {
+  const tasks = [
+    { id: "1", projectId: "p1", status: "todo", dueOn: "2026-11-20", assigneeIds: ["me"] },
+    { id: "2", projectId: "p1", status: "progress", dueOn: today, assigneeIds: ["me", "you"] },
+    { id: "3", projectId: "p2", status: "todo", dueOn: today, assigneeIds: ["you"] },
+    { id: "4", projectId: "p2", status: "done", dueOn: "2026-11-20", assigneeIds: ["me"] },
+    { id: "5", projectId: "p3", status: "review", dueOn: null, assigneeIds: [] },
+  ];
+  assert.deepEqual(boardCounts(tasks), { backlog: 0, todo: 2, progress: 1, review: 1, done: 1 });
+  const mine = boardDueByDay(tasks, "me", today);
+  assert.equal(mine.overdue, 1, "the done one does not count");
+  assert.equal(mine.days[0], 1, "only what is assigned to them");
+  const projects = [{ id: "p1", company: "Atelier Nord" }, { id: "p2", company: "Café Ost" }, { id: "p3", company: "Unbekannt GmbH" }];
+  const customers = [{ id: "c-ost", company: "Café Ost" }, { id: "c-nord", company: "Atelier Nord" }, { id: "c-ruhe", company: "Bäckerei Ruhe" }];
+  assert.deepEqual(boardCustomers(customers, projects, tasks), [
+    { company: "Atelier Nord", customerId: "c-nord", open: 2 },
+    { company: "Café Ost", customerId: "c-ost", open: 1 },
+    { company: "Unbekannt GmbH", customerId: null, open: 1 },
+    { company: "Bäckerei Ruhe", customerId: "c-ruhe", open: 0 },
+  ]);
 });

@@ -131,10 +131,11 @@ test("freelancers reach their task board through Projekte and have no way to the
   const chat = await source("components/hub/screens/private-chat.tsx");
   assert.match(chat, /\{!admin && !freelancer && \(/);
   const overview = await source("components/hub/screens/overview.tsx");
-  assert.match(overview, /account\.freelancer\n\s+\? <div className="section-first welcome-row has-host"><WelcomeStage [^\n]*<FreelancerCard customers=/);
-  const cards = await source("components/hub/cards.tsx");
-  const card = cards.slice(cards.indexOf("export function FreelancerCard"), cards.indexOf("/** Rule-based summary"));
-  assert.doesNotMatch(card, /SERVICE_PLATFORM_URL/);
+  // Since 18.11.2026 Ali's welcome card names their customers and leads to their board; the service button is the customers'.
+  assert.ok(overview.includes("freelancer={freelancer ? { customers: looksAfter.map((customer) => customer.company), boardHref } : undefined}"));
+  const stage = await source("components/hub/welcome-stage.tsx");
+  assert.ok(stage.includes("const customer = !account.admin && !account.freelancer;") && stage.includes("{customer && <ServiceButton />}"));
+  assert.doesNotMatch(stage.slice(stage.indexOf("{account.freelancer && freelancer && <Link")), /ServiceButton|SERVICE_PLATFORM_URL/);
 });
 
 test("code mail and code page leave the service platform out for freelancers", async () => {

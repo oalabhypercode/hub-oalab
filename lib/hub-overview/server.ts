@@ -34,10 +34,10 @@ export async function loadOverviewFacts(role: HubRole | null): Promise<OverviewF
 /**
  * The widgets beside the notifications (18.11.2026): the appointments from Monday of this week for a month (the week
  * strip, and the admins' open requests among the notifications; RLS as in the calendar) and the Service quota, for
- * admins and customers. Freelancers have no widgets.
+ * admins, customers and (since 18.11.2026) freelancers, whose quota stays empty.
  */
 export async function loadOverviewWidgets(role: HubRole | null): Promise<OverviewWidgetsData | null> {
-  if (role !== "oalab_admin" && role !== "oalab_customer") return null;
+  if (role !== "oalab_admin" && role !== "oalab_customer" && role !== "oalab_freelancer") return null;
   const today = todayIso();
   const weekStart = weekStartOf(today);
   const [appointments, quota] = await Promise.all([

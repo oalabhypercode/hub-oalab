@@ -138,7 +138,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
       {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} />
         : detail === "tasks" ? <TasksScreen board={taskBoard} preview={preview} asOf={asOf} />
         : detail && isMetricId(detail) ? <MetricDetailScreen {...screen} metricId={detail} />
-        : section === "overview" ? <OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} widgets={preview ? undefined : overviewWidgets} />
+        : section === "overview" ? <OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} widgets={preview ? undefined : overviewWidgets} board={preview ? undefined : taskBoard} />
         : section === "insights" ? <InsightsScreen {...screen} insights={preview ? undefined : insights} />
         : section === "discover" ? <DiscoverScreen {...screen} />
         : section === "projects" ? <ProjectsScreen {...screen} desk={preview ? undefined : projectDesk} />

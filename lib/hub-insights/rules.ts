@@ -6,6 +6,7 @@
 import type { Project, ProjectTask, StudioProjectStatus } from "../hub-data";
 import type { QuotaRow } from "../hub-service-quota/rules";
 import type { HubAppointment } from "../hub-calendar/types";
+import type { BoardProject, BoardTask } from "../hub-tasks/types";
 
 /** Studio's status of a project; without one a finished project counts as complete, else active (as on Projekte). */
 const studioStatus = (project: Pick<Project, "studio" | "status">): StudioProjectStatus =>
@@ -109,18 +110,55 @@ export function taskCounts(projects: readonly Project[], admin: boolean): TaskCo
 
 /** Open tasks with a date: how many are overdue and how many fall due on each of the `days` days from today on. */
 export function dueByDay(projects: readonly Project[], today: string, admin: boolean, days = 14): { overdue: number; days: number[] } {
+  return dueOf(projects.filter((project) => studioStatus(project) !== "complete").flatMap((project) => (project.tasks ?? []).filter((task) => admin || task.visible)), today, days);
+}
+
+/** Open tasks with a date, counted as overdue or on their day among the `days` days from today on. */
+function dueOf(tasks: readonly { status: string; dueOn: string | null }[], today: string, days: number) {
   const result = { overdue: 0, days: new Array<number>(days).fill(0) };
   const start = Date.parse(`${today}T00:00:00Z`);
-  for (const project of projects) {
-    if (studioStatus(project) === "complete") continue;
-    for (const task of project.tasks ?? []) {
-      if (task.status === "done" || !task.dueOn || (!admin && !task.visible)) continue;
-      if (task.dueOn < today) { result.overdue += 1; continue; }
-      const index = Math.round((Date.parse(`${task.dueOn}T00:00:00Z`) - start) / 86_400_000);
-      if (index < days) result.days[index] += 1;
-    }
+  for (const task of tasks) {
+    if (task.status === "done" || !task.dueOn) continue;
+    if (task.dueOn < today) { result.overdue += 1; continue; }
+    const index = Math.round((Date.parse(`${task.dueOn}T00:00:00Z`) - start) / 86_400_000);
+    if (index < days) result.days[index] += 1;
   }
   return result;
+}
+
+// ---------- A freelancer's widgets (18.11.2026): their board, i.e. their projects without „Nur Team“ ----------
+
+/** A freelancer's board tasks by column. */
+export function boardCounts(tasks: readonly Pick<BoardTask, "status">[]): TaskCounts {
+  const counts: TaskCounts = { backlog: 0, todo: 0, progress: 0, review: 0, done: 0 };
+  for (const task of tasks) counts[task.status] += 1;
+  return counts;
+}
+
+/** Due dates of the tasks assigned to the freelancer: their own deadlines, not the whole project's. */
+export const boardDueByDay = (tasks: readonly Pick<BoardTask, "status" | "dueOn" | "assigneeIds">[], userId: string, today: string, days = 14) =>
+  dueOf(tasks.filter((task) => task.assigneeIds.includes(userId)), today, days);
+
+export type BoardCustomer = { company: string; customerId: string | null; open: number };
+
+/**
+ * The customers a freelancer looks after with the open tasks of their projects there (matched by company name), most
+ * open first, then by name. Customers without a project on the board stay with 0; board companies without a hub
+ * customer (unknown here) come without an id.
+ */
+export function boardCustomers(customers: readonly { id: string; company: string }[], projects: readonly Pick<BoardProject, "id" | "company">[], tasks: readonly Pick<BoardTask, "projectId" | "status">[]): BoardCustomer[] {
+  const companyOf = new Map(projects.map((project) => [project.id, project.company]));
+  const open = new Map<string, number>();
+  for (const task of tasks) {
+    const company = companyOf.get(task.projectId);
+    if (company && task.status !== "done") open.set(company, (open.get(company) ?? 0) + 1);
+  }
+  const known = new Set(customers.map((customer) => customer.company));
+  const rows: BoardCustomer[] = [
+    ...customers.map((customer) => ({ company: customer.company, customerId: customer.id, open: open.get(customer.company) ?? 0 })),
+    ...[...new Set(projects.map((project) => project.company))].filter((company) => company && !known.has(company)).map((company) => ({ company, customerId: null, open: open.get(company) ?? 0 })),
+  ];
+  return rows.sort((a, b) => b.open - a.open || a.company.localeCompare(b.company, "de"));
 }
 
 export type ProgressRow = { id: string; name: string; company: string; dueOn: string | null; value: number | null; risk: boolean };

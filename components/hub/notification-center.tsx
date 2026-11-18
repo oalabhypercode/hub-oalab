@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import Link from "next/link";
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, X, type LucideIcon } from "lucide-react";
 import { markNoticesRead } from "@/lib/hub-notify/actions";
 import type { InboxItem } from "@/lib/hub-notify/server";
 import { addHiddenIds, readHiddenIds, relativeWhen, splitNotices, stackByArea, type NoticeStack } from "@/lib/hub-overview/rules";
@@ -29,6 +29,9 @@ const storeIds = (key: string, ids: number[]) => {
 
 /** A notice of the bell, or a derived line with a fixed time label („heute“). */
 export type CenterItem = InboxItem & { label?: string };
+
+/** What the centre says when nothing is new, and where it leads (per role: Insights, or a freelancer's board). */
+export type QuietState = { text: string; href: string; label: string; icon: LucideIcon };
 const subscribeHidden = (change: () => void) => {
   window.addEventListener(HIDDEN_EVENT, change);
   window.addEventListener("storage", change);
@@ -46,7 +49,8 @@ const LEAVE_MS = 220;
  * page and counts as read; × marks it read and hides it here; „Alle gelesen“ moves everything new to „Früher“. The
  * preview shows fictional notices and stores nothing on the server.
  */
-export function NotificationCenter({ items: notices, derived = [], preview, admin, insightsHref, userKey }: { items: InboxItem[]; derived?: CenterItem[]; preview: boolean; admin: boolean; insightsHref: string; userKey: string }) {
+export function NotificationCenter({ items: notices, derived = [], preview, quiet, userKey }: { items: InboxItem[]; derived?: CenterItem[]; preview: boolean; quiet: QuietState; userKey: string }) {
+  const QuietIcon = quiet.icon;
   const now = useSyncExternalStore(subscribeMinute, currentMinute, noMinute);
   const key = hiddenKey(userKey);
   const stored = useSyncExternalStore(subscribeHidden, () => readStored(key), noStored);
@@ -148,8 +152,8 @@ export function NotificationCenter({ items: notices, derived = [], preview, admi
         ? <><p className="nt-label">Neu</p><ol className="nt-list">{stackByArea(fresh, areaOf).map((group) => stack(group, false))}</ol></>
         : <div className="nt-quiet">
           <strong>Keine neuen Benachrichtigungen</strong>
-          <span>{admin ? "Alles erledigt. Neue Registrierungen, Terminanfragen, Fristen, volle Kontingente und Nachrichten erscheinen hier." :"Neue Dateien, Termine, Antworten und Aufgaben erscheinen hier, sobald es sie gibt."}</span>
-          <Link href={insightsHref} className="glass nt-pill"><Sparkles size={14} aria-hidden="true" />{admin ? "Zahlen und Listen in Insights" : "Stand deiner Projekte in Insights"}</Link>
+          <span>{quiet.text}</span>
+          <Link href={quiet.href} className="glass nt-pill"><QuietIcon size={14} aria-hidden="true" />{quiet.label}</Link>
         </div>}
       {earlier.length > 0 && <><p className="nt-label">Früher</p><ol className="nt-list">{stackByArea(earlier, areaOf).map((group) => stack(group, true))}</ol></>}
       {(fresh.length > 0 || earlier.length > 0) && <p className="nt-none">{more ? "Ältere Benachrichtigungen findest du in der Glocke oben rechts." : "Keine älteren Benachrichtigungen"}</p>}
