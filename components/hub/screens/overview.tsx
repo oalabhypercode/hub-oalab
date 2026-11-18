@@ -6,6 +6,7 @@ import { previewNotices } from "@/lib/hub-insights/fixtures";
 import { previewWidgets, withPreviewTasks } from "@/lib/hub-overview/fixtures";
 import type { OverviewFacts, OverviewWidgetsData } from "@/lib/hub-overview/types";
 import { isServicePackageId } from "@/lib/service-packages";
+import { adminNotices } from "../admin-notices";
 import { HeaderActions } from "../app-shell";
 import { FreelancerCard, WelcomeCard } from "../cards";
 import { GlassCard, SectionHeader, SectionLink, TitleIcon } from "../glass";
@@ -28,9 +29,12 @@ const previewFacts: OverviewFacts = { customers: 4, withService: 3 };
  * keep their welcome with the card of their customers and the newest files.
  */
 export function OverviewScreen({ model, preview, admin, fileState, projects, asOf, userKey, facts, widgets }: ScreenProps & { userKey: string; facts?: OverviewFacts | null; widgets?: OverviewWidgetsData | null }) {
-  const { account, initials, logo, inbox } = useHubShell();
+  const { account, initials, logo, inbox, pendingRegistrations } = useHubShell();
   const notices = preview ? previewNotices(asOf, admin) : inbox?.items ?? [];
   const widgetData = preview ? previewWidgets(asOf, admin) : widgets ?? null;
+  const widgetProjects = preview ? withPreviewTasks(projects, asOf) : projects;
+  // Admins: what waits for them joins the notices (registrations, requests, overdue tasks, full quotas, projects).
+  const derived = admin && widgetData ? adminNotices({ data: widgetData, projects: widgetProjects, registrations: pendingRegistrations, preview }) : [];
 
   return (
     <>
@@ -43,8 +47,8 @@ export function OverviewScreen({ model, preview, admin, fileState, projects, asO
       {account.freelancer
         ? <FreelancerOverview preview={preview} fileState={fileState} asOf={asOf} />
         : <div className={`nt-zone${widgetData ? " has-charts" : ""}`}>
-          <NotificationCenter items={notices} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} />
-          {widgetData && <WidgetStacks userKey={userKey} admin={admin} preview={preview} data={widgetData} projects={preview ? withPreviewTasks(projects, asOf) : projects} stamps={[...notices.map((item) => item.createdAt), ...fileState.files.map((file) => file.createdAt)]} servicePackage={admin ? null : account.packages.find(isServicePackageId) ?? null} />}
+          <NotificationCenter items={notices} derived={derived} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} />
+          {widgetData && <WidgetStacks userKey={userKey} admin={admin} preview={preview} data={widgetData} projects={widgetProjects} stamps={[...notices.map((item) => item.createdAt), ...fileState.files.map((file) => file.createdAt)]} servicePackage={admin ? null : account.packages.find(isServicePackageId) ?? null} />}
         </div>}
     </>
   );

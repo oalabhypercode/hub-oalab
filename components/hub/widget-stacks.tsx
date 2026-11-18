@@ -223,13 +223,15 @@ function progressWidget({ admin, preview, projects }: WidgetInput): Widget {
 function weekWidget({ admin, preview, data }: WidgetInput): Widget {
   const calendarHref = hubHref(preview, "calendar");
   const days = Array.from({ length: 7 }, (_, i) => addDays(data.weekStart, i));
-  const coming = data.appointments.filter((appointment) => appointment.end > data.now);
+  // The loader reaches a month ahead (for the admins' requests); the strip and the list keep to this week.
+  const week = data.appointments.filter((appointment) => dayOf(appointment.start) < addDays(data.weekStart, 7));
+  const coming = week.filter((appointment) => appointment.end > data.now);
   return {
     name: "Diese Woche", icon: CalendarDays, link: { href: calendarHref, label: "Kalender" }, attention: false,
     body: (
       <div className="wk-body">
         <div className="wk-strip">{days.map((day, i) => {
-          const n = data.appointments.filter((appointment) => dayOf(appointment.start) === day).length;
+          const n = week.filter((appointment) => dayOf(appointment.start) === day).length;
           return <Link key={day} href={`${calendarHref}?day=${day}`} className={`wk-day${day === data.today ? " is-today" : ""}${i > 4 ? " is-weekend" : ""}`} data-tip={`${formatDayShort(day)}: ${n ? count(n, "Termin", "Termine") : "keine Termine"}`}><span className="wk-name">{formatDayShort(day).slice(0, 2)}</span><span className="wk-num">{Number(day.slice(8))}</span><span className="wk-dots">{Array.from({ length: Math.min(3, n) }, (_, k) => <i key={k} />)}</span></Link>;
         })}</div>
         {coming.length ? <>

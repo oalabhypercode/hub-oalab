@@ -5,6 +5,7 @@
  */
 import type { Project, ProjectTask, StudioProjectStatus } from "../hub-data";
 import type { QuotaRow } from "../hub-service-quota/rules";
+import type { HubAppointment } from "../hub-calendar/types";
 
 /** Studio's status of a project; without one a finished project counts as complete, else active (as on Projekte). */
 const studioStatus = (project: Pick<Project, "studio" | "status">): StudioProjectStatus =>
@@ -156,4 +157,39 @@ export function weekStartOf(day: string): string {
   const time = Date.parse(`${day}T00:00:00Z`);
   const back = (new Date(time).getUTCDay() + 6) % 7;
   return new Date(time - back * 86_400_000).toISOString().slice(0, 10);
+}
+
+// ---------- What waits for admins, as notifications on the Übersicht (design „V5“, 18.11.2026) ----------
+
+export type AdminTodo =
+  | { kind: "registrations"; key: string; count: number }
+  | { kind: "request"; key: string; appointment: Pick<HubAppointment, "id" | "title" | "start" | "end" | "customer"> }
+  | { kind: "overdue"; key: string; count: number; first: DueTask }
+  | { kind: "quota"; key: string; row: ServiceRow }
+  | { kind: "risk" | "waiting"; key: string; project: Project; waiting: number };
+
+/**
+ * What needs an admin, derived from what the page already knows: waiting registrations, open appointment requests (the
+ * next three), overdue tasks (one line), customers whose quota is full, projects at risk or waiting for the customer (the
+ * first three). Each key carries the state, so a hidden line comes back when the state changes (one more registration,
+ * another overdue task, more requests used).
+ */
+export function adminTodos({ registrations, appointments, projects, rows, today, now }: { registrations: number; appointments: readonly Pick<HubAppointment, "id" | "title" | "start" | "end" | "status" | "customer">[]; projects: readonly Project[]; rows: readonly ServiceRow[]; today: string; now: number }): AdminTodo[] {
+  const todos: AdminTodo[] = [];
+  if (registrations > 0) todos.push({ kind: "registrations", key: `registrations:${registrations}`, count: registrations });
+  for (const appointment of appointments.filter((item) => item.status === "requested" && item.end > now).slice(0, 3)) todos.push({ kind: "request", key: `request:${appointment.id}`, appointment });
+  const overdue = dueTasks(projects, today).filter((item) => item.overdue);
+  if (overdue.length) todos.push({ kind: "overdue", key: `overdue:${overdue.map((item) => item.task.id).sort().join(",")}`, count: overdue.length, first: overdue[0] });
+  for (const row of rows.filter((item) => item.tone === "full")) todos.push({ kind: "quota", key: `quota:${row.customerId}:${row.used}`, row });
+  for (const item of watchProjects(projects, today).filter((entry) => entry.reason === "risk" || entry.reason === "waiting").slice(0, 3)) {
+    todos.push({ kind: item.reason as "risk" | "waiting", key: `${item.reason}:${item.project.id}:${item.waiting}`, project: item.project, waiting: item.waiting });
+  }
+  return todos;
+}
+
+/** A derived line's id among the bell's: negative, so it never meets a stored notice, and stable for its key. */
+export function todoId(key: string): number {
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return -((hash >>> 1) + 1);
 }
