@@ -9,8 +9,8 @@ import { listAllUsers, roleOf } from "@/lib/hub-users/server";
 import { sendTelegram } from "@/lib/hub-telegram/server";
 import { telegramChatMessage } from "@/lib/hub-telegram/rules";
 import {
-  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, hasTaskChange, mailsWanted, mergeTaskNotice, nextCursor,
-  noticeAppointment, projectHref, readFrom, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
+  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, hasTaskChange, mailsWanted, mergeShareNotice, mergeTaskNotice, nextCursor,
+  noticeAppointment, projectHref, readFrom, shareNotice, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
 
@@ -85,6 +85,35 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
   } catch (error) {
     // The action succeeded; the bell simply misses this one.
     logFailure(`notice ${notice.kind}`, error);
+  }
+}
+
+/**
+ * An admin released an area of a customer for a freelancer (18.11.2026): the freelancer's active logins hear of it in
+ * the bell, never by mail. A line still unread for this customer takes the new area; otherwise a new line.
+ */
+export async function notifyFreelancerShare(input: { freelancerId: string; customerId: string; company: string; area: string }) {
+  const db = createAdminClient();
+  if (!db) return;
+  try {
+    const userIds = await customerLogins(db, [input.freelancerId]);
+    if (!userIds.length) return;
+    const fresh = shareNotice(input.company, [input.area], input.customerId);
+    const open = await db.from("hub_inbox").select("id, user_id, body").in("user_id", userIds).eq("kind", "share.granted").eq("href", fresh.href)
+      .is("read_at", null).order("created_at", { ascending: false }).returns<{ id: number; user_id: string; body: string }[]>();
+    if (open.error) logFailure("share notice: read", open.error);
+    const latest = new Map<string, { id: number; body: string }>();
+    for (const row of open.data ?? []) if (!latest.has(row.user_id)) latest.set(row.user_id, row);
+    const at = new Date().toISOString();
+    for (const row of latest.values()) {
+      const merged = mergeShareNotice(row, input.company, input.area, input.customerId);
+      const { error } = await db.from("hub_inbox").update({ title: merged.title, body: merged.body, created_at: at }).eq("id", row.id);
+      if (error) logFailure("share notice: merge", error);
+    }
+    await insertNotices(db, userIds.filter((id) => !latest.has(id)), fresh, "skipped");
+  } catch (error) {
+    // The release is saved; the bell simply misses this one.
+    logFailure("notice share.granted", error);
   }
 }
 

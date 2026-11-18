@@ -14,7 +14,8 @@ export type NoticeKind =
   | "task.customer" | "project.changed" | "file.shared"
   | "appointment.created" | "appointment.changed" | "appointment.confirmed" | "appointment.cancelled" | "appointment.declined"
   | "chat.message" | "chat.reply"
-  | TaskNoticeKind;
+  | TaskNoticeKind
+  | "share.granted";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -230,6 +231,33 @@ export function appointmentNotice(input: {
 
 /** A file shared with the customer; the link opens it in the files page. */
 export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });
+
+// Releases for freelancers (18.11.2026) ----------------------------------------------------------------------------
+//
+// An admin switched on an area of a customer under „Vertrag & Domain“ › Freelancer: that freelancer hears of it in the
+// bell (no mail). One unread line per customer: further releases there add their area to it.
+
+const SHARE_WHERE = "Unter Kunden › Vertrag & Domain";
+
+/** „Neu freigegeben bei Nordlicht Studio“ with the released areas; the link opens the customer's tab. */
+export function shareNotice(company: string, areas: readonly string[], customerId: string): Notice {
+  return {
+    kind: "share.granted",
+    title: clip(`Neu freigegeben bei ${oneLine(company)}`, 200),
+    body: clip(`${[...new Set(areas)].join(", ")} · ${SHARE_WHERE}`, 300),
+    href: `/dashboard/customers?customer=${encodeURIComponent(customerId)}&tab=vd`,
+  };
+}
+
+/** The areas a share line names already (its body before the place). */
+export const sharedAreasOf = (body: string) => {
+  const cut = body.lastIndexOf(` · ${SHARE_WHERE}`);
+  return cut > 0 ? body.slice(0, cut).split(", ").filter(Boolean) : [];
+};
+
+/** Adds an area to the line the freelancer has not read yet (once each, in the order they came). */
+export const mergeShareNotice = (previous: { body: string }, company: string, area: string, customerId: string): Notice =>
+  shareNotice(company, [...sharedAreasOf(previous.body), area], customerId);
 
 // Task board notices (17.11.2026) --------------------------------------------------------------------------------
 //
