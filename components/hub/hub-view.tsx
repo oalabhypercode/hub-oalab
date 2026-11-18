@@ -33,6 +33,8 @@ import type { KeychainState } from "@/lib/hub-keychain/types";
 import type { ProjectDesk } from "@/lib/hub-projects/desk";
 import type { TaskBoardState } from "@/lib/hub-tasks/types";
 import type { ContractsState } from "@/lib/hub-contracts/types";
+import type { FreelancerCustomersState } from "@/lib/hub-freelancer-customers/types";
+import { FreelancerCustomersScreen } from "./screens/freelancer-customers";
 import { contractFixtures } from "@/lib/hub-contracts/fixtures";
 import { quotaFixtures } from "@/lib/hub-service-quota/fixtures";
 import type { AssistantLogState } from "@/lib/hub-assistant/log";
@@ -74,9 +76,11 @@ type HubViewProps = {
   projectDesk?: ProjectDesk;
   /** The task board under Projekte („Aufgaben“); the preview shows examples. */
   taskBoard?: TaskBoardState;
+  /** The freelancers' „Kunden“: each customer with what oalab released; the preview shows examples. */
+  freelancerCustomers?: FreelancerCustomersState;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -131,6 +135,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "projects" ? <ProjectsScreen {...screen} desk={preview ? undefined : projectDesk} />
         : section === "files" ? <FilesScreen {...screen} />
         : section === "contracts" ? <ContractsScreen {...screen} state={contractState} />
+        : section === "customers" ? <FreelancerCustomersScreen {...screen} state={freelancerCustomers} board={taskBoard} />
         : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />
         : section === "calendar" ? <CalendarScreen {...screen} taskBoard={taskBoard} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />

@@ -1,4 +1,4 @@
-import { Bot, Ellipsis, KeyRound, LayoutGrid, ScrollText, Sparkles, UserCog, UserRound, type LucideIcon } from "lucide-react";
+import { Bot, Building2, Ellipsis, KeyRound, LayoutGrid, ScrollText, Sparkles, UserCog, UserRound, type LucideIcon } from "lucide-react";
 import { categories } from "@/lib/categories";
 import type { HubSection } from "@/lib/hub-data";
 
@@ -7,6 +7,8 @@ export const sectionIcons: Partial<Record<HubSection, LucideIcon>> = {
   overview: LayoutGrid,
   insights: Sparkles,
   discover: Ellipsis,
+  // The freelancers' customers (18.11.2026): a page without a category colour, so its symbol takes the accent.
+  customers: Building2,
   settings: UserRound,
   users: UserCog,
   "ai-log": Bot,
