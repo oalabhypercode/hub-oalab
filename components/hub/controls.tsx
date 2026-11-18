@@ -34,9 +34,9 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
   );
 }
 
-/** iOS-style switch (51 × 31). */
-export function Switch({ checked, onChange, label, id, disabled = false }: { checked: boolean; onChange: (value: boolean) => void; label: string; id?: string; disabled?: boolean }) {
-  return <button id={id} type="button" role="switch" aria-checked={checked} aria-label={label} className="switch" disabled={disabled} onClick={() => onChange(!checked)}><span className="switch-knob" /></button>;
+/** iOS-style switch (51 × 31); `size="sm"` is the calmer 34 × 20 one for table rows (18.11.2026). */
+export function Switch({ checked, onChange, label, id, disabled = false, size }: { checked: boolean; onChange: (value: boolean) => void; label: string; id?: string; disabled?: boolean; size?: "sm" }) {
+  return <button id={id} type="button" role="switch" aria-checked={checked} aria-label={label} className={size === "sm" ? "switch is-sm" : "switch"} disabled={disabled} onClick={() => onChange(!checked)}><span className="switch-knob" /></button>;
 }
 
 export function Slider({ label, value, min, max, step, onChange, format, id }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void; format: (value: number) => string; id: string }) {

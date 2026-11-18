@@ -66,6 +66,8 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
               : <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />,
             // Phones reach the oalab team's task board under Projekte from here.
             ...(id === "projects" && manageUsers ? [<ListRow key="tasks" compact href={`${hubHref(preview, "projects")}/tasks`} icon={<SquareKanban size={24} color={categories.projects.fill} aria-hidden="true" />} title="Aufgaben" subtitle="Board und Liste der Projekte" />] : []),
+            // Freelancers' „Kunden“ (18.11.2026), below the files as in the sidebar.
+            ...(id === "files" && freelancer ? [<ListRow key="customers" compact href={hubHref(preview, "customers")} icon={<Building2 size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.customers} subtitle="Deine Kunden mit Domains und Hosting" />] : []),
           ])}
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}

@@ -20,6 +20,8 @@ import { DomainMailTab } from "./contracts-domains";
 import { CustomerContractSheet } from "./contracts-customer";
 import { AccessTab } from "./contracts-access";
 import { CustomerQuotaCard } from "./contracts-quota";
+import { FreelancerTab } from "./contracts-freelancers";
+import { freelancerShareFixtures } from "@/lib/hub-freelancer-customers/fixtures";
 import type { ScreenProps } from "./types";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -44,7 +46,7 @@ function Notes({ state }: { state: ContractsState }) {
 }
 
 type Pane = { kind: "overview" } | { kind: "customer"; id: string };
-type Tab = "contract" | "domains" | "access" | "timeline";
+type Tab = "contract" | "domains" | "access" | "timeline" | "freelancer";
 
 function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsState; asOf: string; preview: boolean; fileState: HubFilesState }) {
   // „Pakete bearbeiten“ in the user management links a customer (?customer=<id>): the page opens with it.
@@ -53,7 +55,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   const [paneOpen, setPaneOpen] = useState(pane.kind === "customer");
   // The project panel links a customer's domains (?customer=<id>&tab=domains): the page opens on that tab.
   const linkedTab = useSearchParams().get("tab");
-  const [tab, setTab] = useState<Tab>(() => linkedTab === "domains" || linkedTab === "access" || linkedTab === "timeline" ? linkedTab : "contract");
+  const [tab, setTab] = useState<Tab>(() => linkedTab === "domains" || linkedTab === "access" || linkedTab === "timeline" || linkedTab === "freelancer" ? linkedTab : "contract");
   const [query, setQuery] = useState("");
   /** The search inside the open customer's tab. */
   const [tabQuery, setTabQuery] = useState("");
@@ -62,6 +64,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   const [generator, setGenerator] = useState(false);
   const [notice, setNotice] = useState("");
   const files = fileState.files;
+  // Who looks after which customer and what they may read (18.11.2026); the preview shows the example freelancer.
+  const freelancerShares = state.freelancerShares ?? (state.source === "fixtures" ? { ready: true, assignments: freelancerShareFixtures() } : { ready: false, assignments: [] });
   const current = pane.kind === "customer" ? state.customers.find((customer) => customer.id === pane.id) ?? null : null;
 
   function choose(next: Pane, nextTab: Tab = "contract") {
@@ -145,7 +149,8 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
   const counts = current ? {
     domains: state.domainMail.domains.filter((item) => item.customerId === current.id).length + state.domainMail.mailboxes.filter((item) => item.customerId === current.id).length,
     access: state.domainMail.mailboxes.filter((item) => item.customerId === current.id && item.kind === "mailbox").length + state.domainMail.logins.filter((item) => item.customerId === current.id).length,
-  } : { domains: 0, access: 0 };
+    freelancer: freelancerShares.assignments.filter((item) => item.customerId === current.id).length,
+  } : { domains: 0, access: 0, freelancer: 0 };
   // Like the asset management: the tabs as a segmented control in the toolbar, the search next to it.
   const customerBody = current && (
     <>
@@ -155,13 +160,16 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
           { id: "domains", label: "Domain & Mail", name: "Domain & Mail", count: counts.domains },
           { id: "access", label: "Zugangsdaten", name: "Zugangsdaten", count: counts.access },
           { id: "timeline", label: "Verlauf", name: "Verlauf", count: entries.length },
+          { id: "freelancer", label: "Freelancer", name: "Freelancer", count: counts.freelancer },
         ]} />}
         query={tabQuery}
         onQuery={setTabQuery}
         placeholder="Suchen …"
         label={`In ${current.company} suchen`}
       />
-      {tab === "domains" ? (
+      {tab === "freelancer" ? (
+        <FreelancerTab key={current.id} customer={current} state={freelancerShares} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} onNotice={setNotice} />
+      ) : tab === "domains" ? (
         <DomainMailTab key={current.id} customer={current} domainMail={state.domainMail} canManage={state.canManage && state.domainMail.ready} today={asOf} query={tabQuery} onNotice={setNotice} />
       ) : tab === "access" ? (
         <AccessTab key={current.id} customer={current} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} query={tabQuery} onNotice={setNotice} />

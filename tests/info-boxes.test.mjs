@@ -35,6 +35,9 @@ const places = [
   { file: "components/hub/screens/users-removal.tsx", call: 'useInfo("Archivieren oder löschen"', button: /<PanelSection title=\{title\} info=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Pakete"', button: /label="Pakete"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Freigabe im Verlauf"', button: /actions=\{index === 0 \? info\.button : undefined\}/, box: "{info.box}" },
+  // Freelancers' releases (18.11.2026): the admins' tab „Freelancer“ and what the freelancer reads under „Kunden“.
+  { file: "components/hub/screens/contracts-freelancers.tsx", call: 'useInfo("Freigabe für Freelancer"', button: /actions=\{index === 0 \? info\.button : undefined\}/, box: "{info.box}" },
+  { file: "components/hub/screens/freelancer-customers.tsx", call: 'useInfo("Vertrag & Domain"', button: /label="Hosting"[^\n]*actions=\{infoFor\("hosting"\)\}/, box: "{vdInfo.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Verlauf"', button: /"Zeitpunkt eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-domains.tsx", call: 'useInfo("Domains"', button: /"Domain eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-domains.tsx", call: 'useInfo("Mail-Server"', button: /label="Mail-Server"[^]*?actions=\{<>\{serverInfo\.button\}/, box: "{serverInfo.box}" },
