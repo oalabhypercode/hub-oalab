@@ -91,16 +91,45 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
     availabilityReady: open.ready,
     customers: (customers.data ?? []).filter((row) => !archive.customerIds.has(row.id)).map(toCustomer),
     busy: ((busy.data ?? []) as BusyRow[]).map((row) => ({ start: Date.parse(row.starts_at), end: Date.parse(row.ends_at) })),
-    appointments: (appointments.data ?? []).filter((row) => !row.customer || !archive.customerIds.has(row.customer.id)).map((row): HubAppointment => ({
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      start: Date.parse(row.starts_at),
-      end: Date.parse(row.ends_at),
-      status: isAppointmentStatus(row.status) ? row.status : "requested",
-      teamsUrl: row.teams_url,
-      responseNote: row.response_note,
-      customer: row.customer ? toCustomer(row.customer) : null,
-    })),
+    appointments: (appointments.data ?? []).filter((row) => !row.customer || !archive.customerIds.has(row.customer.id)).map(toAppointment),
   };
+}
+
+function toAppointment(row: AppointmentRow): HubAppointment {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    start: Date.parse(row.starts_at),
+    end: Date.parse(row.ends_at),
+    status: isAppointmentStatus(row.status) ? row.status : "requested",
+    teamsUrl: row.teams_url,
+    responseNote: row.response_note,
+    customer: row.customer ? toCustomer(row.customer) : null,
+  };
+}
+
+/**
+ * Confirmed and requested appointments of the signed-in login between two instants, earliest first, for the tiles on
+ * Insights: Row Level Security decides as in the calendar (admins every appointment, customers their own), and archived
+ * customers stay out for admins.
+ */
+export async function loadAppointmentsBetween(from: number, to: number, limit = 40): Promise<{ appointments: HubAppointment[]; error: string | null }> {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const admin = (claims?.claims.app_metadata as Record<string, unknown> | undefined)?.app_role === "oalab_admin";
+  const [rows, archive] = await Promise.all([
+    supabase
+      .from("hub_appointments")
+      .select("id, title, description, starts_at, ends_at, status, teams_url, response_note, customer:hub_customers(id, customer_number, company)")
+      .lt("starts_at", new Date(to).toISOString())
+      .gt("ends_at", new Date(from).toISOString())
+      .in("status", ["confirmed", "requested"])
+      .order("starts_at")
+      .limit(limit)
+      .returns<AppointmentRow[]>(),
+    admin ? loadArchive() : noArchive,
+  ]);
+  if (rows.error) return { appointments: [], error: describeCalendarError(rows.error) };
+  return { appointments: (rows.data ?? []).filter((row) => !row.customer || !archive.customerIds.has(row.customer.id)).map(toAppointment), error: null };
 }

@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 import type { PackageId } from "@/lib/service-packages";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import type { InboxState } from "@/lib/hub-notify/server";
 
 export type ShellPanel = "search" | "notifications" | "help";
 
@@ -49,6 +50,12 @@ export type ShellContextValue = {
   unreadCount: number;
   /** Something in the bell is newer than the last look into it: the bell rings (components/hub/app-shell.tsx). */
   ringing: boolean;
+  /** Real logins: the notices behind the bell (null in the preview and before the migration), for Übersicht and Insights. */
+  inbox: InboxState | null;
+  /** Admins: registrations waiting for approval. */
+  pendingRegistrations: number;
+  /** Private chats with something unread (customers: from oalab, admins: from customers). */
+  unreadConversations: number;
   signOut: () => void;
   signingOut: boolean;
   logoutError: string;

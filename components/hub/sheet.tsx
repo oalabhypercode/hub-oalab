@@ -222,13 +222,15 @@ export function TableAddRow({ colSpan, label, onClick }: { colSpan: number; labe
   );
 }
 
-export type GlyphKind = "feedback" | "progress" | "done" | "pending" | "invited" | "active" | "disabled" | "rejected";
+export type GlyphKind = "feedback" | "progress" | "done" | "pending" | "invited" | "active" | "disabled" | "rejected" | "alert";
 
 /** Small status symbols in the Studio manner: they lead a row or a group, the colour comes from the tones. */
 export function StatusGlyph({ kind }: { kind: GlyphKind }) {
-  const tone = kind === "feedback" || kind === "pending" ? "todo" : kind === "progress" || kind === "active" ? "ok" : kind === "invited" ? "info" : kind === "disabled" ? "bad" : "off";
+  const tone = kind === "feedback" || kind === "pending" ? "todo" : kind === "progress" || kind === "active" ? "ok" : kind === "invited" ? "info" : kind === "disabled" || kind === "alert" ? "bad" : "off";
   return (
     <svg className={`status-glyph tone-${tone}`} viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      {/* Overdue, at risk, full: a filled circle with an exclamation mark (Insights, 18.11.2026). */}
+      {kind === "alert" && <><circle cx="7" cy="7" r="6.3" fill="currentColor" /><path d="M7 3.9v3.6" stroke="#ffffff" strokeWidth="1.7" strokeLinecap="round" /><circle cx="7" cy="10" r="1" fill="#ffffff" /></>}
       {(kind === "feedback" || kind === "pending") && <><circle cx="7" cy="7" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.5" /><circle cx="7" cy="7" r="2.3" fill="currentColor" /></>}
       {kind === "progress" && <><circle cx="7" cy="7" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7 3.4a3.6 3.6 0 0 1 0 7.2z" fill="currentColor" /></>}
       {(kind === "done" || kind === "active" || kind === "rejected") && <><circle cx="7" cy="7" r="6.3" fill="currentColor" /><path d={kind === "rejected" ? "m4.9 4.9 4.2 4.2M9.1 4.9 4.9 9.1" : "m4.5 7.2 1.7 1.7 3.3-3.5"} fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></>}

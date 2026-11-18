@@ -15,6 +15,7 @@ import { loadContractsForIdentity } from "@/lib/hub-contracts/server";
 import { loadKeychain } from "@/lib/hub-keychain/server";
 import { loadFreelancerCustomers } from "@/lib/hub-freelancer-customers/server";
 import { loadTaskBoard } from "@/lib/hub-tasks/server";
+import { loadInsights } from "@/lib/hub-insights/server";
 
 export function generateStaticParams() { return hubSections.map((section) => ({ section })); }
 
@@ -35,7 +36,7 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   if (validSection === "customers" && identity.account?.role !== "oalab_freelancer") notFound();
   // Freelancers have no projects page: „Projekte“ is the task board of the projects they work on (16.11.2026).
   if (validSection === "projects" && identity.account?.role === "oalab_freelancer") redirect(`${hubHref(false, "projects")}/tasks`);
-  const [filesState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, freelancerCustomers, taskBoard] = await Promise.all([
+  const [filesState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, freelancerCustomers, taskBoard, insights] = await Promise.all([
     loadHubFiles(),
     validSection === "users" ? loadUserManagement() : undefined,
     loadLiveProjects(),
@@ -53,8 +54,10 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
     // „Kunden“ for freelancers: each customer with what oalab released, and the board for their projects there.
     validSection === "customers" ? loadFreelancerCustomers() : undefined,
     validSection === "customers" ? loadTaskBoard() : undefined,
+    // Insights (18.11.2026): appointments and the Service quota for the tiles; projects and the bell come with the rest.
+    validSection === "insights" ? loadInsights(identity.account?.role ?? null) : undefined,
   ]);
-  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} projectDesk={projectDesk} freelancerCustomers={freelancerCustomers} taskBoard={taskBoard} />;
+  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} projectDesk={projectDesk} freelancerCustomers={freelancerCustomers} taskBoard={taskBoard} insights={insights} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {
