@@ -21,7 +21,7 @@ import { MetricDetailScreen } from "./screens/metric-detail";
 import { OverviewScreen } from "./screens/overview";
 import { InsightsScreen } from "./screens/insights";
 import type { InsightsData } from "@/lib/hub-insights/types";
-import type { OverviewFacts } from "@/lib/hub-overview/types";
+import type { OverviewFacts, OverviewWidgetsData } from "@/lib/hub-overview/types";
 import { FilesScreen } from "./screens/files";
 import { DiscoverScreen, ProfileScreen } from "./screens/workspace";
 import { ProjectsScreen } from "./screens/projects";
@@ -85,9 +85,11 @@ type HubViewProps = {
   insights?: InsightsData;
   /** Real admins on the Übersicht: the facts of their welcome card (null when they could not be read). */
   overviewFacts?: OverviewFacts | null;
+  /** Real admins and customers on the Übersicht: this week's appointments and the quota for the widgets. */
+  overviewWidgets?: OverviewWidgetsData | null;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts, overviewWidgets }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -136,7 +138,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
       {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} />
         : detail === "tasks" ? <TasksScreen board={taskBoard} preview={preview} asOf={asOf} />
         : detail && isMetricId(detail) ? <MetricDetailScreen {...screen} metricId={detail} />
-        : section === "overview" ? <OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} />
+        : section === "overview" ? <OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} widgets={preview ? undefined : overviewWidgets} />
         : section === "insights" ? <InsightsScreen {...screen} insights={preview ? undefined : insights} />
         : section === "discover" ? <DiscoverScreen {...screen} />
         : section === "projects" ? <ProjectsScreen {...screen} desk={preview ? undefined : projectDesk} />

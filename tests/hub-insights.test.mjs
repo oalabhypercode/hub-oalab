@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { dueTasks, hasProgress, openRequests, orderProjects, quotaView, serviceRows, serviceSummary, watchProjects } from "../lib/hub-insights/rules.ts";
+import { activityByDay, dueByDay, dueTasks, hasProgress, openRequests, orderProjects, progressRows, quotaView, serviceRows, serviceSummary, taskCounts, watchProjects, weekStartOf } from "../lib/hub-insights/rules.ts";
 import { quotaStatus } from "../lib/hub-service-quota/rules.ts";
 
 // Insights (design „V5“, 18.11.2026): the tiles' rules and how the page is wired. Fictional data only.
@@ -133,4 +133,57 @@ test("customers see their month's figures only while the quota switch is on, els
 test("an empty page no longer leads to the design preview, which is a 404 live", async () => {
   const overview = await source("components/hub/screens/overview.tsx");
   assert.doesNotMatch(overview, /Designvorschau entdecken|href="\/preview"/);
+});
+
+test("the overview's widgets: tasks by column, admins over running projects, customers over released tasks", () => {
+  const projects = [
+    project("Live", { tasks: [task({ status: "done", visible: true }), task({ status: "todo", visible: true }), task({ status: "review" }), task({ status: "backlog", visible: true })] }),
+    project("Fertig", { studio: { status: "complete", version: 1 }, tasks: [task({ status: "done", visible: true })] }),
+  ];
+  assert.deepEqual(taskCounts(projects, true), { backlog: 1, todo: 1, progress: 0, review: 1, done: 1 }, "finished projects stay out for admins");
+  assert.deepEqual(taskCounts(projects, false), { backlog: 1, todo: 1, progress: 0, review: 0, done: 2 }, "customers count what is released");
+});
+
+test("due dates: overdue apart, then one count per day for two weeks, done and dateless tasks left out", () => {
+  const projects = [project("Live", { tasks: [
+    task({ dueOn: "2026-11-20", visible: true }),
+    task({ dueOn: today, visible: true }),
+    task({ dueOn: today }),
+    task({ dueOn: "2026-11-27", visible: true }),
+    task({ dueOn: "2026-12-08", visible: true }),
+    task({ dueOn: "2026-12-09", visible: true }),
+    task({ dueOn: "2026-11-26", status: "done", visible: true }),
+    task({ visible: true }),
+  ] })];
+  const admin = dueByDay(projects, today, true);
+  assert.equal(admin.overdue, 1);
+  assert.equal(admin.days.length, 14);
+  assert.deepEqual([admin.days[0], admin.days[2], admin.days[13]], [2, 1, 1], "today, in two days, the last of the 14 days");
+  assert.equal(admin.days.reduce((sum, n) => sum + n, 0), 4, "the 15th day lies outside");
+  assert.equal(dueByDay(projects, today, false).days[0], 1, "customers only see released tasks");
+});
+
+test("project progress: at risk first for admins, a dash without counted tasks", () => {
+  const rows = progressRows([
+    project("Ruhig", { dueOn: "2026-12-01", progress: 40, progressBasis: "tasks", company: "Atelier Nord" }),
+    project("Brennt", { dueOn: "2027-01-10", studio: { status: "risk", version: 1 }, progressBasis: "none" }),
+    project("Fertig", { status: "Abgeschlossen" }),
+  ], true);
+  assert.deepEqual(rows.map((row) => [row.name, row.value, row.risk]), [["Brennt", null, true], ["Ruhig", 40, false]]);
+});
+
+test("activity: one count per German day for the last two weeks", () => {
+  const values = activityByDay(["2026-11-25T08:00:00Z", "2026-11-24T23:30:00Z", "2026-11-24T22:30:00Z", "2026-11-12T10:00:00Z", "2026-11-11T10:00:00Z", "kein Datum"], today);
+  assert.equal(values.length, 14);
+  assert.equal(values[13], 2, "today, including 00:30 in Berlin");
+  assert.equal(values[12], 1, "23:30 in Berlin was yesterday");
+  assert.equal(values[0], 1, "the first of the 14 days");
+  assert.equal(values.reduce((sum, n) => sum + n, 0), 4, "the 15th day back lies outside");
+});
+
+test("the week strip starts on Monday", () => {
+  assert.equal(weekStartOf("2026-11-25"), "2026-11-23", "a Wednesday");
+  assert.equal(weekStartOf("2026-11-23"), "2026-11-23", "a Monday");
+  assert.equal(weekStartOf("2026-11-29"), "2026-11-23", "a Sunday");
+  assert.equal(weekStartOf("2026-03-01"), "2026-02-23", "across a month");
 });
