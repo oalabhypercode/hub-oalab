@@ -9,6 +9,8 @@ import { normalizeCompany } from "@/lib/hub-users/rules";
 import type { MailStatus } from "@/lib/hub-mail/smtp";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { CUSTOMER_LABEL } from "@/lib/hub-projects/map";
+import { diffTask, SNAPSHOT_COLUMNS, type TaskSnapshot } from "@/lib/hub-tasks/rules";
+import { tellOthers } from "@/lib/hub-tasks/write";
 import { applyChoices, type TaskProposal } from "./proposals";
 import { pickChanges, projectColumns, taskColumns, type ProjectUpdateProposal, type TaskUpdateProposal } from "./updates";
 import { contactColumns, newCustomerNumber, readCustomerChoice, type CustomerProposal } from "./customers";
@@ -107,6 +109,8 @@ export async function confirmTaskProposal(input: { id: string; choices: unknown 
 
   const taskNumbers = rows.map((row) => Number(row.task_number)).sort((a, b) => a - b);
   await finish("done", { result: { task_ids: rows.map((row) => row.id), task_numbers: taskNumbers } });
+  // The project's freelancers (and the customer for released tasks) hear of every new task in the bell.
+  for (const row of rows) tellOthers({ userId: ctx.userId, freelancer: false }, row.id, { created: true });
   const customer = await ctx.db.from("hub_customers").select("id").eq("organization_id", proposal.organizationId).maybeSingle<{ id: string }>();
   await ctx.db.from("hub_admin_events").insert({
     actor_id: ctx.userId,
@@ -202,14 +206,18 @@ export async function confirmTaskUpdates(input: { id: string; picks: unknown }):
   const stale: number[] = [];
   const failed: number[] = [];
   for (const change of chosen.items) {
-    // Read the row with the admin's session first: its labels are needed to switch "Kunde" without losing others.
-    const current = await ctx.supabase.from("studio_tasks").select("version, labels").eq("id", change.taskId).maybeSingle<{ version: number; labels: string[] | null }>();
+    // Read the row with the admin's session first: its labels are needed to switch "Kunde" without losing others, the
+    // rest tells the bell what really changed.
+    const current = await ctx.supabase.from("studio_tasks").select(`version, ${SNAPSHOT_COLUMNS}`).eq("id", change.taskId).maybeSingle<{ version: number } & TaskSnapshot>();
     if (current.error || !current.data) { failed.push(change.number); continue; }
     if (Number(current.data.version) !== change.expectedVersion) { stale.push(change.number); continue; }
-    const write = await ctx.supabase.from("studio_tasks").update(taskColumns(change, current.data.labels ?? [], CUSTOMER_LABEL)).eq("id", change.taskId).eq("version", change.expectedVersion).select("id");
+    const write = await ctx.supabase.from("studio_tasks").update(taskColumns(change, current.data.labels ?? [], CUSTOMER_LABEL)).eq("id", change.taskId).eq("version", change.expectedVersion).select(SNAPSHOT_COLUMNS).returns<TaskSnapshot[]>();
     if (write.error) failed.push(change.number);
     else if (!write.data?.length) stale.push(change.number);
-    else saved.push(change.number);
+    else {
+      saved.push(change.number);
+      tellOthers({ userId: ctx.userId, freelancer: false }, change.taskId, diffTask(current.data, write.data[0]), current.data);
+    }
   }
   await settle(ctx, id, saved.length ? "done" : "failed", { result: { saved, stale, failed }, ...(saved.length ? {} : { error_code: stale.length ? "STALE_VERSION" : "WRITE_FAILED" }) });
   if (saved.length) {

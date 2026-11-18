@@ -1,15 +1,22 @@
 import "server-only";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { readDeactivatedLogins } from "@/lib/hub-users/deactivated";
-import { audienceColumns, cleanDay, cleanLabels, cleanText, cleanTitle, isAudience, isPriority, isStatus, MAX_TITLE, ORDER_LIMIT, TASK_COLUMNS, toBoardTask, type StudioTaskRow } from "./rules";
+import { hasTaskChange, type TaskChange } from "@/lib/hub-notify/rules";
+import { notifyTaskChange } from "@/lib/hub-notify/server";
+import {
+  audienceColumns, cleanDay, cleanLabels, cleanText, cleanTitle, diffTask, isAudience, isPriority, isStatus, MAX_TITLE, ORDER_LIMIT, SNAPSHOT_COLUMNS, TASK_COLUMNS, toBoardTask,
+  type StudioTaskRow, type TaskSnapshot,
+} from "./rules";
 import type { BoardTask, TaskComment, TaskPatch, TaskResult, TaskSubtask } from "./types";
 
 // What the task board writes once the caller has passed its checks, shared by the board's actions
 // (lib/hub-tasks/actions.ts, the person's own session) and the Claude connector (lib/hub-mcp/writes.ts, a key with the
 // admin's claims). Writes go through `supabase`, so Studio's RLS and triggers decide, raise the version and log the
 // change under the person's name. Changes carry the version the caller saw; a newer row is never overwritten
-// ("stale"). Refreshing the page is the caller's business: only a Server Action can do it.
+// ("stale"). Refreshing the page is the caller's business: only a Server Action can do it. Everyone else who sees the
+// card hears of a change in the bell (lib/hub-notify, 17.11.2026).
 
 type Db = NonNullable<ReturnType<typeof createAdminClient>>;
 /**
@@ -109,15 +116,32 @@ async function shownTask(ctx: TaskContext, row: StudioTaskRow): Promise<BoardTas
   return toBoardTask(row, undefined, deactivated ?? undefined);
 }
 
-/** Moves a card to a column and a place (board_order). */
+/**
+ * Tells everyone else who sees the card, once the response is out: dragging a card never waits for the bell. `before`
+ * is the card before the change where it may have changed who sees it (see notifyTaskChange).
+ */
+export function tellOthers(ctx: Pick<TaskContext, "userId" | "freelancer">, taskId: string, change: TaskChange, before?: TaskSnapshot | null) {
+  if (!hasTaskChange(change)) return;
+  after(() => notifyTaskChange({ taskId, actorId: ctx.userId, actorFreelancer: ctx.freelancer, change, before }));
+}
+
+/** The card as it was, for the bell; null when it cannot be read (then nobody hears of the change). */
+async function snapshotOf(ctx: TaskContext, taskId: string) {
+  const { data } = await ctx.read.from("studio_tasks").select(SNAPSHOT_COLUMNS).eq("id", taskId).maybeSingle<TaskSnapshot>();
+  return data ?? null;
+}
+
+/** Moves a card to a column and a place (board_order). A new place in the same column tells nobody. */
 export async function moveTaskAs(ctx: TaskContext, input: { taskId: string; status: string; order: number; expectedVersion: number }): Promise<TaskResult<BoardTask>> {
   const taskId = idOf(input?.taskId);
   const order = numberOf(input?.order);
   const version = numberOf(input?.expectedVersion);
   if (!taskId || !isStatus(input?.status) || order === null || Math.abs(order) > ORDER_LIMIT || version === null) return fail("Diese Verschiebung ist ungültig.");
+  const before = await snapshotOf(ctx, taskId);
   const { data, error } = await ctx.supabase.from("studio_tasks").update({ status: input.status, board_order: order }).eq("id", taskId).eq("version", version).select(TASK_COLUMNS).maybeSingle<StudioTaskRow>();
   if (error) return fail(writeError(error, ctx.freelancer));
   if (!data) return whyNotWritten(ctx, taskId);
+  if (before) tellOthers(ctx, taskId, diffTask(before, data), before);
   return { ok: true, data: await shownTask(ctx, data) };
 }
 
@@ -166,6 +190,7 @@ export async function createTaskAs(ctx: TaskContext, input: { projectId: string;
     .select(TASK_COLUMNS)
     .single<StudioTaskRow>();
   if (error || !data) return fail(writeError(error, ctx.freelancer));
+  tellOthers(ctx, data.id, { created: true });
   return { ok: true, data: await shownTask(ctx, data) };
 }
 
@@ -179,9 +204,13 @@ export async function updateTaskAs(ctx: TaskContext, input: { taskId: string; ex
   if (!Object.keys(columns.data).length) return fail("Es gibt nichts zu speichern.");
   const refused = await deactivatedAssignee(ctx, columns.data);
   if (refused) return fail(refused);
+  const before = await snapshotOf(ctx, taskId);
   const { data, error } = await ctx.supabase.from("studio_tasks").update(columns.data).eq("id", taskId).eq("version", version).eq("archived", false).select(TASK_COLUMNS).maybeSingle<StudioTaskRow>();
   if (error) return fail(writeError(error, ctx.freelancer));
   if (!data) return whyNotWritten(ctx, taskId);
+  // The saved row leaves the description out; the change says what it is now.
+  const description = "description" in columns.data ? String(columns.data.description) : before?.description;
+  if (before) tellOthers(ctx, taskId, diffTask(before, { ...data, description }), before);
   return { ok: true, data: await shownTask(ctx, data) };
 }
 
@@ -195,6 +224,7 @@ export async function addCommentAs(ctx: TaskContext, input: { taskId: string; bo
   if (!task.data || task.data.archived) return fail("Diese Aufgabe gibt es nicht mehr.", true);
   const { data, error } = await ctx.supabase.from("studio_comments").insert({ organization_id: task.data.organization_id, task_id: taskId, body, author_user_id: ctx.userId, client_visible: false }).select("id, created_at").single<{ id: string; created_at: string }>();
   if (error || !data) return fail(writeError(error, ctx.freelancer));
+  tellOthers(ctx, taskId, { comment: body });
   return { ok: true, data: { id: data.id, authorId: ctx.userId, body, createdAt: data.created_at } };
 }
 
@@ -218,6 +248,7 @@ export async function saveSubtaskAs(ctx: TaskContext, input: { taskId: string; s
       .select("id, title, done, board_order, version")
       .single<{ id: string; title: string; done: boolean; board_order: number; version: number }>();
     if (error || !data) return fail(writeError(error, ctx.freelancer));
+    tellOthers(ctx, taskId, { checklist: { state: "added", title: data.title } });
     return { ok: true, data: { id: data.id, title: data.title, done: data.done, order: Number(data.board_order), version: Number(data.version) } };
   }
 
@@ -230,5 +261,6 @@ export async function saveSubtaskAs(ctx: TaskContext, input: { taskId: string; s
   const { data, error } = await ctx.supabase.from("studio_subtasks").update(columns).eq("id", subtaskId).eq("task_id", taskId).eq("version", version).select("id, title, done, board_order, version").maybeSingle<{ id: string; title: string; done: boolean; board_order: number; version: number }>();
   if (error) return fail(writeError(error, ctx.freelancer));
   if (!data) return fail("Dieser Punkt wurde inzwischen geändert.", true);
+  tellOthers(ctx, taskId, { checklist: { state: "done" in columns ? (data.done ? "done" : "open") : "renamed", title: data.title } });
   return { ok: true, data: { id: data.id, title: data.title, done: data.done, order: Number(data.board_order), version: Number(data.version) } };
 }
