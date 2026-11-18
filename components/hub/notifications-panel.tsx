@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bell, CalendarDays, Check, Files, FolderOpen, ListTodo, MessageSquare, type LucideIcon } from "lucide-react";
+import { Bell, Building2, CalendarDays, Check, Files, FolderOpen, ListTodo, MessageSquare, type LucideIcon } from "lucide-react";
 import { markNoticesRead } from "@/lib/hub-notify/actions";
 import type { InboxItem } from "@/lib/hub-notify/server";
 import { categories } from "@/lib/categories";
@@ -13,6 +13,8 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
   if (kind === "task.customer" || kind === "task.created" || kind === "task.changed") return { icon: ListTodo, color: categories.projects.fill };
   if (kind === "project.changed") return { icon: FolderOpen, color: categories.projects.fill };
   if (kind === "file.shared") return { icon: Files, color: categories.files.fill };
+  // A release for a freelancer under „Kunden“ (18.11.2026): the page has no category colour, so the accent.
+  if (kind === "share.granted") return { icon: Building2, color: "var(--accent-text)" };
   if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill };
   return { icon: CalendarDays, color: categories.calendar.fill };
 }
@@ -20,7 +22,7 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
 /** What the empty bell promises, per role. */
 const EMPTY_TEXT = {
   admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt oder ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert.",
-  freelancer: "Hier erscheint, wenn jemand eine Aufgabe in deinen Projekten anlegt, ändert oder kommentiert oder eine Datei für dich dazukommt.",
+  freelancer: "Hier erscheint, wenn jemand eine Aufgabe in deinen Projekten anlegt, ändert oder kommentiert, eine Datei für dich dazukommt oder oalab dir bei einem Kunden etwas freigibt.",
   customer: "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe für dich dazukommt, sich ändert oder bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt.",
 };
 

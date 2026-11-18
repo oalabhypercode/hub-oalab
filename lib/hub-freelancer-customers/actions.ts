@@ -1,7 +1,9 @@
 "use server";
 
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyFreelancerShare } from "@/lib/hub-notify/server";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { readShareNote, readShareToggle, shareAreas, type ShareArea } from "./rules";
@@ -63,6 +65,8 @@ export async function setFreelancerShare(input: unknown): Promise<ActionResult<{
   if (error) return failed(missingTable(error) ? notReady : error.code === "23503" ? gone : tryAgain);
   await log(ctx, on ? "customer.freelancer_share_on" : "customer.freelancer_share_off",
     `${names.freelancer} ${on ? "sieht jetzt" : "sieht nicht mehr"} „${shareAreas[area].label}“ von ${names.customer}`, customerId);
+  // A new release reaches the freelancer's bell (no mail) after the answer; switching off stays quiet.
+  if (on) after(() => notifyFreelancerShare({ freelancerId, customerId, company: names.customer, area: shareAreas[area].label }));
   refreshWorkspace();
   return { ok: true, data: { since } };
 }

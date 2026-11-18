@@ -5,6 +5,7 @@ import {
   CHAT_MAIL_WAIT_MINUTES, MAIL_WAIT_MINUTES, appointmentNotice, calendarRows, chatHref, chatNotice, describeProjectChange, detectStudioNotices, dueDigests, fileNotice,
   mailsWanted, mergeTaskNotice, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
   TASK_NOTICE_KINDS, hasTaskChange, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, LIVE_LINES, liveVersion,
+  mergeShareNotice, shareNotice, sharedAreasOf,
 } from "../lib/hub-notify/rules.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
 import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
@@ -532,4 +533,26 @@ test("open tabs ask for the live version every 15 seconds and when they come bac
   const layout = await source("app/dashboard/layout.tsx");
   assert.match(layout, /identity\.account\?\.role === "oalab_admin" \? countPendingRegistrations\(\) : 0/);
   assert.match(await source("lib/hub-users/server.ts"), /from\("hub_profiles"\)\.select\("user_id", \{ count: "exact", head: true \}\)\.eq\("status", "pending"\)/);
+});
+
+test("a release for a freelancer rings the bell once per customer, never by mail (18.11.2026)", async () => {
+  const notice = shareNotice("Nordlicht  Studio", ["E-Mail"], "2a000000-0000-4000-8000-000000000001");
+  assert.deepEqual(notice, {
+    kind: "share.granted",
+    title: "Neu freigegeben bei Nordlicht Studio",
+    body: "E-Mail · Unter Kunden › Vertrag & Domain",
+    href: "/dashboard/customers?customer=2a000000-0000-4000-8000-000000000001&tab=vd",
+  });
+  // A further release at the same customer joins the unread line, each area once.
+  const merged = mergeShareNotice(notice, "Nordlicht Studio", "Pakete", "2a000000-0000-4000-8000-000000000001");
+  assert.equal(merged.body, "E-Mail, Pakete · Unter Kunden › Vertrag & Domain");
+  assert.deepEqual(sharedAreasOf(mergeShareNotice(merged, "Nordlicht Studio", "E-Mail", "x").body), ["E-Mail", "Pakete"]);
+  assert.deepEqual(sharedAreasOf("Irgendein Text"), []);
+  const server = await source("lib/hub-notify/server.ts");
+  assert.match(server, /export async function notifyFreelancerShare\(/);
+  assert.match(server, /await insertNotices\(db, userIds\.filter\(\(id\) => !latest\.has\(id\)\), fresh, "skipped"\);/);
+  assert.match(server, /\.eq\("kind", "share\.granted"\)\.eq\("href", fresh\.href\)\s+\.is\("read_at", null\)/);
+  const actions = await source("lib/hub-freelancer-customers/actions.ts");
+  assert.match(actions, /if \(on\) after\(\(\) => notifyFreelancerShare\(\{ freelancerId, customerId, company: names\.customer, area: shareAreas\[area\]\.label \}\)\);/);
+  assert.match(await source("components/hub/notifications-panel.tsx"), /if \(kind === "share\.granted"\) return \{ icon: Building2/);
 });
