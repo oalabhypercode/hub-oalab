@@ -91,3 +91,69 @@ export function serviceRows(rows: readonly QuotaRow[], names: ReadonlyMap<string
 export function serviceSummary(rows: readonly Pick<ServiceRow, "tone">[]) {
   return { ok: rows.filter((row) => row.tone === "ok").length, warn: rows.filter((row) => row.tone === "warn").length, full: rows.filter((row) => row.tone === "full").length };
 }
+
+// ---------- The widgets of the Übersicht (design „V5“, 18.11.2026): the same numbers as the tiles here ----------
+
+export type TaskCounts = Record<ProjectTask["status"], number>;
+
+/** Tasks by board column: admins over every project that is not finished, customers over what is released to them. */
+export function taskCounts(projects: readonly Project[], admin: boolean): TaskCounts {
+  const counts: TaskCounts = { backlog: 0, todo: 0, progress: 0, review: 0, done: 0 };
+  for (const project of projects) {
+    if (admin && studioStatus(project) === "complete") continue;
+    for (const task of project.tasks ?? []) if (admin || task.visible) counts[task.status] += 1;
+  }
+  return counts;
+}
+
+/** Open tasks with a date: how many are overdue and how many fall due on each of the `days` days from today on. */
+export function dueByDay(projects: readonly Project[], today: string, admin: boolean, days = 14): { overdue: number; days: number[] } {
+  const result = { overdue: 0, days: new Array<number>(days).fill(0) };
+  const start = Date.parse(`${today}T00:00:00Z`);
+  for (const project of projects) {
+    if (studioStatus(project) === "complete") continue;
+    for (const task of project.tasks ?? []) {
+      if (task.status === "done" || !task.dueOn || (!admin && !task.visible)) continue;
+      if (task.dueOn < today) { result.overdue += 1; continue; }
+      const index = Math.round((Date.parse(`${task.dueOn}T00:00:00Z`) - start) / 86_400_000);
+      if (index < days) result.days[index] += 1;
+    }
+  }
+  return result;
+}
+
+export type ProgressRow = { id: string; name: string; company: string; dueOn: string | null; value: number | null; risk: boolean };
+
+/**
+ * Project progress: admins see the projects that are not finished, those at risk first, then by target date; customers
+ * their own in the order of the „Dein Projekt“ tile. Without counted tasks or requests the value is null („–“).
+ */
+export function progressRows(projects: readonly Project[], admin: boolean): ProgressRow[] {
+  const isRisk = (project: Project) => studioStatus(project) === "risk";
+  const list = admin
+    ? projects.filter((project) => studioStatus(project) !== "complete").sort((a, b) => Number(isRisk(b)) - Number(isRisk(a)) || (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999") || a.name.localeCompare(b.name, "de"))
+    : orderProjects(projects);
+  return list.map((project) => ({ id: project.id, name: project.category || project.name, company: project.company ?? "", dueOn: project.dueOn, value: hasProgress(project) ? project.progress : null, risk: isRisk(project) }));
+}
+
+const berlinDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** Activity: how many things happened on each of the last `days` days up to today, by their day in German time. */
+export function activityByDay(stamps: readonly string[], today: string, days = 14): number[] {
+  const counts = new Array<number>(days).fill(0);
+  const end = Date.parse(`${today}T00:00:00Z`);
+  for (const iso of stamps) {
+    const time = Date.parse(iso);
+    if (Number.isNaN(time)) continue;
+    const index = days - 1 - Math.round((end - Date.parse(`${berlinDay.format(time)}T00:00:00Z`)) / 86_400_000);
+    if (index >= 0 && index < days) counts[index] += 1;
+  }
+  return counts;
+}
+
+/** Monday of the week a Berlin day lies in (YYYY-MM-DD), for the week strip. */
+export function weekStartOf(day: string): string {
+  const time = Date.parse(`${day}T00:00:00Z`);
+  const back = (new Date(time).getUTCDay() + 6) % 7;
+  return new Date(time - back * 86_400_000).toISOString().slice(0, 10);
+}

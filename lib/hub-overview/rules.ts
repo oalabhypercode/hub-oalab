@@ -71,3 +71,50 @@ export const HIDDEN_LIMIT = 120;
 
 /** The stored list after hiding `ids`: each id once, the oldest dropped beyond HIDDEN_LIMIT (the bell keeps 30 anyway). */
 export const addHiddenIds = (stored: readonly number[], ids: readonly number[]) => [...new Set([...stored, ...ids])].slice(-HIDDEN_LIMIT);
+
+// ---------- The two widget stacks beside the notifications (like the phone's widget stacks) ----------
+
+export const WIDGET_IDS = ["status", "due", "quota", "progress", "week", "activity"] as const;
+export type WidgetId = (typeof WIDGET_IDS)[number];
+export type StackSlot = "top" | "bottom";
+export type StackConfig = { items: WidgetId[]; smart: boolean };
+export type StacksConfig = Record<StackSlot, StackConfig>;
+
+/** What a field shows until someone changes it: tasks, quota and progress above; due dates, the week and activity below. */
+export const DEFAULT_STACKS: StacksConfig = { top: { items: ["status", "quota", "progress"], smart: false }, bottom: { items: ["due", "week", "activity"], smart: false } };
+
+const isWidget = (value: unknown): value is WidgetId => typeof value === "string" && (WIDGET_IDS as readonly string[]).includes(value);
+
+/** The stored choice, cleaned: known widgets once each; a field left empty falls back to its default. */
+export function readStacks(raw: string | null): StacksConfig {
+  try {
+    const value = JSON.parse(raw || "null") as Partial<Record<StackSlot, { items?: unknown; smart?: unknown }>> | null;
+    const clean = (slot: StackSlot): StackConfig => {
+      const saved = value?.[slot];
+      const items: WidgetId[] = Array.isArray(saved?.items) ? [...new Set((saved.items as unknown[]).filter(isWidget))] : [];
+      return { items: items.length ? items : DEFAULT_STACKS[slot].items, smart: saved?.smart === true };
+    };
+    return { top: clean("top"), bottom: clean("bottom") };
+  } catch {
+    return DEFAULT_STACKS;
+  }
+}
+
+/** Switches a widget on (at the end) or off; the last one stays, so a field is never empty. */
+export function toggleWidget(stack: StackConfig, id: WidgetId): StackConfig {
+  if (!stack.items.includes(id)) return { ...stack, items: [...stack.items, id] };
+  return stack.items.length > 1 ? { ...stack, items: stack.items.filter((item) => item !== id) } : stack;
+}
+
+/** Moves a widget one place up (-1) or down (1) in its field. */
+export function moveWidget(stack: StackConfig, id: WidgetId, step: -1 | 1): StackConfig {
+  const from = stack.items.indexOf(id);
+  const to = from + step;
+  if (from < 0 || to < 0 || to >= stack.items.length) return stack;
+  const items = [...stack.items];
+  [items[from], items[to]] = [items[to], items[from]];
+  return { ...stack, items };
+}
+
+/** Where a field opens: with „Wichtigstes zuerst“ on the first widget that needs attention, else on its first. */
+export const openingIndex = (stack: StackConfig, attention: (id: WidgetId) => boolean) => stack.smart ? Math.max(0, stack.items.findIndex(attention)) : 0;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { addHiddenIds, EARLIER_LIMIT, HIDDEN_LIMIT, readHiddenIds, relativeWhen, splitNotices, stackByArea } from "../lib/hub-overview/rules.ts";
+import { addHiddenIds, DEFAULT_STACKS, EARLIER_LIMIT, HIDDEN_LIMIT, moveWidget, openingIndex, readHiddenIds, readStacks, relativeWhen, splitNotices, stackByArea, toggleWidget } from "../lib/hub-overview/rules.ts";
 
 // The overview (design „V5“, 18.11.2026): one long welcome card and the bell's notices like a phone's. Fictional data only.
 
@@ -70,7 +70,8 @@ test("what × hid: ids only, each once, the oldest dropped beyond the limit", ()
 test("the overview: one long welcome card, then the notifications; freelancers keep their card and files", async () => {
   const overview = await source("components/hub/screens/overview.tsx");
   assert.match(overview, /: <div className="section-first welcome-row is-merged">\{admin\n\s+\? <WelcomeCard account=\{account\} initials=\{initials\} logo=\{logo\} facts=\{facts \?\? \(preview \? previewFacts : null\)\} \/>\n\s+: <WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/>\}<\/div>\}/);
-  assert.match(overview, /<NotificationCenter items=\{preview \? previewNotices\(asOf, admin\) : inbox\?\.items \?\? \[\]\} preview=\{preview\} admin=\{admin\} insightsHref=\{hubHref\(preview, "insights"\)\} userKey=\{userKey\} \/>/);
+  assert.ok(overview.includes("const notices = preview ? previewNotices(asOf, admin) : inbox?.items ?? [];"));
+  assert.ok(overview.includes('<NotificationCenter items={notices} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} />'));
   assert.match(overview, /\? <FreelancerOverview preview=\{preview\} fileState=\{fileState\} asOf=\{asOf\} \/>/);
   assert.doesNotMatch(overview, /Favoriten|Highlights|LiveOverview|InsightsCard/, "what stands where lives on Insights");
   const stage = await source("components/hub/welcome-stage.tsx");
@@ -95,7 +96,44 @@ test("the admins' facts load on the overview only, after the admin check, withou
   assert.match(server, /if \(role !== "oalab_admin"\) return null;\n\s+const admin = await verifyHubAdmin\(\);\n\s+const db = admin \? createAdminClient\(\) : null;/);
   assert.match(server, /row\.kind !== "freelancer" && !archive\.customerIds\.has\(row\.id\)/);
   assert.match(server, /heldPackages\(packagesOf\(packages\.byCustomer, id\)\)\.some\(isServicePackageId\)/);
-  assert.match(await source("app/dashboard/page.tsx"), /loadOverviewFacts\(identity\.account\?\.role \?\? null\)/);
+  assert.ok((await source("app/dashboard/page.tsx")).includes("loadOverviewFacts(role)"));
   assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "overview" \? loadOverviewFacts\(identity\.account\?\.role \?\? null\) : undefined/);
-  assert.match(await source("components/hub/hub-view.tsx"), /<OverviewScreen \{\.\.\.screen\} userKey=\{userKey\} facts=\{preview \? undefined : overviewFacts\} \/>/);
+  assert.ok((await source("components/hub/hub-view.tsx")).includes("<OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} widgets={preview ? undefined : overviewWidgets} />"));
+});
+
+test("widget stacks: tasks, quota and progress above, due dates, week and activity below, until someone changes them", () => {
+  assert.deepEqual(DEFAULT_STACKS, { top: { items: ["status", "quota", "progress"], smart: false }, bottom: { items: ["due", "week", "activity"], smart: false } });
+  assert.deepEqual(readStacks(null), DEFAULT_STACKS);
+  assert.deepEqual(readStacks("kaputt"), DEFAULT_STACKS);
+  const stored = readStacks(JSON.stringify({ top: { items: ["week", "unbekannt", "week", "due"], smart: true }, bottom: { items: [] } }));
+  assert.deepEqual(stored, { top: { items: ["week", "due"], smart: true }, bottom: DEFAULT_STACKS.bottom }, "unknown and repeated widgets drop out, an empty field takes its default");
+});
+
+test("the gear: switch widgets on and off (never the last), move them, open on what needs attention", () => {
+  const field = { items: ["status", "quota"], smart: false };
+  assert.deepEqual(toggleWidget(field, "week").items, ["status", "quota", "week"]);
+  assert.deepEqual(toggleWidget(field, "quota").items, ["status"]);
+  assert.deepEqual(toggleWidget({ items: ["status"], smart: false }, "status").items, ["status"], "a field is never empty");
+  assert.deepEqual(moveWidget(field, "quota", -1).items, ["quota", "status"]);
+  assert.deepEqual(moveWidget(field, "status", -1).items, ["status", "quota"], "the first stays first");
+  const urgent = (id) => id === "quota";
+  assert.equal(openingIndex(field, urgent), 0, "without „Wichtigstes zuerst“ the first");
+  assert.equal(openingIndex({ ...field, smart: true }, urgent), 1);
+  assert.equal(openingIndex({ ...field, smart: true }, () => false), 0, "nothing urgent: the first");
+});
+
+test("the widgets sit beside the notifications for admins and customers, stored per login in this browser", async () => {
+  const overview = await source("components/hub/screens/overview.tsx");
+  assert.ok(overview.includes('<div className={`nt-zone${widgetData ? " has-charts" : ""}`}>'));
+  assert.ok(overview.includes("{widgetData && <WidgetStacks userKey={userKey} admin={admin} preview={preview} data={widgetData}"));
+  assert.ok(overview.includes("const widgetData = preview ? previewWidgets(asOf, admin) : widgets ?? null;"), "the preview draws fictional data");
+  const stacks = await source("components/hub/widget-stacks.tsx");
+  assert.ok(stacks.includes("const stacksKey = (userKey: string) => `oalab-hub-widgets:${userKey}`;"));
+  assert.ok(stacks.includes("const BUILDERS: Record<WidgetId, (input: WidgetInput) => Widget> = { status: statusWidget, due: dueWidget, quota: quotaWidget, progress: progressWidget, week: weekWidget, activity: activityWidget };"));
+  const server = await source("lib/hub-overview/server.ts");
+  assert.ok(server.includes('if (role !== "oalab_admin" && role !== "oalab_customer") return null;\n  const today = todayIso();\n  const weekStart = weekStartOf(today);'), "freelancers have no widgets");
+  assert.ok((await source("app/dashboard/page.tsx")).includes("loadOverviewWidgets(role)"));
+  const css = await source("app/overview.css");
+  assert.ok(css.includes(".ch-donut .ch-part { fill: none; stroke-width: 18; stroke-linecap: round;"), "rounded ends");
+  assert.ok(css.includes(".nt-zone.has-charts { display: grid; grid-template-columns: minmax(0, 3fr) minmax(312px, 2fr); gap: var(--grid-gap); align-items: stretch;"), "the column ends flush with the notifications");
 });

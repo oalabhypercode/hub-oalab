@@ -181,3 +181,174 @@
   .nt-zone { margin-top: 20px; }
   .nt-title { font-size: 20px; }
 }
+
+/* ---------- The widget stacks beside the notifications (components/hub/widget-stacks.tsx) ---------- */
+
+/* the status ramp: one hue, light (Backlog) to strong (Erledigt), like the board's glyphs filling up (validated, ordinal) */
+:root { --st-backlog: #e39abd; --st-todo: #cf5f97; --st-progress: #b02a72; --st-review: #860a54; --st-done: #55003a; }
+:root[data-theme="dark"] { --st-backlog: #8a3466; --st-todo: #a8457f; --st-progress: #c75e99; --st-review: #e07fb3; --st-done: #f4a6c9; }
+
+/* Notifications left, the widget column right. The column ends flush with the last notification (user 18.11.2026): the
+   notifications set the row's height (the closing line sits below, outside the flow), the column stretches to it and
+   both fields take half; with few notifications the fields keep their minimum and the column simply runs longer. */
+.nt-zone.has-charts { display: grid; grid-template-columns: minmax(0, 3fr) minmax(312px, 2fr); gap: var(--grid-gap); align-items: stretch; margin-bottom: 44px; }
+/* the notifications keep their own height, so the closing line sits right under the last one */
+.nt-zone.has-charts > .nt { position: relative; align-self: start; }
+.nt-zone.has-charts > .nt > .nt-none { position: absolute; left: 0; right: 0; top: 100%; margin-top: 14px; }
+.ch-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding-top: 78px; }
+.ch-col > .stk { flex: 1 1 0; min-height: 262px; }
+
+/* a stack: the tile shows one widget, the dots switch, the gear chooses */
+.in-tile.stk { position: relative; overflow: visible; }
+.in-tile.stk.is-open { z-index: 30; }
+.stk .in-head { gap: 6px; }
+.stk .in-head > .in-link { margin-left: auto; }
+.stk-menu { position: relative; flex: none; }
+.stk-gear { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; color: var(--sheet-muted); }
+.stk-gear:hover, .stk-gear[aria-expanded="true"] { background: var(--sheet-hover); color: var(--accent-text); }
+.stk-gear:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-text); }
+.stk-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; touch-action: pan-y; }
+.stk-body.is-switching { animation: stk-in 260ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes stk-in { from { opacity: 0; transform: translateY(10px); } }
+:root[data-reduce-motion="true"] .stk-body.is-switching { animation: none; }
+.stk-dots { display: flex; justify-content: center; gap: 2px; padding: 0 0 8px; }
+.stk-dots button { position: relative; width: 18px; height: 18px; border-radius: 50%; }
+.stk-dots button::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--sheet-line); transition: background 150ms ease, transform 150ms ease; }
+.stk-dots button:hover::after { background: var(--sheet-icon); }
+.stk-dots button[aria-selected="true"]::after { background: var(--accent-text); transform: scale(1.15); }
+.stk-dots button:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 0; }
+
+/* the gear's sheet: which widgets the field stacks, their order, „Wichtigstes zuerst“ */
+.stk-pop { top: calc(100% + 6px); width: 300px; max-width: min(320px, calc(100vw - 32px)); gap: 6px; }
+.stk-pop-title { margin: 4px 6px 2px; font-size: 12.5px; font-weight: 700; color: var(--sheet-muted); }
+.stk-rows { display: grid; gap: 2px; }
+.stk-row { display: flex; align-items: center; gap: 2px; }
+.stk-row .sheet-choice { flex: 1; min-width: 0; gap: 9px; }
+.stk-row .sheet-choice > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stk-row .sheet-choice:disabled { opacity: 1; cursor: default; }
+.stk-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; background: var(--sheet-seg); color: var(--sheet-muted); }
+.stk-row.is-on .stk-ico { background: rgb(var(--accent-rgb) / 0.1); color: var(--accent-text); }
+.stk-order { flex: none; display: inline-flex; }
+.stk-order button { width: 26px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--sheet-muted); }
+.stk-order button:hover:not(:disabled) { background: var(--menu-hover); color: var(--accent-text); }
+.stk-order button:disabled { opacity: 0.3; cursor: default; }
+.stk-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; padding: 10px 8px 8px 10px; border-top: 1px solid var(--sheet-line); }
+.stk-switch-row strong { display: block; font-size: 13.5px; color: var(--label); }
+.stk-switch-row small { display: block; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.stk-pop-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 4px 2px 10px; border-top: 1px solid var(--sheet-line); font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+
+/* rings with rounded ends: parts drawn as strokes, a part too small for two caps as a dot */
+.ch-donut-body { display: grid; grid-template-columns: 156px minmax(0, 1fr); align-items: center; gap: 18px; padding: 8px 18px; }
+.ch-donut-wrap { position: relative; width: 156px; height: 156px; }
+.ch-donut { display: block; width: 156px; height: 156px; overflow: visible; }
+.ch-donut .ch-track { fill: none; stroke: var(--sheet-divider); stroke-width: 18; }
+.ch-donut .ch-part { fill: none; stroke-width: 18; stroke-linecap: round; transition: opacity 140ms ease; }
+.ch-donut .ch-dot { transition: opacity 140ms ease; }
+.ch-donut[data-hl] :is(.ch-part, .ch-dot):not(.is-hl) { opacity: 0.28; }
+.ch-center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; pointer-events: none; }
+.ch-center b { font-size: 32px; line-height: 34px; font-weight: 700; letter-spacing: -0.02em; color: var(--label); }
+.ch-center span { font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--label-body); }
+.ch-center small { font-size: 11.5px; line-height: 15px; color: var(--sheet-muted); }
+.ch-center.is-empty b { color: var(--sheet-icon); }
+.ch-side { display: grid; gap: 6px; min-width: 0; }
+.ch-legend { display: grid; gap: 2px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.ch-legend li { display: grid; grid-template-columns: 10px 14px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 26px; padding: 0 8px; border-radius: 8px; font-size: 13px; color: var(--label-body); }
+.ch-legend li:hover, .ch-legend li.is-hl { background: var(--sheet-hover); }
+.ch-legend li.is-zero { color: var(--sheet-muted); }
+.ch-swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
+.ch-legend b { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--label); }
+.ch-legend li.is-zero b { font-weight: 500; color: var(--sheet-muted); }
+.ch-scope { margin: 0 8px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.ch-empty { display: grid; gap: 4px; padding: 6px 0 2px; font-size: 13px; line-height: 18px; color: var(--sheet-muted); }
+.ch-empty strong { font-size: 14.5px; color: var(--label); }
+.ch-empty .sheet-action { justify-self: start; margin-top: 6px; }
+.ch-caption { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
+
+/* due dates: one column per day, overdue first in the status red; thin marks, rounded tops, small gaps */
+.ch-bars-body { flex: 1 1 auto; display: grid; grid-template-rows: minmax(84px, 1fr) auto auto; gap: 8px; padding: 12px 18px; }
+.ch-bars-body:has(> .ch-empty) { flex: 0 0 auto; grid-template-rows: auto; }
+.ch-bars { display: grid; grid-template-columns: 1.8fr repeat(14, minmax(0, 1fr)); align-items: end; column-gap: 3px; min-height: 84px; padding-top: 18px; border-bottom: 1px solid var(--sheet-line); }
+.ch-bar { position: relative; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.ch-bar i { display: block; width: 100%; max-width: 18px; height: var(--h); border-radius: 4px 4px 0 0; background: rgb(var(--accent-rgb) / 0.42); }
+.ch-bar.is-today i { background: var(--accent-text); }
+.ch-bar.is-weekend i { background: rgb(var(--accent-rgb) / 0.22); }
+.ch-bar.is-overdue { margin-right: 6px; }
+.ch-bar.is-overdue i { max-width: 22px; background: var(--tone-bad-bar); }
+.ch-bar:hover i { filter: brightness(1.08); }
+.ch-bar em { position: absolute; bottom: calc(var(--h) + 3px); font-style: normal; font-size: 11.5px; line-height: 14px; font-weight: 700; color: var(--label); font-variant-numeric: tabular-nums; }
+.ch-axis { display: grid; grid-template-columns: 1.8fr repeat(14, minmax(0, 1fr)); column-gap: 3px; margin-top: -4px; }
+.ch-axis span { overflow: hidden; font-size: 10.5px; line-height: 13px; text-align: center; color: var(--sheet-muted); white-space: nowrap; }
+.ch-axis span.is-today { font-weight: 700; color: var(--accent-text); }
+.ch-axis span.is-overdue { margin-right: 6px; font-size: 10px; font-weight: 600; letter-spacing: -0.02em; color: var(--tone-bad); }
+.ch-axis span.is-weekend { opacity: 0.6; }
+:root[data-theme="dark"] .ch-bar i { background: rgb(var(--accent-rgb) / 0.58); }
+:root[data-theme="dark"] .ch-bar.is-weekend i { background: rgb(var(--accent-rgb) / 0.32); }
+:root[data-theme="dark"] .ch-bar.is-today i { background: var(--accent-text); }
+:root[data-theme="dark"] .ch-bar.is-overdue i { background: var(--tone-bad-bar); }
+
+/* the customer's quota: the gauge with the package beside it */
+.qt-side { display: grid; justify-items: start; gap: 6px; min-width: 0; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
+.qt-side strong { font-size: 14px; line-height: 19px; color: var(--label); }
+.qt-side .sheet-action { margin-top: 2px; }
+
+/* project progress: a meter per project, rounded at both ends, the track a lighter step of the same colour */
+.pg-body { padding: 6px 0; }
+.pg-list { margin: 0; padding: 0; list-style: none; }
+.pg-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px 44px; align-items: center; gap: 12px; min-height: 44px; padding: 4px 18px; border-bottom: 1px solid var(--sheet-divider); color: var(--label-body); }
+.pg-list li:last-child .pg-row { border-bottom: 0; }
+.pg-row:hover { background: var(--sheet-hover); }
+.pg-name { display: grid; min-width: 0; }
+.pg-name strong { display: flex; align-items: center; gap: 8px; overflow: hidden; font-size: 13.5px; line-height: 18px; color: var(--label); white-space: nowrap; }
+.pg-name small { overflow: hidden; font-size: 12px; line-height: 16px; color: var(--sheet-muted); text-overflow: ellipsis; white-space: nowrap; }
+.pg-meter { height: 8px; overflow: hidden; border-radius: 999px; background: rgb(var(--accent-rgb) / 0.13); }
+.pg-meter > span { display: block; height: 100%; border-radius: 999px; background: var(--accent-text); }
+.pg-meter.is-none { background: repeating-linear-gradient(135deg, var(--sheet-divider) 0 4px, transparent 4px 8px); }
+.pg-row b { font-size: 13px; font-weight: 600; text-align: right; color: var(--label); }
+.pg-more, .wk-more { margin: 6px 18px 0; }
+.pg-body .ch-empty { padding: 10px 18px; }
+
+/* this week: a strip of seven days, today as a filled circle, a dot per appointment */
+.wk-body { display: grid; gap: 4px; padding: 10px 0 2px; }
+.wk-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 0 14px 8px; border-bottom: 1px solid var(--sheet-divider); }
+.wk-day { display: grid; justify-items: center; gap: 3px; padding: 4px 0; border-radius: 10px; }
+.wk-day:hover { background: var(--sheet-hover); }
+.wk-name { font-size: 11px; line-height: 14px; font-weight: 600; color: var(--sheet-muted); }
+.wk-num { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; font-size: 14px; font-weight: 600; color: var(--label); font-variant-numeric: tabular-nums; }
+.wk-day.is-today .wk-num { background: var(--accent-text); color: var(--on-accent); }
+.wk-day.is-today .wk-name { color: var(--accent-text); }
+.wk-day.is-weekend { opacity: 0.6; }
+.wk-dots { display: flex; gap: 3px; height: 5px; }
+.wk-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-text); }
+.wk-list .in-row { min-height: 44px; }
+.wk-none { padding: 4px 18px 8px; }
+
+/* activity: one series over 14 days, line and soft area, today's point marked */
+.ac-body { display: grid; gap: 4px; padding: 12px 18px 10px; }
+.ac-figure { display: flex; align-items: baseline; gap: 8px; }
+.ac-figure b { font-size: 24px; line-height: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--label); }
+.ac-figure span { font-size: 13px; color: var(--sheet-muted); }
+.ac-chart { display: block; width: 100%; height: 72px; overflow: visible; }
+.ac-base { stroke: var(--sheet-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ac-area { fill: rgb(var(--accent-rgb) / 0.1); }
+.ac-line { fill: none; stroke: var(--accent-text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.ac-end { fill: var(--accent-text); stroke: var(--sheet); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.ac-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--sheet-muted); }
+.ac-body .ch-caption { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  /* the narrower column keeps ring and legend side by side, with a smaller ring */
+  .ch-donut-body { grid-template-columns: 120px minmax(0, 1fr); gap: 14px; padding: 8px 14px; }
+  .ch-donut-wrap, .ch-donut { width: 120px; height: 120px; }
+  .ch-center b { font-size: 26px; line-height: 28px; }
+  .ch-legend li { gap: 6px; padding: 0 6px; }
+}
+@media (max-width: 767px) {
+  .nt-zone.has-charts { grid-template-columns: minmax(0, 1fr); margin-bottom: 0; }
+  .nt-zone.has-charts > .nt > .nt-none { position: static; margin-top: 10px; }
+  .ch-col { padding-top: 4px; }
+  .ch-col > .stk { flex: none; min-height: 0; }
+  .ch-donut-body { grid-template-columns: 140px minmax(0, 1fr); justify-items: stretch; }
+  .ch-donut-wrap, .ch-donut { width: 140px; height: 140px; }
+  .stk-pop { position: fixed; left: 12px; right: 12px; top: auto; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); width: auto; max-width: none; }
+  .pg-row { grid-template-columns: minmax(0, 1fr) 72px 40px; }
+}
