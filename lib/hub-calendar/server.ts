@@ -6,7 +6,7 @@ import { addDays, addMonths, availabilityFrom, calendarWindow, FIXED_AVAILABILIT
 import type { HubFileCustomer } from "../hub-files/types";
 import type { HubAppointment, HubCalendarState } from "./types";
 
-type CustomerRow = { id: string; customer_number: string; company: string };
+type CustomerRow = { id: string; customer_number: string; company: string; kind?: string };
 type AppointmentRow = {
   id: string;
   title: string;
@@ -20,7 +20,8 @@ type AppointmentRow = {
 };
 type BusyRow = { starts_at: string; ends_at: string };
 
-const toCustomer = (row: CustomerRow): HubFileCustomer => ({ id: row.id, customerNumber: row.customer_number, company: row.company });
+// The kind tells a freelancer's own entry (their requests belong to it) from the customers they look after.
+const toCustomer = (row: CustomerRow): HubFileCustomer => ({ id: row.id, customerNumber: row.customer_number, company: row.company, ...(row.kind ? { kind: row.kind === "freelancer" ? "freelancer" as const : "customer" as const } : {}) });
 
 export function describeCalendarError(error: { code?: string; message?: string }) {
   if (error.code === "42P01" || error.code === "PGRST205" || error.code === "PGRST202" || /hub_appointments|hub_calendar_busy|schema cache/i.test(error.message ?? "")) {
@@ -76,7 +77,7 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
       .gt("ends_at", from)
       .order("starts_at")
       .returns<AppointmentRow[]>(),
-    supabase.from("hub_customers").select("id, customer_number, company").order("customer_number").returns<CustomerRow[]>(),
+    supabase.from("hub_customers").select("id, customer_number, company, kind").order("customer_number").returns<CustomerRow[]>(),
     canManage ? Promise.resolve({ data: [] as BusyRow[], error: null }) : supabase.rpc("hub_calendar_busy", { range_start: from, range_end: to }),
     loadAvailability(supabase, canManage, `${window.firstMonth}-01`, lastDay),
     canManage ? loadArchive() : noArchive,

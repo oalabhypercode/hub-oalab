@@ -779,6 +779,8 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   --menu-selected: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k)));
   --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(20, 4, 14, 0.06), 0 14px 34px rgba(20, 4, 14, 0.16);
   --select-open-ring: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k)));
+  /* Today and chosen dates in the calendar (18.11.2026): a calm tint with accent text instead of a full accent plate. */
+  --date-mark: rgb(var(--accent-rgb) / 0.1); --date-mark-ring: rgb(var(--accent-rgb) / 0.3);
   /* Hover hints: a small dark label with an arrow. */
   --tip-bg: #252027; --tip-shadow: 0 6px 18px rgba(20, 4, 14, 0.26);
 }
@@ -1909,6 +1911,7 @@ a.teams-join:active { transform: scale(0.97); }
   --sheet-muted: #a1959b; --sheet-icon: #6e6268; --sheet-seg: #231e21; --sheet-seg-on: #332b30; --sheet-select: rgba(244, 166, 201, 0.08);
   --sheet-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 36px rgba(0, 0, 0, 0.45);
   --menu-selected: rgb(var(--accent-rgb) / 0.1);
+  --date-mark: rgb(var(--accent-rgb) / 0.16);
   --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(0, 0, 0, 0.35), 0 16px 38px rgba(0, 0, 0, 0.55);
   --tip-bg: #3a3136; --tip-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 22px rgba(0, 0, 0, 0.55);
 }

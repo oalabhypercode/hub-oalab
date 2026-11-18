@@ -320,10 +320,12 @@ export function CustomerAppointmentPanel({ store, appointment, canWithdraw, onCl
 
 /* ---------- Tasks with a date: the same Studio rows as the board ---------- */
 
-export function TaskPanel({ store, task, preview, confirmHref, nextAppointment, onClose, onDone, onOpenAppointment }: {
+export function TaskPanel({ store, task, preview, freelancer = false, confirmHref, nextAppointment, onClose, onDone, onOpenAppointment }: {
   store: CalendarStore;
   task: CalendarTask;
   preview: boolean;
+  /** Freelancers read the task here and change it in the board of their projects (they have no projects page). */
+  freelancer?: boolean;
   /** The way to the code page while the session is unconfirmed; null otherwise. */
   confirmHref: string | null;
   nextAppointment: HubAppointment | null;
@@ -353,14 +355,19 @@ export function TaskPanel({ store, task, preview, confirmHref, nextAppointment, 
   if (!admin) {
     return (
       <AssetPanel className="um-panel cal-panel" label={task.title} onClose={onClose} icon={<Glyph tone={taskTone[task.status]}><TaskGlyph status={task.status} size={19} /></Glyph>}
-        title={task.title} subtitle={`Aufgabe · ${task.projectName}`}
-        footer={<><Link className="sheet-action" href={`${hubHref(preview, "projects")}?project=${encodeURIComponent(task.projectId)}`}><FolderOpen size={15} aria-hidden="true" />Im Projekt ansehen</Link><span className="pj-spacer" /><button type="button" className="sheet-action is-primary" onClick={onClose}>Fertig</button></>}>
+        title={freelancer ? `#${task.number} ${task.title}` : task.title} subtitle={freelancer ? [task.company, task.projectName].filter(Boolean).join(" · ") : `Aufgabe · ${task.projectName}`}
+        footer={<>{freelancer
+          ? <Link className="sheet-action" href={boardHref}><SquareKanban size={15} aria-hidden="true" />Im Board öffnen</Link>
+          : <Link className="sheet-action" href={`${hubHref(preview, "projects")}?project=${encodeURIComponent(task.projectId)}`}><FolderOpen size={15} aria-hidden="true" />Im Projekt ansehen</Link>}<span className="pj-spacer" /><button type="button" className="sheet-action is-primary" onClick={onClose}>Fertig</button></>}>
         <div className="cal-summary"><span className="cal-summary-day"><TaskGlyph status={task.status} size={15} /><b>{STATUS_NAMES[task.status]}</b></span><span className="cal-summary-time">{task.dueOn ? `fällig ${formatDayLong(task.dueOn)}` : "ohne Datum"}</span></div>
         <dl className="file-details cal-details">
           <div><dt>Projekt</dt><dd>{task.projectName}</dd></div>
-          {task.customerTurn && <div><dt>Wer ist dran</dt><dd><b>Du</b> – oalab wartet auf dich</dd></div>}
+          {freelancer && <div><dt>Zuständig</dt><dd>{task.assigneeIds.length ? task.assigneeIds.map((id) => store.people.find((person) => person.id === id)?.name ?? "Unbekannt").join(", ") : "Niemand zugewiesen"}</dd></div>}
+          {task.customerTurn && <div><dt>Wer ist dran</dt><dd>{freelancer ? "Der Kunde" : <><b>Du</b> – oalab wartet auf dich</>}</dd></div>}
         </dl>
-        <Note icon={Hand}>Diese Aufgabe hat dein oalab-Team für dich freigegeben. Alles Weitere steht im Projekt.</Note>
+        {freelancer
+          ? <Note icon={SquareKanban}>Ändern, kommentieren und verschieben geht im Board deiner Projekte.</Note>
+          : <Note icon={Hand}>Diese Aufgabe hat dein oalab-Team für dich freigegeben. Alles Weitere steht im Projekt.</Note>}
       </AssetPanel>
     );
   }

@@ -37,6 +37,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 25,
+    date: "2026-11-18",
+    title: "Ruhigere Markierungen im Kalender",
+    summary: "Freelancer finden den Kalender jetzt unter Projekte neben den Aufgaben und fragen dort Termine beim oalab-Team an wie Kunden: freie Zeiten in Grün, „Termin anfragen“, die Antwort per Glocke und E-Mail. Die Aufgaben mit Datum aus ihren Projekten stehen dort zum Lesen. Admins sehen die Anfrage mit dem Namen des Freelancers; in der Kundenliste des Kalenders trägt er den Hinweis „Freelancer“. Heute, der gewählte Tag und die gewählte Uhrzeit sind im Kalender für alle nur noch leicht getönt und etwas kleiner.",
+    changes: [
+      { kind: "new", title: "Kalender für Freelancer", text: "Freelancer finden den Kalender jetzt unter Projekte neben den Aufgaben. Sie sehen die freien Zeiten des oalab-Teams in Grün, fragen mit „Termin anfragen“ einen Termin an und ziehen offene Anfragen auch wieder zurück; die Antwort kommt per Glocke und E-Mail. Dazu stehen die Aufgaben mit Datum aus ihren Projekten im Kalender, geändert wird im Board." },
+      { kind: "improved", title: "Ruhigere Markierungen im Kalender", text: "Heute, der gewählte Tag und die gewählte Uhrzeit sind jetzt nur noch leicht getönt statt voll ausgefüllt, und die Datumszahlen sind etwas kleiner. So bleibt der Blick bei deinen Terminen.", customers: true },
+    ],
+  },
+  {
     number: 24,
     date: "2026-11-17",
     title: "Kalender und Projekte immer auf dem neuesten Stand",

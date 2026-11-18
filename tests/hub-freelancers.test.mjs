@@ -93,12 +93,31 @@ test("the asset management: freelancers read, admins set who looks after a custo
   assert.match(files, /const files = missingColumn\(firstFiles\.error\) \? await readFiles\("folder_id"\) : firstFiles;/);
 });
 
+test("freelancers ask oalab for appointments in their own name, in the calendar under Projekte (18.11.2026)", async () => {
+  const screen = await source("components/hub/screens/calendar.tsx");
+  // Free times, the request button and withdrawing work as for customers; the requests belong to the freelancer's own
+  // entry, never to a customer they look after (the database rule allows only the login's own entry anyway).
+  assert.match(screen, /const freeOn = useCallback\(\(date: string\) => admin \? \[\] : customerFree\(/);
+  assert.match(screen, /const own = admin \? null : freelancer \? store\.customers\.find\(\(customer\) => customer\.kind === "freelancer"\) \?\? null : store\.customers\[0\] \?\? null;/);
+  assert.match(screen, /\{own && <button type="button" className="sheet-action is-primary" onClick=\{\(\) => setPanel\(\{ kind: "ask"/);
+  assert.match(screen, /<CustomerAppointmentPanel key=\{panelAppointment\.id\} store=\{store\} appointment=\{panelAppointment\} canWithdraw /);
+  assert.doesNotMatch(screen, /!freelancer &&/);
+  // Their tasks come from the board of their projects; the server reads it for them in the calendar too.
+  assert.match(screen, /const board = useMemo\(\(\) => admin \|\| freelancer \?/);
+  assert.match(await source("app/dashboard/[section]/[detail]/page.tsx"), /tasks \|\| \(calendar && \(admin \|\| freelancer\)\) \? loadTaskBoard\(\) : undefined/);
+  assert.match(await source("lib/hub-calendar/server.ts"), /select\("id, customer_number, company, kind"\)/);
+  // The request action takes the login's own membership: a freelancer login belongs to its freelancer entry only.
+  assert.match(await source("lib/hub-calendar/actions.ts"), /from\("hub_customer_members"\)\.select\("customer_id"\)\.eq\("user_id", userId\)/);
+  // Admins see who asks: freelancers carry a pill among the customers.
+  assert.match(screen, /customer\.kind === "freelancer" \? <span className="chat-pill tone-info">Freelancer<\/span>/);
+});
+
 test("freelancers reach their task board through Projekte and have no way to the service platform in the hub", async () => {
   const sidebar = await source("components/hub/glass-sidebar.tsx");
-  // The calendar stays a freelancer's own entry; everybody else finds it under Projekte.
-  assert.match(sidebar, /const calendarUnderProjects = !account\.freelancer;/);
-  assert.match(sidebar, /categoriesFor\(account\.freelancer\)\.filter\(\(id\) => !\(id === "calendar" && calendarUnderProjects\)\)\.map/);
-  assert.match(sidebar, /\{calendarUnderProjects && \(\n\s+<Link href=\{hubHref\(preview, "calendar"\)\}/);
+  // Since 18.11.2026 everybody, freelancers too, finds the calendar under Projekte.
+  assert.doesNotMatch(sidebar, /calendarUnderProjects/);
+  assert.match(sidebar, /categoriesFor\(account\.freelancer\)\.filter\(\(id\) => id !== "calendar"\)\.map/);
+  assert.match(sidebar, /<\/Link>\n\s+\)\}\n\s+<Link href=\{hubHref\(preview, "calendar"\)\} className=\{`sidebar-item sidebar-sub/);
   // Since 16.11.2026 „Projekte“ leads freelancers straight to the board of their projects, with „Aufgaben“ under it.
   const categories = await source("lib/categories.ts");
   assert.match(categories, /categoryOrder\.filter\(\(id\) => !\(freelancer && id === "contracts"\)\)/);
