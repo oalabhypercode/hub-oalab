@@ -1,5 +1,6 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { DomainMailState } from "@/lib/hub-domains/types";
+import type { FreelancerShareState } from "@/lib/hub-freelancer-customers/types";
 import type { ServiceQuotaState } from "@/lib/hub-service-quota/types";
 import type { CustomerPackage } from "@/lib/service-packages";
 import type { TimelineKind } from "./rules";
@@ -48,5 +49,7 @@ export type ContractsState = {
   domainMail: DomainMailState;
   /** Stage 3: new requests a month on the service platform per Service package, the switch and the block list. */
   serviceQuota: ServiceQuotaState;
+  /** Admins only: which freelancer looks after which customer and what they may read (tab „Freelancer“, 18.11.2026). */
+  freelancerShares?: FreelancerShareState;
   error?: string;
 };

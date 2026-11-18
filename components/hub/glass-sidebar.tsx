@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, KeyRound, LogOut, Palette, ScrollText, Search, Settings, SquareKanban, UserCog, UserRound } from "lucide-react";
+import { Bot, Building2, KeyRound, LogOut, Palette, ScrollText, Search, Settings, SquareKanban, UserCog, UserRound } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { categories, categoriesFor, categoryLabel, projectsHref, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
@@ -89,6 +89,15 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
           const parent = id === "projects" && (onTasks || onCalendar);
           const href = id === "projects" ? projectsHref(props.href, account.freelancer) : props.href;
           const link = <Link key={id} {...props} href={href} className={parent ? "sidebar-item is-parent" : props.className} aria-current={parent ? undefined : props["aria-current"]}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" data-tip={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+          // Freelancers' „Kunden“ (18.11.2026) stands where everybody else has „Vertrag & Domain“: below the files.
+          if (id === "files" && account.freelancer) {
+            return (
+              <Fragment key={id}>
+                {link}
+                <Link {...item("customers")}><Building2 size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels.customers}</span></Link>
+              </Fragment>
+            );
+          }
           if (id !== "projects") return link;
           return (
             <Fragment key={id}>
