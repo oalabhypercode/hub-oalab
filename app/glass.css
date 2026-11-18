@@ -734,6 +734,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .switch[aria-checked="true"] { background: var(--switch-on); }
 .switch-knob { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #ffffff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0, 0, 0, 0.16); transition: transform 250ms var(--ease-spring); }
 .switch[aria-checked="true"] .switch-knob { transform: translateX(20px); }
+/* The small switch in table rows (18.11.2026, the freelancers' releases): 34 × 20 and a calmer colour. */
+.switch.is-sm { width: 34px; height: 20px; flex: 0 0 34px; background: var(--switch-off-calm); }
+.switch.is-sm[aria-checked="true"] { background: var(--switch-on-calm); }
+.switch.is-sm .switch-knob { width: 16px; height: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); }
+.switch.is-sm[aria-checked="true"] .switch-knob { transform: translateX(14px); }
 .slider-row { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 6px; }
 .slider-label { display: flex; justify-content: space-between; font-size: 17px; color: var(--label-body); }
 .slider-label output { color: var(--label-secondary); font-weight: 600; }
@@ -802,6 +807,10 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   --menu-selected: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k)));
   --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(20, 4, 14, 0.06), 0 14px 34px rgba(20, 4, 14, 0.16);
   --select-open-ring: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k)));
+  /* Today and chosen dates in the calendar (18.11.2026): a calm tint with accent text instead of a full accent plate. */
+  --date-mark: rgb(var(--accent-rgb) / 0.1); --date-mark-ring: rgb(var(--accent-rgb) / 0.3);
+  /* The small switch in table rows: calmer than the settings' switch. */
+  --switch-on-calm: rgb(var(--accent-rgb) / 0.62); --switch-off-calm: rgba(120, 120, 128, 0.2);
   /* Hover hints: a small dark label with an arrow. */
   --tip-bg: #252027; --tip-shadow: 0 6px 18px rgba(20, 4, 14, 0.26);
 }
@@ -1932,6 +1941,8 @@ a.teams-join:active { transform: scale(0.97); }
   --sheet-muted: #a1959b; --sheet-icon: #6e6268; --sheet-seg: #231e21; --sheet-seg-on: #332b30; --sheet-select: rgba(244, 166, 201, 0.08);
   --sheet-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 36px rgba(0, 0, 0, 0.45);
   --menu-selected: rgb(var(--accent-rgb) / 0.1);
+  --date-mark: rgb(var(--accent-rgb) / 0.16);
+  --switch-on-calm: rgb(var(--accent-rgb) / 0.55); --switch-off-calm: rgba(235, 235, 245, 0.16);
   --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(0, 0, 0, 0.35), 0 16px 38px rgba(0, 0, 0, 0.55);
   --tip-bg: #3a3136; --tip-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 22px rgba(0, 0, 0, 0.55);
 }
@@ -3048,6 +3059,19 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .cdm-release.is-on { background: var(--tone-ok-bg); box-shadow: none; color: var(--tone-ok); }
 .cdm-release:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--accent-text); }
 .cdm-release:disabled { cursor: default; }
+/* „Kunden“ for freelancers (18.11.2026): the page has no category colour, so its tiles take the accent. */
+.am-tile.fc-tile, :root[data-theme="dark"] .am-tile.fc-tile:not(.is-inbox) { color: var(--accent-text); }
+.file-table td.fc-note-cell { white-space: normal; padding-top: 10px; padding-bottom: 12px; }
+.fc-note { margin: 0; white-space: pre-line; font-size: 14px; line-height: 21px; color: var(--label-body); max-width: 68ch; }
+.fc-note-meta { display: block; margin-top: 6px; font-size: 12px; color: var(--sheet-muted); }
+.fc-empty { display: grid; justify-items: center; gap: 10px; padding: 56px 24px 64px; text-align: center; color: var(--sheet-muted); }
+.fc-empty strong { color: var(--label-body); font-size: 15px; }
+.fc-empty p { margin: 0; max-width: 42ch; font-size: 13.5px; line-height: 19px; }
+.fc-empty .sheet-action { margin-top: 6px; }
+.fc-muted { color: var(--sheet-muted); font-size: 13px; }
+/* The admins' tab „Freelancer“: the row that cannot be released stays quiet. */
+.file-row.fc-off .am-file-text strong { color: var(--sheet-muted); }
+.fc-lock { display: inline-flex; padding: 0 9px; color: var(--sheet-muted); }
 .cdm-lock { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px 10px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-sunken); }
 .cdm-lock p { margin: 0; color: var(--label-body); font-size: 13px; line-height: 18px; }
 .cdm-lock svg { flex: 0 0 auto; margin-top: 1px; color: var(--sheet-muted); }

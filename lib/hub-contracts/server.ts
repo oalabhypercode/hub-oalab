@@ -12,6 +12,7 @@ import { emptyServiceQuota } from "@/lib/hub-service-quota/types";
 import { vaultKeyId } from "@/lib/hub-vault/key";
 import { loadKeychainGate } from "@/lib/hub-keychain/server";
 import { readArchive } from "@/lib/hub-archive/server";
+import { loadFreelancerSharesForAdmin } from "@/lib/hub-freelancer-customers/server";
 import { isTimelineKind } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "./types";
@@ -51,7 +52,7 @@ async function loadForAdmin(): Promise<ContractsState> {
   // Passwords open with the Schlüsselbund's app code (unlocked in this browser and sign-in), as in the Schlüsselbund.
   const gate = await loadKeychainGate();
   const lock = gate?.lock ?? { status: "locked", attemptsLeft: 0, recoveryLeft: 0 } as const;
-  const [customers, packages, timeline, profiles, logos, domainMail, serviceQuota, archive] = await Promise.all([
+  const [customers, packages, timeline, profiles, logos, domainMail, serviceQuota, archive, freelancerShares] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number, kind").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
     db.from("hub_customer_timeline").select(ADMIN_TIMELINE_COLUMNS).order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(3000).returns<TimelineRow[]>(),
@@ -60,6 +61,7 @@ async function loadForAdmin(): Promise<ContractsState> {
     loadDomainMailForAdmin(db, lock, vaultKeyId()).catch(domainMailFailed),
     loadServiceQuotaForAdmin(db).catch(quotaFailed),
     readArchive(db),
+    loadFreelancerSharesForAdmin(db).catch(() => ({ ready: false, assignments: [], error: "Die Freigaben für Freelancer konnten gerade nicht geladen werden." })),
   ]);
   if (customers.error) return empty("admin", "Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   if (timeline.error && !isMissingContractTables(timeline.error)) return empty("admin", "Pakete und Verlauf konnten gerade nicht geladen werden. Bitte versuche es erneut.");
@@ -80,6 +82,8 @@ async function loadForAdmin(): Promise<ContractsState> {
     canManage: ready,
     domainMail: { ...domainMail, domains: shown(domainMail.domains), mailServers: shown(domainMail.mailServers), mailboxes: shown(domainMail.mailboxes), logins: shown(domainMail.logins) },
     serviceQuota: { ...serviceQuota, customers: shown(serviceQuota.customers), switchedBy: serviceQuota.switchedBy ? nameOf(serviceQuota.switchedBy) : null },
+    // Archived customers and archived freelancers stay out of the tab „Freelancer“ as well.
+    freelancerShares: { ...freelancerShares, assignments: freelancerShares.assignments.filter((item) => !archive.customerIds.has(item.customerId) && !archive.customerIds.has(item.freelancerId)) },
   };
 }
 

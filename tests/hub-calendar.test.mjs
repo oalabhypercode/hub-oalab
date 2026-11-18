@@ -232,7 +232,8 @@ test("project deadlines and tasks with a date appear in the calendar, which open
   // Admins see the board's own rows: a task moved here carries the board's version, like a move in the board.
   assert.match(store, /export function boardTasks\(board: TaskBoardState/);
   const calendar = await source("components/hub/screens/calendar.tsx");
-  assert.match(calendar, /admin \? \(board && !board\.error \? boardTasks\(board, projects, calendar\.customers\) : \[\]\) : projectTasks\(projects\)/);
+  // Admins and freelancers (18.11.2026) read the board, customers their released tasks.
+  assert.match(calendar, /board \? \(board\.error \? \[\] : boardTasks\(board, projects, calendar\.customers\)\) : projectTasks\(projects\)/);
   // A deadline links to its day; a notice links its appointment, which opens on its day.
   assert.match(calendar, /const params = useSearchParams\(\);/);
   assert.match(calendar, /const linked = store\.appointments\.find\(\(item\) => item\.id === params\.get\("appointment"\)\);/);
@@ -265,7 +266,7 @@ test("the calendar lives under Projekte; its old address forwards with the query
   assert.match(routes, /if \(segment === "projects" && detail === "calendar"\) return "calendar";/);
   assert.match(await source("components/hub/app-shell.tsx"), /const section: HubSection = pathSection\(pathname\);/);
   const detail = await source("app/dashboard/[section]/[detail]/page.tsx");
-  assert.match(detail, /tasks \|\| \(calendar && admin\) \? loadTaskBoard\(\) : undefined,\s+calendar \? loadHubCalendar\(todayIso\(\)\) : undefined,/);
+  assert.match(detail, /tasks \|\| \(calendar && \(admin \|\| freelancer\)\) \? loadTaskBoard\(\) : undefined,\s+calendar \? loadHubCalendar\(todayIso\(\)\) : undefined,/);
   // In the sidebar it hangs under Projekte, next to Aufgaben.
   const sidebar = await source("components/hub/glass-sidebar.tsx");
   assert.match(sidebar, /<Link href=\{hubHref\(preview, "calendar"\)\} className=\{`sidebar-item sidebar-sub\$\{onCalendar \? " is-active" : ""\}`\}/);

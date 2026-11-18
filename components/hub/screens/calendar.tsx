@@ -239,8 +239,10 @@ function useAvailabilityPaint(root: React.RefObject<HTMLElement | null>, enabled
 
 export function CalendarScreen({ calendar, projects, preview, freelancer, fileState, asOf, taskBoard }: ScreenProps & { taskBoard?: TaskBoardState }) {
   const admin = calendar.canManage;
-  const board = useMemo(() => admin ? (preview ? taskFixtures(asOf) : taskBoard) : undefined, [admin, preview, asOf, taskBoard]);
-  const taskList = useMemo<CalendarTask[]>(() => admin ? (board && !board.error ? boardTasks(board, projects, calendar.customers) : []) : projectTasks(projects), [admin, board, projects, calendar.customers]);
+  // Admins and freelancers read the tasks from the task board (freelancers only their projects, the database decides);
+  // customers their released tasks from their projects.
+  const board = useMemo(() => admin || freelancer ? (preview ? taskFixtures(asOf) : taskBoard) : undefined, [admin, freelancer, preview, asOf, taskBoard]);
+  const taskList = useMemo<CalendarTask[]>(() => board ? (board.error ? [] : boardTasks(board, projects, calendar.customers)) : projectTasks(projects), [board, projects, calendar.customers]);
   const store = useCalendarStore(calendar, taskList, board?.people ?? []);
   const { today, now } = store;
   // Appointments made elsewhere meanwhile (a colleague, a customer's request, Claude) show when the page is opened again.
@@ -307,9 +309,10 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const tasksOn = useCallback((date: string) => on("tasks") ? tasks.filter((task) => task.dueOn === date && inScope(task.customerId) && (task.status !== "done" || (admin && on("done")))).sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || b.number - a.number) : [], [tasks, inScope, admin, on]);
   const goalsOn = useCallback((date: string) => on("goals") ? goals.filter((goal) => goal.day === date && inScope(goal.customerId)) : [], [goals, inScope, on]);
   const overdue = useMemo(() => on("tasks") ? tasks.filter((task) => task.dueOn && task.dueOn < today && task.status !== "done" && inScope(task.customerId)) : [], [tasks, today, inScope, on]);
-  // Customers request inside oalab's availability, after the lead time, with the buffer around booked appointments.
+  // Customers and freelancers (since 18.11.2026) request inside oalab's availability, after the lead time, with the
+  // buffer around booked appointments.
   const { availability } = store;
-  const freeOn = useCallback((date: string) => admin || freelancer ? [] : customerFree(availability, date, store.busy, store.own, now, today), [admin, freelancer, availability, store.busy, store.own, now, today]);
+  const freeOn = useCallback((date: string) => admin ? [] : customerFree(availability, date, store.busy, store.own, now, today), [admin, availability, store.busy, store.own, now, today]);
   const dayLabel = useCallback((date: string): DayLabel => {
     if (admin && dayOff(availability, date)) return { text: "Abwesend", tone: "off" };
     if (!availableSpans(availability, date).length) return { text: admin ? "Kein Termintag" : "", tone: "off" };
@@ -318,9 +321,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       const free = adminFree(availability, date, store.busy, now).reduce((sum, item) => sum + item.end - item.start, 0) / MINUTE;
       return free > 0 ? { text: `${formatHours(free)} frei`, tone: "ok" } : { text: "Ausgebucht", tone: "todo" };
     }
-    if (freelancer) return { text: "", tone: "" };
     return freeOn(date).some((interval) => interval.end - interval.start >= 30 * MINUTE) ? { text: "Frei", tone: "ok" } : { text: "Belegt", tone: "off" };
-  }, [admin, freelancer, today, availability, store.busy, now, freeOn]);
+  }, [admin, today, availability, store.busy, now, freeOn]);
 
   const days = viewDays(view, view === "list" && day < today && monthOf(day) === monthOf(today) ? today : day);
   const rangeDays = new Set(days);
@@ -434,7 +436,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     const date = column?.dataset.colDay ?? cell?.dataset.cell;
     if (!date) return;
     if (!admin) {
-      if (!freelancer && cell && view === "month" && freeOn(date).length) setPanel({ kind: "ask", day: date });
+      if (cell && view === "month" && freeOn(date).length) setPanel({ kind: "ask", day: date });
       return;
     }
     // While the availability is edited, a drag paints; a plain click does nothing.
@@ -478,6 +480,9 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     }];
   })), [store.customers, store.appointments, tasks, now, today]);
   const chosen = selected ? store.customers.find((customer) => customer.id === selected) ?? null : null;
+  // The entry a non-admin's requests belong to: the customer's own company, a freelancer's own entry (a freelancer also
+  // reads the customers they look after, but asks oalab for appointments in their own name).
+  const own = admin ? null : freelancer ? store.customers.find((customer) => customer.kind === "freelancer") ?? null : store.customers[0] ?? null;
   const taskProjects: TaskProjectOption[] = (board?.projects ?? []).map((project) => ({ id: project.id, name: project.name, company: project.company, done: project.status === "complete" }));
 
   const viewProps: CalendarViewProps = {
@@ -556,7 +561,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
         </span>
       </div>
     )
-    : !freelancer && view !== "list" && (
+    : view !== "list" && (
       <div className="cal-strip is-free">
         <span className="cal-strip-icon"><MousePointerClick size={15} aria-hidden="true" /></span>
         <span className="cal-strip-text"><b>Grün heißt frei.</b> Klick auf eine freie Zeit, um dort einen Termin anzufragen. oalab bestätigt ihn dann.</span>
@@ -566,7 +571,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     <span className="cal-legend">
       {(admin
         ? [["is-confirmed", "Termin"], ["is-requested", "Anfrage"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"], ...(editing ? [["is-avail", "Verfügbar"]] : []), ["is-off", "Nicht verfügbar"]]
-        : [["is-confirmed", "Dein Termin"], ["is-requested", "Deine Anfrage"], ...(freelancer ? [] : [["is-free", "Frei"]]), ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"]]
+        : [["is-confirmed", "Dein Termin"], ["is-requested", "Deine Anfrage"], ["is-free", "Frei"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"]]
       ).map(([cls, label]) => <span key={cls} className="cal-key"><span className={`cal-key-swatch ${cls}`} aria-hidden="true" />{label}</span>)}
     </span>
   );
@@ -597,12 +602,12 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
         </header>
       ) : (
         <header className="am-pane-head">
-          {store.customers[0] ? <CustomerSign customer={store.customers[0]} logo={logos.get(store.customers[0].id) ?? null} size="lg" /> : <span className="am-tile is-lg cal-tile"><CalendarDays size={22} aria-hidden="true" /></span>}
+          {own ? <CustomerSign customer={own} logo={logos.get(own.id) ?? null} size="lg" /> : <span className="am-tile is-lg cal-tile"><CalendarDays size={22} aria-hidden="true" /></span>}
           <div className="am-pane-title">
-            <strong>{freelancer ? "Kalender" : "Deine Termine bei oalab"}</strong>
+            <strong>Deine Termine bei oalab</strong>
             <span>{(() => { const next = store.appointments.filter((item) => item.status === "confirmed" && item.end > now).sort(byStart)[0]; return next ? `Nächster Termin: ${formatDayShort(dayOf(next.start))}, ${timeOf(next.start)} · ${next.title}` : "Noch kein Termin geplant"; })()}</span>
           </div>
-          {!freelancer && store.customers.length > 0 && <button type="button" className="sheet-action is-primary" onClick={() => setPanel({ kind: "ask", day: day < today ? today : day })}><CalendarPlus size={15} aria-hidden="true" /><span className="cal-head-label">Termin anfragen</span></button>}
+          {own && <button type="button" className="sheet-action is-primary" onClick={() => setPanel({ kind: "ask", day: day < today ? today : day })}><CalendarPlus size={15} aria-hidden="true" /><span className="cal-head-label">Termin anfragen</span></button>}
         </header>
       )}
       {toolbar}
@@ -667,7 +672,9 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
                 <span className="chat-conv-main">
                   <span className="chat-conv-top"><strong>{customer.company}</strong>
                     {fact?.requests.length ? <span className="chat-pill tone-todo" data-tip={plural(fact.requests.length, "offene Anfrage", "offene Anfragen")}>{fact.requests.length > 1 ? `${fact.requests.length} Anfragen` : "Anfrage"}</span>
-                      : fact?.overdue.length ? <span className="chat-pill tone-bad" data-tip={plural(fact.overdue.length, "Aufgabe überfällig", "Aufgaben überfällig")}>Überfällig</span> : null}
+                      : fact?.overdue.length ? <span className="chat-pill tone-bad" data-tip={plural(fact.overdue.length, "Aufgabe überfällig", "Aufgaben überfällig")}>Überfällig</span>
+                      // Freelancers ask oalab for appointments in their own name (18.11.2026); they stand among the customers.
+                      : customer.kind === "freelancer" ? <span className="chat-pill tone-info">Freelancer</span> : null}
                   </span>
                   <span className="chat-conv-sub"><span className="chat-conv-last">{customer.customerNumber} · {next ? `${formatDayShort(dayOf(next.start))}, ${timeOf(next.start)}${next.status === "requested" ? " angefragt" : ""}` : "Kein Termin geplant"}</span></span>
                 </span>
@@ -692,10 +699,10 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
           ? <RequestPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish} onOpenTask={(id) => setPanel({ kind: "task", id })}
             related={tasks.filter((task) => task.customerId && task.customerId === panelAppointment.customer?.id && task.dueOn && task.status !== "done" && Math.abs(Date.parse(`${task.dueOn}T00:00:00Z`) - Date.parse(`${dayOf(panelAppointment.start)}T00:00:00Z`)) <= 3 * 86_400_000)} />
           : <AppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish} />
-        : <CustomerAppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} canWithdraw={!freelancer} onClose={close} onDone={finish} />
+        : <CustomerAppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} canWithdraw onClose={close} onDone={finish} />
     : panel.kind === "new" ? <AppointmentPanel key={`new-${panel.day}-${panel.start}`} store={store} initial={panel} onClose={close} onDone={finish} />
     : panel.kind === "task" && panelTask
-      ? <TaskPanel key={panelTask.id} store={store} task={panelTask} preview={preview} confirmHref={confirmHref} onClose={close} onDone={finish} onOpenAppointment={(id) => setPanel({ kind: "appointment", id })}
+      ? <TaskPanel key={panelTask.id} store={store} task={panelTask} preview={preview} freelancer={freelancer} confirmHref={confirmHref} onClose={close} onDone={finish} onOpenAppointment={(id) => setPanel({ kind: "appointment", id })}
         nextAppointment={store.appointments.filter((item) => item.customer?.id && item.customer.id === panelTask.customerId && item.end > now && (item.status === "confirmed" || item.status === "requested")).sort(byStart)[0] ?? null} />
     : panel.kind === "goal" && panelGoal ? <GoalPanel key={panelGoal.id} goal={panelGoal} tasks={tasks.filter((task) => task.projectId === panelGoal.id)} preview={preview} today={today} onClose={close} onOpenTask={(id) => setPanel({ kind: "task", id })} />
     : panel.kind === "newTask" ? <NewTaskPanel key={`task-${panel.day}`} store={store} projects={taskProjects} day={panel.day} confirmHref={confirmHref} onClose={close} onDone={finish} />

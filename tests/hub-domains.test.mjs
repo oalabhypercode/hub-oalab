@@ -231,7 +231,8 @@ test("the page knows only whether a password exists; customers read with their o
 test("„Domain & Mail“ and „Zugangsdaten“ sit between „Vertrag“ and „Verlauf“; the overview lists domain renewals", async () => {
   const screen = await source("components/hub/screens/contracts.tsx");
   const tabs = [...screen.matchAll(/\{ id: "(\w+)", label: "[^"]+", name: /g)].map((match) => match[1]);
-  assert.deepEqual(tabs, ["contract", "domains", "access", "timeline"]);
+  // Since 18.11.2026 „Freelancer“ (what each freelancer may read) follows as the last tab.
+  assert.deepEqual(tabs, ["contract", "domains", "access", "timeline", "freelancer"]);
   assert.match(screen, /label: "Domain & Mail"/);
   assert.match(screen, /label: "Zugangsdaten"/);
   const overview = await source("components/hub/screens/contracts-overview.tsx");

@@ -7,7 +7,7 @@ import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, LogOut, MessageCircl
 import { MiniLoader } from "@/components/brand-loader";
 import { signOutAction } from "@/lib/hub-auth/actions";
 import { categories } from "@/lib/categories";
-import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubSection, type Project } from "@/lib/hub-data";
+import { adminSections, freelancerSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { pathSection } from "@/lib/hub-routes";
@@ -156,7 +156,9 @@ export function AppShell({ children, preview = false, pending = false, email = "
   // The user management needs an admin session; the preview never shows it.
   const manageUsers = account.admin && !preview;
   const signOutLabel = preview ? "Vorschau verlassen" : "Abmelden";
-  const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin || account.freelancer).toLowerCase().includes(term));
+  // Only what the login may open: admins' sections for admins, „Kunden“ for freelancers, who have no „Vertrag & Domain“.
+  const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key))
+    && (account.freelancer ? key !== "contracts" : !freelancerSections.includes(key)) && sectionLabel(key, account.admin || account.freelancer).toLowerCase().includes(term));
   const metricResults = preview ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = preview || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
   const assistantDocked = assistantOpen && assistantMode === "dock";

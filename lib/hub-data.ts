@@ -1,9 +1,11 @@
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
 import type { PackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "contracts", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "keychain", "patch-notes"] as const;
+export const hubSections = ["projects", "files", "contracts", "customers", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "keychain", "patch-notes"] as const;
 /** Sections only admins may open. */
 export const adminSections: readonly HubSection[] = ["users", "ai-log", "keychain"];
+/** Sections only freelancers may open: „Kunden“ with what oalab released of each customer (18.11.2026). */
+export const freelancerSections: readonly HubSection[] = ["customers"];
 export type HubSection = "overview" | (typeof hubSections)[number];
 
 export const sectionLabels: Record<HubSection, string> = {
@@ -11,6 +13,7 @@ export const sectionLabels: Record<HubSection, string> = {
   projects: "Projekte",
   files: "Dateien",
   contracts: "Vertrag & Domain",
+  customers: "Kunden",
   messages: "Nachrichten",
   calendar: "Kalender",
   settings: "Profil",

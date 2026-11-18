@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, KeyRound, LogOut, Palette, ScrollText, Search, Settings, SquareKanban, UserCog, UserRound } from "lucide-react";
+import { Bot, Building2, KeyRound, LogOut, Palette, ScrollText, Search, Settings, SquareKanban, UserCog, UserRound } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { categories, categoriesFor, categoryLabel, projectsHref, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabels, type HubSection } from "@/lib/hub-data";
@@ -39,10 +39,9 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
   const meta = activePackages || (account.admin ? "oalab-Team" : account.freelancer ? "Freelancer" : "");
   const [menuOpen, setMenuOpen] = useState(false);
   // „Aufgaben“ (the task board) and „Kalender“ hang under Projekte; on them, Projekte shows as their parent. Freelancers
-  // reach their board through Projekte as well (16.11.2026); the calendar stays their own entry.
+  // reach their board through Projekte as well (16.11.2026), and since 18.11.2026 their calendar hangs there too.
   const onTasks = /\/projects\/tasks\/?$/.test(usePathname() ?? "");
   const onCalendar = section === "calendar";
-  const calendarUnderProjects = !account.freelancer;
   const CalendarIcon = categories.calendar.icon;
   const corner = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
@@ -84,12 +83,21 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         ))}
         <span className="sidebar-caption">Bereiche</span>
         {/* All navigation icons share the accent colour; the category colours stay on the pages themselves. */}
-        {categoriesFor(account.freelancer).filter((id) => !(id === "calendar" && calendarUnderProjects)).map((id) => {
+        {categoriesFor(account.freelancer).filter((id) => id !== "calendar").map((id) => {
           const Icon = categories[id].icon;
           const props = item(categories[id].section);
           const parent = id === "projects" && (onTasks || onCalendar);
           const href = id === "projects" ? projectsHref(props.href, account.freelancer) : props.href;
           const link = <Link key={id} {...props} href={href} className={parent ? "sidebar-item is-parent" : props.className} aria-current={parent ? undefined : props["aria-current"]}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" data-tip={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
+          // Freelancers' „Kunden“ (18.11.2026) stands where everybody else has „Vertrag & Domain“: below the files.
+          if (id === "files" && account.freelancer) {
+            return (
+              <Fragment key={id}>
+                {link}
+                <Link {...item("customers")}><Building2 size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{sectionLabels.customers}</span></Link>
+              </Fragment>
+            );
+          }
           if (id !== "projects") return link;
           return (
             <Fragment key={id}>
@@ -100,11 +108,9 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
                   <SquareKanban size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>Aufgaben</span>
                 </Link>
               )}
-              {calendarUnderProjects && (
-                <Link href={hubHref(preview, "calendar")} className={`sidebar-item sidebar-sub${onCalendar ? " is-active" : ""}`} aria-current={onCalendar ? "page" : undefined}>
-                  <CalendarIcon size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categories.calendar.name}</span>
-                </Link>
-              )}
+              <Link href={hubHref(preview, "calendar")} className={`sidebar-item sidebar-sub${onCalendar ? " is-active" : ""}`} aria-current={onCalendar ? "page" : undefined}>
+                <CalendarIcon size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span>{categories.calendar.name}</span>
+              </Link>
             </Fragment>
           );
         })}
