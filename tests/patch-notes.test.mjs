@@ -28,7 +28,7 @@ test("every package explains itself and every change has a known kind", () => {
 });
 
 test("customers see only their entries, admins see everything", () => {
-  const forCustomers = patchPackagesFor(false);
+  const forCustomers = patchPackagesFor("customer");
   for (const item of forCustomers) {
     assert.ok(item.changes.length > 0, `package ${item.number} is not empty`);
     assert.ok(item.changes.every((change) => change.customers), `package ${item.number} holds no internal entry`);
@@ -36,7 +36,22 @@ test("customers see only their entries, admins see everything", () => {
   const internal = patchPackages.flatMap((item) => item.changes.filter((change) => !change.customers));
   assert.ok(internal.length > 0, "there are internal entries to hide");
   assert.equal(forCustomers.flatMap((item) => item.changes).length, patchPackages.flatMap((item) => item.changes).length - internal.length);
-  assert.equal(patchPackagesFor(true), patchPackages);
+  assert.equal(patchPackagesFor("admin"), patchPackages);
+});
+
+test("freelancers see what is marked for them, under titles that hold for them (18.11.2026)", () => {
+  const forFreelancers = patchPackagesFor("freelancer");
+  assert.ok(forFreelancers.length > 0);
+  for (const item of forFreelancers) {
+    assert.ok(item.changes.length > 0 && item.changes.every((change) => change.freelancers), `package ${item.number}`);
+    assert.ok(item.date >= "2026-11-05", "nothing from before the freelancer role");
+  }
+  const latest = forFreelancers.find((item) => item.number === 25);
+  const titles = latest.changes.map((change) => change.title);
+  assert.ok(titles.includes("Übersicht für Freelancer") && titles.includes("Kunden für Freelancer"));
+  assert.ok(!titles.includes("Insights auf einen Blick") && !titles.includes("Freigaben für Freelancer"), "neither customers' nor admins' entries");
+  assert.equal(latest.title, patchPackages.find((item) => item.number === 25).freelancerTitle);
+  for (const item of patchPackages) if (item.freelancerTitle) assert.doesNotMatch(item.freelancerTitle, /Vertrag & Domain|Insights|Serviceplattform/, `package ${item.number}`);
 });
 
 test("patch notes carry no addresses, links or keys", () => {
