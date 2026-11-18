@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activityByDay, dueByDay, dueTasks, hasProgress, openRequests, orderProjects, progressRows, quotaView, serviceRows, serviceSummary, taskCounts, watchProjects, weekStartOf } from "../lib/hub-insights/rules.ts";
+import { activityByDay, adminTodos, dueByDay, dueTasks, hasProgress, openRequests, orderProjects, progressRows, quotaView, serviceRows, serviceSummary, taskCounts, todoId, watchProjects, weekStartOf } from "../lib/hub-insights/rules.ts";
 import { quotaStatus } from "../lib/hub-service-quota/rules.ts";
 
 // Insights (design „V5“, 18.11.2026): the tiles' rules and how the page is wired. Fictional data only.
@@ -186,4 +186,32 @@ test("the week strip starts on Monday", () => {
   assert.equal(weekStartOf("2026-11-23"), "2026-11-23", "a Monday");
   assert.equal(weekStartOf("2026-11-29"), "2026-11-23", "a Sunday");
   assert.equal(weekStartOf("2026-03-01"), "2026-02-23", "across a month");
+});
+
+test("what waits for admins: registrations, requests, overdue tasks, full quotas, projects at risk or waiting, in that order", () => {
+  const now = Date.parse("2026-11-25T08:00:00Z");
+  const appointment = (id, status, start) => ({ id, title: `Termin ${id}`, status, start: Date.parse(start), end: Date.parse(start) + 1_800_000, customer: null });
+  const todos = adminTodos({
+    registrations: 2,
+    appointments: [appointment("a", "requested", "2026-11-26T09:00:00Z"), appointment("b", "confirmed", "2026-11-26T10:00:00Z"), appointment("c", "requested", "2026-11-24T09:00:00Z")],
+    projects: [
+      project("Brennt", { studio: { status: "risk", version: 1 }, tasks: [task({ dueOn: "2026-11-20" }), task({ dueOn: "2026-11-22" })] }),
+      project("Wartet", { tasks: [task({ customer: true, visible: true })] }),
+    ],
+    rows: [{ customerId: "c1", company: "Café Ost", customerNumber: "KD-1", packageId: "service-lite", limit: 5, used: 5, tone: "full", share: 1 }, { customerId: "c2", company: "Atelier Nord", customerNumber: "KD-2", packageId: "service-max", limit: 20, used: 3, tone: "ok", share: 0.15 }],
+    today, now,
+  });
+  assert.deepEqual(todos.map((todo) => todo.kind), ["registrations", "request", "overdue", "quota", "risk", "waiting"]);
+  assert.equal(todos[1].appointment.id, "a", "only open requests still ahead");
+  assert.equal(todos[2].count, 2);
+  assert.equal(todos[2].first.task.dueOn, "2026-11-20", "the longest overdue first");
+  assert.equal(todos[0].key, "registrations:2", "the key carries the state: one more brings the line back");
+  assert.equal(adminTodos({ registrations: 0, appointments: [], projects: [], rows: [], today, now }).length, 0);
+});
+
+test("a derived line's id is negative and stable for its key", () => {
+  assert.ok(todoId("registrations:2") < 0);
+  assert.equal(todoId("quota:c1:5"), todoId("quota:c1:5"));
+  assert.notEqual(todoId("quota:c1:5"), todoId("quota:c1:6"));
+  assert.ok(Number.isSafeInteger(todoId("x".repeat(500))));
 });

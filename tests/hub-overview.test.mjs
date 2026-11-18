@@ -60,7 +60,7 @@ test("times as the phone says them, in German time", () => {
 test("what × hid: ids only, each once, the oldest dropped beyond the limit", () => {
   assert.deepEqual(readHiddenIds(null), []);
   assert.deepEqual(readHiddenIds("kaputt"), []);
-  assert.deepEqual(readHiddenIds(JSON.stringify([3, "4", -1, 2.5, 7])), [3, 7]);
+  assert.deepEqual(readHiddenIds(JSON.stringify([3, "4", -1, 0, 2.5, 7])), [3, -1, 7], "negative ids are the admins' derived lines");
   assert.deepEqual(addHiddenIds([1, 2], [2, 3]), [1, 2, 3]);
   const full = Array.from({ length: HIDDEN_LIMIT }, (_, index) => index + 1);
   assert.deepEqual(addHiddenIds(full, [HIDDEN_LIMIT + 1]).slice(0, 2), [2, 3]);
@@ -71,7 +71,7 @@ test("the overview: one long welcome card, then the notifications; freelancers k
   const overview = await source("components/hub/screens/overview.tsx");
   assert.match(overview, /: <div className="section-first welcome-row is-merged">\{admin\n\s+\? <WelcomeCard account=\{account\} initials=\{initials\} logo=\{logo\} facts=\{facts \?\? \(preview \? previewFacts : null\)\} \/>\n\s+: <WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/>\}<\/div>\}/);
   assert.ok(overview.includes("const notices = preview ? previewNotices(asOf, admin) : inbox?.items ?? [];"));
-  assert.ok(overview.includes('<NotificationCenter items={notices} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} />'));
+  assert.ok(overview.includes('<NotificationCenter items={notices} derived={derived} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} />'));
   assert.match(overview, /\? <FreelancerOverview preview=\{preview\} fileState=\{fileState\} asOf=\{asOf\} \/>/);
   assert.doesNotMatch(overview, /Favoriten|Highlights|LiveOverview|InsightsCard/, "what stands where lives on Insights");
   const stage = await source("components/hub/welcome-stage.tsx");
@@ -85,10 +85,14 @@ test("the overview: one long welcome card, then the notifications; freelancers k
 test("notifications: a card marks read, × hides it in this browser, the preview stores nothing", async () => {
   const center = await source("components/hub/notification-center.tsx");
   assert.match(center, /<Link href=\{item\.href\} className="glass nt-card" onClick=\{\(\) => markRead\(\[item\.id\]\)\}>/);
-  assert.match(center, /if \(preview\) return;\n\s+void markNoticesRead\(unread\)/);
-  assert.match(center, /if \(preview\) return;\n\s+void markNoticesRead\(\)\.then/, "„Alle gelesen“ marks everything");
+  assert.ok(center.includes("const local = unread.filter((id) => id < 0);\n    if (local.length) storeIds(readKey(userKey), local);\n    const stored = unread.filter((id) => id > 0);\n    if (preview || !stored.length) return;\n    void markNoticesRead(stored)"), "stored notices on the server, derived lines in this browser");
+  assert.ok(center.includes("if (preview || !fresh.some((item) => item.id > 0)) return;\n    void markNoticesRead().then"), "„Alle gelesen“ marks everything");
+  const symbols = await source("components/hub/notice-symbols.ts");
+  for (const kind of ["registrations", "request", "overdue", "quota", "risk", "waiting"]) assert.ok(symbols.includes(`kind === "todo.${kind}"`), kind);
+  const overview = await source("components/hub/screens/overview.tsx");
+  assert.ok(overview.includes("const derived = admin && widgetData ? adminNotices({ data: widgetData, projects: widgetProjects, registrations: pendingRegistrations, preview }) : [];"), "only admins get the derived lines");
   assert.match(center, /const hiddenKey = \(userKey: string\) => `oalab-hub-notices-hidden:\$\{userKey\}`;/);
-  assert.match(center, /const when = \(iso: string\) => now \? relativeWhen\(iso, now\) : noticeWhen\(iso\);/, "server and first render show the clock time");
+  assert.ok(center.includes("const when = (item: CenterItem) => item.label ?? (now ? relativeWhen(item.createdAt, now) : noticeWhen(item.createdAt));"), "server and first render show the clock time; derived lines their label");
 });
 
 test("the admins' facts load on the overview only, after the admin check, without freelancers and archived ones", async () => {

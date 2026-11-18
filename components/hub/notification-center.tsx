@@ -17,9 +17,18 @@ const subscribeMinute = (change: () => void) => {
 const currentMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 const noMinute = () => 0;
 
-// What × hid stays hidden in this browser (per login); the bell keeps every notice, read.
+// What × hid stays hidden in this browser (per login); the bell keeps every notice, read. The admins' derived lines
+// (what waits for them, negative ids) have no row on the server: read ones are kept here too.
 const HIDDEN_EVENT = "oalab-hub-notices-hidden";
 const hiddenKey = (userKey: string) => `oalab-hub-notices-hidden:${userKey}`;
+const readKey = (userKey: string) => `oalab-hub-notices-read:${userKey}`;
+const storeIds = (key: string, ids: number[]) => {
+  try { localStorage.setItem(key, JSON.stringify(addHiddenIds(readHiddenIds(localStorage.getItem(key)), ids))); } catch { /* kept until the page reloads */ }
+  window.dispatchEvent(new Event(HIDDEN_EVENT));
+};
+
+/** A notice of the bell, or a derived line with a fixed time label („heute“). */
+export type CenterItem = InboxItem & { label?: string };
 const subscribeHidden = (change: () => void) => {
   window.addEventListener(HIDDEN_EVENT, change);
   window.addEventListener("storage", change);
@@ -37,27 +46,33 @@ const LEAVE_MS = 220;
  * page and counts as read; × marks it read and hides it here; „Alle gelesen“ moves everything new to „Früher“. The
  * preview shows fictional notices and stores nothing on the server.
  */
-export function NotificationCenter({ items, preview, admin, insightsHref, userKey }: { items: InboxItem[]; preview: boolean; admin: boolean; insightsHref: string; userKey: string }) {
+export function NotificationCenter({ items: notices, derived = [], preview, admin, insightsHref, userKey }: { items: InboxItem[]; derived?: CenterItem[]; preview: boolean; admin: boolean; insightsHref: string; userKey: string }) {
   const now = useSyncExternalStore(subscribeMinute, currentMinute, noMinute);
   const key = hiddenKey(userKey);
   const stored = useSyncExternalStore(subscribeHidden, () => readStored(key), noStored);
+  const storedRead = useSyncExternalStore(subscribeHidden, () => readStored(readKey(userKey)), noStored);
   const [read, setRead] = useState<Set<number>>(() => new Set());
   const [gone, setGone] = useState<Set<number>>(() => new Set());
   const [leaving, setLeaving] = useState<Set<number>>(() => new Set());
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
   const hidden = useMemo(() => new Set([...readHiddenIds(stored || null), ...gone]), [stored, gone]);
+  const derivedRead = useMemo(() => new Set(readHiddenIds(storedRead || null)), [storedRead]);
+  const items: CenterItem[] = [...derived.map((item) => ({ ...item, read: derivedRead.has(item.id) })), ...notices];
   const { fresh, earlier, more } = splitNotices(items, read, hidden);
   const areaOf = (item: InboxItem) => noticeSymbol(item.kind).area;
-  const when = (iso: string) => now ? relativeWhen(iso, now) : noticeWhen(iso);
+  const when = (item: CenterItem) => item.label ?? (now ? relativeWhen(item.createdAt, now) : noticeWhen(item.createdAt));
   const isRead = (id: number) => read.has(id) || items.some((item) => item.id === id && item.read);
 
   function markRead(ids: number[]) {
     const unread = ids.filter((id) => !isRead(id));
     if (!unread.length) return;
     setRead((current) => new Set([...current, ...unread]));
-    if (preview) return;
-    void markNoticesRead(unread).then((result) => setError(result.ok ? "" : result.error));
+    const local = unread.filter((id) => id < 0);
+    if (local.length) storeIds(readKey(userKey), local);
+    const stored = unread.filter((id) => id > 0);
+    if (preview || !stored.length) return;
+    void markNoticesRead(stored).then((result) => setError(result.ok ? "" : result.error));
   }
 
   function dismiss(ids: number[]) {
@@ -67,14 +82,15 @@ export function NotificationCenter({ items, preview, admin, insightsHref, userKe
     window.setTimeout(() => {
       setGone((current) => new Set([...current, ...ids]));
       setLeaving((current) => new Set([...current].filter((id) => !ids.includes(id))));
-      try { localStorage.setItem(key, JSON.stringify(addHiddenIds(readHiddenIds(localStorage.getItem(key)), ids))); } catch { /* hidden until the page reloads */ }
-      window.dispatchEvent(new Event(HIDDEN_EVENT));
+      storeIds(key, ids);
     }, reduced ? 0 : LEAVE_MS);
   }
 
   function readAll() {
     setRead((current) => new Set([...current, ...fresh.map((item) => item.id)]));
-    if (preview) return;
+    const local = fresh.filter((item) => item.id < 0).map((item) => item.id);
+    if (local.length) storeIds(readKey(userKey), local);
+    if (preview || !fresh.some((item) => item.id > 0)) return;
     void markNoticesRead().then((result) => setError(result.ok ? "" : result.error));
   }
 
@@ -84,12 +100,12 @@ export function NotificationCenter({ items, preview, admin, insightsHref, userKe
     return next;
   });
 
-  function card(item: InboxItem, early: boolean, stack?: { more: number; ids: number[]; onOpen: () => void }) {
+  function card(item: CenterItem, early: boolean, stack?: { more: number; ids: number[]; onOpen: () => void }) {
     const { icon: Icon, color, area } = noticeSymbol(item.kind);
     const content = <>
       <span className="nt-icon" style={{ "--c": color } as CSSProperties} aria-hidden="true"><Icon size={20} /></span>
       <span className="nt-text">
-        <span className="nt-top"><strong>{item.title}</strong><time dateTime={item.createdAt}>{when(item.createdAt)}</time></span>
+        <span className="nt-top"><strong>{item.title}</strong><time dateTime={item.createdAt}>{when(item)}</time></span>
         {item.body && <span className="nt-body">{item.body}</span>}
         {stack && <span className="nt-more">{stack.more} weitere</span>}
       </span>
@@ -104,7 +120,7 @@ export function NotificationCenter({ items, preview, admin, insightsHref, userKe
     );
   }
 
-  function stack({ area, items: list }: NoticeStack<InboxItem>, early: boolean) {
+  function stack({ area, items: list }: NoticeStack<CenterItem>, early: boolean) {
     const stackKey = `${early ? "earlier" : "new"}:${area}`;
     if (list.length === 1) return card(list[0], early);
     const ids = list.map((item) => item.id);
@@ -132,7 +148,7 @@ export function NotificationCenter({ items, preview, admin, insightsHref, userKe
         ? <><p className="nt-label">Neu</p><ol className="nt-list">{stackByArea(fresh, areaOf).map((group) => stack(group, false))}</ol></>
         : <div className="nt-quiet">
           <strong>Keine neuen Benachrichtigungen</strong>
-          <span>{admin ? "Alles erledigt. Schreibt dir ein Kunde im privaten Chat oder ändert ein Freelancer eine Aufgabe, steht es hier." : "Neue Dateien, Termine, Antworten und Aufgaben erscheinen hier, sobald es sie gibt."}</span>
+          <span>{admin ? "Alles erledigt. Neue Registrierungen, Terminanfragen, Fristen, volle Kontingente und Nachrichten erscheinen hier." :"Neue Dateien, Termine, Antworten und Aufgaben erscheinen hier, sobald es sie gibt."}</span>
           <Link href={insightsHref} className="glass nt-pill"><Sparkles size={14} aria-hidden="true" />{admin ? "Zahlen und Listen in Insights" : "Stand deiner Projekte in Insights"}</Link>
         </div>}
       {earlier.length > 0 && <><p className="nt-label">Früher</p><ol className="nt-list">{stackByArea(earlier, areaOf).map((group) => stack(group, true))}</ol></>}

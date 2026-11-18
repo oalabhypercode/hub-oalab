@@ -61,7 +61,8 @@ export function relativeWhen(iso: string, now: number): string {
 export function readHiddenIds(raw: string | null): number[] {
   try {
     const value: unknown = JSON.parse(raw ?? "[]");
-    return Array.isArray(value) ? value.filter((id): id is number => Number.isSafeInteger(id) && id > 0) : [];
+    // Stored notices have positive ids, the admins' derived lines negative ones (todoId in lib/hub-insights/rules.ts).
+    return Array.isArray(value) ? value.filter((id): id is number => Number.isSafeInteger(id) && id !== 0) : [];
   } catch {
     return [];
   }
