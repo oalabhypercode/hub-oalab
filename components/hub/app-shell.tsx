@@ -184,6 +184,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
     askAssistant: (question) => { setAssistantQuestion((current) => ({ text: question, key: (current?.key ?? 0) + 1 })); setAssistantOpen(true); },
     assistantDocked: assistantMode === "dock",
     unread: unreadCount > 0, unreadCount, ringing, signOut, signingOut, logoutError,
+    inbox: preview ? null : inbox, pendingRegistrations, unreadConversations: counts.messages,
   };
   const changeAssistantMode = (mode: AssistantMode) => {
     setAssistantMode(mode);

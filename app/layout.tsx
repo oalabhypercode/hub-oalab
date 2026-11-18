@@ -16,6 +16,7 @@ import "./motion.css";
 import "./tasks.css";
 import "./calendar.css";
 import "./web-app.css";
+import "./overview.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`

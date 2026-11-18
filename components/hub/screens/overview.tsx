@@ -138,19 +138,6 @@ export function LoadNotice({ text }: { text: string }) {
   return <GlassCard className="empty-card section-first" role="status"><p className="t-headline">Gerade nicht verfügbar</p><p className="t-subheadline t-secondary">{text}</p></GlassCard>;
 }
 
-export function InsightsScreen({ model, preview, populated, admin }: ScreenProps) {
-  return (
-    <>
-      <LargeTitleHeader title="Insights" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.insights!} />} actions={<HeaderActions />} />
-      {populated && model.insight ? <>
-        <div className="section-first"><InsightsCard insight={model.insight} /></div>
-        <SectionHeader title="Highlights" />
-        <div className="highlight-grid">{model.highlights.map((highlight) => <HighlightCard key={highlight.id} highlight={highlight} href={model.metrics[highlight.metric].href} label={categoryLabel(highlight.category, admin)} />)}</div>
-      </> : <EmptyState section="insights" preview={preview} />}
-    </>
-  );
-}
-
 const emptyCopy: Partial<Record<HubSection, [string, string]>> = {
   overview: ["Dein nächstes Kapitel beginnt hier.", "Sobald dein Projektteam deinen Workspace eingerichtet hat, findest du hier Projekte, nächste Schritte und Neuigkeiten."],
   insights: ["Insights entstehen mit deinen Projekten.", "Sobald Projekte, Dateien und Nachrichten in deinem Workspace liegen, fassen wir hier zusammen, was passiert ist."],
@@ -159,13 +146,13 @@ const emptyCopy: Partial<Record<HubSection, [string, string]>> = {
   messages: ["Lass uns im Gespräch bleiben.", "Hier laufen künftig die Rückfragen und Updates zu deinen Projekten zusammen."],
 };
 
-export function EmptyState({ section, preview = false }: { section: HubSection; preview?: boolean }) {
+/** A section without content yet. Since 18.11.2026 without the link to the design preview, which is a 404 live. */
+export function EmptyState({ section }: { section: HubSection; preview?: boolean }) {
   const [title, text] = emptyCopy[section] || emptyCopy.overview!;
   return (
     <GlassCard className="empty-state section-first">
       <h2 className="t-title3">{title}</h2>
       <p className="t-body t-secondary">{text}</p>
-      {!preview && <Link className="text-link" href="/preview">Designvorschau entdecken</Link>}
     </GlassCard>
   );
 }
