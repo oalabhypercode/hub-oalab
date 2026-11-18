@@ -131,7 +131,7 @@ test("freelancers reach their task board through Projekte and have no way to the
   const chat = await source("components/hub/screens/private-chat.tsx");
   assert.match(chat, /\{!admin && !freelancer && \(/);
   const overview = await source("components/hub/screens/overview.tsx");
-  assert.match(overview, /\? <FreelancerCard customers=/);
+  assert.match(overview, /account\.freelancer\n\s+\? <div className="section-first welcome-row has-host"><WelcomeStage [^\n]*<FreelancerCard customers=/);
   const cards = await source("components/hub/cards.tsx");
   const card = cards.slice(cards.indexOf("export function FreelancerCard"), cards.indexOf("/** Rule-based summary"));
   assert.doesNotMatch(card, /SERVICE_PLATFORM_URL/);

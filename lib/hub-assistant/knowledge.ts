@@ -44,12 +44,11 @@ Der oalab Client Hub ist das Kundenportal von oalab (Agentur für Websites, Mark
 - Admins sehen unter Verwaltung das „KI-Protokoll“: alle Vorschläge des Assistenten mit Zeit, Admin, Art, Kunde oder Projekt, Inhalt und Ergebnis, mit Suche, Filtern und Sortierung.
 
 ## Übersicht
-- Begrüßung mit Name, Unternehmen und Kundennummer. Daneben die aktiven Pakete (OALAB Domain oder OALAB Domain & Mail und OALAB Service Lite oder OALAB Service Max) und der Button „Ab zur Serviceplattform“ (service.oalab.de, öffnet einen neuen Tab).
+- Oben steht eine lange Begrüßungskarte. Bei Kunden: Ali mit Sprechblase, darunter das Unternehmen mit Kundennummer und den aktiven Paketen (OALAB Domain oder OALAB Domain & Mail und OALAB Service Lite oder OALAB Service Max), rechts der Button „Ab zur Serviceplattform“ (service.oalab.de, öffnet einen neuen Tab). Bei Admins: „Willkommen zurück“ mit Name, darunter Organisation (oalab-Team), die Zahl der Kunden (ohne Freelancer und archivierte) und wie viele davon ein Servicepaket haben, rechts derselbe Button. Freelancer sehen Ali mit ihrer Freelancer-Nr. und daneben die Karte „Deine Kunden“.
 - Kunden begrüßt dort Ali von oalab als Avatar mit Sprechblase („Hallo“ und Vorname). Bei jedem Öffnen der Übersicht spricht er, immer ohne Ton; direkt nach der Anmeldung erst, wenn die Begrüßung verschwunden ist. Mit „Bewegung reduzieren“ steht er still da. Admins sehen die Begrüßung ohne Avatar.
 - Unter Alis Sprechblase steht das Unternehmen in einer eigenen Zeile: das Firmenlogo (ohne Logo die Anfangsbuchstaben des Unternehmens), daneben Name und Kundennummer. Das Logo hinterlegt das oalab-Team.
-- Insights: eine kurze Zusammenfassung, was in den Projekten passiert ist.
-- Favoriten: Kennzahl-Kacheln. „Bearbeiten“ fügt Kennzahlen hinzu, entfernt oder sortiert sie. Favoriten werden pro Nutzer im Browser gespeichert.
-- Highlights, „Du bist am Zug“ (nächste Schritte zum Abhaken), Aktuelle Projekte und „Zuletzt passiert“.
+- Darunter „Benachrichtigungen“ wie auf dem Handy: die Meldungen der Glocke, oben „Neu“ (ungelesen), darunter „Früher“ (gelesen, die letzten acht; ältere stehen in der Glocke). Mehrere Meldungen aus demselben Bereich, etwa Dateien oder Nachrichten, liegen als Stapel übereinander; ein Klick öffnet den Stapel, „Weniger anzeigen“ schließt ihn. Ein Klick auf eine Meldung öffnet die passende Seite und markiert sie als gelesen. Das × an der Ecke (am Computer beim Darüberfahren) markiert sie als gelesen und blendet sie in diesem Browser auf der Übersicht aus; in der Glocke bleibt sie. „Alle gelesen“ verschiebt alle neuen nach „Früher“. Ohne neue Meldungen führt ein Knopf zu Insights.
+- Wo die Projekte stehen, was gerade ansteht, Termine und Service-Anfragen zeigt Insights. Freelancer sehen auf der Übersicht statt der Benachrichtigungen ihre neuesten Dateien.
 - Eine Kennzahl öffnet ihre Detailseite mit Diagramm und den Zeiträumen T, W, M, 6M und J.
 
 ## Insights und Mehr

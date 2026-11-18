@@ -21,6 +21,7 @@ import { MetricDetailScreen } from "./screens/metric-detail";
 import { OverviewScreen } from "./screens/overview";
 import { InsightsScreen } from "./screens/insights";
 import type { InsightsData } from "@/lib/hub-insights/types";
+import type { OverviewFacts } from "@/lib/hub-overview/types";
 import { FilesScreen } from "./screens/files";
 import { DiscoverScreen, ProfileScreen } from "./screens/workspace";
 import { ProjectsScreen } from "./screens/projects";
@@ -82,9 +83,11 @@ type HubViewProps = {
   freelancerCustomers?: FreelancerCustomersState;
   /** Insights for real logins: appointments and the Service quota; the preview shows examples. */
   insights?: InsightsData;
+  /** Real admins on the Übersicht: the facts of their welcome card (null when they could not be read). */
+  overviewFacts?: OverviewFacts | null;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -133,7 +136,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
       {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} />
         : detail === "tasks" ? <TasksScreen board={taskBoard} preview={preview} asOf={asOf} />
         : detail && isMetricId(detail) ? <MetricDetailScreen {...screen} metricId={detail} />
-        : section === "overview" ? <OverviewScreen {...screen} />
+        : section === "overview" ? <OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} />
         : section === "insights" ? <InsightsScreen {...screen} insights={preview ? undefined : insights} />
         : section === "discover" ? <DiscoverScreen {...screen} />
         : section === "projects" ? <ProjectsScreen {...screen} desk={preview ? undefined : projectDesk} />

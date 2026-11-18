@@ -56,18 +56,20 @@ export function previewInsights(asOf: string, admin = false): InsightsData {
   };
 }
 
-/** The bell of the preview. Customers: a confirmed appointment, a file and an answer from oalab. Admins: two chats. */
+/** The bell of the preview. Customers: a confirmed appointment, two files (a stack) and an answer. Admins: three chats. */
 export function previewNotices(asOf: string, admin = false): InboxItem[] {
   const at = (days: number, time: string) => new Date(wallTimeToUtc(addDays(asOf, days), time)).toISOString();
   if (admin) {
     return [
-      { id: 12, kind: "chat.message", title: "Nachricht von Nordlicht Studio", body: "„Können wir die Farben der Startseite noch einmal ansehen?“", href: "/preview/messages", createdAt: at(0, "08:47"), read: false },
+      { id: 13, kind: "chat.message", title: "Nachricht von Nordlicht Studio", body: "„Können wir die Farben der Startseite noch einmal ansehen?“", href: "/preview/messages", createdAt: at(0, "08:47"), read: false },
+      { id: 12, kind: "chat.message", title: "Nachricht von Atelier Morgenrot", body: "„Der Kick-off war super, danke!“", href: "/preview/messages", createdAt: at(0, "08:05"), read: false },
       { id: 11, kind: "chat.message", title: "Nachricht von Café Kranich", body: "„Die neue Speisekarte ist im Ordner.“", href: "/preview/messages", createdAt: at(-1, "17:32"), read: true },
     ];
   }
   return [
     { id: 3, kind: "appointment.confirmed", title: "Termin bestätigt: Abstimmung Startseite", body: `${formatDayShort(addDays(asOf, 2))} um 10:00 Uhr`, href: "/preview/projects/calendar", createdAt: at(0, "08:58"), read: false },
-    { id: 2, kind: "file.shared", title: "Neue Datei: Logo-Varianten.pdf", body: "Unter Dateien › Marke", href: "/preview/files", createdAt: at(-1, "16:20"), read: false },
+    { id: 4, kind: "file.shared", title: "Neue Datei: Logo-Varianten.pdf", body: "Unter Dateien › Marke", href: "/preview/files", createdAt: at(-1, "16:20"), read: false },
+    { id: 2, kind: "file.shared", title: "Neue Datei: Farbpalette.pdf", body: "Unter Dateien › Marke", href: "/preview/files", createdAt: at(-1, "16:18"), read: false },
     { id: 1, kind: "chat.reply", title: "Antwort von oalab", body: "„Klar, die Schrift tauschen wir gern aus.“", href: "/preview/messages", createdAt: at(-1, "11:05"), read: true },
   ];
 }

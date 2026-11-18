@@ -1,96 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { ArrowDown, ArrowUp, Check, CircleMinus, CirclePlus } from "lucide-react";
-import { categories, categoryLabel } from "@/lib/categories";
-import { formatDeadline, hubHref, type HubSection } from "@/lib/hub-data";
+import { hubHref, type HubSection } from "@/lib/hub-data";
 import { formatFileDay } from "@/lib/hub-files/catalog";
-import { customerSteps } from "@/lib/hub-projects/map";
-import { metricOrder, type MetricId } from "@/lib/hub-metrics";
+import { previewNotices } from "@/lib/hub-insights/fixtures";
+import type { OverviewFacts } from "@/lib/hub-overview/types";
 import { HeaderActions } from "../app-shell";
-import { FreelancerCard, HighlightCard, InsightsCard, MetricCard, MetricCardStatic, ServiceCard, WelcomeCard } from "../cards";
-import { CategoryIcon, GlassCard, SectionHeader, SectionLink, TitleIcon } from "../glass";
+import { FreelancerCard, WelcomeCard } from "../cards";
+import { GlassCard, SectionHeader, SectionLink, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
-import { InsetGroupedList, ListRow, MiniProgress } from "../list";
+import { InsetGroupedList, ListRow } from "../list";
 import { sectionIcons } from "../navigation";
+import { NotificationCenter } from "../notification-center";
 import { useHubShell } from "../shell-context";
 import { WelcomeStage } from "../welcome-stage";
 import { FileIcon } from "./files-parts";
 import type { ScreenProps } from "./types";
 
-export function OverviewScreen({ model, preview, populated, favorites, toggleStep, admin, projects, liveProjects, fileState, asOf }: ScreenProps) {
-  const { account, initials, logo } = useHubShell();
-  const [editing, setEditing] = useState(false);
-  const available = metricOrder.filter((id) => !favorites.isFavorite(id));
+/** The admins' welcome card in the design preview (fictional). */
+const previewFacts: OverviewFacts = { customers: 4, withService: 3 };
+
+/**
+ * The overview (design „V5“, user 18.11.2026): one long welcome card, below it the bell's notices like a phone's
+ * notification centre. Where projects stand lives on Insights. Freelancers keep their welcome with the card of their
+ * customers and the newest files.
+ */
+export function OverviewScreen({ model, preview, admin, fileState, asOf, userKey, facts }: ScreenProps & { userKey: string; facts?: OverviewFacts | null }) {
+  const { account, initials, logo, inbox } = useHubShell();
 
   return (
     <>
       <LargeTitleHeader title="Übersicht" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.overview!} />} actions={<HeaderActions />} />
-      {account.admin
-        ? <div className="section-first welcome-row"><WelcomeCard account={account} initials={initials} logo={logo} /><ServiceCard account={account} /></div>
-        : <div className="section-first welcome-row has-host"><WelcomeStage account={account} logo={logo} preview={preview} />{account.freelancer
-          ? <FreelancerCard customers={fileState.customers.filter((customer) => customer.kind !== "freelancer").length} href={hubHref(preview, "files")} />
-          : <ServiceCard account={account} />}</div>}
-      {populated ? <>
-        {model.insight && <div className="stack-gap"><InsightsCard insight={model.insight} href={hubHref(preview, "insights")} /></div>}
-
-        <SectionHeader title="Favoriten" id="favorites-title" action={<button type="button" className="section-header-action" onClick={() => setEditing((value) => !value)} aria-pressed={editing}>{editing ? "Fertig" : "Bearbeiten"}</button>} />
-        {favorites.favorites.length ? (
-          <div className="metric-grid" aria-labelledby="favorites-title">
-            {favorites.favorites.map((id, index) => editing ? (
-              <MetricCardStatic key={id} metric={model.metrics[id]}>
-                <div className="favorite-controls">
-                  <button type="button" className="favorite-remove" onClick={() => favorites.remove(id)} aria-label={`${model.metrics[id].name} aus Favoriten entfernen`}><CircleMinus size={22} aria-hidden="true" /></button>
-                  <button type="button" className="favorite-move" onClick={() => favorites.move(id, -1)} disabled={index === 0} aria-label={`${model.metrics[id].name} nach vorne`}><ArrowUp size={18} aria-hidden="true" /></button>
-                  <button type="button" className="favorite-move" onClick={() => favorites.move(id, 1)} disabled={index === favorites.favorites.length - 1} aria-label={`${model.metrics[id].name} nach hinten`}><ArrowDown size={18} aria-hidden="true" /></button>
-                </div>
-              </MetricCardStatic>
-            ) : <MetricCard key={id} metric={model.metrics[id]} />)}
-          </div>
-        ) : (
-          <GlassCard className="empty-card"><p className="t-headline">Noch keine Favoriten.</p><p className="t-subheadline t-secondary">Füge Kennzahlen hinzu, die du immer im Blick haben möchtest.</p>{!editing && <button type="button" className="text-link" onClick={() => setEditing(true)}>Favoriten hinzufügen</button>}</GlassCard>
-        )}
-        {editing && available.length > 0 && (
-          <InsetGroupedList label="Weitere Kennzahlen" className="favorites-add">
-            {available.map((id: MetricId) => <ListRow key={id} compact onClick={() => favorites.toggle(id)} icon={<CirclePlus size={22} color="var(--switch-on)" aria-hidden="true" />} title={model.metrics[id].name} subtitle={categoryLabel(model.metrics[id].category, admin)} chevron={false} />)}
-          </InsetGroupedList>
-        )}
-
-        {model.highlights.length > 0 && <>
-          <SectionHeader title="Highlights" action={<SectionLink href={hubHref(preview, "insights")}>Alle anzeigen</SectionLink>} />
-          <div className="highlight-grid">{model.highlights.slice(0, 2).map((highlight) => <HighlightCard key={highlight.id} highlight={highlight} href={model.metrics[highlight.metric].href} label={categoryLabel(highlight.category, admin)} />)}</div>
-        </>}
-
-        {model.steps.length > 0 && <>
-          <SectionHeader title="Du bist am Zug" />
-          <ul className="glass inset-list" aria-label="Deine nächsten Schritte">
-            {model.steps.map((step) => (
-              <li key={step.id} className={`list-item step-item${step.done ? " is-done" : ""}`}>
-                <button type="button" className="step-check" onClick={() => toggleStep(step.id)} aria-pressed={step.done} aria-label={`${step.title} ${step.done ? "wieder öffnen" : "in der Vorschau abhaken"}`}>{step.done && <Check size={15} strokeWidth={3} aria-hidden="true" />}</button>
-                <Link href={step.href} className="step-link"><span className="list-row-title">{step.title}</span><span className="list-row-subtitle">{step.category} · {step.date}</span></Link>
-              </li>
-            ))}
-          </ul>
-        </>}
-
-        {model.projectRows.length > 0 && <>
-          <SectionHeader title="Aktuelle Projekte" action={<SectionLink href={hubHref(preview, "projects")}>Alle anzeigen</SectionLink>} />
-          <InsetGroupedList label="Aktuelle Projekte">
-            {model.projectRows.map((row) => <ListRow key={row.id} href={row.href} title={row.title} subtitle={row.subtitle} trailing={<><MiniProgress value={row.progress} color={categories.projects.fill} /><span className="list-percent numeric">{row.progress} %</span></>} />)}
-          </InsetGroupedList>
-        </>}
-
-        {model.activity.length > 0 && <>
-          <SectionHeader title="Zuletzt passiert" />
-          <InsetGroupedList label="Zuletzt passiert">
-            {model.activity.map((item) => <ListRow key={item.id} href={item.href} compact icon={<CategoryIcon category={item.category} size={22} />} title={item.title} subtitle={item.detail} />)}
-          </InsetGroupedList>
-        </>}
-      </> : account.freelancer ? <FreelancerOverview preview={preview} fileState={fileState} asOf={asOf} />
-      : liveProjects?.error ? <LoadNotice text={liveProjects.error} />
-      : projects.length ? <LiveOverview preview={preview} admin={admin} model={model} projects={projects} />
-      : <EmptyState section="overview" />}
+      {account.freelancer
+        ? <div className="section-first welcome-row has-host"><WelcomeStage account={account} logo={logo} preview={preview} /><FreelancerCard customers={fileState.customers.filter((customer) => customer.kind !== "freelancer").length} href={hubHref(preview, "files")} /></div>
+        : <div className="section-first welcome-row is-merged">{admin
+          ? <WelcomeCard account={account} initials={initials} logo={logo} facts={facts ?? (preview ? previewFacts : null)} />
+          : <WelcomeStage account={account} logo={logo} preview={preview} />}</div>}
+      {account.freelancer
+        ? <FreelancerOverview preview={preview} fileState={fileState} asOf={asOf} />
+        : <div className="nt-zone"><NotificationCenter items={preview ? previewNotices(asOf, admin) : inbox?.items ?? []} preview={preview} admin={admin} insightsHref={hubHref(preview, "insights")} userKey={userKey} /></div>}
     </>
   );
 }
@@ -110,26 +57,6 @@ function FreelancerOverview({ preview, fileState, asOf }: Pick<ScreenProps, "pre
         {recent.map((file) => <ListRow key={file.id} href={`${hubHref(preview, "files")}?file=${encodeURIComponent(file.id)}`} compact icon={<FileIcon file={file} size={20} />} title={file.title} subtitle={[where(file.customers.map((customer) => customer.id)), formatFileDay(file.createdAt, asOf)].filter(Boolean).join(" · ")} />)}
       </InsetGroupedList>
     ) : <GlassCard className="empty-card"><p className="t-headline">Noch keine Dateien.</p><p className="t-subheadline t-secondary">Sobald oalab dir Kunden zuordnet oder Dateien für dich bereitstellt, erscheinen sie hier und im Asset Management.</p></GlassCard>}
-  </>;
-}
-
-/** Real logins with Studio projects: what waits for the customer and how the running projects stand. */
-function LiveOverview({ preview, admin, model, projects }: Pick<ScreenProps, "preview" | "admin" | "model" | "projects">) {
-  const steps = customerSteps(projects);
-  const projectHref = (id: string) => `${hubHref(preview, "projects")}?project=${id}`;
-  return <>
-    <SectionHeader title={admin ? "Wartet auf Kunden" : "Du bist am Zug"} />
-    {steps.length ? (
-      <InsetGroupedList label={admin ? "Aufgaben, die bei Kunden liegen" : "Deine nächsten Schritte"}>
-        {steps.slice(0, 6).map(({ task, project }) => <ListRow key={task.id} href={projectHref(project.id)} title={task.title} subtitle={[admin ? project.company : "", project.name, task.dueOn ? `bis ${formatDeadline(task.dueOn)}` : ""].filter(Boolean).join(" · ")} />)}
-      </InsetGroupedList>
-    ) : <GlassCard className="empty-card"><p className="t-subheadline t-secondary">{admin ? "Gerade liegt keine freigegebene Aufgabe bei einem Kunden." : "Gerade wartet nichts auf dich."}</p></GlassCard>}
-    {model.projectRows.length > 0 && <>
-      <SectionHeader title="Aktuelle Projekte" action={<SectionLink href={hubHref(preview, "projects")}>Alle anzeigen</SectionLink>} />
-      <InsetGroupedList label="Aktuelle Projekte">
-        {model.projectRows.map((row) => <ListRow key={row.id} href={row.href} title={row.title} subtitle={row.subtitle} trailing={<><MiniProgress value={row.progress} color={categories.projects.fill} /><span className="list-percent numeric">{row.progress} %</span></>} />)}
-      </InsetGroupedList>
-    </>}
   </>;
 }
 

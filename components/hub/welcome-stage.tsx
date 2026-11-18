@@ -2,7 +2,9 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import { packageCatalog } from "@/lib/service-packages";
 import { HOST_CUES, hostCue } from "@/lib/welcome-host";
+import { ServiceButton } from "./cards";
 import { HostAvatar, type HostAvatarHandle } from "./host-avatar";
 import { LogoMark, companyInitials } from "./logo-mark";
 import type { HubAccount } from "./shell-context";
@@ -33,10 +35,13 @@ const serverSnapshot = () => "|";
  * A customer's welcome at the top of the overview: Ali from oalab, cut out of his video, stands on the card's lower
  * edge and greets with a bubble. Each time the overview opens he rises and talks, without sound, after sign-in once the
  * greeting has given way; with "Bewegung reduzieren" he stands there with the finished bubble. Under the bubble the
- * company has its own row: its logo as a plate (else its letters), the name and the customer number. The overview still
- * passes `preview`; the welcome plays the same in the design preview, so it goes unread.
+ * company has its own row: its logo as a plate (else its letters), the name and the customer number. For customers the
+ * row also lists the active packages and ends in the way to the service platform (design „V5“, 18.11.2026: one long
+ * card); freelancers keep their card beside it. The overview still passes `preview`; the welcome plays the same in the
+ * design preview, so it goes unread.
  */
 export function WelcomeStage({ account, logo = null }: { account: HubAccount; logo?: CustomerLogo | null; preview?: boolean }) {
+  const customer = !account.admin && !account.freelancer;
   const [greeting, reduced] = useSyncExternalStore(subscribe, snapshot, serverSnapshot).split("|");
   const [run, setRun] = useState<Run>("idle");
   const [cue, setCue] = useState<number>(HOST_CUES.length);
@@ -86,7 +91,14 @@ export function WelcomeStage({ account, logo = null }: { account: HubAccount; lo
         <dl className="welcome-company-text">
           <div><dt className="visually-hidden">Unternehmen</dt><dd className="welcome-company">{account.company ?? "Noch nicht zugeordnet"}</dd></div>
           <div className="welcome-company-number"><dt>{account.freelancer ? "Freelancer-Nr." : "Kundennummer"}</dt><dd className="numeric">{account.customerNumber ?? "–"}</dd></div>
+          {customer && <div className="welcome-packages">
+            <dt>{account.packages.length > 1 ? "Aktive Pakete" : "Aktives Paket"}</dt>
+            <dd>{account.packages.length
+              ? account.packages.map((id) => <span key={id} className="welcome-package"><i aria-hidden="true" />{packageCatalog[id].name}</span>)
+              : <span className="welcome-package is-pending">Wird zugeordnet</span>}</dd>
+          </div>}
         </dl>
+        {customer && <ServiceButton />}
       </div>
       {!account.company && <p className="t-footnote t-secondary welcome-note">Dein Projektteam ordnet deinen Zugang einem Unternehmen zu. Danach siehst du hier auch deine Kundennummer.</p>}
     </section>

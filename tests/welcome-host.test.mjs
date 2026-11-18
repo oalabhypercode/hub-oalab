@@ -25,7 +25,9 @@ test("the bubble's lines follow Ali's words", () => {
 
 test("customers get Ali in the welcome card, admins keep their card", async () => {
   const overview = await source("components/hub/screens/overview.tsx");
-  assert.match(overview, /\{account\.admin\s+\? <div className="section-first welcome-row"><WelcomeCard account=\{account\} initials=\{initials\} logo=\{logo\} \/><ServiceCard account=\{account\} \/><\/div>\s+: <div className="section-first welcome-row has-host"><WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/>\{account\.freelancer\s+\? <FreelancerCard [^\n]+\s+: <ServiceCard account=\{account\} \/>\}<\/div>\}/);
+  // Since 18.11.2026 (design „V5“) one long card: customers' packages and the service button sit in Ali's card, admins'
+  // facts and the same button in theirs; freelancers keep Ali with their customers' card beside it.
+  assert.match(overview, /\{account\.freelancer\s+\? <div className="section-first welcome-row has-host"><WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/><FreelancerCard [^\n]+\s+: <div className="section-first welcome-row is-merged">\{admin\s+\? <WelcomeCard account=\{account\} initials=\{initials\} logo=\{logo\} facts=\{[^\n]+\s+: <WelcomeStage account=\{account\} logo=\{logo\} preview=\{preview\} \/>\}<\/div>\}/);
   const layout = await source("app/layout.tsx");
   assert.doesNotMatch(layout, /hostInlineScript/, "no pre-paint mark: Ali plays on every visit");
   assert.match(layout, /import "\.\/glass\.css";\r?\nimport "\.\/welcome-host\.css";/);
