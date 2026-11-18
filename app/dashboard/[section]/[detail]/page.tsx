@@ -19,7 +19,8 @@ async function WorkspaceDetail({ params }: { params: Promise<{ section: string; 
   const freelancer = identity.account?.role === "oalab_freelancer";
   const tasks = section === "projects" && detail === "tasks";
   // The calendar under Projekte (16.11.2026): appointments for everyone; admins also see every task with a date, which
-  // comes from the task board's reading (the same Studio rows), customers their released tasks from their projects.
+  // comes from the task board's reading (the same Studio rows), freelancers (18.11.2026) the tasks of their projects
+  // from their board, customers their released tasks from their projects.
   const calendar = section === "projects" && detail === "calendar";
   // The task board is the oalab team's and, since 16.11.2026, the freelancers' (only their projects, the database
   // decides); customers keep the project window.
@@ -27,7 +28,7 @@ async function WorkspaceDetail({ params }: { params: Promise<{ section: string; 
   const [filesState, liveProjects, taskBoard, calendarState] = await Promise.all([
     loadHubFiles(),
     loadLiveProjects(),
-    tasks || (calendar && admin) ? loadTaskBoard() : undefined,
+    tasks || (calendar && (admin || freelancer)) ? loadTaskBoard() : undefined,
     calendar ? loadHubCalendar(todayIso()) : undefined,
   ]);
   return <HubView section={detailSection(section, detail)} detail={detail} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} liveProjects={liveProjects} taskBoard={taskBoard} calendarState={calendarState} />;
