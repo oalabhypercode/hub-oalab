@@ -19,7 +19,8 @@ export type AssignRequest = { ids: string[]; target: string | null; source: Assi
 
 /**
  * „Zuordnen“ as a panel next to the files (user 19.11.2026): several files to one customer and into one of its folders.
- * It opens from the selection bar and from a file in the Ablage. Coming from another customer, the files move unless
+ * It opens from the selection bar, from a file in the Ablage, and when files are dragged onto a customer in the list
+ * (then the customer is set and Enter confirms). Coming from another customer, the files move unless
  * „Auch behalten“ is chosen. The customer sees them at once and gets one notice for all of them.
  */
 export function AssignPanel({ request, files, customers, folders, onAssign, onClose, onDone }: {
@@ -48,7 +49,7 @@ export function AssignPanel({ request, files, customers, folders, onAssign, onCl
   const choices = customers.filter((item) => source.kind !== "customer" || item.id !== source.id);
   const info = useInfo("Zuordnen", {
     steps: [
-      <><b>Einen Kunden</b> und den Ordner wählen, dann bestätigen.</>,
+      <><b>Ziehen:</b> angehakte Dateien links auf einen Kunden.</>,
       <><b>Von einem Kunden:</b> verschieben oder dort auch behalten.</>,
       <><b>Der Kunde</b> sieht sie sofort, mit einer Meldung für alle.</>,
     ],

@@ -23,6 +23,7 @@ import { Select } from "../select";
 import { categoryDot } from "../select-options";
 import type { AssignSource } from "@/lib/hub-files/assign";
 import { AssignPanel, type AssignRequest } from "./asset-assign";
+import { useFileDrag, type FileDropTarget } from "./asset-drag";
 import { FilePanel } from "./asset-details";
 import { namesByPlace, RenamePanel, storedEntries } from "./asset-naming";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
@@ -120,6 +121,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   // Files dragged in from the computer: how many, and the folder under the mouse (NO_FOLDER outside of one).
   const [drag, setDrag] = useState<{ count: number; folder: string } | null>(null);
   const dragDepth = useRef(0);
+  // The same over the customer list: how many files and the customer (or "inbox") under the mouse, if any.
+  const [listDrag, setListDrag] = useState<{ count: number; id: string | null } | null>(null);
+  const listDepth = useRef(0);
+  const sheet = useRef<HTMLDivElement>(null);
   const [logoFor, setLogoFor] = useState<string | null>(null);
   const [servedFor, setServedFor] = useState<string | null>(null);
   const [busy, setBusy] = useState<"download" | "move" | null>(null);
@@ -286,15 +291,69 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     onDragOver: (event: React.DragEvent) => { if (isFileDrag(event) && !event.defaultPrevented) { event.preventDefault(); event.dataTransfer.dropEffect = "none"; } },
     onDrop: (event: React.DragEvent) => { if (isFileDrag(event)) event.preventDefault(); },
   } : {};
+  // Files from the computer onto a customer in the list (or onto the Ablage) open the upload for that place (19.11.2026).
+  const listTarget = (target: EventTarget) => {
+    const id = target instanceof Element ? target.closest<HTMLElement>("[data-drop-customer]")?.dataset.dropCustomer : undefined;
+    return id && (id === "inbox" || customers.some((customer) => customer.id === id)) ? id : null;
+  };
+  const endListDrag = () => { listDepth.current = 0; setListDrag(null); };
+  const listDropHandlers = canDrop ? {
+    onDragEnter: (event: React.DragEvent) => { if (isFileDrag(event)) { event.preventDefault(); listDepth.current++; } },
+    onDragOver: (event: React.DragEvent) => {
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      const id = listTarget(event.target);
+      event.dataTransfer.dropEffect = id ? "copy" : "none";
+      const count = Array.from(event.dataTransfer.items).filter((item) => item.kind === "file").length;
+      setListDrag((now) => now?.id === id && now.count === count ? now : { count, id });
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      if (!isFileDrag(event)) return;
+      listDepth.current = Math.max(0, listDepth.current - 1);
+      if (!listDepth.current) setListDrag(null);
+    },
+    onDrop: (event: React.DragEvent) => {
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      endListDrag();
+      const id = listTarget(event.target);
+      if (!id) return;
+      choose(id === "inbox" ? { kind: "inbox" } : { kind: "customer", id });
+      startUpload({ customerId: id === "inbox" ? null : id, folderId: "" }, Array.from(event.dataTransfer.files));
+    },
+  } : {};
   // A drag that ends outside of the files (dropped elsewhere) must not leave the frame behind.
-  const dragging = drag !== null;
+  const dragging = drag !== null || listDrag !== null;
   useEffect(() => {
     if (!dragging) return;
-    const end = () => { dragDepth.current = 0; setDrag(null); };
+    const end = () => { dragDepth.current = 0; setDrag(null); listDepth.current = 0; setListDrag(null); };
     window.addEventListener("drop", end);
-    return () => window.removeEventListener("drop", end);
+    window.addEventListener("dragend", end);
+    return () => { window.removeEventListener("drop", end); window.removeEventListener("dragend", end); };
   }, [dragging]);
   const dropFolderName = drag && current ? drag.folder === NO_FOLDER ? "Ohne Ordner" : scopeFolders.find((folder) => folder.id === drag.folder)?.name ?? "Ohne Ordner" : "";
+  const listDropName = listDrag?.id === "inbox" ? "in die Ablage" : listDrag?.id ? `für ${customers.find((customer) => customer.id === listDrag.id)?.company ?? "den Kunden"}` : "";
+
+  /* ---------- Dragging files within the page ---------- */
+  // Ticked files (or the one grabbed) go onto a customer in the list, which opens „Zuordnen“ with that customer set,
+  // or onto a folder of the open customer, which moves them there at once (user 19.11.2026).
+  const canDragRows = !fileState.error && (canAssign || canOrganize);
+  const canDropRows = (target: FileDropTarget) => target.kind === "customer"
+    ? canAssign && target.id !== "inbox" && target.id !== current?.id
+    : current !== null && canOrganize;
+  const { drag: rowDrag } = useFileDrag({
+    root: sheet,
+    enabled: canDragRows,
+    idsFor: (id) => selected.includes(id) ? shown.filter((file) => selected.includes(file.id)).map((file) => file.id) : [id],
+    canDrop: canDropRows,
+    describe: (target) => target.kind === "customer" ? `Zu ${customers.find((customer) => customer.id === target.id)?.company ?? "diesem Kunden"}` : `In „${target.key === NO_FOLDER ? "Ohne Ordner" : scopeFolders.find((folder) => folder.id === target.key)?.name ?? "Ohne Ordner"}“`,
+    hint: current ? (canAssign ? "Auf einen Kunden oder Ordner ziehen" : "Auf einen Ordner ziehen") : "Links auf einen Kunden ziehen",
+    onDrop: (ids, target) => target.kind === "customer" ? openAssign(ids, target.id) : moveInto(ids, target.key),
+  });
+  const dropState = (id: string) => rowDrag ? (id !== "all" && canDropRows({ kind: "customer", id }) ? "on" : "off") : listDrag ? (id === "all" ? "off" : "on") : undefined;
+  const isDropTarget = (id: string) => (rowDrag?.over?.kind === "customer" && rowDrag.over.id === id) || listDrag?.id === id;
+  const folderLit = (key: string) => drag?.folder === key || (rowDrag?.over?.kind === "folder" && rowDrag.over.key === key);
+  const dragAttrs = (file: HubStoredFile) => canDragRows ? { "data-drag-file": file.id, "data-drag-title": file.title, "data-drag-cat": file.category } : {};
 
   async function download() {
     setBusy("download");
@@ -305,17 +364,21 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   }
 
   async function move(target: string) {
-    if (!current || !target) return;
+    if (target) await moveInto(selection.map((file) => file.id), target);
+  }
+
+  /** Files of the open customer into one of its folders („Verschieben“ in the selection, or dragged onto the folder). */
+  async function moveInto(ids: string[], target: string) {
+    if (!current || !ids.length) return;
     setBusy("move");
     setError("");
     const folderId = target === NO_FOLDER ? null : target;
-    const ids = selection.map((file) => file.id);
     const result = await store.move(ids, current.id, folderId);
     setBusy(null);
     if (!result.ok) { setError(result.error); return; }
     const name = folderId ? scopeFolders.find((item) => item.id === folderId)?.name : "Ohne Ordner";
     setNotice(`${plural(result.data.count, "Datei", "Dateien")} nach „${name}“ verschoben.`);
-    setSelected([]);
+    setSelected((now) => now.filter((id) => !ids.includes(id)));
     setFresh(ids);
   }
 
@@ -344,7 +407,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     const isSelected = selected.includes(file.id);
     const shared = current && !freelancerView ? others(file) : [];
     return (
-      <div key={file.id} className={`am-min-row${isSelected ? " is-selected" : ""}${fresh.includes(file.id) ? " is-fresh" : ""}`} role="listitem">
+      <div key={file.id} className={`am-min-row${isSelected ? " is-selected" : ""}${fresh.includes(file.id) ? " is-fresh" : ""}${rowDrag?.ids.includes(file.id) ? " is-dragged" : ""}`} role="listitem" {...dragAttrs(file)}>
         <span className={`am-min-lead am-cat-${file.category}`} data-tip={fileCategories[file.category]}>
           <FileIcon file={file} size={17} color="currentColor" />
           <input type="checkbox" checked={isSelected} onChange={() => toggle(file.id)} aria-label={`${file.title} auswählen`} />
@@ -385,7 +448,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     : null;
 
   const tableRow = (file: HubStoredFile, columns: "customer" | "all" | "inbox") => (
-    <tr key={file.id} className={`file-row${selected.includes(file.id) ? " is-selected" : ""}${fresh.includes(file.id) ? " is-fresh" : ""}`}>
+    <tr key={file.id} className={`file-row${selected.includes(file.id) ? " is-selected" : ""}${fresh.includes(file.id) ? " is-fresh" : ""}${rowDrag?.ids.includes(file.id) ? " is-dragged" : ""}`} {...dragAttrs(file)}>
       <td className="cell-select"><input type="checkbox" checked={selected.includes(file.id)} onChange={() => toggle(file.id)} aria-label={`${file.title} auswählen`} /></td>
       <td className="cell-file">{fileCell(file)}</td>
       {columns === "all" && <td className="cell-customers">{who(file)}</td>}
@@ -421,8 +484,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const customerBody = minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label={`Dateien von ${current?.company ?? ""}`}>
       {folderGroups.map((group) => (
-        <div key={group.key} className="am-min-group" role="presentation" data-drop-folder={canDrop ? group.key : undefined}>
-          <div className={`am-min-section${drag?.folder === group.key ? " is-drop" : ""}`}>
+        <div key={group.key} className="am-min-group" role="presentation" data-drop-folder={canDrop || canDragRows ? group.key : undefined}>
+          <div className={`am-min-section${folderLit(group.key) ? " is-drop" : ""}`}>
             <span className="am-min-section-check">{group.files.length > 0 && <GroupCheck {...groupCheck(group.files, group.label)} />}</span>
             <button type="button" className="am-min-section-toggle" aria-expanded={!groups.isCollapsed(group.key)} onClick={() => groups.toggle(group.key)}>
               <ChevronDown size={13} aria-hidden="true" /><span>{group.label}</span><span className="am-min-count">{group.files.length || (narrowed ? "0" : "leer")}</span>
@@ -442,8 +505,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         {grouping === "folder" ? folderGroups.map((group) => (
           <TableGroup key={group.key} colSpan={columnsFor} label={group.label} count={group.files.length} glyph={<Folder size={16} aria-hidden="true" />}
             collapsed={groups.isCollapsed(group.key)} onToggle={() => groups.toggle(group.key)}
-            className={drag?.folder === group.key ? "is-drop" : undefined} dropKey={canDrop ? group.key : undefined}
-            empty={narrowed ? "Keine Dateien für diese Auswahl in diesem Ordner." : canOrganize ? "Noch leer. Wähle Dateien aus und verschiebe sie hierher." : "Noch leer."}
+            className={folderLit(group.key) ? "is-drop" : undefined} dropKey={canDrop || canDragRows ? group.key : undefined}
+            empty={narrowed ? "Keine Dateien für diese Auswahl in diesem Ordner." : canOrganize ? "Noch leer. Dateien hierher ziehen oder ankreuzen und verschieben." : "Noch leer."}
             actions={folderActions(group)} select={groupCheck(group.files, group.label)}>
             {group.files.map((file) => tableRow(file, "customer"))}
           </TableGroup>
@@ -545,7 +608,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     <header className="am-pane-head">
       {back}
       <span className="am-tile is-inbox is-lg"><Inbox size={22} aria-hidden="true" /></span>
-      <div className="am-pane-title"><strong>Ablage</strong><span>{plural(inbox.length, "Datei", "Dateien")} ohne Kunden. Kunden sehen sie erst nach dem Zuordnen.</span></div>
+      <div className="am-pane-title"><strong>Ablage</strong><span>{plural(inbox.length, "Datei", "Dateien")} ohne Kunden. {canAssign ? "Anhaken und links auf einen Kunden ziehen." : "Kunden sehen sie erst nach dem Zuordnen."}</span></div>
       <div className="am-pane-actions">{uploadButton}</div>
     </header>
   ) : (
@@ -565,9 +628,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   /* ---------- Customers ---------- */
   const pinned = (target: View, sign: React.ReactNode, title: string, sub: string, right: React.ReactNode) => {
     const active = view.kind === target.kind && (target.kind !== "customer" || (view.kind === "customer" && view.id === target.id));
+    // While files are dragged, the customers (and, for files from the computer, the Ablage) take them; the rest steps back.
+    const dropId = target.kind === "customer" ? target.id : target.kind;
+    const takes = (canAssign || canDrop) && dropId !== "all";
     return (
       <li key={target.kind === "customer" ? target.id : target.kind}>
-        <button type="button" className={`chat-conv${minimal ? " am-min-conv" : ""}${target.kind === "customer" && flash === target.id ? " is-flash" : ""}`} aria-current={active ? "true" : undefined} onClick={() => choose(target)}>
+        <button type="button" className={`chat-conv${minimal ? " am-min-conv" : ""}${target.kind === "customer" && flash === target.id ? " is-flash" : ""}${isDropTarget(dropId) ? " is-drop-target" : ""}`} aria-current={active ? "true" : undefined} onClick={() => choose(target)}
+          data-drop-customer={takes ? dropId : undefined} data-drop-state={dropState(dropId)}>
           {sign}
           {minimal ? <span className="am-min-conv-name">{title}</span> : <span className="chat-conv-main"><span className="chat-conv-top"><strong>{title}</strong>{right}</span><span className="chat-conv-sub"><span className="chat-conv-last">{sub}</span></span></span>}
           {minimal && right}
@@ -585,7 +652,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   );
 
   const customerList = (
-    <div className="chat-list">
+    <div className="chat-list" {...listDropHandlers}>
       <div className="chat-list-head">
         <h2>{freelancerView ? "Meine Kunden" : "Kunden"}<span>{customerCount}</span>{freelancerView && freelancerInfo.button}</h2>
         {canUpload && <button type="button" className="chat-icon-button" onClick={() => startUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" data-tip="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
@@ -610,6 +677,11 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
           {listedFreelancers.map(customerRow)}
         </>}
       </ul>
+      {listDrag?.id && (
+        <div className="am-drop-pill is-list" aria-hidden="true">
+          <Upload size={18} />{listDrag.count > 1 ? `${listDrag.count} Dateien loslassen` : listDrag.count === 1 ? "Datei loslassen" : "Dateien loslassen"}<span>{listDropName}</span>
+        </div>
+      )}
     </div>
   );
 
@@ -627,7 +699,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
-        <div className={`sheet section-first am${minimal ? " is-minimal" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
+        <div ref={sheet} className={`sheet section-first am${minimal ? " is-minimal" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
           <div className="am-grid">
             {customerList}
             <section className={`am-pane${panel && (panel.kind !== "rename" || renaming) ? " has-panel" : ""}`} aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
@@ -662,7 +734,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                 </div>
               )}
               <div className="am-scroll">{selectAll}{body}</div>
-              {!minimal && <SheetFooter hint={shown.length > 1 ? `Mehrere ankreuzen: als ZIP laden${canAssign ? ", zuordnen" : ""} oder verschieben` : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
+              {!minimal && <SheetFooter hint={shown.length > 1 ? (canAssign ? "Mehrere ankreuzen und links auf einen Kunden ziehen" : "Mehrere ankreuzen: als ZIP laden oder verschieben") : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
               {drag && <>
                 <div className="am-drop" aria-hidden="true" />
                 <div className="am-drop-pill" aria-hidden="true">

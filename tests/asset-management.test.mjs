@@ -75,10 +75,11 @@ test("upload and details open as panels over the files, not as dialogs", async (
   assert.match(screen, /<FilePanel file=\{openFile\} customers=\{customers\} folders=\{folders\} here=\{current\}/);
   // Another customer closes a file's details; an upload keeps its files and its target.
   assert.match(screen, /setPanel\(\(now\) => now\?\.kind === "file" \? null : now\);/);
-  // Only files from the computer, only for real uploads, and the folder under the mouse is the target.
+  // Files from the computer only for real uploads, and the folder under the mouse is the target; folders also take
+  // files dragged within the page (19.11.2026).
   assert.match(screen, /const canDrop = canUpload && !queue\.working;/);
-  assert.match(screen, /className="am-min-group" role="presentation" data-drop-folder=\{canDrop \? group\.key : undefined\}/);
-  assert.match(screen, /dropKey=\{canDrop \? group\.key : undefined\}/);
+  assert.match(screen, /className="am-min-group" role="presentation" data-drop-folder=\{canDrop \|\| canDragRows \? group\.key : undefined\}/);
+  assert.match(screen, /dropKey=\{canDrop \|\| canDragRows \? group\.key : undefined\}/);
   assert.match(screen, /startUpload\(\{ customerId: current\?\.id \?\? null, folderId: current && folder !== NO_FOLDER \? folder : "" \}, Array\.from\(event\.dataTransfer\.files\)\);/);
   assert.match(await source("components/hub/sheet.tsx"), /<tbody className=\{`table-group-body\$\{className \? ` \$\{className\}` : ""\}`\} data-drop-folder=\{dropKey\}>/);
 
@@ -204,4 +205,26 @@ test("„Zuordnen“ is the admins' own action: one call for all files, with the
   assert.doesNotMatch(panel, /<select|<datalist/);
   assert.match(panel, /<Select variant="bare" showLead label="An welchen Kunden\?"/);
   assert.match(panel, /move: from !== null && mode === "move"/);
+});
+
+test("files are dragged onto a customer (it asks first) or a folder (it moves at once); files from the computer onto a customer's name", async () => {
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  // The ticked files go along when a ticked row is grabbed, else only the grabbed one.
+  assert.match(screen, /idsFor: \(id\) => selected\.includes\(id\) \? shown\.filter\(\(file\) => selected\.includes\(file\.id\)\)\.map\(\(file\) => file\.id\) : \[id\],/);
+  // A customer takes them only for admins and never the one they come from; a folder only where files may be organized.
+  assert.match(screen, /\? canAssign && target\.id !== "inbox" && target\.id !== current\?\.id\n {4}: current !== null && canOrganize;/);
+  // Dropped on a customer, „Zuordnen“ opens with that customer (the confirmation); on a folder, the files move there.
+  assert.match(screen, /onDrop: \(ids, target\) => target\.kind === "customer" \? openAssign\(ids, target\.id\) : moveInto\(ids, target\.key\),/);
+  assert.match(screen, /data-drop-customer=\{takes \? dropId : undefined\} data-drop-state=\{dropState\(dropId\)\}/);
+  assert.match(screen, /<div className="chat-list" \{\.\.\.listDropHandlers\}>/);
+  assert.match(screen, /startUpload\(\{ customerId: id === "inbox" \? null : id, folderId: "" \}, Array\.from\(event\.dataTransfer\.files\)\);/);
+  const drag = await source("components/hub/screens/asset-drag.ts");
+  // Mouse after a few pixels, a finger after holding still; Escape cancels; the click that ends a drag opens nothing.
+  assert.match(drag, /const HOLD_MS = 240;/);
+  assert.match(drag, /if \(event\.key === "Escape" && live\.current\?\.started\)/);
+  assert.match(drag, /if \(Date\.now\(\) - quiet\.current < 250\) \{ event\.preventDefault\(\); event\.stopPropagation\(\); \}/);
+  assert.match(drag, /querySelectorAll<HTMLElement>\("\.chat-convs, \.am-scroll"\)/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.chat-conv\.is-drop-target \{/);
+  assert.match(css, /\.am-ghost-count \{/);
 });

@@ -2387,6 +2387,29 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-panel .segmented-control.am-assign-mode { width: 100%; height: 34px; padding: 2px; border: 0; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .am-assign-mode .segment { color: var(--sheet-muted); border-radius: 7px; padding: 0 8px; font-size: 13px; font-weight: 500; }
 .am-assign-mode .segment[aria-pressed="true"] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); }
+/* Dragging files (19.11.2026): the stack under the pointer, the rows it carries, the customers and folders that take it. */
+html.am-dragging, html.am-dragging * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
+html.am-dragging .hub-tip { display: none !important; }
+:is(.am-min-row, .file-row).is-lifting { background: var(--sheet-hover); }
+:is(.am-min-row, .file-row).is-dragged { opacity: 0.42; }
+.am-ghost { position: fixed; z-index: 200; top: 0; left: 0; pointer-events: none; will-change: transform; }
+.am-ghost-stack { position: relative; }
+.am-ghost-card { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; width: 264px; padding: 7px 14px 7px 7px; border-radius: 12px; background: var(--sheet); color: var(--label); box-shadow: 0 0 0 1px var(--sheet-line), 0 18px 40px rgba(20, 4, 14, 0.25), 0 4px 10px rgba(20, 4, 14, 0.12); font-size: 14.5px; font-weight: 600; }
+.am-ghost-card .am-min-lead { flex: 0 0 auto; }
+.am-ghost-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.am-ghost-stack.is-many::before, .am-ghost-stack.is-many::after { content: ""; position: absolute; inset: 0; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line), 0 8px 20px rgba(20, 4, 14, 0.14); }
+.am-ghost-stack.is-many::before { z-index: 1; transform: translate(6px, 6px) rotate(2.2deg); }
+.am-ghost-stack.is-many::after { z-index: 0; transform: translate(11px, 11px) rotate(4deg); opacity: 0.85; }
+.am-ghost-count { position: absolute; z-index: 3; top: -9px; right: -10px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center; background: var(--accent-gradient); color: #ffffff; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--sheet), 0 4px 10px rgba(20, 4, 14, 0.25); }
+.am-ghost-tag { position: absolute; left: 10px; top: calc(100% + 12px); max-width: 320px; padding: 6px 11px; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; background: var(--sheet); color: var(--sheet-muted); box-shadow: 0 0 0 1px var(--sheet-line), 0 6px 16px rgba(20, 4, 14, 0.16); }
+.am-ghost-tag.is-on { background: var(--accent-gradient); color: #ffffff; box-shadow: 0 6px 16px rgba(20, 4, 14, 0.24); }
+.am-ghost.is-returning { opacity: 0; transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 180ms; }
+.am-ghost.is-landing { opacity: 0; scale: 0.6; transition: opacity 160ms 40ms, scale 160ms; }
+.chat-conv[data-drop-state="off"] { opacity: 0.36; }
+.chat-conv.is-drop-target { background: rgb(var(--accent-rgb) / calc(0.12 * var(--tint-k))); box-shadow: inset 0 0 0 2px var(--accent-text); }
+.chat-conv.is-drop-target :is(.am-min-conv-name, .chat-conv-top strong) { color: var(--accent-text); }
+.am .chat-list { position: relative; }
+.am-drop-pill.is-list { bottom: 16px; max-width: calc(100% - 24px); }
 /* The customer that just got files lights up in the list for a moment. */
 @keyframes am-flash { 0%, 100% { background-color: transparent; } 30% { background-color: color-mix(in srgb, var(--tone-ok-bg) 90%, transparent); } }
 .chat-conv.is-flash { animation: am-flash 1.6s ease-out 2; }
