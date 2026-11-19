@@ -1,7 +1,8 @@
 /**
  * Claude-Connector (MCP) of the hub: addresses, lifetimes and what a connection may do. Admins connect Claude
  * (claude.ai) to the hub; Claude then reads, and writes where allowed, through hub.oalab.de/api/mcp with the rights of
- * the admin who allowed it.
+ * the admin who allowed it. Since 19.11.2026 freelancers may too, once an admin switched it on for their login in the
+ * user management: then Claude works with the freelancer's own rights (the database's rules), never with the admin's.
  * The sign-in for it is the hub's own (OAuth 2.1 with PKCE, the client described by its Client ID Metadata Document);
  * Service OALab's sign-in server stays untouched. Self-contained (no imports): proxy, routes and tests share it.
  */
@@ -50,6 +51,38 @@ export const scopeLabels: Record<HubScope, string> = {
  * connection made before keeps only reading until it is connected anew.
  */
 export const OFFERED_SCOPES: readonly HubScope[] = ["hub:read", "hub:write"];
+
+/** Who a connection works for: the login that allowed it, with the rights that login has in the hub. */
+export type ConnectorRole = "admin" | "freelancer";
+
+/**
+ * The rights a freelancer's connection gets at most, whatever Claude asks for: reading their own projects, tasks and
+ * requests (stage 1, 19.11.2026). Writing follows with its own tools.
+ */
+export const FREELANCER_SCOPES: readonly HubScope[] = ["hub:read"];
+export const freelancerScopeLabels: Record<HubScope, string> = {
+  "hub:read": "Lesen: deine Projekte und Aufgaben, freie Zeiten von oalab und deine Terminanfragen",
+  "hub:write": "Schreiben: Aufgaben anlegen, ändern, verschieben und kommentieren, Termine bei oalab anfragen",
+};
+
+/** The rights a login of this role gets from a request: never more than its role allows, reading always. */
+export function scopesFor(role: ConnectorRole, requested: readonly HubScope[]): HubScope[] {
+  if (role === "admin") return [...requested];
+  const allowed = requested.filter((scope) => FREELANCER_SCOPES.includes(scope));
+  return allowed.includes("hub:read") ? allowed : ["hub:read", ...allowed];
+}
+
+/**
+ * A freelancer's connection ends 30 days after „Erlauben“, however often Claude uses it; then the freelancer connects
+ * anew and confirms the code again. An admin's lasts as long as Claude uses it at least every 30 days.
+ */
+export const FREELANCER_CONNECTION_DAYS = 30;
+
+/**
+ * The admins' switch „Claude“ at a freelancer login (user management), kept in the login's app_metadata like its
+ * second factor: true allows the connection, anything else refuses it.
+ */
+export const CLAUDE_SWITCH = "claude_connector";
 
 /**
  * Who may connect: Claude's apps, recognised by the address of their Client ID Metadata Document, and only with

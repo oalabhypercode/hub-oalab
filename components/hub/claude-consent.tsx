@@ -10,8 +10,9 @@ import { GlassCard, TitleIcon } from "./glass";
 import { LargeTitleHeader } from "./large-title-header";
 
 /**
- * The consent page of the Claude connector (/dashboard/settings/claude): Claude asks, the admin allows or refuses,
- * and the browser goes back to Claude. Before allowing, a session without confirmed code confirms it first.
+ * The consent page of the Claude connector (/dashboard/settings/claude): Claude asks, the admin (or a freelancer an
+ * admin switched on for Claude) allows or refuses, and the browser goes back to Claude. Before allowing, a session
+ * without confirmed code confirms it first.
  */
 export function ClaudeConsent({ state }: { state: ConsentState }) {
   const [busy, setBusy] = useState<"allow" | "deny" | null>(null);
@@ -60,14 +61,23 @@ export function ClaudeConsent({ state }: { state: ConsentState }) {
             <div className="claude-consent-actions">{refuse("Zurück zu Claude")}</div>
           </>}
 
+          {state.kind === "not-allowed" && <>
+            <h2 className="t-headline settings-card-title"><Bot size={20} color="var(--accent-text)" aria-hidden="true" />Noch nicht freigeschaltet</h2>
+            <p className="t-subheadline t-secondary">Für deinen Zugang ist Claude nicht freigeschaltet. Das oalab-Team kann es für dich einschalten; danach verbindest du Claude hier.</p>
+            <div className="claude-consent-actions">{refuse("Zurück zu Claude")}</div>
+          </>}
+
           {(state.kind === "confirm" || state.kind === "ready") && <>
             <h2 className="t-headline settings-card-title"><Bot size={20} color="var(--accent-text)" aria-hidden="true" />{state.clientName} möchte auf deinen Hub zugreifen</h2>
-            <p className="t-subheadline t-secondary">Claude arbeitet dann mit deinen Rechten als Admin ({state.email}).</p>
+            <p className="t-subheadline t-secondary">{state.role === "admin"
+              ? `Claude arbeitet dann mit deinen Rechten als Admin (${state.email}).`
+              : `Claude arbeitet dann mit deinen Rechten als Freelancer (${state.email}): nur deine Projekte, die Kunden, die du betreust, und deine Terminanfragen. Kontaktdaten der Kunden gibt der Hub nicht heraus.`}</p>
             <p className="t-footnote claude-consent-label">Das darf Claude:</p>
             <ul className="claude-consent-scopes">
               {state.scopes.map((scope) => <li key={scope}><Check size={16} aria-hidden="true" /><span>{scope}</span></li>)}
             </ul>
-            {state.writes && <p className="t-footnote t-secondary">Vor jeder Änderung fragt Claude dich, ob es sie machen darf, solange du das in Claude nicht abschaltest. Jede Änderung steht im Admin-Protokoll, und Termine mit Kunde schicken dem Kunden eine Meldung wie im Hub.</p>}
+            {state.writes && <p className="t-footnote t-secondary">Vor jeder Änderung fragt Claude dich, ob es sie machen darf, solange du das in Claude nicht abschaltest. {state.role === "admin" ? "Jede Änderung steht im Admin-Protokoll, und Termine mit Kunde schicken dem Kunden eine Meldung wie im Hub." : "Jede Änderung sieht das oalab-Team im Hub und im Protokoll."}</p>}
+            {state.days && <p className="t-footnote t-secondary">Die Verbindung gilt {state.days} Tage. Danach verbindest du Claude neu und bestätigst dich wieder mit dem Code.</p>}
             <p className="t-footnote t-secondary">Löschen kann Claude nichts. Die Verbindung siehst und trennst du jederzeit im Profil unter „Verbundene Apps“.</p>
             <p className="claude-consent-warn t-footnote"><TriangleAlert size={15} aria-hidden="true" /><span>Erlaube das nur, wenn du die Verbindung gerade selbst in Claude gestartet hast.</span></p>
             {state.kind === "confirm"

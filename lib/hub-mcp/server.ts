@@ -10,6 +10,7 @@ import { loadAssignees } from "@/lib/hub-tasks/server";
 import { hasScope, checkClientDocument, type ClientDocument } from "./oauth";
 import { calendarRange, runHubTool, toolOf, type CalendarAppointment, type CalendarData, type ToolContext } from "./tools";
 import { runWriteTool } from "./writes";
+import { callFreelancerTool } from "./freelancer";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -95,9 +96,11 @@ const refusal = (message: string): ToolResult => ({ content: [{ type: "text", te
 
 /**
  * One tool call of a checked connection: loads exactly what a reading tool needs and lets lib/hub-mcp/tools.ts answer;
- * a writing tool runs in lib/hub-mcp/writes.ts.
+ * a writing tool runs in lib/hub-mcp/writes.ts. A freelancer's connection never gets this far: its own tools run with
+ * the freelancer's rights (lib/hub-mcp/freelancer.ts), none of the admins' tools and none of the server key's reads.
  */
 export async function callHubTool(connection: Connection, name: string, args: Record<string, unknown>, origin: string): Promise<ToolResult | null> {
+  if (connection.role !== "admin") return callFreelancerTool(connection, name, args, origin);
   const tool = toolOf(name);
   if (!tool) return null;
   if (!hasScope(connection.scopes, tool.scope)) return refusal("Dafür fehlt dieser Verbindung die Erlaubnis. Trenne Claude im Hub unter „Verbundene Apps“ und verbinde neu; dann fragt der Hub danach.");

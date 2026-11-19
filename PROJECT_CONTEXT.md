@@ -3,8 +3,16 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 17. November 2026
+**Stand:** 20. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
+
+### Vorgabe vom 19. November 2026: Claude-Connector für Freelancer, Stufe 1 (Lesen)
+
+- Frage des Nutzers beim Verfeinern der Freelancer-Rechte: Was spricht dagegen, den Connector auch Freelancern zu geben? Befund: Die Lesewerkzeuge der Admins lesen mit dem Server-Schlüssel, also wäre ein bloßes Freischalten ein Datenleck. Plan mit vier Empfehlungen freigegeben; gebaut auf „Mach das ruhig jetzt schon, nicht erst nach dem Launch“.
+- Schalter je Freelancer-Zugang im User Management (Reiter „Sicherheit“, Zeile „Claude“), ab Werk aus, gespeichert in `app_metadata.claude_connector` wie der zweite Faktor; keine Migration. Darunter die Verbindungen des Zugangs mit „Trennen“; Ausschalten löscht alle sofort. Einschalten erst nach einer Vereinbarung mit dem Freelancer, weil die Daten dann auch in seinem Claude-Konto landen (nur Team/Enterprise oder Training aus).
+- `lib/hub-mcp/store.ts` prüft bei jeder Nutzung: aktiver Admin, oder aktiver, nicht gesperrter Freelancer mit Schalter an und höchstens 30 Tage nach „Erlauben“ (feste Grenze, anders als bei Admins verlängert die Nutzung nichts). Die Zustimmungsseite gibt Freelancern höchstens `FREELANCER_SCOPES` (jetzt nur `hub:read`) und sagt ohne Schalter „Noch nicht freigeschaltet“.
+- Eine Verbindung eines Freelancers sieht nur eigene Werkzeuge (`lib/hub-mcp/freelancer-tools.ts`): `search`, `get_customer` (Name, Kundennummer, Website nur bei Freigabe „Domains & Hosting“, keine Kontaktdaten), `get_project`, `list_tasks`, `list_appointments` (nur eigene Anfragen und Termine), `find_free_slots` und `check_request_time` mit den Regeln des Anfragefensters. Geladen wird mit den Claims des Freelancers (`lib/hub-mcp/freelancer.ts`, RLS wie im Hub: Board ohne „Nur Team“, `hub_freelancer_customer_cards`, `hub_calendar_availability`, `hub_calendar_busy`); die Admin-Werkzeuge und ihre Lesewege mit dem Server-Schlüssel erreicht sie nie.
+- Profil: Die Karte „Verbundene Apps“ erscheint Freelancern nur mit Schalter an, mit „gilt bis“ an jeder Verbindung. Schreiben für Freelancer (Aufgaben, Terminanfragen) folgt als eigener Schritt.
 
 ### Vorgabe vom 17. November 2026: Start für alle Kunden am 25. November, Passwort-Link erst beim Speichern einlösen
 

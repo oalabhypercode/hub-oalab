@@ -19,6 +19,8 @@ import { LOGO_BUCKET } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
 import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
 import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
+import { CLAUDE_SWITCH, FREELANCER_CONNECTION_DAYS } from "@/lib/hub-mcp/config";
+import { connectorReady, disconnect, disconnectAll, listConnections, type ConnectionView } from "@/lib/hub-mcp/store";
 import { readEntriesWithoutActiveLogin } from "./deactivated";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
@@ -656,6 +658,61 @@ export async function setHubUserSecondFactor(input: { userId: string; choice: "o
   await log(ctx, choice === "email" ? "user.second_factor_email" : "user.second_factor_off", apps.length ? `${summary}, Authenticator-App entfernt` : summary, { userId: user.id });
   refreshWorkspace();
   return { ok: true, data: null };
+}
+
+/**
+ * Claude for a freelancer login (19.11.2026). On: the freelancer may connect Claude in their profile, and Claude then
+ * works with their rights only (lib/hub-mcp/freelancer.ts), each connection for 30 days. Off: every connection of the
+ * login ends at once. Admins connect Claude themselves; customers never. Kept in app_metadata like the second factor
+ * (Supabase merges app_metadata, null removes the key); the connector reads it fresh on every request.
+ */
+export async function setHubUserClaude(input: { userId: string; allowed: boolean }): Promise<ActionResult<{ ended: number }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (roleOf(user) !== "oalab_freelancer") return failed("Claude schaltest du hier nur für Freelancer frei. Admins verbinden Claude selbst im Profil.");
+  if (typeof input?.allowed !== "boolean") return failed("Bitte an oder aus wählen.");
+  const allowed = input.allowed;
+  const { error } = await ctx.db.auth.admin.updateUserById(user.id, { app_metadata: { [CLAUDE_SWITCH]: allowed ? true : null } });
+  if (error) return failed("Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.");
+  // Off ends the connections now; the connector refuses them from the next request on anyway (lib/hub-mcp/store.ts).
+  const ended = allowed ? 0 : await disconnectAll(user.id).catch(() => 0);
+  const summary = allowed ? `Claude freigeschaltet, jede Verbindung gilt ${FREELANCER_CONNECTION_DAYS} Tage`
+    : ended ? `Claude ausgeschaltet, ${ended === 1 ? "eine Verbindung" : `${ended} Verbindungen`} getrennt` : "Claude ausgeschaltet";
+  await log(ctx, allowed ? "user.claude_on" : "user.claude_off", summary, { userId: user.id });
+  refreshWorkspace();
+  return { ok: true, data: { ended } };
+}
+
+/** The Claude connections of a freelancer login for the admin's panel; `enabled`: the connector itself is switched on. */
+export async function loadHubUserClaude(input: { userId: string }): Promise<ActionResult<{ enabled: boolean; connections: ConnectionView[] }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user || roleOf(user) !== "oalab_freelancer") return failed("Diesen Freelancer-Zugang gibt es nicht mehr.");
+  if (!connectorReady()) return { ok: true, data: { enabled: false, connections: [] } };
+  try {
+    return { ok: true, data: { enabled: true, connections: await listConnections(user.id) } };
+  } catch {
+    return failed("Die Verbindungen konnten gerade nicht geladen werden.");
+  }
+}
+
+/** „Trennen“ for one connection of a freelancer login: Claude's keys stop at once; the switch stays as it is. */
+export async function disconnectHubUserClaude(input: { userId: string; connectionId: string }): Promise<ActionResult<null>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user || roleOf(user) !== "oalab_freelancer") return failed("Diesen Freelancer-Zugang gibt es nicht mehr.");
+  try {
+    const name = await disconnect(user.id, String(input?.connectionId ?? ""));
+    if (!name) return failed("Diese Verbindung gibt es nicht mehr.");
+    await log(ctx, "user.claude_disconnected", `${name} beim Freelancer getrennt`, { userId: user.id });
+    return { ok: true, data: null };
+  } catch {
+    return failed("Das hat gerade nicht geklappt. Bitte versuche es erneut.");
+  }
 }
 
 /** Deletes a login for good. The e-mail address has to be typed again as confirmation. */

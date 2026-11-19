@@ -11,6 +11,7 @@ import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import { displayStatus, isAccountStatus, isCustomerKind, isHubRole, randomFreeNumber, type CustomerKind, type HubRole } from "./rules";
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
 import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/hub-auth/second-factor";
+import { CLAUDE_SWITCH } from "@/lib/hub-mcp/config";
 
 type ProfileRow = {
   user_id: string;
@@ -220,6 +221,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         role: roleOf(user),
         self: user.id === admin.userId,
         secondFactor: secondFactorMethod(user.app_metadata, withApp.has(user.id)) ?? "off",
+        claude: roleOf(user) === "oalab_freelancer" && (user.app_metadata as Record<string, unknown> | undefined)?.[CLAUDE_SWITCH] === true,
         customerIds: memberships.filter((row) => row.user_id === user.id).map((row) => row.customer_id),
         source: profile?.source === "admin" || profile?.source === "existing" ? profile.source : "registration",
         createdAt: user.created_at,

@@ -41,6 +41,16 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 27,
+    date: "2026-11-20",
+    title: "Claude für Freelancer",
+    summary: "Admins schalten Claude im User Management für einzelne Freelancer-Zugänge ein (Zeile „Claude“ unter Sicherheit, ab Werk aus). Freelancer verbinden Claude dann im Profil unter „Verbundene Apps“. Der Connector arbeitet für sie nur mit ihren eigenen Rechten und nur lesend: ihre Projekte mit den Aufgaben ohne „Nur Team“, die betreuten Kunden ohne Kontaktdaten, freie Zeiten bei oalab und die eigenen Anfragen. Eine Verbindung gilt 30 Tage ab „Erlauben“; Ausschalten, Deaktivieren oder Archivieren beendet sie sofort.",
+    changes: [
+      { kind: "new", title: "Claude für Freelancer einschalten", text: "Im User Management schaltest du Claude jetzt für einzelne Freelancer-Zugänge ein, unter „Sicherheit“ in der Zeile „Claude“. Claude liest dann nur, was dieser Zugang im Hub sieht: eigene Projekte und Aufgaben, freie Zeiten und eigene Terminanfragen, ohne Kontaktdaten der Kunden. Darunter siehst und trennst du die Verbindungen; Ausschalten trennt alle sofort." },
+      { kind: "new", title: "Claude verbinden", text: "Hat das oalab-Team es für dich eingeschaltet, verbindest du Claude im Profil unter „Verbundene Apps“ mit dem Hub. Dann fragst du in Claude etwa nach deinen Aufgaben, freien Zeiten bei oalab oder dem Stand deiner Anfragen. Claude sieht nur, was du im Hub siehst, und eine Verbindung gilt 30 Tage.", freelancers: true },
+    ],
+  },
+  {
     number: 26,
     date: "2026-11-19",
     title: "Neue Dateien in einer Meldung",
