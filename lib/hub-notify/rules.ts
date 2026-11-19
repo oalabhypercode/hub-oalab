@@ -232,6 +232,37 @@ export function appointmentNotice(input: {
 /** A file shared with the customer; the link opens it in the files page. */
 export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });
 
+// New files in one line (19.11.2026) -------------------------------------------------------------------------------
+//
+// While a file line is unread and its mail not on its way, the next files join it instead of adding lines, the newest
+// names first, as the task lines do: an upload or a drop of many files becomes one line in the bell and one item in
+// the mail. A single file keeps its own line with its link; several lead to the files page.
+
+const SINGLE_FILE = "Neue Datei: ";
+const nameOf = (notice: Notice) => notice.title.startsWith(SINGLE_FILE) ? notice.title.slice(SINGLE_FILE.length) : notice.title;
+
+/** How many files a file line stands for: „Neue Datei: …“ one, „4 neue Dateien“ four. */
+export function fileNoticeCount(title: string) {
+  const many = /^(\d+) neue Dateien$/.exec(title);
+  return many ? Number(many[1]) : 1;
+}
+
+/** Several files in one line: the number, the two newest names and how many more. */
+export function filesNotice(names: string[], total = names.length): Notice {
+  const shown = names.slice(0, 2);
+  const rest = Math.max(0, total - shown.length);
+  return { kind: "file.shared", title: `${total} neue Dateien`, body: clip(rest ? `${shown.join(", ")} und ${rest} weitere` : shown.join(" und "), 300), href: "/dashboard/files" };
+}
+
+/** The line for files that find no open line: one file as it always was, several together. */
+export const fileNoticeLine = (notices: Notice[]): Notice => notices.length === 1 ? notices[0] : filesNotice(notices.map(nameOf));
+
+/** An unread file line taking in more files, each given as its single-file notice, newest first. */
+export function mergeFileNotice(previousTitle: string, notices: Notice[]): Notice {
+  const before = previousTitle.startsWith(SINGLE_FILE) ? [previousTitle.slice(SINGLE_FILE.length)] : [];
+  return filesNotice([...notices.map(nameOf), ...before], fileNoticeCount(previousTitle) + notices.length);
+}
+
 // Releases for freelancers (18.11.2026) ----------------------------------------------------------------------------
 //
 // An admin switched on an area of a customer under „Vertrag & Domain“ › Freelancer: that freelancer hears of it in the

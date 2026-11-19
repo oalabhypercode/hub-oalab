@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutList, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutList, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import type { ListView } from "@/lib/appearance";
 import { deleteFiles, setFileAudience } from "@/lib/hub-files/actions";
@@ -21,6 +21,8 @@ import { DeleteFilesDialog, DeleteFolderDialog, DownloadButton, FolderNameDialog
 import { CustomerLogoDialog } from "../customer-logo-dialog";
 import { Select } from "../select";
 import { categoryDot } from "../select-options";
+import type { AssignSource } from "@/lib/hub-files/assign";
+import { AssignPanel, type AssignRequest } from "./asset-assign";
 import { FilePanel } from "./asset-details";
 import { namesByPlace, RenamePanel, storedEntries } from "./asset-naming";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
@@ -35,10 +37,12 @@ const NO_FOLDER = "none";
 
 type View = { kind: "customer"; id: string } | { kind: "all" } | { kind: "inbox" };
 /**
- * The panel over the files: the upload, one file's details (opened to change its customers from the Ablage), or
- * „Umbenennen“ for the ticked files.
+ * The panel over the files: the upload, one file's details, „Umbenennen“ for the ticked files, or „Zuordnen“ for some
+ * files to one customer (`key` starts it afresh for every new request).
  */
-type Panel = { kind: "upload" } | { kind: "file"; id: string; assign: boolean } | { kind: "rename" };
+type Panel = { kind: "upload" } | { kind: "file"; id: string; assign: boolean } | { kind: "rename" } | { kind: "assign"; request: AssignRequest; key: string };
+/** A notice that leads somewhere ("Café Morgenrot ansehen"), kept only as long as its line is the one shown. */
+type NoticeLink = { message: string; label: string; view: View };
 type CustomerRow = { customer: HubFileCustomer; files: HubStoredFile[]; last: string };
 type Group = { key: string; label: string; folder: HubFolder | null; files: HubStoredFile[] };
 
@@ -121,6 +125,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const [busy, setBusy] = useState<"download" | "move" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeLink, setNoticeLink] = useState<NoticeLink | null>(null);
   // Files just uploaded, renamed or moved light up for a few seconds, so the eye finds them in the list.
   const [fresh, setFresh] = useState<string[]>([]);
   useEffect(() => {
@@ -128,6 +133,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     const timer = window.setTimeout(() => setFresh([]), 6000);
     return () => window.clearTimeout(timer);
   }, [fresh]);
+  // The customer that just got files lights up in the list for a moment (it may also have moved to the top).
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const timer = window.setTimeout(() => setFlash(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [flash]);
   // Freelancers read here what they see and what not; admins have an ⓘ at each feature instead.
   const freelancerInfo = useInfo("Was du hier siehst", {
     steps: [
@@ -153,6 +165,9 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   // „Umbenennen“ belongs to the ticks: once none is left, it closes (adjusted while rendering, no effect needed).
   if (panel?.kind === "rename" && !selection.length) setPanel(null);
   const renaming = panel?.kind === "rename" && selection.length > 0;
+  // „Zuordnen“ keeps the files it was opened with; once none of them exists any more, it closes.
+  const assigning = panel?.kind === "assign" ? files.filter((file) => panel.request.ids.includes(file.id)) : [];
+  if (panel?.kind === "assign" && !assigning.length) setPanel(null);
   const openFile = panel?.kind === "file" ? files.find((file) => file.id === panel.id) : undefined;
   const logoRow = logoFor ? rows.find((row) => row.customer.id === logoFor) : undefined;
   const usedFormats = Array.from(new Set(paneFiles.map((file) => fileFormat(file.fileName)))).sort();
@@ -164,6 +179,9 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const canOrganize = !freelancerView || (current !== null && current.id === ownId);
   // Renaming several files: admins only, like the title in a file's details; the preview renames in this tab.
   const canRename = canManage && !fileState.error;
+  // „Zuordnen“: admins only, to any customer or freelancer whose logins are not all deactivated.
+  const canAssign = canManage && !fileState.error;
+  const assignTargets = useMemo(() => customers.filter((customer) => !(customer.kind === "freelancer" && customer.inactive)), [customers]);
   const isOwn = current !== null && current.id === ownId;
   const servedBy = current && canManage && current.kind !== "freelancer" ? servedByNames(current, freelancerEntries) : "";
   const customersOf = (freelancerId: string) => customers.filter((customer) => customer.freelancerIds?.includes(freelancerId)).length;
@@ -188,8 +206,25 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     setFormat(ALL);
     setNotice("");
     setError("");
-    // A file's details belong to the list they were opened from; an upload keeps its files and its target.
+    // A file's details and „Zuordnen“ belong to the list they were opened from; an upload keeps its files and its target.
     closeDetails();
+    setPanel((now) => now?.kind === "assign" ? null : now);
+  }
+  // Where „Zuordnen“ takes the files from: the Ablage, „Alle Dateien“ (they stay with their customers) or the open customer.
+  const assignSource = (): AssignSource => current ? { kind: "customer", id: current.id, company: current.company } : view.kind === "inbox" ? { kind: "inbox" } : { kind: "all" };
+  function openAssign(ids: string[], target: string | null) {
+    setPanel({ kind: "assign", request: { ids, target, source: assignSource() }, key: `${target ?? ""}|${ids.join(",")}` });
+    setPaneOpen(true);
+  }
+  function assigned(message: string, ids: string[], customerId: string) {
+    const company = customers.find((customer) => customer.id === customerId)?.company ?? "Kunde";
+    setPanel(null);
+    setSelected((now) => now.filter((id) => !ids.includes(id)));
+    setError("");
+    setNotice(message);
+    setNoticeLink({ message, label: `${company} ansehen`, view: { kind: "customer", id: customerId } });
+    setFresh(ids);
+    setFlash(customerId);
   }
   // Ticks and a file's details exclude each other, because the details would cover the selection bar: a tick closes
   // them, and opening a file clears the ticks, like a click on one file in a file manager. An upload stays open.
@@ -345,8 +380,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     ? <span className={compact ? "am-min-who" : "am-customer"}><CustomerSign customer={file.customers[0]} logo={logos.get(file.customers[0].id)} size={compact ? "xs" : "sm"} /><span>{file.customers[0].company}</span>{file.customers.length > 1 && <span className={compact ? "am-min-plus" : "am-plus"} data-tip={file.customers.slice(1).map((item) => item.company).join(", ")}>+{file.customers.length - 1}</span>}</span>
     : <span className={compact ? "am-min-who is-inbox" : "am-customer is-inbox"}><Inbox size={compact ? 13 : 15} aria-hidden="true" /><span>Ablage</span></span>;
 
-  const assignButton = (file: HubStoredFile) => canManage && source === "supabase"
-    ? <button type="button" className="sheet-action" onClick={() => open(file, true)}><UserPlus size={15} aria-hidden="true" />Zuordnen</button>
+  const assignButton = (file: HubStoredFile) => canAssign
+    ? <button type="button" className="sheet-action" onClick={() => openAssign([file.id], null)}><UserPlus size={15} aria-hidden="true" />Zuordnen</button>
     : null;
 
   const tableRow = (file: HubStoredFile, columns: "customer" | "all" | "inbox") => (
@@ -532,7 +567,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     const active = view.kind === target.kind && (target.kind !== "customer" || (view.kind === "customer" && view.id === target.id));
     return (
       <li key={target.kind === "customer" ? target.id : target.kind}>
-        <button type="button" className={`chat-conv${minimal ? " am-min-conv" : ""}`} aria-current={active ? "true" : undefined} onClick={() => choose(target)}>
+        <button type="button" className={`chat-conv${minimal ? " am-min-conv" : ""}${target.kind === "customer" && flash === target.id ? " is-flash" : ""}`} aria-current={active ? "true" : undefined} onClick={() => choose(target)}>
           {sign}
           {minimal ? <span className="am-min-conv-name">{title}</span> : <span className="chat-conv-main"><span className="chat-conv-top"><strong>{title}</strong>{right}</span><span className="chat-conv-sub"><span className="chat-conv-last">{sub}</span></span></span>}
           {minimal && right}
@@ -583,7 +618,12 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       <LargeTitleHeader title="Asset Management" icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
       {fileState.error && <GlassCard className="section-first"><p className="t-headline">Dateien nicht verfügbar</p><p className="t-subheadline t-secondary">{fileState.error}</p></GlassCard>}
       {source === "fixtures" && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Hochladen und Zuordnen ist nur mit echtem Admin-Login möglich. Die Liste zeigt fiktive Beispieldateien; Ordner und Verschiebungen bleiben in diesem Browserfenster.</p></GlassCard>}
-      {notice && <p className="calendar-notice" role="status"><Check size={18} aria-hidden="true" />{notice}</p>}
+      {notice && (
+        <p className="calendar-notice" role="status">
+          <Check size={18} aria-hidden="true" /><span className="calendar-notice-text">{notice}</span>
+          {noticeLink?.message === notice && <button type="button" className="calendar-notice-action" onClick={() => choose(noticeLink.view)}>{noticeLink.label}<ArrowRight size={15} aria-hidden="true" /></button>}
+        </p>
+      )}
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
@@ -607,6 +647,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                   <strong className="numeric">{selection.length} <span className="am-sel-long">{selection.length === 1 ? "Datei" : "Dateien"} </span>ausgewählt</strong>
                   <span className="am-sel-acts">
                     <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}<span className="am-btn-text">{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</span></button>
+                    {canAssign && <button type="button" className="sheet-action" aria-pressed={panel?.kind === "assign"} onClick={() => openAssign(selection.map((file) => file.id), null)} disabled={busy !== null} data-tip-compact="Zuordnen"><UserPlus size={15} aria-hidden="true" /><span className="am-btn-text" data-tip-label>Zuordnen</span></button>}
                     {canRename && <button type="button" className="sheet-action" aria-pressed={renaming} onClick={() => setPanel(renaming ? null : { kind: "rename" })} disabled={busy !== null}><PenLine size={15} aria-hidden="true" /><span className="am-btn-text">Umbenennen</span></button>}
                     {current && canOrganize && (
                       <span className="sheet-move">
@@ -621,7 +662,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                 </div>
               )}
               <div className="am-scroll">{selectAll}{body}</div>
-              {!minimal && <SheetFooter hint={shown.length > 1 ? "Mehrere ankreuzen: als ZIP laden oder verschieben" : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
+              {!minimal && <SheetFooter hint={shown.length > 1 ? `Mehrere ankreuzen: als ZIP laden${canAssign ? ", zuordnen" : ""} oder verschieben` : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
               {drag && <>
                 <div className="am-drop" aria-hidden="true" />
                 <div className="am-drop-pill" aria-hidden="true">
@@ -630,6 +671,9 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                 </div>
               </>}
               {panel?.kind === "upload" && <UploadPanel queue={queue} customers={customers} existing={namesByPlace(files)} onClose={closeUpload} onUploaded={(message, ids) => { setPanel(null); setNotice(message); setFresh(ids); }} />}
+              {panel?.kind === "assign" && assigning.length > 0 && (
+                <AssignPanel key={panel.key} request={panel.request} files={assigning} customers={assignTargets} folders={folders} onAssign={store.assign} onClose={() => setPanel(null)} onDone={assigned} />
+              )}
               {renaming && (
                 <RenamePanel files={selection} entries={storedEntries(selection, current, folders)} existing={namesByPlace(files, new Set(selected))} onClose={() => setPanel(null)} onRename={store.renameFiles}
                   onDone={(message, ids) => { setPanel(null); setSelected([]); setError(""); setNotice(message); setFresh(ids); }} />

@@ -43,10 +43,13 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 26,
     date: "2026-11-19",
-    title: "Insights für Freelancer",
-    summary: "Freelancer sehen unter Insights jetzt eigene Kacheln statt eines Hinweises: ihre zugewiesenen Aufgaben mit Fristen, den nächsten Termin mit dem Team, ihre Kunden mit offenen Aufgaben, Freigaben und dem Hinweis des Teams, Neues aus der Glocke, den Fortschritt ihrer Projekte nach den Aufgaben, die sie sehen, und neue Dateien. Die Seite lädt dafür ihr Board und ihre Kundenkarten.",
+    title: "Neue Dateien in einer Meldung",
+    freelancerTitle: "Dein Überblick und neue Dateien in einer Meldung",
+    summary: "Freelancer sehen unter Insights jetzt eigene Kacheln statt eines Hinweises: ihre zugewiesenen Aufgaben mit Fristen, den nächsten Termin mit dem Team, ihre Kunden mit offenen Aufgaben, Freigaben und dem Hinweis des Teams, Neues aus der Glocke, den Fortschritt ihrer Projekte nach den Aufgaben, die sie sehen, und neue Dateien. Die Seite lädt dafür ihr Board und ihre Kundenkarten. Im Asset Management ordnen Admins mehrere Dateien auf einmal einem Kunden zu: „Zuordnen“ in der Auswahl-Leiste oder bei einer Datei in der Ablage öffnet rechts eine Leiste mit Kunde, Ordner und, von einem anderen Kunden aus, „Verschieben“ oder „Auch behalten“; „Sichtbar für“ zieht beim Verschieben mit um. Mehrere neue Dateien stehen bei Kunden und Freelancern als eine Zeile in der Glocke und in der E-Mail, auch beim Hochladen.",
     changes: [
       { kind: "new", title: "Insights für dich", text: "Unter Insights siehst du jetzt auf einen Blick, was für dich ansteht: deine Aufgaben mit Fristen, die überfälligen zuerst, deinen nächsten Termin, deine Kunden mit offenen Aufgaben, Freigaben und dem Hinweis des Teams, den Fortschritt deiner Projekte und neue Dateien.", freelancers: true },
+      { kind: "new", title: "Mehrere Dateien zuordnen", text: "Im Asset Management ordnest du jetzt mehrere Dateien auf einmal einem Kunden zu: Häkchen setzen, „Zuordnen“ klicken, Kunde und Ordner wählen. Aus der Ablage werden sie zugeordnet, von einem anderen Kunden wahlweise verschoben oder zusätzlich freigegeben; beim Verschieben zieht „Sichtbar für“ mit um." },
+      { kind: "improved", title: "Neue Dateien in einer Meldung", text: "Bekommst du mehrere Dateien auf einmal, steht in der Glocke jetzt eine Zeile wie „3 neue Dateien“ statt einer Zeile für jede Datei, und die E-Mail fasst sie genauso zusammen. Kommen weitere dazu, bevor du hineingeschaut hast, zählen sie in derselben Zeile mit.", customers: true, freelancers: true },
     ],
   },
   {

@@ -16,6 +16,8 @@ const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8"
  */
 const places = [
   { file: "components/hub/screens/asset-upload.tsx", call: 'useInfo("Hochladen"', button: /title="Hochladen" subtitle=\{subtitle\} actions=\{info\.button\}/, box: "{info.box}" },
+  // „Zuordnen“ for several files at once (since 19.11.2026): in the head of its panel.
+  { file: "components/hub/screens/asset-assign.tsx", call: 'useInfo("Zuordnen"', button: /title="Zuordnen" subtitle=\{assignSubtitle\(shown\.length, source\)\} actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/asset-details.tsx", call: 'useInfo("Freigabe und Sichtbarkeit"', button: /"Freigegeben für"\}\s*\{canAssign && shareInfo\.button\}/, box: "{canAssign && shareInfo.box}" },
   { file: "components/hub/screens/files-dialogs.tsx", call: 'useInfo("Ordner"', button: /<Modal title=\{title\} onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/customer-logo-dialog.tsx", call: 'useInfo("Kundenlogo"', button: /className="logo-window" actions=\{info\.button\}>/, box: "{info.box}" },

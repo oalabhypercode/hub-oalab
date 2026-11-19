@@ -9,7 +9,8 @@ import { listAllUsers, roleOf } from "@/lib/hub-users/server";
 import { sendTelegram } from "@/lib/hub-telegram/server";
 import { telegramChatMessage } from "@/lib/hub-telegram/rules";
 import {
-  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, hasTaskChange, mailsWanted, mergeShareNotice, mergeTaskNotice, nextCursor,
+  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, fileNotice, fileNoticeLine, hasTaskChange, mailsWanted, mergeFileNotice,
+  mergeShareNotice, mergeTaskNotice, nextCursor,
   noticeAppointment, projectHref, readFrom, shareNotice, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
@@ -59,6 +60,28 @@ export async function notifyCustomers(customerIds: string[], notice: Notice) {
 }
 
 /**
+ * Writes file notices for these logins, each file given as its single-file notice, newest first: into the file line
+ * each one has not read yet and whose mail is not on its way, else as a new line, several files in one (19.11.2026).
+ * A merged line moves to the top of the bell and waits its quarter of an hour for the mail again, so an upload or a
+ * drop of many files becomes one line and one item in the mail.
+ */
+async function deliverFileNotice(db: SupabaseClient, userIds: string[], notices: Notice[]) {
+  if (!userIds.length || !notices.length) return;
+  const open = await db.from("hub_inbox").select("id, user_id, title").in("user_id", userIds).eq("kind", "file.shared").is("read_at", null).eq("mail_state", "pending")
+    .order("created_at", { ascending: false }).returns<{ id: number; user_id: string; title: string }[]>();
+  if (open.error) logFailure("file notice: read", open.error);
+  const latest = new Map<string, { id: number; title: string }>();
+  for (const row of open.data ?? []) if (!latest.has(row.user_id)) latest.set(row.user_id, row);
+  const at = new Date().toISOString();
+  for (const row of latest.values()) {
+    const merged = mergeFileNotice(row.title, notices);
+    const { error } = await db.from("hub_inbox").update({ title: merged.title, body: merged.body, href: merged.href, created_at: at }).eq("id", row.id);
+    if (error) logFailure("file notice: merge", error);
+  }
+  await insertNotices(db, userIds.filter((id) => !latest.has(id)), fileNoticeLine(notices));
+}
+
+/**
  * A file at these customers: their logins get the notice unless it is only for the freelancers, and the freelancers
  * who look after a customer unless it is only for the customer. `only` narrows it to the side that newly sees the
  * file (a changed "Sichtbar für"). Without the freelancer migration everything goes to the customers, as before.
@@ -74,17 +97,48 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
     if (assignments.error || links.error) {
       // Without the freelancer columns only the customers hear of it; say so, a freelancer misses this one.
       logFailure("file notice: freelancer read", assignments.error ?? links.error);
-      if (only.customer) await insertNotices(db, await customerLogins(db, customerIds), notice);
+      if (only.customer) await deliverFileNotice(db, await customerLogins(db, customerIds), [notice]);
       return;
     }
     const audienceOf = new Map((assignments.data ?? []).map((row) => [row.customer_id, row.audience]));
     const forCustomers = only.customer ? customerIds.filter((id) => audienceOf.get(id) !== "freelancer") : [];
     const freelancers = only.freelancer ? [...new Set((links.data ?? []).filter((link) => audienceOf.get(link.customer_id) !== "customer").map((link) => link.freelancer_id))] : [];
     const recipients = new Set([...(await customerLogins(db, forCustomers)), ...(await customerLogins(db, freelancers))]);
-    await insertNotices(db, [...recipients], notice);
+    await deliverFileNotice(db, [...recipients], [notice]);
   } catch (error) {
     // The action succeeded; the bell simply misses this one.
     logFailure(`notice ${notice.kind}`, error);
+  }
+}
+
+/**
+ * Several files newly at one customer (Zuordnen and drag & drop, 19.11.2026): the customer's logins hear of those not
+ * only for the freelancers, the freelancers who look after the customer of those not only for the customer, and each
+ * login gets one line for all of them.
+ */
+export async function notifyFilesShared(files: { id: string; title: string }[], customerId: string) {
+  const db = createAdminClient();
+  if (!db || !files.length) return;
+  const noticesOf = (list: { id: string; title: string }[]) => list.map((file) => fileNotice(file.title, file.id));
+  try {
+    const [assignments, links] = await Promise.all([
+      db.from("hub_file_assignments").select("file_id, audience").eq("customer_id", customerId).in("file_id", files.map((file) => file.id)).returns<{ file_id: string; audience: string }[]>(),
+      db.from("hub_freelancer_customers").select("freelancer_id").eq("customer_id", customerId).returns<{ freelancer_id: string }[]>(),
+    ]);
+    if (assignments.error || links.error) {
+      // Without the freelancer columns only the customer hears of them; say so, a freelancer misses these.
+      logFailure("file notice: freelancer read", assignments.error ?? links.error);
+      await deliverFileNotice(db, await customerLogins(db, [customerId]), noticesOf(files));
+      return;
+    }
+    const audienceOf = new Map((assignments.data ?? []).map((row) => [row.file_id, row.audience]));
+    const customerSide = await customerLogins(db, [customerId]);
+    const freelancerSide = (await customerLogins(db, [...new Set((links.data ?? []).map((link) => link.freelancer_id))])).filter((id) => !customerSide.includes(id));
+    await deliverFileNotice(db, customerSide, noticesOf(files.filter((file) => audienceOf.get(file.id) !== "freelancer")));
+    await deliverFileNotice(db, freelancerSide, noticesOf(files.filter((file) => audienceOf.get(file.id) !== "customer")));
+  } catch (error) {
+    // The action succeeded; the bell simply misses these.
+    logFailure("notice file.shared", error);
   }
 }
 

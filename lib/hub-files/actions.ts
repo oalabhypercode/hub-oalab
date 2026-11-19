@@ -8,7 +8,7 @@ import { cleanName, MAX_FILE_NAME, MAX_NAME, nameBase, nameExtension } from "./n
 import { isFileAudience, type FileAudience } from "./types";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { fileNotice } from "@/lib/hub-notify/rules";
-import { notifyFileShared } from "@/lib/hub-notify/server";
+import { notifyFileShared, notifyFilesShared } from "@/lib/hub-notify/server";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
@@ -140,6 +140,76 @@ export async function setFileAssignments(fileId: string, customerIds: string[]):
   }
   refreshWorkspace();
   return { ok: true, data: { count: wanted.length } };
+}
+
+/**
+ * Admin: several files to one customer at once (Zuordnen and drag & drop, user 19.11.2026). The files keep their other
+ * customers; with `from` and `move` they leave that customer. A chosen folder applies to every file; without one, files
+ * already there keep theirs and the others land in „Ohne Ordner“. Coming from another customer, „Sichtbar für“ moves
+ * along, so a working file only for freelancers stays hidden from the new customer. Whoever newly sees files gets one
+ * line in the bell for all of them.
+ */
+export async function assignFiles(input: { fileIds: string[]; customerId: string; folderId: string | null; from?: string | null; move?: boolean }): Promise<ActionResult<{ added: number; moved: number }>> {
+  const supabase = await adminClient();
+  if (!supabase) return denied;
+  const ids = cleanFileIds(input?.fileIds);
+  const customerId = String(input?.customerId ?? "");
+  const folderId = input?.folderId ? String(input.folderId) : null;
+  const from = input?.from ? String(input.from) : null;
+  if (!ids.length || !uuid.test(customerId) || (folderId !== null && !uuid.test(folderId)) || (from !== null && !uuid.test(from))) return { ok: false, error: "Bitte Dateien und einen Kunden wählen." };
+  if (from === customerId) return { ok: false, error: "Die Dateien liegen schon bei diesem Kunden." };
+
+  const [files, current] = await Promise.all([
+    supabase.from("hub_files").select("id, title").in("id", ids).returns<{ id: string; title: string }[]>(),
+    supabase.from("hub_file_assignments").select("file_id, customer_id, audience").in("file_id", ids).in("customer_id", from ? [customerId, from] : [customerId])
+      .returns<{ file_id: string; customer_id: string; audience: string }[]>(),
+  ]);
+  if (files.error || current.error) return { ok: false, error: "Die Dateien konnten nicht gelesen werden." };
+  if ((files.data ?? []).length < ids.length) return { ok: false, error: "Mindestens eine Datei gibt es nicht mehr. Bitte die Auswahl prüfen." };
+  const there = new Set((current.data ?? []).filter((row) => row.customer_id === customerId).map((row) => row.file_id));
+  const fromAudience = new Map((current.data ?? []).filter((row) => row.customer_id === from).map((row) => [row.file_id, row.audience]));
+  const added = ids.filter((id) => !there.has(id));
+
+  if (added.length) {
+    const { error } = await supabase.from("hub_file_assignments").insert(added.map((fileId) => ({ file_id: fileId, customer_id: customerId, folder_id: folderId })));
+    if (error) return { ok: false, error: error.code === "23503" ? "Diesen Kunden oder Ordner gibt es nicht mehr. Bitte die Seite neu laden." : "Die Dateien konnten nicht zugeordnet werden." };
+  }
+  if (folderId && there.size) {
+    const { error } = await supabase.from("hub_file_assignments").update({ folder_id: folderId }).eq("customer_id", customerId).in("file_id", [...there]);
+    if (error) return { ok: false, error: "Die Dateien sind zugeordnet, aber nicht alle liegen im gewählten Ordner." };
+  }
+  // Browsers may not write „Sichtbar für“, so the server copies it with the service role (as in setFileAudience).
+  const carried = new Map<string, string[]>();
+  for (const id of added) {
+    const audience = fromAudience.get(id);
+    if (audience && isFileAudience(audience)) carried.set(audience, [...(carried.get(audience) ?? []), id]);
+  }
+  if (carried.size) {
+    const db = createAdminClient();
+    let copied = Boolean(db);
+    for (const [audience, fileIds] of carried) {
+      if (!db) break;
+      const { error } = await db.from("hub_file_assignments").update({ audience }).eq("customer_id", customerId).in("file_id", fileIds);
+      if (error) copied = false;
+    }
+    if (!copied) {
+      refreshWorkspace();
+      return { ok: false, error: "Die Dateien sind zugeordnet, aber „Sichtbar für“ ließ sich nicht übernehmen. Bitte in den Details prüfen; der Kunde hat noch keine Meldung bekommen." };
+    }
+  }
+  let moved = 0;
+  if (from && input?.move) {
+    const { data, error } = await supabase.from("hub_file_assignments").delete().eq("customer_id", from).in("file_id", ids).select("file_id");
+    if (error) {
+      refreshWorkspace();
+      return { ok: false, error: "Die Dateien sind zugeordnet, liegen aber noch beim bisherigen Kunden." };
+    }
+    moved = data?.length ?? 0;
+  }
+  const titles = new Map((files.data ?? []).map((file) => [file.id, file.title]));
+  await notifyFilesShared(added.map((id) => ({ id, title: titles.get(id) ?? "Datei" })), customerId);
+  refreshWorkspace();
+  return { ok: true, data: { added: added.length, moved } };
 }
 
 /**
