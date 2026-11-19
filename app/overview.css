@@ -40,8 +40,9 @@
 .in-also { margin: 0; padding-top: 10px; border-top: 1px solid var(--sheet-divider); font-size: 13px; line-height: 18px; color: var(--sheet-muted); }
 .in-also b { font-weight: 600; color: var(--label-body); }
 .in-pkg, .in-body > .sheet-action, .in-empty .sheet-action { justify-self: start; }
-/* the freelancers' Insights page until their tiles come: two ways on */
-.in-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+/* a freelancer's customers (19.11.2026): what oalab released, at the end of the row */
+.in-shares { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 46%; }
+.in-row > .chat-avatar { flex: none; }
 
 /* rows: news, steps, appointments, tasks, projects */
 .in-list { margin: 0; padding: 0; list-style: none; }
@@ -102,6 +103,7 @@
 }
 @media (max-width: 767px) {
   .in-grid.is-customer, .in-grid.is-admin { grid-template-columns: minmax(0, 1fr); }
+  .in-shares { display: none; }
   .in-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .in-kpi, .in-kpi:nth-child(n + 4) { grid-column: auto; }
   .in-kpi:last-child { grid-column: 1 / -1; }

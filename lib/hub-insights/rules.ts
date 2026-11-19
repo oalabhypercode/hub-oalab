@@ -7,6 +7,8 @@ import type { Project, ProjectTask, StudioProjectStatus } from "../hub-data";
 import type { QuotaRow } from "../hub-service-quota/rules";
 import type { HubAppointment } from "../hub-calendar/types";
 import type { BoardProject, BoardTask } from "../hub-tasks/types";
+import type { ShareArea } from "../hub-freelancer-customers/rules";
+import type { FreelancerCustomerCard } from "../hub-freelancer-customers/types";
 
 /** Studio's status of a project; without one a finished project counts as complete, else active (as on Projekte). */
 const studioStatus = (project: Pick<Project, "studio" | "status">): StudioProjectStatus =>
@@ -230,4 +232,46 @@ export function todoId(key: string): number {
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) | 0;
   return -((hash >>> 1) + 1);
+}
+
+// ---------- A freelancer's Insights (19.11.2026): their tasks, customers and projects ----------
+
+/** The open tasks assigned to the freelancer: by due date, so the overdue ones come first, those without one last. */
+export function myTasks<T extends Pick<BoardTask, "status" | "dueOn" | "assigneeIds" | "number">>(tasks: readonly T[], userId: string): T[] {
+  return tasks.filter((task) => task.status !== "done" && task.assigneeIds.includes(userId))
+    .sort((a, b) => (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999") || a.number - b.number);
+}
+
+export type BoardProgress = { id: string; name: string; company: string; dueOn: string | null; done: number; total: number; share: number | null };
+
+/** Each project on the freelancer's board with how many of the tasks they see are done; the nearest target date first. */
+export function boardProgress(projects: readonly Pick<BoardProject, "id" | "name" | "company" | "dueOn">[], tasks: readonly Pick<BoardTask, "projectId" | "status">[]): BoardProgress[] {
+  return projects.map((project) => {
+    const own = tasks.filter((task) => task.projectId === project.id);
+    const done = own.filter((task) => task.status === "done").length;
+    return { id: project.id, name: project.name, company: project.company, dueOn: project.dueOn, done, total: own.length, share: own.length ? Math.round((done / own.length) * 100) : null };
+  }).sort((a, b) => (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999") || a.name.localeCompare(b.name, "de"));
+}
+
+const SHARE_ORDER: ShareArea[] = ["domains", "mail", "packages", "contact"];
+export type CardCustomer = { customerId: string; company: string; open: number; note: string; shares: ShareArea[] };
+
+/**
+ * The customers a freelancer looks after, from their cards: the open tasks of their projects (linked through the
+ * customer's Service organization), the team's note and the areas oalab released; most open tasks first, then by name.
+ */
+export function cardCustomers(cards: readonly Pick<FreelancerCustomerCard, "customerId" | "company" | "organizationId" | "note" | "shares">[], projects: readonly Pick<BoardProject, "id" | "organizationId">[], tasks: readonly Pick<BoardTask, "projectId" | "status">[]): CardCustomer[] {
+  const organizationOf = new Map(projects.map((project) => [project.id, project.organizationId]));
+  const open = new Map<string, number>();
+  for (const task of tasks) {
+    const organization = organizationOf.get(task.projectId);
+    if (organization && task.status !== "done") open.set(organization, (open.get(organization) ?? 0) + 1);
+  }
+  return cards.map((card) => ({
+    customerId: card.customerId,
+    company: card.company,
+    open: card.organizationId ? open.get(card.organizationId) ?? 0 : 0,
+    note: (card.note ?? "").trim(),
+    shares: SHARE_ORDER.filter((area) => Boolean(card.shares[area])),
+  })).sort((a, b) => b.open - a.open || a.company.localeCompare(b.company, "de"));
 }

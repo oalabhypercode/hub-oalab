@@ -42,11 +42,11 @@ export async function loadQuota(role: HubRole | null): Promise<InsightsData["quo
 /**
  * The Insights page's own data. Admins: every appointment from the start of today for a month (today's list and the
  * open requests) and the quota of every customer with a package. Customers: their appointments of the next two months
- * and their quota while the switch is on. Freelancers have no Insights tiles.
+ * and their quota while the switch is on. Freelancers (19.11.2026): their appointments like customers, no quota.
  */
 export async function loadInsights(role: HubRole | null): Promise<InsightsData> {
   const today = todayIso();
-  if (role !== "oalab_admin" && role !== "oalab_customer") return empty(today);
+  if (role !== "oalab_admin" && role !== "oalab_customer" && role !== "oalab_freelancer") return empty(today);
   const now = Date.now();
   const admin = role === "oalab_admin";
   const [appointments, quota] = await Promise.all([

@@ -52,10 +52,11 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
     validSection === "keychain" ? loadKeychain() : undefined,
     // Projekte for admins: every customer with domains, packages, quota and open requests (undefined for everyone else).
     validSection === "projects" ? loadProjectDesk() : undefined,
-    // „Kunden“ for freelancers: each customer with what oalab released, and the board for their projects there.
-    validSection === "customers" ? loadFreelancerCustomers() : undefined,
-    // The board: freelancers' „Kunden“, and their widgets on the Übersicht (18.11.2026).
-    validSection === "customers" || (validSection === "overview" && identity.account?.role === "oalab_freelancer") ? loadTaskBoard() : undefined,
+    // „Kunden“ for freelancers: each customer with what oalab released, and the board for their projects there; their
+    // Insights (19.11.2026) show both as well.
+    validSection === "customers" || (validSection === "insights" && identity.account?.role === "oalab_freelancer") ? loadFreelancerCustomers() : undefined,
+    // The board: freelancers' „Kunden“, their widgets on the Übersicht (18.11.2026) and their Insights (19.11.2026).
+    validSection === "customers" || ((validSection === "overview" || validSection === "insights") && identity.account?.role === "oalab_freelancer") ? loadTaskBoard() : undefined,
     // Insights (18.11.2026): appointments and the Service quota for the tiles; projects and the bell come with the rest.
     validSection === "insights" ? loadInsights(identity.account?.role ?? null) : undefined,
     // The Übersicht (18.11.2026): for admins the facts of the welcome card; the notices come with the shell.
