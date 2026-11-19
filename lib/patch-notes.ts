@@ -41,6 +41,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 26,
+    date: "2026-11-19",
+    title: "Insights für Freelancer",
+    summary: "Freelancer sehen unter Insights jetzt eigene Kacheln statt eines Hinweises: ihre zugewiesenen Aufgaben mit Fristen, den nächsten Termin mit dem Team, ihre Kunden mit offenen Aufgaben, Freigaben und dem Hinweis des Teams, Neues aus der Glocke, den Fortschritt ihrer Projekte nach den Aufgaben, die sie sehen, und neue Dateien. Die Seite lädt dafür ihr Board und ihre Kundenkarten.",
+    changes: [
+      { kind: "new", title: "Insights für dich", text: "Unter Insights siehst du jetzt auf einen Blick, was für dich ansteht: deine Aufgaben mit Fristen, die überfälligen zuerst, deinen nächsten Termin, deine Kunden mit offenen Aufgaben, Freigaben und dem Hinweis des Teams, den Fortschritt deiner Projekte und neue Dateien.", freelancers: true },
+    ],
+  },
+  {
     number: 25,
     date: "2026-11-18",
     title: "Neue Übersicht und Insights, Meldungen zu Aufgaben, eine Glocke, die auffällt, und ruhigere Markierungen im Kalender",

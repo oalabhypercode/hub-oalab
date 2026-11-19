@@ -1,41 +1,45 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Bell, CalendarClock, CalendarDays, ChevronRight, Flag, FolderOpen, LifeBuoy, MessageSquare, SquareKanban, UserCheck, Video, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Bell, Building2, CalendarClock, CalendarDays, ChevronRight, Files, Flag, FolderOpen, LifeBuoy, MessageSquare, SquareKanban, UserCheck, Video, type LucideIcon } from "lucide-react";
 import { formatDeadline, deadlineHint, hubHref, type Project } from "@/lib/hub-data";
 import { customerSteps, projectSites } from "@/lib/hub-projects/map";
-import { dueTasks, hasProgress, openRequests, orderProjects, quotaView, serviceRows, watchProjects, type WatchReason } from "@/lib/hub-insights/rules";
+import { boardCustomers, boardProgress, cardCustomers, dueTasks, hasProgress, myTasks, openRequests, orderProjects, quotaView, serviceRows, watchProjects, type CardCustomer, type WatchReason } from "@/lib/hub-insights/rules";
 import type { InsightsData } from "@/lib/hub-insights/types";
 import { previewInsights, previewNotices } from "@/lib/hub-insights/fixtures";
 import { dayOf, formatDayShort, formatTimeRange, timeOf } from "@/lib/hub-calendar/rules";
 import { quotaMonth } from "@/lib/hub-service-quota/rules";
 import { SERVICE_PLATFORM_URL, isServicePackageId, packageCatalog, serviceRequestLimits } from "@/lib/service-packages";
 import type { InboxItem } from "@/lib/hub-notify/server";
+import type { HubAppointment } from "@/lib/hub-calendar/types";
+import { formatFileDay } from "@/lib/hub-files/catalog";
+import type { HubFilesState } from "@/lib/hub-files/types";
+import type { ShareArea } from "@/lib/hub-freelancer-customers/rules";
+import type { FreelancerCustomersState } from "@/lib/hub-freelancer-customers/types";
+import type { TaskBoardState } from "@/lib/hub-tasks/types";
 import { HeaderActions } from "../app-shell";
-import { GlassCard, TitleIcon } from "../glass";
+import { TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { sectionIcons } from "../navigation";
 import { noticeSymbol, noticeWhen } from "../notice-symbols";
 import { StatusGlyph, type GlyphKind } from "../sheet";
 import { useHubShell } from "../shell-context";
 import { CustomerSign } from "./customer-sign";
+import { FileIcon } from "./files-parts";
+import { TaskGlyph } from "./tasks-parts";
 import type { ScreenProps } from "./types";
 
 /**
  * Insights (design „V5“, user 18.11.2026): tiles on white sheets. Customers see where their project stands and what
- * they can do next; admins see in numbers and short lists what needs attention today. Freelancers keep the plain page.
+ * they can do next; admins see in numbers and short lists what needs attention today. Freelancers (19.11.2026) see
+ * their tasks, customers and projects.
  */
-export function InsightsScreen({ model, preview, admin, freelancer, projects, asOf, insights }: ScreenProps & { insights?: InsightsData }) {
+export function InsightsScreen({ model, preview, admin, freelancer, projects, fileState, asOf, insights, board, cards }: ScreenProps & { insights?: InsightsData; board?: TaskBoardState; cards?: FreelancerCustomersState }) {
   const { inbox } = useHubShell();
   const header = <LargeTitleHeader title="Insights" date={model.dateLine} icon={<TitleIcon icon={sectionIcons.insights!} />} actions={<HeaderActions />} />;
-  // Freelancers' own tiles follow after a preview (18.11.2026); until then the page says where their work is.
-  if (freelancer) return <>{header}<GlassCard className="empty-state section-first">
-    <h2 className="t-title3">Deine Insights folgen.</h2>
-    <p className="t-body t-secondary">Hier fassen wir bald zusammen, was in deinen Projekten ansteht. Bis dahin findest du deine Aufgaben im Board und alles Neue auf der Übersicht.</p>
-    <div className="in-actions"><Link className="sheet-action is-primary" href={`${hubHref(preview, "projects")}/tasks`}>Zum Board</Link><Link className="sheet-action" href={hubHref(preview)}>Zur Übersicht</Link></div>
-  </GlassCard></>;
   const data = insights ?? previewInsights(asOf, admin);
   const notices = preview ? previewNotices(asOf, admin) : inbox?.items ?? [];
+  if (freelancer) return <>{header}<FreelancerInsights preview={preview} data={data} board={board ?? null} cards={cards ?? null} notices={notices} fileState={fileState} /></>;
   return <>{header}{admin
     ? <AdminInsights preview={preview} projects={projects} data={data} notices={notices} />
     : <CustomerInsights preview={preview} projects={projects} data={data} notices={notices} />}</>;
@@ -151,17 +155,7 @@ function CustomerInsights({ preview, projects, data, notices }: { preview: boole
     })}</ul>
     : <Empty glyph="active" title="Gerade nichts zu tun" text="Sobald du etwas freigeben oder liefern kannst, steht es hier, und du bekommst eine Nachricht." />;
 
-  const appointmentBody = appointment
-    ? <div className="in-appt">
-      <span className="in-date" aria-hidden="true"><small>{monthShort.format(appointment.start).replace(".", "")}</small><b>{dayNumber(appointment.start)}</b></span>
-      <span className="in-appt-text">
-        <strong>{appointment.title}</strong>
-        <span>{formatDayShort(dayOf(appointment.start))} · {formatTimeRange(appointment)}</span>
-        {appointment.status === "requested" && <span className="chat-pill tone-todo">Angefragt</span>}
-        {appointment.teamsUrl && <a className="sheet-action" href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer">Teams-Link<ArrowUpRight size={13} aria-hidden="true" /></a>}
-      </span>
-    </div>
-    : <Empty title="Kein Termin geplant" text="Such dir eine freie Zeit für ein Gespräch aus."><Link className="sheet-action is-primary" href={hubHref(preview, "calendar")}>Termin anfragen</Link></Empty>;
+  const appointmentBody = <NextAppointment appointment={appointment} preview={preview} emptyText="Such dir eine freie Zeit für ein Gespräch aus." />;
 
   const messagesBody = reply || unreadConversations
     ? <>
@@ -286,4 +280,124 @@ function AdminInsights({ preview, projects, data, notices }: { preview: boolean;
       </Tile>
     </div>
   </>;
+}
+
+// ---------- the next appointment (customers and freelancers) ----------
+
+function NextAppointment({ appointment, preview, emptyText }: { appointment?: HubAppointment; preview: boolean; emptyText: string }) {
+  return appointment
+    ? <div className="in-appt">
+      <span className="in-date" aria-hidden="true"><small>{monthShort.format(appointment.start).replace(".", "")}</small><b>{dayNumber(appointment.start)}</b></span>
+      <span className="in-appt-text">
+        <strong>{appointment.title}</strong>
+        <span>{formatDayShort(dayOf(appointment.start))} · {formatTimeRange(appointment)}</span>
+        {appointment.status === "requested" && <span className="chat-pill tone-todo">Angefragt</span>}
+        {appointment.teamsUrl && <a className="sheet-action" href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer">Teams-Link<ArrowUpRight size={13} aria-hidden="true" /></a>}
+      </span>
+    </div>
+    : <Empty title="Kein Termin geplant" text={emptyText}><Link className="sheet-action is-primary" href={hubHref(preview, "calendar")}>Termin anfragen</Link></Empty>;
+}
+
+// ---------- freelancers ----------
+
+const SHARE_SHORT: Record<ShareArea, string> = { domains: "Domains", mail: "E-Mail", packages: "Pakete", contact: "Kontaktdaten" };
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** The board as Insights needs it: a freelancer's projects and tasks, or why they did not load. */
+export type InsightsBoard = Pick<TaskBoardState, "projects" | "tasks" | "viewerId" | "error">;
+
+/**
+ * A freelancer's Insights (design „Kacheln“, user 19.11.2026): the tasks assigned to them, overdue first; their next
+ * appointment; the customers they look after with open tasks, the team's note and what oalab released; news from the
+ * bell; how far their projects are (the tasks they see); their newest files.
+ */
+export function FreelancerInsights({ preview, data, board, cards, notices, fileState }: { preview: boolean; data: InsightsData; board: InsightsBoard | null; cards: FreelancerCustomersState | null; notices: InboxItem[]; fileState: HubFilesState }) {
+  const boardHref = `${hubHref(preview, "projects")}/tasks`;
+  const customersHref = hubHref(preview, "customers");
+  const filesHref = hubHref(preview, "files");
+  const boardError = board ? board.error : "Dein Board konnte gerade nicht geladen werden. Bitte versuche es erneut.";
+  const projects = board && !board.error ? board.projects : [];
+  const allTasks = board && !board.error ? board.tasks : [];
+  const tasks = board && !board.error ? myTasks(allTasks, board.viewerId) : [];
+  const projectOf = new Map(projects.map((project) => [project.id, project]));
+  const looksAfter = fileState.customers.filter((customer) => customer.kind !== "freelancer");
+  // The cards carry the team's note and the releases; without them (not loaded) the customers come from the files.
+  const customers: CardCustomer[] = cards && !cards.error && cards.cards.length
+    ? cardCustomers(cards.cards, projects, allTasks)
+    : boardCustomers(looksAfter, projects, allTasks).flatMap((row) => row.customerId ? [{ customerId: row.customerId, company: row.company, open: row.open, note: "", shares: [] }] : []);
+  const logoOf = new Map(looksAfter.map((customer) => [customer.id, customer.logo ?? null]));
+  const progress = boardProgress(projects, allTasks);
+  const fresh = newestFirst(notices).slice(0, 3);
+  const files = fileState.files.slice(0, 3);
+  const ownId = fileState.freelancer?.ownId ?? null;
+  const where = (customerIds: string[]) => ownId && customerIds.includes(ownId) ? "Meine Dateien" : looksAfter.find((customer) => customerIds.includes(customer.id))?.company ?? "";
+
+  const tasksBody = boardError ? <Empty title="Board gerade nicht verfügbar" text={boardError} />
+    : tasks.length ? <>
+      <ul className="in-list">{tasks.slice(0, 4).map((task) => {
+        const project = projectOf.get(task.projectId);
+        const hint = task.dueOn ? deadlineHint(task.dueOn, false, data.today) : "";
+        return (
+          <li key={task.id}>
+            <Link href={`${boardHref}?task=${task.number}`} className="in-row">
+              <span className="in-icon"><TaskGlyph status={task.status} /></span>
+              <span className="in-row-text"><strong>#{task.number} {task.title}</strong><small>{[project?.company, project?.name].filter(Boolean).join(" · ")}</small></span>
+              {hint && <time className={hint.includes("überfällig") ? "is-bad" : hint === "heute" ? "is-new" : undefined}>{hint}</time>}
+            </Link>
+          </li>
+        );
+      })}</ul>
+      {tasks.length > 4 && <p className="in-meta in-pad">und {plural(tasks.length - 4, "weitere Aufgabe", "weitere Aufgaben")} für dich im Board</p>}
+    </>
+      : <Empty glyph="active" title="Dir ist gerade nichts zugewiesen" text="Sobald dir das Team eine Aufgabe zuweist, steht sie hier mit ihrer Frist, die überfälligen zuerst."><Link className="sheet-action" href={boardHref}>Zum Board</Link></Empty>;
+
+  const customersBody = customers.length ? <>
+    <ul className="in-list">{customers.slice(0, 4).map((row) => (
+      <li key={row.customerId}>
+        <Link href={`${customersHref}?customer=${encodeURIComponent(row.customerId)}`} className="in-row">
+          <CustomerSign customer={{ id: row.customerId, company: row.company }} logo={logoOf.get(row.customerId) ?? null} size="sm" />
+          <span className="in-row-text"><strong>{row.company}</strong><small>{[row.open ? plural(row.open, "offene Aufgabe", "offene Aufgaben") : "keine offene Aufgabe", row.note ? `Hinweis: ${row.note.split("\n")[0]}` : ""].filter(Boolean).join(" · ")}</small></span>
+          {row.shares.length > 0 && <span className="in-shares" data-tip="Für dich freigegeben">{row.shares.map((area) => <span key={area} className="chat-pill tone-info">{SHARE_SHORT[area]}</span>)}</span>}
+        </Link>
+      </li>
+    ))}</ul>
+    {customers.length > 4 && <p className="in-meta in-pad">und {plural(customers.length - 4, "weiterer Kunde", "weitere Kunden")}</p>}
+  </> : <Empty title="Noch keine Kunden" text="Sobald oalab dir Kunden zuordnet, stehen sie hier mit ihren offenen Aufgaben." />;
+
+  const projectsBody = boardError ? <Empty title="Board gerade nicht verfügbar" text={boardError} />
+    : progress.length ? <div className="pg-body">
+      <ul className="pg-list">{progress.slice(0, 4).map((row) => (
+        <li key={row.id}>
+          <Link href={`${boardHref}?project=${row.id}`} className="pg-row" data-tip={row.total ? `${row.done} von ${row.total} Aufgaben erledigt` : "noch ohne Aufgaben"}>
+            <span className="pg-name"><strong>{row.name}</strong><small>{[row.company, row.dueOn ? `Ziel ${formatDeadline(row.dueOn)}` : "ohne Zieltermin"].filter(Boolean).join(" · ")}</small></span>
+            <span className={`pg-meter${row.share === null ? " is-none" : ""}`} role="img" aria-label={row.share === null ? "noch ohne Aufgaben" : `${row.share} Prozent erledigt`}><span style={{ width: `${row.share ?? 0}%` }} /></span>
+            <b className="numeric">{row.share === null ? "–" : `${row.share} %`}</b>
+          </Link>
+        </li>
+      ))}</ul>
+      {progress.length > 4 && <p className="ch-scope pg-more">und {plural(progress.length - 4, "weiteres Projekt", "weitere Projekte")}</p>}
+    </div>
+      : <Empty title="Noch kein Projekt" text="Sobald dich das Team in ein Projekt einträgt, siehst du hier, wie weit es ist." />;
+
+  const filesBody = files.length
+    ? <ul className="in-list">{files.map((file) => (
+      <li key={file.id}>
+        <Link href={`${filesHref}?file=${encodeURIComponent(file.id)}`} className="in-row">
+          <span className="in-icon"><FileIcon file={file} size={16} /></span>
+          <span className="in-row-text"><strong>{file.title}</strong><small>{[where(file.customers.map((customer) => customer.id)), formatFileDay(file.createdAt, data.today)].filter(Boolean).join(" · ")}</small></span>
+        </Link>
+      </li>
+    ))}</ul>
+    : <Empty title="Noch keine Dateien" text="Dateien deiner Kunden und von oalab für dich erscheinen hier und im Asset Management." />;
+
+  return (
+    <div className="in-grid is-customer section-first">
+      <Tile title="Deine Aufgaben" icon={SquareKanban} wide link={{ href: boardHref, label: "Board" }}>{tasksBody}</Tile>
+      <Tile title="Nächster Termin" icon={CalendarDays} link={{ href: hubHref(preview, "calendar"), label: "Kalender" }}><NextAppointment appointment={data.appointments[0]} preview={preview} emptyText="Brauchst du eine Abstimmung mit dem Team? Such dir eine freie Zeit aus." /></Tile>
+      <Tile title="Deine Kunden" icon={Building2} wide link={{ href: customersHref, label: "Kunden" }}>{customersBody}</Tile>
+      <Tile title="Neu für dich" icon={Bell} link={{ href: hubHref(preview), label: "Übersicht" }}>{fresh.length ? <NoticeRows items={fresh} /> : <Empty title="Noch nichts Neues" text="Neue Aufgaben, Dateien, Freigaben und Termine erscheinen hier und in der Glocke." />}</Tile>
+      <Tile title="Deine Projekte" icon={FolderOpen} wide link={{ href: boardHref, label: "Board" }}>{projectsBody}</Tile>
+      <Tile title="Neue Dateien" icon={Files} link={{ href: filesHref, label: "Asset Management" }}>{filesBody}</Tile>
+    </div>
+  );
 }

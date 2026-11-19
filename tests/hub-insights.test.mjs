@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activityByDay, adminTodos, boardCounts, boardCustomers, boardDueByDay, dueByDay, dueTasks, hasProgress, openRequests, orderProjects, progressRows, quotaView, serviceRows, serviceSummary, taskCounts, todoId, watchProjects, weekStartOf } from "../lib/hub-insights/rules.ts";
+import { activityByDay, adminTodos, boardCounts, boardCustomers, boardDueByDay, boardProgress, cardCustomers, dueByDay, dueTasks, myTasks, hasProgress, openRequests, orderProjects, progressRows, quotaView, serviceRows, serviceSummary, taskCounts, todoId, watchProjects, weekStartOf } from "../lib/hub-insights/rules.ts";
 import { quotaStatus } from "../lib/hub-service-quota/rules.ts";
 
 // Insights (design „V5“, 18.11.2026): the tiles' rules and how the page is wired. Fictional data only.
@@ -111,12 +111,16 @@ test("the admins' service list: customers with a package and a name, the fullest
   assert.deepEqual(serviceSummary(rows), { ok: 2, warn: 1, full: 1 });
 });
 
-test("Insights loads its data on its own page only, and freelancers keep the plain page", async () => {
-  assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "insights" \? loadInsights\(identity\.account\?\.role \?\? null\) : undefined/);
-  assert.match(await source("components/hub/hub-view.tsx"), /<InsightsScreen \{\.\.\.screen\} insights=\{preview \? undefined : insights\} \/>/);
+test("Insights loads its data on its own page only, freelancers with their board and customer cards", async () => {
+  const page = await source("app/dashboard/[section]/page.tsx");
+  assert.match(page, /validSection === "insights" \? loadInsights\(identity\.account\?\.role \?\? null\) : undefined/);
+  assert.ok(page.includes('validSection === "customers" || (validSection === "insights" && identity.account?.role === "oalab_freelancer") ? loadFreelancerCustomers() : undefined'));
+  assert.ok(page.includes('validSection === "customers" || ((validSection === "overview" || validSection === "insights") && identity.account?.role === "oalab_freelancer") ? loadTaskBoard() : undefined'));
+  assert.ok((await source("components/hub/hub-view.tsx")).includes("<InsightsScreen {...screen} insights={preview ? undefined : insights} board={preview ? undefined : taskBoard} cards={preview ? undefined : freelancerCustomers} />"));
   const screen = await source("components/hub/screens/insights.tsx");
-  assert.ok(screen.includes('if (freelancer) return <>{header}<GlassCard className="empty-state section-first">'), "freelancers: a plain card with the way to their board");
-  assert.ok(screen.includes("Deine Insights folgen.") && !screen.includes("Insights entstehen mit deinen Projekten"), "it promises nothing that does not come");
+  assert.ok(screen.includes("if (freelancer) return <>{header}<FreelancerInsights preview={preview} data={data} board={board ?? null} cards={cards ?? null} notices={notices} fileState={fileState} /></>;"), "freelancers: their own tiles (19.11.2026)");
+  assert.ok(!screen.includes("Deine Insights folgen.") && !screen.includes("Insights entstehen mit deinen Projekten"), "no placeholder promises left");
+  assert.ok((await source("lib/hub-insights/server.ts")).includes('if (role !== "oalab_admin" && role !== "oalab_customer" && role !== "oalab_freelancer") return empty(today);'));
   assert.match(screen, /const data = insights \?\? previewInsights\(asOf, admin\);/, "the design preview draws fictional data");
   assert.match(screen, /const notices = preview \? previewNotices\(asOf, admin\) : inbox\?\.items \?\? \[\];/);
   assert.match(await source("app/layout.tsx"), /import "\.\/web-app\.css";\nimport "\.\/overview\.css";/);
@@ -237,4 +241,31 @@ test("a freelancer's widgets: their board by column, their own deadlines, their 
     { company: "Unbekannt GmbH", customerId: null, open: 1 },
     { company: "Bäckerei Ruhe", customerId: "c-ruhe", open: 0 },
   ]);
+});
+
+test("a freelancer's Insights: their open tasks by due date, their projects' progress, their customers with releases", () => {
+  const tasks = [
+    { id: "a", number: 12, projectId: "p1", status: "todo", dueOn: "2026-11-27", assigneeIds: ["me"] },
+    { id: "b", number: 11, projectId: "p1", status: "progress", dueOn: "2026-11-20", assigneeIds: ["me"] },
+    { id: "c", number: 10, projectId: "p2", status: "todo", dueOn: null, assigneeIds: ["me"] },
+    { id: "d", number: 9, projectId: "p2", status: "done", dueOn: "2026-11-01", assigneeIds: ["me"] },
+    { id: "e", number: 8, projectId: "p2", status: "review", dueOn: "2026-11-21", assigneeIds: ["you"] },
+  ];
+  assert.deepEqual(myTasks(tasks, "me").map((task) => task.id), ["b", "a", "c"], "overdue first, without a date last, done and others' tasks out");
+  const projects = [
+    { id: "p1", name: "Website-Relaunch", company: "Atelier Nord", dueOn: "2026-12-04", organizationId: "org-nord" },
+    { id: "p2", name: "Website", company: "Café Ost", dueOn: null, organizationId: "org-ost" },
+    { id: "p3", name: "Shop", company: "Café Ost", dueOn: "2026-12-01", organizationId: "org-ost" },
+  ];
+  assert.deepEqual(boardProgress(projects, tasks).map((row) => [row.name, row.done, row.total, row.share]), [["Shop", 0, 0, null], ["Website-Relaunch", 0, 2, 0], ["Website", 1, 3, 33]], "the nearest target first, none without tasks counted");
+  const cards = [
+    { customerId: "c-ost", company: "Café Ost", organizationId: "org-ost", note: "Bilder nur im CMS\nZweite Zeile", shares: { domains: null, mail: "2026-11-18T10:00:00Z", packages: null, contact: "2026-11-18T10:00:00Z" } },
+    { customerId: "c-nord", company: "Atelier Nord", organizationId: "org-nord", note: null, shares: { domains: "2026-11-18T10:00:00Z", mail: null, packages: null, contact: null } },
+    { customerId: "c-neu", company: "Bäckerei Neu", organizationId: null, note: "  ", shares: { domains: null, mail: null, packages: null, contact: null } },
+  ];
+  assert.deepEqual(cardCustomers(cards, projects, tasks), [
+    { customerId: "c-nord", company: "Atelier Nord", open: 2, note: "", shares: ["domains"] },
+    { customerId: "c-ost", company: "Café Ost", open: 2, note: "Bilder nur im CMS\nZweite Zeile", shares: ["mail", "contact"] },
+    { customerId: "c-neu", company: "Bäckerei Neu", open: 0, note: "", shares: [] },
+  ], "open tasks through the organization, the areas in their fixed order");
 });
