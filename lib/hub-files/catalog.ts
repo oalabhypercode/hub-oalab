@@ -135,6 +135,31 @@ export function fileDayGroup(iso: string, today: string) {
   return days <= 0 ? "Heute" : days === 1 ? "Gestern" : days < 7 ? "Diese Woche" : "Früher";
 }
 
+/** The date of the list view, as the Finder writes it: "Heute, 09:12", "Gestern, 16:40", else "17.11.2026, 11:05" (Berlin). */
+export function formatFileStamp(iso: string, today: string) {
+  const at = parseTimestamp(iso);
+  const time = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(at);
+  const days = daysBetween(fileDayKey(iso), today);
+  if (days === 0) return `Heute, ${time}`;
+  if (days === 1) return `Gestern, ${time}`;
+  return `${new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(at)}, ${time}`;
+}
+
+const fileKinds: Record<string, string> = {
+  PDF: "PDF-Dokument", DOC: "Word-Dokument", DOCX: "Word-Dokument", ODT: "Textdokument", RTF: "RTF-Dokument", TXT: "Textdokument", MD: "Textdokument",
+  XLS: "Excel-Tabelle", XLSX: "Excel-Tabelle", ODS: "Tabelle", CSV: "CSV-Tabelle", PPT: "PowerPoint", PPTX: "PowerPoint", KEY: "Keynote", PAGES: "Pages-Dokument", NUMBERS: "Numbers-Tabelle",
+  JPG: "JPEG-Bild", JPEG: "JPEG-Bild", PNG: "PNG-Bild", GIF: "GIF-Bild", WEBP: "WebP-Bild", HEIC: "HEIC-Bild", AVIF: "AVIF-Bild", TIF: "TIFF-Bild", TIFF: "TIFF-Bild", SVG: "SVG-Grafik", EPS: "EPS-Grafik",
+  PSD: "Photoshop-Datei", AI: "Illustrator-Datei", INDD: "InDesign-Datei", FIG: "Figma-Datei", SKETCH: "Sketch-Datei", XD: "Adobe-XD-Datei",
+  ZIP: "ZIP-Archiv", RAR: "RAR-Archiv", "7Z": "7-Zip-Archiv", MP4: "MP4-Video", MOV: "QuickTime-Film", WEBM: "WebM-Video", MP3: "MP3-Audio", WAV: "WAV-Audio", M4A: "MPEG-4-Audio",
+  TTF: "Schrift", OTF: "Schrift", WOFF: "Webschrift", WOFF2: "Webschrift", HTML: "HTML-Dokument", JSON: "JSON-Datei", XML: "XML-Datei",
+};
+
+/** The kind of a file in words, as the Finder's column „Art“ shows it: "PDF-Dokument", "JPEG-Bild", else "ABC-Datei". */
+export function fileKind(fileName: string) {
+  const format = fileFormat(fileName);
+  return fileKinds[format] ?? (format === "Datei" ? "Datei" : `${format}-Datei`);
+}
+
 export function formatFileDateTime(iso: string) {
   return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(parseTimestamp(iso));
 }

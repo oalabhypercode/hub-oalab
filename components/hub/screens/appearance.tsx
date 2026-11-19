@@ -10,7 +10,7 @@ import { GlassCard, GlassLinkButton } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 
 const schemes: { id: ColorScheme; label: string }[] = [{ id: "system", label: "Automatisch" }, { id: "light", label: "Hell" }, { id: "dark", label: "Dunkel" }];
-const listViews: { id: ListView; label: string }[] = [{ id: "minimal", label: "Minimalistisch" }, { id: "detail", label: "Detail" }];
+const listViews: { id: ListView; label: string }[] = [{ id: "minimal", label: "Minimalistisch" }, { id: "list", label: "Liste" }, { id: "detail", label: "Detail" }];
 const widths: { id: PageWidth; label: string }[] = [{ id: "standard", label: "Standard" }, { id: "xl", label: "Breit (XL)" }];
 
 /** Profile › Appearance: every change applies live to the whole hub and is stored in this browser. */
@@ -50,7 +50,7 @@ export function AppearanceScreen({ preview, admin = false }: { preview: boolean;
             <div className="swatch-grid list-swatches">
               {listViews.map((view) => <ListViewSwatch key={view.id} view={view.id} label={view.label} selected={appearance.listView === view.id} onSelect={() => update({ listView: view.id })} />)}
             </div>
-            <p className="t-footnote t-secondary">Minimalistisch zeigt je Zeile nur Symbol, Titel und Datum, Detail alle Spalten. Die Wahl gilt heute für das Asset Management und später für weitere Listen. Oben rechts in der Liste lässt sie sich jederzeit umschalten.</p>
+            <p className="t-footnote t-secondary">Minimalistisch zeigt je Zeile nur Symbol, Titel und Datum. Liste ordnet wie die Listenansicht im Finder: schmale Zeilen mit Name, Datum, Größe und Art, Ordner zum Aufklappen. Detail zeigt alle Spalten. Die Wahl gilt heute für das Asset Management und später für weitere Listen. Oben rechts in der Liste lässt sie sich jederzeit umschalten.</p>
           </GlassCard>
         )}
 

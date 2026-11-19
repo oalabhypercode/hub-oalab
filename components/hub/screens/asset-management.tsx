@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutList, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutList, List, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import type { ListView } from "@/lib/appearance";
 import { deleteFiles, setFileAudience } from "@/lib/hub-files/actions";
@@ -24,6 +24,7 @@ import { categoryDot } from "../select-options";
 import type { AssignSource } from "@/lib/hub-files/assign";
 import { AssignPanel, type AssignRequest } from "./asset-assign";
 import { useFileDrag, type FileDropTarget } from "./asset-drag";
+import { FinderList } from "./asset-list";
 import { FilePanel } from "./asset-details";
 import { namesByPlace, RenamePanel, storedEntries } from "./asset-naming";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
@@ -56,6 +57,7 @@ function DensitySwitch({ view, onChange }: { view: ListView; onChange: (view: Li
   return (
     <div className="segmented-control am-density" role="group" aria-label="Ansicht der Liste">
       <button type="button" className="segment" aria-pressed={view === "minimal"} data-tip="Minimalistische Sicht" onClick={() => onChange("minimal")}><LayoutList size={14} aria-hidden="true" />Minimal</button>
+      <button type="button" className="segment" aria-pressed={view === "list"} data-tip="Listensicht wie im Finder" onClick={() => onChange("list")}><List size={14} aria-hidden="true" />Liste</button>
       <button type="button" className="segment" aria-pressed={view === "detail"} data-tip="Detailsicht" onClick={() => onChange("detail")}><Table2 size={14} aria-hidden="true" />Detail</button>
     </div>
   );
@@ -63,7 +65,8 @@ function DensitySwitch({ view, onChange }: { view: ListView; onChange: (view: Li
 
 /**
  * Asset Management for admins: customers on the left like the conversations, the chosen customer's files on the right.
- * Every list comes as "Minimal" (symbol in the category's colour, title, day) or "Detail" (all columns).
+ * Every list comes as "Minimal" (symbol in the category's colour, title, day), "Liste" (the Finder's list view, see
+ * asset-list.tsx) or "Detail" (all columns).
  * Uploading and a file's details open as panels over the files; files can be dragged straight onto a folder.
  * Admins see the freelancers as a group of their own below the customers, and at each customer who looks after it.
  * Freelancers get the same view, read only: "Meine Dateien" (their own entry) and the customers they look after.
@@ -79,6 +82,9 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const { appearance, update } = useAppearance();
   const listView = appearance.listView;
   const minimal = listView === "minimal";
+  // „Liste“ (the Finder's list view) shares the compact customer list and head with Minimal, and the footer with Detail.
+  const finder = listView === "list";
+  const compact = minimal || finder;
   const canUpload = canManage && source === "supabase" && !fileState.error;
 
   const rows = useMemo<CustomerRow[]>(() => customers.map((customer) => {
@@ -338,6 +344,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   // Ticked files (or the one grabbed) go onto a customer in the list, which opens „Zuordnen“ with that customer set,
   // or onto a folder of the open customer, which moves them there at once (user 19.11.2026).
   const canDragRows = !fileState.error && (canAssign || canOrganize);
+  // The folder a file lies in at the open customer (NO_FOLDER without one): dropped there again, it stays put.
+  const folderOf = (id: string) => (current && files.find((file) => file.id === id)?.folderIds[current.id]) || NO_FOLDER;
   const canDropRows = (target: FileDropTarget) => target.kind === "customer"
     ? canAssign && target.id !== "inbox" && target.id !== current?.id
     : current !== null && canOrganize;
@@ -348,12 +356,12 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     canDrop: canDropRows,
     describe: (target) => target.kind === "customer" ? `Zu ${customers.find((customer) => customer.id === target.id)?.company ?? "diesem Kunden"}` : `In „${target.key === NO_FOLDER ? "Ohne Ordner" : scopeFolders.find((folder) => folder.id === target.key)?.name ?? "Ohne Ordner"}“`,
     hint: current ? (canAssign ? "Auf einen Kunden oder Ordner ziehen" : "Auf einen Ordner ziehen") : "Links auf einen Kunden ziehen",
-    onDrop: (ids, target) => target.kind === "customer" ? openAssign(ids, target.id) : moveInto(ids, target.key),
+    onDrop: (ids, target) => target.kind === "customer" ? openAssign(ids, target.id) : moveInto(ids.filter((id) => folderOf(id) !== target.key), target.key),
   });
   const dropState = (id: string) => rowDrag ? (id !== "all" && canDropRows({ kind: "customer", id }) ? "on" : "off") : listDrag ? (id === "all" ? "off" : "on") : undefined;
   const isDropTarget = (id: string) => (rowDrag?.over?.kind === "customer" && rowDrag.over.id === id) || listDrag?.id === id;
   const folderLit = (key: string) => drag?.folder === key || (rowDrag?.over?.kind === "folder" && rowDrag.over.key === key);
-  const dragAttrs = (file: HubStoredFile) => canDragRows ? { "data-drag-file": file.id, "data-drag-title": file.title, "data-drag-cat": file.category } : {};
+  const dragAttrs = (file: HubStoredFile): Record<string, string> => canDragRows ? { "data-drag-file": file.id, "data-drag-title": file.title, "data-drag-cat": file.category } : {};
 
   async function download() {
     setBusy("download");
@@ -481,7 +489,16 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     </>}
   </>;
 
-  const customerBody = minimal ? (
+  // „Liste“: the Finder's list view (asset-list.tsx). A click there selects, so it shares the ticks with the other views.
+  const finderList = (folderList: Group[] | null, label: string, showCustomer: boolean) => (
+    <FinderList label={label} groups={folderList} files={shown} showCustomer={showCustomer} selected={selected}
+      onSelect={(ids) => { closeDetails(); setSelected(ids); }} onOpen={(file) => open(file)} fresh={fresh} dragIds={rowDrag?.ids ?? []}
+      isDrop={folderLit} isCollapsed={groups.isCollapsed} onToggle={groups.toggle} sort={sort} onSort={setSort}
+      folderActions={(group) => folderActions(group)} customerOf={(file) => who(file, true)} dragAttrs={dragAttrs}
+      canDropFolders={canDrop || canDragRows} asOf={asOf} />
+  );
+
+  const customerBody = finder ? finderList(narrowed ? folderGroups.filter((group) => !group.folder || group.files.length) : folderGroups, `Dateien von ${current?.company ?? ""}`, false) : minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label={`Dateien von ${current?.company ?? ""}`}>
       {folderGroups.map((group) => (
         <div key={group.key} className="am-min-group" role="presentation" data-drop-folder={canDrop || canDragRows ? group.key : undefined}>
@@ -523,7 +540,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     return list;
   }, []);
 
-  const allBody = minimal ? (
+  const allBody = finder ? finderList(null, "Alle Dateien", true) : minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label="Alle Dateien">
       {dayGroups.map((group) => (
         <div key={group.label} className="am-min-group" role="presentation">
@@ -545,7 +562,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     </div>
   );
 
-  const inboxBody = minimal ? (
+  const inboxBody = finder ? finderList(null, "Dateien ohne Kunden", false) : minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label="Dateien ohne Kunden">
       {shown.map((file) => minimalRow(file, assignButton(file)))}
     </div>
@@ -588,7 +605,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       <div className="am-pane-title">
         <strong>{isOwn ? "Meine Dateien" : current.company}</strong>
         <span>{[
-          isOwn ? "Von oalab für dich" : minimal ? "" : current.customerNumber,
+          isOwn ? "Von oalab für dich" : compact ? "" : current.customerNumber,
           current.kind === "freelancer" && canManage ? `Freelancer · ${plural(customersOf(current.id), "Kunde", "Kunden")}` : "",
           plural(paneFiles.length, "Datei", "Dateien"),
           totalSize(paneFiles),
@@ -608,14 +625,14 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     <header className="am-pane-head">
       {back}
       <span className="am-tile is-inbox is-lg"><Inbox size={22} aria-hidden="true" /></span>
-      <div className="am-pane-title"><strong>Ablage</strong><span>{plural(inbox.length, "Datei", "Dateien")} ohne Kunden. {canAssign ? "Anhaken und links auf einen Kunden ziehen." : "Kunden sehen sie erst nach dem Zuordnen."}</span></div>
+      <div className="am-pane-title"><strong>Ablage</strong><span>{plural(inbox.length, "Datei", "Dateien")} ohne Kunden. {canAssign ? `${finder ? "Auswählen" : "Anhaken"} und links auf einen Kunden ziehen.` : "Kunden sehen sie erst nach dem Zuordnen."}</span></div>
       <div className="am-pane-actions">{uploadButton}</div>
     </header>
   ) : (
     <header className="am-pane-head">
       {back}
       <span className="am-tile is-lg"><Files size={22} aria-hidden="true" /></span>
-      <div className="am-pane-title"><strong>Alle Dateien</strong><span>{minimal ? `${plural(files.length, "Datei", "Dateien")} · neueste zuerst` : `${plural(files.length, "Datei", "Dateien")} bei ${plural(customerCount, "Kunde", "Kunden")} · ${totalSize(files)}`}</span></div>
+      <div className="am-pane-title"><strong>Alle Dateien</strong><span>{compact ? `${plural(files.length, "Datei", "Dateien")} · neueste zuerst` : `${plural(files.length, "Datei", "Dateien")} bei ${plural(customerCount, "Kunde", "Kunden")} · ${totalSize(files)}`}</span></div>
       <div className="am-pane-actions">{uploadButton}</div>
     </header>
   );
@@ -633,11 +650,11 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     const takes = (canAssign || canDrop) && dropId !== "all";
     return (
       <li key={target.kind === "customer" ? target.id : target.kind}>
-        <button type="button" className={`chat-conv${minimal ? " am-min-conv" : ""}${target.kind === "customer" && flash === target.id ? " is-flash" : ""}${isDropTarget(dropId) ? " is-drop-target" : ""}`} aria-current={active ? "true" : undefined} onClick={() => choose(target)}
+        <button type="button" className={`chat-conv${compact ? " am-min-conv" : ""}${target.kind === "customer" && flash === target.id ? " is-flash" : ""}${isDropTarget(dropId) ? " is-drop-target" : ""}`} aria-current={active ? "true" : undefined} onClick={() => choose(target)}
           data-drop-customer={takes ? dropId : undefined} data-drop-state={dropState(dropId)}>
           {sign}
-          {minimal ? <span className="am-min-conv-name">{title}</span> : <span className="chat-conv-main"><span className="chat-conv-top"><strong>{title}</strong>{right}</span><span className="chat-conv-sub"><span className="chat-conv-last">{sub}</span></span></span>}
-          {minimal && right}
+          {compact ? <span className="am-min-conv-name">{title}</span> : <span className="chat-conv-main"><span className="chat-conv-top"><strong>{title}</strong>{right}</span><span className="chat-conv-sub"><span className="chat-conv-last">{sub}</span></span></span>}
+          {compact && right}
         </button>
       </li>
     );
@@ -645,10 +662,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
 
   const customerRow = ({ customer, files: own, last }: CustomerRow) => pinned(
     { kind: "customer", id: customer.id },
-    <CustomerSign customer={customer} logo={customer.logo} size={minimal ? "md" : undefined} />,
+    <CustomerSign customer={customer} logo={customer.logo} size={compact ? "md" : undefined} />,
     customer.company,
     `${customer.customerNumber} · ${customer.kind === "freelancer" ? `Freelancer · ${plural(customersOf(customer.id), "Kunde", "Kunden")}` : own.length ? plural(own.length, "Datei", "Dateien") : "noch keine Dateien"}`,
-    minimal ? <span className="am-count">{own.length || ""}</span> : last ? <time className={formatFileDay(last, asOf) === "Heute" ? "is-new" : undefined}>{formatFileDay(last, asOf)}</time> : null,
+    compact ? <span className="am-count">{own.length || ""}</span> : last ? <time className={formatFileDay(last, asOf) === "Heute" ? "is-new" : undefined}>{formatFileDay(last, asOf)}</time> : null,
   );
 
   const customerList = (
@@ -658,18 +675,18 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         {canUpload && <button type="button" className="chat-icon-button" onClick={() => startUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" data-tip="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
       </div>
       {freelancerView && freelancerInfo.box}
-      <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder={minimal ? "Kunde suchen" : "Kunde oder Kundennummer"} aria-label="Kunden durchsuchen" /></label>
-      {!minimal && (
+      <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder={compact ? "Kunde suchen" : "Kunde oder Kundennummer"} aria-label="Kunden durchsuchen" /></label>
+      {!compact && (
         <div className="chat-filter" role="group" aria-label="Reihenfolge">
           <button type="button" aria-pressed={customerOrder === "recent"} onClick={() => setCustomerOrder("recent")}>Zuletzt aktiv</button>
           <button type="button" aria-pressed={customerOrder === "az"} onClick={() => setCustomerOrder("az")}>A–Z</button>
         </div>
       )}
       <ul className="chat-convs" role="list">
-        {!term && pinned({ kind: "all" }, <span className={`am-tile${minimal ? " is-md" : ""}`}><Files size={minimal ? 16 : 20} aria-hidden="true" /></span>, "Alle Dateien", `${plural(customerCount, "Kunde", "Kunden")} · ${totalSize(files)}`, <span className="am-count">{files.length}</span>)}
-        {!term && !freelancerView && pinned({ kind: "inbox" }, <span className={`am-tile is-inbox${minimal ? " is-md" : ""}`}><Inbox size={minimal ? 16 : 20} aria-hidden="true" /></span>, "Ablage", "Noch keinem Kunden zugeordnet", inbox.length ? <span className="chat-pill tone-todo">{inbox.length}</span> : <span className="am-count">0</span>)}
-        {!term && ownRow && pinned({ kind: "customer", id: ownRow.customer.id }, <CustomerSign customer={ownRow.customer} logo={ownRow.customer.logo} size={minimal ? "md" : undefined} />, "Meine Dateien", `Von oalab für dich · ${ownRow.files.length ? plural(ownRow.files.length, "Datei", "Dateien") : "noch keine Dateien"}`, minimal ? <span className="am-count">{ownRow.files.length || ""}</span> : ownRow.last ? <time>{formatFileDay(ownRow.last, asOf)}</time> : null)}
-        <li className="am-list-label">{freelancerView ? "Meine Kunden" : minimal ? "Kunden" : customerOrder === "az" ? "Kunden von A bis Z" : "Kunden · zuletzt aktiv"}</li>
+        {!term && pinned({ kind: "all" }, <span className={`am-tile${compact ? " is-md" : ""}`}><Files size={compact ? 16 : 20} aria-hidden="true" /></span>, "Alle Dateien", `${plural(customerCount, "Kunde", "Kunden")} · ${totalSize(files)}`, <span className="am-count">{files.length}</span>)}
+        {!term && !freelancerView && pinned({ kind: "inbox" }, <span className={`am-tile is-inbox${compact ? " is-md" : ""}`}><Inbox size={compact ? 16 : 20} aria-hidden="true" /></span>, "Ablage", "Noch keinem Kunden zugeordnet", inbox.length ? <span className="chat-pill tone-todo">{inbox.length}</span> : <span className="am-count">0</span>)}
+        {!term && ownRow && pinned({ kind: "customer", id: ownRow.customer.id }, <CustomerSign customer={ownRow.customer} logo={ownRow.customer.logo} size={compact ? "md" : undefined} />, "Meine Dateien", `Von oalab für dich · ${ownRow.files.length ? plural(ownRow.files.length, "Datei", "Dateien") : "noch keine Dateien"}`, compact ? <span className="am-count">{ownRow.files.length || ""}</span> : ownRow.last ? <time>{formatFileDay(ownRow.last, asOf)}</time> : null)}
+        <li className="am-list-label">{freelancerView ? "Meine Kunden" : compact ? "Kunden" : customerOrder === "az" ? "Kunden von A bis Z" : "Kunden · zuletzt aktiv"}</li>
         {listedCustomers.map(customerRow)}
         {!listedCustomers.length && <li className="chat-empty">{term ? `Kein Kunde passt zu „${customerQuery.trim()}“.` : freelancerView ? "Dir sind noch keine Kunden zugeordnet." : "Es sind noch keine Kunden angelegt."}</li>}
         {listedFreelancers.length > 0 && <>
@@ -699,14 +716,14 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
-        <div ref={sheet} className={`sheet section-first am${minimal ? " is-minimal" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
+        <div ref={sheet} className={`sheet section-first am${compact ? " is-minimal" : ""}${finder ? " is-list" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
           <div className="am-grid">
             {customerList}
             <section className={`am-pane${panel && (panel.kind !== "rename" || renaming) ? " has-panel" : ""}`} aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
               {head}
-              <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!minimal}
+              <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!compact}
                 trailing={<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} />}>
-                {minimal ? <ToolbarMenu icon={SlidersHorizontal} label="Filter" badge={filterCount}>{filters}</ToolbarMenu> : <>
+                {compact ? <ToolbarMenu icon={SlidersHorizontal} label="Filter" badge={filterCount}>{filters}</ToolbarMenu> : <>
                   <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>{filters}</ToolbarMenu>
                   <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={fileSorts[sort.key].label}><SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} /></ToolbarMenu>
                   {current && <ToolbarMenu icon={Rows3} label="Gruppe" value={grouping === "folder" ? "Ordner" : "Keine"}><MenuChoices label="Gruppieren nach" value={grouping} onChange={setGrouping} options={[{ id: "folder", label: "Ordner" }, { id: "none", label: "Keine Gruppen" }]} /></ToolbarMenu>}
@@ -734,7 +751,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                 </div>
               )}
               <div className="am-scroll">{selectAll}{body}</div>
-              {!minimal && <SheetFooter hint={shown.length > 1 ? (canAssign ? "Mehrere ankreuzen und links auf einen Kunden ziehen" : "Mehrere ankreuzen: als ZIP laden oder verschieben") : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
+              {!minimal && <SheetFooter hint={shown.length > 1 ? (finder ? `Mit ⇧ oder ⌘/Strg mehrere wählen${canAssign ? ", dann links auf einen Kunden ziehen" : ""}` : canAssign ? "Mehrere ankreuzen und links auf einen Kunden ziehen" : "Mehrere ankreuzen: als ZIP laden oder verschieben") : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
               {drag && <>
                 <div className="am-drop" aria-hidden="true" />
                 <div className="am-drop-pill" aria-hidden="true">
