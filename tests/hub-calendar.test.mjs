@@ -162,9 +162,12 @@ test("availability: loaded per role, checked on the server and by the database, 
   assert.match(server, /supabase\.from\("hub_calendar_exceptions"\)\.select\("id, day, kind, from_minute, to_minute, note"\)/, "admins: with notes");
   assert.match(server, /supabase\.rpc\("hub_calendar_availability", \{ range_start: from, range_end: to \}\)/, "customers: without notes");
   assert.match(server, /if \(settings\.error \|\| exceptions\.error \|\| !settings\.data\) return fixed;/, "before the migration: the fixed hours");
+  // A request is checked in the core the request window and the Claude connector share (since 19.11.2026).
+  const core = await source("lib/hub-calendar/write.ts");
+  assert.match(core, /const read = readAvailabilityRequest\(input, availability, intervals\(busy\.data\), intervals\(own\.data\), now, dayOf\(now\)\);/);
+  assert.match(core, /if \(error\?\.code === "42501"\) return \{ ok: false, error: "Diese Zeit ist gerade nicht mehr frei/, "the database's own check refused");
   const actions = await source("lib/hub-calendar/actions.ts");
-  assert.match(actions, /const read = readAvailabilityRequest\(input, availability, intervals\(busy\.data\), intervals\(own\.data\), now, dayOf\(now\)\);/);
-  assert.match(actions, /if \(error\?\.code === "42501"\) return \{ ok: false, error: "Diese Zeit ist gerade nicht mehr frei/, "the database's own check refused");
+  assert.match(actions, /const result = await requestAppointmentAs\(session\.supabase, session\.userId, input\);/);
   for (const name of ["saveAvailabilityWeek", "saveAvailabilityRules", "addAvailabilityException", "removeAvailabilityException"]) {
     const body = actions.slice(actions.indexOf(`export async function ${name}(`));
     assert.match(body, /^export async function \w+\([^)]*\)[^\n]*\{\r?\n {2}const supabase = await adminClient\(\);\r?\n {2}if \(!supabase\) return denied;/, name);

@@ -106,8 +106,9 @@ test("freelancers ask oalab for appointments in their own name, in the calendar 
   assert.match(screen, /const board = useMemo\(\(\) => admin \|\| freelancer \?/);
   assert.match(await source("app/dashboard/[section]/[detail]/page.tsx"), /tasks \|\| \(calendar && \(admin \|\| freelancer\)\) \? loadTaskBoard\(\) : undefined/);
   assert.match(await source("lib/hub-calendar/server.ts"), /select\("id, customer_number, company, kind"\)/);
-  // The request action takes the login's own membership: a freelancer login belongs to its freelancer entry only.
-  assert.match(await source("lib/hub-calendar/actions.ts"), /from\("hub_customer_members"\)\.select\("customer_id"\)\.eq\("user_id", userId\)/);
+  // The request takes the login's own membership: a freelancer login belongs to its freelancer entry only. Since
+  // 19.11.2026 the request window and the Claude connector share that core (lib/hub-calendar/write.ts).
+  assert.match(await source("lib/hub-calendar/write.ts"), /from\("hub_customer_members"\)\.select\("customer_id"\)\.eq\("user_id", userId\)/);
   // Admins see who asks: freelancers carry a pill among the customers.
   assert.match(screen, /customer\.kind === "freelancer" \? <span className="chat-pill tone-info">Freelancer<\/span>/);
 });

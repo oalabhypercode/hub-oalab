@@ -11,6 +11,7 @@ import { hasScope } from "./oauth";
 import {
   customersFromCards, freelancerCalendarRange, freelancerToolOf, runFreelancerTool, type FreelancerAppointment, type FreelancerCalendar, type FreelancerContext,
 } from "./freelancer-tools";
+import { runFreelancerWrite } from "./freelancer-writes";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -83,6 +84,8 @@ export async function callFreelancerTool(connection: Connection, name: string, a
   if (!client) return refusal("Der Hub kann gerade nicht lesen. Bitte versuche es gleich noch einmal.");
   const context: FreelancerContext = { origin, today: todayIso(), now: Date.now(), canWrite: hasScope(connection.scopes, "hub:write") };
 
+  // Writing: the board's and the request window's own save code, with the same claims (lib/hub-mcp/freelancer-writes.ts).
+  if (tool.needs === "write") return runFreelancerWrite(connection, name, args, context, client);
   if (tool.needs === "calendar") {
     const range = freelancerCalendarRange(name, args, context.today);
     if (!range.ok) return refusal(range.error);
