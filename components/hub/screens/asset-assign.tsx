@@ -46,7 +46,10 @@ export function AssignPanel({ request, files, customers, folders, onAssign, onCl
   const customer = customers.find((item) => item.id === target) ?? null;
   const own = customer ? folders.filter((folder) => folder.customerId === customer.id) : [];
   const fresh = customer ? shown.filter((file) => !file.customers.some((item) => item.id === customer.id)).length : 0;
-  const choices = customers.filter((item) => source.kind !== "customer" || item.id !== source.id);
+  // The customers first, then the freelancers, each from A to Z (the list's groups follow this order).
+  const choices = customers
+    .filter((item) => source.kind !== "customer" || item.id !== source.id)
+    .sort((a, b) => Number(a.kind === "freelancer") - Number(b.kind === "freelancer") || a.company.localeCompare(b.company, "de"));
   const info = useInfo("Zuordnen", {
     steps: [
       <><b>Ziehen:</b> angehakte Dateien links auf einen Kunden.</>,
