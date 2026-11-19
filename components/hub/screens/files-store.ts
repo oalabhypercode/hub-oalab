@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { createDownloadUrl, createDownloadUrls, createFolder, deleteFolder, moveFiles, renameFiles, renameFolder, type ActionResult, type FileRename } from "@/lib/hub-files/actions";
+import { assignFiles, createDownloadUrl, createDownloadUrls, createFolder, deleteFolder, moveFiles, renameFiles, renameFolder, type ActionResult, type FileRename } from "@/lib/hub-files/actions";
 import { cleanFolderName } from "@/lib/hub-files/catalog";
 import type { HubFilesState, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
 import { downloadAsZip } from "@/lib/hub-files/zip";
 
 export type FilesStore = ReturnType<typeof useFilesStore>;
+/** Several files to one customer (Zuordnen, drag & drop): which files, where to, and the customer they leave. */
+export type AssignInput = Parameters<typeof assignFiles>[0];
 
 const done = <T,>(data: T): ActionResult<T> => ({ ok: true, data });
 const zipName = () => `oalab-dateien-${new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())}.zip`;
@@ -61,6 +63,35 @@ export function useFilesStore(state: HubFilesState) {
     return done({ count: fileIds.length });
   }
 
+  /**
+   * Several files to one customer, optionally into one of its folders, leaving the customer they came from with
+   * `move`. The preview does the same in this tab, without notices.
+   */
+  async function assign(input: AssignInput): Promise<ActionResult<{ added: number; moved: number }>> {
+    if (live) return assignFiles(input);
+    const customer = state.customers.find((item) => item.id === input.customerId);
+    if (!customer) return { ok: false, error: "Diesen Kunden gibt es nicht." };
+    let added = 0;
+    let moved = 0;
+    const next = localFiles.map((file) => {
+      if (!input.fileIds.includes(file.id)) return file;
+      const had = file.customers.some((item) => item.id === customer.id);
+      if (!had) added++;
+      let customers = had ? file.customers : [...file.customers, { id: customer.id, customerNumber: customer.customerNumber, company: customer.company }];
+      const folderIds = { ...file.folderIds };
+      if (input.folderId) folderIds[customer.id] = input.folderId;
+      else if (!had) delete folderIds[customer.id];
+      if (input.from && input.move && input.from !== customer.id && customers.some((item) => item.id === input.from)) {
+        moved++;
+        customers = customers.filter((item) => item.id !== input.from);
+        delete folderIds[input.from];
+      }
+      return { ...file, customers, folderIds };
+    });
+    setLocalFiles(next);
+    return done({ added, moved });
+  }
+
   /** New titles and download names ("Umbenennen"); the preview renames in this tab only. */
   async function renameMany(changes: FileRename[]): Promise<ActionResult<{ count: number }>> {
     if (live) return renameFiles(changes);
@@ -92,5 +123,5 @@ export function useFilesStore(state: HubFilesState) {
     }
   }
 
-  return { live, files, folders, addFolder, rename, remove, move, renameFiles: renameMany, download };
+  return { live, files, folders, addFolder, rename, remove, move, assign, renameFiles: renameMany, download };
 }

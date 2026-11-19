@@ -5,7 +5,7 @@ import {
   CHAT_MAIL_WAIT_MINUTES, MAIL_WAIT_MINUTES, appointmentNotice, calendarRows, chatHref, chatNotice, describeProjectChange, detectStudioNotices, dueDigests, fileNotice,
   mailsWanted, mergeTaskNotice, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
   TASK_NOTICE_KINDS, hasTaskChange, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, LIVE_LINES, liveVersion,
-  mergeShareNotice, shareNotice, sharedAreasOf,
+  mergeShareNotice, shareNotice, sharedAreasOf, fileNoticeCount, fileNoticeLine, filesNotice, mergeFileNotice,
 } from "../lib/hub-notify/rules.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
 import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
@@ -251,6 +251,31 @@ test("the schedule needs its token, rows are written by the server and read only
   assert.match(server, /export async function notifyFileShared\(fileId: string, customerIds: string\[\], notice: Notice/);
   assert.match(server, /const forCustomers = only\.customer \? customerIds\.filter\(\(id\) => audienceOf\.get\(id\) !== "freelancer"\) : \[\];/);
   assert.match(server, /filter\(\(link\) => audienceOf\.get\(link\.customer_id\) !== "customer"\)/);
+});
+
+test("new files make one line in the bell: a single file keeps its own, several are counted with the newest names", async () => {
+  const id = (n) => `9d2e41c0-1b2c-4d3e-8f40-5a6b7c8d9e0${n}`;
+  const logo = fileNotice("Logo", id(1));
+  const offer = fileNotice("Angebot", id(2));
+  const brief = fileNotice("Briefing", id(3));
+  assert.deepEqual(fileNoticeLine([logo]), logo);
+  assert.deepEqual(fileNoticeLine([logo, offer]), { kind: "file.shared", title: "2 neue Dateien", body: "Logo und Angebot", href: "/dashboard/files" });
+  assert.deepEqual(fileNoticeLine([logo, offer, brief]), { kind: "file.shared", title: "3 neue Dateien", body: "Logo, Angebot und 1 weitere", href: "/dashboard/files" });
+  // An unread line takes in the next files: the count grows, the newest names come first, the link leads to the files.
+  assert.equal(fileNoticeCount("Neue Datei: Logo"), 1);
+  assert.equal(fileNoticeCount("12 neue Dateien"), 12);
+  assert.deepEqual(mergeFileNotice("Neue Datei: Logo", [offer]), { kind: "file.shared", title: "2 neue Dateien", body: "Angebot und Logo", href: "/dashboard/files" });
+  assert.deepEqual(mergeFileNotice("3 neue Dateien", [brief]), { kind: "file.shared", title: "4 neue Dateien", body: "Briefing und 3 weitere", href: "/dashboard/files" });
+  assert.ok(filesNotice(["x".repeat(200), "y".repeat(200)], 5).body.length <= 300, "the body fits the column");
+  // Every file notice goes through the one delivery that merges; only unread lines whose mail waits take more files.
+  const server = await source("lib/hub-notify/server.ts");
+  assert.match(server, /async function deliverFileNotice\(db: SupabaseClient, userIds: string\[\], notices: Notice\[\]\)/);
+  assert.match(server, /\.eq\("kind", "file\.shared"\)\.is\("read_at", null\)\.eq\("mail_state", "pending"\)/);
+  assert.doesNotMatch(server.split("export async function notifyFileShared(")[1].split("\nexport ")[0], /insertNotices/);
+  // Several files at once (Zuordnen) reach each side once, as „Sichtbar für“ allows.
+  assert.match(server, /export async function notifyFilesShared\(files: \{ id: string; title: string \}\[\], customerId: string\)/);
+  assert.match(server, /noticesOf\(files\.filter\(\(file\) => audienceOf\.get\(file\.id\) !== "freelancer"\)\)/);
+  assert.match(server, /noticesOf\(files\.filter\(\(file\) => audienceOf\.get\(file\.id\) !== "customer"\)\)/);
 });
 
 test("a file notice opens its file: the link names it and the files page opens what a link names", async () => {

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { normalizeAppearance } from "../lib/appearance.ts";
 import { fileDayGroup, formatFileDay, guessFileCategory } from "../lib/hub-files/catalog.ts";
+import { assignLabel, assignMessage, assignSubtitle } from "../lib/hub-files/assign.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8").then((text) => text.replace(/\r\n/g, "\n"));
 
@@ -160,4 +161,47 @@ test("panels sit over the files, and on phones fill the screen with the tab bar 
   const upload = await source("components/hub/screens/asset-upload.tsx");
   assert.match(upload, /item\.status === "working" \? <span className="am-upload-state"><MiniLoader size=\{16\} \/><\/span>/);
   assert.doesNotMatch(upload + css, /am-progress/);
+});
+
+test("„Zuordnen“ says where the files come from, what the button does and what happened", () => {
+  const morgenrot = { kind: "customer", id: "c1", company: "Café Morgenrot" };
+  assert.equal(assignSubtitle(3, { kind: "inbox" }), "3 Dateien aus der Ablage");
+  assert.equal(assignSubtitle(1, { kind: "all" }), "1 Datei aus „Alle Dateien“");
+  assert.equal(assignSubtitle(2, morgenrot), "2 Dateien von Café Morgenrot");
+  assert.equal(assignLabel(1, { kind: "inbox" }, "move"), "Zuordnen");
+  assert.equal(assignLabel(3, { kind: "inbox" }, "move"), "3 Dateien zuordnen");
+  assert.equal(assignLabel(2, morgenrot, "move"), "2 Dateien verschieben");
+  assert.equal(assignLabel(2, morgenrot, "keep"), "2 Dateien freigeben");
+  assert.equal(assignLabel(1, { kind: "all" }, "move"), "Freigeben");
+  const base = { count: 3, added: 3, company: "Studio Horizont", folder: null, source: { kind: "inbox" }, mode: "move" };
+  assert.equal(assignMessage(base), "3 Dateien Studio Horizont zugeordnet.");
+  assert.equal(assignMessage({ ...base, folder: "Briefings" }), "3 Dateien Studio Horizont zugeordnet und in „Briefings“ abgelegt.");
+  assert.equal(assignMessage({ ...base, count: 2, source: morgenrot }), "2 Dateien von Café Morgenrot zu Studio Horizont verschoben.");
+  assert.equal(assignMessage({ ...base, count: 1, added: 1, source: morgenrot, mode: "keep", folder: "Fotos" }), "1 Datei zusätzlich bei Studio Horizont in „Fotos“ abgelegt. Café Morgenrot behält sie.");
+  assert.equal(assignMessage({ ...base, source: { kind: "all" } }), "3 Dateien auch für Studio Horizont freigegeben.");
+  assert.equal(assignMessage({ ...base, added: 0 }), "Die Dateien liegen schon bei Studio Horizont.");
+});
+
+test("„Zuordnen“ is the admins' own action: one call for all files, with the folder, „Sichtbar für“ and one notice", async () => {
+  const actions = await source("lib/hub-files/actions.ts");
+  const assign = actions.split("export async function assignFiles(")[1].split("\nexport ")[0];
+  assert.match(assign, /> \{\n {2}const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;/);
+  assert.match(assign, /\.from\("hub_file_assignments"\)\.insert\(added\.map\(\(fileId\) => \(\{ file_id: fileId, customer_id: customerId, folder_id: folderId \}\)\)\)/);
+  // From another customer the visibility moves along, written by the server like setFileAudience does.
+  assert.match(assign, /const db = createAdminClient\(\);/);
+  assert.match(assign, /\.update\(\{ audience \}\)\.eq\("customer_id", customerId\)\.in\("file_id", fileIds\)/);
+  assert.match(assign, /if \(from && input\?\.move\) \{\n {4}const \{ data, error \} = await supabase\.from\("hub_file_assignments"\)\.delete\(\)\.eq\("customer_id", from\)\.in\("file_id", ids\)/);
+  assert.match(assign, /await notifyFilesShared\(added\.map/);
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  // The selection bar and a file in the Ablage open the same panel; it keeps its files and starts afresh each time.
+  assert.match(screen, /\{canAssign && <button type="button" className="sheet-action" aria-pressed=\{panel\?\.kind === "assign"\} onClick=\{\(\) => openAssign\(selection\.map\(\(file\) => file\.id\), null\)\}/);
+  assert.match(screen, /onClick=\{\(\) => openAssign\(\[file\.id\], null\)\}><UserPlus size=\{15\} aria-hidden="true" \/>Zuordnen<\/button>/);
+  assert.match(screen, /<AssignPanel key=\{panel\.key\} request=\{panel\.request\} files=\{assigning\}/);
+  // Deactivated freelancers are no target (lib/hub-users/deactivated.ts).
+  assert.match(screen, /customers\.filter\(\(customer\) => !\(customer\.kind === "freelancer" && customer\.inactive\)\)/);
+  const panel = await source("components/hub/screens/asset-assign.tsx");
+  // The hub's own lists, never the browser's.
+  assert.doesNotMatch(panel, /<select|<datalist/);
+  assert.match(panel, /<Select variant="bare" showLead label="An welchen Kunden\?"/);
+  assert.match(panel, /move: from !== null && mode === "move"/);
 });

@@ -1585,6 +1585,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .calendar-primary:active { transform: scale(0.98); }
 .calendar-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 16px 10px 18px; border-radius: 16px; background: var(--tone-ok-bg); color: var(--tone-ok); box-shadow: inset 3px 0 0 var(--tone-ok-bar), var(--glass-shadow); font-size: 15px; line-height: 20px; font-weight: 600; }
 .calendar-notice svg { flex: 0 0 auto; }
+/* A notice that leads somewhere ("Café Morgenrot ansehen", Asset Management 19.11.2026): the way there sits at its end. */
+.calendar-notice-text { flex: 1 1 auto; min-width: 0; }
+.calendar-notice-action { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; margin: -5px -8px -5px 8px; padding: 0 12px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--tone-ok) 12%, transparent); color: inherit; font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.calendar-notice-action:hover { background: color-mix(in srgb, var(--tone-ok) 20%, transparent); }
+.calendar-notice-action:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
 .calendar-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: var(--grid-gap); align-items: start; }
 .calendar-month-card { padding: 12px; }
 .calendar-weekdays, .calendar-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
@@ -2375,6 +2380,16 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-upload-state { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-muted); }
 .am-upload-state.is-done { color: var(--tone-ok); }
 .am-upload .am-icon-btn { width: 26px; height: 26px; }
+/* „Zuordnen“ (19.11.2026): the files in the panel, read only, and the switch for the customer they come from. */
+.am-assign-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; line-height: 20px; font-weight: 600; color: var(--label); }
+.am-assign-there { font-weight: 600; color: var(--tone-ok); }
+.am-assign-to .hub-select-lead { margin-right: 2px; }
+.am-panel .segmented-control.am-assign-mode { width: 100%; height: 34px; padding: 2px; border: 0; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.am-assign-mode .segment { color: var(--sheet-muted); border-radius: 7px; padding: 0 8px; font-size: 13px; font-weight: 500; }
+.am-assign-mode .segment[aria-pressed="true"] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); }
+/* The customer that just got files lights up in the list for a moment. */
+@keyframes am-flash { 0%, 100% { background-color: transparent; } 30% { background-color: color-mix(in srgb, var(--tone-ok-bg) 90%, transparent); } }
+.chat-conv.is-flash { animation: am-flash 1.6s ease-out 2; }
 .am-textarea { width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13.5px; line-height: 19px; resize: vertical; }
 .am-textarea:focus { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
 
