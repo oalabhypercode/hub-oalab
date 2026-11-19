@@ -350,7 +350,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     hint: current ? (canAssign ? "Auf einen Kunden oder Ordner ziehen" : "Auf einen Ordner ziehen") : "Links auf einen Kunden ziehen",
     onDrop: (ids, target) => target.kind === "customer" ? openAssign(ids, target.id) : moveInto(ids, target.key),
   });
-  const dropState = (id: string) => rowDrag ? (canDropRows({ kind: "customer", id }) ? "on" : "off") : listDrag ? (id === "all" ? "off" : "on") : undefined;
+  const dropState = (id: string) => rowDrag ? (id !== "all" && canDropRows({ kind: "customer", id }) ? "on" : "off") : listDrag ? (id === "all" ? "off" : "on") : undefined;
   const isDropTarget = (id: string) => (rowDrag?.over?.kind === "customer" && rowDrag.over.id === id) || listDrag?.id === id;
   const folderLit = (key: string) => drag?.folder === key || (rowDrag?.over?.kind === "folder" && rowDrag.over.key === key);
   const dragAttrs = (file: HubStoredFile) => canDragRows ? { "data-drag-file": file.id, "data-drag-title": file.title, "data-drag-cat": file.category } : {};
