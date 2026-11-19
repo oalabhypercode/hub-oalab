@@ -42,7 +42,8 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
   const api = useKeychainLock(state.lock);
   const { lock, open, left } = api;
   const { appearance, update } = useAppearance();
-  const listView: ListView = appearance.listView;
+  // The keychain knows Minimal and Detail; the list view (Liste) shows it as Minimal.
+  const listView: ListView = appearance.listView === "detail" ? "detail" : "minimal";
   // The project dialog links its customer (/keychain?customer=<id>): the page opens with their accesses.
   const linkedOwner = useSearchParams().get("customer");
   const [view, setView] = useState<View>(() => linkedOwner && state.owners.some((owner) => owner.id === linkedOwner) ? { kind: "owner", id: linkedOwner } : { kind: "all" });

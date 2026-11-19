@@ -9,8 +9,11 @@ export type BackgroundPresetId = "oalab" | "ocean" | "aubergine" | "emerald" | "
 /** Erscheinungsbild: follow the device, or always light or dark. */
 export type ColorScheme = "system" | "light" | "dark";
 
-/** Listen: one quiet line per entry (symbol, title, date) or every column. */
-export type ListView = "minimal" | "detail";
+/**
+ * Listen: one quiet line per entry (symbol, title, date), low striped lines with columns and folders that open in place
+ * like the Finder's list view (since 19.11.2026), or every column.
+ */
+export type ListView = "minimal" | "list" | "detail";
 
 /** Breite: the page as it was (Standard), or the sheets almost edge to edge like an IDE (XL). */
 export type PageWidth = "standard" | "xl";
@@ -128,7 +131,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     glassBlur: Math.min(GLASS_BLUR_RANGE.max, Math.max(GLASS_BLUR_RANGE.min, number(input.glassBlur, defaultAppearance.glassBlur))),
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : defaultAppearance.reduceMotion,
-    listView: input.listView === "detail" ? "detail" : "minimal",
+    listView: input.listView === "detail" || input.listView === "list" ? input.listView : "minimal",
     pageWidth: input.pageWidth === "xl" ? "xl" : "standard",
   };
 }

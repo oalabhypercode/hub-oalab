@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { normalizeAppearance } from "../lib/appearance.ts";
-import { fileDayGroup, formatFileDay, guessFileCategory } from "../lib/hub-files/catalog.ts";
+import { fileDayGroup, fileKind, formatFileDay, formatFileStamp, guessFileCategory } from "../lib/hub-files/catalog.ts";
 import { assignLabel, assignMessage, assignSubtitle } from "../lib/hub-files/assign.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8").then((text) => text.replace(/\r\n/g, "\n"));
@@ -25,10 +25,50 @@ test("all files fall into Heute, Gestern, Diese Woche and Früher", () => {
   assert.equal(fileDayGroup("2026-10-20T08:00:00+01:00", today), "Früher");
 });
 
-test("the list view is a setting of its own: minimal unless someone chose detail", () => {
+test("the list view is a setting of its own: minimal unless someone chose the list or detail", () => {
   assert.equal(normalizeAppearance(null).listView, "minimal");
   assert.equal(normalizeAppearance({ listView: "detail" }).listView, "detail");
+  assert.equal(normalizeAppearance({ listView: "list" }).listView, "list");
   assert.equal(normalizeAppearance({ listView: "table" }).listView, "minimal");
+});
+
+test("„Liste“ writes dates and kinds as the Finder does, in Berlin time", () => {
+  assert.equal(formatFileStamp("2026-11-19T09:12:00+01:00", "2026-11-19"), "Heute, 09:12");
+  assert.equal(formatFileStamp("2026-11-18T15:40:00Z", "2026-11-19"), "Gestern, 16:40");
+  assert.equal(formatFileStamp("2026-10-01T10:00", "2026-11-19"), "01.10.2026, 12:00");
+  assert.equal(fileKind("Angebot Relaunch.pdf"), "PDF-Dokument");
+  assert.equal(fileKind("IMG-20261118-WA0007.JPG"), "JPEG-Bild");
+  assert.equal(fileKind("Briefing.docx"), "Word-Dokument");
+  assert.equal(fileKind("Startseite.fig"), "Figma-Datei");
+  assert.equal(fileKind("Notizen.xyz"), "XYZ-Datei");
+  assert.equal(fileKind("README"), "Datei");
+});
+
+test("„Liste“ is the third view: a Finder-like tree of folders and files that shares ticks, sorting and dragging", async () => {
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  assert.match(screen, /data-tip="Listensicht wie im Finder" onClick=\{\(\) => onChange\("list"\)\}><List size=\{14\} aria-hidden="true" \/>Liste<\/button>/);
+  assert.match(screen, /const customerBody = finder \? finderList\(/);
+  assert.match(screen, /const allBody = finder \? finderList\(null, "Alle Dateien", true\)/);
+  assert.match(screen, /const inboxBody = finder \? finderList\(null, "Dateien ohne Kunden", false\)/);
+  assert.match(screen, /onSelect=\{\(ids\) => \{ closeDetails\(\); setSelected\(ids\); \}\}/);
+  const list = await source("components/hub/screens/asset-list.tsx");
+  // A tree grid: rows with levels, folders open in place, a selection of several, the keyboard of the Finder.
+  assert.match(list, /role="treegrid" aria-label=\{label\} aria-multiselectable="true" tabIndex=\{0\}/);
+  assert.match(list, /aria-level=\{1\} aria-expanded=\{open\}/);
+  assert.match(list, /if \(event\.shiftKey\) \{ event\.preventDefault\(\); range\(id\); \}\n {4}else if \(event\.metaKey \|\| event\.ctrlKey\) toggle\(id\);/);
+  assert.match(list, /key\.toLowerCase\(\) === "a" && \(event\.metaKey \|\| event\.ctrlKey\)/);
+  assert.match(list, /onDoubleClick=\{\(event\) => \{ if \(!interactive\(event\.target\)\) onOpen\(file\); \}\}/);
+  assert.match(list, /\{head\("title", "Name", "fl-name"\)\}/);
+  assert.match(list, /\{head\("format", "Art", "fl-kind"\)\}/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.fl-row\.is-alt \{/);
+  // The selection takes the accent of the main buttons (white text holds in both themes); the ring only for the keyboard.
+  assert.match(css, /\.fl:focus-within \.fl-row\.is-selected \{ background: var\(--accent-gradient\); \}/);
+  assert.match(css, /\.fl\[data-keys\]:focus-within \.fl-row\.is-active \{/);
+  assert.match(css, /@container fl \(max-width: 720px\)/);
+  // Profil › Darstellung offers it too; the keychain, which has no such list, shows it as Minimal.
+  assert.match(await source("components/hub/screens/appearance.tsx"), /\{ id: "list", label: "Liste" \}/);
+  assert.match(await source("components/hub/screens/keychain.tsx"), /const listView: ListView = appearance\.listView === "detail" \? "detail" : "minimal";/);
 });
 
 test("admins get the Asset Management with customers first; customers keep their files table", async () => {
@@ -213,8 +253,9 @@ test("files are dragged onto a customer (it asks first) or a folder (it moves at
   assert.match(screen, /idsFor: \(id\) => selected\.includes\(id\) \? shown\.filter\(\(file\) => selected\.includes\(file\.id\)\)\.map\(\(file\) => file\.id\) : \[id\],/);
   // A customer takes them only for admins and never the one they come from; a folder only where files may be organized.
   assert.match(screen, /\? canAssign && target\.id !== "inbox" && target\.id !== current\?\.id\n {4}: current !== null && canOrganize;/);
-  // Dropped on a customer, „Zuordnen“ opens with that customer (the confirmation); on a folder, the files move there.
-  assert.match(screen, /onDrop: \(ids, target\) => target\.kind === "customer" \? openAssign\(ids, target\.id\) : moveInto\(ids, target\.key\),/);
+  // Dropped on a customer, „Zuordnen“ opens with that customer (the confirmation); on a folder, the files move there,
+  // except those already in it.
+  assert.match(screen, /onDrop: \(ids, target\) => target\.kind === "customer" \? openAssign\(ids, target\.id\) : moveInto\(ids\.filter\(\(id\) => folderOf\(id\) !== target\.key\), target\.key\),/);
   assert.match(screen, /data-drop-customer=\{takes \? dropId : undefined\} data-drop-state=\{dropState\(dropId\)\}/);
   assert.match(screen, /<div className="chat-list" \{\.\.\.listDropHandlers\}>/);
   assert.match(screen, /startUpload\(\{ customerId: id === "inbox" \? null : id, folderId: "" \}, Array\.from\(event\.dataTransfer\.files\)\);/);
