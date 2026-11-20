@@ -2,13 +2,14 @@ import "server-only";
 import type { createClient } from "@/lib/supabase/server";
 import { appointmentNotice } from "@/lib/hub-notify/rules";
 import { notifyCustomers } from "@/lib/hub-notify/server";
-import { cleanNote, readAppointmentInput } from "./rules";
-import type { AppointmentInput, CalendarActionResult } from "./types";
+import { cleanNote, dayOf, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readAvailabilityRequest, wallMinuteToUtc } from "./rules";
+import { loadAvailability } from "./server";
+import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
 
-// What the calendar writes for an admin who has passed the checks, shared by the appointment window
-// (lib/hub-calendar/actions.ts, the admin's own session) and the Claude connector (lib/hub-mcp/writes.ts, a key with
-// the admin's claims). Row Level Security decides again, and the customer gets the same notice either way. Refreshing
-// the page is the caller's business: only a Server Action can do it.
+// What the calendar writes once the caller has passed its checks, shared by the calendar's windows
+// (lib/hub-calendar/actions.ts, the person's own session) and the Claude connector (lib/hub-mcp/writes.ts with the
+// admin's claims, lib/hub-mcp/freelancer-writes.ts with a freelancer's). Row Level Security decides again, and the
+// customer gets the same notice either way. Refreshing the page is the caller's business: only a Server Action can.
 
 export type CalendarClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -36,6 +37,57 @@ export async function writeAppointment(supabase: CalendarClient, id: string | nu
   const notice = customerId ? appointmentNotice({ id: data.id, title, startsAt: row.starts_at, before: sameCustomer, status: "confirmed" }) : null;
   if (customerId && notice) await notifyCustomers([customerId], notice);
   return { ok: true, data: { id: data.id } };
+}
+
+/**
+ * A request for a free time in oalab's calendar, as a customer or a freelancer sends it („Termin anfragen“, and Claude
+ * for a freelancer): on the login's own entry (hub_customer_members), checked against the day's availability, the
+ * booked times with the buffer around them and the login's own open requests, at most MAX_OPEN_REQUESTS open at once.
+ * The database checks the same again.
+ */
+export async function requestAppointmentAs(supabase: CalendarClient, userId: string, input: RequestInput): Promise<CalendarActionResult<{ id: string }>> {
+  const membership = await supabase.from("hub_customer_members").select("customer_id").eq("user_id", userId).limit(1).maybeSingle();
+  if (!membership.data) return { ok: false, error: "Dein Konto ist noch keinem Kunden zugeordnet. Bitte wende dich an dein oalab-Team." };
+  const customerId = membership.data.customer_id as string;
+
+  // The day's availability, its booked times (with the buffer around the day) and the customer's own open requests,
+  // checked on the server so a stale browser view cannot double-book. The database checks the same rules again.
+  if (!isDay(input?.day)) return { ok: false, error: "Bitte Datum und Uhrzeit angeben." };
+  const day = input.day;
+  const { availability } = await loadAvailability(supabase, false, day, day);
+  const pad = availability.rules.buffer * 60_000;
+  const range = { from: new Date(wallMinuteToUtc(day, 0) - pad).toISOString(), to: new Date(wallMinuteToUtc(day, 1440) + pad).toISOString() };
+  const [busy, own] = await Promise.all([
+    supabase.rpc("hub_calendar_busy", { range_start: range.from, range_end: range.to }),
+    supabase.from("hub_appointments").select("starts_at, ends_at").eq("customer_id", customerId).eq("status", "requested").lt("starts_at", range.to).gt("ends_at", range.from),
+  ]);
+  if (busy.error || own.error) return { ok: false, error: "Die Verfügbarkeit konnte nicht geprüft werden. Bitte versuche es erneut." };
+  const intervals = (rows: unknown) => ((rows ?? []) as { starts_at: string; ends_at: string }[]).map((row) => ({ start: Date.parse(row.starts_at), end: Date.parse(row.ends_at) }));
+  const now = Date.now();
+  const read = readAvailabilityRequest(input, availability, intervals(busy.data), intervals(own.data), now, dayOf(now));
+  if (!read.ok) return read;
+  const { title, description, interval } = read.value;
+
+  const open = await supabase.from("hub_appointments").select("id", { count: "exact", head: true })
+    .eq("customer_id", customerId).eq("status", "requested").gt("starts_at", new Date().toISOString());
+  if ((open.count ?? 0) >= MAX_OPEN_REQUESTS) return { ok: false, error: `Du hast schon ${MAX_OPEN_REQUESTS} offene Anfragen. Bitte warte auf eine Antwort oder ziehe eine zurück.` };
+
+  const { data, error } = await supabase.from("hub_appointments").insert({
+    customer_id: customerId, title, description, status: "requested", created_by: userId,
+    starts_at: new Date(interval.start).toISOString(), ends_at: new Date(interval.end).toISOString(),
+  }).select("id").single();
+  // The database's own check (row rule) refused: the time was taken or changed in the meantime.
+  if (error?.code === "42501") return { ok: false, error: "Diese Zeit ist gerade nicht mehr frei. Bitte eine andere grüne Zeit wählen." };
+  if (error || !data) return { ok: false, error: "Die Anfrage konnte nicht gesendet werden." };
+  return { ok: true, data: { id: data.id } };
+}
+
+/** Withdraws an own request that oalab has not answered yet (the database function checks both). */
+export async function withdrawRequestAs(supabase: CalendarClient, id: string): Promise<CalendarActionResult> {
+  if (!uuid.test(String(id ?? ""))) return { ok: false, error: "Unbekannte Anfrage." };
+  const { data, error } = await supabase.rpc("hub_withdraw_appointment_request", { appointment_id: id });
+  if (error || data !== true) return { ok: false, error: "Die Anfrage konnte nicht zurückgezogen werden. Vielleicht wurde sie schon beantwortet." };
+  return { ok: true, data: null };
 }
 
 /** Declines a request or cancels an appointment; the note is shown to the customer. */

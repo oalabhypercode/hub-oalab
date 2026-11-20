@@ -50,11 +50,12 @@ const id = (description: string) => ({ type: "string", pattern: uuidPattern, des
 const MINUTES = { type: "integer", enum: [...APPOINTMENT_DURATIONS], default: 60, description: "Dauer in Minuten, wie im Terminfenster des Hubs." };
 const OPTIONAL_DAY = (description: string) => ({ type: ["string", "null"], pattern: DAY.pattern, description });
 
-const TASK_REF = {
+/** Shared with the freelancers' tools (lib/hub-mcp/freelancer-tools.ts): a task by project and number, its fields, its column. */
+export const TASK_REF = {
   project_id: id("Projekt der Aufgabe (ID aus search, get_project oder list_tasks)."),
   task_number: { type: "integer", minimum: 1, description: "Nummer der Aufgabe im Projekt, wie task_number in get_project oder list_tasks." },
 };
-const TASK_FIELDS = {
+export const TASK_FIELDS = {
   title: { type: "string", minLength: 1, maxLength: MAX_TITLE, description: "Titel, eine Zeile." },
   description: { type: "string", maxLength: MAX_TEXT, description: "Beschreibung der Aufgabe." },
   priority: { type: "string", enum: [...TASK_PRIORITIES], description: `Priorität: ${TASK_PRIORITIES.map((key) => `${key} = ${PRIORITY_NAMES[key]}`).join(", ")}.` },
@@ -67,7 +68,7 @@ const TASK_FIELDS = {
     description: "Wer die Aufgabe außer dem oalab-Team sieht: team = „Nur Team“, shared = „+ Freelancer“ (die Freelancer des Projekts), customer = „+ Kunde“ (auch der Kunde in seinem Projektfenster).",
   },
 };
-const TASK_STATUS = { type: "string", enum: [...TASK_STATUSES], description: `Spalte im Aufgaben-Board: ${TASK_STATUSES.map((key) => `${key} = ${STATUS_NAMES[key]}`).join(", ")}.` };
+export const TASK_STATUS = { type: "string", enum: [...TASK_STATUSES], description: `Spalte im Aufgaben-Board: ${TASK_STATUSES.map((key) => `${key} = ${STATUS_NAMES[key]}`).join(", ")}.` };
 
 /** Longest range of the calendar tools, in days. */
 export const MAX_LIST_DAYS = 62;

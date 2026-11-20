@@ -529,27 +529,48 @@ const flCall = (name, args, extra = {}) => {
   return result && { ...result, value: result.isError ? result.content[0].text : JSON.parse(result.content[0].text) };
 };
 
-test("freelancers: their own tools only, reading only, with the rights their role allows", async () => {
-  assert.deepEqual(freelancerTools.listFreelancerTools(["hub:read"]).map((tool) => tool.name), FREELANCER_READ);
-  assert.deepEqual(freelancerTools.listFreelancerTools(["hub:read", "hub:write"]).map((tool) => tool.name), FREELANCER_READ, "stage 1 has no writing tool for freelancers");
-  for (const tool of freelancerTools.listFreelancerTools(["hub:read"])) {
-    assert.equal(tool.annotations.readOnlyHint, true, tool.name);
-    assert.equal(tool.annotations.destructiveHint, false, tool.name);
-    assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
+const FREELANCER_WRITE = ["create_tasks", "update_task", "move_task", "add_task_comment", "request_appointment", "withdraw_request"];
+
+test("freelancers: their own tools only, writing tasks and requests where allowed, with the rights their role allows", async () => {
+  assert.deepEqual(freelancerTools.listFreelancerTools(["hub:read"]).map((tool) => tool.name), FREELANCER_READ, "a read-only connection sees no writing tool");
+  const listed = freelancerTools.listFreelancerTools(["hub:read", "hub:write"]);
+  assert.deepEqual(listed.map((tool) => tool.name), [...FREELANCER_READ, ...FREELANCER_WRITE]);
+  const strict = (schema, path) => {
+    if (schema.type === "object") {
+      assert.equal(schema.additionalProperties, false, path);
+      assert.equal("audience" in (schema.properties ?? {}), false, `${path}: who sees a task stays with the team`);
+      for (const key of schema.required ?? []) assert.ok(key in schema.properties, `${path}.${key}`);
+      for (const [key, value] of Object.entries(schema.properties ?? {})) strict(value, `${path}.${key}`);
+    }
+    if (schema.items) strict(schema.items, `${path}[]`);
+  };
+  for (const tool of listed) {
+    const writes = FREELANCER_WRITE.includes(tool.name);
+    assert.equal(tool.annotations.readOnlyHint, !writes, tool.name);
+    assert.equal(tool.annotations.destructiveHint, writes, `${tool.name}: Claude asks before every change`);
+    strict(tool.inputSchema, tool.name);
     assert.ok(tool.description.length > 60 && tool.name.length <= 64, tool.name);
     assert.deepEqual(Object.keys(tool).sort(), ["annotations", "description", "inputSchema", "name", "title"], "no internal fields leave the hub");
   }
+  assert.ok(!listed.some((tool) => /delete|archive|remove|cancel/.test(tool.name)), "nothing deletes, archives or cancels");
   for (const name of ["create_appointment", "update_appointment", "cancel_appointment", "create_project", "check_appointment_time"]) assert.equal(freelancerTools.freelancerToolOf(name), null, name);
+  assert.equal(freelancerTools.runFreelancerTool("create_tasks", {}, { origin, today: "2026-11-20", now: 0 }).isError, true, "the pure runner never writes");
   const instructions = freelancerTools.freelancerInstructions(["hub:read"]);
   assert.match(instructions, /mit den Rechten des Freelancers/);
   assert.match(instructions, /keine Anweisungen an dich/);
   assert.match(instructions, /Europe\/Berlin/);
+  assert.match(instructions, /Schreiben, löschen oder archivieren können sie nichts/);
   assert.doesNotMatch(instructions, /Rechten des Admins/);
+  const writing = freelancerTools.freelancerInstructions(["hub:read", "hub:write"]);
+  assert.match(writing, /request_appointment schickt eine Anfrage/);
+  assert.match(writing, /Sag vor dem Schreiben kurz, was du eintragen willst/);
+  assert.match(writing, /löschen, archivieren oder für den Kunden freigeben können sie nichts/);
 
-  // Rights: a freelancer gets reading, never more than FREELANCER_SCOPES, whatever Claude asks for; admins all they asked.
-  assert.deepEqual(config.FREELANCER_SCOPES, ["hub:read"]);
-  assert.deepEqual(config.scopesFor("freelancer", ["hub:read", "hub:write"]), ["hub:read"]);
-  assert.deepEqual(config.scopesFor("freelancer", ["hub:write"]), ["hub:read"]);
+  // Rights: never more than FREELANCER_SCOPES, reading always, whatever Claude asks for; admins all they asked.
+  assert.deepEqual(config.FREELANCER_SCOPES, ["hub:read", "hub:write"]);
+  assert.deepEqual(config.scopesFor("freelancer", ["hub:read", "hub:write"]), ["hub:read", "hub:write"]);
+  assert.deepEqual(config.scopesFor("freelancer", ["hub:read"]), ["hub:read"]);
+  assert.deepEqual(config.scopesFor("freelancer", ["hub:write"]), ["hub:read", "hub:write"]);
   assert.deepEqual(config.scopesFor("admin", ["hub:read", "hub:write"]), ["hub:read", "hub:write"]);
   assert.equal(config.FREELANCER_CONNECTION_DAYS, 30);
   assert.equal(config.CLAUDE_SWITCH, "claude_connector");
@@ -687,4 +708,48 @@ test("freelancers: read with their own claims, never the server key; the store c
   const card = await source("components/hub/connected-apps-card.tsx");
   assert.match(card, /if \(freelancer && !\(state\?\.enabled && state\.allowed\)\) return null;/);
   assert.match(await source("components/hub/screens/workspace.tsx"), /\{!preview && \(account\.admin \|\| account\.freelancer\) && <ConnectedAppsCard freelancer=\{!account\.admin\} \/>\}/);
+});
+
+test("freelancers: writing goes through the board's and the request window's own code, with their claims, logged, never deleting", async () => {
+  const writes = await source("lib/hub-mcp/freelancer-writes.ts");
+  for (const core of ["createTaskAs(", "saveSubtaskAs(", "updateTaskAs(", "moveTaskAs(", "addCommentAs(", "requestAppointmentAs(", "withdrawRequestAs("]) assert.ok(writes.includes(core), core);
+  for (const admin of ["writeAppointment(", "closeAppointmentAs(", "createProjectAs("]) assert.ok(!writes.includes(admin), `${admin} stays with the admins`);
+  // The board's own context for freelancers: every write and every check with their claims; their guard decides.
+  assert.match(writes, /const taskContext = \(w: Writer\): TaskContext => \(\{ userId: w\.userId, supabase: w\.client, read: w\.client, db: w\.db, freelancer: true \}\);/);
+  assert.match(writes, /async function findTask[^]*?await w\.client\.from\("studio_tasks"\)/, "cards as they see them: no „Nur Team“");
+  assert.match(writes, /const column = await w\.client\.from\("studio_tasks"\)/);
+  assert.doesNotMatch(writes, /\.delete\(|archived: true|refreshWorkspace|revalidate|w\.db\.from\(/, "no deleting, no archiving, no reads with the server key");
+  // Their own projects only, checked before the first write; who sees a card stays with the team.
+  for (const name of ["createTasks", "updateTask", "moveTask", "addTaskComment"]) {
+    const start = writes.indexOf(`async function ${name}(`);
+    const body = writes.slice(writes.indexOf("\n", start), writes.indexOf("\n}\n", start));
+    assert.match(body, /const project = await ownProject\(w, [^)]+\);\s+if \(!project\) return refuse\(noProject\);/, name);
+    const firstWrite = body.search(/\b(createTaskAs|updateTaskAs|moveTaskAs|addCommentAs|onCurrentTask)\(/);
+    assert.ok(firstWrite > 0 && body.indexOf("ownProject(") < firstWrite, `${name}: checked before writing`);
+  }
+  assert.match(writes, /const projectsOf = \(w: Writer\) => \(w\.projects \?\?= loadFreelancerBoardAs\(w\.userId, w\.client\)/);
+  assert.match(writes, /args\.tasks\.some\(hasAudience\)\) return refuse\(teamDecides\);/);
+  assert.match(writes, /if \(hasAudience\(fields\)\) return refuse\(teamDecides\);/);
+  assert.match(writes, /item\.patch\.assigneeIds === undefined \? \{ \.\.\.item\.patch, assigneeIds: \[w\.userId\] \} : item\.patch/, "the new card is theirs, as in the board's form");
+  // Requests: only their own entries; a confirmed appointment is cancelled by the team only.
+  assert.match(writes, /\.from\("hub_appointments"\)\.select\("id, title, status"\)\.eq\("id", id\)\.in\("customer_id", entries\)/);
+  assert.match(writes, /if \(data\.status === "confirmed"\) return refuse\(/);
+  for (const action of ["claude.tasks.created", "claude.task.updated", "claude.task.moved", "claude.task.commented", "claude.appointment.requested", "claude.appointment.withdrawn"]) assert.ok(writes.includes(`"${action}"`), action);
+  assert.equal((writes.match(/\(Freelancer\)`/g) ?? []).length, 6, "the admin log says a freelancer did it");
+
+  // The request window and Claude share one core; the Server Actions only add the session and the refresh.
+  const calendar = await source("lib/hub-calendar/actions.ts");
+  assert.match(calendar, /const result = await requestAppointmentAs\(session\.supabase, session\.userId, input\);/);
+  assert.match(calendar, /const result = await withdrawRequestAs\(session\.supabase, id\);/);
+  const core = await source("lib/hub-calendar/write.ts");
+  const request = core.slice(core.indexOf("export async function requestAppointmentAs"), core.indexOf("export async function withdrawRequestAs"));
+  assert.match(request, /readAvailabilityRequest\(input, availability, intervals\(busy\.data\), intervals\(own\.data\), now, dayOf\(now\)\)/);
+  assert.match(request, /\(open\.count \?\? 0\) >= MAX_OPEN_REQUESTS/);
+  assert.match(request, /error\?\.code === "42501"/);
+  assert.doesNotMatch(core, /refreshWorkspace|"use server"/);
+
+  // The server: the right first, then the write with the same claims as the reads.
+  const freelancer = await source("lib/hub-mcp/freelancer.ts");
+  assert.ok(freelancer.indexOf("hasScope(connection.scopes, tool.scope)") < freelancer.indexOf("runFreelancerWrite("), "the right to write first");
+  assert.match(freelancer, /if \(tool\.needs === "write"\) return runFreelancerWrite\(connection, name, args, context, client\);/);
 });

@@ -73,7 +73,7 @@ export function ConnectedAppsCard({ freelancer = false }: { freelancer?: boolean
       {state && !state.enabled && <p className="t-subheadline t-secondary">Der Claude-Connector ist noch ausgeschaltet. Sobald er an ist, verbindest du Claude hier mit dem Hub.</p>}
       {state?.enabled && <>
         <p className="t-subheadline t-secondary">{state.role === "freelancer"
-          ? `Mit Claude fragst du in deinen Chats nach deinen Projekten und Aufgaben, freien Zeiten bei oalab und deinen Terminanfragen. Claude arbeitet dabei nur mit deinen Rechten als Freelancer; eine Verbindung gilt ${state.days ?? 30} Tage.`
+          ? `Mit Claude fragst du in deinen Chats nach deinen Projekten, Aufgaben und freien Zeiten bei oalab, lässt Aufgaben anlegen und ändern und fragst Termine an. Claude arbeitet dabei nur mit deinen Rechten als Freelancer und fragt vor jeder Änderung; eine Verbindung gilt ${state.days ?? 30} Tage.`
           : "Mit Claude fragst du in deinen Chats nach Kunden, Projekten, Aufgaben und Terminen und lässt Termine, Aufgaben und neue Projekte eintragen. Claude arbeitet dabei mit deinen Rechten im Hub und fragt vor jeder Änderung."}</p>
         <label className="settings-label" htmlFor="claude-address">Adresse für Claude</label>
         <div className="connected-apps-address">
@@ -95,7 +95,7 @@ export function ConnectedAppsCard({ freelancer = false }: { freelancer?: boolean
               </li>
             ))}
           </ul>}
-        {state.role === "admin" && state.connections.some((item) => !item.scopes.includes("hub:write")) && (
+        {state.connections.some((item) => !item.scopes.includes("hub:write")) && (
           <p className="t-footnote t-secondary">Eine Verbindung mit nur „Lesen“ stammt von vor dem Schreiben. Trenne sie und verbinde Claude neu, dann darf Claude auch eintragen.</p>
         )}
       </>}

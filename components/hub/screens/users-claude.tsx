@@ -98,7 +98,7 @@ export function ClaudeLoginRow({ user, name, onNotice }: { user: ManagedUser; na
 
   return (
     <Row lead={<RowIcon icon={Bot} />} title={<>Claude{info.button}</>}
-      text={on ? "An: Claude liest dann nur, was dieser Zugang im Hub sieht: eigene Projekte, Aufgaben und Terminanfragen, ohne Kontaktdaten der Kunden."
+      text={on ? "An: Claude arbeitet dann nur mit den Rechten dieses Zugangs: eigene Projekte und Aufgaben, Terminanfragen bei oalab, keine Kontaktdaten der Kunden."
         : "Aus: Mit diesem Zugang lässt sich Claude nicht mit dem Hub verbinden."}
       below={(list || error) && <>{list}{error && <p className="form-error" role="alert">{error}</p>}</>}>
       {info.box}

@@ -57,9 +57,9 @@ export type ConnectorRole = "admin" | "freelancer";
 
 /**
  * The rights a freelancer's connection gets at most, whatever Claude asks for: reading their own projects, tasks and
- * requests (stage 1, 19.11.2026). Writing follows with its own tools.
+ * requests (stage 1, 19.11.2026) and writing tasks and requests as the board and the calendar let them (stage 2).
  */
-export const FREELANCER_SCOPES: readonly HubScope[] = ["hub:read"];
+export const FREELANCER_SCOPES: readonly HubScope[] = ["hub:read", "hub:write"];
 export const freelancerScopeLabels: Record<HubScope, string> = {
   "hub:read": "Lesen: deine Projekte und Aufgaben, freie Zeiten von oalab und deine Terminanfragen",
   "hub:write": "Schreiben: Aufgaben anlegen, ändern, verschieben und kommentieren, Termine bei oalab anfragen",
