@@ -4,7 +4,7 @@
  * Pure functions with type-only imports, so the tests load this file directly. The database checks the same again
  * (migration 202611180001 in service-oalab).
  */
-import type { CardContact, CardDomain, CardMailbox, CardMailServer, CardPackage, FreelancerCustomerCard, ShareTimes } from "./types";
+import type { CardContact, CardDomain, CardMailbox, CardMailServer, CardPackage, CustomerNameRow, FreelancerCustomerCard, FreelancerCustomerRow, ShareTimes } from "./types";
 
 export type ShareArea = "domains" | "mail" | "packages" | "contact";
 
@@ -172,6 +172,25 @@ export function hostingOf(card: Pick<FreelancerCustomerCard, "domains" | "mailSe
   for (const dns of [...new Set(domains.map((domain) => domain.dnsProvider).filter(Boolean))]) rows.push({ kind: "dns", provider: dns, detail: "DNS-Einträge der Domains" });
   if (card.mailServer?.provider) rows.push({ kind: "mail", provider: card.mailServer.provider, detail: "Postfächer und Mail-Server" });
   return rows;
+}
+
+/** A row of hub_freelancer_customer_list() with the columns the hub reads; anything else is dropped. */
+export function isFreelancerCustomerRow(row: unknown): row is FreelancerCustomerRow {
+  if (!row || typeof row !== "object") return false;
+  const value = row as Record<string, unknown>;
+  return typeof value.id === "string" && typeof value.company === "string" && typeof value.customer_number === "string";
+}
+
+/**
+ * The rows a freelancer's session read in hub_customers (their own entry; before migration 202611200001 their customers
+ * too), with the customers of their list added once each, ordered by customer number as the database ordered them.
+ * Without a list (`null`: the database does not have the function yet) the rows stay as they are.
+ */
+export function withFreelancerCustomers(rows: readonly CustomerNameRow[], theirs: readonly FreelancerCustomerRow[] | null): CustomerNameRow[] {
+  if (!theirs) return [...rows];
+  const known = new Set(rows.map((row) => row.id));
+  const added = theirs.filter((row) => !known.has(row.id)).map((row): CustomerNameRow => ({ id: row.id, customer_number: row.customer_number, company: row.company, kind: "customer" }));
+  return [...rows, ...added].sort((a, b) => a.customer_number.localeCompare(b.customer_number, "de"));
 }
 
 /** How many rows „Vertrag & Domain“ shows for a card: the count on its tab. */

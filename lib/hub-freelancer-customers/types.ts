@@ -88,3 +88,20 @@ export type FreelancerCustomersState = {
   cards: FreelancerCustomerCard[];
   error?: string;
 };
+
+/**
+ * A customer a freelancer looks after, as hub_freelancer_customer_list() hands it out (migration 202611200001 in
+ * service-oalab): name, number, Service organization and logo, never contact data or packages.
+ */
+export type FreelancerCustomerRow = {
+  id: string;
+  company: string;
+  customer_number: string;
+  organization_id: string | null;
+  logo_path: string | null;
+  logo_background: string | null;
+  logo_color: string | null;
+};
+
+/** A row of hub_customers as the hub shows it next to files and appointments. */
+export type CustomerNameRow = { id: string; customer_number: string; company: string; kind?: string };
