@@ -35,6 +35,8 @@ const places = [
   { file: "components/hub/screens/users-dialogs.tsx", call: 'useInfo("Freelancer"', button: /title=\{freelancer \? freelancer\.company : "Freelancer anlegen"\}[^]*?actions=\{<>\{info\.button\}\{freelancer && <EntryNav/, box: "{info.box}" },
   // Archive, restore and delete (since 17.11.2026): at the end of a customer's or freelancer's master data.
   { file: "components/hub/screens/users-removal.tsx", call: 'useInfo("Archivieren oder löschen"', button: /<PanelSection title=\{title\} info=\{info\.button\}>/, box: "{info.box}" },
+  // Claude for a freelancer login (since 19.11.2026): at the row „Claude“ under „Anmeldung und Sicherheit“.
+  { file: "components/hub/screens/users-claude.tsx", call: 'useInfo("Claude für Freelancer"', button: /title=\{<>Claude\{info\.button\}<\/>\}/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Pakete"', button: /label="Pakete"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Freigabe im Verlauf"', button: /actions=\{index === 0 \? info\.button : undefined\}/, box: "{info.box}" },
   // Freelancers' releases (18.11.2026): the admins' tab „Freelancer“ and what the freelancer reads under „Kunden“.

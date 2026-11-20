@@ -143,7 +143,8 @@ export function ProfileScreen({ preview, email }: ScreenProps & { email: string 
         </GlassCard>}
         {!preview && <NotificationSettingsCard admin={account.admin} />}
         {!preview && <WhatsAppCard />}
-        {!preview && account.admin && <ConnectedAppsCard />}
+        {/* Freelancers only once an admin switched Claude on for them; the card hides itself otherwise. */}
+        {!preview && (account.admin || account.freelancer) && <ConnectedAppsCard freelancer={!account.admin} />}
       </div>
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">

@@ -41,6 +41,16 @@ async function customersWithoutShares(supabase: SupabaseClient): Promise<Freelan
   }).sort((a, b) => a.company.localeCompare(b.company, "de"));
 }
 
+/**
+ * The cards of the freelancer behind this client, for the Claude connector (lib/hub-mcp/freelancer.ts), which passes
+ * one carrying the freelancer's claims: the same database function as „Kunden“, so only what oalab released. Null
+ * when it cannot be read.
+ */
+export async function loadFreelancerCardsWith(supabase: SupabaseClient): Promise<FreelancerCustomerCard[] | null> {
+  const { data, error } = await supabase.rpc("hub_freelancer_customer_cards");
+  return error ? null : parseCards(data, readable);
+}
+
 /** The customers of the signed-in freelancer, each with exactly what oalab released. */
 export async function loadFreelancerCustomers(): Promise<FreelancerCustomersState> {
   const freelancer = await verifyHubFreelancer();

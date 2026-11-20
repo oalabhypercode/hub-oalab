@@ -3,12 +3,15 @@ import { connectorReady, authenticate } from "@/lib/hub-mcp/store";
 import { bearerChallenge } from "@/lib/hub-mcp/oauth";
 import { acceptedVersionHeader, answerMessage, parseFailure } from "@/lib/hub-mcp/protocol";
 import { listTools, SERVER_INSTRUCTIONS } from "@/lib/hub-mcp/tools";
+import { freelancerInstructions, listFreelancerTools } from "@/lib/hub-mcp/freelancer-tools";
 import { bearerToken, callHubTool, publicOrigin } from "@/lib/hub-mcp/server";
 import { CORS_HEADERS, jsonAnswer, notFound, NO_STORE, preflight } from "@/lib/hub-mcp/http";
 
 // The Claude connector (MCP, Streamable HTTP without sessions): one JSON-RPC message per POST, the answer as JSON.
-// Every message needs a valid key of an active admin's connection; without one the 401 points Claude to the
-// sign-in (lib/hub-mcp/oauth.ts). Claude reads, and writes where the admin allowed it (lib/hub-mcp/writes.ts).
+// Every message needs a valid key of a connection whose login may still hold it (an active admin, or a freelancer an
+// admin switched on, lib/hub-mcp/store.ts); without one the 401 points Claude to the sign-in (lib/hub-mcp/oauth.ts).
+// Claude reads, and writes where allowed (lib/hub-mcp/writes.ts); a freelancer's connection sees only the freelancers'
+// tools and works with their rights (lib/hub-mcp/freelancer.ts).
 
 const MAX_BODY = 1024 * 1024;
 
@@ -34,9 +37,10 @@ export async function POST(request: Request) {
     const failed = parseFailure();
     return jsonAnswer(failed.body, failed.status);
   }
+  const admin = connection.role === "admin";
   const answer = await answerMessage(message, {
-    tools: listTools(connection.scopes),
-    instructions: SERVER_INSTRUCTIONS,
+    tools: admin ? listTools(connection.scopes) : listFreelancerTools(connection.scopes),
+    instructions: admin ? SERVER_INSTRUCTIONS : freelancerInstructions(connection.scopes),
     callTool: (name, args) => callHubTool(connection, name, args, origin),
   });
   if (answer.status === 202) return new Response(null, { status: 202, headers: { ...CORS_HEADERS, ...NO_STORE } });

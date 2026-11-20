@@ -18,6 +18,7 @@ const oauth = await import("../lib/hub-mcp/oauth.ts");
 const protocol = await import("../lib/hub-mcp/protocol.ts");
 const tools = await import("../lib/hub-mcp/tools.ts");
 const input = await import("../lib/hub-mcp/write-input.ts");
+const freelancerTools = await import("../lib/hub-mcp/freelancer-tools.ts");
 const rules = await import("../lib/hub-calendar/rules.ts");
 const projectEdit = await import("../lib/hub-projects/edit.ts");
 
@@ -96,8 +97,8 @@ test("rights: reading always, writing only when asked and offered; the request i
   assert.deepEqual(oauth.grantScopes("hub:read"), ["hub:read"], "reading only, when Claude asks for no more");
   assert.deepEqual(oauth.grantScopes("hub:read hub:write offline_access"), ["hub:read", "hub:write"], "Claude asks for every offered right");
   assert.deepEqual(oauth.grantScopes("hub:write", ["hub:read"]), ["hub:read"], "never more than offered");
-  // The consent page says what writing means before „Erlauben“.
-  assert.match(await source("lib/hub-mcp/consent.ts"), /writes: pending\.scopes\.includes\("hub:write"\)/);
+  // The consent page says what writing means before „Erlauben“, with the rights this login's role gets.
+  assert.match(await source("lib/hub-mcp/consent.ts"), /const scopes = scopesFor\(role, pending\.scopes\);[^]*writes: scopes\.includes\("hub:write"\)/);
   assert.match(await source("components/hub/claude-consent.tsx"), /\{state\.writes && <p [^>]*>Vor jeder Änderung fragt Claude dich, ob es sie machen darf/);
   assert.match(await source("components/hub/connected-apps-card.tsx"), /Trenne sie und verbinde Claude neu, dann darf Claude auch eintragen\./, "old read-only connections learn how to write");
 
@@ -345,8 +346,14 @@ test("routes: every address exists, answers per request and stays off with the s
   assert.ok(mcp.indexOf("authenticate(token)") < mcp.indexOf("answerMessage("), "the key is checked before any message");
   const actions = await source("lib/hub-mcp/actions.ts");
   const allow = actions.slice(actions.indexOf("export async function answerClaude"));
-  assert.ok(allow.indexOf('aal !== "aal2"') < allow.indexOf("issueCode("), "„Erlauben“ needs a confirmed code");
-  assert.ok(allow.indexOf("verifyHubAdmin()") < allow.indexOf("issueCode("), "and an active admin");
+  const issue = allow.indexOf("issueCode(");
+  assert.ok(issue > 0 && allow.indexOf('aal !== "aal2"') > 0 && allow.indexOf('aal !== "aal2"') < issue, "„Erlauben“ needs a confirmed code");
+  assert.ok(allow.indexOf("await connectingLogin()") > 0 && allow.indexOf("await connectingLogin()") < issue, "and a login that may connect");
+  // That login: an active admin, or an active freelancer an admin switched on (read fresh from the login).
+  const login = actions.slice(actions.indexOf("async function connectingLogin"), actions.indexOf("export async function answerClaude"));
+  assert.match(login, /const admin = await verifyHubAdmin\(\);\s+if \(admin\) return \{ userId: admin\.userId, role: "admin" \};/);
+  assert.match(login, /const freelancer = await verifyHubFreelancer\(\);[^]*connectorRoleOf\(freelancer\.userId\)[^]*=== "freelancer"/);
+  assert.match(allow, /issueCode\(\{ \.\.\.pending, scopes: scopesFor\(login\.role, pending\.scopes\), userId: login\.userId \}\)/, "never more rights than the role allows");
   // The web app's service worker never answers for these addresses (public/sw.js).
   const worker = await source("public/sw.js");
   for (const path of ["/api", "/.well-known", "/auth", "/dashboard/settings/claude"]) assert.ok(worker.includes(`"${path}"`), path);
@@ -481,4 +488,203 @@ test("writing goes through the hub's own save code, with the admin's claims, log
   const hook = await source("components/hub/use-refresh-on-return.ts");
   assert.match(hook, /router\.refresh\(\);/);
   assert.match(hook, /addEventListener\("visibilitychange", onVisibility\)/);
+});
+
+/* ---------- Freelancers (since 19.11.2026): their own tools, their own rights, an admin's switch per login ---------- */
+
+const FREELANCER_READ = ["search", "get_customer", "get_project", "list_tasks", "list_appointments", "find_free_slots", "check_request_time"];
+const fl = {
+  viewer: "99999999-9999-4999-8999-999999999999",
+  team: "88888888-8888-4888-8888-888888888888",
+  entry: "66666666-6666-4666-8666-666666666666",
+  abc: "11111111-1111-4111-8111-111111111111",
+  nord: "33333333-3333-4333-8333-333333333333",
+  web: "55555555-5555-4555-8555-555555555555",
+  other: "44444444-4444-4444-8444-444444444444",
+};
+const boardTask = (number, extra) => ({
+  id: `t${number}`, number, projectId: fl.web, title: `Aufgabe ${number}`, status: "todo", priority: "none", dueOn: null, labels: [], assigneeIds: [],
+  visible: false, teamOnly: false, order: number, version: 1, createdBy: fl.team, createdAt: "", updatedAt: "", comments: 0, checklist: { done: 0, total: 0 }, files: 0, ...extra,
+});
+const flBoard = {
+  viewerId: fl.viewer,
+  projects: [{ id: fl.web, name: "Website-Relaunch", organizationId: "org-abc", company: "ABC GmbH", startedOn: "2026-11-01", dueOn: "2026-12-01", status: "active", freelancerIds: [fl.entry] }],
+  tasks: [
+    boardTask(7, { title: "Startseite", status: "progress", priority: "high", dueOn: "2026-11-21", labels: ["Design"], assigneeIds: [fl.viewer], visible: true, comments: 2, checklist: { done: 1, total: 3 } }),
+    boardTask(8, { title: "Impressum", status: "done", assigneeIds: [fl.team] }),
+  ],
+  people: [
+    { id: fl.viewer, name: "Fiona Beispiel", initials: "FB", kind: "freelancer", company: "Beispiel GbR" },
+    { id: fl.team, name: "Teammitglied", initials: "T", kind: "team" },
+  ],
+  freelancers: [{ id: fl.entry, name: "Beispiel GbR", number: "FL-1", loginIds: [fl.viewer], organizationIds: ["org-abc"] }],
+};
+const flCustomers = freelancerTools.customersFromCards([
+  { customerId: fl.abc, company: "ABC GmbH", customerNumber: "OA-1001", organizationId: "org-abc", domains: [{ display: "mail-abc.de", websiteHost: "" }, { display: "abc.de", websiteHost: "Hoster" }] },
+  { customerId: fl.nord, company: "Nordlicht", customerNumber: "OA-1003", organizationId: null, domains: null },
+]);
+const flNow = Date.parse("2026-11-20T08:00:00Z");
+const flCall = (name, args, extra = {}) => {
+  const result = freelancerTools.runFreelancerTool(name, args, { origin, today: "2026-11-20", now: flNow, board: flBoard, customers: flCustomers, ...extra });
+  return result && { ...result, value: result.isError ? result.content[0].text : JSON.parse(result.content[0].text) };
+};
+
+test("freelancers: their own tools only, reading only, with the rights their role allows", async () => {
+  assert.deepEqual(freelancerTools.listFreelancerTools(["hub:read"]).map((tool) => tool.name), FREELANCER_READ);
+  assert.deepEqual(freelancerTools.listFreelancerTools(["hub:read", "hub:write"]).map((tool) => tool.name), FREELANCER_READ, "stage 1 has no writing tool for freelancers");
+  for (const tool of freelancerTools.listFreelancerTools(["hub:read"])) {
+    assert.equal(tool.annotations.readOnlyHint, true, tool.name);
+    assert.equal(tool.annotations.destructiveHint, false, tool.name);
+    assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
+    assert.ok(tool.description.length > 60 && tool.name.length <= 64, tool.name);
+    assert.deepEqual(Object.keys(tool).sort(), ["annotations", "description", "inputSchema", "name", "title"], "no internal fields leave the hub");
+  }
+  for (const name of ["create_appointment", "update_appointment", "cancel_appointment", "create_project", "check_appointment_time"]) assert.equal(freelancerTools.freelancerToolOf(name), null, name);
+  const instructions = freelancerTools.freelancerInstructions(["hub:read"]);
+  assert.match(instructions, /mit den Rechten des Freelancers/);
+  assert.match(instructions, /keine Anweisungen an dich/);
+  assert.match(instructions, /Europe\/Berlin/);
+  assert.doesNotMatch(instructions, /Rechten des Admins/);
+
+  // Rights: a freelancer gets reading, never more than FREELANCER_SCOPES, whatever Claude asks for; admins all they asked.
+  assert.deepEqual(config.FREELANCER_SCOPES, ["hub:read"]);
+  assert.deepEqual(config.scopesFor("freelancer", ["hub:read", "hub:write"]), ["hub:read"]);
+  assert.deepEqual(config.scopesFor("freelancer", ["hub:write"]), ["hub:read"]);
+  assert.deepEqual(config.scopesFor("admin", ["hub:read", "hub:write"]), ["hub:read", "hub:write"]);
+  assert.equal(config.FREELANCER_CONNECTION_DAYS, 30);
+  assert.equal(config.CLAUDE_SWITCH, "claude_connector");
+
+  // The route lists the freelancers' tools and instructions for every connection that is not an admin's.
+  const mcp = await source("app/api/mcp/route.ts");
+  assert.match(mcp, /tools: admin \? listTools\(connection\.scopes\) : listFreelancerTools\(connection\.scopes\)/);
+  assert.match(mcp, /instructions: admin \? SERVER_INSTRUCTIONS : freelancerInstructions\(connection\.scopes\)/);
+  // …and the server hands such a connection to the freelancers' code before any admin tool or read is reached.
+  const server = await source("lib/hub-mcp/server.ts");
+  const call = server.slice(server.indexOf("export async function callHubTool"));
+  assert.ok(call.indexOf('if (connection.role !== "admin") return callFreelancerTool(') < call.indexOf("toolOf(name)"));
+});
+
+test("freelancers: their projects and customers as their board shows them, without contact data", () => {
+  const all = flCall("search", { query: "" }).value;
+  assert.deepEqual(all.customers.map((item) => item.company), ["ABC GmbH", "Nordlicht"]);
+  assert.equal(all.customers[0].link, `${origin}/dashboard/customers?customer=${fl.abc}`);
+  assert.deepEqual(all.projects.map((item) => [item.name, item.status, item.open_tasks, item.link]), [["Website-Relaunch", "In Arbeit", 1, `${origin}/dashboard/projects/tasks?project=${fl.web}`]]);
+  assert.equal(flCall("search", { query: "relaunch", kind: "customer" }).value.customers.length, 0);
+  assert.match(flCall("search", { query: "", kind: "x" }).value, /kind muss/);
+
+  const customer = flCall("get_customer", { customer_id: fl.abc }).value;
+  assert.equal(customer.website, "abc.de", "the domain with a website host");
+  assert.deepEqual(Object.keys(customer).sort(), ["company", "customer_id", "customer_number", "link", "projects", "website"]);
+  assert.equal(flCall("get_customer", { customer_id: fl.nord }).value.website, null, "nothing released, no website");
+  assert.match(flCall("get_customer", { customer_id: fl.nord }).value.note, /auf kein Projekt gesetzt/);
+  assert.equal(flCall("get_customer", { customer_id: fl.other }).isError, true, "a customer they do not look after");
+  assert.doesNotMatch(JSON.stringify(flCall("search", { query: "" }).value), /contact|mail-abc|@/);
+
+  const project = flCall("get_project", { project_id: fl.web }).value;
+  assert.equal(project.customer_id, fl.abc);
+  const [start, imprint] = project.tasks;
+  assert.deepEqual(
+    [start.task_number, start.status, start.priority, start.assignees, start.assigned_to_me, start.checklist, start.comments, start.visible_to_customer, start.link],
+    [7, "In Arbeit", "Hoch", ["Fiona Beispiel"], true, "1/3", 2, true, `${origin}/dashboard/projects/tasks?project=${fl.web}&task=7`],
+  );
+  assert.equal(imprint.priority, null);
+  assert.equal("people" in project, false, "who can take a task only where Claude may write");
+  assert.deepEqual(flCall("get_project", { project_id: fl.web }, { canWrite: true }).value.people.map((person) => [person.name, person.role, person.you ?? false]), [["Fiona Beispiel", "Freelancer (Beispiel GbR)", true], ["Teammitglied", "oalab-Team", false]]);
+  assert.equal(flCall("get_project", { project_id: fl.other }).isError, true, "a project they are not on");
+
+  assert.deepEqual(flCall("list_tasks", {}).value.tasks.map((item) => item.task_number), [7], "open by default");
+  assert.deepEqual(flCall("list_tasks", { status: "all" }).value.tasks.map((item) => item.task_number), [7, 8]);
+  assert.deepEqual(flCall("list_tasks", { status: "all", assigned: "me" }).value.tasks.map((item) => item.task_number), [7]);
+  assert.equal(flCall("list_tasks", { customer_id: fl.nord }).value.total, 0);
+  assert.equal(flCall("list_tasks", { project_id: fl.other }).isError, true);
+  assert.equal(flCall("get_project", { project_id: fl.web }, { board: undefined }).isError, true, "no board, no answer");
+});
+
+test("freelancers: free times and checks exactly as the request window, only their own appointments", () => {
+  const at = (day, time) => rules.wallTimeToUtc(day, time);
+  const weekday = [[540, 1020]];
+  const calendar = {
+    availability: { week: [weekday, weekday, weekday, weekday, weekday, [], []], exceptions: [], rules: { notice: 0, buffer: 0, horizon: 8, durations: [30, 60] } },
+    availabilityReady: true,
+    busy: [{ start: at("2026-11-20", "10:00"), end: at("2026-11-20", "11:00") }],
+    own: [
+      { id: "a1", title: "Abstimmung", description: "", start: at("2026-11-20", "13:00"), end: at("2026-11-20", "14:00"), status: "requested", teamsUrl: null, responseNote: null },
+      { id: "a2", title: "Kickoff", description: "Agenda", start: at("2026-11-23", "10:00"), end: at("2026-11-23", "11:00"), status: "confirmed", teamsUrl: "https://teams.microsoft.com/l/x", responseNote: null },
+      { id: "a3", title: "Alt", description: "", start: at("2026-11-24", "10:00"), end: at("2026-11-24", "11:00"), status: "declined", teamsUrl: "https://teams.microsoft.com/l/y", responseNote: "Da sind wir nicht da." },
+    ],
+  };
+  const slots = flCall("find_free_slots", { from: "2026-11-20", to: "2026-11-21", minutes: 60 }, { calendar }).value;
+  assert.deepEqual(slots.days.map((day) => [day.day, day.starts]), [["2026-11-20", ["09:00", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00"]]], "booked times and own requests stay free of starts; Saturday is off");
+  assert.deepEqual(slots.rules.durations, [30, 60]);
+  assert.match(flCall("find_free_slots", { minutes: 45 }, { calendar }).value, /30, 60 Minuten/, "only the durations oalab offers");
+
+  const check = (start, day = "2026-11-20") => flCall("check_request_time", { day, start, minutes: 60 }, { calendar }).value;
+  assert.deepEqual([check("14:00").requestable, check("14:00").text, check("14:00").end], [true, "Frei: Diese Zeit kannst du bei oalab anfragen.", "15:00"]);
+  assert.match(check("10:00").text, /schon belegt/);
+  assert.match(check("08:00").text, /in der Vergangenheit/);
+  assert.match(check("10:00", "2026-11-21").text, /bietet oalab keine Termine an/);
+
+  const listed = flCall("list_appointments", {}, { calendar }).value;
+  assert.deepEqual(listed.appointments.map((item) => [item.title, item.status, item.teams_link]), [["Abstimmung", "Angefragt", null], ["Kickoff", "Bestätigt", "https://teams.microsoft.com/l/x"]]);
+  assert.equal(listed.appointments[0].link, `${origin}/dashboard/projects/calendar?appointment=a1`);
+  const declined = flCall("list_appointments", { status: "all" }, { calendar }).value.appointments.find((item) => item.title === "Alt");
+  assert.deepEqual([declined.answer_from_oalab, declined.teams_link], ["Da sind wir nicht da.", null], "the answer of oalab; a Teams link only for a confirmed appointment");
+  assert.equal(flCall("list_appointments", {}).isError, true, "no calendar, no answer");
+
+  assert.deepEqual(freelancerTools.freelancerCalendarRange("check_request_time", { day: "2026-11-20" }, "2026-11-20"), { ok: true, from: "2026-11-20", to: "2026-11-20" });
+  assert.equal(freelancerTools.freelancerCalendarRange("find_free_slots", { from: "2026-11-20", to: "2026-12-20" }, "2026-11-20").ok, false, "at most 14 days");
+});
+
+test("freelancers: read with their own claims, never the server key; the store checks the admin's switch on every use", async () => {
+  const freelancer = await source("lib/hub-mcp/freelancer.ts");
+  assert.doesNotMatch(freelancer, /supabase\/admin|createAdminClient|createOwnAdminClient|service_role/, "no server key in the freelancers' reads");
+  assert.match(freelancer, /const claims = await connectorClaims\(userId\)/);
+  assert.match(freelancer, /createOwnClaimsClient\(claims\)/);
+  assert.match(freelancer, /loadFreelancerBoardAs\(connection\.userId, client\)/, "the board as the hub shows it to them");
+  assert.match(freelancer, /loadFreelancerCardsWith\(client\)/, "only what oalab released");
+  assert.match(freelancer, /\.from\("hub_appointments"\)[^;]*\.in\("customer_id", entries\)/, "only the entries the login belongs to");
+  assert.ok(freelancer.indexOf("hasScope(connection.scopes, tool.scope)") < freelancer.indexOf("freelancerClient(connection.userId)"), "the right first");
+  assert.match(await source("lib/hub-tasks/server.ts"), /export async function loadFreelancerBoardAs\(viewerId: string, session: SupabaseClient\)[^]*?return freelancerBoard\(viewerId, session, db\);/);
+  assert.match(await source("lib/hub-freelancer-customers/server.ts"), /supabase\.rpc\("hub_freelancer_customer_cards"\);\s+return error \? null : parseCards\(data, readable\);/);
+
+  // Every use: an active admin, or an active, unbanned freelancer with the switch on, within 30 days of „Erlauben“.
+  const store = await source("lib/hub-mcp/store.ts");
+  const gate = store.slice(store.indexOf("const allowedLogin"), store.indexOf("const ALLOWED"));
+  for (const part of ["p.status = 'active'", "u.banned_until is null", "= 'oalab_admin'", "= 'oalab_freelancer'", "${CLAUDE_SWITCH}', '') = 'true'", "${since} > now() - make_interval(days => ${FREELANCER_CONNECTION_DAYS})"]) {
+    assert.ok(gate.includes(part), part);
+  }
+  assert.match(store, /const ALLOWED = allowedLogin\("c\.user_id", "c\.created_at"\);/);
+  assert.match(store, /where \$\{allowedLogin\("\$1", "now\(\)"\)\}/, "connecting checks the same");
+  assert.equal((store.match(/\$\{ALLOWED\}/g) ?? []).length, 3, "refresh, every request and the list of connections");
+  assert.doesNotMatch(store, /ACTIVE_ADMIN/);
+  assert.match(store, /role: row\.app_role === "oalab_admin" \? "admin" : "freelancer"/);
+  assert.match(store, /export async function disconnectAll\(userId: string\)/);
+
+  // The consent page: freelancers without the switch hear why; with it, they see their own rights and the 30 days.
+  const consent = await source("lib/hub-mcp/consent.ts");
+  assert.match(consent, /if \(role === "off"\) return \{ kind: "not-allowed", request \};/);
+  assert.match(consent, /const labels = role === "admin" \? scopeLabels : freelancerScopeLabels;/);
+  const page = await source("components/hub/claude-consent.tsx");
+  assert.match(page, /state\.kind === "not-allowed"[^]*Noch nicht freigeschaltet/);
+  assert.match(page, /Claude arbeitet dann mit deinen Rechten als Freelancer/);
+  assert.match(page, /Die Verbindung gilt \{state\.days\} Tage\./);
+
+  // The admin's switch at a freelancer login, and what it does.
+  const users = await source("lib/hub-users/actions.ts");
+  const setter = users.slice(users.indexOf("export async function setHubUserClaude"), users.indexOf("export async function loadHubUserClaude"));
+  assert.ok(setter.indexOf("await context()") < setter.indexOf("updateUserById"), "an active admin first");
+  assert.match(setter, /if \(roleOf\(user\) !== "oalab_freelancer"\) return failed\(/, "freelancer logins only");
+  assert.match(setter, /app_metadata: \{ \[CLAUDE_SWITCH\]: allowed \? true : null \}/);
+  assert.match(setter, /const ended = allowed \? 0 : await disconnectAll\(user\.id\)/, "off ends every connection");
+  assert.match(setter, /await log\(ctx, allowed \? "user\.claude_on" : "user\.claude_off"/);
+  for (const name of ["loadHubUserClaude", "disconnectHubUserClaude"]) {
+    const body = users.slice(users.indexOf(`export async function ${name}`));
+    assert.match(body.slice(0, body.indexOf("\n}\n")), /roleOf\(user\) !== "oalab_freelancer"\) return failed\(/, name);
+  }
+  assert.match(await source("lib/hub-users/server.ts"), /claude: roleOf\(user\) === "oalab_freelancer" && \(user\.app_metadata as Record<string, unknown> \| undefined\)\?\.\[CLAUDE_SWITCH\] === true,/);
+  assert.match(await source("components/hub/screens/users-dialogs.tsx"), /\{freelancerLogin && user\.status !== "rejected" && <ClaudeLoginRow user=\{user\} name=\{fullName\(user\)\} onNotice=\{onNotice\} \/>\}/);
+  // The profile card: freelancers see it only once the switch is on.
+  const card = await source("components/hub/connected-apps-card.tsx");
+  assert.match(card, /if \(freelancer && !\(state\?\.enabled && state\.allowed\)\) return null;/);
+  assert.match(await source("components/hub/screens/workspace.tsx"), /\{!preview && \(account\.admin \|\| account\.freelancer\) && <ConnectedAppsCard freelancer=\{!account\.admin\} \/>\}/);
 });

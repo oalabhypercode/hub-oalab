@@ -11,10 +11,11 @@ const when = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: 
 const rights = (scopes: string[]) => (scopes.includes("hub:write") ? "Lesen und Schreiben" : "Lesen");
 
 /**
- * Profile card for admins: the address to give Claude, and every connection this admin allowed, with „Trennen“.
- * Connections are allowed on the consent page (/dashboard/settings/claude) during Claude's sign-in.
+ * Profile card for admins, and for freelancers once an admin switched Claude on for their login (user management):
+ * the address to give Claude, and every connection this login allowed, with „Trennen“. Connections are allowed on the
+ * consent page (/dashboard/settings/claude) during Claude's sign-in. A freelancer without the switch sees no card.
  */
-export function ConnectedAppsCard() {
+export function ConnectedAppsCard({ freelancer = false }: { freelancer?: boolean }) {
   const [state, setState] = useState<ClaudeConnections | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -26,7 +27,7 @@ export function ConnectedAppsCard() {
       <><b>Adresse</b> von hier einfügen und verbinden.</>,
       <><b>Im Hub</b> mit Code bestätigen und „Erlauben“ wählen.</>,
     ],
-    warn: "Claude arbeitet mit deinen Admin-Rechten.",
+    warn: freelancer ? "Claude arbeitet mit deinen Rechten als Freelancer." : "Claude arbeitet mit deinen Admin-Rechten.",
     ask: "Wie verbinde ich Claude mit dem Hub?",
   });
 
@@ -61,6 +62,9 @@ export function ConnectedAppsCard() {
     setNotice(`${name} ist getrennt. Claude kommt ab sofort nicht mehr in den Hub.`);
   }
 
+  // Freelancers see the card only once it is clear that an admin switched Claude on for them.
+  if (freelancer && !(state?.enabled && state.allowed)) return null;
+
   return (
     <GlassCard className="settings-card connected-apps-card">
       <h2 className="t-headline settings-card-title"><Bot size={20} color="var(--accent-text)" aria-hidden="true" />Verbundene Apps{info.button}</h2>
@@ -68,7 +72,9 @@ export function ConnectedAppsCard() {
       {!state && !error && <p className="t-subheadline t-secondary"><MiniLoader size={16} /> Wird geladen …</p>}
       {state && !state.enabled && <p className="t-subheadline t-secondary">Der Claude-Connector ist noch ausgeschaltet. Sobald er an ist, verbindest du Claude hier mit dem Hub.</p>}
       {state?.enabled && <>
-        <p className="t-subheadline t-secondary">Mit Claude fragst du in deinen Chats nach Kunden, Projekten, Aufgaben und Terminen und lässt Termine, Aufgaben und neue Projekte eintragen. Claude arbeitet dabei mit deinen Rechten im Hub und fragt vor jeder Änderung.</p>
+        <p className="t-subheadline t-secondary">{state.role === "freelancer"
+          ? `Mit Claude fragst du in deinen Chats nach deinen Projekten und Aufgaben, freien Zeiten bei oalab und deinen Terminanfragen. Claude arbeitet dabei nur mit deinen Rechten als Freelancer; eine Verbindung gilt ${state.days ?? 30} Tage.`
+          : "Mit Claude fragst du in deinen Chats nach Kunden, Projekten, Aufgaben und Terminen und lässt Termine, Aufgaben und neue Projekte eintragen. Claude arbeitet dabei mit deinen Rechten im Hub und fragt vor jeder Änderung."}</p>
         <label className="settings-label" htmlFor="claude-address">Adresse für Claude</label>
         <div className="connected-apps-address">
           <input id="claude-address" className="account-input" readOnly value={state.address} onFocus={(event) => event.currentTarget.select()} />
@@ -81,7 +87,7 @@ export function ConnectedAppsCard() {
               <li key={item.id}>
                 <span>
                   <strong>{item.clientName}</strong>
-                  <small>{rights(item.scopes)} · verbunden am {when.format(new Date(item.createdAt))}{item.lastUsedAt ? ` · zuletzt genutzt ${when.format(new Date(item.lastUsedAt))}` : ""}</small>
+                  <small>{rights(item.scopes)} · verbunden am {when.format(new Date(item.createdAt))}{item.lastUsedAt ? ` · zuletzt genutzt ${when.format(new Date(item.lastUsedAt))}` : ""}{item.endsAt ? ` · gilt bis ${when.format(new Date(item.endsAt))}` : ""}</small>
                 </span>
                 <button type="button" className="sheet-action" onClick={() => end(item.id, item.clientName)} disabled={busy !== null}>
                   {busy === item.id ? <MiniLoader size={15} /> : <Unplug size={15} aria-hidden="true" />}Trennen
@@ -89,7 +95,7 @@ export function ConnectedAppsCard() {
               </li>
             ))}
           </ul>}
-        {state.connections.some((item) => !item.scopes.includes("hub:write")) && (
+        {state.role === "admin" && state.connections.some((item) => !item.scopes.includes("hub:write")) && (
           <p className="t-footnote t-secondary">Eine Verbindung mit nur „Lesen“ stammt von vor dem Schreiben. Trenne sie und verbinde Claude neu, dann darf Claude auch eintragen.</p>
         )}
       </>}

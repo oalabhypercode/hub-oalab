@@ -23,6 +23,8 @@ export type ManagedUser = {
   self: boolean;
   /** The method sign-in asks for as second factor: off, a code by e-mail or the login's authenticator app. */
   secondFactor: "off" | "email" | "totp";
+  /** Freelancers: an admin switched Claude on for this login (the Claude connector with the freelancer's rights). */
+  claude: boolean;
   customerIds: string[];
   source: "registration" | "admin" | "existing";
   createdAt: string;

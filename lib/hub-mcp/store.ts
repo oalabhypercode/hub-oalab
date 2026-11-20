@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { sql } from "@/lib/platform/db";
 import { usesOwnPlatform } from "@/lib/platform/config";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ACCESS_TOKEN_SECONDS, CODE_SECONDS, mcpEnabled, REFRESH_TOKEN_SECONDS, REQUEST_SECONDS, ROTATION_GRACE_SECONDS, type HubScope } from "./config";
+import {
+  ACCESS_TOKEN_SECONDS, CLAUDE_SWITCH, CODE_SECONDS, FREELANCER_CONNECTION_DAYS, mcpEnabled, REFRESH_TOKEN_SECONDS, REQUEST_SECONDS, ROTATION_GRACE_SECONDS,
+  type ConnectorRole, type HubScope,
+} from "./config";
 import { newSecret, secretHash } from "./oauth";
 
 // What the Claude connector keeps: the admin's open question (consent page) and the one-time code in the shared
@@ -87,18 +90,31 @@ export async function takeCode(code: string): Promise<CodeGrant | null> {
   return pending && /^[0-9a-f-]{36}$/i.test(userId) ? { ...pending, userId } : null;
 }
 
-/** Still an active hub admin, not banned: the same as is_hub_admin() in the database, checked on every use. */
-const ACTIVE_ADMIN = `exists (
+/**
+ * Who may hold a connection, checked on every use: an active hub admin, not banned (the same as is_hub_admin() in the
+ * database), or an active, not banned freelancer whose login an admin switched on for Claude (user management), and
+ * then only for 30 days after „Erlauben“. `user` names the login, `since` when the connection was allowed. Switching
+ * the freelancer off, deactivating or archiving the login ends the connection with the next request.
+ */
+const allowedLogin = (user: string, since: string) => `exists (
   select 1 from auth.users u join public.hub_profiles p on p.user_id = u.id
-  where u.id = c.user_id and p.status = 'active' and coalesce(u.raw_app_meta_data ->> 'app_role', '') = 'oalab_admin'
-    and (u.banned_until is null or u.banned_until <= now())
+  where u.id = ${user} and p.status = 'active' and (u.banned_until is null or u.banned_until <= now())
+    and (coalesce(u.raw_app_meta_data ->> 'app_role', '') = 'oalab_admin'
+      or (coalesce(u.raw_app_meta_data ->> 'app_role', '') = 'oalab_freelancer'
+        and coalesce(u.raw_app_meta_data ->> '${CLAUDE_SWITCH}', '') = 'true'
+        and ${since} > now() - make_interval(days => ${FREELANCER_CONNECTION_DAYS})))
 )`;
+const ALLOWED = allowedLogin("c.user_id", "c.created_at");
+
+/** When a freelancer's connection ends for good (30 days after „Erlauben“); an admin's has no such end. */
+const ENDS_AT = `case when coalesce(u.raw_app_meta_data ->> 'app_role', '') = 'oalab_freelancer'
+  then c.created_at + make_interval(days => ${FREELANCER_CONNECTION_DAYS}) end`;
 
 export type Keys = { access: string; refresh: string };
 
 /**
- * A new connection after the code exchange; one per admin and app, so a new „Erlauben“ replaces the old one. Null
- * when the admin is no active admin any more.
+ * A new connection after the code exchange; one per login and app, so a new „Erlauben“ replaces the old one (and
+ * starts a freelancer's 30 days anew). Null when the login may not connect any more.
  */
 export async function connect(grant: { userId: string; clientId: string; clientName: string; scopes: HubScope[] }): Promise<Keys | null> {
   const keys = { access: newSecret(), refresh: newSecret() };
@@ -106,9 +122,7 @@ export async function connect(grant: { userId: string; clientId: string; clientN
   const saved = await sql(
     `insert into public.hub_claude_connections as c (user_id, client_id, client_name, scopes, access_token_hash, access_expires_at, refresh_token_hash, refresh_expires_at)
      select $1, $2, $3, $4, $5, now() + make_interval(secs => $6), $7, now() + make_interval(secs => $8)
-     where exists (select 1 from auth.users u join public.hub_profiles p on p.user_id = u.id
-       where u.id = $1 and p.status = 'active' and coalesce(u.raw_app_meta_data ->> 'app_role', '') = 'oalab_admin'
-         and (u.banned_until is null or u.banned_until <= now()))
+     where ${allowedLogin("$1", "now()")}
      on conflict (user_id, client_id) do update set client_name = excluded.client_name, scopes = excluded.scopes,
        access_token_hash = excluded.access_token_hash, access_expires_at = excluded.access_expires_at,
        refresh_token_hash = excluded.refresh_token_hash, refresh_expires_at = excluded.refresh_expires_at,
@@ -133,13 +147,13 @@ export async function rotate(refreshToken: string, clientId: string | null): Pro
   const rotated = (await sql<{ user_id: string; scopes: string[] }>(
     `update public.hub_claude_connections c set access_token_hash = $3, access_expires_at = now() + make_interval(secs => $4),
        refresh_token_hash = $5, refresh_expires_at = now() + make_interval(secs => $6), previous_refresh_hash = c.refresh_token_hash, rotated_at = now()
-     where c.refresh_token_hash = $1 and ($2::text is null or c.client_id = $2) and c.refresh_expires_at > now() and ${ACTIVE_ADMIN}
+     where c.refresh_token_hash = $1 and ($2::text is null or c.client_id = $2) and c.refresh_expires_at > now() and ${ALLOWED}
      returning c.user_id, c.scopes`,
     [hash, clientId, secretHash(keys.access), ACCESS_TOKEN_SECONDS, secretHash(keys.refresh), REFRESH_TOKEN_SECONDS],
   )).rows[0];
   if (rotated) return { ok: true, keys, scopes: rotated.scopes.filter(knownScope), userId: rotated.user_id };
 
-  // Expired, or no longer an admin: the connection is gone for good.
+  // Expired, past a freelancer's 30 days, switched off or no longer allowed: the connection is gone for good.
   await sql("delete from public.hub_claude_connections where refresh_token_hash = $1", [hash]);
   const reused = (await sql<{ user_id: string; client_name: string }>(
     `delete from public.hub_claude_connections where previous_refresh_hash = $1 and rotated_at < now() - make_interval(secs => $2)
@@ -149,30 +163,47 @@ export async function rotate(refreshToken: string, clientId: string | null): Pro
   return reused ? { ok: false, reused: { userId: reused.user_id, clientName: reused.client_name } } : { ok: false };
 }
 
-export type Connection = { id: string; userId: string; email: string; clientName: string; scopes: HubScope[] };
+/**
+ * A checked connection: who it works for (`role`, from the login as it is now) and with which rights. Freelancers'
+ * connections run through lib/hub-mcp/freelancer.ts with their own rights; nothing of the admins' tools reaches them.
+ */
+export type Connection = { id: string; userId: string; email: string; clientName: string; scopes: HubScope[]; role: ConnectorRole };
 
-/** The connection behind an access key, if it is valid and its admin still is one. */
+/** The connection behind an access key, if it is valid and its login may still hold it. */
 export async function authenticate(accessToken: string): Promise<Connection | null> {
   if (!SECRET.test(accessToken)) return null;
-  const row = (await sql<{ id: string; user_id: string; email: string; client_name: string; scopes: string[]; stale: boolean }>(
-    `select c.id, c.user_id, u.email, c.client_name, c.scopes,
+  const row = (await sql<{ id: string; user_id: string; email: string; client_name: string; scopes: string[]; app_role: string; stale: boolean }>(
+    `select c.id, c.user_id, u.email, c.client_name, c.scopes, coalesce(u.raw_app_meta_data ->> 'app_role', '') as app_role,
        (c.last_used_at is null or c.last_used_at < now() - interval '5 minutes') as stale
      from public.hub_claude_connections c join auth.users u on u.id = c.user_id
-     where c.access_token_hash = $1 and c.access_expires_at > now() and ${ACTIVE_ADMIN}`,
+     where c.access_token_hash = $1 and c.access_expires_at > now() and ${ALLOWED}`,
     [secretHash(accessToken)],
   )).rows[0];
   if (!row) return null;
   if (row.stale) await sql("update public.hub_claude_connections set last_used_at = now() where id = $1", [row.id]);
-  return { id: row.id, userId: row.user_id, email: row.email, clientName: row.client_name, scopes: row.scopes.filter(knownScope) };
+  return {
+    id: row.id,
+    userId: row.user_id,
+    email: row.email,
+    clientName: row.client_name,
+    scopes: row.scopes.filter(knownScope),
+    // ALLOWED lets only these two through; anything but an admin works with a freelancer's rights.
+    role: row.app_role === "oalab_admin" ? "admin" : "freelancer",
+  };
 }
 
-export type ConnectionView = { id: string; clientName: string; scopes: HubScope[]; createdAt: string; lastUsedAt: string | null };
+/** `endsAt`: when a freelancer's connection ends for good (30 days after „Erlauben“); null for an admin's. */
+export type ConnectionView = { id: string; clientName: string; scopes: HubScope[]; createdAt: string; lastUsedAt: string | null; endsAt: string | null };
 
-/** The admin's own connections for the card „Verbundene Apps“. */
+/**
+ * The connections of one login that still work: for the card „Verbundene Apps“ (the login's own) and for an admin
+ * looking at a freelancer's login in the user management.
+ */
 export async function listConnections(userId: string): Promise<ConnectionView[]> {
-  const rows = await sql<{ id: string; client_name: string; scopes: string[]; created_at: Date; last_used_at: Date | null }>(
-    `select id, client_name, scopes, created_at, last_used_at from public.hub_claude_connections
-     where user_id = $1 and refresh_expires_at > now() order by created_at desc`,
+  const rows = await sql<{ id: string; client_name: string; scopes: string[]; created_at: Date; last_used_at: Date | null; ends_at: Date | null }>(
+    `select c.id, c.client_name, c.scopes, c.created_at, c.last_used_at, ${ENDS_AT} as ends_at
+     from public.hub_claude_connections c join auth.users u on u.id = c.user_id
+     where c.user_id = $1 and c.refresh_expires_at > now() and ${ALLOWED} order by c.created_at desc`,
     [userId],
   );
   return rows.rows.map((row) => ({
@@ -181,14 +212,38 @@ export async function listConnections(userId: string): Promise<ConnectionView[]>
     scopes: row.scopes.filter(knownScope),
     createdAt: new Date(row.created_at).toISOString(),
     lastUsedAt: row.last_used_at ? new Date(row.last_used_at).toISOString() : null,
+    endsAt: row.ends_at ? new Date(row.ends_at).toISOString() : null,
   }));
 }
 
-/** Ends one of the admin's own connections; Claude's keys stop working at once. */
+/** Ends one connection of this login (its own „Trennen“, or an admin's for a freelancer); Claude's keys stop at once. */
 export async function disconnect(userId: string, connectionId: string) {
   if (!/^[0-9a-f-]{36}$/i.test(connectionId)) return null;
   const row = (await sql<{ client_name: string }>("delete from public.hub_claude_connections where id = $1 and user_id = $2 returning client_name", [connectionId, userId])).rows[0];
   return row ? row.client_name || "Claude" : null;
+}
+
+/** Ends every connection of a login (the admin switched Claude off for a freelancer); how many there were. */
+export async function disconnectAll(userId: string) {
+  return (await sql("delete from public.hub_claude_connections where user_id = $1", [userId])).rowCount ?? 0;
+}
+
+/**
+ * The role a login connects Claude with, read fresh from the login (not from a token's copy): "admin", "freelancer"
+ * when an admin switched Claude on for this freelancer, "off" for a freelancer without it, null for everyone else and
+ * for inactive or banned logins.
+ */
+export async function connectorRoleOf(userId: string): Promise<ConnectorRole | "off" | null> {
+  const row = (await sql<{ app_role: string; switched_on: boolean }>(
+    `select coalesce(u.raw_app_meta_data ->> 'app_role', '') as app_role, coalesce(u.raw_app_meta_data ->> '${CLAUDE_SWITCH}', '') = 'true' as switched_on
+     from auth.users u join public.hub_profiles p on p.user_id = u.id
+     where u.id = $1 and p.status = 'active' and (u.banned_until is null or u.banned_until <= now())`,
+    [userId],
+  )).rows[0];
+  if (!row) return null;
+  if (row.app_role === "oalab_admin") return "admin";
+  if (row.app_role === "oalab_freelancer") return row.switched_on ? "freelancer" : "off";
+  return null;
 }
 
 /** RFC 7009: Claude gives back one of its keys; the connection ends. Unknown keys are no error. */

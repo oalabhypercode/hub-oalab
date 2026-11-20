@@ -292,6 +292,16 @@ async function freelancerBoard(viewerId: string, session: SupabaseClient, db: Db
   };
 }
 
+/**
+ * A freelancer's board for the Claude connector (lib/hub-mcp/freelancer.ts): exactly what the hub shows that freelancer,
+ * read with a client carrying their claims instead of a cookie session, so the database's rules decide the same.
+ */
+export async function loadFreelancerBoardAs(viewerId: string, session: SupabaseClient): Promise<TaskBoardState> {
+  const db = createAdminClient();
+  if (!db) return failed("Aufgaben sind noch nicht eingerichtet: Es fehlt der Server-Schlüssel.", "freelancer");
+  return freelancerBoard(viewerId, session, db);
+}
+
 /** The board for the signed-in admin or freelancer, once per request. */
 export const loadTaskBoard = cache(async (): Promise<TaskBoardState> => {
   const admin = await verifyHubAdmin();
