@@ -41,6 +41,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 28,
+    date: "2026-11-21",
+    title: "Kundendaten für Freelancer",
+    summary: "Der Hub holt Namen, Kundennummern und Logos der Kunden eines Freelancers jetzt über eine eigene, schmale Abfrage: im Asset Management, an den Dateien und im Kalender. Damit kann die Datenbank Freelancern die übrigen Kundendaten ganz sperren; Kontaktdaten und gebuchte Pakete gibt es dann nur noch über „Vertrag & Domain“ mit Freigabe.",
+    changes: [
+      { kind: "security", title: "Kundendaten für Freelancer nur mit Freigabe", text: "Kontaktdaten und gebuchte Pakete ihrer Kunden sehen Freelancer weiterhin nur mit eurer Freigabe unter „Vertrag & Domain“. Neu holt der Hub Namen und Logos ihrer Kunden über eine eigene Abfrage, die nur diese Angaben liefert; so kann auch die Datenbank die übrigen Kundendaten für Freelancer sperren. Im Asset Management, im Kalender und unter „Kunden“ sehen Freelancer dasselbe wie bisher." },
+    ],
+  },
+  {
     number: 27,
     date: "2026-11-20",
     title: "Claude für Freelancer",

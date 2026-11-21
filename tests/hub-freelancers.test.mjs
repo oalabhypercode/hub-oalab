@@ -90,7 +90,7 @@ test("the asset management: freelancers read, admins set who looks after a custo
   assert.match(audience, /const db = await verifyHubAdmin\(\) \? createAdminClient\(\) : null;\n {2}if \(!db\) return denied;/);
   const files = await source("lib/hub-files/server.ts");
   // Before the migration the new columns are missing: the files load as before.
-  assert.match(files, /const files = missingColumn\(firstFiles\.error\) \? await readFiles\("folder_id"\) : firstFiles;/);
+  assert.match(files, /const files = missingColumn\(firstFiles\.error\) \? await readFiles\("customer_id, folder_id"\) : firstFiles;/);
 });
 
 test("freelancers ask oalab for appointments in their own name, in the calendar under Projekte (18.11.2026)", async () => {

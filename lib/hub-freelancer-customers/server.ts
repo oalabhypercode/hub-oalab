@@ -24,7 +24,11 @@ const missingFunction = (error: { code?: string; message?: string } | null) =>
 const missingTable = (error: { code?: string; message?: string } | null) =>
   Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || /hub_freelancer_shares/i.test(error.message ?? "")));
 
-/** Before the migration: the customers from the freelancer's own list, without anything of „Vertrag & Domain“. */
+/**
+ * Before the migration: the customers from the freelancer's own list, without anything of „Vertrag & Domain“. Only a
+ * database without hub_freelancer_customer_cards() gets here, and such a database still has the rule that lets
+ * freelancers read their customers in hub_customers (migration 202611200001 removes it, after the cards exist).
+ */
 async function customersWithoutShares(supabase: SupabaseClient): Promise<FreelancerCustomerCard[]> {
   const links = await supabase.from("hub_freelancer_customers").select("freelancer_id, customer_id, assigned_at").returns<{ freelancer_id: string; customer_id: string; assigned_at: string | null }[]>();
   if (links.error || !links.data?.length) return [];

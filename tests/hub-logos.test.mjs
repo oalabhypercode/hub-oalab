@@ -35,13 +35,15 @@ test("logos are read on their own, so a missing migration never breaks the accou
   const users = await source("lib/hub-users/server.ts");
   assert.doesNotMatch(users, /logo_/);
   const logos = await source("lib/hub-logos/server.ts");
-  assert.match(logos, /const rows = error \? \[\] :/);
+  assert.match(logos, /return signCustomerLogos\(supabase, error \? \[\] : data \?\? \[\]\);/);
   assert.match(logos, /if \(signed\.error \|\| !signed\.data\) return logos;/);
   // Customers get only their own customer's logo, signed with their own session; admins keep their initials.
   assert.match(logos, /if \(!customerId \|\| identity\.account\?\.role === "oalab_admin"\) return null;/);
   const files = await source("lib/hub-files/server.ts");
-  // Admins get every logo, freelancers those of their customers (RLS); customers none here.
-  assert.match(files, /canManage \|\| isFreelancer \? loadCustomerLogos\(supabase\) : new Map<string, CustomerLogo>\(\)/);
+  // Admins get every logo, customers none here. Freelancers get the one of their own entry and, since 20.11.2026, those
+  // of their customers from their list (the database no longer hands them their customers' rows).
+  assert.match(files, /if \(!isFreelancer\) return \{ logos: canManage \? await loadCustomerLogos\(supabase\) : new Map<string, CustomerLogo>\(\), theirs: null \};/);
+  assert.match(files, /\[loadCustomerLogos\(supabase\), theirs \? signCustomerLogos\(supabase, theirs\) : new Map<string, CustomerLogo>\(\)\]/);
 });
 
 test("every logo action checks for an active admin in the database before anything else", async () => {

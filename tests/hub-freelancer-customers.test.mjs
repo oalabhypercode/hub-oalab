@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  cleanShareNote, hostingOf, isShareArea, MAX_SHARE_NOTE, parseCards, readShareNote, readShareToggle, releasedAreas, releasedCount, shareAreaIds,
+  cleanShareNote, hostingOf, isFreelancerCustomerRow, isShareArea, MAX_SHARE_NOTE, parseCards, readShareNote, readShareToggle, releasedAreas, releasedCount, shareAreaIds,
+  withFreelancerCustomers,
 } from "../lib/hub-freelancer-customers/rules.ts";
 import { freelancerCustomerFixtures, freelancerShareFixtures } from "../lib/hub-freelancer-customers/fixtures.ts";
 
@@ -113,4 +114,41 @@ test("the screens follow the design rules: hub building blocks, the small switch
   assert.match(css, /--switch-on-calm: rgb\(var\(--accent-rgb\) \/ 0\.55\);/);
   const contracts = await source("components/hub/screens/contracts.tsx");
   assert.match(contracts, /\{ id: "freelancer", label: "Freelancer", name: "Freelancer", count: counts\.freelancer \}/);
+});
+
+test("freelancers read their customers' names and logos through their list, never the customers' rows (20.11.2026)", async () => {
+  const own = { id: F, customer_number: "FL-1001", company: "Studio Kranich", kind: "freelancer" };
+  const list = [
+    { id: B, company: "Nordlicht Studio", customer_number: "OA-2002", organization_id: null, logo_path: null, logo_background: "light", logo_color: null },
+    { id: A, company: "Form & Feld", customer_number: "OA-1001", organization_id: D, logo_path: `${A}/logo.png`, logo_background: "brand", logo_color: "#123456" },
+  ];
+  // Since migration 202611200001 the session reads only the own entry; the list adds the customers, by number.
+  const merged = withFreelancerCustomers([own], list);
+  assert.deepEqual(merged.map((row) => row.id), [F, A, B]);
+  assert.deepEqual(merged[1], { id: A, customer_number: "OA-1001", company: "Form & Feld", kind: "customer" });
+  // Before it the session still read them as well: nobody twice.
+  assert.equal(withFreelancerCustomers([own, { id: A, customer_number: "OA-1001", company: "Form & Feld", kind: "customer" }], list).length, 3);
+  // Without the function (null) the rows stay as the session read them.
+  assert.deepEqual(withFreelancerCustomers([own], null), [own]);
+  assert.equal(isFreelancerCustomerRow(list[1]), true);
+  assert.equal(isFreelancerCustomerRow({ id: A, company: "Form & Feld" }), false);
+  assert.equal(isFreelancerCustomerRow(null), false);
+
+  const reader = await source("lib/hub-freelancer-customers/list.ts");
+  assert.match(reader, /await supabase\.rpc\("hub_freelancer_customer_list"\)/);
+  assert.match(reader, /if \(missingList\(error\)\) return null;/);
+  assert.match(reader, /error\.code === "PGRST202" \|\| error\.code === "42883"/);
+  assert.doesNotMatch(reader, /from\("hub_customers"\)/);
+  // Asset Management and calendar take a freelancer's customers from the list; files of those customers get their
+  // names from it, because the embedded customer row stays empty for them.
+  const files = await source("lib/hub-files/server.ts");
+  assert.match(files, /const theirs = await loadFreelancerCustomerList\(supabase\);/);
+  assert.match(files, /const customerRows = withFreelancerCustomers\(customers\.data \?\? \[\], theirs\);/);
+  assert.match(files, /assignment\.customer \|\| !assignment\.customer_id \? assignment : \{ \.\.\.assignment, customer: named\.get\(assignment\.customer_id\) \?\? null \}/);
+  assert.match(files, /readFiles\("customer_id, folder_id, audience"\)/);
+  assert.match(files, /customers: customerRows\.filter\(\(row\) => !archive\.customerIds\.has\(row\.id\)\)/);
+  assert.match(files, /files: fileRows\.filter\(\(row\) => fileInSight\(archive, /);
+  const calendar = await source("lib/hub-calendar/server.ts");
+  assert.match(calendar, /role === "oalab_freelancer" \? loadFreelancerCustomerList\(supabase\) : null,/);
+  assert.match(calendar, /customers: withFreelancerCustomers\(customers\.data \?\? \[\], theirs\)\.filter\(\(row\) => !archive\.customerIds\.has\(row\.id\)\)/);
 });

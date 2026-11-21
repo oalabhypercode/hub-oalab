@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { loadArchive } from "@/lib/hub-archive/server";
 import { noArchive } from "@/lib/hub-archive/rules";
+import { loadFreelancerCustomerList, withFreelancerCustomers } from "@/lib/hub-freelancer-customers/list";
 import { addDays, addMonths, availabilityFrom, calendarWindow, FIXED_AVAILABILITY, isAppointmentStatus, type Availability } from "./rules";
 import type { HubFileCustomer } from "../hub-files/types";
 import type { HubAppointment, HubCalendarState } from "./types";
@@ -57,19 +58,21 @@ export async function loadAvailability(supabase: Client, canManage: boolean, fro
  * Calendar of the signed-in Supabase user for the browsable window around `today`.
  * Row Level Security decides: admins see every appointment, customers only their own;
  * the busy times of the whole calendar come without details from hub_calendar_busy().
- * Archived customers and their appointments stay out of the admins' calendar (lib/hub-archive).
+ * Archived customers and their appointments stay out of the admins' calendar (lib/hub-archive). A freelancer's session
+ * reads only its own entry in hub_customers (since migration 202611200001): their customers come from their list.
  */
 export async function loadHubCalendar(today: string): Promise<HubCalendarState> {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
-  const canManage = (claims?.claims.app_metadata as Record<string, unknown> | undefined)?.app_role === "oalab_admin";
+  const role = (claims?.claims.app_metadata as Record<string, unknown> | undefined)?.app_role;
+  const canManage = role === "oalab_admin";
   const window = calendarWindow(today);
   const from = new Date(window.from).toISOString();
   const to = new Date(window.to).toISOString();
   const base = { source: "supabase" as const, canManage, confirmed: canManage && claims?.claims.aal === "aal2", today, now: Date.now() };
 
   const lastDay = addDays(`${addMonths(window.lastMonth, 1)}-01`, -1);
-  const [appointments, customers, busy, open, archive] = await Promise.all([
+  const [appointments, customers, busy, open, archive, theirs] = await Promise.all([
     supabase
       .from("hub_appointments")
       .select("id, title, description, starts_at, ends_at, status, teams_url, response_note, customer:hub_customers(id, customer_number, company)")
@@ -81,6 +84,7 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
     canManage ? Promise.resolve({ data: [] as BusyRow[], error: null }) : supabase.rpc("hub_calendar_busy", { range_start: from, range_end: to }),
     loadAvailability(supabase, canManage, `${window.firstMonth}-01`, lastDay),
     canManage ? loadArchive() : noArchive,
+    role === "oalab_freelancer" ? loadFreelancerCustomerList(supabase) : null,
   ]);
   const error = appointments.error ?? busy.error;
   if (error) return { ...base, appointments: [], busy: [], customers: [], availability: FIXED_AVAILABILITY, availabilityReady: false, error: describeCalendarError(error) };
@@ -89,7 +93,7 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
     ...base,
     availability: open.availability,
     availabilityReady: open.ready,
-    customers: (customers.data ?? []).filter((row) => !archive.customerIds.has(row.id)).map(toCustomer),
+    customers: withFreelancerCustomers(customers.data ?? [], theirs).filter((row) => !archive.customerIds.has(row.id)).map(toCustomer),
     busy: ((busy.data ?? []) as BusyRow[]).map((row) => ({ start: Date.parse(row.starts_at), end: Date.parse(row.ends_at) })),
     appointments: (appointments.data ?? []).filter((row) => !row.customer || !archive.customerIds.has(row.customer.id)).map(toAppointment),
   };
