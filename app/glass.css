@@ -962,6 +962,15 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .file-table .table-add-row td { padding-left: 54px; }
 /* Logins: the avatar leads, the group symbol takes its width. */
 .user-table .table-group-glyph { width: 24px; }
+/* Details after a group's count (a company's number and kind), and a group's own way to add a row on the right. */
+.table-group-sub { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: 8px; color: var(--sheet-muted); font-size: 12px; font-weight: 500; }
+.table-group-add { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 7px; color: var(--accent-text); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.table-group-add:hover { background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); }
+/* Logins by company (user 21.11.2026): a long company name gives way before its number and „Zugang“; a registration's
+   own company stands quietly after the name, since this view has no company column. */
+.user-table .table-group-toggle { min-width: 0; }
+.user-table .table-group-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.user-table .company-hint { display: inline-block; max-width: 160px; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; color: var(--sheet-muted); font-size: 12.5px; }
 
 /* User management (admins): logins and customers on one sheet; dialogs below. */
 .confirm-badge { flex: 0 0 auto; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--tone-ok-bg); color: var(--tone-ok); font-size: 12px; line-height: 18px; font-weight: 600; }
@@ -1426,6 +1435,8 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet .data-table .mail-cell { max-width: none; }
   .sheet .data-table :is(.cell-number, .cell-company):has(> .cell-none) { display: none; }
   .sheet .user-table .cell-login::before { content: "Letzter Login: "; }
+  /* A company's heading keeps its name and „Zugang“; the number stays in its data. */
+  .sheet .user-table .table-group-sub { display: none; }
   .sheet .data-table .cell-logins::before { content: "Zugänge: "; }
   /* The cells wrap here, so the row itself carries the rounded bar on the left. */
   .sheet .data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login) { position: relative; }

@@ -230,9 +230,11 @@ const choicePayload = (role: HubRole, choices: Choices, person: Person) => {
 const roleHints: Record<HubRole, string> = {
   oalab_customer: "Sieht nur die Daten des zugeordneten Kunden.",
   oalab_freelancer: "Sieht seine eigenen Dateien und die Dateien seiner Kunden, nur lesend. Kein Zugang zur Serviceplattform.",
-  oalab_admin: "Sieht alle Kunden und verwaltet Zugänge, Dateien und Termine.",
+  oalab_admin: "Sieht alle Kunden und verwaltet Zugänge, Dateien und Termine. Gehört zum oalab-Team, nicht zu einem Kunden.",
 };
 const roleIcons: Record<HubRole, LucideIcon> = { oalab_customer: UserRound, oalab_freelancer: Handshake, oalab_admin: ShieldCheck };
+/** Only a customer login picks a customer; admins and freelancers pick none, so their section is just the role. */
+const roleSection = (role: HubRole) => role === "oalab_customer" ? "Rolle und Kunde" : "Rolle";
 
 /**
  * Role and, for customers, the customer they belong to: an existing one or a new one created on the spot. A freelancer
@@ -417,7 +419,7 @@ export function ReviewPanel({ user, customers, nextNumber, nextFreelancerNumber,
         </PanelSection>
       ) : (
         <form ref={formRef} className="um-form" onSubmit={(event) => { event.preventDefault(); approve(); }}>
-          <PanelSection title="Rolle und Kunde">
+          <PanelSection title={roleSection(decision.role)}>
             <RoleAndCustomer role={decision.role} onRole={(role) => setDecision((current) => ({ ...current, role }))} choices={decision.choices} onChoices={(choices) => setDecision((current) => ({ ...current, choices }))} customers={customers} disabled={busy !== null} freelancers={freelancers} person={person} />
             {!user.emailConfirmed && <p className="am-help">Die E-Mail-Adresse ist noch nicht bestätigt. Anmelden kann sich die Person erst nach der Bestätigung.</p>}
             {error && <p className="form-error" role="alert">{error}</p>}
@@ -582,7 +584,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
           <Field label="Position"><input className="am-input" value={person.position} onChange={set("position")} maxLength={80} disabled={disabled} autoComplete="off" placeholder="z. B. Geschäftsführung" /></Field>
         </FieldGrid>
       </PanelSection>
-      <PanelSection title="Rolle und Kunde">
+      <PanelSection title={roleSection(role)}>
         <RoleAndCustomer role={role} onRole={(next) => change({ role: next })} choices={choices} onChoices={(next) => change({ choices: next })} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} freelancers={freelancers} person={who} />
       </PanelSection>
       {!user && (
@@ -679,7 +681,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   return (
     <AssetPanel className="um-panel" label={user ? `Zugang von ${fullName(user)}` : "Zugang anlegen"}
       icon={user ? <span className="avatar" aria-hidden="true">{initialsOf(user)}</span> : <span className="am-tile"><UserPlus size={20} aria-hidden="true" /></span>}
-      title={user ? fullName(user) : "Zugang anlegen"} subtitle={user ? <UserLine user={user} /> : presetEntry ? <><span className="um-clip">Für {presetEntry.company}</span><span className="um-dot" aria-hidden="true">·</span><span className="numeric">{presetEntry.customerNumber}</span></> : "Mit Aktivierungslink zum Passwort-Setzen"}
+      title={user ? fullName(user) : "Zugang anlegen"} subtitle={user ? <UserLine user={user} /> : role === "oalab_admin" ? "Admin für das oalab-Team, mit Aktivierungslink" : presetEntry ?<><span className="um-clip">Für {presetEntry.company}</span><span className="um-dot" aria-hidden="true">·</span><span className="numeric">{presetEntry.customerNumber}</span></> : "Mit Aktivierungslink zum Passwort-Setzen"}
       actions={user ? <EntryNav onPrev={onPrev} onNext={onNext} /> : info.button}
       bar={user && <PanelTabs value={tab} onChange={showTab} options={[{ id: "profile", label: "Profil" }, { id: "access", label: "Sicherheit" }, { id: "history", label: <>Verlauf <Count value={events.length} /></> }]} />}
       onClose={() => onClose()} footer={footer}>

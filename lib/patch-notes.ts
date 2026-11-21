@@ -43,9 +43,11 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 28,
     date: "2026-11-21",
-    title: "Kundendaten für Freelancer",
-    summary: "Der Hub holt Namen, Kundennummern und Logos der Kunden eines Freelancers jetzt über eine eigene, schmale Abfrage: im Asset Management, an den Dateien und im Kalender. Damit kann die Datenbank Freelancern die übrigen Kundendaten ganz sperren; Kontaktdaten und gebuchte Pakete gibt es dann nur noch über „Vertrag & Domain“ mit Freigabe.",
+    title: "Kundendaten für Freelancer und Zugänge nach Unternehmen",
+    summary: "Der Hub holt Namen, Kundennummern und Logos der Kunden eines Freelancers jetzt über eine eigene, schmale Abfrage: im Asset Management, an den Dateien und im Kalender. Damit kann die Datenbank Freelancern die übrigen Kundendaten ganz sperren; Kontaktdaten und gebuchte Pakete gibt es dann nur noch über „Vertrag & Domain“ mit Freigabe. Im User Management stehen die Zugänge jetzt unter ihrem Unternehmen und die Admins unter oalab; weitere Zugänge und Admins legt man direkt dort an.",
     changes: [
+      { kind: "new", title: "Admin anlegen", text: "Einen weiteren Admin legst du jetzt mit „Admin anlegen“ im Zahnrad unter „Zugänge“ an oder mit „Admin“ im Kopf von oalab. Der Dialog startet gleich mit der Rolle Admin und fragt nach keinem Kunden, denn Admins gehören zum oalab-Team." },
+      { kind: "improved", title: "Zugänge nach Unternehmen", text: "Unter „Zugänge“ steht jetzt jedes Unternehmen mit Logo, Nummer und der Zahl seiner Zugänge, darunter seine Zugänge; oalab mit den Admins folgt direkt auf die offenen Registrierungen. „Zugang“ im Kopf eines Unternehmens legt einen weiteren Zugang für es an, das Zahnrad öffnet seine Stammdaten. Die Ansicht nach Status gibt es weiter im Menü „Gruppe“." },
       { kind: "security", title: "Kundendaten für Freelancer nur mit Freigabe", text: "Kontaktdaten und gebuchte Pakete ihrer Kunden sehen Freelancer weiterhin nur mit eurer Freigabe unter „Vertrag & Domain“. Neu holt der Hub Namen und Logos ihrer Kunden über eine eigene Abfrage, die nur diese Angaben liefert; so kann auch die Datenbank die übrigen Kundendaten für Freelancer sperren. Im Asset Management, im Kalender und unter „Kunden“ sehen Freelancer dasselbe wie bisher." },
     ],
   },
