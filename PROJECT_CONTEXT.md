@@ -6,6 +6,13 @@
 **Stand:** 21. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
 
+### Vorgabe vom 21. November 2026: Zugänge nach Unternehmen, „Admin anlegen“
+
+- Frage des Nutzers: Er fand keinen Weg, einen weiteren Admin anzulegen („ich kann nur Kunden anlegen und danach die Rolle wählen“), und wünschte unter „Zugänge“ das Unternehmen als Ebene mit seinen Zugängen darunter, von dort aus erweiterbar. Befund: „Zugang anlegen“ konnte Admins schon (Rolle Admin, dann entfällt der Kunde), der Dialog startete aber immer mit „Kunde“ und der Kundenauswahl. Plan in drei Schritten freigegeben („Ja, umsetzen“).
+- Unternehmen sind schon Einträge (Kunden und Freelancer, `hub_customers`), jeder Zugang gehört zu höchstens einem; nur oalab ist keiner. Entschieden: oalab nicht als Eintrag in der Datenbank (das hätte eine Migration gebraucht, eine Organisation in Service ergeben und jede Kundenauswahl hätte ihn ausblenden müssen), sondern als feste Gruppe der Ansicht aus den Admin-Zugängen. Keine Migration, keine Server-Änderung.
+- „Zugänge“ ist jetzt zuerst nach Unternehmen gruppiert (`groupLoginsByCompany` in `lib/hub-users/company-groups.ts`): offene Registrierungen, oalab mit den Admins, die Kunden und Freelancer mit Zugängen A–Z (archivierte zuletzt), „Ohne Unternehmen“, „Abgelehnt“. Im Gruppenkopf Logo, Nummer, Art, „Zugang“ (öffnet „Zugang anlegen“ mit dem Eintrag) und das Zahnrad zu den Stammdaten; bei oalab „Admin“. Die Spalten „Kunden-Nr.“ und „Unternehmen“ entfallen in dieser Sicht; „Status“ und „Keine Gruppen“ bleiben im Menü „Gruppe“. Einträge ohne Zugang stehen weiter nur unter „Kunden“ und „Freelancer“.
+- „Admin anlegen“ im Zahnrad unter „Zugänge“ öffnet „Zugang anlegen“ mit der Rolle Admin; der Abschnitt heißt dann nur „Rolle“.
+
 ### Vorgabe vom 19. November 2026: Claude-Connector für Freelancer (Lesen, Aufgaben und Terminanfragen)
 
 - Frage des Nutzers beim Verfeinern der Freelancer-Rechte: Was spricht dagegen, den Connector auch Freelancern zu geben? Befund: Die Lesewerkzeuge der Admins lesen mit dem Server-Schlüssel, also wäre ein bloßes Freischalten ein Datenleck. Plan mit vier Empfehlungen freigegeben; gebaut auf „Mach das ruhig jetzt schon, nicht erst nach dem Launch“.

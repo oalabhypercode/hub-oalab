@@ -159,17 +159,19 @@ export const groupTicks = (ids: string[], selected: readonly string[]) => {
 };
 
 /**
- * A group of rows with its heading: chevron to fold it, symbol, name and count, optional actions on the right.
- * Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title). With `select` the
- * heading starts with a tick for all of its rows, in the column of the rows' ticks.
+ * A group of rows with its heading: chevron to fold it, symbol, name and count, optional details after them and actions
+ * on the right. Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title). With
+ * `select` the heading starts with a tick for all of its rows, in the column of the rows' ticks.
  */
-export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, actions, select, empty, className, dropKey, children }: {
+export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, sub, actions, select, empty, className, dropKey, children }: {
   colSpan: number;
   label: string;
   count: number;
   glyph?: React.ReactNode;
   collapsed: boolean;
   onToggle: () => void;
+  /** Quiet details after the count, outside the fold button: a company's number and kind, say. */
+  sub?: React.ReactNode;
   actions?: React.ReactNode;
   select?: { checked: boolean; mixed: boolean; onChange: () => void; label: string; disabled?: boolean };
   /** Shown instead of rows when the group is empty (an empty folder). */
@@ -191,6 +193,7 @@ export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, 
               <span className="table-group-label">{label}</span>
               <span className="table-group-count numeric">{count}</span>
             </button>
+            {sub && <span className="table-group-sub">{sub}</span>}
             {actions && <span className="table-group-actions">{actions}</span>}
           </span>
         </th>

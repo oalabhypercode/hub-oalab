@@ -5,6 +5,7 @@ import {
   cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, entriesWithoutActiveLogin, normalizeCompany,
   readCustomer, readPerson, readRegistration, serviceCustomerRefusal, suggestCustomer,
 } from "../lib/hub-users/rules.ts";
+import { entryOfLogin, groupLoginsByCompany } from "../lib/hub-users/company-groups.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -333,4 +334,62 @@ test("a freelancer login asks for no freelancer: it is the freelancer's own (use
   assert.equal(panels.split("choicePayload(").length - 1, 3, "registration, new and edited logins");
   assert.match(panels, /choicePayload\(decision\.role, decision\.choices, person\)/);
   assert.equal(panels.split(", who)").length - 1, 2, "new and edited logins pass the person");
+});
+
+test("„Zugänge“ stand under their company, the admins under oalab (user 21.11.2026)", async () => {
+  const entries = [
+    { id: "c-z", company: "Zeta GmbH", archivedAt: null, archivedLoginIds: [] },
+    { id: "c-a", company: "Äpfel & Co", archivedAt: null, archivedLoginIds: [] },
+    { id: "f-1", company: "Mia Berg", archivedAt: null, archivedLoginIds: [] },
+    { id: "c-old", company: "Alt AG", archivedAt: "2026-11-17T10:00:00Z", archivedLoginIds: ["u-archived"] },
+  ];
+  const login = (id, status, role, customerIds = []) => ({ id, status, role, customerIds });
+  const logins = [
+    login("u-1", "active", "oalab_customer", ["c-z"]),
+    login("u-2", "pending", null),
+    login("u-3", "active", "oalab_admin"),
+    login("u-4", "active", "oalab_customer", ["c-a"]),
+    login("u-5", "rejected", null),
+    login("u-6", "disabled", "oalab_freelancer", ["f-1"]),
+    login("u-archived", "disabled", "oalab_customer"),
+    login("u-lost", "active", "oalab_customer", ["gone"]),
+    login("u-7", "active", "oalab_customer", ["c-z"]),
+    login("u-8", "active", "oalab_admin", ["c-z"]),
+  ];
+  const groups = groupLoginsByCompany(logins, entries);
+  // Waiting registrations on top, then oalab, the companies A–Z (archived ones last), the rest; rows keep their order.
+  assert.deepEqual(groups.map((group) => [group.key, group.rows.map((row) => row.id)]), [
+    ["pending", ["u-2"]],
+    ["oalab", ["u-3", "u-8"]],
+    ["entry-c-a", ["u-4"]],
+    ["entry-f-1", ["u-6"]],
+    ["entry-c-z", ["u-1", "u-7"]],
+    ["entry-c-old", ["u-archived"]],
+    ["none", ["u-lost"]],
+    ["rejected", ["u-5"]],
+  ]);
+  assert.equal(groups.find((group) => group.key === "entry-c-z").entry, entries[0]);
+  // The fixed groups always come back, a company only with logins; an archive remembers whose login it took.
+  assert.deepEqual(groupLoginsByCompany([], entries).map((group) => group.key), ["pending", "oalab", "none", "rejected"]);
+  assert.equal(entryOfLogin(login("u-archived", "disabled", "oalab_customer"), entries), entries[3]);
+
+  const page = await source("components/hub/screens/users.tsx");
+  // By company is the first view, and the rows read their company the same way.
+  assert.match(page, /const \[grouping, setGrouping\] = useState<UserGrouping>\("company"\);/);
+  assert.match(page, /const customerOf = \(user: ManagedUser\) => entryOfLogin\(user, entries\);/);
+  assert.match(page, /const companyGroups = groupLoginsByCompany\(shownUsers, entries\)/);
+  // A company's heading adds one more login there and opens its data; oalab adds an admin, and so does the gear.
+  assert.match(page, /onClick=\{\(\) => newLoginFor\(entry\.id\)\} aria-label=\{`Zugang für \$\{entry\.company\} anlegen`\}/);
+  assert.match(page, /onClick=\{\(\) => open\(entryDialog\(entry\.kind, entry\.id\)\)\}/);
+  assert.match(page, /\{!entry\.archivedAt && <button type="button" className="table-group-add"/, "an archived company takes no new login");
+  assert.match(page, /const adminLogin: Dialog = \{ kind: "user", role: "oalab_admin" \};/);
+  assert.match(page, /onClick=\{\(\) => open\(adminLogin\)\} aria-label="Admin anlegen"/);
+  assert.match(page, /\{ icon: ShieldCheck, label: "Admin anlegen", hint: "[^"]+", onSelect: onAdmin \}/);
+  // A new admin and a new login are different panels, so the chosen role never sticks to the other one.
+  assert.match(page, /key=\{dialog\.userId \?\? `new-\$\{dialog\.customerId \?\? dialog\.role \?\? ""\}`\}/);
+  const panels = await source("components/hub/screens/users-dialogs.tsx");
+  assert.match(panels, /const roleSection = \(role: HubRole\) => role === "oalab_customer" \? "Rolle und Kunde" : "Rolle";/);
+  assert.equal(panels.split("<PanelSection title={roleSection(").length - 1, 2, "registration and login");
+  const knowledge = await source("lib/hub-assistant/knowledge.ts");
+  assert.match(knowledge, /„Admin anlegen“ im Zahnrad unter „Zugänge“/);
 });
