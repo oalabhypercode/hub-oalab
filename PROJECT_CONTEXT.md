@@ -3,7 +3,7 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 20. November 2026
+**Stand:** 21. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
 
 ### Vorgabe vom 19. November 2026: Claude-Connector für Freelancer (Lesen, Aufgaben und Terminanfragen)
@@ -129,7 +129,7 @@
   - Für Freelancer: kein Bereich Projekte, kein Knopf zur Serviceplattform, in der Übersicht „Deine Kunden“ und „Neue Dateien“.
   - Alles liest die neuen Spalten fehlertolerant: Ohne Migration bleibt der Hub wie vorher.
 - Grenzen: Rechtlich braucht es mit jedem Freelancer eine Vereinbarung zu Vertraulichkeit und Auftragsverarbeitung, und die Datenschutzerklärung muss Freelancer als Empfänger nennen (vor echten Kundendaten).
-- Seit 20. November 2026 (Migration `202611200001_hub_freelancer_customer_list.sql` in `service-oalab`, Hub-Seite vorher live): Freelancer lesen in `hub_customers` nur noch ihren eigenen Eintrag. Name, Kundennummer und Logo ihrer Kunden kommen aus `hub_freelancer_customer_list()` (`lib/hub-freelancer-customers/list.ts`, genutzt von Asset Management und Kalender), Kontaktdaten und Pakete nur über `hub_freelancer_customer_cards()` mit Freigabe. Vorher gab die Datenbank Freelancern die ganze Kundenzeile, die Freigaben galten nur im Hub-Code. Die Logo-Regel im Speicher prüft über `hub_freelancer_sees_logo()`.
+- Mit der Migration `202611200001_hub_freelancer_customer_list.sql` in `service-oalab` (gebaut 20. November 2026; die Hub-Seite, hub-oalab#137, geht am 21. November 2026 vorher live und liest ohne die Funktion wie bisher): Freelancer lesen in `hub_customers` nur noch ihren eigenen Eintrag. Name, Kundennummer und Logo ihrer Kunden kommen aus `hub_freelancer_customer_list()` (`lib/hub-freelancer-customers/list.ts`, genutzt von Asset Management und Kalender), Kontaktdaten und Pakete nur über `hub_freelancer_customer_cards()` mit Freigabe. Vorher gab die Datenbank Freelancern die ganze Kundenzeile, die Freigaben galten nur im Hub-Code. Die Logo-Regel im Speicher prüft über `hub_freelancer_sees_logo()`.
 
 ### Vorgabe vom 4. November 2026: Impressum und Datenschutz im Hub
 

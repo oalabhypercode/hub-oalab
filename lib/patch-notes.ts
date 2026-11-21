@@ -41,14 +41,22 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 28,
+    date: "2026-11-21",
+    title: "Kundendaten für Freelancer",
+    summary: "Der Hub holt Namen, Kundennummern und Logos der Kunden eines Freelancers jetzt über eine eigene, schmale Abfrage: im Asset Management, an den Dateien und im Kalender. Damit kann die Datenbank Freelancern die übrigen Kundendaten ganz sperren; Kontaktdaten und gebuchte Pakete gibt es dann nur noch über „Vertrag & Domain“ mit Freigabe.",
+    changes: [
+      { kind: "security", title: "Kundendaten für Freelancer nur mit Freigabe", text: "Kontaktdaten und gebuchte Pakete ihrer Kunden sehen Freelancer weiterhin nur mit eurer Freigabe unter „Vertrag & Domain“. Neu holt der Hub Namen und Logos ihrer Kunden über eine eigene Abfrage, die nur diese Angaben liefert; so kann auch die Datenbank die übrigen Kundendaten für Freelancer sperren. Im Asset Management, im Kalender und unter „Kunden“ sehen Freelancer dasselbe wie bisher." },
+    ],
+  },
+  {
     number: 27,
     date: "2026-11-20",
     title: "Claude für Freelancer",
-    summary: "Admins schalten Claude im User Management für einzelne Freelancer-Zugänge ein (Zeile „Claude“ unter Sicherheit, ab Werk aus). Freelancer verbinden Claude dann im Profil unter „Verbundene Apps“. Der Connector arbeitet für sie nur mit ihren eigenen Rechten: Er liest ihre Projekte mit den Aufgaben ohne „Nur Team“, die betreuten Kunden ohne Kontaktdaten, freie Zeiten bei oalab und die eigenen Anfragen, legt Aufgaben an, ändert, verschiebt und kommentiert sie wie im Board und stellt Terminanfragen oder zieht sie zurück. Jede Änderung steht im Admin-Protokoll. Eine Verbindung gilt 30 Tage ab „Erlauben“; Ausschalten, Deaktivieren oder Archivieren beendet sie sofort. Außerdem bekommen Freelancer Kontaktdaten und gebuchte Pakete ihrer Kunden jetzt auch technisch nur noch mit Freigabe; Namen und Logos ihrer Kunden kommen über eine eigene, schmale Abfrage.",
+    summary: "Admins schalten Claude im User Management für einzelne Freelancer-Zugänge ein (Zeile „Claude“ unter Sicherheit, ab Werk aus). Freelancer verbinden Claude dann im Profil unter „Verbundene Apps“. Der Connector arbeitet für sie nur mit ihren eigenen Rechten: Er liest ihre Projekte mit den Aufgaben ohne „Nur Team“, die betreuten Kunden ohne Kontaktdaten, freie Zeiten bei oalab und die eigenen Anfragen, legt Aufgaben an, ändert, verschiebt und kommentiert sie wie im Board und stellt Terminanfragen oder zieht sie zurück. Jede Änderung steht im Admin-Protokoll. Eine Verbindung gilt 30 Tage ab „Erlauben“; Ausschalten, Deaktivieren oder Archivieren beendet sie sofort.",
     changes: [
       { kind: "new", title: "Claude für Freelancer einschalten", text: "Im User Management schaltest du Claude jetzt für einzelne Freelancer-Zugänge ein, unter „Sicherheit“ in der Zeile „Claude“. Claude arbeitet dann nur mit den Rechten dieses Zugangs: eigene Projekte und Aufgaben, Terminanfragen bei oalab, keine Kontaktdaten der Kunden; jede Änderung steht im Admin-Protokoll. Darunter siehst und trennst du die Verbindungen; Ausschalten trennt alle sofort." },
       { kind: "new", title: "Claude verbinden", text: "Hat das oalab-Team es für dich eingeschaltet, verbindest du Claude im Profil unter „Verbundene Apps“ mit dem Hub. Dann fragst du in Claude nach deinen Aufgaben und freien Zeiten, lässt Aufgaben anlegen, verschieben oder kommentieren und fragst Termine an. Claude sieht nur, was du im Hub siehst, fragt vor jeder Änderung, und eine Verbindung gilt 30 Tage.", freelancers: true },
-      { kind: "security", title: "Kundendaten für Freelancer nur mit Freigabe", text: "Kontaktdaten und gebuchte Pakete ihrer Kunden bekommen Freelancer jetzt auch technisch nur noch mit eurer Freigabe unter „Vertrag & Domain“; vorher sperrte sie nur die Ansicht. Für Namen und Logos ihrer Kunden gibt es eine eigene Abfrage, die nur diese Angaben liefert. Im Asset Management, im Kalender und unter „Kunden“ sehen Freelancer dasselbe wie bisher." },
     ],
   },
   {
