@@ -183,13 +183,21 @@ function DomainRow({ domain, today, onEdit }: { domain: CustomerDomain; today: s
   return (
     <tr className="file-row">
       <td className="cell-file">
-        <span className="am-file" data-tip={[domain.display !== domain.domain ? domain.domain : "", details.note].filter(Boolean).join("\n") || undefined}>
+        <a
+          className="am-file"
+          href={`https://${domain.domain}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-tip="Website öffnen"
+          data-tip-sub={[domain.display !== domain.domain ? domain.domain : "", details.note].filter(Boolean).join("\n") || "neuer Tab"}
+        >
           <span className="am-file-icon cdm-file-icon is-domain"><Globe size={16} aria-hidden="true" /></span>
           <span className="am-file-text">
             <strong>{domain.display}{details.note && <StickyNote size={13} className="cdm-note-mark" aria-label="Mit Notiz" />}</strong>
             <small>{where}{details.owner === "oalab" ? ` · gehört ${domainOwners.oalab}` : ""}</small>
           </span>
-        </span>
+          <span className="visually-hidden"> (öffnet in neuem Tab)</span>
+        </a>
       </td>
       <td className="cell-category"><span className="status-cell"><StatusGlyph kind={statusGlyphs[details.status]} />{domainStatuses[details.status].label}</span></td>
       <td className="cell-date numeric">

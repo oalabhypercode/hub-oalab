@@ -41,6 +41,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 29,
+    date: "2026-11-22",
+    title: "Domains direkt öffnen",
+    summary: "Im Reiter „Domain & Mail“ eines Kunden ist der Name jeder Domain jetzt ein Link: Ein Klick öffnet die Website in einem neuen Tab. Vorher wurde der Name beim Überfahren wie ein Link unterstrichen, ließ sich aber nicht anklicken.",
+    changes: [
+      { kind: "fixed", title: "Domains anklickbar", text: "Im Reiter „Domain & Mail“ öffnet ein Klick auf den Namen einer Domain jetzt die Website in einem neuen Tab. Bisher sah der Name beim Überfahren wie ein Link aus, tat aber nichts. Notiz und technische Schreibweise der Domain stehen weiter im Hinweis beim Überfahren." },
+    ],
+  },
+  {
     number: 28,
     date: "2026-11-21",
     title: "Kundendaten für Freelancer und Zugänge nach Unternehmen",
