@@ -8,8 +8,9 @@ export type KeychainOwner = { id: string | null; company: string; customerNumber
 
 /**
  * One access. Mailboxes come from „Vertrag & Domain“ (address, person) and always sit under „Postfächer“; logins are the
- * rows of hub_customer_logins, from there or made here. Of password and note only whether one is stored: their text
- * only travels through the reveal actions, after the unlock check.
+ * rows of hub_customer_logins, from there or made here, a mailbox made here among them (category „Postfächer“). Of
+ * password and note only whether one is stored: their text only travels through the reveal actions, after the unlock
+ * check.
  */
 export type KeychainEntry = {
   id: string;
