@@ -202,3 +202,20 @@ test("XL only widens desktops, Standard keeps its paddings, and every table page
   assert.match(css, /\.sheet-fill \{ flex: 1 0 auto; \}/);
   assert.match(css, /\n\.am \{ height: calc\(100dvh - 148px\);/);
 });
+
+test("Schriftgröße der Notizen: Mittel unless chosen, per device, set on <html> before the first paint (22.11.2026)", () => {
+  assert.equal(defaultAppearance.notesTextSize, "medium");
+  // An appearance stored before the notes existed means „Mittel“.
+  assert.equal(normalizeAppearance({ pageWidth: "xl" }).notesTextSize, "medium");
+  assert.equal(normalizeAppearance({ notesTextSize: "large" }).notesTextSize, "large");
+  assert.equal(normalizeAppearance({ notesTextSize: "huge" }).notesTextSize, "medium");
+  assert.equal(resolveAppearance({ notesTextSize: "small" }, backgroundPresets, false).notesText, "small");
+  assert.equal(resolveAppearance(null, backgroundPresets, false).notesText, "medium");
+  const root = { style: { setProperty() {} }, dataset: {} };
+  vm.runInNewContext(appearanceInlineScript(), {
+    localStorage: { getItem: () => JSON.stringify({ notesTextSize: "large" }) },
+    window: { matchMedia: () => ({ matches: false }) },
+    document: { documentElement: root },
+  });
+  assert.equal(root.dataset.notesText, "large");
+});

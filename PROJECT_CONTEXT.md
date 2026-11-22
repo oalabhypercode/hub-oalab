@@ -3,8 +3,16 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 21. November 2026
+**Stand:** 22. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
+
+### Vorgabe vom 22. November 2026: Notizen unter Projekte (Plan 1, Etappen 1 bis 3)
+
+- Plan `docs/planung/notizen.md` (freigegeben am 22.11.2026, alle 16 Entscheidungen wie empfohlen), Gestaltung nach der Vorschau V2 (Schreiben im Vordergrund, Zahnrad je Seite und für alle Notizen, einklappbare Seitenliste, Fokus, Links, Tabellen, Emojis, Titelbilder, Schriftgröße je Gerät). Branch `feat/notizen` im Hub, `feat/hub-notes` in service-oalab.
+- Etappe 1 (Grundgerüst): Migration `202611221001_hub_notes.sql` mit `hub_note_pages` (je Kunde, nur Art „customer“, Dokument als Tiptap-JSON bis 1 MB, `content_text` für die Suche, `version` steigt bei jedem Speichern, Papierkorb über `deleted_at`), `hub_note_links` (Verweise, vom Trigger aus dem JSON gelesen) und `hub_note_settings` (eine Zeile Standardwerte). Regeln: Admins alles; Kunden lesen „Kunde und Freelancer“ und „Nur Kunde“ ihres Kunden (`hub_note_member_reads`: aktiv, Mitglied, nicht archiviert); Freelancer lesen „Kunde und Freelancer“ und „Nur Freelancer“ über `hub_freelancer_sees()` und schreiben nur „Nur Freelancer“. Der Wächter `hub_note_pages_guard` hält Sichtbarkeit, Kunde, Elternseite, Termin und Papierkorb beim Team, setzt die Unterseiten-Regel durch (höchstens so sichtbar wie die Elternseite, fünf Ebenen, keine Kreise, Projekt und Termin desselben Kunden) und zählt die Version hoch; `hub_note_pages_follow` stellt Unterseiten mit enger und nimmt sie in den Papierkorb mit. Geprüft in PGlite mit echten Rollen (14 Fälle).
+- Hub: `lib/hub-notes/` (types, rules mit Stufen, Unterseiten-Regel und Prüfung des JSON, emoji, covers, server, write, actions, fixtures), Oberfläche in `components/hub/screens/notes*.tsx`, Stile in `app/notes.css` (Klassen `nz-`, weil die Übersicht `nt-` schon nutzt). Editor Tiptap 3.33.0 (MIT, fest gepinnt), nur auf der Notizen-Seite nachgeladen. Gespeichert wird mit der Sitzung der Person nach einer Sekunde, nur nach echten Eingaben (Tiptaps eigene Normalisierung speichert nicht), mit Versionsprüfung; ist inzwischen jemand anderes schneller, kommt die aktuelle Seite zurück und der eigene Text bleibt stehen. Autosave lädt die Seite nicht neu (keine `refreshWorkspace`).
+- Emojis: Microsoft Fluent Emoji 3D (MIT, Lizenz in `public/emoji/fluent/LICENSE.txt`), 153 Emojis als WebP (144 px), jedes über die Metadaten des offiziellen Repos geprüft; im Dokument steht das Unicode-Zeichen. Schriftgröße je Gerät: `notesTextSize` im Erscheinungsbild, vor dem ersten Bild als `data-notes-text` an `<html>`.
+- Vorschau: `/preview/projects/notes`, mit `?role=customer` und `?role=freelancer`. Ohne Migration zeigt die echte Seite „Notizen sind noch nicht eingerichtet“.
 
 ### Vorgabe vom 21. November 2026: Zugänge nach Unternehmen, „Admin anlegen“
 

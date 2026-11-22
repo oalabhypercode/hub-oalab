@@ -1,0 +1,238 @@
+import "server-only";
+import { cache } from "react";
+import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyHubAdmin, verifyHubFreelancer } from "@/lib/hub-users/server";
+import { loadArchive } from "@/lib/hub-archive/server";
+import { loadCustomerLogos, signCustomerLogos } from "@/lib/hub-logos/server";
+import { loadFreelancerCustomerList } from "@/lib/hub-freelancer-customers/list";
+import { loadLiveProjects } from "@/lib/hub-projects/server";
+import { cleanCoverPosition, isGalleryCover } from "./covers";
+import { childrenOf, emptyNoteDoc, isNoteAudience, isNoteWidth, isUuid } from "./rules";
+import type { NoteCover, NoteCustomer, NoteDoc, NotePage, NotePageMeta, NoteProject, NotesArea, NoteSettings, NotesCustomerView, NoteTemplateId, NoteViewer } from "./types";
+
+// Notes (plan docs/planung/notizen.md) are read with the person's *own* session: the rules of hub_note_pages decide
+// (migration 202611221001 in service-oalab). Admins pass the user management's check (hub role, second factor,
+// is_hub_admin()), freelancers the board's (active, confirmed code), customers need an active profile. Only names come
+// with the server key: of the customers' projects for admins, of a freelancer's own projects, and of the people who last
+// edited a page (never for customers, who only learn that oalab shared a page). Without the migration the page says
+// that notes are not set up yet instead of failing.
+
+export const NOTES_CUSTOMER_COOKIE = "oalab-notes-customer";
+export const PAGE_COLUMNS = "id, customer_id, project_id, parent_id, appointment_id, title, icon, cover_kind, cover_value, cover_position, width, audience, dated_on, position, version, updated_by, updated_at, created_at";
+
+export type PageRow = {
+  id: string;
+  customer_id: string;
+  project_id: string | null;
+  parent_id: string | null;
+  appointment_id: string | null;
+  title: string;
+  icon: string;
+  cover_kind: string | null;
+  cover_value: string | null;
+  cover_position: number;
+  width: string;
+  audience: string;
+  dated_on: string | null;
+  position: number;
+  version: number;
+  updated_by: string | null;
+  updated_at: string;
+  created_at: string;
+  content?: unknown;
+};
+
+export type NotesContext = { viewer: NoteViewer; userId: string; session: SupabaseClient; db: SupabaseClient | null };
+
+/** The table or a column of the notes migration is missing. */
+export const notesMissing = (error: { code?: string; message?: string } | null | undefined) =>
+  Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || error.code === "PGRST200" || error.code === "42703" || /hub_note/i.test(error.message ?? "")));
+
+export const NOT_READY = "Notizen sind noch nicht eingerichtet: Die Datenbank kennt sie noch nicht.";
+const LOAD_ERROR = "Die Notizen konnten gerade nicht geladen werden. Bitte versuche es erneut.";
+
+export const DEFAULT_SETTINGS: NoteSettings = { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" };
+const templates: readonly NoteTemplateId[] = ["meeting", "briefing", "acceptance", "blank"];
+
+type SettingsRow = { default_audience: string; notify_on_share: boolean; group_by_project: boolean; meeting_template: string; default_width: string };
+export const SETTINGS_COLUMNS = "default_audience, notify_on_share, group_by_project, meeting_template, default_width";
+
+export function toSettings(row: SettingsRow | null | undefined): NoteSettings {
+  if (!row) return DEFAULT_SETTINGS;
+  return {
+    defaultAudience: isNoteAudience(row.default_audience) ? row.default_audience : "team",
+    notifyOnShare: row.notify_on_share !== false,
+    groupByProject: row.group_by_project !== false,
+    meetingTemplate: templates.includes(row.meeting_template as NoteTemplateId) ? row.meeting_template as NoteTemplateId : "meeting",
+    defaultWidth: isNoteWidth(row.default_width) ? row.default_width : "normal",
+  };
+}
+
+function toCover(row: PageRow): NoteCover | null {
+  if (!row.cover_kind || !row.cover_value) return null;
+  const position = cleanCoverPosition(row.cover_position);
+  if (row.cover_kind === "gallery") return isGalleryCover(row.cover_value) ? { kind: "gallery", value: row.cover_value, position } : null;
+  if (row.cover_kind === "file" || row.cover_kind === "upload") return { kind: row.cover_kind, value: row.cover_value, position, url: null };
+  return null;
+}
+
+export function toMeta(row: PageRow): NotePageMeta {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    projectId: row.project_id,
+    parentId: row.parent_id,
+    appointmentId: row.appointment_id,
+    title: row.title,
+    icon: row.icon ?? "",
+    cover: toCover(row),
+    width: isNoteWidth(row.width) ? row.width : "normal",
+    audience: isNoteAudience(row.audience) ? row.audience : "team",
+    datedOn: row.dated_on,
+    position: Number(row.position) || 0,
+    version: row.version,
+    updatedBy: row.updated_by,
+    updatedAt: row.updated_at,
+    createdAt: row.created_at,
+  };
+}
+
+export const toDoc = (value: unknown): NoteDoc => value && typeof value === "object" && (value as NoteDoc).type === "doc" ? value as NoteDoc : emptyNoteDoc();
+
+/** Who looks, with which session; null for logins that may not open notes (or must confirm their code first). */
+export const notesContext = cache(async (): Promise<NotesContext | null> => {
+  const admin = await verifyHubAdmin();
+  if (admin) return { viewer: "admin", userId: admin.userId, session: await createClient() as unknown as SupabaseClient, db: createAdminClient() };
+  const freelancer = await verifyHubFreelancer();
+  if (freelancer) return { viewer: "freelancer", userId: freelancer.userId, session: freelancer.supabase as unknown as SupabaseClient, db: createAdminClient() };
+  const session = await createClient();
+  const { data } = await session.auth.getClaims();
+  const role = (data?.claims?.app_metadata as Record<string, unknown> | undefined)?.app_role;
+  if (!data?.claims || role === "oalab_admin" || role === "oalab_freelancer") return null;
+  const { data: profile } = await session.from("hub_profiles").select("status").eq("user_id", data.claims.sub).maybeSingle<{ status: string }>();
+  if (profile?.status !== "active") return null;
+  return { viewer: "customer", userId: data.claims.sub, session: session as unknown as SupabaseClient, db: createAdminClient() };
+});
+
+type CustomerRow = { id: string; company: string; customer_number: string; organization_id?: string | null; logo_path?: string | null; logo_background?: string | null; logo_color?: string | null };
+type Listed = NoteCustomer & { organizationId: string | null };
+
+/** The customers whose notes the viewer may open: admins every customer (not archived), freelancers theirs, customers their own. */
+export async function notesCustomers(ctx: NotesContext): Promise<Listed[] | null> {
+  if (ctx.viewer === "admin") {
+    const [rows, archive, links] = await Promise.all([
+      ctx.session.from("hub_customers").select("id, company, customer_number, organization_id, kind").eq("kind", "customer").order("company").returns<CustomerRow[]>(),
+      loadArchive(),
+      ctx.session.from("hub_freelancer_customers").select("freelancer_id, customer_id").returns<{ freelancer_id: string; customer_id: string }[]>(),
+    ]);
+    if (rows.error) return null;
+    const shown = (rows.data ?? []).filter((row) => !archive.customerIds.has(row.id));
+    const logos = await loadCustomerLogos(ctx.session, shown.map((row) => row.id));
+    const served = new Set((links.error ? [] : links.data ?? []).filter((link) => !archive.customerIds.has(link.freelancer_id)).map((link) => link.customer_id));
+    return shown.map((row) => ({ id: row.id, name: row.company, number: row.customer_number, organizationId: row.organization_id ?? null, hasFreelancer: served.has(row.id), ...(logos.get(row.id) ? { logo: logos.get(row.id) } : {}) }));
+  }
+  if (ctx.viewer === "freelancer") {
+    const listed = await loadFreelancerCustomerList(ctx.session);
+    const rows: CustomerRow[] = listed ?? (await ctx.session.from("hub_customers").select("id, company, customer_number, organization_id, kind").eq("kind", "customer").returns<CustomerRow[]>()).data ?? [];
+    const logos = await signCustomerLogos(ctx.session, rows.map((row) => ({ id: row.id, logo_path: row.logo_path ?? null, logo_background: row.logo_background ?? null, logo_color: row.logo_color ?? null })));
+    return rows
+      .map((row) => ({ id: row.id, name: row.company, number: row.customer_number, organizationId: row.organization_id ?? null, hasFreelancer: true, ...(logos.get(row.id) ? { logo: logos.get(row.id) } : {}) }))
+      .sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }
+  const members = await ctx.session.from("hub_customer_members").select("customer_id").eq("user_id", ctx.userId).returns<{ customer_id: string }[]>();
+  const ids = (members.data ?? []).map((row) => row.customer_id);
+  if (members.error) return null;
+  if (!ids.length) return [];
+  const rows = await ctx.session.from("hub_customers").select("id, company, customer_number").in("id", ids).returns<CustomerRow[]>();
+  if (rows.error) return null;
+  const logos = await loadCustomerLogos(ctx.session, ids);
+  // Customers do not learn who looks after them.
+  return (rows.data ?? []).map((row) => ({ id: row.id, name: row.company, number: row.customer_number, organizationId: null, hasFreelancer: false, ...(logos.get(row.id) ? { logo: logos.get(row.id) } : {}) }));
+}
+
+/** The projects a page of this customer may hang under, as the viewer may name them. */
+async function notesProjects(ctx: NotesContext, customer: Listed): Promise<NoteProject[]> {
+  if (ctx.viewer === "customer") {
+    const live = await loadLiveProjects();
+    return live.projects.filter((project) => project.customerId === customer.id).map((project) => ({ id: project.id, name: project.name }));
+  }
+  const db = ctx.db;
+  if (!db || !customer.organizationId) return [];
+  if (ctx.viewer === "admin") {
+    const rows = await db.from("customer_projects").select("id, display_name").eq("organization_id", customer.organizationId).neq("status", "archived").order("display_name").returns<{ id: string; display_name: string }[]>();
+    return (rows.data ?? []).map((row) => ({ id: row.id, name: row.display_name }));
+  }
+  // Freelancers name only the projects an admin put them on (as on their board).
+  const own = await ctx.session.from("studio_project_freelancers").select("project_id").returns<{ project_id: string }[]>();
+  const ids = [...new Set((own.data ?? []).map((row) => row.project_id))];
+  if (!ids.length) return [];
+  const rows = await db.from("customer_projects").select("id, display_name").in("id", ids).eq("organization_id", customer.organizationId).neq("status", "archived").order("display_name").returns<{ id: string; display_name: string }[]>();
+  return (rows.data ?? []).map((row) => ({ id: row.id, name: row.display_name }));
+}
+
+/** Names of the people who last edited, for the team and freelancers; customers see none. */
+export async function namesOf(ctx: NotesContext, ids: (string | null)[]): Promise<Record<string, string>> {
+  const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (ctx.viewer === "customer" || !ctx.db || !wanted.length) return {};
+  const { data } = await ctx.db.from("hub_profiles").select("user_id, first_name, last_name").in("user_id", wanted).returns<{ user_id: string; first_name: string | null; last_name: string | null }[]>();
+  return Object.fromEntries((data ?? []).map((row) => [row.user_id, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || "Teammitglied"]));
+}
+
+/** The pages of one customer the viewer may see, without their documents. */
+export async function readPages(ctx: NotesContext, customerId: string) {
+  return ctx.session.from("hub_note_pages").select(PAGE_COLUMNS).eq("customer_id", customerId).is("deleted_at", null).order("position").returns<PageRow[]>();
+}
+
+/** One page with its document, as the viewer may see it; null when it is gone or not visible. */
+export async function readPage(ctx: NotesContext, id: string): Promise<NotePage | null> {
+  if (!isUuid(id)) return null;
+  const { data, error } = await ctx.session.from("hub_note_pages").select(`${PAGE_COLUMNS}, content`).eq("id", id).is("deleted_at", null).maybeSingle<PageRow>();
+  if (error || !data) return null;
+  return { ...toMeta(data), content: toDoc(data.content) };
+}
+
+/** List, projects and names for one customer the viewer may open; null when they may not. */
+export async function customerView(ctx: NotesContext, customers: Listed[], customerId: string): Promise<NotesCustomerView | null> {
+  const customer = customers.find((item) => item.id === customerId);
+  if (!customer) return null;
+  const [pages, projects] = await Promise.all([readPages(ctx, customer.id), notesProjects(ctx, customer)]);
+  if (pages.error) return null;
+  const metas = (pages.data ?? []).map(toMeta);
+  return { customerId: customer.id, projects, pages: metas, people: await namesOf(ctx, metas.map((page) => page.updatedBy)) };
+}
+
+const failed = (viewer: NoteViewer, error: string, ready = true): NotesArea => ({ viewer, viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: DEFAULT_SETTINGS, people: {}, ready, error });
+
+/** The first page of the list: the first top-level page in the order of the list. */
+const firstPage = (pages: NotePageMeta[]) => childrenOf(pages, null)[0] ?? null;
+
+/**
+ * The notes page for the signed-in login: the customers they may open, for the chosen one (address, then the page's
+ * customer, then the last one an admin opened in this browser, then the first) the projects and the pages, and the open
+ * page with its document. `customer` and `page` come from the address (?customer=, ?page=).
+ */
+export const loadNotes = cache(async (customer?: string, page?: string): Promise<NotesArea> => {
+  const ctx = await notesContext();
+  if (!ctx) return failed("customer", "Notizen öffnest du mit einem aktiven Zugang; Freelancer bestätigen ihre Anmeldung mit einem Code.");
+  const settings = await ctx.session.from("hub_note_settings").select(SETTINGS_COLUMNS).maybeSingle<SettingsRow>();
+  if (notesMissing(settings.error)) return failed(ctx.viewer, NOT_READY, false);
+  const customers = await notesCustomers(ctx);
+  if (!customers) return failed(ctx.viewer, LOAD_ERROR);
+  const base = { viewer: ctx.viewer, viewerId: ctx.userId, settings: toSettings(settings.data), ready: true, error: null };
+  const list: NotesArea["customers"] = customers.map((item) => ({ id: item.id, name: item.name, number: item.number, hasFreelancer: item.hasFreelancer, ...(item.logo ? { logo: item.logo } : {}) }));
+  if (!customers.length) return { ...base, customers: list, customerId: null, projects: [], pages: [], page: null, people: {} };
+
+  const opened = page && isUuid(page) ? await readPage(ctx, page) : null;
+  const remembered = ctx.viewer === "admin" ? (await cookies()).get(NOTES_CUSTOMER_COOKIE)?.value : undefined;
+  const known = (id: string | null | undefined) => id && customers.some((item) => item.id === id) ? id : null;
+  const customerId = known(opened?.customerId) ?? known(customer) ?? known(remembered) ?? customers[0].id;
+  const view = await customerView(ctx, customers, customerId);
+  if (!view) return { ...failed(ctx.viewer, LOAD_ERROR), customers: list };
+  const shown = opened && opened.customerId === customerId ? opened : null;
+  const fallback = shown ? null : firstPage(view.pages);
+  const openPage = shown ?? (fallback ? await readPage(ctx, fallback.id) : null);
+  return { ...base, customers: list, ...view, page: openPage };
+});

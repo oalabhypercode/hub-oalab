@@ -18,6 +18,12 @@ export type ListView = "minimal" | "list" | "detail";
 /** Breite: the page as it was (Standard), or the sheets almost edge to edge like an IDE (XL). */
 export type PageWidth = "standard" | "xl";
 
+/**
+ * Schriftgröße der Notizen (22.11.2026): Klein 15 px, Mittel 16,5 px (default) or Groß 18,5 px. Per device like the
+ * width, never in the account; app/notes.css scales the whole writing area from it.
+ */
+export type NotesTextSize = "small" | "medium" | "large";
+
 export type BackgroundPreset = {
   id: BackgroundPresetId;
   name: string;
@@ -35,6 +41,7 @@ export type Appearance = {
   reduceMotion: boolean;
   listView: ListView;
   pageWidth: PageWidth;
+  notesTextSize: NotesTextSize;
 };
 
 /** White text reaches at least 4.5:1 on every base and orb colour (see tests/appearance.test.mjs). */
@@ -62,9 +69,10 @@ export const defaultAppearance: Appearance = {
   reduceMotion: false,
   listView: "minimal",
   pageWidth: "standard",
+  notesTextSize: "medium",
 };
 
-export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark"; width: PageWidth };
+export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark"; width: PageWidth; notesText: NotesTextSize };
 
 /** The dark theme shows the background at this brightness at most (glass.css mixes it with black, --bg-shade). */
 export const DARK_BACKGROUND_SHADE = 0.62;
@@ -114,6 +122,8 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
     theme,
     // Set before the first paint like the theme, so a page in XL does not open narrow and then jump wide.
     width: input.pageWidth === "xl" ? "xl" : "standard",
+    // The notes' text size, also before the first paint, so a page in Groß does not open in Mittel and then grow.
+    notesText: input.notesTextSize === "small" || input.notesTextSize === "large" ? input.notesTextSize : "medium",
   };
 }
 
@@ -133,6 +143,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : defaultAppearance.reduceMotion,
     listView: input.listView === "detail" || input.listView === "list" ? input.listView : "minimal",
     pageWidth: input.pageWidth === "xl" ? "xl" : "standard",
+    notesTextSize: input.notesTextSize === "small" || input.notesTextSize === "large" ? input.notesTextSize : "medium",
   };
 }
 
@@ -144,6 +155,7 @@ export function applyAppearanceToDocument(dom: AppearanceDom, root: HTMLElement)
   root.dataset.onBackground = dom.onBackground;
   root.dataset.theme = dom.theme;
   root.dataset.width = dom.width;
+  root.dataset.notesText = dom.notesText;
   // Native controls and scrollbars follow the theme as well.
   root.style.colorScheme = dom.theme;
 }

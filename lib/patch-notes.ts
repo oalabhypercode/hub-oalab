@@ -74,6 +74,19 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 30,
+    date: "2026-11-23",
+    title: "Notizen unter Projekte",
+    summary: "Neuer Bereich Projekte › Notizen: je Kunde Seiten und Unterseiten wie in Notion, gegliedert nach den Projekten des Kunden und „Allgemein“. Auf der Seite stehen nur Titelbild, Emoji, Titel und Text; Sichtbar für, Projekt, Datum, Symbol, Titelbild und Breite liegen hinter dem Zahnrad, die Standardwerte für alle Notizen hinter dem Zahnrad der Seitenliste. Geschrieben wird mit „/“, Markdown-Kürzeln, „:“ für Emojis (Fluent Emoji, vom Hub ausgeliefert), Werkzeugleiste, sauberen Links, Tabellen mit Spaltenarten und Aufklappern; gespeichert wird nach einer Sekunde mit Versionsprüfung. „Sichtbar für“ kennt vier Stufen (Nur Team als Standard), Unterseiten höchstens so sichtbar wie ihre Seite; Kunden lesen, Freelancer schreiben in „Nur Freelancer“. Die Datenbank prüft das selbst (Migration 202611221001 in service-oalab, vor dem Livegang einspielen). Dazu Fokus und die Schriftgröße je Gerät.",
+    changes: [
+      { kind: "new", area: "projects", place: "Projekte › Notizen", title: "Notizen je Kunde", text: "Unter Projekte gibt es jetzt Notizen: je Kunde Seiten und Unterseiten, gegliedert nach seinen Projekten. Ihr schreibt wie in Notion mit „/“ für Blöcke, Checklisten, Tabellen, Hinweisen und Emojis; gespeichert wird von selbst, und wer zuletzt gespeichert hat, wird nie überschrieben." },
+      { kind: "new", area: "projects", place: "Projekte › Notizen › Zahnrad", title: "Sichtbar für je Seite", text: "Jede neue Seite ist zuerst „Nur Team“. Über das Zahnrad einer Seite gebt ihr sie für den Kunden, seine Freelancer oder beide frei; Unterseiten sind höchstens so sichtbar wie die Seite darüber und gehen beim Einschränken mit. Das Zahnrad der Seitenliste legt die Standardwerte für alle Notizen fest." },
+      { kind: "new", area: "projects", place: "Projekte › Notizen", title: "Notizen von oalab", text: "Unter Projekte › Notizen liest du jetzt die Seiten, die oalab mit dir teilt, etwa Besprechungsnotizen und Briefings zu deinen Projekten. Am Handy findest du sie über „Mehr“.", customers: true },
+      { kind: "new", area: "projects", place: "Projekte › Notizen", title: "Notizen deiner Kunden", text: "Unter Projekte › Notizen liest du die Seiten, die oalab für dich freigibt, und legst eigene Seiten an, die nur das oalab-Team und du seht. Geschrieben wird wie in Notion mit „/“ für Blöcke; gespeichert wird von selbst.", freelancers: true },
+      { kind: "new", area: "hub", place: "Darstellung › Schriftgröße der Notizen", also: ["projects"], title: "Schriftgröße der Notizen", text: "Mit „Aa“ oben rechts in den Notizen oder unter Darstellung wählst du Klein, Mittel oder Groß. Die Wahl gilt nur auf diesem Gerät, so stellst du Handy und großen Bildschirm einzeln ein.", customers: true, freelancers: true },
+    ],
+  },
+  {
     number: 29,
     date: "2026-11-22",
     title: "Benachrichtigungen in Spalten und Patch Notes als Tabelle",
