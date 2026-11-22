@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Circle, ExternalLink, FileText, Lock, RotateCcw, Trash2, X } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, FileText, History, Lock, RotateCcw, Trash2, X } from "lucide-react";
 import { editedAgo } from "@/lib/hub-notes/rules";
 import { TEMPLATE_CHOICES } from "@/lib/hub-notes/templates";
-import type { NoteTaskView, NoteTemplateId, NoteTrashItem, NoteViewer } from "@/lib/hub-notes/types";
+import type { NoteRevision, NoteTaskView, NoteTemplateId, NoteTrashItem, NoteViewer } from "@/lib/hub-notes/types";
 import { EmojiGlyph } from "./notes-blocks";
 import { useDismiss } from "./notes-settings";
 
@@ -119,5 +119,58 @@ export function TemplateChips({ onPick }: { onPick: (id: NoteTemplateId) => void
         </button>
       ))}
     </div>
+  );
+}
+
+const whenFormat = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+const REASON: Record<NoteRevision["reason"], string> = { edit: "", audience: "vor einer Änderung von „Sichtbar für“", restore: "vor dem Wiederherstellen" };
+
+/**
+ * „Verlauf“ (team, step 3): the page's former versions, newest first. One shows its text; restoring it replaces title,
+ * symbol and text of the page, and the state before becomes a version itself. „Sichtbar für“ stays as it is.
+ */
+export function HistoryPanel({ items, error, onRestore, onClose }: { items: NoteRevision[] | null; error: string; onRestore: (revision: NoteRevision) => Promise<void>; onClose: () => void }) {
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const revision = items?.find((item) => item.id === chosen) ?? items?.[0] ?? null;
+  return (
+    <aside className="nz-peek-panel nz-history nz-glass" aria-label="Verlauf">
+      <div className="nz-pop-head"><strong><History size={15} aria-hidden="true" />Verlauf</strong><button type="button" className="nz-ibtn" aria-label="Schließen" onClick={onClose}><X size={16} aria-hidden="true" /></button></div>
+      <p className="nz-pop-note is-pad">Frühere Fassungen: höchstens eine alle 10 Minuten beim Schreiben und immer eine vor einer Änderung von „Sichtbar für“. Sie bleiben 90 Tage.</p>
+      {items === null && !error && <p className="nz-pop-note is-pad">Lädt …</p>}
+      {error && <p className="nz-pop-note is-pad is-warn" role="alert">{error}</p>}
+      {items && !items.length && <p className="nz-pop-note is-pad">Noch keine frühere Fassung. Sie entsteht beim nächsten Bearbeiten.</p>}
+      {items && items.length > 0 && revision && (
+        <div className="nz-history-body">
+          <div className="nz-history-list" role="listbox" aria-label="Fassungen">
+            {items.map((item) => (
+              <button key={item.id} type="button" role="option" aria-selected={item.id === revision.id} className={`nz-history-row${item.id === revision.id ? " is-on" : ""}`} onClick={() => { setChosen(item.id); setAsking(false); }}>
+                <strong>{whenFormat.format(new Date(item.savedAt))}</strong>
+                <span>{item.savedBy ?? "Teammitglied"}{REASON[item.reason] ? ` · ${REASON[item.reason]}` : ""}</span>
+              </button>
+            ))}
+          </div>
+          <div className="nz-history-view">
+            <h4 className="nz-history-title">{revision.icon ? <EmojiGlyph char={revision.icon} size={18} /> : null}{revision.title}</h4>
+            <div className="nz-history-text">{revision.text || "Diese Fassung hatte noch keinen Text."}</div>
+            <div className="nz-peek-actions">
+              {asking ? (
+                <>
+                  <button type="button" className="nz-btn is-primary" disabled={busy} onClick={async () => { setBusy(true); await onRestore(revision); setBusy(false); setAsking(false); }}><RotateCcw size={15} aria-hidden="true" />{busy ? "Stellt wieder her …" : "Ja, wiederherstellen"}</button>
+                  <button type="button" className="nz-btn" onClick={() => setAsking(false)}>Abbrechen</button>
+                </>
+              ) : <button type="button" className="nz-btn" onClick={() => setAsking(true)}><RotateCcw size={15} aria-hidden="true" />Diese Fassung wiederherstellen</button>}
+            </div>
+            {asking && <p className="nz-pop-note">Titel, Symbol und Text der Seite werden durch diese Fassung ersetzt. Der jetzige Stand bleibt im Verlauf.</p>}
+          </div>
+        </div>
+      )}
+    </aside>
   );
 }

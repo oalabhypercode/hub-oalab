@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BriefcaseBusiness, CalendarDays, Eye, FolderOpen, Image as ImageIcon, Link2, Lock, Rows3, Smile, SquareKanban, Trash2, Users, X, Bell } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, CalendarDays, Eye, FolderOpen, History, Image as ImageIcon, Link2, Lock, Rows3, Smile, SquareKanban, Trash2, Users, X, Bell } from "lucide-react";
 import { audienceChoices, audienceLabel, audienceSentence, editedAgo, within } from "@/lib/hub-notes/rules";
 import { galleryCover } from "@/lib/hub-notes/covers";
 import type { NoteAudience, NoteCustomer, NotePageMeta, NoteProject, NoteSettings, NotesTextSize, NoteViewer, NoteWidth } from "@/lib/hub-notes/types";
@@ -77,10 +77,13 @@ type GearProps = {
   onTrash?: () => void;
   openItems?: number;
   onOpenItems?: () => void;
+  /** Step 3: the page's history (team) and, for a meeting note, its appointment in the calendar. */
+  onHistory?: () => void;
+  appointmentHref?: string | null;
 };
 
 /** „Diese Seite“: who sees it, project, date, symbol, cover, width, the link; last edited at the bottom. */
-export function PageGear({ page, viewer, customer, projects, parent, people, canEdit, onAudience, onProject, onDate, onWidth, onIcon, onCover, onCopyLink, onClose, onNotify, onTrash, openItems = 0, onOpenItems }: GearProps) {
+export function PageGear({ page, viewer, customer, projects, parent, people, canEdit, onAudience, onProject, onDate, onWidth, onIcon, onCover, onCopyLink, onClose, onNotify, onTrash, openItems = 0, onOpenItems, onHistory, appointmentHref }: GearProps) {
   const box = useRef<HTMLDivElement>(null);
   useDismiss(box, onClose, "[data-gear-button]");
   const admin = viewer === "admin";
@@ -127,6 +130,7 @@ export function PageGear({ page, viewer, customer, projects, parent, people, can
           </span>
         ) : <span className="nz-pop-val">{page.datedOn ? new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${page.datedOn}T00:00:00Z`)) : "Kein Datum"}</span>}
       </label>
+      {appointmentHref && <a className="nz-pop-row" href={appointmentHref}><CalendarClock size={16} aria-hidden="true" /><span>Termin</span><span className="nz-pop-val">Im Kalender öffnen</span></a>}
       {canEdit && <>
         <button type="button" className="nz-pop-row" onClick={onIcon}><Smile size={16} aria-hidden="true" /><span>Symbol</span><span className="nz-pop-val">{page.icon ? <EmojiGlyph char={page.icon} size={18} /> : "–"}</span></button>
         <button type="button" className="nz-pop-row" onClick={onCover}><ImageIcon size={16} aria-hidden="true" /><span>Titelbild</span><span className="nz-pop-val">{cover}</span></button>
@@ -135,6 +139,7 @@ export function PageGear({ page, viewer, customer, projects, parent, people, can
       <div className="nz-pop-sep" />
       {onNotify && page.audience !== "team" && <button type="button" className="nz-pop-row" onClick={onNotify}><Bell size={16} aria-hidden="true" /><span>Änderung mitteilen</span></button>}
       {onOpenItems && openItems > 0 && <button type="button" className="nz-pop-row" onClick={onOpenItems}><SquareKanban size={16} aria-hidden="true" /><span>Offene Punkte als Aufgaben</span><span className="nz-pop-val">{openItems}</span></button>}
+      {onHistory && <button type="button" className="nz-pop-row" data-history-button onClick={onHistory}><History size={16} aria-hidden="true" /><span>Verlauf</span><span className="nz-pop-val">Frühere Fassungen</span></button>}
       <button type="button" className="nz-pop-row" onClick={onCopyLink}><Link2 size={16} aria-hidden="true" /><span>Link kopieren</span></button>
       {onTrash && <button type="button" className="nz-pop-row is-danger" onClick={onTrash}><Trash2 size={16} aria-hidden="true" /><span>In den Papierkorb</span></button>}
       {viewer !== "customer" && <p className="nz-pop-foot">Zuletzt bearbeitet{editedBy ? ` von ${editedBy}` : ""} · {editedAgo(page.updatedAt)}</p>}

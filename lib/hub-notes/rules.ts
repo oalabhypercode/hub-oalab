@@ -236,6 +236,8 @@ const NODES: Record<string, Record<string, AttrCheck>> = {
   noteTaskList: { refKind: () => "project", refId: keep(isUuid), filter: (value) => isTaskFilter(value) ? value : "open", dueBy: keep(isIsoDate) },
   noteProject: { refKind: () => "project", refId: keep(isUuid) },
   noteLinkCard: { href: (value) => typeof value === "string" && /^https:/i.test(value) && isSafeHref(value) ? value : null, title: keep(isShortText(300)), description: keep(isShortText(600)), site: keep(isShortText(120)), image: keep(isPreviewImage) },
+  // Step 3: an appointment of the calendar; day, time and status come from the calendar with the viewer's rights.
+  noteAppointment: { refKind: () => "appointment", refId: keep(isUuid) },
 };
 
 const MARKS: Record<string, Record<string, AttrCheck>> = {
@@ -256,7 +258,7 @@ const MARKS: Record<string, Record<string, AttrCheck>> = {
 };
 
 /** Attributes without which a node makes no sense. */
-const REQUIRED: Record<string, string[]> = { noteEmoji: ["char"], noteSubpage: ["refId"], noteTaskItem: ["refId"], noteTaskMention: ["refId"], noteTaskList: ["refId"], noteProject: ["refId"], noteLinkCard: ["href"] };
+const REQUIRED: Record<string, string[]> = { noteEmoji: ["char"], noteSubpage: ["refId"], noteTaskItem: ["refId"], noteTaskMention: ["refId"], noteTaskList: ["refId"], noteProject: ["refId"], noteLinkCard: ["href"], noteAppointment: ["refId"] };
 
 export type NoteRef = { kind: "task" | "project" | "appointment" | "file" | "page"; id: string };
 const REF_KINDS = new Set(["task", "project", "appointment", "file", "page"]);

@@ -4,7 +4,7 @@
  * saved. Self-contained (type imports only).
  */
 import { viewerReads } from "./rules";
-import type { NoteDoc, NoteNode, NotePage, NotePageMeta, NoteRefs, NotesArea, NoteTaskView, NoteViewer } from "./types";
+import type { CalendarNotes, NoteAppointmentView, NoteDoc, NoteNode, NotePage, NotePageMeta, NoteRefs, NoteRevision, NoteSearchHit, NotesArea, NoteTaskView, NoteViewer } from "./types";
 
 const text = (value: string, marks?: NoteNode["marks"]): NoteNode => marks ? { type: "text", text: value, marks } : { type: "text", text: value };
 const bold = (value: string) => text(value, [{ type: "bold" }]);
@@ -32,6 +32,8 @@ const mention = (number: number): NoteNode => ({ type: "noteTaskMention", attrs:
 const projectBlock = (projectId: string): NoteNode => ({ type: "noteProject", attrs: { refKind: "project", refId: projectId } });
 const taskList = (projectId: string, filter = "open"): NoteNode => ({ type: "noteTaskList", attrs: { refKind: "project", refId: projectId, filter } });
 const card = (href: string, title: string, description: string, site: string): NoteNode => ({ type: "noteLinkCard", attrs: { href, title, description, site } });
+const APPT = (n: number) => `a0b0e000-0000-4000-8000-00000000000${n}`;
+const appointment = (n: number): NoteNode => ({ type: "noteAppointment", attrs: { refKind: "appointment", refId: APPT(n) } });
 
 export const PREVIEW_CUSTOMER = "c0ffee00-0000-4000-8000-000000024017";
 const FORM = "c0ffee00-0000-4000-8000-000000031877";
@@ -60,11 +62,14 @@ const seeds: Seed[] = [
       tasks(1037, 1040),
       h(2, "Nächste Schritte"),
       checks(["Moodboard abstimmen", true], ["Texte der Leistungen liefern", false], ["Testdomain einrichten", true]),
+      h(2, "Nächster Termin"),
+      appointment(2),
     ),
   },
   {
-    id: ABSTIMMUNG, title: "Abstimmung Startseite", icon: "🎨", audience: "team", projectId: WEB, cover: { kind: "gallery", value: "oalab", position: 50 }, datedOn: "2026-10-13", updatedAt: at(0, 9), updatedBy: "p-jonas",
+    id: ABSTIMMUNG, title: "Abstimmung Startseite", icon: "🎨", audience: "team", projectId: WEB, appointmentId: APPT(1), cover: { kind: "gallery", value: "oalab", position: 50 }, datedOn: "2026-10-13", updatedAt: at(0, 9), updatedBy: "p-jonas",
     content: doc(
+      appointment(1),
       p(text("Wir haben die drei Varianten aus dem Shooting angeschaut. Die Bilder liegen im "), link("Styleguide", "https://www.figma.com/", "Nordlicht · Styleguide", "Farben, Schriften und Komponenten der neuen Website."), text(" und im Asset Management. "), bold("Die Schrift im Overlay soll größer werden.")),
       h(2, "Beschlüsse"),
       bullets([text("Variante B mit Text-Overlay wird umgesetzt. "), emoji("🎉")], [text("Die Leistungsseite geht erst live, wenn alle Texte freigegeben sind: "), mention(1035), text(".")]),
@@ -164,6 +169,47 @@ export function previewRefs(viewer: NoteViewer): NoteRefs {
     projects: { [WEB]: { id: WEB, name: "Ein neuer digitaler Auftritt.", status: "In Umsetzung", progress: 68, dueOn: "2026-10-30" } },
     projectTasks: { [WEB]: visible },
     images: {},
+    // Freelancers see none of a customer's appointments (the calendar's rules); the customer sees their own.
+    appointments: Object.fromEntries(Object.values(previewAppointments).map((item) => [item.id, viewer === "freelancer" ? null : item])),
+  };
+}
+
+const previewAppointments: Record<string, NoteAppointmentView> = {
+  [APPT(1)]: { id: APPT(1), title: "Review Konzept & Struktur", start: "2026-10-13T08:00:00.000Z", end: "2026-10-13T09:00:00.000Z", status: "confirmed", teamsUrl: "https://teams.microsoft.com/l/meetup-join/beispiel-oalab", customerId: PREVIEW_CUSTOMER },
+  [APPT(2)]: { id: APPT(2), title: "Website-Texte durchgehen", start: "2026-10-21T07:00:00.000Z", end: "2026-10-21T08:00:00.000Z", status: "requested", teamsUrl: null, customerId: PREVIEW_CUSTOMER },
+};
+
+/** The preview's appointments for „/Termin“: upcoming first. */
+export function previewAppointmentOptions(viewer: NoteViewer): NoteAppointmentView[] {
+  return viewer === "freelancer" ? [] : Object.values(previewAppointments).sort((a, b) => b.start.localeCompare(a.start));
+}
+
+/** The preview's history of a page (team only): two former versions. */
+export function previewRevisions(pageId: string): NoteRevision[] {
+  const page = previewNotePages.find((item) => item.id === pageId);
+  if (!page) return [];
+  const words = noteTextOf(page.content);
+  return [
+    { id: `${pageId.slice(0, 30)}r1`, version: 6, title: page.title, icon: page.icon, audience: page.audience, reason: "edit", savedBy: "Lea Brandt", savedAt: at(1, 16), createdAt: at(0, 8), text: words.slice(0, Math.max(40, Math.floor(words.length * 0.7))) },
+    { id: `${pageId.slice(0, 30)}r2`, version: 3, title: page.title, icon: page.icon, audience: "team", reason: "audience", savedBy: "Jonas Keller", savedAt: at(3, 11), createdAt: at(3, 11), text: words.slice(0, Math.max(30, Math.floor(words.length * 0.4))) },
+  ];
+}
+
+/** The plain text of a document, for the preview's history. */
+function noteTextOf(node: NoteNode | NoteDoc): string {
+  const parts: string[] = [];
+  const walk = (current: NoteNode) => { if (current.text) parts.push(current.text); for (const child of current.content ?? []) walk(child); if (["paragraph", "heading", "listItem", "taskItem"].includes(current.type)) parts.push("\n"); };
+  walk(node as NoteNode);
+  return parts.join("").replace(/\n{2,}/g, "\n").trim();
+}
+
+/** The preview's calendar: pages with a date and the meeting note at its appointment, as each role sees them. */
+export function previewCalendarNotes(viewer: NoteViewer): CalendarNotes {
+  const visible = previewNotePages.filter((page) => viewerReads(viewer, page.audience));
+  return {
+    dated: visible.filter((page) => page.datedOn && !page.appointmentId).map((page) => ({ id: page.id, title: page.title, icon: page.icon, customerId: page.customerId, day: page.datedOn! })),
+    // The calendar's preview has its own example appointments; the meeting note hangs at „Review Konzept & Struktur“.
+    byAppointment: viewer === "admin" ? { "sample-1": { id: ABSTIMMUNG, customerId: PREVIEW_CUSTOMER, title: "Abstimmung Startseite" } } : {},
   };
 }
 
@@ -213,4 +259,17 @@ export function previewMentions(taskId: string, viewer: NoteViewer) {
 export function previewPage(pageId: string, viewer: NoteViewer = "admin"): NotePage | null {
   const page = previewNotePages.find((item) => item.id === pageId);
   return page ? { ...page, refs: previewRefs(viewer) } : null;
+}
+
+/** The hub's search in the preview: pages of the team's view whose title or text holds the words. */
+export function previewNoteSearch(query: string): NoteSearchHit[] {
+  const term = query.trim().toLowerCase();
+  if (term.length < 2) return [];
+  return previewNotePages.flatMap((page) => {
+    const text = noteTextOf(page.content).replace(/\s+/g, " ");
+    const at = text.toLowerCase().indexOf(term);
+    if (!page.title.toLowerCase().includes(term) && at < 0) return [];
+    const snippet = at < 0 ? text.slice(0, 90) : `${at > 30 ? "…" : ""}${text.slice(Math.max(0, at - 30), at + term.length + 60)}…`;
+    return [{ id: page.id, title: page.title, icon: page.icon, customerId: page.customerId, customer: "Nordlicht Studio", snippet }];
+  }).slice(0, 8);
 }

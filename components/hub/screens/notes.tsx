@@ -9,18 +9,21 @@ import { categories } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
 import { useStoredValue } from "@/lib/use-stored-value";
 import {
-  createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteCoverFiles, noteLinkPreview, noteTaskOptions, notifyNoteChange, openNotePage, purgeNotePage, restoreNotePage,
-  saveNotePage, saveNoteSettings, searchNoteTasks, setNoteAudience, setNoteTaskDone, taskMentions, trashNotePage,
+  createNoteAppointment, createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteAppointmentOptions, noteCoverFiles, noteHistory, noteLinkPreview, notePresence, noteRequestSlots,
+  noteTaskOptions, notifyNoteChange, openNotePage, purgeNotePage, requestNoteAppointment, restoreNotePage, restoreNoteRevision, saveNotePage, saveNoteSettings, searchNoteTasks,
+  setNoteAudience, setNoteTaskDone, taskMentions, trashNotePage,
 } from "@/lib/hub-notes/actions";
-import { notesFixtures, previewMentions, previewPage, previewRefs, toMetaOnly } from "@/lib/hub-notes/fixtures";
+import { notesFixtures, previewAppointmentOptions, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
 import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads } from "@/lib/hub-notes/rules";
 import { noteTemplate } from "@/lib/hub-notes/templates";
+import { wallTimeToUtc } from "@/lib/hub-calendar/rules";
 import { DEMO_AS_OF } from "@/lib/hub-data";
 import { todayIso } from "@/lib/hub-routes";
-import { NO_REFS, type NoteAudience, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteRefs, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
+import { NO_REFS, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteRefs, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
 import type { NoteRefsUi } from "./notes-refs";
 import type { TaskDraft, TaskOptions } from "./notes-tasks-ui";
-import { TaskPeek, TemplateChips, TrashPanel } from "./notes-panels";
+import { HistoryPanel, TaskPeek, TemplateChips, TrashPanel } from "./notes-panels";
+import type { AppointmentDraft, NoteCalendarUi } from "./notes-calendar-ui";
 import { useAppearance } from "../appearance-provider";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
@@ -39,9 +42,11 @@ import { NotesTree } from "./notes-tree";
 const NoteEditor = dynamic(() => import("./notes-editor"), { ssr: false, loading: () => <div className="nz-editor-loading" aria-hidden="true" /> });
 
 const TREE_KEY = "oalab-notes-tree";
+/** The preview shows „bearbeitet gerade“ on this page (Abstimmung Startseite). */
+const previewPresencePage = "0b0e0000-0000-4000-8000-000000000002";
 const NOTES_CUSTOMER_COOKIE = "oalab-notes-customer";
 type SaveStatus = "saved" | "saving" | "error" | "stale";
-type Pop = null | "gear" | "area" | "size" | "cover" | "trash";
+type Pop = null | "gear" | "area" | "size" | "cover" | "trash" | "history";
 type Stale = { message: string; current: NotePage; mine: NoteDoc; reloaded: boolean };
 
 const unavailable: NotesArea = { viewer: "customer", viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" }, people: {}, taskWriter: false, ready: true, error: "Die Notizen konnten gerade nicht geladen werden." };
@@ -94,6 +99,9 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
   const [peek, setPeek] = useState<NoteTaskView | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [openItems, setOpenItems] = useState(0);
+  // Step 3: the history of the open page (team) and who else is on it right now.
+  const [history, setHistory] = useState<{ items: NoteRevision[] | null; error: string }>({ items: null, error: "" });
+  const [others, setOthers] = useState<{ id: string; name: string }[]>([]);
   const editor = useRef<NoteEditorHandle | null>(null);
   const titleField = useRef<HTMLTextAreaElement>(null);
 
@@ -390,10 +398,86 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     addTasks(result.data);
     return result.data;
   }, [preview, viewer, customerId, addTasks]);
+  const addAppointments = useCallback((list: NoteAppointmentView[]) => setRefs((current) => ({ ...current, appointments: { ...current.appointments, ...Object.fromEntries(list.map((item) => [item.id, item])) } })), []);
+  const calendarHref = useCallback((appointmentId: string) => `${hubHref(preview, "projects")}/calendar?appointment=${encodeURIComponent(appointmentId)}`, [preview]);
   const refsUi: NoteRefsUi = useMemo(() => ({
     refs, viewer, viewerId: initial.viewerId, taskWriter: initial.taskWriter, editable: canEdit, today,
-    toggleTask: (task) => void toggleTask(task), openTask: (task) => setPeek(task), boardHref, searchTasks, addTasks, addImage,
-  }), [refs, viewer, initial.viewerId, initial.taskWriter, canEdit, today, toggleTask, boardHref, searchTasks, addTasks, addImage]);
+    toggleTask: (task) => void toggleTask(task), openTask: (task) => setPeek(task), boardHref, searchTasks, addTasks, addImage, addAppointments, calendarHref,
+  }), [refs, viewer, initial.viewerId, initial.taskWriter, canEdit, today, toggleTask, boardHref, searchTasks, addTasks, addImage, addAppointments, calendarHref]);
+
+  // ---- Step 3: appointments, history, „bearbeitet gerade“ ----------------------------------------------------------
+
+  const pageId = page?.id ?? null;
+  const calendarUi: NoteCalendarUi = useMemo(() => ({
+    mode: viewer === "admin" ? "create" : "request",
+    today,
+    loadAppointments: async () => {
+      if (preview) return previewAppointmentOptions(viewer);
+      if (!customerId) return [];
+      const result = await noteAppointmentOptions({ customerId });
+      return result.ok ? result.data : [];
+    },
+    loadSlots: async (day, minutes) => {
+      if (preview) return { ok: true, data: { durations: [30, 45, 60, 90], minutes: minutes ?? 60, starts: day <= today ? [] : ["09:00", "09:30", "10:00", "14:00", "15:30"], lastDay: "2026-12-31" } };
+      return noteRequestSlots({ day, minutes });
+    },
+    submit: async (draft: AppointmentDraft) => {
+      if (!pageId) return { ok: false, error: "Keine Seite offen." };
+      if (preview) {
+        const start = new Date(wallTimeToUtc(draft.day, draft.start));
+        return { ok: true, data: { id: crypto.randomUUID(), title: draft.title, start: start.toISOString(), end: new Date(start.getTime() + draft.minutes * 60_000).toISOString(), status: viewer === "admin" ? "confirmed" : "requested", teamsUrl: viewer === "admin" && draft.teamsUrl ? draft.teamsUrl : null, customerId } };
+      }
+      return viewer === "admin" ? createNoteAppointment({ pageId, ...draft }) : requestNoteAppointment({ pageId, ...draft });
+    },
+    notify: (appointment, onPage) => say(appointment.status === "confirmed"
+      ? `„${appointment.title}“ steht im Kalender${customer ? `; ${customer.name} bekommt eine Meldung` : ""}.${onPage ? " Der Termin steht jetzt auch auf der Seite." : ""}`
+      : `Deine Anfrage „${appointment.title}“ ist bei oalab. Du bekommst eine Meldung, sobald sie bestätigt ist.${onPage ? " Sie steht jetzt auch auf der Seite." : ""}`),
+  }), [viewer, today, preview, customerId, pageId, say, customer]);
+
+  const openHistory = useCallback(async () => {
+    if (!page) return;
+    setPop("history");
+    if (preview) { setHistory({ items: previewRevisions(page.id), error: "" }); return; }
+    setHistory({ items: null, error: "" });
+    if (!(await flush())) return;
+    const result = await noteHistory({ pageId: page.id });
+    setHistory(result.ok ? { items: result.data, error: "" } : { items: [], error: result.error });
+  }, [page, preview, flush]);
+  const restoreRevision = useCallback(async (revision: NoteRevision) => {
+    if (!page) return;
+    if (preview) { say("In der Vorschau wird nichts wiederhergestellt."); return; }
+    if (!(await flush())) return;
+    const result = await restoreNoteRevision({ revisionId: revision.id, version: versionRef.current });
+    if (!result.ok) { say(result.error); return; }
+    setPages((list) => list.map((item) => item.id === result.data.id ? { ...item, title: result.data.title, icon: result.data.icon, version: result.data.version, updatedAt: result.data.updatedAt, updatedBy: result.data.updatedBy } : item));
+    showPage(result.data);
+    say("Die frühere Fassung ist wiederhergestellt. Der Stand davor steht im Verlauf.");
+  }, [page, preview, flush, say, showPage]);
+
+  // „bearbeitet gerade“: a mark every 15 seconds while the page is open and visible; who else is on it shows on top.
+  useEffect(() => {
+    if (!pageId) return;
+    if (preview) {
+      const demo = viewer === "admin" && pageId === previewPresencePage ? [{ id: "p-lea", name: "Lea Brandt" }] : [];
+      const timer = window.setTimeout(() => setOthers(demo), 0);
+      return () => window.clearTimeout(timer);
+    }
+    let live = true;
+    const beat = async () => {
+      if (document.visibilityState !== "visible") return;
+      const result = await notePresence({ pageId, editing: canEdit });
+      if (live && result.ok) setOthers(result.data);
+    };
+    const first = window.setTimeout(() => void beat(), 600);
+    const timer = window.setInterval(() => void beat(), 15_000);
+    return () => {
+      live = false;
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+      setOthers([]);
+      if (canEdit) void notePresence({ pageId, editing: false, leave: true });
+    };
+  }, [pageId, canEdit, preview, viewer]);
   const loadTaskOptions = useCallback(async (projectId: string | null): Promise<TaskOptions | null> => {
     if (preview) return { projects, people: [{ id: "p-jonas", name: "Jonas Keller", initials: "JK" }, { id: "p-lea", name: "Lea Brandt", initials: "LB" }, { id: "p-mia", name: "Mia Berger", initials: "MB" }] };
     if (!customerId) return null;
@@ -653,6 +737,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                 </nav>
               )}
               <span className="nz-spacer" />
+              {others.length > 0 && <span className="nz-presence" role="status" data-tip={others.map((item) => item.name).join(", ")}><span className="nz-presence-dot" aria-hidden="true" /><span className="nz-presence-text">{others.length === 1 ? `${others[0].name} bearbeitet gerade` : `${others.length} Personen bearbeiten gerade`}</span></span>}
               {pageMeta && viewer === "customer" && <span className="nz-shared">Von oalab geteilt</span>}
               {pageMeta && viewer !== "customer" && (
                 status === "error"
@@ -754,6 +839,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                       loadTaskOptions={loadTaskOptions}
                       createTasks={createTasks}
                       loadPreview={loadPreview}
+                      calendarUi={calendarUi}
                     />
                   </article>
                 </>
@@ -783,8 +869,11 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                 onTrash={viewer === "admin" ? () => void trashPage() : undefined}
                 openItems={initial.taskWriter && canEdit ? openItems : 0}
                 onOpenItems={() => { setPop(null); editor.current?.convertOpenItems(); }}
+                onHistory={viewer === "admin" ? () => void openHistory() : undefined}
+                appointmentHref={pageMeta.appointmentId && viewer !== "freelancer" ? calendarHref(pageMeta.appointmentId) : null}
               />
             )}
+            {pop === "history" && viewer === "admin" && <HistoryPanel items={history.items} error={history.error} onRestore={restoreRevision} onClose={() => setPop(null)} />}
             {pop === "size" && <TextSizePop value={textSize} onChange={(notesTextSize) => update({ notesTextSize })} onClose={() => setPop(null)} />}
           </div>
         )}

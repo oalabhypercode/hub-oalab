@@ -3,7 +3,7 @@ import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { isUuid } from "./rules";
 import type { NotesContext } from "./server";
-import type { NoteDoc, NoteNode, NoteRefs, NoteTaskView } from "./types";
+import type { NoteAppointmentView, NoteDoc, NoteNode, NoteRefs, NoteTaskView } from "./types";
 
 // A note keeps only the ids of tasks, projects and files (plan, „Wichtigste Regel“). When a page opens, the server reads
 // them in one go with the rights of the person who looks: Studio's rules decide for the team and freelancers, the
@@ -33,16 +33,18 @@ export function refsIn(doc: NoteDoc) {
   const projects = new Set<string>();
   const lists = new Set<string>();
   const images = new Set<string>();
+  const appointments = new Set<string>();
   const walk = (node: NoteNode) => {
     const attrs = node.attrs ?? {};
     if ((node.type === "noteTaskItem" || node.type === "noteTaskMention") && isUuid(attrs.refId)) tasks.add(String(attrs.refId));
     if (node.type === "noteProject" && isUuid(attrs.refId)) projects.add(String(attrs.refId));
     if (node.type === "noteTaskList" && isUuid(attrs.refId)) lists.add(String(attrs.refId));
     if (node.type === "noteLinkCard" && typeof attrs.image === "string" && attrs.image.startsWith("notes/")) images.add(attrs.image);
+    if (node.type === "noteAppointment" && isUuid(attrs.refId)) appointments.add(String(attrs.refId));
     for (const child of node.content ?? []) walk(child);
   };
   walk(doc);
-  return { tasks: [...tasks], projects: [...projects], lists: [...lists], images: [...images] };
+  return { tasks: [...tasks], projects: [...projects], lists: [...lists], images: [...images], appointments: [...appointments] };
 }
 
 function toTask(row: TaskRow, projectName: string, names: Map<string, string>, forCustomer: boolean): NoteTaskView {
@@ -70,9 +72,18 @@ export async function resolveRefs(ctx: NotesContext, doc: NoteDoc, customerId?: 
   const found = refsIn(doc);
   const own = customerId ? `notes/${customerId.toLowerCase()}/links/` : null;
   const wanted = { ...found, images: own ? found.images.filter((path) => path.startsWith(own)) : [] };
-  const refs: NoteRefs = { tasks: {}, projects: {}, projectTasks: {}, images: {} };
+  const refs: NoteRefs = { tasks: {}, projects: {}, projectTasks: {}, images: {}, appointments: {} };
   const projectIds = [...new Set([...wanted.projects, ...wanted.lists])];
-  if (!wanted.tasks.length && !projectIds.length && !wanted.images.length) return refs;
+  if (!wanted.tasks.length && !projectIds.length && !wanted.images.length && !wanted.appointments.length) return refs;
+
+  // Appointments with the person's own session: admins every one, customers their own; freelancers see none of a
+  // customer's (the calendar's rules), so for them the block says „Termin (nicht sichtbar)“.
+  if (wanted.appointments.length) {
+    for (const id of wanted.appointments) refs.appointments[id] = null;
+    const { data } = await ctx.session.from("hub_appointments").select("id, title, starts_at, ends_at, status, teams_url, customer_id").in("id", wanted.appointments)
+      .returns<{ id: string; title: string; starts_at: string; ends_at: string; status: string; teams_url: string | null; customer_id: string | null }[]>();
+    for (const row of data ?? []) refs.appointments[row.id] = appointmentView(row);
+  }
 
   if (wanted.images.length && ctx.db) {
     const signed = await ctx.db.storage.from(HUB_FILES_BUCKET).createSignedUrls(wanted.images, 60 * 60);
@@ -141,4 +152,12 @@ export async function resolveRefs(ctx: NotesContext, doc: NoteDoc, customerId?: 
     refs.projectTasks[id] = tasks.map((row) => toTask(row, projectName.get(id)!, people, false));
   }
   return refs;
+}
+
+const APPOINTMENT_STATUSES = new Set(["requested", "confirmed", "declined", "cancelled"]);
+
+/** An appointment row as a note shows it; the Teams link only while it is confirmed. */
+export function appointmentView(row: { id: string; title: string; starts_at: string; ends_at: string; status: string; teams_url: string | null; customer_id: string | null }): NoteAppointmentView {
+  const status = (APPOINTMENT_STATUSES.has(row.status) ? row.status : "requested") as NoteAppointmentView["status"];
+  return { id: row.id, title: row.title, start: row.starts_at, end: row.ends_at, status, teamsUrl: status === "confirmed" ? row.teams_url : null, customerId: row.customer_id };
 }

@@ -34,7 +34,7 @@ import { KeychainScreen } from "./screens/keychain";
 import { TasksScreen } from "./screens/tasks";
 import { NotesScreen } from "./screens/notes";
 import { ProjectNotes } from "./screens/notes-links";
-import type { NotesArea } from "@/lib/hub-notes/types";
+import type { CalendarNotes, NotesArea } from "@/lib/hub-notes/types";
 import type { KeychainState } from "@/lib/hub-keychain/types";
 import type { ProjectDesk } from "@/lib/hub-projects/desk";
 import type { TaskBoardState } from "@/lib/hub-tasks/types";
@@ -92,9 +92,11 @@ type HubViewProps = {
   overviewWidgets?: OverviewWidgetsData | null;
   /** Notizen under Projekte for real logins; the preview shows examples. */
   notes?: NotesArea;
+  /** The calendar's notes with a date and meeting notes at appointments (step 3 of the notes). */
+  calendarNotes?: CalendarNotes;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts, overviewWidgets, notes }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts, overviewWidgets, notes, calendarNotes }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -152,7 +154,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "contracts" ? <ContractsScreen {...screen} state={contractState} />
         : section === "customers" ? <FreelancerCustomersScreen {...screen} state={freelancerCustomers} board={taskBoard} />
         : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />
-        : section === "calendar" ? <CalendarScreen {...screen} taskBoard={taskBoard} />
+        : section === "calendar" ? <CalendarScreen {...screen} taskBoard={taskBoard} calendarNotes={calendarNotes} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />
         : section === "keychain" && keychain ? <KeychainScreen state={keychain} />

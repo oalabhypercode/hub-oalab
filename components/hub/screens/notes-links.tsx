@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileText, NotebookPen, Plus } from "lucide-react";
-import { createNotePage, projectNotes, taskMentions } from "@/lib/hub-notes/actions";
+import { createMeetingNote, createNotePage, projectNotes, taskMentions } from "@/lib/hub-notes/actions";
 import { hubHref } from "@/lib/hub-data";
 import { EmojiGlyph } from "./notes-blocks";
 
@@ -72,6 +72,40 @@ export function ProjectNotes({ projectId, customerId, preview, canCreate }: { pr
       {pages?.map((page) => <Row key={page.id} page={page} preview={preview} />)}
       {pages && !pages.length && <p className="nz-links-empty">Noch keine Notiz zu diesem Projekt.</p>}
       {canCreate && customerId && !preview && <button type="button" className="nz-link-row is-new" disabled={busy} onClick={() => void create()}><Plus size={16} aria-hidden="true" /><span>{busy ? "Legt an …" : "Neue Notiz zu diesem Projekt"}</span></button>}
+      {error && <p className="nz-links-empty" role="alert">{error}</p>}
+    </section>
+  );
+}
+
+/**
+ * „Besprechungsnotiz“ at an appointment in the calendar (plan 5.2): the team creates it (one per appointment, „Nur
+ * Team“, with the meeting template) or opens it; customers see „Notiz öffnen“ only once the page is shared with them.
+ */
+export function MeetingNote({ appointmentId, note, canCreate, preview }: { appointmentId: string; note: { id: string; customerId: string; title: string } | null; canCreate: boolean; preview: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!note && !canCreate) return null;
+  const create = async () => {
+    if (busy) return;
+    if (preview) { setError("In der Vorschau wird keine Notiz angelegt."); return; }
+    setBusy(true);
+    const result = await createMeetingNote({ appointmentId });
+    setBusy(false);
+    if (result.ok) router.push(noteHref(preview, { id: result.data.id, title: "", icon: "", customerId: result.data.customerId }));
+    else setError(result.error);
+  };
+  return (
+    <section className="um-sec nz-links">
+      <div className="um-sec-head"><h3><NotebookPen size={15} aria-hidden="true" />Besprechungsnotiz</h3></div>
+      {note ? (
+        <Link className="nz-link-row" href={noteHref(preview, { id: note.id, title: note.title, icon: "", customerId: note.customerId })}>
+          <span className="nz-row-icon"><NotebookPen size={16} aria-hidden="true" /></span><span>Notiz öffnen<small className="nz-link-sub">{note.title}</small></span>
+        </Link>
+      ) : (
+        <button type="button" className="nz-link-row is-new" disabled={busy} onClick={() => void create()}><Plus size={16} aria-hidden="true" /><span>{busy ? "Legt an …" : "Notiz anlegen"}</span></button>
+      )}
+      {!note && <p className="nz-links-empty">Mit der Vorlage Besprechung, zuerst nur für das Team sichtbar.</p>}
       {error && <p className="nz-links-empty" role="alert">{error}</p>}
     </section>
   );

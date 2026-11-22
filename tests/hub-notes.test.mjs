@@ -277,3 +277,52 @@ test("tasks, projects and appointments point back to the notes that name them", 
   }
   assert.equal((actions.match(/await notesContext\(\)/g) ?? []).length, (actions.match(/^export async function /gm) ?? []).length, "every action checks who asks");
 });
+
+// ---- Step 3: calendar, history, „bearbeitet gerade“, search ---------------------------------------------------------
+
+test("appointments in a note are references only, and a freelancer sees „Termin (nicht sichtbar)“", async () => {
+  const block = validateNoteDoc({ type: "doc", content: [{ type: "noteAppointment", attrs: { refKind: "appointment", refId: TASK, title: "Abstimmung", starts: "2026-11-02" } }] });
+  assert.equal(block.ok, true);
+  assert.deepEqual(block.doc.content[0].attrs, { refKind: "appointment", refId: TASK }, "title and time come from the calendar, never from the note");
+  assert.deepEqual(block.refs, [{ kind: "appointment", id: TASK }]);
+  assert.equal(validateNoteDoc({ type: "doc", content: [{ type: "noteAppointment", attrs: { refKind: "appointment" } }] }).ok, false);
+  const refs = await source("lib/hub-notes/refs.ts");
+  assert.match(refs, /ctx\.session\.from\("hub_appointments"\)\.select\("id, title, starts_at, ends_at, status, teams_url, customer_id"\)\.in\("id", wanted\.appointments\)/);
+  assert.match(refs, /teamsUrl: status === "confirmed" \? row\.teams_url : null/);
+  assert.match(await source("components/hub/screens/notes-refs.tsx"), /Termin \(nicht sichtbar\)/);
+});
+
+test("the calendar and the notes: one meeting note per appointment, appointments through the calendar's own code", async () => {
+  const calendar = await source("lib/hub-notes/calendar.ts");
+  assert.match(calendar, /^import "server-only";/);
+  assert.match(calendar, /if \(ctx\.viewer !== "admin"\) return fail\("Besprechungsnotizen legt das oalab-Team an\."\);/);
+  assert.match(calendar, /audience: "team", appointment_id: input\.appointmentId/);
+  assert.match(calendar, /error\?\.code === "23505"/, "two people at once end up at the same note");
+  assert.match(calendar, /await writeAppointment\(supabase, null,/);
+  assert.match(calendar, /await requestAppointmentAs\(supabase, ctx\.userId,/);
+  assert.match(calendar, /secondFactorMissing\(ctx\.session, data\.claims\.aal\)/, "a login with a second factor confirms it first, as in the calendar");
+  assert.doesNotMatch(calendar, /ctx\.db\.from\("hub_(note_pages|appointments)"\)/, "notes and appointments are read with the person's own session");
+  assert.match(calendar, /\.is\("appointment_id", null\)/, "meeting notes hang at their appointment, not as a second entry");
+  const page = await source("app/dashboard/[section]/[detail]/page.tsx");
+  assert.match(page, /await loadCalendarNotes\(calendarState\.appointments\.map\(\(item\) => item\.id\)/);
+  const screen = await source("components/hub/screens/calendar.tsx");
+  assert.match(screen, /useStoredValue\("oalab-calendar-notes", "on"\)/);
+  assert.match(screen, /<MeetingNote appointmentId=\{panelAppointment\.id\} note=\{notes\.byAppointment\[panelAppointment\.id\] \?\? null\} canCreate=\{false\}/, "customers only open a shared note");
+  const panels = await source("components/hub/screens/calendar-panels.tsx");
+  assert.equal((panels.match(/\{extra\}/g) ?? []).length, 2);
+});
+
+test("history, „bearbeitet gerade“ and the search read with the person's session, the search without a filter expression", async () => {
+  const history = await source("lib/hub-notes/history.ts");
+  assert.match(history, /if \(ctx\.viewer !== "admin"\) return fail\("Den Verlauf sieht das oalab-Team\."\);/);
+  assert.match(history, /ctx\.session\.rpc\("hub_restore_note_revision", \{ revision_id: input\.revisionId, expected_version: input\.version \}\)/);
+  assert.match(history, /if \(input\.editing && ctx\.viewer !== "customer"\)/, "customers only read, they leave no mark");
+  assert.equal((history.match(/\.ilike\(/g) ?? []).length, 2);
+  assert.doesNotMatch(history, /\.or\(/, "the words never become part of a filter expression");
+  const notes = await source("components/hub/screens/notes.tsx");
+  assert.match(notes, /window\.setInterval\(\(\) => void beat\(\), 15_000\)/);
+  assert.match(notes, /void notePresence\(\{ pageId, editing: false, leave: true \}\)/);
+  const shell = await source("components/hub/app-shell.tsx");
+  assert.match(shell, /searchNotes\(\{ query: term \}\)/);
+  assert.doesNotMatch(shell, /from "@\/lib\/hub-notes\/fixtures"/, "the preview's examples load only in the preview");
+});

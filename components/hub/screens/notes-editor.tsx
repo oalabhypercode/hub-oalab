@@ -16,18 +16,19 @@ import { TableMap } from "@tiptap/pm/tables";
 import {
   Bold, ChevronDown, ChevronRight, CheckSquare, Code, Columns3, Copy, ExternalLink, FileText, GripVertical, Heading1, Heading2, Heading3, Italic,
   Lightbulb, Link2, List, ListOrdered, Minus, Pencil, Plus, Rows3, Smile, Strikethrough, Table2, Trash2, Type, Underline, ArrowDown, ArrowUp, Unlink,
-  SquareCheck, CircleDot, UserRound, SquareKanban, ListTodo, FolderOpen, IdCard,
+  SquareCheck, CircleDot, UserRound, SquareKanban, ListTodo, FolderOpen, IdCard, CalendarDays, CalendarPlus,
 } from "lucide-react";
 import { isSafeHref, COLUMN_TYPE_LABELS, COLUMN_TYPES, isColumnType, type ColumnType } from "@/lib/hub-notes/rules";
-import type { NoteAudience, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NoteProject, NoteTaskView, NoteViewer } from "@/lib/hub-notes/types";
+import type { NoteAppointmentView, NoteAudience, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NoteProject, NoteTaskView, NoteViewer } from "@/lib/hub-notes/types";
 import type { EmojiEntry } from "@/lib/hub-notes/emoji";
 import {
   createColonExtension, createSlashExtension, EmojiGlyph, NoteCallout, NoteEditorContext, NoteEmoji, NoteSubpage, NoteTableColumns, NoteTableHeader,
   NoteTypingRules, setSlashItems, type MenuHandle, type MenuProps, type NoteEditorUi, type SlashItem,
 } from "./notes-blocks";
 import { EmojiPicker } from "./notes-emoji-picker";
-import { createHashExtension, NoteLinkCard, NoteProject as NoteProjectNode, NoteRefsContext, NoteTaskGroup, NoteTaskItem, NoteTaskList, NoteTaskMention, setTaskSearch, type NoteRefsUi } from "./notes-refs";
+import { createHashExtension, NoteAppointment, NoteLinkCard, NoteProject as NoteProjectNode, NoteRefsContext, NoteTaskGroup, NoteTaskItem, NoteTaskList, NoteTaskMention, setTaskSearch, type NoteRefsUi } from "./notes-refs";
 import { RefPicker, TaskConvertDialog, type PickerKind, type TaskDraft, type TaskOptions } from "./notes-tasks-ui";
+import { AppointmentDialog, AppointmentPicker, ReadSelectionBar, type NoteCalendarUi } from "./notes-calendar-ui";
 
 // The writing area of a note (plan 1.3): Tiptap 3 with the basic blocks of step 1, the block menu on „/“, Markdown
 // shortcuts, emojis after „:“, a toolbar over selected text, clean links with a card on hover, tables with column
@@ -54,6 +55,8 @@ type Props = {
   loadTaskOptions: (projectId: string | null) => Promise<TaskOptions | null>;
   createTasks: (drafts: TaskDraft[]) => Promise<NoteTaskView[]>;
   loadPreview: (url: string) => Promise<PreviewResult>;
+  /** Step 3: appointments as blocks, and selected text as an appointment (the team enters it, others ask for one). */
+  calendarUi: NoteCalendarUi;
 };
 
 /** Puts a block where the caret stands: in place of an empty line, else after the line. */
@@ -160,8 +163,11 @@ function ColonMenu({ items, command, query, handleRef }: MenuProps<EmojiEntry> &
 
 const domainOf = (href: string) => /^https:\/\/([^/?#]+)/i.exec(href)?.[1]?.replace(/^www\./i, "") ?? href.replace(/^mailto:/i, "");
 
-export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef, refsUi, projects, viewer, pageAudience, loadTaskOptions, createTasks, loadPreview }: Props) {
+export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef, refsUi, projects, viewer, pageAudience, loadTaskOptions, createTasks, loadPreview, calendarUi }: Props) {
   const [picker2, setPicker2] = useState<{ kind: PickerKind; anchor: DOMRect; at: number } | null>(null);
+  const [apptPicker, setApptPicker] = useState<{ anchor: DOMRect; at: number } | null>(null);
+  /** „Termin anlegen/anfragen“ for a text; `at` is where the block goes afterwards (null on a page one only reads). */
+  const [apptDraft, setApptDraft] = useState<{ title: string; at: number | null } | null>(null);
   const [convert, setConvert] = useState<{ titles: string[]; apply: (tasks: NoteTaskView[]) => void } | null>(null);
   const [pasted, setPasted] = useState<{ url: string; from: number; to: number; locate: () => DOMRect | null } | null>(null);
   const previewRef = useRef(loadPreview);
@@ -227,6 +233,10 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
         id: "linkCard", group: hub, label: "Linkkarte", hint: "Adresse einfügen, als Karte zeigen", keywords: "link bookmark karte", icon: <Link2 size={16} />,
         run: (editor, range) => { editor.chain().focus().deleteRange(range).run(); setPicker2({ kind: "linkCard", anchor: caretRect(editor), at: editor.state.selection.from }); },
       },
+      ...(viewer === "admin" ? [{
+        id: "appointment", group: hub, label: "Termin", hint: "Aus dem Kalender, mit Uhrzeit und Stand", keywords: "termin kalender meeting", icon: <CalendarDays size={16} />,
+        run: (editor: Editor, range: Range) => { editor.chain().focus().deleteRange(range).run(); setApptPicker({ anchor: caretRect(editor), at: editor.state.selection.from }); },
+      }] : []),
       {
         id: "subpage", group: hub, label: "Unterseite", hint: "Neue Seite unter dieser", keywords: "seite page", icon: <FileText size={16} />,
         run: (editor, range) => {
@@ -244,7 +254,7 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
     ];
     const term = query.trim().toLowerCase();
     return term ? all.filter((item) => `${item.label} ${item.keywords ?? ""}`.toLowerCase().includes(term)) : all;
-  }, [pickEmoji]);
+  }, [pickEmoji, viewer]);
   useEffect(() => { openLinkRef.current = openLink; });
 
   const extensions = useMemo(() => [
@@ -289,6 +299,7 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
     NoteTaskList,
     NoteProjectNode,
     NoteLinkCard,
+    NoteAppointment,
     createHashExtension(),
     createSlashExtension(SlashMenu),
     createColonExtension(ColonMenu),
@@ -441,7 +452,14 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
             const { from, to } = editor.state.selection;
             const text = editor.state.doc.textBetween(from, to, " ").trim().slice(0, 240);
             if (text) asTask(text, (task) => editor.chain().focus().insertContentAt({ from, to }, [{ type: "noteTaskMention", attrs: { refKind: "task", refId: task.id, number: task.number } }, { type: "text", text: " " }]).run());
-          } : undefined} />}
+          } : undefined}
+          appointmentLabel={calendarUi.mode === "create" ? "Termin anlegen" : calendarUi.mode === "request" ? "Termin anfragen" : undefined}
+          onAppointment={() => {
+            const { from, to } = editor.state.selection;
+            const text = editor.state.doc.textBetween(from, to, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+            if (text) setApptDraft({ title: text, at: to });
+          }} />}
+        {editor && !editable && calendarUi.mode === "request" && !apptDraft && <ReadSelectionBar host={wrap} onRequest={(text) => setApptDraft({ title: text, at: null })} />}
         {editor && editable && <TableToolbar editor={editor} />}
         {editor && linkEdit && <LinkPopover editor={editor} state={linkEdit} onClose={() => setLinkEdit(null)} onCard={async (href) => {
           const result = await previewRef.current(href);
@@ -473,6 +491,21 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
             onProject={(project) => { insertBlock(editor, picker2.at, { type: picker2.kind === "taskList" ? "noteTaskList" : "noteProject", attrs: { refKind: "project", refId: project.id, ...(picker2.kind === "taskList" ? { filter: "open" } : {}) } }); setPicker2(null); }}
             onLinkCard={(card) => { if (card.image && card.imageUrl) refsUi.addImage(card.image, card.imageUrl); insertBlock(editor, picker2.at, { type: "noteLinkCard", attrs: { href: card.href, title: card.title, description: card.description, site: card.site, image: card.image } }); setPicker2(null); }}
           />
+        )}
+        {editor && apptPicker && (
+          <AppointmentPicker anchor={apptPicker.anchor} load={calendarUi.loadAppointments} onClose={() => setApptPicker(null)}
+            onPick={(appointment) => { refsUi.addAppointments([appointment]); insertBlock(editor, apptPicker.at, { type: "noteAppointment", attrs: { refKind: "appointment", refId: appointment.id } }); setApptPicker(null); }} />
+        )}
+        {editor && apptDraft && (
+          <AppointmentDialog ui={calendarUi} title={apptDraft.title} onClose={() => setApptDraft(null)}
+            onDone={(appointment: NoteAppointmentView) => {
+              refsUi.addAppointments([appointment]);
+              const onPage = apptDraft.at !== null && editor.isEditable;
+              if (onPage) insertBlock(editor, apptDraft.at!, { type: "noteAppointment", attrs: { refKind: "appointment", refId: appointment.id } });
+              calendarUi.notify(appointment, onPage);
+              setApptDraft(null);
+              window.getSelection()?.removeAllRanges();
+            }} />
         )}
         {convert && (
           <TaskConvertDialog
@@ -608,7 +641,7 @@ const blockKinds: { id: BlockKind; label: string }[] = [
   { id: "bullets", label: "Aufzählung" }, { id: "numbers", label: "Nummerierung" }, { id: "checks", label: "Checkliste" }, { id: "code", label: "Code" },
 ];
 
-function SelectionToolbar({ editor, onLink, onEmoji, onTask }: { editor: Editor; onLink: () => void; onEmoji: () => void; onTask?: () => void }) {
+function SelectionToolbar({ editor, onLink, onEmoji, onTask, appointmentLabel, onAppointment }: { editor: Editor; onLink: () => void; onEmoji: () => void; onTask?: () => void; appointmentLabel?: string; onAppointment?: () => void }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => {
@@ -665,7 +698,9 @@ function SelectionToolbar({ editor, onLink, onEmoji, onTask }: { editor: Editor;
       <span className="nz-tb-sep" />
       <button type="button" className={`nz-tb nz-tb-wide${state.link ? " is-on" : ""}`} aria-pressed={state.link} onClick={onLink}><Link2 size={15} aria-hidden="true" /><span>Link</span></button>
       <button type="button" className="nz-tb" aria-label="Emoji einfügen" data-tip="Emoji einfügen" onClick={onEmoji}><Smile size={15} aria-hidden="true" /></button>
-      {onTask && <><span className="nz-tb-sep" /><button type="button" className="nz-tb nz-tb-wide" onClick={onTask}><SquareKanban size={15} aria-hidden="true" /><span>Als Aufgabe</span></button></>}
+      {(onTask || (appointmentLabel && onAppointment)) && <span className="nz-tb-sep" />}
+      {onTask && <button type="button" className="nz-tb nz-tb-wide" onClick={onTask}><SquareKanban size={15} aria-hidden="true" /><span>Als Aufgabe</span></button>}
+      {appointmentLabel && onAppointment && <button type="button" className="nz-tb" aria-label={appointmentLabel} data-tip={appointmentLabel} onClick={onAppointment}><CalendarPlus size={15} aria-hidden="true" /></button>}
     </Floating>
   );
 }

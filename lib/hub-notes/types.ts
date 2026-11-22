@@ -80,6 +80,19 @@ export type NoteTaskView = {
 /** A project block: status, progress and target date as in the projects table. */
 export type NoteProjectView = { id: string; name: string; status: string; progress: number; dueOn: string | null };
 
+/** An appointment of the calendar as a note shows it (step 3), read with the viewer's rights. */
+export type NoteAppointmentView = {
+  id: string;
+  title: string;
+  /** ISO instants. */
+  start: string;
+  end: string;
+  status: "requested" | "confirmed" | "declined" | "cancelled";
+  /** Only for confirmed appointments that have one. */
+  teamsUrl: string | null;
+  customerId: string | null;
+};
+
 /** What a page's references show, resolved in one go with the viewer's rights when the page opens. */
 export type NoteRefs = {
   tasks: Record<string, NoteTaskView | null>;
@@ -88,9 +101,11 @@ export type NoteRefs = {
   projectTasks: Record<string, NoteTaskView[] | null>;
   /** Signed links to the preview images of link cards, by storage path. */
   images: Record<string, string>;
+  /** Appointments (step 3); null: the viewer does not see it (freelancers never see a customer's appointments). */
+  appointments: Record<string, NoteAppointmentView | null>;
 };
 
-export const NO_REFS: NoteRefs = { tasks: {}, projects: {}, projectTasks: {}, images: {} };
+export const NO_REFS: NoteRefs = { tasks: {}, projects: {}, projectTasks: {}, images: {}, appointments: {} };
 
 export type NotePage = NotePageMeta & { content: NoteDoc; refs?: NoteRefs };
 
@@ -159,3 +174,32 @@ export type NotePatch = {
 
 /** After a save: the new version and when, so the next save starts from it. */
 export type NoteSaved = { id: string; version: number; updatedAt: string; updatedBy: string | null };
+
+// ---- Step 3 -------------------------------------------------------------------------------------------------------
+
+/** A former version of a page (team only): kept before edits at most every 10 minutes and before „Sichtbar für“ changes. */
+export type NoteRevision = {
+  id: string;
+  version: number;
+  title: string;
+  icon: string;
+  audience: NoteAudience;
+  /** Why it was kept: an edit, a change of „Sichtbar für“, or the state before a restore. */
+  reason: "edit" | "audience" | "restore";
+  savedBy: string | null;
+  savedAt: string;
+  createdAt: string;
+  /** The text of that version, for reading before restoring. */
+  text: string;
+};
+
+/** Pages with a date, and meeting notes at their appointments, for the calendar (only what the viewer sees). */
+export type CalendarNote = { id: string; title: string; icon: string; customerId: string; day: string };
+export type CalendarNotes = { dated: CalendarNote[]; byAppointment: Record<string, { id: string; customerId: string; title: string }> };
+export const NO_CALENDAR_NOTES: CalendarNotes = { dated: [], byAppointment: {} };
+
+/** A hit of the hub's search in the notes. */
+export type NoteSearchHit = { id: string; title: string; icon: string; customerId: string; customer: string; snippet: string };
+
+/** The free start times a request may use on a day, with the durations oalab offers. */
+export type NoteRequestSlots = { durations: number[]; minutes: number; starts: string[]; lastDay: string };

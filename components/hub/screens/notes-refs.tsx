@@ -5,9 +5,9 @@ import { Extension, Node, mergeAttributes, type Editor } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, ReactRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
-import { CheckCircle2, Circle, ExternalLink, FolderOpen, Image as ImageIcon, Lock, SquareKanban } from "lucide-react";
+import { CalendarDays, CheckCircle2, Circle, ExternalLink, FolderOpen, Image as ImageIcon, Lock, SquareKanban, Video } from "lucide-react";
 import { filterTasks, isTaskFilter, TASK_FILTERS, type TaskFilter } from "@/lib/hub-notes/rules";
-import type { NoteRefs, NoteTaskView, NoteViewer } from "@/lib/hub-notes/types";
+import type { NoteAppointmentView, NoteRefs, NoteTaskView, NoteViewer } from "@/lib/hub-notes/types";
 
 // Blocks that refer to the hub (plan 4, step 2): tasks of the board as rows in a box or as a mention in the text, a
 // live task list of a project, a project with its status, and a link card. The document keeps only ids; what they show
@@ -29,6 +29,9 @@ export type NoteRefsUi = {
   openTask: (task: NoteTaskView) => void;
   boardHref: (projectId: string, number?: number) => string;
   searchTasks: (query: string) => Promise<NoteTaskView[]>;
+  /** Step 3: appointments newly put on the page, and the way into the calendar. */
+  addAppointments: (appointments: NoteAppointmentView[]) => void;
+  calendarHref: (appointmentId: string) => string;
 };
 export const NoteRefsContext = createContext<NoteRefsUi | null>(null);
 
@@ -144,7 +147,7 @@ function ProjectView({ node }: ReactNodeViewProps) {
     <NodeViewWrapper className="nz-project" contentEditable={false}>
       <span className="nz-project-icon"><FolderOpen size={18} aria-hidden="true" /></span>
       <span className="nz-project-text"><strong>{project.name}</strong><span>{project.status} · Ziel {due}</span></span>
-      <span className="nz-project-progress" aria-label={`Fortschritt ${project.progress} %`}><span className="nz-bar"><span style={{ width: `${project.progress}%` }} /></span><b>{project.progress} %</b></span>
+      <span className="nz-project-progress" aria-label={`Fortschritt ${project.progress} %`}><span className="nz-progress-bar"><span style={{ width: `${project.progress}%` }} /></span><b>{project.progress} %</b></span>
       {ui.viewer !== "customer" && <a className="nz-tasks-link" href={ui.boardHref(project.id)}>Im Board</a>}
     </NodeViewWrapper>
   );
@@ -167,6 +170,35 @@ function LinkCardView({ node, selected }: ReactNodeViewProps) {
         {/* eslint-disable-next-line @next/next/no-img-element -- a signed link to the hub's own storage */}
         <span className="nz-card-side" aria-hidden="true">{image ? <img src={image} alt="" /> : <ImageIcon size={22} />}</span>
       </a>
+    </NodeViewWrapper>
+  );
+}
+
+const APPOINTMENT_STATUS: Record<NoteAppointmentView["status"], { label: string; tone: string }> = {
+  requested: { label: "Angefragt", tone: "todo" }, confirmed: { label: "Bestätigt", tone: "ok" }, declined: { label: "Abgelehnt", tone: "bad" }, cancelled: { label: "Abgesagt", tone: "off" },
+};
+const apptDay = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Berlin" });
+const apptTime = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+const berlinDay = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Berlin" });
+
+/** „/Termin“ (step 3): day, time and status from the calendar, the Teams link while it is confirmed and ahead. */
+function AppointmentView({ node }: ReactNodeViewProps) {
+  const ui = useContext(NoteRefsContext);
+  const appointment = ui?.refs.appointments[String(node.attrs.refId ?? "")];
+  if (!ui || !appointment) return <NodeViewWrapper className="nz-appt is-hidden" contentEditable={false}><Lock size={16} aria-hidden="true" /><span>Termin (nicht sichtbar)</span></NodeViewWrapper>;
+  const start = new Date(appointment.start);
+  const end = new Date(appointment.end);
+  const status = APPOINTMENT_STATUS[appointment.status];
+  // The Teams link stays until the appointment's day is over (the page renders without a clock of its own).
+  const ahead = berlinDay.format(end) >= ui.today;
+  return (
+    <NodeViewWrapper className={`nz-appt is-${appointment.status}`} contentEditable={false}>
+      <a className="nz-appt-main" href={ui.calendarHref(appointment.id)} onClick={(event) => { if (ui.editable && !(event.metaKey || event.ctrlKey)) event.preventDefault(); }} data-tip={ui.editable ? "⌘/Strg + Klick öffnet den Kalender" : "Im Kalender öffnen"}>
+        <span className="nz-appt-icon"><CalendarDays size={18} aria-hidden="true" /></span>
+        <span className="nz-appt-text"><strong>{appointment.title}</strong><span>{apptDay.format(start)} · {apptTime.format(start)}–{apptTime.format(end)} Uhr</span></span>
+        <span className={`nz-appt-status tone-${status.tone}`}>{status.label}</span>
+      </a>
+      {appointment.teamsUrl && ahead && <a className="nz-appt-teams" href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer"><Video size={15} aria-hidden="true" />Teams-Meeting beitreten</a>}
     </NodeViewWrapper>
   );
 }
@@ -241,6 +273,17 @@ export const NoteLinkCard = Node.create({
   renderHTML({ HTMLAttributes }) { return ["div", mergeAttributes(HTMLAttributes, { "data-note-link-card": "" })]; },
   renderText({ node }) { return String(node.attrs.href ?? ""); },
   addNodeView() { return ReactNodeViewRenderer(LinkCardView); },
+});
+
+export const NoteAppointment = Node.create({
+  name: "noteAppointment",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addAttributes() { return refAttrs("appointment"); },
+  parseHTML() { return [{ tag: "div[data-note-appointment]" }]; },
+  renderHTML({ HTMLAttributes }) { return ["div", mergeAttributes(HTMLAttributes, { "data-note-appointment": "" })]; },
+  addNodeView() { return ReactNodeViewRenderer(AppointmentView); },
 });
 
 // ---- „#“ finds tasks ----------------------------------------------------------------------------------------------

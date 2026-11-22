@@ -4,7 +4,9 @@ import { isUuid } from "./rules";
 import { customerView, namesOf, notesContext, notesCustomers, readPage } from "./server";
 import { coverFilesAs, createPageAs, fail, linkPreviewAs, listTrashAs, notifyChangeAs, projectNotesAs, purgePageAs, restorePageAs, saveSettingsAs, savePageAs, setAudienceAs, taskMentionsAs, trashPageAs, type CreateInput } from "./write";
 import { createNoteTaskAs, noteTaskOptionsAs, searchNoteTasksAs, setNoteTaskDoneAs, type NoteTaskInput } from "./tasks";
-import type { NoteAudience, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteProject, NoteResult, NoteSaved, NoteSettings, NotesCustomerView, NoteTaskView, NoteTrashItem } from "./types";
+import { createMeetingNoteAs, createNoteAppointmentAs, noteAppointmentOptionsAs, noteRequestSlotsAs, requestNoteAppointmentAs, type NoteAppointmentInput } from "./calendar";
+import { noteHistoryAs, presenceAs, restoreRevisionAs, searchNotesAs } from "./history";
+import type { NoteAppointmentView, NoteAudience, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteProject, NoteRequestSlots, NoteResult, NoteRevision, NoteSaved, NoteSearchHit, NoteSettings, NotesCustomerView, NoteTaskView, NoteTrashItem } from "./types";
 
 // Every action is a public POST endpoint: it checks who asks (lib/hub-notes/server.ts notesContext) and reads and
 // writes with that person's own session, so the database's rules decide. None of them re-renders the page: the notes
@@ -118,4 +120,59 @@ export async function projectNotes(input: { projectId: string }): Promise<NoteRe
 export async function taskMentions(input: { taskId: string }): Promise<NoteResult<{ id: string; title: string; icon: string; customerId: string }[]>> {
   const ctx = await notesContext();
   return ctx ? taskMentionsAs(ctx, input) : { ok: true, data: [] };
+}
+
+// ---- Step 3 ---------------------------------------------------------------------------------------------------------
+
+/** „/Termin“: the customer's appointments as the person sees them. */
+export async function noteAppointmentOptions(input: { customerId: string }): Promise<NoteResult<NoteAppointmentView[]>> {
+  const ctx = await notesContext();
+  return ctx ? noteAppointmentOptionsAs(ctx, input) : fail(noAccess);
+}
+
+/** „Notiz anlegen“ at an appointment in the calendar (team): one meeting note per appointment. */
+export async function createMeetingNote(input: { appointmentId: string }): Promise<NoteResult<{ id: string; customerId: string; created: boolean }>> {
+  const ctx = await notesContext();
+  return ctx ? createMeetingNoteAs(ctx, input) : fail(noAccess);
+}
+
+/** „Termin anlegen“ from a note (team). */
+export async function createNoteAppointment(input: NoteAppointmentInput): Promise<NoteResult<NoteAppointmentView>> {
+  const ctx = await notesContext();
+  return ctx ? createNoteAppointmentAs(ctx, input) : fail(noAccess);
+}
+
+/** „Termin anfragen“ from a note (customers and freelancers). */
+export async function requestNoteAppointment(input: NoteAppointmentInput): Promise<NoteResult<NoteAppointmentView>> {
+  const ctx = await notesContext();
+  return ctx ? requestNoteAppointmentAs(ctx, input) : fail(noAccess);
+}
+
+/** The free start times for a request on a day. */
+export async function noteRequestSlots(input: { day: string; minutes?: number }): Promise<NoteResult<NoteRequestSlots>> {
+  const ctx = await notesContext();
+  return ctx ? noteRequestSlotsAs(ctx, input) : fail(noAccess);
+}
+
+/** „Verlauf“ of a page (team). */
+export async function noteHistory(input: { pageId: string }): Promise<NoteResult<NoteRevision[]>> {
+  const ctx = await notesContext();
+  return ctx ? noteHistoryAs(ctx, input) : fail(noAccess);
+}
+
+export async function restoreNoteRevision(input: { revisionId: string; version: number }): Promise<NoteResult<NotePage>> {
+  const ctx = await notesContext();
+  return ctx ? restoreRevisionAs(ctx, input) : fail(noAccess);
+}
+
+/** „bearbeitet gerade“: the person's mark on a page and who else is on it. */
+export async function notePresence(input: { pageId: string; editing: boolean; leave?: boolean }): Promise<NoteResult<{ id: string; name: string }[]>> {
+  const ctx = await notesContext();
+  return ctx ? presenceAs(ctx, input) : { ok: true, data: [] };
+}
+
+/** The hub's search in the notes the person sees. */
+export async function searchNotes(input: { query: string }): Promise<NoteResult<NoteSearchHit[]>> {
+  const ctx = await notesContext();
+  return ctx ? searchNotesAs(ctx, input) : { ok: true, data: [] };
 }
