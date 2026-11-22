@@ -247,3 +247,20 @@ test("Sidebar: a handle on its edge and ⌘ . fold it, collapsed entries name th
   assert.match(tooltip, /element\.dataset\.tipSide === "right"/);
   assert.match(tooltip, /element\.dataset\.tipAlways === undefined/);
 });
+
+test("Sidebar: collapsed, the profile sign wears the gear's teeth, reads „Einstellungen“ and opens the account menu (22.11.2026)", async () => {
+  const sidebar = await source("components/hub/glass-sidebar.tsx");
+  const ring = sidebar.match(/<svg className="sidebar-gear-ring" viewBox="0 0 48 48" aria-hidden="true"><circle className="sidebar-gear-teeth" cx="24" cy="24" r="([\d.]+)" \/><circle cx="24" cy="24" r="[\d.]+" \/><\/svg>\n\s*<LogoMark logo=\{logo\}/);
+  assert.ok(ring, "the ring sits in the account link, before the sign");
+  assert.match(sidebar, /data-tip-compact="Einstellungen" data-tip-sub=\{\[name, meta\]\.filter\(Boolean\)\.join\(" · "\) \|\| undefined\}/);
+  assert.match(sidebar, /aria-label=\{collapsed \? `Einstellungen: \$\{menuEntries\}` : undefined\} aria-haspopup=\{collapsed \? "menu" : undefined\} aria-expanded=\{collapsed \? menuOpen : undefined\} aria-controls=\{collapsed \? menuId : undefined\}/);
+  assert.match(sidebar, /\(collapsed \? accountLink\.current : gear\.current\)\?\.focus\(\)/);
+  const css = await source("app/sidebar.css");
+  assert.match(css, /\n\.sidebar-toggle, \.sidebar-drop, \.sidebar-gear-ring \{ display: none; \}/);
+  const [, dash, gap] = css.match(/\.sidebar-gear-teeth \{ stroke-width: 4; stroke-linecap: round; stroke-dasharray: ([\d.]+) ([\d.]+);/) ?? [];
+  assert.ok(Math.abs(8 * (Number(dash) + Number(gap)) - 2 * Math.PI * Number(ring[1])) < 0.05, "eight even teeth around the circle");
+  assert.match(css, /:root\[data-sidebar="collapsed"\] \.sidebar-account-link:is\(:hover, :focus-visible, \[aria-expanded="true"\]\) \.sidebar-gear-ring \{ rotate: 45deg; color: var\(--accent-text\); \}/, "one tooth further (360° / 8)");
+  assert.match(css, /:root\[data-sidebar="collapsed"\] \.sidebar-account-gear \{[^}]*visibility: hidden;/, "the hidden gear leaves the tab order");
+  assert.match(css, /:root\[data-sidebar="collapsed"\] \.sidebar-account-text \{ max-height: 0;/, "the sign stays a circle of 48 px");
+  assert.match(css, /:root\[data-reduce-motion="true"\] :is\(\.sidebar-gear-ring, /);
+});

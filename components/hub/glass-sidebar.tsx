@@ -70,6 +70,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
   const CalendarIcon = categories.calendar.icon;
   const corner = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLButtonElement>(null);
+  const accountLink = useRef<HTMLAnchorElement>(null);
   const bar = useRef<HTMLElement>(null);
   const drop = useRef<{ target: HTMLElement | null; y: number }>({ target: null, y: 0 });
   const menuId = useId();
@@ -78,7 +79,8 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
     corner.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     const onPointer = (event: PointerEvent) => { if (!corner.current?.contains(event.target as Node)) setMenuOpen(false); };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setMenuOpen(false); gear.current?.focus(); return; }
+      // Back to what opened the menu: the gear, or collapsed the sign with the gear's teeth.
+      if (event.key === "Escape") { setMenuOpen(false); (collapsed ? accountLink.current : gear.current)?.focus(); return; }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
       const items = Array.from(corner.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
       const index = items.indexOf(document.activeElement as HTMLElement);
@@ -88,7 +90,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("pointerdown", onPointer); document.removeEventListener("keydown", onKey); };
-  }, [menuOpen]);
+  }, [menuOpen, collapsed]);
 
   // The droplet: one piece of glass that the pointer (or the keyboard focus) moves from entry to entry. Its place and
   // size go straight into CSS variables of the sidebar, so moving it renders nothing in React.
@@ -138,6 +140,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
     ...navTip(sectionLabel(target, account.admin || account.freelancer)),
   });
   const toggleLabel = collapsed ? "Sidebar ausklappen" : "Sidebar einklappen";
+  const menuEntries = `Profil, Darstellung, ${preview ? "Vorschau verlassen" : "Abmelden"}, Impressum und Datenschutz`;
 
   return (
     <aside
@@ -230,11 +233,13 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         </Link>
       </nav>
       {/* Sign, name and below it a dot with the package; apart from them one gear with Profil, Darstellung and Abmelden.
-          Collapsed, the sign alone opens that menu, beside the sidebar. */}
+          Collapsed, the sign alone opens that menu, beside the sidebar, and wears the gear's teeth (wish of 22.11.2026,
+          preview V4): its hint reads „Einstellungen“, with name and package below. */}
       <div className="sidebar-account" ref={corner}>
-        <Link {...item("settings")} className={`sidebar-account-link${section === "settings" ? " is-active" : ""}`} data-tip-compact={name || "Profil"} data-tip-sub={meta || undefined}
-          aria-haspopup={collapsed ? "menu" : undefined} aria-expanded={collapsed ? menuOpen : undefined}
+        <Link ref={accountLink} {...item("settings")} className={`sidebar-account-link${section === "settings" ? " is-active" : ""}`} data-tip-compact="Einstellungen" data-tip-sub={[name, meta].filter(Boolean).join(" · ") || undefined}
+          aria-label={collapsed ? `Einstellungen: ${menuEntries}` : undefined} aria-haspopup={collapsed ? "menu" : undefined} aria-expanded={collapsed ? menuOpen : undefined} aria-controls={collapsed ? menuId : undefined}
           onClick={(event) => { if (!collapsed) return; event.preventDefault(); setMenuOpen((open) => !open); }}>
+          <svg className="sidebar-gear-ring" viewBox="0 0 48 48" aria-hidden="true"><circle className="sidebar-gear-teeth" cx="24" cy="24" r="21.5" /><circle cx="24" cy="24" r="19.75" /></svg>
           <LogoMark logo={logo} initials={initials} className="avatar" />
           <span className="sidebar-account-text" data-tip-label="">
             {/* Blank while the loading shell waits for the login. */}
@@ -242,7 +247,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
             {meta && <span className="sidebar-account-meta" data-tip={activePackages ? `Pakete: ${account.packages.map((id) => packageCatalog[id].name).join(", ")}` : undefined}><i aria-hidden="true" /><span>{activePackages && <span className="visually-hidden">Pakete: </span>}{meta}</span></span>}
           </span>
         </Link>
-        <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: Profil, Darstellung, ${preview ? "Vorschau verlassen" : "Abmelden"}, Impressum und Datenschutz`} data-tip="Konto" onClick={() => setMenuOpen((open) => !open)}>
+        <button ref={gear} type="button" className="sidebar-account-gear" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} aria-label={`Konto: ${menuEntries}`} data-tip="Konto" onClick={() => setMenuOpen((open) => !open)}>
           <GlassLayers />
           {signingOut ? <MiniLoader size={18} /> : <Settings size={18} strokeWidth={2.2} aria-hidden="true" />}
         </button>

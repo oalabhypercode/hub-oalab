@@ -1,6 +1,6 @@
 # Planung: Einklappbare Sidebar und mitwachsender Arbeitsbereich
 
-Stand 22. November 2026 · Vorschau V3 freigegeben („Passt, umsetzen“) · umgesetzt auf dem Branch `feat/sidebar-liquid-glass` mit den Empfehlungen aus Abschnitt 6
+Stand 22. November 2026 · V3 freigegeben („Passt, umsetzen“), mit den Empfehlungen aus Abschnitt 6 umgesetzt und seit dem 22.11. live · V4 (Zahnrad am Profilbild, Abschnitt 1.8) freigegeben („Menü, umsetzen“) und auf dem Branch `feat/sidebar-zahnrad-profil` umgesetzt
 
 Dieser Plan beschreibt zwei Änderungen für den Hub am Rechner, also ab 1024 px Fensterbreite:
 
@@ -9,9 +9,9 @@ Dieser Plan beschreibt zwei Änderungen für den Hub am Rechner, also ab 1024 px
 
 Handy und Tablet (unter 1024 px) bleiben, wie sie sind: unten die Tab-Leiste, oben das Logo.
 
-Vorschau (privat): https://claude.ai/artifact/STafMcH7JjbQMvJkajNME7 mit den Seiten „V3 · Klares Glas“ (Stand dieses Plans), „V2 · Liquid Glass“, „V1 · Sidebar einklappen“ (MacBook Pro 14″, 1512 × 982) und „Breite auf 4K“ (2560 × 1440, dazu Full HD). Die Flächen sind bedienbar: Der Knopf klappt ein und aus, über den Symbolen gleitet ein Glastropfen und erscheinen die Namen, Übersicht, Aufgaben, Notizen, User Management und Darstellung lassen sich anklicken. Die Fläche „Animation“ spielt Tropfen und Ein- und Ausklappen von selbst ab.
+Vorschau (privat): https://claude.ai/artifact/STafMcH7JjbQMvJkajNME7 mit den Seiten „V4 · Zahnrad am Profil“ (nur die Sidebar, Abschnitt 1.8), „V3 · Klares Glas“ (umgesetzt), „V2 · Liquid Glass“, „V1 · Sidebar einklappen“ (MacBook Pro 14″, 1512 × 982) und „Breite auf 4K“ (2560 × 1440, dazu Full HD). Die Flächen sind bedienbar: Der Knopf klappt ein und aus, über den Symbolen gleitet ein Glastropfen und erscheinen die Namen, Übersicht, Aufgaben, Notizen, User Management und Darstellung lassen sich anklicken. Die Fläche „Animation“ spielt Tropfen und Ein- und Ausklappen von selbst ab.
 
-V2 (22. November 2026) setzt die Rückmeldung zu V1 um: runde Auswahl wie bei Glocke und Assistent oben rechts, ein Liquid-Glass-Effekt statt bloßem Aufhellen, ein Tropfen beim Darüberfahren, federndes Ein- und Ausklappen und eingerückte Unterpunkte mit Verbindungslinie auch im eingeklappten Zustand (Abschnitt 1.7). V3 (am selben Tag) setzt die Rückmeldung zu V2 um: Der Knopf zum Ein- und Ausklappen ist ein Griff am Rand der Sidebar, weiter unten, damit um das Logo Platz bleibt, und das Glas ist klarer, nach dem Vorbild von Apple.
+V2 (22. November 2026) setzt die Rückmeldung zu V1 um: runde Auswahl wie bei Glocke und Assistent oben rechts, ein Liquid-Glass-Effekt statt bloßem Aufhellen, ein Tropfen beim Darüberfahren, federndes Ein- und Ausklappen und eingerückte Unterpunkte mit Verbindungslinie auch im eingeklappten Zustand (Abschnitt 1.7). V3 (am selben Tag) setzt die Rückmeldung zu V2 um: Der Knopf zum Ein- und Ausklappen ist ein Griff am Rand der Sidebar, weiter unten, damit um das Logo Platz bleibt, und das Glas ist klarer, nach dem Vorbild von Apple. V4 (am selben Abend) bringt die Einstellungen in die eingeklappte Leiste: Das Profilbild trägt die Zacken des Zahnrads (Abschnitt 1.8).
 
 Grundlage ist der Code auf `main` vom 22. November 2026 (nach #141). Notizen (`feat/notizen`) und Kalender-Abo (`feat/kalender-abo`) entstehen parallel; Abschnitt 5 regelt das Zusammenspiel.
 
@@ -64,7 +64,7 @@ Der Hub hat seit dem 12. November eine eigene Hinweis-Ebene: ein dunkles Schild 
 
 ### 1.4 Konto-Ecke
 
-Eingeklappt bleibt nur das Profilbild. Ein Klick öffnet das bekannte Konto-Menü (Profil, Darstellung, Abmelden, Impressum · Datenschutz), rechts neben der Leiste und unten bündig, weil 72 px dafür zu schmal sind. Oben im Menü stehen zusätzlich Name und Pakete, die in der Leiste fehlen. Ausgeklappt bleibt alles wie heute: Der Name führt zum Profil, das Zahnrad öffnet das Menü.
+Eingeklappt bleibt nur das Profilbild. Ein Klick öffnet das bekannte Konto-Menü (Profil, Darstellung, Abmelden, Impressum · Datenschutz), rechts neben der Leiste und unten bündig, weil 72 px dafür zu schmal sind. Oben im Menü stehen zusätzlich Name und Pakete, die in der Leiste fehlen. Ausgeklappt bleibt alles wie heute: Der Name führt zum Profil, das Zahnrad öffnet das Menü. Seit V4 trägt das Profilbild eingeklappt die Zacken des Zahnrads (Abschnitt 1.8).
 
 ### 1.5 Umschalten, merken, Bewegung
 
@@ -89,6 +89,17 @@ Eingeklappt bleibt nur das Profilbild. Ein Klick öffnet das bekannte Konto-Men�
 - **Variante Kreis:** Ausgeklappt kann die Auswahl statt einer Kapsel auch nur ein Kreis um das Symbol sein (Fläche „Variante Kreis“); der Name steht dann ohne Fläche in der Akzentfarbe daneben (Entscheidung 10).
 - **Browser:** Die Brechung im Glas läuft über einen SVG-Filter und zeigt sich in Chrome, Edge und der Claude-App. Safari und Firefox zeigen denselben Tropfen mit Rand, Lichtpunkt und Bewegung, nur ohne Brechung.
 - **Rücksicht:** Mit „Bewegung reduzieren“ springt die Sidebar ohne Federn, und der Tropfen erscheint ohne Gleiten. Mit „Transparenz reduzieren“ ist das Glas deckend, ohne Unschärfe und Brechung.
+
+### 1.8 Zahnrad am Profilbild (Vorschau V4)
+
+Wunsch vom 22. November 2026: Eingeklappt sollen die Einstellungen direkt zu erreichen sein, ohne die Sidebar erst auszuklappen. Die Vorschau zeigt nur die Sidebar (Seite „V4 · Zahnrad am Profil“).
+
+- **Aussehen:** Eingeklappt trägt das Profilbild unten in der Leiste die Zacken des Zahnrads: acht runde Zacken auf einem feinen Ring, mit etwas Luft zum Profilbild (34 px im 48-px-Kreis). Kunden mit Logo sehen ihr Logo rund im Zahnrad. Der Ring hat die Farbe des Nebentexts, damit er nicht lauter ist als die Symbole darüber.
+- **Darüberfahren und Fokus:** Das Zahnrad dreht sich federnd um einen Zacken weiter und nimmt die Akzentfarbe an; darüber liegt wie bei jedem Eintrag der Glastropfen. Der Hinweis rechts daneben heißt „Einstellungen“, darunter stehen Name und Firma (bisher stand dort nur der Name).
+- **Klick:** öffnet das Konto-Menü wie bisher (Abschnitt 1.4): Profil, Darstellung, Abmelden, Impressum · Datenschutz, rechts neben der Leiste. Solange das Menü offen ist, bleibt das Zahnrad gedreht und farbig. Die Alternative, direkt zur Seite Profil, ist verworfen (Entscheidung 13).
+- **Ausgeklappt** bleibt alles wie heute: Name und Bild führen zum Profil, das Zahnrad daneben öffnet das Menü.
+- **Bildschirmleser:** Der Eintrag heißt „Einstellungen: Profil, Darstellung, Abmelden, Impressum und Datenschutz“ und meldet, ob das Menü offen ist.
+- **Technik:** ein kleines SVG im Konto-Link (zwei Kreise, die Zacken als gestrichelter Rand), sichtbar nur bei eingeklappter Sidebar ab 1024 px. Die Drehung nutzt dieselbe Feder wie die runden Knöpfe; mit „Bewegung reduzieren“ wechselt nur die Farbe. Eingeklappt gibt der Name seine Höhe weich ab, sodass das Zeichen mit Tropfen und Auswahl ein Kreis von 48 px ist. Das Zahnrad neben dem Namen ist eingeklappt auch für die Tastatur weg; Escape bringt den Fokus zurück auf das Zeichen.
 
 ## 2. Der Arbeitsbereich wächst mit
 
@@ -163,7 +174,7 @@ Vor dem Livegang einmal jede Seite auf 1512, 1920, 2560 und 3840 px Breite anseh
 
 ## 6. Entscheidungen
 
-Am 22. November 2026 mit der Freigabe von V3 entschieden: Umgesetzt ist jeweils die Empfehlung.
+Am 22. November 2026 mit der Freigabe von V3 entschieden (1–12): Umgesetzt ist jeweils die Empfehlung. Frage 13 kam mit V4 und ist mit dessen Freigabe entschieden.
 
 | # | Frage | Empfehlung |
 |---|---|---|
@@ -179,6 +190,7 @@ Am 22. November 2026 mit der Freigabe von V3 entschieden: Umgesetzt ist jeweils 
 | 10 | Auswahl ausgeklappt als Kapsel über die ganze Zeile oder nur als Kreis um das Symbol? | Kapsel (Kreis bleibt eingeklappt) |
 | 11 | Brechung im Glas nur dort, wo der Browser sie kann (Chrome, Edge), sonst derselbe Tropfen ohne Brechung? | Ja |
 | 12 | Glocke, Assistent und die anderen runden Knöpfe im ganzen Hub ebenfalls aus Liquid Glass? | Ja, im selben PR |
+| 13 | Eingeklappt: Öffnet das Profilbild mit Zahnrad das Konto-Menü oder führt es direkt zur Seite Profil? (V4) | Entschieden am 22.11.2026: Menü, so bleiben Darstellung und Abmelden einen Klick entfernt |
 
 ## 7. Abnahme
 
@@ -186,6 +198,7 @@ Am 22. November 2026 mit der Freigabe von V3 entschieden: Umgesetzt ist jeweils 
 - Eingeklappt zeigt jedes Symbol beim Darüberfahren und bei Tastaturfokus seinen Namen rechts daneben; ausgeklappt erscheint kein doppelter Hinweis.
 - Ungelesene Nachrichten und offene Registrierungen sind eingeklappt als Punkt mit Zahl zu sehen.
 - Konto-Menü eingeklappt: öffnet rechts neben der Leiste; Profil, Darstellung, Abmelden, Impressum und Datenschutz funktionieren; Escape schließt es.
+- Zahnrad am Profilbild (V4): eingeklappt mit Initialen und mit Logo, hell und dunkel; Darüberfahren und Tastaturfokus drehen das Zahnrad und zeigen „Einstellungen“; ausgeklappt kein Ring.
 - „Bewegung reduzieren“: Ein- und Ausklappen ohne Animation, der Tropfen ohne Gleiten.
 - Tropfen: folgt der Maus und dem Tastaturfokus über alle Einträge, ausgeklappt und eingeklappt; Symbol und Name bleiben darunter lesbar, hell und dunkel.
 - Unterpunkte: ausgeklappt und eingeklappt nach rechts versetzt, die Linie zu Projekte durchgehend sichtbar.
