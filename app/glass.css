@@ -195,12 +195,14 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .skeleton-bar { display: block; height: 12px; border-radius: 6px; background: var(--fill-tertiary); }
 
 /* ---------- App shell ---------- */
-.hub-main { min-height: 100dvh; padding: 20px 28px 64px calc(272px + 12px + 28px); }
-.hub-content { width: 100%; max-width: 1040px; margin: 0 auto; }
+/* Every page uses the whole width beside the sidebar (22.11.2026; before, 1040 px, tables 1240 px); --sidebar-w is 272 px,
+   72 px with the sidebar collapsed (app/sidebar.css). */
+.hub-main { min-height: 100dvh; padding: 20px 28px 64px calc(var(--sidebar-w) + 12px + 28px); }
+.hub-content { width: 100%; margin: 0 auto; }
 .hub-app .skip-link { border-radius: 999px; background: var(--surface); color: var(--label); }
 
 /* Design preview notice (/preview only): marks the fictional content. */
-.hub-notice { max-width: 1040px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; min-height: 36px; border-radius: 999px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.hub-notice { margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; min-height: 36px; border-radius: 999px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .hub-notice > span:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--label-body); font-weight: 600; }
 .hub-notice-detail { font-weight: 400; color: var(--label-secondary); }
 .hub-notice i { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex: 0 0 auto; }
@@ -276,9 +278,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .large-title-date { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--on-bg-soft); margin-bottom: 2px; }
 .large-title-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .title-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--surface); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
-.compact-nav { position: fixed; z-index: 35; top: 12px; left: calc(272px + 24px + 28px); right: 28px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--label); font-size: 17px; font-weight: 600; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity 250ms var(--ease-spring), transform 250ms var(--ease-spring); }
+.compact-nav { position: fixed; z-index: 35; top: 12px; left: calc(var(--sidebar-w) + 24px + 28px); right: 28px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--label); font-size: 17px; font-weight: 600; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity 250ms var(--ease-spring), transform 250ms var(--ease-spring); }
 .compact-nav.is-visible { opacity: 1; transform: none; }
-@media (min-width: 1404px) { .compact-nav { left: calc(272px + 24px + 28px + (100vw - 272px - 24px - 56px - 1040px) / 2); right: auto; width: 1040px; } }
 
 /* Dialogs as glass sheets */
 .hub-modal.glass { padding: 24px; border-radius: 26px; width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; color: var(--label-body); box-shadow: var(--glass-shadow-float); }
@@ -769,6 +770,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 
 /* Appearance */
 .appearance-stack { display: flex; flex-direction: column; gap: var(--grid-gap); max-width: 640px; }
+/* From 1024 px the cards of Darstellung stand side by side in columns of at least 460 px (22.11.2026). */
+@media (min-width: 1024px) {
+  .appearance-stack { display: block; max-width: none; columns: 460px; column-gap: var(--grid-gap); }
+  .appearance-stack > * { break-inside: avoid; margin-bottom: var(--grid-gap); }
+}
 .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 14px 10px; margin-top: 14px; }
 .swatch-grid + p { margin-top: 12px; }
 .background-swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0; }
@@ -826,8 +832,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   --tip-bg: #252027; --tip-shadow: 0 6px 18px rgba(20, 4, 14, 0.26);
 }
 .sheet { border-radius: 16px; background: var(--sheet); box-shadow: var(--sheet-shadow); color: var(--label-body); }
-/* Pages with a table may use more of the width, like Studio: up to 1240 px instead of 1040 px. */
-.hub-content:has(> .sheet) { max-width: 1240px; }
 /* From tablet width on, a sheet measures itself, so its table can drop details before it has to scroll (see below). */
 @media (min-width: 768px) {
   .sheet { container: sheet / inline-size; }
@@ -849,13 +853,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet-fill { flex: 1 0 auto; }
 }
 /* Darstellung › Breite „Breit (XL)“, from 1024 px on: like an IDE in full screen – 12 px to the sidebar, the window's
-   edge and the bottom, table pages over the whole width, the sheet down to 12 px above the bottom on every page
-   (whatever stands above it). Standard stays exactly as before. */
+   edge and the bottom, the sheet down to 12 px above the bottom on every page (whatever stands above it). Standard and XL
+   both use the whole width since 22.11.2026; XL keeps the narrower gaps. */
 @media (min-width: 1024px) {
-  :root[data-width="xl"] .hub-main { padding: 14px 12px 12px calc(272px + 12px + 12px); }
+  :root[data-width="xl"] .hub-main { padding: 14px 12px 12px calc(var(--sidebar-w) + 12px + 12px); }
   :root[data-width="xl"] .hub-app.has-assistant-dock .hub-main { padding-right: calc(var(--assistant-dock) + 12px + 12px); }
-  :root[data-width="xl"] :is(.hub-content, .hub-notice) { max-width: 1240px; }
-  :root[data-width="xl"] .hub-content:has(> .sheet), :root[data-width="xl"] .hub-app:has(.hub-content > .sheet) .hub-notice { max-width: none; }
   :root[data-width="xl"] .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px); }
   :root[data-width="xl"] .hub-content:has(> :is(.am, .chat)) { display: flex; flex-direction: column; height: calc(100dvh - 14px - 12px); }
   :root[data-width="xl"] .hub-app:has(.hub-notice) .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px - 52px); }
@@ -1368,6 +1370,14 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .user-table .col-number { display: none; }
 }
 /* Then the start date and the last login go and descriptions and e-mail addresses get less room, then the details. */
+/* Wide sheets (22.11.2026): names, addresses, companies and descriptions get more room before they are shortened. */
+@container sheet (min-width: 1400px) {
+  .cell-milestone { max-width: 420px; }
+  .cell-file { max-width: 520px; }
+  .cell-description { max-width: 560px; }
+  .mail-cell { max-width: 320px; }
+  .data-table .company-name, .user-table .company-hint, .user-table .row-open strong { max-width: 280px; }
+}
 @container sheet (max-width: 1040px) {
   .sheet-search { flex-basis: 200px; }
   .project-table .col-start { display: none; }

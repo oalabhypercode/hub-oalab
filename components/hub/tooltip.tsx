@@ -5,7 +5,8 @@ import { useEffect } from "react";
 /**
  * The hub's hover hints instead of the browser's title tooltips (user 12.11.2026, proposal A „Studio“): a small dark
  * label with an arrow, in the hub's font. An element asks for one with data-tip (the text), data-tip-sub (a second,
- * lighter line) and data-tip-kbd (a shortcut), or with data-tip-compact for a button whose text may hide. One layer serves the whole hub: the hint shows after 0.4 s, at once when
+ * lighter line) and data-tip-kbd (a shortcut), or with data-tip-compact for a button whose text may hide; data-tip-side="right"
+ * puts the hint beside the element instead of above it. One layer serves the whole hub: the hint shows after 0.4 s, at once when
  * the pointer moves on to a neighbour, also on keyboard focus, and hides on click, scrolling and Escape. A hint that
  * changes while the pointer rests on its element ("Kopieren" → "Kopiert") shows the new text. Phones get none.
  */
@@ -65,13 +66,22 @@ export function TooltipLayer() {
       tip.replaceChildren(...parts);
     };
 
-    // Above the element, centred, below it when the screen edge is too close; the arrow keeps pointing at it.
+    // Above the element, centred, below it when the screen edge is too close; the arrow keeps pointing at it. With
+    // data-tip-side="right" (the collapsed sidebar, 22.11.2026) beside the element, vertically centred, arrow to the left.
     const place = (element: HTMLElement) => {
       const rect = element.getBoundingClientRect();
       tip.style.left = "0px";
       tip.style.top = "0px";
       const width = tip.offsetWidth;
       const height = tip.offsetHeight;
+      if (element.dataset.tipSide === "right" && rect.right + GAP + width <= window.innerWidth - EDGE) {
+        const top = Math.min(Math.max(EDGE, rect.top + rect.height / 2 - height / 2), window.innerHeight - height - EDGE);
+        tip.style.left = `${Math.round(rect.right + GAP)}px`;
+        tip.style.top = `${Math.round(top)}px`;
+        tip.style.setProperty("--tip-arrow", `${Math.round(rect.top + rect.height / 2 - top)}px`);
+        tip.dataset.side = "right";
+        return;
+      }
       const below = rect.top - GAP - height < EDGE;
       const left = Math.min(Math.max(EDGE, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - EDGE);
       tip.style.left = `${Math.round(left)}px`;
@@ -108,8 +118,9 @@ export function TooltipLayer() {
 
     const show = (element: HTMLElement) => {
       if (!element.isConnected || !textOf(element)) return;
-      // A field whose list is open needs no hint on top of it.
-      if (element.getAttribute("aria-expanded") === "true" || element.querySelector('[aria-expanded="true"]')) return;
+      // A field whose list is open needs no hint on top of it; data-tip-always marks a button whose aria-expanded opens
+      // no list (the sidebar's handle).
+      if (element.dataset.tipAlways === undefined && (element.getAttribute("aria-expanded") === "true" || element.querySelector('[aria-expanded="true"]'))) return;
       undescribe();
       anchor = element;
       // Inside an open dialog the hint belongs to the dialog, so the dialog does not make it inert.

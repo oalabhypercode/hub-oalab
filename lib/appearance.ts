@@ -15,8 +15,14 @@ export type ColorScheme = "system" | "light" | "dark";
  */
 export type ListView = "minimal" | "list" | "detail";
 
-/** Breite: the page as it was (Standard), or the sheets almost edge to edge like an IDE (XL). */
+/**
+ * Breite: Standard uses the whole width beside the sidebar and grows with the screen (since 22.11.2026; before, the
+ * content stopped at 1040 px), XL moves the sheets almost to the window's edge like an IDE.
+ */
 export type PageWidth = "standard" | "xl";
+
+/** The sidebar from 1024 px (22.11.2026): expanded as before, or collapsed to its symbols. Per device, like the width. */
+export type SidebarState = "expanded" | "collapsed";
 
 export type BackgroundPreset = {
   id: BackgroundPresetId;
@@ -33,6 +39,7 @@ export type Appearance = {
   glassBlur: number;
   reduceTransparency: boolean;
   reduceMotion: boolean;
+  sidebar: SidebarState;
   listView: ListView;
   pageWidth: PageWidth;
 };
@@ -60,11 +67,12 @@ export const defaultAppearance: Appearance = {
   glassBlur: 24,
   reduceTransparency: false,
   reduceMotion: false,
+  sidebar: "expanded",
   listView: "minimal",
   pageWidth: "standard",
 };
 
-export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark"; width: PageWidth };
+export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark"; width: PageWidth; sidebar: SidebarState };
 
 /** The dark theme shows the background at this brightness at most (glass.css mixes it with black, --bg-shade). */
 export const DARK_BACKGROUND_SHADE = 0.62;
@@ -114,6 +122,8 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
     theme,
     // Set before the first paint like the theme, so a page in XL does not open narrow and then jump wide.
     width: input.pageWidth === "xl" ? "xl" : "standard",
+    // The same for a collapsed sidebar: it opens narrow instead of sliding in from the full width.
+    sidebar: input.sidebar === "collapsed" ? "collapsed" : "expanded",
   };
 }
 
@@ -131,6 +141,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     glassBlur: Math.min(GLASS_BLUR_RANGE.max, Math.max(GLASS_BLUR_RANGE.min, number(input.glassBlur, defaultAppearance.glassBlur))),
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : defaultAppearance.reduceMotion,
+    sidebar: input.sidebar === "collapsed" ? "collapsed" : "expanded",
     listView: input.listView === "detail" || input.listView === "list" ? input.listView : "minimal",
     pageWidth: input.pageWidth === "xl" ? "xl" : "standard",
   };
@@ -144,6 +155,7 @@ export function applyAppearanceToDocument(dom: AppearanceDom, root: HTMLElement)
   root.dataset.onBackground = dom.onBackground;
   root.dataset.theme = dom.theme;
   root.dataset.width = dom.width;
+  root.dataset.sidebar = dom.sidebar;
   // Native controls and scrollbars follow the theme as well.
   root.style.colorScheme = dom.theme;
 }

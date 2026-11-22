@@ -1,6 +1,6 @@
 # Planung: Einklappbare Sidebar und mitwachsender Arbeitsbereich
 
-Stand 22. November 2026 · Entwurf zur Entscheidung · im Hub ist davon noch nichts umgesetzt
+Stand 22. November 2026 · Vorschau V3 freigegeben („Passt, umsetzen“) · umgesetzt auf dem Branch `feat/sidebar-liquid-glass` mit den Empfehlungen aus Abschnitt 6
 
 Dieser Plan beschreibt zwei Änderungen für den Hub am Rechner, also ab 1024 px Fensterbreite:
 
@@ -162,6 +162,8 @@ Vor dem Livegang einmal jede Seite auf 1512, 1920, 2560 und 3840 px Breite anseh
 - Patch-Notes-Pakete: Wer am selben Tag als Zweiter live geht, legt seine Einträge ins Paket des Tages.
 
 ## 6. Entscheidungen
+
+Am 22. November 2026 mit der Freigabe von V3 entschieden: Umgesetzt ist jeweils die Empfehlung.
 
 | # | Frage | Empfehlung |
 |---|---|---|
