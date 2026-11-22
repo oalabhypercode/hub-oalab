@@ -93,10 +93,10 @@ export function useCalendarStore(state: HubCalendarState, taskList: CalendarTask
   const live = state.source === "supabase";
   const [local, setLocal] = useState(state.appointments);
   const appointments = live ? state.appointments : local;
-  // Admins see every appointment, so their busy times come from the list itself, with the other calendars' blocks.
+  // Admins see every appointment, so their busy times come from the list itself.
   const busy = useMemo<Interval[]>(() => state.canManage
-    ? [...appointments.filter((item) => item.status === "confirmed").map(({ start, end }) => ({ start, end })), ...(state.privateBusy ?? []).map(({ start, end }) => ({ start, end }))]
-    : state.busy, [state.canManage, state.busy, state.privateBusy, appointments]);
+    ? appointments.filter((item) => item.status === "confirmed").map(({ start, end }) => ({ start, end }))
+    : state.busy, [state.canManage, state.busy, appointments]);
   // A customer's own open requests: they block that time for a second request of theirs.
   const own = useMemo<Interval[]>(() => state.canManage ? []
     : appointments.filter((item) => item.status === "requested" && item.end > state.now).map(({ start, end }) => ({ start, end })), [state.canManage, appointments, state.now]);

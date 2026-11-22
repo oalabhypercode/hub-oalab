@@ -15,9 +15,7 @@ export type NoticeKind =
   | "appointment.created" | "appointment.changed" | "appointment.confirmed" | "appointment.cancelled" | "appointment.declined"
   | "chat.message" | "chat.reply"
   | TaskNoticeKind
-  | "share.granted"
-  // A calendar of the availability that cannot be read for 24 hours (bell only, admins; lib/hub-calendar/sources-store.ts).
-  | "calendar.source";
+  | "share.granted";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 

@@ -435,28 +435,3 @@ html.is-dragging, html.is-dragging * { cursor: grabbing !important; }
 .calendar-feed-facts > div { display: contents; }
 .calendar-feed-facts dt { font-size: 13px; line-height: 20px; color: var(--label-secondary); }
 .calendar-feed-facts dd { margin: 0; font-size: 14px; line-height: 20px; color: var(--label-body); overflow-wrap: anywhere; }
-
-/* ---------- Andere Kalender (stage 2): busy times from iCloud and Microsoft 365, „Privat“ for admins ---------- */
-.cal-ev.is-private { z-index: 1; background-color: var(--sheet-sunken); background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--sheet-line) 6px 8px); box-shadow: inset 3px 0 0 var(--sheet-icon), 0 0 0 1px var(--sheet); color: var(--sheet-muted); }
-.cal-ev.is-private:hover { z-index: 3; box-shadow: inset 3px 0 0 var(--sheet-icon), 0 0 0 1px var(--sheet), 0 6px 16px rgb(20 4 14 / .16); }
-.cal-ev.is-private .cal-ev-title, .cal-ev.is-private .cal-ev-line { font-weight: 600; color: var(--label-secondary); }
-.cal-key-swatch.is-private { background-color: var(--sheet-sunken); background-image: repeating-linear-gradient(135deg, transparent 0 2px, var(--sheet-icon) 2px 3px); box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.cal-src-new { margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, rgb(var(--accent-rgb)) 14%, var(--sheet)); color: var(--accent-text); font-size: 11px; font-weight: 700; vertical-align: 1px; }
-.cal-src-list { margin-top: 2px; }
-.cal-src-ico { width: 34px; height: 34px; flex: none; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; }
-.cal-src-ico.is-icloud { background: var(--tone-info-bg); color: var(--tone-info); }
-.cal-src-ico.is-ms { background: color-mix(in srgb, var(--cal-teams) 16%, var(--sheet)); color: var(--cal-teams); }
-.cal-src-rules { display: grid; gap: 10px; padding-top: 10px; }
-.cal-src-rules .cal-feed-rows { background: var(--sheet); }
-.cal-src-rules .cal-feed-actions, .cal-src-rules .cal-panel-note { margin-top: 0; }
-.cal-src-relink { display: grid; gap: 8px; }
-.cal-src-form { gap: 10px; }
-.cal-src-form .cal-feed-steps { margin-top: 0; }
-.cal-src-form .cal-feed-lead, .cal-src-form .cal-panel-note { margin: 0; }
-.cal-src-form-title { font-size: 14.5px; color: var(--label); }
-.cal-src-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.cal-src-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 9px 12px; border-radius: 12px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13.5px; font-weight: 600; color: var(--label-body); text-align: left; }
-.cal-src-opt small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--sheet-muted); }
-.cal-src-opt.is-on { box-shadow: inset 0 0 0 1.5px var(--accent-text); color: var(--accent-text); }
-.cal-src-ms { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
-@media (max-width: 760px) { .cal-src-choice { grid-template-columns: minmax(0, 1fr); } }

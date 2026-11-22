@@ -1,13 +1,13 @@
 # Planung: Kalender des Hubs mit Apple Kalender synchron halten
 
-Stand 22. November 2026 · alle Entscheidungen getroffen (Abschnitt 8) · Etappe 1 und 2 gebaut auf dem Branch `feat/kalender-abo` (Migrationen 202611220001 und 202611220002 in `service-oalab`, Branch `feat/hub-calendar-feeds`), noch nicht live · Umsetzung und Einrichtung in Abschnitt 11
+Stand 22. November 2026 · alle Entscheidungen getroffen (Abschnitt 8) · Etappe 1 gebaut auf dem Branch `feat/kalender-abo` (Migration 202611220001 in `service-oalab`, Branch `feat/hub-calendar-feeds`), noch nicht live · Etappe 2 und 3 entfallen (Entscheidung 10): Es bleibt beim abonnierbaren Kalender · Umsetzung in Abschnitt 11
 
 Ziel: Was im Kalender des Hubs steht, soll ohne Zutun im Apple Kalender auf iPhone, iPad und Mac stehen und dort aktuell bleiben. Dieser Plan vergleicht die möglichen Wege, schlägt drei Etappen vor und beschreibt die erste so genau, dass sie gebaut werden kann. Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137), Apples Hilfeseiten zu Kalenderabos (Stand Mai 2026) und Microsofts Dokumentation zu Frei/Belegt in Microsoft Graph (Stand November 2026).
 
 ## Auf einen Blick
 
 - **Etappe 1, für alle: persönliches Kalender-Abo.** Jede Person (Admin, Kunde, Freelancer) bekommt im Hub einen geheimen Abo-Link. Ein Tipp auf „Mit Apple Kalender abonnieren“ legt in Apple Kalender den Kalender „oalab“ an; mit „iCloud“ als Ort steht er auf allen Geräten derselben Apple-ID. Danach holt Apple den Stand von selbst: Neue, verschobene und abgesagte Termine kommen ohne Mail und ohne Löschen von Hand nach. Kosten keine, Richtung nur Hub → Apple.
-- **Etappe 2, fürs Team: belegte Zeiten aus iCloud und Microsoft 365 zurück in den Hub.** Das Team führt seine Kalender in beiden. Termine dort sperren die Zeiten, die Kunden anfragen können; Titel und Inhalte bleiben draußen.
+- **Etappe 2, fürs Team: belegte Zeiten aus iCloud und Microsoft 365 zurück in den Hub.** Das Team führt seine Kalender in beiden. Termine dort sperren die Zeiten, die Kunden anfragen können; Titel und Inhalte bleiben draußen. **Entfällt** (Entscheidung 10): Es reicht ein Kalender, den man mit dem Link in Apple Kalender und Outlook abonniert; der Hub greift nicht auf iCloud oder Microsoft 365 zu und braucht keine App-Registrierung.
 - **Etappe 3, optional fürs Team: Abgleich in Sekunden** über Microsoft 365. Derzeit nicht nötig, weil Minuten bis etwa eine Stunde reichen (Entscheidung 8); interessant bleibt sie, falls Teams-Meetings von selbst entstehen sollen.
 - **Nicht empfohlen:** den Hub zum vollwertigen CalDAV-Server machen, damit man Hub-Termine in Apple Kalender bearbeiten kann. Das ist viel Aufwand, und die Regeln des Hubs (Anfragen, Verfügbarkeit, Meldungen an Kunden, Teams-Links) ließen sich beim Bearbeiten in Apple nicht durchsetzen.
 - **Zur Aktualität:** Wie oft Apple ein Abo abruft, bestimmt Apple, nicht der Hub. Am Mac stellt man es je Kalender ein („Automatisch aktualisieren“), iPhone und iCloud rufen in eigenen Abständen ab, die Apple nicht veröffentlicht. Zu erwarten sind Minuten bis etwa eine Stunde. Wer Sekunden braucht, braucht Etappe 3.
@@ -111,7 +111,9 @@ Die Bezeichnungen können je nach Systemversion leicht abweichen.
 - **Datenschutz:** Die Datenschutzerklärung bekommt einen Absatz zum Kalender-Abo: was darin steht, dass der Link ohne Anmeldung funktioniert und geheim bleiben sollte, dass der gewählte Kalenderdienst (Apple iCloud, Google, Microsoft) die Termine auf Wunsch der Person abruft, und wie man das Abo beendet.
 - **Messen nach dem Livegang:** Abstände der Abrufe je Programm (iCloud, iPhone direkt, Mac, Google, Outlook) aus `last_fetched_at` und dem Server-Log, damit die Anleitung realistische Zeiten nennt.
 
-## 5. Etappe 2: belegte Zeiten aus iCloud und Microsoft 365 in den Hub (nur Team)
+## 5. Etappe 2: belegte Zeiten aus iCloud und Microsoft 365 in den Hub (nur Team) – entfällt
+
+Entfällt nach Entscheidung 10. Der Abschnitt bleibt als Hintergrund stehen, falls die Gegenrichtung später doch gewünscht ist; eine gebaute Fassung liegt im Verlauf (Abschnitt 11.3).
 
 - **Wozu:** Kunden fragen Termine nur in freien Zeiten an (`hub_calendar_busy()` und die Verfügbarkeit). Termine, die das Team in iCloud oder in Microsoft 365 (Outlook) führt, kennt der Hub heute nicht; Anfragen in solche Zeiten sind möglich.
 - **Wo:** Kalender › Verfügbarkeit, neuer Abschnitt „Andere Kalender berücksichtigen“. Admins hinterlegen dort ihre Quellen, beliebig viele aus iCloud und Microsoft 365; jede sperrt Zeiten für alle Anfragen.
@@ -126,7 +128,7 @@ Die Bezeichnungen können je nach Systemversion leicht abweichen.
 
 ## 6. Etappe 3 (optional): Abgleich in Sekunden
 
-Stand 22. November 2026 nicht geplant: Minuten bis etwa eine Stunde reichen (Entscheidung 8). Kommt sie später, lässt sich die App-Registrierung aus Etappe 2 um Schreibrechte erweitern.
+Stand 22. November 2026 nicht geplant: Minuten bis etwa eine Stunde reichen (Entscheidungen 8 und 10). Kommt sie später, braucht sie eine eigene App-Registrierung in Microsoft Entra ID.
 
 - **Microsoft 365:** App-Registrierung in Microsoft Entra ID mit Kalenderrechten, begrenzt auf die Postfächer des Teams. Der Hub legt bestätigte Termine im Outlook-Kalender des zuständigen Admins an, ändert und löscht sie sofort, mit Teams-Meeting; der Teams-Link kommt von selbst in den Hub. Microsoft meldet Änderungen in Outlook per Webhook. Termine mit Kunden bleiben im Hub führend; aus Outlook übernimmt der Hub nur Frei/Belegt und weist auf Abweichungen hin. Apple Kalender zeigt das Microsoft-Konto auf iPhone und Mac mit Push.
 - **iCloud direkt (Weg C)** nur, wenn die Kalender des Teams in iCloud liegen und Sekunden wirklich nötig sind; dafür bräuchte der Hub ein app-spezifisches Passwort im Schlüsselbund.
@@ -136,7 +138,7 @@ Stand 22. November 2026 nicht geplant: Minuten bis etwa eine Stunde reichen (Ent
 | Etappe | Inhalt | Umfang |
 |---|---|---|
 | **1 Kalender-Abo** | Tabelle, Abo-Route, Seitenleiste, Profilkarte, Mail-Hinweis, Datenschutz, Tests, Messung | mittel: ein PR in `service-oalab`, einer im Hub |
-| **2 Belegt aus iCloud und Microsoft 365** | Quellen in der Verfügbarkeit (iCloud-Link, Postfach in Microsoft 365), App-Registrierung, Abruf, Speicher, Einbezug in `hub_calendar_busy()` und freie Zeiten | mittel: ein PR in `service-oalab`, einer im Hub |
+| **2 Belegt aus iCloud und Microsoft 365** | Quellen in der Verfügbarkeit (iCloud-Link, Postfach in Microsoft 365), App-Registrierung, Abruf, Speicher, Einbezug in `hub_calendar_busy()` und freie Zeiten | entfällt (Entscheidung 10) |
 | **3 Microsoft 365** | Termine schreiben, Teams-Meetings, Webhooks | groß, eigener Plan; derzeit nicht nötig |
 
 ## 8. Entscheidungen
@@ -151,9 +153,10 @@ Alle Entscheidungen sind am 22. November 2026 getroffen:
 | 4 | Abo für Admins und Freelancer nur mit bestätigtem Code anlegen? | Ja |
 | 5 | Link nur einmal zeigen (nur die Prüfsumme gespeichert), danach „Neuen Link erzeugen“? | Ja |
 | 6 | In Termin-Mails für Abonnenten einen Satz statt der vier Knöpfe? | Ja |
-| 7 | Wo liegen die Kalender des Teams? | In iCloud und in Microsoft 365 (Outlook); Etappe 2 liest beide |
+| 7 | Wo liegen die Kalender des Teams? | In iCloud und in Microsoft 365 (Outlook); hinfällig mit Entscheidung 10 |
 | 8 | Etappe 3 nur, wenn Minuten Verzug stören oder Teams-Links automatisch kommen sollen? | Ja; Minuten bis etwa eine Stunde reichen, Etappe 3 ist derzeit nicht nötig |
-| 9 | Microsoft 365 über eine App-Registrierung mit `Calendars.ReadBasic` lesen, begrenzt auf die Postfächer des Teams, statt über veröffentlichte Kalender? | Ja; der veröffentlichte Kalender bleibt nur Rückfall |
+| 9 | Microsoft 365 über eine App-Registrierung mit `Calendars.ReadBasic` lesen, begrenzt auf die Postfächer des Teams, statt über veröffentlichte Kalender? | Hinfällig mit Entscheidung 10 |
+| 10 | Etappe 2 überhaupt bauen (belegte Zeiten aus iCloud und Microsoft 365, App-Registrierung in Entra ID)? | Nein (22. November 2026, nach dem Bau): Gewünscht ist nur ein Kalender, den man in Apple Kalender und Outlook abonniert; wer den Link hat, kann ihn abonnieren. Etappe 2 ist wieder entfernt, Abschnitt 10 entfällt |
 
 ## 9. Abnahme Etappe 1
 
@@ -164,54 +167,26 @@ Alle Entscheidungen sind am 22. November 2026 getroffen:
 - Google Kalender und Outlook: Das Abo funktioniert; Abstände notieren.
 - Seitenleiste und QR-Code in hell und dunkel sowie in Handy-Breite lesbar.
 
-## 10. Abnahme Etappe 2
+## 10. Abnahme Etappe 2 – entfällt
 
-- Ein Termin in iCloud und einer in Outlook: Nach höchstens 10 Minuten ist die Zeit für Anfragen belegt. Titel, Ort und Teilnehmer stehen nirgends im Hub, auch nicht in der Datenbank.
-- Ganztägige und als „frei“ markierte Einträge sperren nichts. Eine Kopie eines Hub-Termins in iCloud sperrt keine zusätzliche Zeit.
-- Die App für Microsoft 365 liest nur die Postfächer des Teams; ein anderes Postfach im Mandanten ergibt einen Fehler.
-- Eine Quelle ist 24 Stunden nicht erreichbar: Meldung in der Glocke, bis dahin gelten die zuletzt gelesenen Zeiten.
-- Der iCloud-Link steht verschlüsselt in der Datenbank und wird im Hub nie wieder angezeigt.
+Entfällt mit Entscheidung 10.
 
-## 11. Umsetzung (22. November 2026) und Einrichtung
+## 11. Umsetzung (22. November 2026)
 
 ### 11.1 Was gebaut ist
 
-- **Etappe 1:** Tabelle `hub_calendar_feeds` (nur Prüfsumme, Rolle beim Anlegen, Inhalte, letzter Abruf und Programm, Zähler je Stunde, Ende). Abo-Adresse `app/api/calendar/feed/[token]/[file]` (GET und HEAD, ETag und 304, 429 ab 60 Abrufen je Stunde, 404 für falsche und beendete Schlüssel). Knopf „Abonnieren“ im Kalenderkopf, Fenster „Kalender abonnieren“ mit den drei Schritten der Vorschau, Karte „Kalender-Abo“ im Profil, Satz in Termin-Mails für Abonnenten, Absatz in der Datenschutzerklärung. Das Abo endet beim Rücksetzen des zweiten Faktors, beim Deaktivieren und beim Rollenwechsel durch einen Admin sofort, sonst beim nächsten Abruf (Zugang nicht aktiv, gesperrt, andere Rolle, 180 Tage ohne Abruf).
-- **Etappe 2:** Tabellen `hub_calendar_sources` und `hub_calendar_external_busy`, `hub_calendar_replace_busy()`, neue Fassungen von `hub_calendar_busy()` und `hub_calendar_request_allowed()` (fremde belegte Zeiten mit demselben Puffer), Meldungsart `calendar.source`. Abschnitt „Andere Kalender berücksichtigen“ in der Verfügbarkeit, Abruf alle 10 Minuten im Zeitplan der Benachrichtigungen, graue Blöcke „Privat“ für Admins, Meldung in der Glocke nach 24 Stunden Störung.
+Tabelle `hub_calendar_feeds` (nur Prüfsumme, Rolle beim Anlegen, Inhalte, letzter Abruf und Programm, Zähler je Stunde, Ende). Abo-Adresse `app/api/calendar/feed/[token]/[file]` (GET und HEAD, ETag und 304, 429 ab 60 Abrufen je Stunde, 404 für falsche und beendete Schlüssel); sie braucht keine Anmeldung, wer den Link hat, kann ihn abonnieren. Knopf „Abonnieren“ im Kalenderkopf, Fenster „Kalender abonnieren“ mit den drei Schritten der Vorschau (Apple Kalender, Google, Outlook, Link kopieren, QR-Code, Anleitung je Gerät), Karte „Kalender-Abo“ im Profil, Satz in Termin-Mails für Abonnenten, Absatz in der Datenschutzerklärung. Das Abo endet beim Rücksetzen des zweiten Faktors, beim Deaktivieren und beim Rollenwechsel durch einen Admin sofort, sonst beim nächsten Abruf (Zugang nicht aktiv, gesperrt, andere Rolle, 180 Tage ohne Abruf).
 
 ### 11.2 Abweichungen vom Plan
 
 - **Code beim Anlegen:** Statt eines eigenen Code-Fensters führt „Mit Code bestätigen“ über die vorhandene Bestätigungsseite des Hubs und zurück zum offenen Abo-Fenster (`?abo=1`), wie bei den Aufgaben im Kalender.
 - **„Abo beenden“ und „Neuen Link erzeugen“** fragen im Fenster selbst nach (wie „Endgültig löschen“ bei Terminen), nicht in einem eigenen Dialog.
 - **Outlook und Google:** Für das Abonnieren gibt es keinen dokumentierten Direktlink. Die Knöpfe öffnen Googles `cid=`-Link bzw. Outlooks „Aus dem Web abonnieren“ und kopieren den Link zusätzlich, damit man ihn notfalls einfügt.
-- **ICS-Quellen ohne Bibliothek:** Statt ical.js (eine neue Abhängigkeit braucht das Okay des Nutzers) liest `lib/hub-calendar/external-busy.ts` die Kalender selbst: Zeitzonen über Intl und eine Tabelle der Windows-Namen, Wiederholungen (täglich, wöchentlich, monatlich, jährlich mit BYDAY samt Position, BYMONTHDAY, BYMONTH, BYSETPOS, COUNT, UNTIL, INTERVAL), EXDATE, RDATE, verschobene Einzeltermine und VFREEBUSY; seltene Regelteile (BYWEEKNO, BYYEARDAY, BYHOUR) bleiben außen vor.
-- **Entscheidung 9, Rechte in Microsoft 365:** Die Rollensteuerung für Apps in Exchange Online (RBAC for Applications) kennt keine Rolle „Application Calendars.ReadBasic“, nur „Application Calendars.Read“ und „…ReadWrite“. Auf die Postfächer des Teams begrenzen lässt sich also nur `Calendars.Read`; `Calendars.ReadBasic` gäbe es nur für den ganzen Mandanten (in Entra ID erteilt, ohne Begrenzung). Empfehlung: Weg A unten (begrenzt, `Calendars.Read`). Der Hub fragt in beiden Fällen nur Frei/Belegt ab und speichert nur Beginn und Ende.
 
-### 11.3 Einrichtung Microsoft 365 (Weg A, empfohlen)
+### 11.3 Etappe 2 gebaut und wieder entfernt
 
-Voraussetzung: Rolle Exchange-Administrator in Entra ID (oder die Rollengruppe Organization Management in Exchange Online).
+Etappe 2 war auf `feat/kalender-abo` gebaut (Commit `adb0b8c`, dazu Migration 202611220002 in `service-oalab`, Commit `c8fa6fb`) und ist nach Entscheidung 10 wieder entfernt. Soll die Gegenrichtung später doch kommen, lässt sie sich aus diesen Commits zurückholen. Die Meldungsart `calendar.source`, die die Migration der Notizen (`202611221002`) schon erlaubt, bleibt dann ungenutzt; das schadet nicht.
 
-1. **App registrieren:** entra.microsoft.com › Anwendungen › App-Registrierungen › Neue Registrierung. Name zum Beispiel „oalab Client Hub Frei/Belegt“, Kontotyp „Nur Konten in diesem Organisationsverzeichnis“, keine Umleitungs-URI. Registrieren.
-2. **IDs notieren:** In der Übersicht „Anwendungs-ID (Client)“ → `HUB_MS365_CLIENT_ID`, „Verzeichnis-ID (Mandant)“ → `HUB_MS365_TENANT_ID`.
-3. **Geheimnis anlegen:** Zertifikate & Geheimnisse › Neuer geheimer Clientschlüssel, Ablauf zum Beispiel 24 Monate (Datum im Kalender vormerken). Den **Wert** (nicht die ID) sofort kopieren → `HUB_MS365_CLIENT_SECRET`; er wird nur einmal angezeigt.
-4. **Keine Kalenderrechte in Entra ID erteilen:** Unter API-Berechtigungen kein `Calendars.Read` oder `Calendars.ReadBasic` als Anwendungsberechtigung hinzufügen und keine Administratorzustimmung dafür geben. Rechte aus Entra ID gelten für den ganzen Mandanten und hebeln die Begrenzung aus.
-5. **Objekt-ID des Dienstprinzipals:** Unternehmensanwendungen › die neue App › „Objekt-ID“ kopieren (nicht die aus den App-Registrierungen).
-6. **Gruppe der Team-Postfächer:** Im Exchange Admin Center eine E-Mail-aktivierte Sicherheitsgruppe (oder Microsoft-365-Gruppe) „Hub Kalender“ anlegen und die Postfächer des Teams direkt als Mitglieder aufnehmen (verschachtelte Gruppen zählen nicht).
-7. **In Exchange Online PowerShell** (`Connect-ExchangeOnline`):
-   - `New-ServicePrincipal -AppId <Client-ID> -ObjectId <Objekt-ID aus Schritt 5> -DisplayName "oalab Client Hub"`
-   - `$dn = (Get-DistributionGroup "Hub Kalender").DistinguishedName` (bei einer Microsoft-365-Gruppe `Get-UnifiedGroup`)
-   - `New-ManagementScope -Name "Hub Kalender Team" -RecipientRestrictionFilter "MemberOfGroup -eq '$dn'"`
-   - `New-ManagementRoleAssignment -App <Client-ID> -Role "Application Calendars.Read" -CustomResourceScope "Hub Kalender Team"`
-   - Prüfen: `Test-ServicePrincipalAuthorization -Identity <Client-ID> -Resource <Team-Postfach>` zeigt `InScope: True`, für ein anderes Postfach `False`. Änderungen brauchen 30 Minuten bis 2 Stunden, bis sie gelten.
-8. **Im Hub eintragen:** In der Umgebung der App auf dem Server `HUB_MS365_TENANT_ID`, `HUB_MS365_CLIENT_ID`, `HUB_MS365_CLIENT_SECRET` und auf Wunsch `HUB_MS365_MAILBOXES` (weitere Team-Postfächer zur Auswahl, durch Komma getrennt) setzen und neu ausrollen. `HUB_VAULT_KEY` ist schon gesetzt (Schlüsselbund).
-9. **Postfach wählen:** Kalender › Zahnrad › Wochenplan & Regeln › Andere Kalender berücksichtigen › „+ Microsoft 365“, Postfach wählen, Hinzufügen. Spätestens nach 10 Minuten stehen die belegten Zeiten im Kalender.
+### 11.4 Livegang
 
-**Weg B (nicht begrenzt):** In Schritt 4 stattdessen die Anwendungsberechtigung `Calendars.ReadBasic` hinzufügen und die Administratorzustimmung erteilen, Schritte 5 bis 7 entfallen. Dann liest die App Frei/Belegt aller Postfächer des Mandanten, und Abnahme 10 („ein anderes Postfach ergibt einen Fehler“) gilt nicht.
-
-### 11.4 Einrichtung iCloud
-
-Auf iCloud.com › Kalender beim gewünschten Kalender auf das Info-Symbol klicken, „Öffentlicher Kalender“ einschalten, „Link kopieren“. Im Hub unter „+ iCloud-Kalender“ einfügen, einen Namen wie „Privat“ geben, Hinzufügen. Wer den Link kennt, sieht alle Einträge; der Hub speichert ihn verschlüsselt und zeigt ihn nie wieder an. Ein in Outlook mit „Kann sehen, wann ich beschäftigt bin“ veröffentlichter Kalender geht auf demselben Weg.
-
-### 11.5 Livegang
-
-Erst beide Migrationen in `service-oalab` einspielen (Reihenfolge mit `202611221002` der Notizen egal, beide Listen der Meldungsarten enthalten die Arten der anderen), dann den Hub ausrollen. Ohne Migration sagt der Hub freundlich, dass die Erweiterung der Datenbank fehlt; die Abo-Adresse antwortet dann mit 503.
+Erst die Migration 202611220001 in `service-oalab` einspielen, dann den Hub ausrollen. Ohne Migration sagt der Hub freundlich, dass die Erweiterung der Datenbank fehlt; die Abo-Adresse antwortet dann mit 503.

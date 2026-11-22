@@ -1,7 +1,6 @@
 "use server";
 
 import { headers } from "next/headers";
-import { after } from "next/server";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { siteOrigin } from "@/lib/site-origin";
@@ -11,12 +10,6 @@ import { closeAppointmentAs, requestAppointmentAs, unknownAppointment, withdrawR
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { feedOptionsFor, feedRoleOf, feedUrl, type FeedRole } from "./feed";
 import { activeFeed, createFeed, endFeedsOf, feedReady, logFeedEvent, saveFeedOptions, type FeedView } from "./feed-store";
-import { verifyHubAdmin } from "@/lib/hub-users/server";
-import { vaultKey } from "@/lib/hub-vault/key";
-import {
-  microsoftConfig, microsoftMailboxes, readCalendarLink, readMailbox, readSourceName, readSourceRules, sourceLabel, type SourceView,
-} from "./sources-rules";
-import { deleteSource, insertLinkSource, insertMailboxSource, listSources, missingSourcesTable, replaceLink, saveRules, sourcesClient, syncCalendarSources } from "./sources-store";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
 // Row Level Security in Supabase enforces the same rules a second time. Saving and closing an appointment, requests and
@@ -232,109 +225,4 @@ export async function endCalendarFeed(): Promise<CalendarActionResult<CalendarFe
   } catch (error) {
     return tableMissing(error) ? feedMissing : feedFailed;
   }
-}
-
-/* ---------- Admins: other calendars that block time (Verfügbarkeit › Andere Kalender berücksichtigen) ---------- */
-
-/** What the section shows: the sources (never a link), whether links can be sealed and Microsoft 365 is set up. */
-export type CalendarSourcesState = {
-  sources: SourceView[];
-  /** HUB_VAULT_KEY is set: links can be stored. */
-  vault: boolean;
-  microsoft: { configured: boolean; mailboxes: { address: string; own: boolean }[] };
-};
-
-const sourcesDenied = { ok: false as const, error: "Andere Kalender legt nur das oalab-Team fest." };
-const sourcesMissing = { ok: false as const, error: "Für andere Kalender fehlt noch die Erweiterung der Datenbank. Die Migration steht noch aus." };
-const uuidOf = (value: unknown) => (typeof value === "string" && uuid.test(value) ? value : null);
-
-/** The checked admin with the service role and their sign-in address (their own mailbox to choose). */
-async function sourcesAdmin() {
-  const admin = await verifyHubAdmin();
-  const db = admin ? sourcesClient() : null;
-  if (!admin || !db) return null;
-  const { data } = await (await createClient()).auth.getClaims();
-  return { ...admin, db, email: typeof data?.claims.email === "string" ? data.claims.email : null };
-}
-
-async function sourcesState(admin: NonNullable<Awaited<ReturnType<typeof sourcesAdmin>>>): Promise<CalendarActionResult<CalendarSourcesState>> {
-  const { sources, error } = await listSources(admin.db, admin.userId);
-  if (error) return missingSourcesTable(error) ? sourcesMissing : { ok: false, error: "Die anderen Kalender konnten gerade nicht geladen werden." };
-  return {
-    ok: true,
-    data: { sources, vault: Boolean(vaultKey()), microsoft: { configured: Boolean(microsoftConfig(process.env)), mailboxes: microsoftMailboxes(process.env, admin.email) } },
-  };
-}
-
-async function logSource(admin: { userId: string; db: NonNullable<ReturnType<typeof sourcesClient>> }, action: `calendar.source_${string}`, summary: string) {
-  await admin.db.from("hub_admin_events").insert({ actor_id: admin.userId, action, summary: summary.slice(0, 300) }).then(() => undefined, () => undefined);
-}
-
-export async function loadCalendarSources(): Promise<CalendarActionResult<CalendarSourcesState>> {
-  const admin = await sourcesAdmin();
-  return admin ? sourcesState(admin) : sourcesDenied;
-}
-
-/**
- * „Hinzufügen“: a public calendar link from iCloud (or published in Outlook), sealed with the vault key, or a mailbox in
- * Microsoft 365. The first busy times are read right after the answer; the schedule keeps them current.
- */
-export async function addCalendarSource(input: { kind?: unknown; link?: unknown; name?: unknown; mailbox?: unknown; rules?: unknown }): Promise<CalendarActionResult<CalendarSourcesState>> {
-  const admin = await sourcesAdmin();
-  if (!admin) return sourcesDenied;
-  const rules = readSourceRules(input?.rules);
-  let written;
-  if (input?.kind === "microsoft") {
-    if (!microsoftConfig(process.env)) return { ok: false, error: "Die Verbindung zu Microsoft 365 ist auf dem Server noch nicht eingerichtet." };
-    const mailbox = readMailbox(input.mailbox);
-    if (!mailbox) return { ok: false, error: "Bitte ein Postfach wählen oder seine Adresse eingeben." };
-    written = await insertMailboxSource(admin.db, admin.userId, { mailbox, name: readSourceName(input.name, mailbox), rules });
-  } else {
-    const link = readCalendarLink(input?.link);
-    if (!link.ok) return link;
-    written = await insertLinkSource(admin.db, admin.userId, { url: link.url, provider: link.provider, name: readSourceName(input?.name, link.provider === "icloud" ? "iCloud-Kalender" : "Outlook-Kalender"), rules });
-  }
-  if (!written.ok) return written;
-  const id = written.id;
-  await logSource(admin, "calendar.source_added", "Anderer Kalender für die Verfügbarkeit hinzugefügt");
-  after(() => syncCalendarSources({ only: id }).then(() => undefined, () => undefined));
-  refreshWorkspace();
-  return sourcesState(admin);
-}
-
-/** The rules of one source; they apply from the next read, which comes at once. */
-export async function saveCalendarSourceRules(id: unknown, rules: unknown): Promise<CalendarActionResult<CalendarSourcesState>> {
-  const admin = await sourcesAdmin();
-  if (!admin) return sourcesDenied;
-  const sourceId = uuidOf(id);
-  const saved = sourceId ? await saveRules(admin.db, sourceId, readSourceRules(rules)) : null;
-  if (!saved) return { ok: false, error: "Diesen Kalender gibt es nicht mehr." };
-  after(() => syncCalendarSources({ only: saved.id }).then(() => undefined, () => undefined));
-  return sourcesState(admin);
-}
-
-/** „Link neu einfügen“: a new public link for a source that stopped working. */
-export async function replaceCalendarSourceLink(id: unknown, link: unknown): Promise<CalendarActionResult<CalendarSourcesState>> {
-  const admin = await sourcesAdmin();
-  if (!admin) return sourcesDenied;
-  const sourceId = uuidOf(id);
-  const checked = readCalendarLink(link);
-  if (!checked.ok) return checked;
-  const written = sourceId ? await replaceLink(admin.db, sourceId, { url: checked.url, provider: checked.provider }) : { ok: false as const, error: "Diesen Kalender gibt es nicht mehr." };
-  if (!written.ok) return written;
-  await logSource(admin, "calendar.source_link", "Neuer Link für einen anderen Kalender der Verfügbarkeit");
-  after(() => syncCalendarSources({ only: written.id }).then(() => undefined, () => undefined));
-  return sourcesState(admin);
-}
-
-/** „Entfernen“: the source and its busy times are gone; they block nothing from now on. */
-export async function removeCalendarSource(id: unknown): Promise<CalendarActionResult<CalendarSourcesState>> {
-  const admin = await sourcesAdmin();
-  if (!admin) return sourcesDenied;
-  const sourceId = uuidOf(id);
-  const removed = sourceId ? await deleteSource(admin.db, sourceId) : null;
-  if (!removed) return { ok: false, error: "Diesen Kalender gibt es nicht mehr." };
-  await logSource(admin, "calendar.source_removed", `Anderer Kalender „${sourceLabel(removed)}“ aus der Verfügbarkeit entfernt`);
-  refreshWorkspace();
-  return sourcesState(admin);
 }

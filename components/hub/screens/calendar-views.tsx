@@ -27,8 +27,6 @@ export type DayLabel = { text: string; tone: "ok" | "todo" | "bad" | "off" | "" 
 export type OpenTarget = { kind: "appointment"; id: string } | { kind: "task"; id: string } | { kind: "goal"; id: string };
 /** A green block while editing the availability: from the weekly plan, or extra time of that one day. */
 export type AvailBlock = { day: string; kind: "week"; from: number; to: number } | { day: string; kind: "extra"; id: string; from: number; to: number };
-/** Admins: a busy time from the team's other calendars (iCloud, Microsoft 365), shown as „Privat“ without any title. */
-export type PrivateBlock = { start: number; end: number; source: string };
 
 export type CalendarViewProps = {
   days: string[];
@@ -59,9 +57,6 @@ export type CalendarViewProps = {
   onFree: (day: string, start: number) => void;
   onAvailBlock: (block: AvailBlock, event: React.MouseEvent<HTMLElement>) => void;
   onDayOff: (day: string) => void;
-  /** Admins: the other calendars' busy times of a day, clipped to it (stage 2, 22.11.2026). */
-  privateOn?: (day: string) => PrivateBlock[];
-  onPrivate?: (block: PrivateBlock) => void;
 };
 
 const taskTip = (task: CalendarTask) => [task.company, task.projectName, STATUS_NAMES[task.status], task.customerTurn ? "liegt beim Kunden" : ""].filter(Boolean).join(" · ");
@@ -120,7 +115,7 @@ function hourBounds(days: string[], apptsOn: CalendarViewProps["apptsOn"], avail
 }
 
 export function WeekView(props: CalendarViewProps) {
-  const { days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks, showCompany, tasksInfo, availability, editing, onOpen, onDay, onOverdue, onFree, onAvailBlock, onDayOff, privateOn, onPrivate } = props;
+  const { days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks, showCompany, tasksInfo, availability, editing, onOpen, onDay, onOverdue, onFree, onAvailBlock, onDayOff } = props;
   const [from, to] = hourBounds(days, apptsOn, availability, editing);
   const y = (minutes: number) => ((minutes - from) / 60) * HOUR_PX;
   const height = y(to);
@@ -225,18 +220,6 @@ export function WeekView(props: CalendarViewProps) {
                 </button>
               ))}
               {quiet.map(([a, b]) => <div key={`quiet-${a}`} className="cal-off is-quiet" style={{ top: y(a), height: y(b) - y(a) }} aria-hidden="true" />)}
-              {!editing && (privateOn?.(day) ?? []).map((block) => {
-                const a = Math.max(from, minutesOn(day, block.start));
-                const b = Math.min(to, minutesOn(day, block.end));
-                if (b - a < 5) return null;
-                const time = `${timeOf(block.start)}–${timeOf(block.end)}`;
-                return (
-                  <button key={`private-${block.start}-${block.source}`} type="button" className={`cal-ev is-private${y(b) - y(a) < 36 ? " is-short" : ""}`} style={{ top: y(a) + 1, height: y(b) - y(a) - 2, left: 3, right: 3 }}
-                    data-tip="Privat" data-tip-sub={`${time} · aus ${block.source}`} onClick={() => onPrivate?.(block)}>
-                    {y(b) - y(a) < 36 ? <span className="cal-ev-line">Privat</span> : <><span className="cal-ev-title">Privat</span><span className="cal-ev-meta numeric">{time}</span></>}
-                  </button>
-                );
-              })}
               {free.filter(([a, b]) => b - a >= 30).map(([a, b]) => (
                 <button key={`free-${a}`} type="button" className="cal-free" style={{ top: y(a) + 1, height: y(b) - y(a) - 2 }}
                   data-tip="Hier anfragen" data-tip-sub={`${formatDayShort(day)}, frei ${clockOf(a)}–${clockOf(b)} Uhr`}

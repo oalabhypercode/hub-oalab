@@ -11,7 +11,6 @@ import { SegmentedControl, Switch } from "../controls";
 import { useInfo } from "../info-box";
 import { Select } from "../select";
 import { AssetPanel } from "./asset-panel";
-import { CalendarSourcesSection } from "./calendar-sources";
 import { Field, FieldGrid, PanelSection } from "./users-panel";
 import type { CalendarStore } from "./calendar-store";
 
@@ -213,9 +212,6 @@ export function AvailabilityPanel({ store, preset, onClose, onNotice }: {
           </div>
         )}
       </PanelSection>
-
-      {/* Busy times from the team's calendars in iCloud and Microsoft 365 (stage 2 of the Apple calendar plan, 22.11.2026). */}
-      <CalendarSourcesSection preview={!store.live} />
 
       <PanelSection title="Regeln für Anfragen">
         <FieldGrid>

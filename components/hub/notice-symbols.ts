@@ -1,4 +1,4 @@
-import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CalendarX, CalendarX2, Files, Flag, FolderOpen, Hourglass, LifeBuoy, ListTodo, MessageSquare, SquareKanban, TriangleAlert, UserCheck, type LucideIcon } from "lucide-react";
+import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CalendarX, Files, Flag, FolderOpen, Hourglass, LifeBuoy, ListTodo, MessageSquare, SquareKanban, TriangleAlert, UserCheck, type LucideIcon } from "lucide-react";
 import { categories } from "@/lib/categories";
 
 /** The area a notice of the bell belongs to, with its symbol and colour (the colour of the hub's category). */
@@ -22,8 +22,6 @@ export function noticeSymbol(kind: string): NoticeSymbol {
   if (kind === "appointment.confirmed") return { icon: CalendarCheck, color: categories.calendar.fill, area: "Kalender" };
   if (kind === "appointment.cancelled" || kind === "appointment.declined") return { icon: CalendarX, color: categories.calendar.fill, area: "Kalender" };
   if (kind.startsWith("appointment.")) return { icon: CalendarDays, color: categories.calendar.fill, area: "Kalender" };
-  // A calendar of the availability that cannot be read for 24 hours (admins, 22.11.2026).
-  if (kind === "calendar.source") return { icon: CalendarX2, color: categories.calendar.fill, area: "Kalender" };
   return { icon: Bell, color: categories.projects.fill, area: "Hub" };
 }
 
