@@ -986,6 +986,27 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .user-table .table-group-toggle { min-width: 0; }
 .user-table .table-group-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .user-table .company-hint { display: inline-block; max-width: 160px; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; color: var(--sheet-muted); font-size: 12.5px; }
+/* A group heading in the table's own columns (TableGroup with cells; logins by company, user 22.11.2026): a row like the
+   customers' rows, the name over the names and its details in their columns, a click anywhere folds it. Folded groups
+   follow each other like rows; an open group keeps the space above and below it. */
+.table-group-body.is-columns > .table-group { cursor: pointer; }
+.table-group-body.is-columns > .table-group > :is(th, td) { height: 40px; padding: 0 10px; border-bottom: 1px solid var(--sheet-divider); background-clip: padding-box; color: var(--label); font-size: 13px; font-weight: 600; line-height: 18px; text-align: left; white-space: nowrap; vertical-align: middle; transition: background-color 120ms ease; }
+.table-group-body.is-columns > .table-group > th { padding-left: 4px; }
+.table-group-body.is-columns > .table-group > td:last-child { padding-right: 16px; }
+.table-group-body.is-columns > .table-group > .cell-action { text-align: right; }
+.table-group-body.is-columns > .table-group:hover > * { background-color: var(--sheet-hover); }
+.table-group-body.is-columns.is-open > .table-group > * { border-bottom-color: var(--sheet-line); }
+.table-group-body.is-columns + .table-group-body.is-columns > .table-group > th { border-top: 0; }
+.table-group-body.is-columns + .table-group-body.is-columns.is-open > .table-group > *,
+.table-group-body.is-columns.is-open + .table-group-body.is-columns > .table-group > * { border-top: 12px solid transparent; }
+.table-group-body.is-columns .table-group-label { display: inline-block; vertical-align: middle; }
+.table-group-body.is-columns > .table-group > .cell-login { color: var(--sheet-muted); font-weight: 500; }
+.table-group-body.is-columns .cell-status .status-cell { color: var(--label-body); font-weight: 500; }
+.table-group-body.is-columns .table-group-actions { justify-content: flex-end; margin-left: 0; }
+/* The company's name gets room; while a group is open, narrower sheets shorten it (below), so the table never scrolls
+   sideways. The number column is the company's; its logins leave it empty. */
+.user-table .table-group-body.is-columns .table-group-label { max-width: 250px; }
+.user-table .col-entry-number { white-space: nowrap; }
 
 /* User management (admins): logins and customers on one sheet; dialogs below. */
 .confirm-badge { flex: 0 0 auto; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--tone-ok-bg); color: var(--tone-ok); font-size: 12px; line-height: 18px; font-weight: 600; }
@@ -1370,6 +1391,15 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
    ("Seit …" and "Prüfen" for open registrations), so their customer number goes first; the account dialog still shows it. */
 @container sheet (max-width: 1200px) {
   .user-table .col-number { display: none; }
+  /* By company, its own number stays (from 900 px down it goes, below); while a group is open its name gets shorter. */
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 180px; }
+}
+@container sheet (min-width: 901px) and (max-width: 1200px) {
+  .user-table.is-by-company .mail-cell { max-width: 180px; }
+}
+/* By company, „Zugang“ in a company's row keeps its symbol and hint when room gets short. */
+@container sheet (max-width: 1080px) {
+  .user-table .table-group-body.is-columns .table-group-add { gap: 0; padding: 0 7px; font-size: 0; }
 }
 /* Then the start date and the last login go and descriptions and e-mail addresses get less room, then the details. */
 /* Wide sheets (22.11.2026): names, addresses, companies and descriptions get more room before they are shortened. */
@@ -1379,12 +1409,14 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .cell-description { max-width: 560px; }
   .mail-cell { max-width: 320px; }
   .data-table .company-name, .user-table .company-hint, .user-table .row-open strong { max-width: 280px; }
+  .user-table .table-group-body.is-columns .table-group-label { max-width: 300px; }
 }
 @container sheet (max-width: 1040px) {
   .sheet-search { flex-basis: 200px; }
   .project-table .col-start { display: none; }
   .user-table .col-login { display: none; }
   .user-table .mail-cell { max-width: 180px; }
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 160px; }
   .cell-description { max-width: 200px; }
 }
 @container sheet (max-width: 900px) {
@@ -1392,6 +1424,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .file-table .col-description { display: none; }
   .cell-deadline small { display: none; }
   .user-table .mail-cell { max-width: 160px; }
+  .user-table :is(.col-entry-number, .cell-entry-number) { display: none; }
   /* The symbol before the title and the groups already tell the status. */
   .project-table .col-status { display: none; }
 }
@@ -1399,6 +1432,25 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
    project dialog, and the area in the filter menu. */
 @container sheet (max-width: 760px) {
   .project-table .col-area { display: none; }
+  .user-table.is-by-company .mail-cell { max-width: 130px; }
+  .user-table .table-group-body.is-columns .table-group-label { max-width: 180px; }
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 120px; }
+}
+/* Phones: a company's row of the logins keeps name, logins and actions on one line; number, kind and last login stay in
+   its data, as before (rules stronger than the card rules below, so their order does not matter). */
+@media (max-width: 767px) {
+  .sheet .user-table .table-group-body.is-columns > .table-group { display: flex; align-items: center; gap: 10px; padding: 4px 14px 4px 0; border-bottom: 1px solid var(--sheet-divider); }
+  .sheet .user-table .table-group-body.is-columns > .table-group::after { content: none; }
+  .sheet .user-table .table-group-body.is-columns > .table-group:hover { background-color: var(--sheet-hover); }
+  .sheet .user-table .table-group-body.is-columns > .table-group:hover > * { background-color: transparent; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > * { display: block; height: auto; padding: 0; border: 0; font-size: 13px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > th { order: 0; flex: 1 1 0; min-width: 0; padding: 4px 0 4px 4px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > .cell-status { order: 1; font-size: 12.5px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > .cell-action { order: 2; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > :is(.cell-entry-number, .cell-role, .cell-mail, .cell-login) { display: none; }
+  .sheet .user-table .table-group-body.is-columns .table-group-label { max-width: none; }
+  .sheet .user-table .table-group-body.is-columns .table-group-add { gap: 0; padding: 0 7px; font-size: 0; }
+  .sheet .user-table .cell-entry-number { display: none; }
 }
 /* Phones: the tables become lists on the same sheet; groups stay as headings, the toolbar wraps, menus open at the bottom. */
 @media (max-width: 767px) {
@@ -1458,8 +1510,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet .data-table .mail-cell { max-width: none; }
   .sheet .data-table :is(.cell-number, .cell-company):has(> .cell-none) { display: none; }
   .sheet .user-table .cell-login::before { content: "Letzter Login: "; }
-  /* A company's heading keeps its name and „Zugang“; the number stays in its data. */
-  .sheet .user-table .table-group-sub { display: none; }
   .sheet .data-table .cell-logins::before { content: "Zugänge: "; }
   /* The cells wrap here, so the row itself carries the rounded bar on the left. */
   .sheet .data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login) { position: relative; }

@@ -378,6 +378,20 @@ test("„Zugänge“ stand under their company, the admins under oalab (user 21.
   assert.match(page, /const \[grouping, setGrouping\] = useState<UserGrouping>\("company"\);/);
   assert.match(page, /const customerOf = \(user: ManagedUser\) => entryOfLogin\(user, entries\);/);
   assert.match(page, /const companyGroups = groupLoginsByCompany\(shownUsers, entries\)/);
+  // Since 22.11.2026 a company is a row in the table's columns, like a customer's row: its number, its kind, its logins
+  // with their state and its last login stand under their headings; its logins leave the number column empty.
+  assert.match(page, /\{byCompany && <th scope="col" className="col-entry-number">Kunden-Nr\.<\/th>\}/);
+  assert.match(page, /\{byCompany && <td className="cell-entry-number" \/>\}/);
+  assert.match(page, /<TableGroup key=\{group\.key\} colSpan=\{7\}[\s\S]*?cells=\{<>\n\s+<td className="cell-entry-number">\{head\.number\}<\/td>\n\s+<td className="cell-role">\{head\.kind\}<\/td>/);
+  assert.match(page, /<span className="role-tag">\{entry\.kind === "freelancer" \? "Freelancer" : "Kunde"\}<\/span>/);
+  assert.match(page, /kind: <span className="role-tag">Admin<\/span>/);
+  assert.match(page, /const state = customerLoginState\(group\.rows\);/);
+  const sheet = await source("components/hub/sheet.tsx");
+  assert.match(sheet, /if \(cells\) \{/);
+  assert.match(sheet, /event\.target\.closest\("button, a, input"\)\)\) onToggle\(\);/, "a click anywhere on the row folds it");
+  const css = await source("app/glass.css");
+  assert.match(css, /\.table-group-body\.is-columns \+ \.table-group-body\.is-columns > \.table-group > th \{ border-top: 0; \}/, "folded companies touch");
+  assert.match(css, /@container sheet \(max-width: 900px\) \{\n(?: {2}[^\n]+\n)* {2}\.user-table :is\(\.col-entry-number, \.cell-entry-number\) \{ display: none; \}/);
   // A company's heading adds one more login there and opens its data; oalab adds an admin, and so does the gear.
   assert.match(page, /onClick=\{\(\) => newLoginFor\(entry\.id\)\} aria-label=\{`Zugang für \$\{entry\.company\} anlegen`\}/);
   assert.match(page, /onClick=\{\(\) => open\(entryDialog\(entry\.kind, entry\.id\)\)\}/);
