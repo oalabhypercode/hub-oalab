@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, LogOut, MessageCircleQuestion, MessageSquare, Search } from "lucide-react";
+import { ArrowUpRight, Bell, FolderOpen, LayoutGrid, LogOut, MessageCircleQuestion, Search } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { signOutAction } from "@/lib/hub-auth/actions";
 import { categories } from "@/lib/categories";
@@ -15,7 +15,7 @@ import { AppearanceProvider } from "./appearance-provider";
 import { AssistantPanel, type AssistantMode, type ChatTurn } from "./assistant-panel";
 import { applyProposalStatus, chatKey, MODE_KEY, openProposalIds, parseChat, serializeChat } from "@/lib/hub-assistant/chat-storage";
 import { proposalStatuses } from "@/lib/hub-assistant/actions";
-import { NotificationsPanel } from "./notifications-panel";
+import { NotificationsPanel, previewNotices } from "./notifications-panel";
 import type { InboxState } from "@/lib/hub-notify/server";
 import { liveVersion } from "@/lib/hub-notify/rules";
 import { useLiveSync } from "./use-live-sync";
@@ -65,7 +65,6 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const router = useRouter();
   const [panel, setPanel] = useState<ShellPanel | null>(null);
   const [query, setQuery] = useState("");
-  const [read, setRead] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   // The chat of a real login lives in this browser until "Neu starten" or signing out (lib/hub-assistant/chat-storage.ts).
@@ -166,7 +165,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const assistantDocked = assistantOpen && assistantMode === "dock";
   // The bell (17.11.2026): the number of unread notices, and it rings while one of them is newer than the last look
   // into the bell. Opening it is that look; the number stays until the notices are read. Kept per login and browser.
-  const unreadCount = preview ? (read ? 0 : 1) : inbox?.unread ?? 0;
+  const unreadCount = preview ? previewNotices.filter((item) => !item.read).length : inbox?.unread ?? 0;
+  const bellRole = account.admin ? "admin" : account.freelancer ? "freelancer" : "customer";
   const newestUnread = preview ? 1 : (inbox?.items ?? []).reduce((latest, item) => item.read ? latest : Math.max(latest, Date.parse(item.createdAt) || 0), 0);
   const [bellSeen, setBellSeen] = useStoredValue(`oalab-bell-seen:${userId ?? "preview"}`, "0");
   const ringing = unreadCount > 0 && newestUnread > (Number(bellSeen) || 0);
@@ -225,11 +225,9 @@ export function AppShell({ children, preview = false, pending = false, email = "
           </Modal>
         )}
         {panel === "notifications" && (
-          <Modal title="Benachrichtigungen" onClose={() => setPanel(null)}>
-            {preview ? <>
-              <div className="notification-item"><span className="notification-symbol"><MessageSquare size={19} color={categories.messages.fill} aria-hidden="true" /></span><div><strong>Deine Meinung ist gefragt.</strong><p>Die erste Brand Direction ist bereit für dein Feedback.</p><span>Beispiel · 14. Oktober 2026</span><Link className="text-link" href={hubHref(preview, "messages")} onClick={() => setPanel(null)}>Nachricht ansehen <ArrowUpRight size={15} aria-hidden="true" /></Link></div></div>
-              <button className="sheet-button" onClick={() => setRead(true)}><Check size={17} aria-hidden="true" />{read ? "Alle als gelesen markiert" : "Alle als gelesen markieren"}</button>
-            </> : inbox ? <NotificationsPanel items={inbox.items} role={account.admin ? "admin" : account.freelancer ? "freelancer" : "customer"} onClose={() => setPanel(null)} />
+          <Modal title="Benachrichtigungen" className="notifications-modal" onClose={() => setPanel(null)}>
+            {preview ? <NotificationsPanel items={previewNotices} role={bellRole} preview onClose={() => setPanel(null)} />
+              : inbox ? <NotificationsPanel items={inbox.items} role={bellRole} onClose={() => setPanel(null)} />
               : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
           </Modal>
         )}

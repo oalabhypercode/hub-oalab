@@ -7,6 +7,7 @@ import {
   TASK_NOTICE_KINDS, hasTaskChange, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, LIVE_LINES, liveVersion,
   mergeShareNotice, shareNotice, sharedAreasOf, fileNoticeCount, fileNoticeLine, filesNotice, mergeFileNotice,
 } from "../lib/hub-notify/rules.ts";
+import { noticeColumns } from "../lib/hub-notify/columns.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
 import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
 
@@ -580,4 +581,52 @@ test("a release for a freelancer rings the bell once per customer, never by mail
   const actions = await source("lib/hub-freelancer-customers/actions.ts");
   assert.match(actions, /if \(on\) after\(\(\) => notifyFreelancerShare\(\{ freelancerId, customerId, company: names\.customer, area: shareAreas\[area\]\.label \}\)\);/);
   assert.match(await source("components/hub/notifications-panel.tsx"), /if \(kind === "share\.granted"\) return \{ icon: Building2/);
+});
+
+// The bell in three columns (design „Glocke V3“, 22.11.2026) -------------------------------------------------------
+
+test("task lines name the customer for the team and split into where, message and from", () => {
+  assert.equal(taskNoticePrefix("Website", 12), "Website · #12");
+  assert.equal(taskNoticePrefix("Website", 12, " Bäckerei  Sonnenschein "), "Bäckerei Sonnenschein · Website · #12");
+  const team = taskNotice({ kind: "task.changed", taskTitle: "Startseite", prefix: taskNoticePrefix("Website", 12, "Bäckerei Sonnenschein"), parts: ["Status: Review", "Kommentar: „Passt“", "von Lena"], href: taskBoardHref("p1", 12) });
+  assert.deepEqual(noticeColumns(team, "admin"), {
+    where: "Bäckerei Sonnenschein", path: "Website › #12 Startseite", title: "Aufgabe geändert", body: "Status: Review · Kommentar: „Passt“", from: "Lena", fromDetail: "Freelancer",
+  });
+  assert.equal(noticeColumns(team, "freelancer").fromDetail, "", "a freelancer hears of anyone in the team");
+  // Lines written before the customer was named read as before, and the customer's lines never name anyone.
+  assert.deepEqual(noticeColumns({ kind: "task.created", title: "Neue Aufgabe: Startseite", body: "Website · #12 · Status: Offen" }, "customer"), {
+    where: "Website", path: "#12 Startseite", title: "Neue Aufgabe", body: "Status: Offen", from: "oalab", fromDetail: "Team",
+  });
+  assert.deepEqual(noticeColumns({ kind: "task.changed", title: "Aufgabe geändert: Logo", body: "Kaiser · Exposé · Portal · #3 · Archiviert" }, "admin").path, "Exposé · Portal › #3 Logo");
+});
+
+test("every kind of notice finds its three columns", () => {
+  assert.deepEqual(noticeColumns({ kind: "task.customer", title: "Du bist am Zug: Texte liefern", body: "Website · Aufgabe #14" }, "customer"), {
+    where: "Website", path: "#14 Texte liefern", title: "Du bist am Zug", body: "Die Aufgabe liegt jetzt bei dir.", from: "oalab", fromDetail: "Team",
+  });
+  const project = noticeColumns({ kind: "project.changed", title: "Projekt aktualisiert: Website", body: "Status: In Arbeit → Dein Feedback" }, "customer");
+  assert.deepEqual([project.where, project.path, project.title, project.body], ["Website", "Projekt", "Projekt aktualisiert", "Status: In Arbeit → Dein Feedback"]);
+  const file = noticeColumns(fileNotice("logo.svg", "f1"), "customer");
+  assert.deepEqual([file.where, file.title, file.body], ["Dateien", "Neue Datei", "logo.svg"]);
+  const files = noticeColumns(filesNotice(["a.pdf", "b.pdf", "c.pdf"]), "freelancer");
+  assert.deepEqual([files.title, files.body], ["3 neue Dateien", "a.pdf, b.pdf und 1 weitere"]);
+  const share = noticeColumns(shareNotice("Nordlicht Studio", ["E-Mail", "Pakete"], "c1"), "freelancer");
+  assert.deepEqual([share.where, share.path, share.title, share.body], ["Nordlicht Studio", "Kunden › Vertrag & Domain", "Neu freigegeben", "E-Mail, Pakete"]);
+  const chat = noticeColumns(chatNotice({ kind: "chat.message", customerId: "c1", company: "Müller Holzbau", author: "Jonas Müller", body: "Geht das: heute?" }), "admin");
+  assert.deepEqual([chat.where, chat.path, chat.title, chat.body, chat.from, chat.fromDetail], ["Müller Holzbau", "Nachrichten › Privater Chat", "Neue Nachricht", "Geht das: heute?", "Jonas Müller", "Kunde"]);
+  const reply = noticeColumns(chatNotice({ kind: "chat.reply", customerId: "c1", company: "Müller Holzbau", author: "Anna Schulz", body: "Klar", more: true }), "customer");
+  assert.deepEqual([reply.where, reply.path, reply.title, reply.body, reply.from], ["Nachrichten", "Chat mit oalab", "Neue Nachrichten", "Klar", "Anna"]);
+  const appointment = noticeColumns(appointmentNotice({ id: "a1", title: "Abstimmung: Texte", startsAt: "2026-11-24T09:00:00Z", before: { status: "requested", startsAt: "2026-11-24T09:00:00Z" }, status: "confirmed" }), "customer");
+  assert.deepEqual([appointment.where, appointment.path, appointment.title], ["Kalender", "Abstimmung: Texte", "Termin bestätigt"]);
+  assert.deepEqual(noticeColumns({ kind: "something.else", title: "Hinweis", body: "Text" }, "admin"), { where: "Hub", path: "", title: "Hinweis", body: "Text", from: "", fromDetail: "" });
+});
+
+test("the bell shows its lines in the three columns, in a wider window", async () => {
+  const panel = await source("components/hub/notifications-panel.tsx");
+  assert.match(panel, /const columns = noticeColumns\(item, role\);/);
+  assert.match(panel, /<span className="notice-where">[\s\S]*<span className="notice-text">[\s\S]*<span className="notice-from">/);
+  assert.match(await source("components/hub/app-shell.tsx"), /<Modal title="Benachrichtigungen" className="notifications-modal"/);
+  assert.match(await source("app/glass.css"), /\.hub-modal\.notifications-modal \{ width: min\(760px, calc\(100% - 32px\)\); \}/);
+  const server = await source("lib/hub-notify/server.ts");
+  assert.match(server, /prefix: taskNoticePrefix\(project\.data!\.display_name, number, viewer === "team" \? company : ""\)/);
 });

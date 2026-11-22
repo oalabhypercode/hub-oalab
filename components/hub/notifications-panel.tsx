@@ -4,8 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { Bell, Building2, CalendarDays, Check, Files, FolderOpen, ListTodo, MessageSquare, type LucideIcon } from "lucide-react";
 import { markNoticesRead } from "@/lib/hub-notify/actions";
+import { noticeColumns } from "@/lib/hub-notify/columns";
+import { appointmentNotice, chatNotice, fileNotice, taskNotice, taskNoticePrefix } from "@/lib/hub-notify/rules";
 import type { InboxItem } from "@/lib/hub-notify/server";
 import { categories } from "@/lib/categories";
+import { hubHref } from "@/lib/hub-data";
 
 const when = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -26,8 +29,22 @@ const EMPTY_TEXT = {
   customer: "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe für dich dazukommt, sich ändert oder bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt.",
 };
 
-/** The bell of a real login: its notices, newest first; opening one marks it read. */
-export function NotificationsPanel({ items, role, onClose }: { items: InboxItem[]; role: keyof typeof EMPTY_TEXT; onClose: () => void }) {
+/** Fictional lines for the design preview (/preview, dev only), written by the same rules as real notices. */
+const previewAt = (minutes: number) => new Date(Date.parse("2026-11-22T09:00:00Z") - minutes * 60_000).toISOString();
+export const previewNotices: InboxItem[] = [
+  { ...taskNotice({ kind: "task.changed", taskTitle: "Startseite überarbeiten", prefix: taskNoticePrefix("Website-Relaunch", 12), parts: ["Status: Review", "Fällig: 27. November 2026"], href: hubHref(true, "projects") }), id: -1, createdAt: previewAt(18), read: false },
+  { kind: "task.customer", title: "Du bist am Zug: Texte für „Über uns“ liefern", body: "Website-Relaunch · Aufgabe #14", href: hubHref(true, "projects"), id: -2, createdAt: previewAt(42), read: false },
+  { ...fileNotice("logo-final.svg", "preview"), href: hubHref(true, "files"), id: -3, createdAt: previewAt(95), read: false },
+  { ...appointmentNotice({ id: "preview", title: "Abstimmung Texte", startsAt: "2026-11-24T09:00:00Z", before: { status: "requested", startsAt: "2026-11-24T09:00:00Z" }, status: "confirmed" })!, href: hubHref(true, "calendar"), id: -4, createdAt: previewAt(60 * 20), read: true },
+  { ...chatNotice({ kind: "chat.reply", customerId: "preview", company: "Nordlicht Studio", author: "Mara Klein", body: "Die neuen Fotos sind eingebaut, schau gern mal rein." }), href: hubHref(true, "messages"), id: -5, createdAt: previewAt(60 * 26), read: true },
+];
+
+/**
+ * The bell of a real login: its notices, newest first; opening one marks it read. Each line stands in three columns
+ * without headings (design „Glocke V3“, user 21.11.2026): where (symbol, customer or area, path), the message with its
+ * time, and who it came from. In the design preview nothing reaches the server.
+ */
+export function NotificationsPanel({ items, role, onClose, preview = false }: { items: InboxItem[]; role: keyof typeof EMPTY_TEXT; onClose: () => void; preview?: boolean }) {
   const [read, setRead] = useState(() => new Set(items.filter((item) => item.read).map((item) => item.id)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -40,12 +57,13 @@ export function NotificationsPanel({ items, role, onClose }: { items: InboxItem[
   function open(item: InboxItem) {
     if (!read.has(item.id)) {
       setRead((current) => new Set(current).add(item.id));
-      void markNoticesRead([item.id]);
+      if (!preview) void markNoticesRead([item.id]);
     }
     onClose();
   }
 
   async function markAll() {
+    if (preview) { setRead(new Set(items.map((item) => item.id))); return; }
     setBusy(true);
     const result = await markNoticesRead();
     setBusy(false);
@@ -59,14 +77,25 @@ export function NotificationsPanel({ items, role, onClose }: { items: InboxItem[
       {items.map((item) => {
         const { icon: Icon, color } = symbolOf(item.kind);
         const isRead = read.has(item.id);
+        const columns = noticeColumns(item, role);
         return (
           <li key={item.id}>
             <Link href={item.href} className={`notice-row${isRead ? "" : " is-unread"}`} onClick={() => open(item)}>
-              <span className="notification-symbol" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)` }}><Icon size={19} color={color} aria-hidden="true" /></span>
+              <span className="notice-where">
+                <span className="notification-symbol" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)` }}><Icon size={19} color={color} aria-hidden="true" /></span>
+                <span className="notice-place">
+                  <strong>{columns.where}</strong>
+                  {columns.path && <span>{columns.path}</span>}
+                </span>
+              </span>
               <span className="notice-text">
-                <strong>{item.title}</strong>
-                {item.body && <span>{item.body}</span>}
+                <strong>{columns.title}</strong>
+                {columns.body && <span>{columns.body}</span>}
                 <time dateTime={item.createdAt}>{when.format(new Date(item.createdAt))}{isRead ? "" : " · neu"}</time>
+              </span>
+              <span className="notice-from">
+                {columns.from && <strong><span className="visually-hidden">von </span>{columns.from}</strong>}
+                {columns.fromDetail && <span>{columns.fromDetail}</span>}
               </span>
             </Link>
           </li>

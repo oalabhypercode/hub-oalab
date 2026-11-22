@@ -201,6 +201,13 @@ async function deliverTaskNotice(db: SupabaseClient, userIds: string[], draft: T
   await insertNotices(db, userIds.filter((id) => !latest.has(id)), taskNotice(draft), mail);
 }
 
+/** The company of an organization's customer, for the team's task lines; empty when there is none or it fails. */
+async function customerCompany(db: SupabaseClient, organizationId: string) {
+  const row = await db.from("hub_customers").select("company").eq("organization_id", organizationId).eq("kind", "customer").limit(1).maybeSingle<{ company: string | null }>();
+  if (row.error) logFailure("task notice: company", row.error);
+  return row.data?.company?.trim() ?? "";
+}
+
 /**
  * Someone changed a card on the task board (the board, the assistant or the Claude connector; decision of
  * 17.11.2026): the project's freelancers hear of it unless the card is „Nur Team“, the customer when it is released to
@@ -230,8 +237,10 @@ export async function notifyTaskChange(input: { taskId: string; actorId: string;
     const before = input.before === undefined ? (input.change.created ? null : after) : input.before && sightOf(input.before);
     const audience = taskAudience({ before, after, projectReleased: Boolean(details.data?.client_visible), change: input.change });
     const number = Number(card.task_number);
+    // The team reads which customer a card belongs to (bell V3, 22.11.2026); customers know their own name.
+    const company = audience.freelancers || input.actorFreelancer ? await customerCompany(db, project.data.organization_id) : "";
     const draft = (kind: TaskNoticeDraft["kind"], viewer: "team" | "customer", href: string): TaskNoticeDraft => ({
-      kind, taskTitle: card.title, prefix: taskNoticePrefix(project.data!.display_name, number), href,
+      kind, taskTitle: card.title, prefix: taskNoticePrefix(project.data!.display_name, number, viewer === "team" ? company : ""), href,
       parts: taskChangeParts(input.change, viewer, viewer === "team" ? actor.data?.first_name ?? "" : ""),
     });
     const others = (ids: string[]) => ids.filter((id) => id !== input.actorId);
