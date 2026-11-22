@@ -1,7 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowUpRight, AtSign, Check, Copy, Forward, Globe, Inbox, Mail, Pencil, Plus, Save, Send, Server, StickyNote, Trash2, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, AtSign, Check, Copy, FlaskConical, Forward, Globe, Inbox, Mail, Pencil, Plus, Save, Send, Server, StickyNote, Trash2, TriangleAlert, type LucideIcon } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { formatDay } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer } from "@/lib/hub-contracts/types";
@@ -11,6 +12,7 @@ import {
   normalizeEmail, providerSuggestions, renewalPassed, type DomainCheck, type DomainOwner, type DomainStatus, type MailboxKind, type MailSecurity,
 } from "@/lib/hub-domains/rules";
 import type { CustomerDomain, DomainMailState, Mailbox, MailServer } from "@/lib/hub-domains/types";
+import type { TestDomain } from "@/lib/hub-domains/test-domain";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { Select, SuggestInput } from "../select";
@@ -54,11 +56,15 @@ const statusGlyphs: Record<DomainStatus, GlyphKind> = { active: "active", setup:
 
 /**
  * The domains, the mail server and the addresses of one customer, for admins, as one table in groups. The server is
- * changed in a dialog behind the pencil; passwords live under „Zugangsdaten“.
+ * changed in a dialog behind the pencil; passwords live under „Zugangsdaten“. Below the domains stands the test domain
+ * of the website's project (changed under „Projekte“), or what is wrong with it.
  */
-export function DomainMailTab({ customer, domainMail, canManage, today, query, onNotice }: {
+export function DomainMailTab({ customer, domainMail, testDomain, projectsHref, canManage, today, query, onNotice }: {
   customer: ContractCustomer;
   domainMail: DomainMailState;
+  testDomain: TestDomain | null;
+  /** „Projekte“ with this customer and the website's project open, where its test domain is set. */
+  projectsHref: string;
   canManage: boolean;
   today: string;
   query: string;
@@ -80,6 +86,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
     ask: "Wie richte ich den Mail-Server eines Kunden ein?",
   });
   const shownDomains = domains.filter((domain) => tableHit(term, domain.display, domain.domain, domain.details?.registrar, domain.details?.dnsProvider, domain.details?.websiteHost, domain.details?.note));
+  const shownTest = testDomain && tableHit(term, "Testdomain", testDomain.kind === "missing" ? "fehlt" : testDomain.host) ? testDomain : null;
   const shownMailboxes = mailboxes.filter((mailbox) => tableHit(term, mailbox.display, mailbox.person, mailbox.targetDisplay, mailboxKinds[mailbox.kind].label));
   const serverRows = server ? [
     ...(["imap", "smtp"] as const).filter((side) => server[`${side}Host`]).map((side) => ({
@@ -104,7 +111,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
           <TableGroup
             colSpan={ADMIN_COLUMNS}
             label="Domains"
-            count={shownDomains.length}
+            count={shownDomains.length + (shownTest && shownTest.kind !== "missing" ? 1 : 0)}
             glyph={<Globe size={16} aria-hidden="true" />}
             collapsed={groups.isCollapsed("domains")}
             onToggle={() => groups.toggle("domains")}
@@ -112,6 +119,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
             empty={term ? "Keine Domain passt zur Suche." : "Noch keine Domain eingetragen."}
           >
             {shownDomains.map((domain) => <DomainRow key={domain.id} domain={domain} today={today} onEdit={canManage ? () => setDialog({ kind: "domain", entry: domain }) : undefined} />)}
+            {shownTest && <TestDomainRow test={shownTest} href={projectsHref} />}
           </TableGroup>
           <TableGroup
             colSpan={ADMIN_COLUMNS}
@@ -159,7 +167,7 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
         {serverInfo.box}
       </div>
       <SheetFooter hint="Passwörter der Postfächer liegen unter „Zugangsdaten“">
-        {[domains.length === 1 ? "1 Domain" : `${domains.length} Domains`, server ? "Mail-Server eingetragen" : "kein Mail-Server", mailboxes.length === 1 ? "1 Adresse" : `${mailboxes.length} Adressen`].join(" · ")}
+        {[domains.length === 1 ? "1 Domain" : `${domains.length} Domains`, ...(testDomain ? [testDomain.kind === "ok" ? "mit Testdomain" : testDomain.kind === "live" ? "Testdomain ist die Live-Website" : "Testdomain fehlt"] : []), server ? "Mail-Server eingetragen" : "kein Mail-Server", mailboxes.length === 1 ? "1 Adresse" : `${mailboxes.length} Adressen`].join(" · ")}
       </SheetFooter>
       {dialog?.kind === "domain" && <DomainDialog customer={customer} entry={dialog.entry} onClose={() => setDialog(null)} onSaved={onNotice} />}
       {dialog?.kind === "mailbox" && <MailboxDialog customer={customer} entry={dialog.entry} domains={domains} onClose={() => setDialog(null)} onSaved={onNotice} />}
@@ -169,6 +177,47 @@ export function DomainMailTab({ customer, domainMail, canManage, today, query, o
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * The website's test domain, where every change lands before the customer approves it. Missing, or the live website
+ * itself, it is a warning: the AI of NoteTree Business sets up its own on Vercel with the next request and enters it.
+ */
+function TestDomainRow({ test, href }: { test: TestDomain; href: string }) {
+  if (test.kind === "missing") return (
+    <tr className="file-row cdm-test-row is-alert">
+      <td className="cell-file">
+        <Link className="am-file" href={href} data-tip="In Projekte eintragen">
+          <span className="am-file-icon cdm-file-icon is-alert"><TriangleAlert size={16} aria-hidden="true" /></span>
+          <span className="am-file-text"><strong>Testdomain fehlt</strong><small>Ohne sie ginge jede Änderung direkt live. Läuft die Website auf Vercel, legt die KI sie bei der nächsten Anfrage an und trägt sie hier ein.</small></span>
+        </Link>
+      </td>
+      <td className="cell-category"><span className="status-cell"><StatusGlyph kind="alert" />fehlt</span></td>
+      <td className="cell-date" />
+      <td className="cell-action"><Link className="am-icon-btn" href={href} aria-label="Testdomain selbst eintragen (Projekte)" data-tip="Selbst eintragen"><Plus size={16} aria-hidden="true" /></Link></td>
+    </tr>
+  );
+  const live = test.kind === "live";
+  return (
+    <tr className={`file-row cdm-test-row${live ? " is-alert" : ""}`}>
+      <td className="cell-file">
+        <a className="am-file" href={test.url} target="_blank" rel="noopener noreferrer" data-tip="Testseite öffnen" data-tip-sub={test.url}>
+          <span className={`am-file-icon cdm-file-icon ${live ? "is-alert" : "is-test"}`}>{live ? <TriangleAlert size={16} aria-hidden="true" /> : <FlaskConical size={16} aria-hidden="true" />}</span>
+          <span className="am-file-text">
+            <strong className="dm-mono">{test.host}</strong>
+            <small>{live ? "Testdomain ist die Live-Website: Die KI legt bei der nächsten Anfrage eine eigene an." : `Testdomain · Projekt „${test.projectName}“ · Änderungen erscheinen zuerst hier`}</small>
+          </span>
+          <span className="visually-hidden"> (öffnet in neuem Tab)</span>
+        </a>
+      </td>
+      <td className="cell-category"><span className="status-cell"><StatusGlyph kind={live ? "alert" : "active"} />{live ? "zeigt Live" : "Test"}</span></td>
+      <td className="cell-date" />
+      <td className="cell-action">
+        <CopyButton value={test.url} label="Testdomain" />
+        <Link className="am-icon-btn" href={href} aria-label="Testdomain ändern (Projekte)" data-tip="In Projekte ändern"><Pencil size={16} aria-hidden="true" /></Link>
+      </td>
+    </tr>
   );
 }
 

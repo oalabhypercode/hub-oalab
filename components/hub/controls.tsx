@@ -1,11 +1,14 @@
 "use client";
 
 import { useRef } from "react";
-import { Search } from "lucide-react";
+import { Search, TriangleAlert } from "lucide-react";
 import type { BackgroundPreset, ColorScheme, ListView, PageWidth } from "@/lib/appearance";
 
-/** Capsule segmented control; arrow keys move the selection. An optional count sits in its own badge next to the label. */
-export function SegmentedControl<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string; name: string; count?: number }[]; value: T; onChange: (value: T) => void; label: string }) {
+/**
+ * Capsule segmented control; arrow keys move the selection. An optional count sits in its own badge next to the label,
+ * an optional alert (what is missing) as a warning sign after it, read out with the name.
+ */
+export function SegmentedControl<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string; name: string; count?: number; alert?: string | null }[]; value: T; onChange: (value: T) => void; label: string }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   function onKeyDown(event: React.KeyboardEvent, index: number) {
     const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -24,11 +27,12 @@ export function SegmentedControl<T extends string>({ options, value, onChange, l
           type="button"
           className="segment"
           aria-pressed={value === option.id}
-          aria-label={option.name}
+          aria-label={option.alert ? `${option.name}, ${option.alert}` : option.name}
+          data-tip={option.alert || undefined}
           tabIndex={value === option.id ? 0 : -1}
           onClick={() => onChange(option.id)}
           onKeyDown={(event) => onKeyDown(event, index)}
-        ><span className="segment-label">{option.label}</span>{option.count !== undefined && <span className="segment-count numeric" aria-hidden="true">{option.count}</span>}</button>
+        ><span className="segment-label">{option.label}</span>{option.count !== undefined && <span className="segment-count numeric" aria-hidden="true">{option.count}</span>}{option.alert && <TriangleAlert size={14} className="segment-alert" aria-hidden="true" />}</button>
       ))}
     </div>
   );
