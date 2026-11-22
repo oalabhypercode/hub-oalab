@@ -1,14 +1,14 @@
 # Planung: Kalender des Hubs mit Apple Kalender synchron halten
 
-Stand 21. November 2026 · Entwurf zur Entscheidung · im Hub ist davon noch nichts umgesetzt
+Stand 22. November 2026 · Rollen, Tempo, Teams-Link und die Kalender des Teams sind entschieden (Abschnitt 8) · im Hub ist davon noch nichts umgesetzt
 
-Ziel: Was im Kalender des Hubs steht, soll ohne Zutun im Apple Kalender auf iPhone, iPad und Mac stehen und dort aktuell bleiben. Dieser Plan vergleicht die möglichen Wege, schlägt drei Etappen vor und beschreibt die erste so genau, dass sie gebaut werden kann. Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137) und Apples Hilfeseiten zu Kalenderabos (Stand Mai 2026).
+Ziel: Was im Kalender des Hubs steht, soll ohne Zutun im Apple Kalender auf iPhone, iPad und Mac stehen und dort aktuell bleiben. Dieser Plan vergleicht die möglichen Wege, schlägt drei Etappen vor und beschreibt die erste so genau, dass sie gebaut werden kann. Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137), Apples Hilfeseiten zu Kalenderabos (Stand Mai 2026) und Microsofts Dokumentation zu Frei/Belegt in Microsoft Graph (Stand November 2026).
 
 ## Auf einen Blick
 
 - **Etappe 1, für alle: persönliches Kalender-Abo.** Jede Person (Admin, Kunde, Freelancer) bekommt im Hub einen geheimen Abo-Link. Ein Tipp auf „Mit Apple Kalender abonnieren“ legt in Apple Kalender den Kalender „oalab“ an; mit „iCloud“ als Ort steht er auf allen Geräten derselben Apple-ID. Danach holt Apple den Stand von selbst: Neue, verschobene und abgesagte Termine kommen ohne Mail und ohne Löschen von Hand nach. Kosten keine, Richtung nur Hub → Apple.
-- **Etappe 2, fürs Team: belegte Zeiten aus Apple zurück in den Hub.** Private Termine des Teams sperren die Zeiten, die Kunden anfragen können. Titel und Inhalte bleiben draußen.
-- **Etappe 3, optional fürs Team: Abgleich in Sekunden** über Microsoft 365, falls die Kalender des Teams dort liegen. Nebenbei entstehen die Teams-Links von selbst.
+- **Etappe 2, fürs Team: belegte Zeiten aus iCloud und Microsoft 365 zurück in den Hub.** Das Team führt seine Kalender in beiden. Termine dort sperren die Zeiten, die Kunden anfragen können; Titel und Inhalte bleiben draußen.
+- **Etappe 3, optional fürs Team: Abgleich in Sekunden** über Microsoft 365. Derzeit nicht nötig, weil Minuten bis etwa eine Stunde reichen (Entscheidung 8); interessant bleibt sie, falls Teams-Meetings von selbst entstehen sollen.
 - **Nicht empfohlen:** den Hub zum vollwertigen CalDAV-Server machen, damit man Hub-Termine in Apple Kalender bearbeiten kann. Das ist viel Aufwand, und die Regeln des Hubs (Anfragen, Verfügbarkeit, Meldungen an Kunden, Teams-Links) ließen sich beim Bearbeiten in Apple nicht durchsetzen.
 - **Zur Aktualität:** Wie oft Apple ein Abo abruft, bestimmt Apple, nicht der Hub. Am Mac stellt man es je Kalender ein („Automatisch aktualisieren“), iPhone und iCloud rufen in eigenen Abständen ab, die Apple nicht veröffentlicht. Zu erwarten sind Minuten bis etwa eine Stunde. Wer Sekunden braucht, braucht Etappe 3.
 
@@ -37,8 +37,8 @@ Ziel: Was im Kalender des Hubs steht, soll ohne Zutun im Apple Kalender auf iPho
 ## 3. Empfehlung: drei Etappen
 
 1. **Kalender-Abo für alle (Weg A).** Löst „immer synchron“ für Admins, Kunden und Freelancer in Richtung Apple.
-2. **Belegte Zeiten aus den privaten Kalendern des Teams in den Hub.** Damit stimmt auch die Gegenrichtung für das, worauf es ankommt: keine Anfragen in Zeiten, in denen das Team privat verplant ist.
-3. **Nur bei Bedarf: Abgleich in Sekunden über Microsoft 365 (Weg D),** falls dort die Kalender des Teams liegen.
+2. **Belegte Zeiten aus den Kalendern des Teams in iCloud und Microsoft 365 in den Hub.** Damit stimmt auch die Gegenrichtung für das, worauf es ankommt: keine Anfragen in Zeiten, in denen das Team anderweitig verplant ist.
+3. **Nur bei Bedarf: Abgleich in Sekunden über Microsoft 365 (Weg D).** Stand 22. November 2026 nicht nötig.
 
 Termine werden weiter im Hub angelegt, verschoben und abgesagt. Jeder Eintrag im Abo trägt den Link zurück in den Hub.
 
@@ -111,18 +111,22 @@ Die Bezeichnungen können je nach Systemversion leicht abweichen.
 - **Datenschutz:** Die Datenschutzerklärung bekommt einen Absatz zum Kalender-Abo: was darin steht, dass der Link ohne Anmeldung funktioniert und geheim bleiben sollte, dass der gewählte Kalenderdienst (Apple iCloud, Google, Microsoft) die Termine auf Wunsch der Person abruft, und wie man das Abo beendet.
 - **Messen nach dem Livegang:** Abstände der Abrufe je Programm (iCloud, iPhone direkt, Mac, Google, Outlook) aus `last_fetched_at` und dem Server-Log, damit die Anleitung realistische Zeiten nennt.
 
-## 5. Etappe 2: belegte Zeiten aus Apple in den Hub (nur Team)
+## 5. Etappe 2: belegte Zeiten aus iCloud und Microsoft 365 in den Hub (nur Team)
 
-- **Wozu:** Kunden fragen Termine nur in freien Zeiten an (`hub_calendar_busy()` und die Verfügbarkeit). Private Termine des Teams im Apple Kalender kennt der Hub heute nicht; Anfragen in solche Zeiten sind möglich.
-- **Wo:** Kalender › Verfügbarkeit, neuer Abschnitt „Private Kalender berücksichtigen“. Admins hinterlegen dort eine oder mehrere Quellen; jede sperrt Zeiten für alle Anfragen.
+- **Wozu:** Kunden fragen Termine nur in freien Zeiten an (`hub_calendar_busy()` und die Verfügbarkeit). Termine, die das Team in iCloud oder in Microsoft 365 (Outlook) führt, kennt der Hub heute nicht; Anfragen in solche Zeiten sind möglich.
+- **Wo:** Kalender › Verfügbarkeit, neuer Abschnitt „Andere Kalender berücksichtigen“. Admins hinterlegen dort ihre Quellen, beliebig viele aus iCloud und Microsoft 365; jede sperrt Zeiten für alle Anfragen.
 - **Quelle iCloud:** Auf iCloud.com einen Kalender öffentlich machen (Kalender-Info › Öffentlicher Kalender › Link kopieren) und den Link im Hub einfügen. Apple sagt dazu, dass Abonnenten den Kalender sehen, aber nicht ändern können; wer den Link kennt, sieht also alle Einträge. Der Hub speichert ihn deshalb verschlüsselt (wie die Passwörter im Schlüsselbund, mit `HUB_VAULT_KEY`) und zeigt ihn nie wieder an.
-- **Abruf** alle 10 Minuten, im Zeitplan, der heute alle 5 Minuten die Benachrichtigungen verschickt. Gelesen wird mit einer geprüften Bibliothek (etwa ical.js; Lizenz vor dem Einbau prüfen), weil wiederkehrende Termine, Ausnahmen und Zeitzonen sauber aufgelöst werden müssen.
-- **Gespeichert** werden nur Beginn und Ende der nächsten 12 Wochen, ohne Titel, Ort oder Teilnehmer, in `hub_calendar_external_busy` (nur Service-Rolle). `hub_calendar_busy()` und die freien Zeiten beziehen sie ein; Kunden sehen wie bisher nur „Belegt“, Admins im Hub-Kalender graue Blöcke „Privat“.
-- **Regeln je Quelle:** ganztägige Einträge ignorieren (Standard an, sonst sperren Geburtstage ganze Tage), als „frei“ markierte und abgesagte Einträge ignorieren.
+- **Quelle Microsoft 365 (empfohlen über Microsoft Graph):** Der Hub fragt Frei/Belegt mit `getSchedule` ab, bis zu 20 Postfächer je Anfrage. Zurück kommen nur Beginn, Ende und Status, keine Titel, und es braucht keinen öffentlichen Link. Dafür einmalig eine App-Registrierung in Microsoft Entra ID mit der Anwendungsberechtigung `Calendars.ReadBasic`, in Exchange Online auf die Postfächer des Teams begrenzt (RBAC für Anwendungen). Mandanten-ID, Client-ID und Geheimnis trägt der Admin selbst in die Umgebung des Hubs ein; im Hub wählt man danach nur noch das Postfach. Persönliche Microsoft-Konten (Outlook.com) gehen so nicht.
+- **Rückfall ohne App-Registrierung:** In Outlook den Kalender mit „Kann sehen, wann ich beschäftigt bin“ veröffentlichen und den ICS-Link wie bei iCloud einfügen; er enthält nur Belegt-Zeiten. Wie schnell Änderungen darin ankommen, dokumentiert Microsoft nicht; das wird vor dem Einbau gemessen.
+- **Abruf** alle 10 Minuten, im Zeitplan, der heute alle 5 Minuten die Benachrichtigungen verschickt. ICS-Quellen liest eine geprüfte Bibliothek (etwa ical.js; Lizenz vor dem Einbau prüfen), weil wiederkehrende Termine, Ausnahmen und Zeitzonen sauber aufgelöst werden müssen.
+- **Gespeichert** werden nur Beginn und Ende der nächsten 12 Wochen, ohne Titel, Ort oder Teilnehmer: die Quellen in `hub_calendar_sources` (Admin, Art, verschlüsselter Link oder Postfach, Regeln, letzter Abruf, letzter Fehler), die Zeiten in `hub_calendar_external_busy`, beide nur für die Service-Rolle. `hub_calendar_busy()` und die freien Zeiten beziehen sie ein; Kunden sehen wie bisher nur „Belegt“, Admins im Hub-Kalender graue Blöcke „Privat“.
+- **Regeln je Quelle:** ganztägige Einträge ignorieren (Standard an, sonst sperren Geburtstage ganze Tage), als „frei“ markierte und abgesagte Einträge ignorieren. Termine des Hubs zählen nicht doppelt: Einträge mit der UID des Hubs (`…@hub.oalab.de`) überspringt der Hub. Frei/Belegt von Microsoft liefert keine UID mit; alte Kopien von Hub-Terminen aus den Mail-Knöpfen sollte das Team deshalb löschen, sobald das Abo läuft, sonst sperren sie nach einer Verschiebung die alte Zeit.
 - **Störung:** Ist eine Quelle 24 Stunden nicht erreichbar, bekommt der Admin eine Meldung in der Glocke; bis dahin gelten die zuletzt gelesenen Zeiten.
-- **Alternativen:** Liegen die Kalender des Teams in Microsoft 365, liest der Hub Frei/Belegt über Microsoft Graph, ganz ohne öffentlichen Link. CalDAV mit app-spezifischem Passwort wird nicht empfohlen (öffnet auch Mail und Kontakte).
+- **Nicht empfohlen:** CalDAV mit app-spezifischem Passwort, denn es öffnet auch Mail und Kontakte der Apple-ID.
 
 ## 6. Etappe 3 (optional): Abgleich in Sekunden
+
+Stand 22. November 2026 nicht geplant: Minuten bis etwa eine Stunde reichen (Entscheidung 8). Kommt sie später, lässt sich die App-Registrierung aus Etappe 2 um Schreibrechte erweitern.
 
 - **Microsoft 365:** App-Registrierung in Microsoft Entra ID mit Kalenderrechten, begrenzt auf die Postfächer des Teams. Der Hub legt bestätigte Termine im Outlook-Kalender des zuständigen Admins an, ändert und löscht sie sofort, mit Teams-Meeting; der Teams-Link kommt von selbst in den Hub. Microsoft meldet Änderungen in Outlook per Webhook. Termine mit Kunden bleiben im Hub führend; aus Outlook übernimmt der Hub nur Frei/Belegt und weist auf Abweichungen hin. Apple Kalender zeigt das Microsoft-Konto auf iPhone und Mac mit Push.
 - **iCloud direkt (Weg C)** nur, wenn die Kalender des Teams in iCloud liegen und Sekunden wirklich nötig sind; dafür bräuchte der Hub ein app-spezifisches Passwort im Schlüsselbund.
@@ -132,21 +136,29 @@ Die Bezeichnungen können je nach Systemversion leicht abweichen.
 | Etappe | Inhalt | Umfang |
 |---|---|---|
 | **1 Kalender-Abo** | Tabelle, Abo-Route, Seitenleiste, Profilkarte, Mail-Hinweis, Datenschutz, Tests, Messung | mittel: ein PR in `service-oalab`, einer im Hub |
-| **2 Belegt aus Apple** | Quellen in der Verfügbarkeit, Abruf, Speicher, Einbezug in `hub_calendar_busy()` und freie Zeiten | mittel: ein PR in `service-oalab`, einer im Hub |
-| **3 Microsoft 365** | App-Registrierung, Termine schreiben, Teams-Meetings, Webhooks, Frei/Belegt | groß, eigener Plan |
+| **2 Belegt aus iCloud und Microsoft 365** | Quellen in der Verfügbarkeit (iCloud-Link, Postfach in Microsoft 365), App-Registrierung, Abruf, Speicher, Einbezug in `hub_calendar_busy()` und freie Zeiten | mittel: ein PR in `service-oalab`, einer im Hub |
+| **3 Microsoft 365** | Termine schreiben, Teams-Meetings, Webhooks | groß, eigener Plan; derzeit nicht nötig |
 
 ## 8. Entscheidungen
 
+Entschieden am 22. November 2026:
+
+| # | Frage | Entscheidung |
+|---|---|---|
+| 1 | Etappe 1 bauen: Kalender-Abo für Admins, Kunden und Freelancer? | Ja, für alle drei Rollen |
+| 3 | Teams-Link ins Abo? Er steht heute schon in den Mail-Dateien; ohne ihn fehlt am Handy das Wichtigste. Die Lobby in Teams schützt zusätzlich. | Ja |
+| 7 | Wo liegen die Kalender des Teams? | In iCloud und in Microsoft 365 (Outlook); Etappe 2 liest beide |
+| 8 | Etappe 3 nur, wenn Minuten Verzug stören oder Teams-Links automatisch kommen sollen? | Ja; Minuten bis etwa eine Stunde reichen, Etappe 3 ist derzeit nicht nötig |
+
+Noch offen, mit Empfehlung:
+
 | # | Frage | Empfehlung |
 |---|---|---|
-| 1 | Etappe 1 bauen: Kalender-Abo für Admins, Kunden und Freelancer? | Ja |
 | 2 | Standard-Inhalt bestätigte Termine und offene Anfragen, Ziele und Aufgaben wählbar? | Ja |
-| 3 | Teams-Link ins Abo? Er steht heute schon in den Mail-Dateien; ohne ihn fehlt am Handy das Wichtigste. Die Lobby in Teams schützt zusätzlich. | Ja |
 | 4 | Abo für Admins und Freelancer nur mit bestätigtem Code anlegen? | Ja |
 | 5 | Link nur einmal zeigen (nur die Prüfsumme gespeichert), danach „Neuen Link erzeugen“? | Ja |
 | 6 | In Termin-Mails für Abonnenten einen Satz statt der vier Knöpfe? | Ja |
-| 7 | Wo liegen die privaten Kalender des Teams: iCloud, Microsoft 365 oder Google? | Antwort nötig; sie bestimmt Etappe 2 und 3 |
-| 8 | Etappe 3 nur, wenn Minuten Verzug stören oder Teams-Links automatisch kommen sollen? | Ja |
+| 9 | Microsoft 365 über eine App-Registrierung mit `Calendars.ReadBasic` lesen, begrenzt auf die Postfächer des Teams, statt über veröffentlichte Kalender? | Ja |
 
 ## 9. Abnahme Etappe 1
 
@@ -156,3 +168,11 @@ Die Bezeichnungen können je nach Systemversion leicht abweichen.
 - Deaktivierter Zugang: Das Abo liefert nichts mehr.
 - Google Kalender und Outlook: Das Abo funktioniert; Abstände notieren.
 - Seitenleiste und QR-Code in hell und dunkel sowie in Handy-Breite lesbar.
+
+## 10. Abnahme Etappe 2
+
+- Ein Termin in iCloud und einer in Outlook: Nach höchstens 10 Minuten ist die Zeit für Anfragen belegt. Titel, Ort und Teilnehmer stehen nirgends im Hub, auch nicht in der Datenbank.
+- Ganztägige und als „frei“ markierte Einträge sperren nichts. Eine Kopie eines Hub-Termins in iCloud sperrt keine zusätzliche Zeit.
+- Die App für Microsoft 365 liest nur die Postfächer des Teams; ein anderes Postfach im Mandanten ergibt einen Fehler.
+- Eine Quelle ist 24 Stunden nicht erreichbar: Meldung in der Glocke, bis dahin gelten die zuletzt gelesenen Zeiten.
+- Der iCloud-Link steht verschlüsselt in der Datenbank und wird im Hub nie wieder angezeigt.
