@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, Clock, ExternalLink, Globe, LockKeyhole, LockKeyholeOpen, Pencil, Plus, QrCode, Save, Settings, Smartphone, Trash2, WandSparkles, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { MAX_LABEL, MAX_NOTE, MAX_USERNAME } from "@/lib/hub-domains/rules";
@@ -153,11 +153,16 @@ export function EntryPanel({ entry, category, owner, open, secret, onEdit, onClo
 
 export type EntryDraft = { id?: string; ownerId: string | null; categoryId: string; label: string; loginUrl: string; username: string; secret: string; note: string };
 
-/** A new access or the details of one (its password and note change in the list and the details). */
-export function EntryForm({ draft: start, owners, categories, onSettings, onClose, onSaved, onLock }: {
+/**
+ * A new access or the details of one (its password and note change in the list and the details). Every category is
+ * open to oalab and to customers alike, „Postfächer“ too (22.11.2026): a customer's mailbox made here holds its access
+ * data only; address with domain, forwards and aliases stay under „Vertrag & Domain“, whose mailboxes `mailboxes` are.
+ */
+export function EntryForm({ draft: start, owners, categories, mailboxes, onSettings, onClose, onSaved, onLock }: {
   draft: EntryDraft;
   owners: KeychainOwner[];
   categories: KeychainCategory[];
+  mailboxes: KeychainEntry[];
   onSettings: (draft: EntryDraft) => void;
   onClose: () => void;
   onSaved: (id: string, until: string, message: string) => void;
@@ -166,10 +171,14 @@ export function EntryForm({ draft: start, owners, categories, onSettings, onClos
   const [draft, setDraft] = useState(start);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const nameId = useId();
   const editing = Boolean(draft.id);
-  const choosable = categories.filter((category) => editing || category.id !== MAILBOX_CATEGORY || draft.ownerId === null);
   const owner = owners.find((item) => item.id === draft.ownerId) ?? owners[0];
   const category = categories.find((item) => item.id === draft.categoryId);
+  const mailbox = draft.categoryId === MAILBOX_CATEGORY;
+  // The same address from „Vertrag & Domain“ stands under „Postfächer“ already and takes its password right there.
+  const typed = draft.label.trim().toLocaleLowerCase("de");
+  const twin = mailbox && !editing && typed ? mailboxes.find((item) => item.ownerId === draft.ownerId && item.title.toLocaleLowerCase("de") === typed) : undefined;
   const set = (key: keyof EntryDraft) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft({ ...draft, [key]: event.target.value });
 
   async function save() {
@@ -205,7 +214,7 @@ export function EntryForm({ draft: start, owners, categories, onSettings, onClos
             <div className="um-field is-wide"><span className="am-label">Gehört zu</span>
               <span className="um-pick kc-pick">
                 <OwnerSign owner={owner} size="xs" />
-                <Select variant="bare" showLead={false} label="Gehört zu" value={owner.id ?? "own"} onChange={(value) => setDraft({ ...draft, ownerId: value === "own" ? null : value, categoryId: value !== "own" && draft.categoryId === MAILBOX_CATEGORY && !editing ? "other" : draft.categoryId })} searchPlaceholder="Kunde oder Nummer suchen …"
+                <Select variant="bare" showLead={false} label="Gehört zu" value={owner.id ?? "own"} onChange={(value) => setDraft({ ...draft, ownerId: value === "own" ? null : value })} searchPlaceholder="Kunde oder Nummer suchen …"
                   options={owners.map((item) => ({ value: item.id ?? "own", label: item.company, prefix: item.customerNumber || undefined, meta: item.id === null ? "Eigene Konten" : undefined, lead: <OwnerSign owner={item} size="xs" /> }))} disabled={busy} />
                 <ChevronDown size={16} aria-hidden="true" />
               </span>
@@ -214,12 +223,17 @@ export function EntryForm({ draft: start, owners, categories, onSettings, onClos
               <span className="um-pick kc-pick">
                 {category ? <span className="company-mark kc-mark"><CategoryGlyph category={category} size={14} /></span> : <span className="company-mark kc-mark" />}
                 <Select variant="bare" showLead={false} label="Kategorie" value={draft.categoryId} placeholder="Kategorie wählen" onChange={(value) => setDraft({ ...draft, categoryId: value })}
-                  options={choosable.map((item) => ({ value: item.id, label: item.name, meta: String(item.count), lead: <CategoryGlyph category={item} /> }))} disabled={busy} />
+                  options={categories.map((item) => ({ value: item.id, label: item.name, meta: String(item.count), lead: <CategoryGlyph category={item} /> }))} disabled={busy} />
                 <ChevronDown size={16} aria-hidden="true" />
               </span>
-              <p className="am-help">Nur aus der Liste. Neue Kategorien legst du in den Einstellungen an{draft.ownerId !== null && !editing ? "; Postfächer von Kunden unter Vertrag & Domain" : ""}.</p>
+              <p className="am-help">{mailbox && draft.ownerId !== null
+                ? "Hier hinterlegst du die Zugangsdaten. Adresse mit Domain, Weiterleitungen und Aliase pflegst du unter Vertrag & Domain › Domain & Mail."
+                : "Nur aus der Liste. Neue Kategorien legst du in den Einstellungen an."}</p>
             </div>
-            <label className="um-field is-wide"><span className="am-label">Name</span><input className="am-input" value={draft.label} onChange={set("label")} maxLength={MAX_LABEL} placeholder="z. B. Hosting Webpanel" autoComplete="off" disabled={busy} autoFocus={!editing} /></label>
+            <div className="um-field is-wide"><label className="am-label" htmlFor={nameId}>Name</label>
+              <input id={nameId} className="am-input" value={draft.label} onChange={set("label")} maxLength={MAX_LABEL} placeholder={mailbox ? "z. B. info@firma.de" : "z. B. Hosting Webpanel"} autoComplete="off" disabled={busy} autoFocus={!editing} aria-describedby={twin ? `${nameId}-twin` : undefined} />
+              {twin && <p className="am-help" id={`${nameId}-twin`}>„{twin.title}“ steht schon unter Postfächer, aus Vertrag &amp; Domain. Sein Passwort hinterlegst du direkt in dieser Zeile.</p>}
+            </div>
             <label className="um-field is-wide"><span className="am-label">Website <small>optional</small></span><input className="am-input" value={draft.loginUrl} onChange={set("loginUrl")} maxLength={300} placeholder="https://" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={busy} /></label>
             <label className="um-field is-wide"><span className="am-label">Benutzername oder E-Mail <small>optional</small></span><input className="am-input" value={draft.username} onChange={set("username")} maxLength={MAX_USERNAME} autoComplete="off" autoCapitalize="none" spellCheck={false} data-1p-ignore="" data-lpignore="true" disabled={busy} /></label>
           </FieldGrid>

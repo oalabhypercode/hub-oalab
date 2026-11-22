@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronsDownUp, ChevronsUpDown, Inbox, KeyRound, LayoutGrid, LayoutList, Plus, Search, Settings, Table2, Tag } from "lucide-react";
 import type { ListView } from "@/lib/appearance";
 import { REVEAL_SECONDS, type VaultOwner } from "@/lib/hub-domains/rules";
-import { MAILBOX_CATEGORY, UNLOCK_MINUTES } from "@/lib/hub-keychain/rules";
+import { UNLOCK_MINUTES } from "@/lib/hub-keychain/rules";
 import type { KeychainCategory, KeychainEntry, KeychainOwner, KeychainState } from "@/lib/hub-keychain/types";
 import { useAppearance } from "../appearance-provider";
 import { HeaderActions } from "../app-shell";
@@ -15,7 +15,7 @@ import { useInfo } from "../info-box";
 import { LargeTitleHeader } from "../large-title-header";
 import { MenuChoices, SheetFooter, SheetToolbar, TableGroup, ToolbarMenu } from "../sheet";
 import { SecretDialog } from "./contracts-access";
-import { LockBar, LockControl, SetupDialog, UnlockDialog, lockNow, useKeychainLock } from "./keychain-lock";
+import { LockBar, LockConfirmDialog, LockSwitch, SetupDialog, UnlockDialog, useKeychainLock } from "./keychain-lock";
 import { EntryForm, EntryPanel, OwnerSign, SettingsPanel, type EntryDraft } from "./keychain-panels";
 import { AccessRow, CategoryGlyph, SecretCell } from "./keychain-rows";
 
@@ -28,7 +28,7 @@ import { AccessRow, CategoryGlyph, SecretCell } from "./keychain-rows";
 
 type View = { kind: "all" } | { kind: "owner"; id: string | null };
 type Panel = { kind: "entry"; id: string } | { kind: "form"; draft: EntryDraft } | { kind: "settings"; back: EntryDraft | null };
-type Dialog = { kind: "unlock"; hint?: string; then?: () => void } | { kind: "setup"; relink: boolean } | { kind: "secret"; owner: VaultOwner; name: string; replace: boolean };
+type Dialog = { kind: "unlock"; hint?: string; then?: () => void } | { kind: "setup"; relink: boolean } | { kind: "lock" } | { kind: "secret"; owner: VaultOwner; name: string; replace: boolean };
 type OwnerSort = { key: "name" | "count" | "number"; dir: "asc" | "desc" };
 type EntrySort = { key: "name" | "changed"; dir: "asc" | "desc" };
 
@@ -61,8 +61,9 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState("");
-  const [busyLock, setBusyLock] = useState(false);
   const lockKey = lock.status === "unlocked" && open ? `open:${lock.hardUntil}` : "shut";
+  // The question before locking goes when the keychain locked by itself meanwhile (time up, another tab).
+  if (dialog?.kind === "lock" && !open) setDialog(null);
 
   const categories = state.categories;
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -114,7 +115,8 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
   const relink = () => lock.status === "setup" ? setDialog({ kind: "setup", relink: false })
     : open ? setDialog({ kind: "setup", relink: true })
     : setDialog({ kind: "unlock", hint: "Danach verbindest du die App neu.", then: () => setDialog({ kind: "setup", relink: true }) });
-  const newDraft = (): EntryDraft => ({ ownerId: view.kind === "owner" ? view.id : null, categoryId: cat !== "all" && cat !== MAILBOX_CATEGORY ? cat : "other", label: "", loginUrl: "", username: "", secret: "", note: "" });
+  // Every category, „Postfächer“ too, for oalab and for customers alike (22.11.2026).
+  const newDraft = (): EntryDraft => ({ ownerId: view.kind === "owner" ? view.id : null, categoryId: cat !== "all" ? cat : "other", label: "", loginUrl: "", username: "", secret: "", note: "" });
   const startNew = () => open ? setPanel({ kind: "form", draft: newDraft() }) : needUnlock("Danach legst du den neuen Zugang an.", () => setPanel({ kind: "form", draft: newDraft() }));
 
   const secretFor = (entry: KeychainEntry) => (
@@ -166,9 +168,12 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
           ? [viewOwner.customerNumber || "Eigene Konten", plural(inScope.length, "Zugang", "Zugänge"), scopeMissing ? `${scopeMissing} ohne Passwort` : ""]
           : [plural(state.entries.length, "Zugang", "Zugänge"), plural(usedCategories, "Kategorie", "Kategorien"), missingAll ? `${missingAll} ohne Passwort` : ""]).filter(Boolean).join(" · ")}</span>
       </div>
-      <button type="button" className="sheet-action kc-head-new" onClick={startNew} aria-label="Zugang anlegen" data-tip="Zugang anlegen"><Plus size={15} aria-hidden="true" /><span className="kc-head-label">Zugang</span></button>
-      <button type="button" className="sheet-action kc-head-gear" onClick={() => setPanel({ kind: "settings", back: null })} aria-label="Einstellungen" data-tip="Einstellungen" data-tip-sub="Kategorien und deine App" aria-pressed={panel?.kind === "settings"}><Settings size={16} aria-hidden="true" /></button>
-      <LockControl lock={lock} left={left} busy={busyLock} onUnlock={() => setDialog({ kind: "unlock" })} onSetup={() => setDialog({ kind: "setup", relink: false })} onLock={async () => { setBusyLock(true); await lockNow(api); setBusyLock(false); }} />
+      {/* „+“, the lock switch, the gear on the far right (22.11.2026). */}
+      <div className="kc-head-acts">
+        <button type="button" className="sheet-action kc-head-new" onClick={startNew} aria-label="Zugang anlegen" data-tip="Zugang anlegen"><Plus size={16} aria-hidden="true" /></button>
+        <LockSwitch lock={lock} left={left} onUnlock={() => setDialog({ kind: "unlock" })} onSetup={() => setDialog({ kind: "setup", relink: false })} onAskLock={() => setDialog({ kind: "lock" })} />
+        <button type="button" className="sheet-action kc-head-gear" onClick={() => setPanel({ kind: "settings", back: null })} aria-label="Einstellungen" data-tip="Einstellungen" data-tip-sub="Kategorien und deine App" aria-pressed={panel?.kind === "settings"}><Settings size={16} aria-hidden="true" /></button>
+      </div>
     </header>
   );
 
@@ -240,7 +245,7 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
   };
   const totalIn = (categoryId: string, ownerId?: string | null) => state.entries.filter((entry) => entry.categoryId === categoryId && (ownerId === undefined || entry.ownerId === ownerId)).length;
   const countCell = (shown: number, total: number) => <>{filtering && shown !== total ? <><span className="numeric">{shown}</span><span className="kc-of"> von {total}</span></> : <span className="numeric">{total}</span>}<span className="kc-ounit"> {total === 1 && !(filtering && shown !== total) ? "Zugang" : "Zugänge"}</span></>;
-  const emptyText = query.trim() ? `Kein Zugang passt zu „${query.trim()}“.` : seg === "missing" ? "Alle Zugänge haben ein Passwort." : cat !== "all" ? `In „${catLabel}“ gibt es noch keine Zugänge.` : "Hier gibt es noch keine Zugänge. Leg den ersten mit „+ Zugang“ an.";
+  const emptyText = query.trim() ? `Kein Zugang passt zu „${query.trim()}“.` : seg === "missing" ? "Alle Zugänge haben ein Passwort." : cat !== "all" ? `In „${catLabel}“ gibt es noch keine Zugänge.` : "Hier gibt es noch keine Zugänge. Leg den ersten mit dem Plus oben an.";
 
   const categoryTable = (
     <table className="project-table kc-otable kc-ctable">
@@ -360,7 +365,7 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
           onClose={() => setPanel(null)} onNeedUnlock={needUnlock} onUntil={api.extend} onLock={api.setLock} onNotice={say} />
       )}
       {panel?.kind === "form" && (
-        <EntryForm key={panel.draft.id ?? "new"} draft={panel.draft} owners={state.owners} categories={categories} onLock={api.setLock}
+        <EntryForm key={panel.draft.id ?? "new"} draft={panel.draft} owners={state.owners} categories={categories} mailboxes={state.entries.filter((item) => item.kind === "mailbox")} onLock={api.setLock}
           onSettings={(draft) => setPanel({ kind: "settings", back: draft })} onClose={() => setPanel(null)}
           onSaved={(id, until, message) => { api.extend(until); say(message); setPanel({ kind: "entry", id }); }} />
       )}
@@ -378,6 +383,9 @@ export function KeychainScreen({ state }: { state: KeychainState }) {
       )}
       {dialog?.kind === "setup" && (
         <SetupDialog email={state.email} relink={dialog.relink} onClose={() => setDialog(null)} onDone={(next) => { api.setLock(next); setDialog(null); say(dialog.relink ? "Die neue App ist verbunden. Die alte und ihre Notfall-Codes zählen nicht mehr." : "Der Schlüsselbund ist eingerichtet und entsperrt."); }} />
+      )}
+      {dialog?.kind === "lock" && (
+        <LockConfirmDialog onClose={() => setDialog(null)} onLocked={(next) => { api.setLock(next); setDialog(null); }} />
       )}
       {dialog?.kind === "secret" && (
         <SecretDialog owner={dialog.owner} name={dialog.name} replace={dialog.replace} onClose={() => setDialog(null)} onSaved={say} />

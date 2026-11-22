@@ -60,6 +60,8 @@
   --cal-confirmed-bg: #ffe0de; --cal-requested-bg: #fff0d9;
   /* Switches and ticks use the accent like every other choice; green stays for "done" and "active". */
   --switch-on: var(--accent-text);
+  /* The Schlüsselbund's lock switch while open. */
+  --lock-open: #34c759;
   /* Tones of the hub mails: to do, for information, done, off, problem. Background, text, and the bar of a note. */
   --tone-todo-bg: #fff0e3; --tone-todo: #9a3a00; --tone-todo-bar: #f37222;
   --tone-info-bg: #e6f0ff; --tone-info: #004285; --tone-info-bar: #2f6fd0;
@@ -2009,6 +2011,7 @@ a.teams-join:active { transform: scale(0.97); }
   --tone-todo-bg: #3a2614; --tone-todo: #ffbe8a;
   --tone-info-bg: #14263f; --tone-info: #9cc7ff;
   --tone-ok-bg: #16301d; --tone-ok: #9ee2ae;
+  --lock-open: #30d158;
   --tone-off-bg: #2c262a; --tone-off: #c2b7bd; --tone-off-bar: #7d7278;
   --tone-bad-bg: #3d1a18; --tone-bad: #ffb1aa;
   --veil-none: rgb(255 107 96 / 0.14); --veil-none-bar: #ff6b60;
@@ -3493,19 +3496,18 @@ html.am-dragging .hub-tip { display: none !important; }
 .kc-nav-empty { padding: 8px 4px; color: var(--sheet-muted); font-size: 13px; }
 .kc-count { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 26px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .kc-nav-item[aria-current="true"] .kc-count { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); box-shadow: none; color: var(--accent-text); }
-/* ---------- Pane head: lock state and the one button that changes it ---------- */
-.kc-lock-ctl { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
-.kc-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-.kc-chip.is-locked { background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
-.kc-chip.is-open { background: var(--tone-ok-bg); color: var(--tone-ok); }
-.kc-chip.is-setup { background: var(--tone-todo-bg); color: var(--tone-todo); }
-.kc-chip b { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* ---------- Pane head: „+“, the lock as a switch, the gear on the far right (22.11.2026) ---------- */
+.kc-head-acts { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
 .kc .am-pane-head .sheet-action { height: 32px; }
-/* Phone: the lock state gets its own line under the name, so the name never disappears. */
-@media (max-width: 767px) {
-  .kc .am-pane-head { flex-wrap: wrap; row-gap: 10px; }
-  .kc-lock-ctl { order: 5; flex: 1 0 100%; justify-content: space-between; margin-left: 0; }
-}
+/* The lock: grey with the knob on the left while locked, green with the knob on the right while open; the knob
+   carries the lock, closed or open. Green here means „open“, unlike the accent of the hub's other switches. */
+.kc-lock-switch .switch-knob { display: inline-flex; align-items: center; justify-content: center; color: #8e8e93; transition: transform 250ms var(--ease-spring), color 250ms ease; }
+.kc-lock-switch[aria-checked="true"] { background: var(--lock-open); }
+.kc-lock-switch[aria-checked="true"] .switch-knob { color: var(--lock-open); }
+.kc-lock-switch.is-blocked .switch-knob { color: var(--tone-bad-bar); }
+.kc-lock-switch:hover:not(:disabled) { filter: brightness(0.96); }
+.kc-confirm-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.kc-confirm-acts > * { flex: 1 1 160px; }
 /* ---------- Bar above the table ---------- */
 .kc .cdm-lock { align-items: center; }
 .kc .cdm-lock p { flex: 1 1 auto; }
@@ -3637,7 +3639,7 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
 .kc-v4 .am-pane { container: kcpane / inline-size; }
 .kc-v4 .kc-scroll { background: var(--sheet); }
 .kc-ptable-wrap { min-width: 0; }
-.kc-head-new { flex: 0 0 auto; }
+.kc-head-new { flex: 0 0 auto; width: 32px; padding: 0; justify-content: center; }
 @container kcpane (max-width: 899px) {
   .kc-v4 .sheet-menu-value { display: none; }
   .kc-v4 .sheet-toolbar .segment-count { display: none; }
@@ -3845,11 +3847,6 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
   .sheet .kc-ctable tr.kc-orow { padding-left: 26px; }
   .sheet .kc-ctable .kc-nested tr.kc-row { padding-left: 49px; }
 }
-/* Phone: „+ Zugang“ and the gear as two small square buttons, so the title keeps its room. */
-@media (max-width: 767px) {
-  .kc-head-new { width: 32px; padding: 0; justify-content: center; }
-  .kc-head-new .kc-head-label { display: none; }
-}
 /* V5 angepasst, last step: the category row in the table's columns. Name under „Kunde“, the total under „Zugänge“ in
    line with the customers' counts below it, the rest of the row empty; a click anywhere on it folds the category. */
 .kc-ctable .kc-cgroup { cursor: pointer; }
@@ -3914,7 +3911,6 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
 @container kcpane (max-width: 899px) { .kc-v4 .kc-menu-set .sheet-menu-value { display: inline; } }
 .cdm-lock:has(.kc-bar-action) { align-items: center; }
 .cdm-lock .kc-bar-action { flex: 0 0 auto; height: 28px; padding: 0 10px; font-size: 12.5px; }
-.kc-chip.is-blocked { background: var(--tone-bad-bg); color: var(--tone-bad); }
 .kc-brand-tile .brand-logo { width: 100%; height: 100%; object-fit: contain; }
 .kc-pick > :is(.kc-brand-tile, .am-avatar) { position: absolute; left: 8px; pointer-events: none; }
 .kc-cat-row .am-file-icon { width: 30px; height: 30px; border-radius: 9px; }
