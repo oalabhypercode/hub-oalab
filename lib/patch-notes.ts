@@ -74,6 +74,20 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 30,
+    date: "2026-11-23",
+    title: "Kalender abonnieren",
+    summary: "Jede Person mit Zugang abonniert ihre Termine jetzt als Kalender „oalab“: „Abonnieren“ im Kalenderkopf oder die neue Karte „Kalender-Abo“ im Profil legen einen geheimen Link an, den der Hub einmal zeigt, mit Apple, Google, Outlook, Kopieren, QR-Code und Anleitung je Gerät. Apple Kalender, Google und Outlook holen damit selbst neue, verschobene und abgesagte Termine. Im Abo stehen bestätigte Termine und offene Anfragen; Projektziele und Aufgaben lassen sich zuschalten, bei Admins alle Termine als „Firma: Titel“ und Aufgaben wahlweise eigene oder alle, bei Freelancern nur ihre Termine und Anfragen. Admins und Freelancer legen das Abo nur mit bestätigtem Code an. Gespeichert ist nur eine Prüfsumme des Links; jeder Abruf liest mit den Rechten der Person, höchstens 60 Mal je Stunde. Anlegen, neuer Link und Beenden stehen im Verlauf des Kontos. Das Abo endet von selbst bei deaktiviertem Zugang, anderer Rolle, zurückgesetztem zweiten Faktor oder nach 180 Tagen ohne Abruf. Wer ein Abo hat, bekommt in Termin-Mails einen Satz statt der vier Kalender-Knöpfe.",
+    changes: [
+      { kind: "new", area: "projects", place: "Kalender › Abonnieren", title: "Kalender abonnieren", text: "Mit „Abonnieren“ im Kalender stehen deine Termine bei oalab in Apple Kalender, Google oder Outlook und bleiben von selbst aktuell: Neue, verschobene und abgesagte Termine kommen ohne Mail und ohne Löschen von Hand. Den Link zeigt der Hub einmal, mit QR-Code fürs Handy und einer kurzen Anleitung je Gerät.", customers: true, freelancers: true },
+      { kind: "new", area: "hub", place: "Profil › Kalender-Abo", title: "Kalender-Abo im Profil", text: "Im Profil zeigt die Karte „Kalender-Abo“, ob dein Abo läuft, wann dein Kalender es zuletzt abgerufen hat und was darin steht. Dort änderst du die Inhalte, erzeugst einen neuen Link oder beendest das Abo; der alte Link geht dann sofort nicht mehr.", customers: true, freelancers: true },
+      { kind: "improved", area: "messages", place: "E-Mail › Termine", also: ["projects"], title: "Termin-Mails mit Abo", text: "Hast du den Kalender abonniert, steht in E-Mails zu neuen, bestätigten und verschobenen Terminen nur noch ein Satz: Der Termin steht schon in deinem Kalender „oalab“ und ändert sich von selbst. Ohne Abo bleiben die vier Kalender-Knöpfe, darunter der Weg zum Abo.", customers: true, freelancers: true },
+      { kind: "new", area: "projects", place: "Kalender › Abonnieren", title: "Alle Termine im eigenen Kalender", text: "Admins abonnieren alle Termine des Hubs, jeweils als „Firma: Titel“ mit Teams-Link, auf Wunsch mit offenen Anfragen, Projektzielen und Aufgaben, die ihnen zugewiesen sind, oder allen. Angelegt wird das Abo nur mit bestätigtem Code, weil der Link danach ohne Anmeldung liest." },
+      { kind: "security", area: "hub", place: "Profil › Kalender-Abo", title: "Abo-Link geschützt", text: "Den Abo-Link speichert der Hub nur als Prüfsumme, und jeder Abruf liest mit den Rechten der Person. Das Abo endet von selbst, wenn ein Zugang deaktiviert wird, die Rolle wechselt, ein Admin den zweiten Faktor zurücksetzt oder 180 Tage lang niemand abruft; Anlegen, neuer Link und Beenden stehen im Verlauf des Kontos." },
+      { kind: "improved", area: "hub", place: "Datenschutz", title: "Datenschutz zum Kalender-Abo", text: "Die Datenschutzerklärung beschreibt jetzt das Kalender-Abo: was darin steht, dass der Link ohne Anmeldung funktioniert und geheim bleiben sollte, wer den Kalender abruft und wie du das Abo beendest.", customers: true, freelancers: true },
+    ],
+  },
+  {
     number: 29,
     date: "2026-11-22",
     title: "Notizen unter Projekte, Benachrichtigungen in Spalten, Patch Notes als Tabelle und eine Sidebar zum Einklappen",

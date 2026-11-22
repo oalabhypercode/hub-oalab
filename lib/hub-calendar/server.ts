@@ -4,6 +4,8 @@ import { loadArchive } from "@/lib/hub-archive/server";
 import { noArchive } from "@/lib/hub-archive/rules";
 import { loadFreelancerCustomerList, withFreelancerCustomers } from "@/lib/hub-freelancer-customers/list";
 import { addDays, addMonths, availabilityFrom, calendarWindow, FIXED_AVAILABILITY, isAppointmentStatus, type Availability } from "./rules";
+import { feedRoleOf } from "./feed-rules";
+import { activeFeed, feedReady } from "./feed-store";
 import type { HubFileCustomer } from "../hub-files/types";
 import type { HubAppointment, HubCalendarState } from "./types";
 
@@ -72,7 +74,8 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
   const base = { source: "supabase" as const, canManage, confirmed: canManage && claims?.claims.aal === "aal2", today, now: Date.now() };
 
   const lastDay = addDays(`${addMonths(window.lastMonth, 1)}-01`, -1);
-  const [appointments, customers, busy, open, archive, theirs] = await Promise.all([
+  const feedRole = feedRoleOf(role);
+  const [appointments, customers, busy, open, archive, theirs, feed] = await Promise.all([
     supabase
       .from("hub_appointments")
       .select("id, title, description, starts_at, ends_at, status, teams_url, response_note, customer:hub_customers(id, customer_number, company)")
@@ -85,12 +88,17 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
     loadAvailability(supabase, canManage, `${window.firstMonth}-01`, lastDay),
     canManage ? loadArchive() : noArchive,
     role === "oalab_freelancer" ? loadFreelancerCustomerList(supabase) : null,
+    // Whether the login's calendar subscription is active, for the head's button; left out where it is not set up.
+    feedRole && claims?.claims.sub && feedReady()
+      ? activeFeed(claims.claims.sub, feedRole).then((found) => ({ active: Boolean(found) }), () => undefined)
+      : undefined,
   ]);
   const error = appointments.error ?? busy.error;
   if (error) return { ...base, appointments: [], busy: [], customers: [], availability: FIXED_AVAILABILITY, availabilityReady: false, error: describeCalendarError(error) };
 
   return {
     ...base,
+    ...(feed ? { feed } : {}),
     availability: open.availability,
     availabilityReady: open.ready,
     customers: withFreelancerCustomers(customers.data ?? [], theirs).filter((row) => !archive.customerIds.has(row.id)).map(toCustomer),

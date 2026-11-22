@@ -241,7 +241,8 @@ test("project deadlines and tasks with a date appear in the calendar, which open
   assert.match(calendar, /const params = useSearchParams\(\);/);
   assert.match(calendar, /const linked = store\.appointments\.find\(\(item\) => item\.id === params\.get\("appointment"\)\);/);
   assert.match(calendar, /const startDay = linked \? dayOf\(linked\.start\) : params\.get\("day"\);/);
-  assert.match(calendar, /useState<Panel \| null>\(\(\) => linked \? \{ kind: "appointment", id: linked\.id \} : null\)/);
+  // A notice's appointment opens its panel; ?abo=1 (back from confirming the code, a mail, the profile) the subscription.
+  assert.match(calendar, /useState<Panel \| null>\(\(\) => linked \? \{ kind: "appointment", id: linked\.id \} : params\.get\("abo"\) === "1" \? \{ kind: "feed" \} : null\)/);
   // Tasks are Studio's rows: without a session confirmed by a code they stay read-only, with the way to the code.
   assert.match(calendar, /const confirmHref = admin && store\.live && !calendar\.confirmed \? confirmSessionHref\(hubHref\(false, "calendar"\)\) : null;/);
   assert.match(await source("lib/hub-calendar/server.ts"), /confirmed: canManage && claims\?\.claims\.aal === "aal2"/);
