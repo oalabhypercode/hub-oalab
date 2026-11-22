@@ -1,6 +1,6 @@
 # Planung: Kalender des Hubs mit Apple Kalender synchron halten
 
-Stand 22. November 2026 · Rollen, Tempo, Teams-Link und die Kalender des Teams sind entschieden (Abschnitt 8) · im Hub ist davon noch nichts umgesetzt
+Stand 22. November 2026 · alle Entscheidungen getroffen (Abschnitt 8), Etappe 1 kann gebaut werden · im Hub ist davon noch nichts umgesetzt
 
 Ziel: Was im Kalender des Hubs steht, soll ohne Zutun im Apple Kalender auf iPhone, iPad und Mac stehen und dort aktuell bleiben. Dieser Plan vergleicht die möglichen Wege, schlägt drei Etappen vor und beschreibt die erste so genau, dass sie gebaut werden kann. Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137), Apples Hilfeseiten zu Kalenderabos (Stand Mai 2026) und Microsofts Dokumentation zu Frei/Belegt in Microsoft Graph (Stand November 2026).
 
@@ -116,7 +116,7 @@ Die Bezeichnungen können je nach Systemversion leicht abweichen.
 - **Wozu:** Kunden fragen Termine nur in freien Zeiten an (`hub_calendar_busy()` und die Verfügbarkeit). Termine, die das Team in iCloud oder in Microsoft 365 (Outlook) führt, kennt der Hub heute nicht; Anfragen in solche Zeiten sind möglich.
 - **Wo:** Kalender › Verfügbarkeit, neuer Abschnitt „Andere Kalender berücksichtigen“. Admins hinterlegen dort ihre Quellen, beliebig viele aus iCloud und Microsoft 365; jede sperrt Zeiten für alle Anfragen.
 - **Quelle iCloud:** Auf iCloud.com einen Kalender öffentlich machen (Kalender-Info › Öffentlicher Kalender › Link kopieren) und den Link im Hub einfügen. Apple sagt dazu, dass Abonnenten den Kalender sehen, aber nicht ändern können; wer den Link kennt, sieht also alle Einträge. Der Hub speichert ihn deshalb verschlüsselt (wie die Passwörter im Schlüsselbund, mit `HUB_VAULT_KEY`) und zeigt ihn nie wieder an.
-- **Quelle Microsoft 365 (empfohlen über Microsoft Graph):** Der Hub fragt Frei/Belegt mit `getSchedule` ab, bis zu 20 Postfächer je Anfrage. Zurück kommen nur Beginn, Ende und Status, keine Titel, und es braucht keinen öffentlichen Link. Dafür einmalig eine App-Registrierung in Microsoft Entra ID mit der Anwendungsberechtigung `Calendars.ReadBasic`, in Exchange Online auf die Postfächer des Teams begrenzt (RBAC für Anwendungen). Mandanten-ID, Client-ID und Geheimnis trägt der Admin selbst in die Umgebung des Hubs ein; im Hub wählt man danach nur noch das Postfach. Persönliche Microsoft-Konten (Outlook.com) gehen so nicht.
+- **Quelle Microsoft 365 (über Microsoft Graph, Entscheidung 9):** Der Hub fragt Frei/Belegt mit `getSchedule` ab, bis zu 20 Postfächer je Anfrage. Zurück kommen nur Beginn, Ende und Status, keine Titel, und es braucht keinen öffentlichen Link. Dafür einmalig eine App-Registrierung in Microsoft Entra ID mit der Anwendungsberechtigung `Calendars.ReadBasic`, in Exchange Online auf die Postfächer des Teams begrenzt (RBAC für Anwendungen). Mandanten-ID, Client-ID und Geheimnis trägt der Admin selbst in die Umgebung des Hubs ein; im Hub wählt man danach nur noch das Postfach. Persönliche Microsoft-Konten (Outlook.com) gehen so nicht.
 - **Rückfall ohne App-Registrierung:** In Outlook den Kalender mit „Kann sehen, wann ich beschäftigt bin“ veröffentlichen und den ICS-Link wie bei iCloud einfügen; er enthält nur Belegt-Zeiten. Wie schnell Änderungen darin ankommen, dokumentiert Microsoft nicht; das wird vor dem Einbau gemessen.
 - **Abruf** alle 10 Minuten, im Zeitplan, der heute alle 5 Minuten die Benachrichtigungen verschickt. ICS-Quellen liest eine geprüfte Bibliothek (etwa ical.js; Lizenz vor dem Einbau prüfen), weil wiederkehrende Termine, Ausnahmen und Zeitzonen sauber aufgelöst werden müssen.
 - **Gespeichert** werden nur Beginn und Ende der nächsten 12 Wochen, ohne Titel, Ort oder Teilnehmer: die Quellen in `hub_calendar_sources` (Admin, Art, verschlüsselter Link oder Postfach, Regeln, letzter Abruf, letzter Fehler), die Zeiten in `hub_calendar_external_busy`, beide nur für die Service-Rolle. `hub_calendar_busy()` und die freien Zeiten beziehen sie ein; Kunden sehen wie bisher nur „Belegt“, Admins im Hub-Kalender graue Blöcke „Privat“.
@@ -141,24 +141,19 @@ Stand 22. November 2026 nicht geplant: Minuten bis etwa eine Stunde reichen (Ent
 
 ## 8. Entscheidungen
 
-Entschieden am 22. November 2026:
+Alle Entscheidungen sind am 22. November 2026 getroffen:
 
 | # | Frage | Entscheidung |
 |---|---|---|
 | 1 | Etappe 1 bauen: Kalender-Abo für Admins, Kunden und Freelancer? | Ja, für alle drei Rollen |
-| 3 | Teams-Link ins Abo? Er steht heute schon in den Mail-Dateien; ohne ihn fehlt am Handy das Wichtigste. Die Lobby in Teams schützt zusätzlich. | Ja |
-| 7 | Wo liegen die Kalender des Teams? | In iCloud und in Microsoft 365 (Outlook); Etappe 2 liest beide |
-| 8 | Etappe 3 nur, wenn Minuten Verzug stören oder Teams-Links automatisch kommen sollen? | Ja; Minuten bis etwa eine Stunde reichen, Etappe 3 ist derzeit nicht nötig |
-
-Noch offen, mit Empfehlung:
-
-| # | Frage | Empfehlung |
-|---|---|---|
 | 2 | Standard-Inhalt bestätigte Termine und offene Anfragen, Ziele und Aufgaben wählbar? | Ja |
+| 3 | Teams-Link ins Abo? Er steht heute schon in den Mail-Dateien; ohne ihn fehlt am Handy das Wichtigste. Die Lobby in Teams schützt zusätzlich. | Ja |
 | 4 | Abo für Admins und Freelancer nur mit bestätigtem Code anlegen? | Ja |
 | 5 | Link nur einmal zeigen (nur die Prüfsumme gespeichert), danach „Neuen Link erzeugen“? | Ja |
 | 6 | In Termin-Mails für Abonnenten einen Satz statt der vier Knöpfe? | Ja |
-| 9 | Microsoft 365 über eine App-Registrierung mit `Calendars.ReadBasic` lesen, begrenzt auf die Postfächer des Teams, statt über veröffentlichte Kalender? | Ja |
+| 7 | Wo liegen die Kalender des Teams? | In iCloud und in Microsoft 365 (Outlook); Etappe 2 liest beide |
+| 8 | Etappe 3 nur, wenn Minuten Verzug stören oder Teams-Links automatisch kommen sollen? | Ja; Minuten bis etwa eine Stunde reichen, Etappe 3 ist derzeit nicht nötig |
+| 9 | Microsoft 365 über eine App-Registrierung mit `Calendars.ReadBasic` lesen, begrenzt auf die Postfächer des Teams, statt über veröffentlichte Kalender? | Ja; der veröffentlichte Kalender bleibt nur Rückfall |
 
 ## 9. Abnahme Etappe 1
 
