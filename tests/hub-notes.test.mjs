@@ -7,7 +7,7 @@ import {
   pathOf, plainDoc, statusTone, validateNoteDoc, viewerEdits, viewerReads, within,
 } from "../lib/hub-notes/rules.ts";
 import { EMOJIS, emojiCode, emojiSrc, searchEmojis, stripVariation } from "../lib/hub-notes/emoji.ts";
-import { GALLERY_COVERS, nextCoverPosition } from "../lib/hub-notes/covers.ts";
+import { coverWithLink, GALLERY_COVERS, keepCoverLink, nextCoverPosition } from "../lib/hub-notes/covers.ts";
 import { filterTasks, isTaskFilter, taskAudienceFor } from "../lib/hub-notes/rules.ts";
 import { checkPreviewUrl, isPrivateAddress, readPreview } from "../lib/hub-notes/link-guard.ts";
 import { meetingDate, noteTemplate, TEMPLATE_CHOICES } from "../lib/hub-notes/templates.ts";
@@ -360,4 +360,31 @@ test("a page goes to the server as plain JSON: the editor's attributes have no p
   const notes = await source("components/hub/screens/notes.tsx");
   assert.match(notes, /saveNotePage\(\{ id: current\.id, version: versionRef\.current, patch: patch\.content \? \{ \.\.\.patch, content: plainDoc\(patch\.content\) \} : patch \}\)/);
   assert.equal((notes.match(/saveNotePage\(/g) ?? []).length, 1, "the only way a page is saved");
+});
+
+test("an uploaded cover or one from the files keeps its image after a reload, another page and a new position", async () => {
+  const listed = { kind: "upload", value: "notes/c/1.webp", position: 50 };
+  const open = { kind: "upload", value: "notes/c/1.webp", position: 50, url: "https://files.example/notes/c/1.webp?sig" };
+  assert.deepEqual(coverWithLink(listed, open), { ...listed, url: open.url }, "the list has no link, the open page has one");
+  assert.equal(coverWithLink(listed, { ...open, value: "notes/c/2.webp" }), listed, "another image keeps its own state");
+  assert.equal(coverWithLink({ kind: "gallery", value: "ozean", position: 50 }, open).url, undefined);
+  assert.equal(coverWithLink(null, open), null);
+  const file = { kind: "file", value: "f1", position: 50, url: "https://files.example/f1?sig", name: "Moodboard" };
+  assert.deepEqual(keepCoverLink(file, { kind: "file", value: "f1", position: 0 }), { kind: "file", value: "f1", position: 0, url: file.url, name: "Moodboard" });
+  assert.deepEqual(keepCoverLink(file, { kind: "upload", value: "notes/c/1.webp", position: 50 }), { kind: "upload", value: "notes/c/1.webp", position: 50 });
+  assert.equal(keepCoverLink(file, null), null);
+
+  const notes = await source("components/hub/screens/notes.tsx");
+  assert.match(notes, /cover=\{coverWithLink\(pageMeta\.cover, page\.cover\)\}/);
+  assert.doesNotMatch(notes, /\.\.\.metaPatch\(patch\)/, "every save applies its fields through withMeta");
+  assert.equal((notes.match(/withMeta\((item|open), patch\)/g) ?? []).length, 5);
+});
+
+test("the bar for links in the text shows only at links in the text and goes when the text changes", async () => {
+  const editor = await source("components/hub/screens/notes-editor.tsx");
+  assert.match(editor, /closest\("a\[href\]:not\(\[class\]\)"\)/, "cards, appointments and „Im Board“ bring their own buttons");
+  assert.match(editor, /editor\.on\("update", changed\)/);
+  assert.match(editor, /editor\.off\("update", changed\)/);
+  const css = await source("app/notes.css");
+  assert.match(css, /\.nz-prose a:not\(\[class\]\) \{/, "the same rule tells text links apart in the styles");
 });

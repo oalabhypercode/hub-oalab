@@ -15,11 +15,12 @@ import {
 } from "@/lib/hub-notes/actions";
 import { notesFixtures, previewAppointmentOptions, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
 import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads } from "@/lib/hub-notes/rules";
+import { coverWithLink, keepCoverLink } from "@/lib/hub-notes/covers";
 import { noteTemplate } from "@/lib/hub-notes/templates";
 import { wallTimeToUtc } from "@/lib/hub-calendar/rules";
 import { DEMO_AS_OF } from "@/lib/hub-data";
 import { todayIso } from "@/lib/hub-routes";
-import { NO_REFS, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteRefs, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
+import { NO_REFS, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCover, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteRefs, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
 import type { NoteRefsUi } from "./notes-refs";
 import type { TaskDraft, TaskOptions } from "./notes-tasks-ui";
 import { HistoryPanel, TaskPeek, TemplateChips, TrashPanel } from "./notes-panels";
@@ -142,7 +143,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     pending.current = {};
     if (preview) {
       const now = new Date().toISOString();
-      setPages((list) => list.map((item) => item.id === current.id ? { ...item, ...metaPatch(patch), updatedAt: now, updatedBy: initial.viewerId } : item));
+      setPages((list) => list.map((item) => item.id === current.id ? { ...withMeta(item, patch), updatedAt: now, updatedBy: initial.viewerId } : item));
       setStatus("saved");
       return true;
     }
@@ -152,8 +153,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
       const result = await saveNotePage({ id: current.id, version: versionRef.current, patch: patch.content ? { ...patch, content: plainDoc(patch.content) } : patch });
       if (result.ok) {
         versionRef.current = result.data.version;
-        setPages((list) => list.map((item) => item.id === current.id ? { ...item, ...metaPatch(patch), version: result.data.version, updatedAt: result.data.updatedAt, updatedBy: result.data.updatedBy } : item));
-        setPage((open) => open && open.id === current.id ? { ...open, ...metaPatch(patch), version: result.data.version, updatedAt: result.data.updatedAt, updatedBy: result.data.updatedBy, ...(patch.content ? { content: patch.content } : {}) } : open);
+        setPages((list) => list.map((item) => item.id === current.id ? { ...withMeta(item, patch), version: result.data.version, updatedAt: result.data.updatedAt, updatedBy: result.data.updatedBy } : item));
+        setPage((open) => open && open.id === current.id ? { ...withMeta(open, patch), version: result.data.version, updatedAt: result.data.updatedAt, updatedBy: result.data.updatedBy, ...(patch.content ? { content: patch.content } : {}) } : open);
         setStatus(Object.keys(pending.current).length ? "saving" : "saved");
         return true;
       }
@@ -312,8 +313,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
 
   const patchPage = useCallback((patch: NotePatch, delay = 0) => {
     if (!page) return;
-    setPage((open) => open ? { ...open, ...metaPatch(patch) } : open);
-    setPages((list) => list.map((item) => item.id === page.id ? { ...item, ...metaPatch(patch) } : item));
+    setPage((open) => open ? withMeta(open, patch) : open);
+    setPages((list) => list.map((item) => item.id === page.id ? withMeta(item, patch) : item));
     queue(patch, delay);
   }, [page, queue]);
 
@@ -770,7 +771,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                 <>
                   {pageMeta.cover && (
                     <CoverBand
-                      cover={pageMeta.cover}
+                      cover={coverWithLink(pageMeta.cover, page.cover)}
                       editable={canEdit}
                       onOpenPicker={() => setPop("cover")}
                       onPosition={(position) => patchPage({ cover: { kind: pageMeta.cover!.kind, value: pageMeta.cover!.value, position } })}
@@ -909,6 +910,12 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
       {toast && <div className="nz-toast" role="status">{toast}</div>}
     </>
   );
+}
+
+/** A save's fields on the open page or its list entry; the same cover image keeps its signed link. */
+function withMeta<T extends { cover: NoteCover | null }>(item: T, patch: NotePatch): T {
+  const meta = metaPatch(patch);
+  return { ...item, ...meta, ...(meta.cover !== undefined ? { cover: keepCoverLink(item.cover, meta.cover) } : {}) };
 }
 
 /** The fields of a save that the list and the open page show at once. */
