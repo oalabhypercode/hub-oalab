@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  CalendarDays, CalendarOff, CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Inbox, Layers, MousePointerClick, Paintbrush, Plus, Repeat, Search, SlidersHorizontal,
-  SquareKanban, Trash2, type LucideIcon,
+  CalendarDays, CalendarOff, CalendarPlus, CalendarSync, Check, ChevronLeft, ChevronRight, Clock, Inbox, Layers, MousePointerClick, Paintbrush, Plus, Repeat, Search,
+  SlidersHorizontal, SquareKanban, Trash2, type LucideIcon,
 } from "lucide-react";
 import { confirmSessionHref } from "@/lib/auth-redirect";
 import { categories } from "@/lib/categories";
@@ -28,6 +28,7 @@ import { SheetActionMenu, ToolbarMenu } from "../sheet";
 import { useRefreshOnReturn } from "../use-refresh-on-return";
 import { CustomerSign } from "./customer-sign";
 import { AvailabilityPanel, type ExceptionPreset } from "./calendar-availability";
+import { CalendarFeedPanel } from "./calendar-feed";
 import { AppointmentPanel, AskPanel, CustomerAppointmentPanel, GoalPanel, NewTaskPanel, RequestPanel, TaskPanel, type TaskProjectOption } from "./calendar-panels";
 import { boardTasks, projectGoals, projectTasks, useCalendarStore, type CalendarTask } from "./calendar-store";
 import { HOUR_PX, ListView, MonthView, WeekView, type AvailBlock, type CalendarViewProps, type DayLabel, type OpenTarget, type ViewAppointment } from "./calendar-views";
@@ -47,7 +48,8 @@ type Panel =
   | { kind: "goal"; id: string }
   | { kind: "newTask"; day: string }
   | { kind: "ask"; day: string; start?: string }
-  | { kind: "avail"; preset?: ExceptionPreset | null };
+  | { kind: "avail"; preset?: ExceptionPreset | null }
+  | { kind: "feed" };
 type Layer = "appts" | "requests" | "tasks" | "goals" | "cancelled" | "done";
 type FloatItem = { icon: LucideIcon; label: string; hint?: string; danger?: boolean; run: () => void };
 /** The small menu at the pointer: create something in an empty slot, or decide what painted or clicked green time means. */
@@ -262,7 +264,9 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const [day, setDay] = useState(() => isDay(startDay) ? startDay : today);
   const [selected, setSelected] = useState<string | null>(() => admin && store.customers.some((customer) => customer.id === params.get("customer")) ? params.get("customer") : null);
   const [paneOpen, setPaneOpen] = useState(() => Boolean(params.get("customer")));
-  const [panel, setPanel] = useState<Panel | null>(() => linked ? { kind: "appointment", id: linked.id } : null);
+  const [panel, setPanel] = useState<Panel | null>(() => linked ? { kind: "appointment", id: linked.id } : params.get("abo") === "1" ? { kind: "feed" } : null);
+  // The calendar subscription: the head's button says „Abonniert“ while one is active (lib/hub-calendar/feed*.ts).
+  const [feedActive, setFeedActive] = useState(Boolean(calendar.feed?.active));
   const [storedLayers, setStoredLayers] = useStoredValue("oalab-calendar-layers", DEFAULT_LAYERS);
   const layers = useMemo(() => new Set(storedLayers.split(",").filter(Boolean) as Layer[]), [storedLayers]);
   const on = useCallback((layer: Layer) => layers.has(layer), [layers]);
@@ -581,6 +585,14 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       {legend}
     </div>
   );
+  // „Abonnieren“ (approved preview 22.11.2026): with an active subscription a green dot and „Abonniert“.
+  const feedOpen = panel?.kind === "feed";
+  const feedButton = (
+    <button type="button" className={`sheet-action cal-feed-action${feedOpen ? " is-on" : ""}${feedActive ? " is-live" : ""}`} aria-pressed={feedOpen} onClick={() => { setFloat(null); setPanel(feedOpen ? null : { kind: "feed" }); }}
+      data-tip-compact={feedActive ? "Kalender abonniert" : "Kalender abonnieren"} data-tip-sub="In Apple Kalender, Google oder Outlook">
+      {feedActive ? <span className="cal-feed-live" aria-hidden="true" /> : <CalendarSync size={15} aria-hidden="true" />}<span className="cal-head-label" data-tip-label>{feedActive ? "Abonniert" : "Abonnieren"}</span>
+    </button>
+  );
   const pane = (
     <section className="am-pane cal-pane" aria-label="Kalender">
       {admin ? (
@@ -598,6 +610,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
             data-tip={editing ? "Bearbeiten beenden" : "Verfügbarkeit im Kalender bearbeiten"} data-tip-sub={weekSummary(availability.week)} data-tip-kbd="V">
             <Clock size={15} aria-hidden="true" /><span className="cal-head-label">Verfügbarkeit</span>
           </button>
+          {feedButton}
           <button type="button" className="sheet-action is-primary" onClick={() => newAppointment()} data-tip-compact="Neuer Termin" data-tip-kbd="N"><Plus size={15} aria-hidden="true" /><span className="cal-head-label" data-tip-label>Termin</span></button>
         </header>
       ) : (
@@ -607,6 +620,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
             <strong>Deine Termine bei oalab</strong>
             <span>{(() => { const next = store.appointments.filter((item) => item.status === "confirmed" && item.end > now).sort(byStart)[0]; return next ? `Nächster Termin: ${formatDayShort(dayOf(next.start))}, ${timeOf(next.start)} · ${next.title}` : "Noch kein Termin geplant"; })()}</span>
           </div>
+          {feedButton}
           {own && <button type="button" className="sheet-action is-primary" onClick={() => setPanel({ kind: "ask", day: day < today ? today : day })}><CalendarPlus size={15} aria-hidden="true" /><span className="cal-head-label">Termin anfragen</span></button>}
         </header>
       )}
@@ -708,6 +722,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     : panel.kind === "newTask" ? <NewTaskPanel key={`task-${panel.day}`} store={store} projects={taskProjects} day={panel.day} confirmHref={confirmHref} onClose={close} onDone={finish} />
     : panel.kind === "ask" ? <AskPanel key={`ask-${panel.day}-${panel.start ?? ""}`} store={store} initialDay={panel.day} initialStart={panel.start} onClose={close} onSent={finish} />
     : panel.kind === "avail" ? <AvailabilityPanel key={`avail-${panel.preset?.kind ?? ""}`} store={store} preset={panel.preset} onClose={close} onNotice={(message) => showToast(message)} />
+    : panel.kind === "feed" ? <CalendarFeedPanel key="feed" preview={!store.live} active={feedActive} role={admin ? "admin" : freelancer ? "freelancer" : "customer"} onClose={close} onActive={setFeedActive}
+      confirmHref={confirmSessionHref(`${hubHref(false, "calendar")}?abo=1`)} />
     : null;
 
   if (calendar.error) {

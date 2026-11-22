@@ -21,6 +21,7 @@ import { WhatsAppCard } from "../whatsapp-card";
 import { NotificationSettingsCard } from "../notification-settings-card";
 import { SecondFactorCard } from "../second-factor-card";
 import { ConnectedAppsCard } from "../connected-apps-card";
+import { CalendarFeedCard } from "../calendar-feed-card";
 import { InstallRow } from "../web-app";
 import type { ScreenProps } from "./types";
 
@@ -143,6 +144,8 @@ export function ProfileScreen({ preview, email }: ScreenProps & { email: string 
         </GlassCard>}
         {!preview && <NotificationSettingsCard admin={account.admin} />}
         {!preview && <WhatsAppCard />}
+        {/* The calendar subscription for every role, next to „Verbundene Apps“ (22.11.2026); the preview with an example. */}
+        <CalendarFeedCard preview={preview} role={account.admin ? "admin" : account.freelancer ? "freelancer" : "customer"} />
         {/* Freelancers only once an admin switched Claude on for them; the card hides itself otherwise. */}
         {!preview && (account.admin || account.freelancer) && <ConnectedAppsCard freelancer={!account.admin} />}
       </div>

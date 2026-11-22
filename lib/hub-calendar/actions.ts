@@ -1,11 +1,15 @@
 "use server";
 
+import { headers } from "next/headers";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
+import { siteOrigin } from "@/lib/site-origin";
 import { cleanRules, cleanWeek, dayOf, readException, type ExceptionInput } from "./rules";
-import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
+import type { AppointmentInput, CalendarActionResult, CalendarFeedState, RequestInput } from "./types";
 import { closeAppointmentAs, requestAppointmentAs, unknownAppointment, withdrawRequestAs, writeAppointment } from "./write";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
+import { feedOptionsFor, feedRoleOf, feedUrl, type FeedRole } from "./feed";
+import { activeFeed, createFeed, endFeedsOf, feedReady, logFeedEvent, saveFeedOptions, type FeedView } from "./feed-store";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
 // Row Level Security in Supabase enforces the same rules a second time. Saving and closing an appointment, requests and
@@ -21,7 +25,7 @@ async function signedInClient() {
   // A login with the e-mail code acts only after confirming it.
   if (await secondFactorMissing(supabase, data.claims.aal)) return null;
   const appMetadata = data.claims.app_metadata as Record<string, unknown> | undefined;
-  return { supabase, userId: data.claims.sub, admin: appMetadata?.app_role === "oalab_admin" };
+  return { supabase, userId: data.claims.sub, admin: appMetadata?.app_role === "oalab_admin", role: appMetadata?.app_role, aal: data.claims.aal };
 }
 
 async function adminClient() {
@@ -135,4 +139,90 @@ export async function withdrawRequest(id: string): Promise<CalendarActionResult>
   const result = await withdrawRequestAs(session.supabase, id);
   if (result.ok) refreshWorkspace();
   return result;
+}
+
+/* ---------- Everyone: the calendar subscription („Kalender-Abo“, lib/hub-calendar/feed*.ts) ---------- */
+
+const feedOff = { ok: false as const, error: "Das Kalender-Abo ist hier nicht eingerichtet." };
+const feedFailed = { ok: false as const, error: "Das hat gerade nicht geklappt. Bitte versuche es erneut." };
+const feedMissing = { ok: false as const, error: "Für das Kalender-Abo fehlt noch die Erweiterung der Datenbank." };
+const needsCode = { ok: false as const, error: "Bitte bestätige zuerst deinen Code. Der Link liest danach ohne Anmeldung." };
+const tableMissing = (error: unknown) => (error as { code?: string } | null)?.code === "42P01";
+
+/**
+ * The signed-in login for its own subscription: any active login of the hub (admin, customer, freelancer) whose code is
+ * confirmed where it has one. `confirmed`: the session confirmed a code (aal2), which admins and freelancers need to
+ * create a feed (decision 4), since its link reads without signing in afterwards.
+ */
+async function feedLogin(): Promise<{ userId: string; role: FeedRole; confirmed: boolean } | null> {
+  const session = await signedInClient();
+  const role = feedRoleOf(session?.role);
+  if (!session || !role) return null;
+  const { data: profile, error } = await session.supabase.from("hub_profiles").select("status").eq("user_id", session.userId).maybeSingle<{ status: string }>();
+  if (error || profile?.status !== "active") return null;
+  return { userId: session.userId, role, confirmed: session.aal === "aal2" };
+}
+
+const stateOf = (login: { role: FeedRole; confirmed: boolean }, feed: FeedView | null): CalendarFeedState =>
+  ({ ready: true, role: login.role, needsCode: login.role !== "customer" && !login.confirmed, feed });
+
+/** The panel and the profile card: whether a feed is active, what is in it and when it was fetched last; never the link. */
+export async function loadCalendarFeed(): Promise<CalendarActionResult<CalendarFeedState>> {
+  const login = await feedLogin();
+  if (!login) return { ok: false, error: "Das Kalender-Abo gibt es nur mit echtem Login." };
+  if (!feedReady()) return feedOff;
+  try {
+    return { ok: true, data: stateOf(login, await activeFeed(login.userId, login.role)) };
+  } catch (error) {
+    return tableMissing(error) ? feedMissing : feedFailed;
+  }
+}
+
+/**
+ * „Abo anlegen“ and „Neuen Link erzeugen“: a new key, shown this once as the feed's address; an existing link stops at
+ * once. Admins and freelancers only with a confirmed code. `options` null keeps what the active feed had.
+ */
+export async function createCalendarFeed(options: unknown): Promise<CalendarActionResult<{ url: string; state: CalendarFeedState }>> {
+  const login = await feedLogin();
+  if (!login) return { ok: false, error: "Das Kalender-Abo gibt es nur mit echtem Login." };
+  if (!feedReady()) return feedOff;
+  if (login.role !== "customer" && !login.confirmed) return needsCode;
+  try {
+    const current = options === null ? await activeFeed(login.userId, login.role) : null;
+    const chosen = feedOptionsFor(login.role, options === null ? current?.options : options);
+    const created = await createFeed(login.userId, login.role, chosen);
+    await logFeedEvent(login.userId, login.userId, created.renewed ? "calendar.feed_renewed" : "calendar.feed_created",
+      created.renewed ? "Kalender-Abo: neuen Link erzeugt, der alte geht nicht mehr" : "Kalender-Abo angelegt");
+    const origin = siteOrigin(await headers()) ?? "https://hub.oalab.de";
+    return { ok: true, data: { url: feedUrl(origin, created.token), state: stateOf(login, created.view) } };
+  } catch (error) {
+    return tableMissing(error) ? feedMissing : feedFailed;
+  }
+}
+
+/** The switches in the panel: what is in the feed from the next fetch on. */
+export async function saveCalendarFeedOptions(options: unknown): Promise<CalendarActionResult<CalendarFeedState>> {
+  const login = await feedLogin();
+  if (!login) return { ok: false, error: "Das Kalender-Abo gibt es nur mit echtem Login." };
+  if (!feedReady()) return feedOff;
+  try {
+    const view = await saveFeedOptions(login.userId, login.role, feedOptionsFor(login.role, options));
+    if (!view) return { ok: false, error: "Es gibt kein aktives Abo mehr. Leg es neu an." };
+    return { ok: true, data: stateOf(login, view) };
+  } catch (error) {
+    return tableMissing(error) ? feedMissing : feedFailed;
+  }
+}
+
+/** „Abo beenden“: the link stops at once; the calendar „oalab“ stays in the apps without anything new. */
+export async function endCalendarFeed(): Promise<CalendarActionResult<CalendarFeedState>> {
+  const login = await feedLogin();
+  if (!login) return { ok: false, error: "Das Kalender-Abo gibt es nur mit echtem Login." };
+  if (!feedReady()) return feedOff;
+  try {
+    if (await endFeedsOf(login.userId)) await logFeedEvent(login.userId, login.userId, "calendar.feed_ended", "Kalender-Abo beendet");
+    return { ok: true, data: stateOf(login, null) };
+  } catch (error) {
+    return tableMissing(error) ? feedMissing : feedFailed;
+  }
 }

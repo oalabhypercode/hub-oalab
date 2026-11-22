@@ -14,8 +14,11 @@ export type MailLegal = { imprint: string; privacy: string };
 /**
  * "In deinen Kalender eintragen" under an appointment notice: signed hub links (lib/hub-calendar/links.ts). The .ics
  * file serves Apple Kalender and every other app; `moved` adds the reminder to remove the old private entry.
+ * `subscribed`: the recipient holds an active calendar subscription (Kalender-Abo, 22.11.2026), so one sentence says
+ * the appointment is in the calendar „oalab“ already instead of the four buttons. `subscribe`: where the others can
+ * subscribe („Immer aktuell: Kalender abonnieren“).
  */
-export type MailCalendar = { ics: string; google: string; outlook: string; moved?: boolean };
+export type MailCalendar = { ics: string; google: string; outlook: string; moved?: boolean; subscribed?: boolean; subscribe?: string };
 
 export function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
@@ -125,6 +128,9 @@ ${s(".tone-info")}{background:#14263F !important;color:#9CC7FF !important}
 ${s(".tone-ok")}{background:#16301D !important;color:#9EE2AE !important}
 ${s(".tone-off")}{background:#2C262A !important;color:#C2B7BD !important}
 ${s(".tone-bad")}{background:#3D1A18 !important;color:#FFB1AA !important}
+${s(".okbox")}{background:#16301D !important}
+${s(".okink")}{color:#9EE2AE !important}
+${s(".oktile")}{background:#1C181B !important}
 ${s(".note-todo")}{background:#2A1E15 !important}
 ${s(".note-info")}{background:#221D20 !important}
 ${s(".note-security,.note-team")}{background:#2A1622 !important}
@@ -347,6 +353,13 @@ ${table(`<tr><td class="rule" style="padding:20px 0 0;border-top:1px solid ${C.p
 }
 
 const MOVED_HINT = "Schon in deinem Kalender? Lösch dort den alten Eintrag. Private Kalender ändern sich nicht von selbst.";
+/** For subscribers (Kalender-Abo): the appointment is in the calendar „oalab“ already and follows every change. */
+const SUBSCRIBED_TITLE = "Steht automatisch in deinem Kalender „oalab“";
+const subscribedLine = (calendar: MailCalendar) => calendar.moved
+  ? "Die neue Zeit kommt beim nächsten Abruf von selbst. Du musst nichts tun."
+  : "Verschiebt oder sagt oalab den Termin ab, ändert sich der Eintrag von selbst. Du musst nichts tun.";
+/** A mail calendar worth showing: a subscriber's sentence, or at least one usable link. */
+const showsCalendar = (calendar: MailCalendar | undefined): calendar is MailCalendar => Boolean(calendar && (calendar.subscribed || calendarEntries(calendar).length));
 
 /** The ways into a calendar, each with a safe link; an empty list when none is usable. */
 function calendarEntries(calendar: MailCalendar) {
@@ -359,8 +372,25 @@ function calendarEntries(calendar: MailCalendar) {
   return entries.map((entry) => ({ ...entry, url: safeUrl(entry.url) })).filter((entry) => entry.url);
 }
 
+/** For subscribers: one green box instead of the four buttons (approved preview „Kalender-Abo“, 22.11.2026). */
+function subscribedBlock(calendar: MailCalendar) {
+  return table(`<tr><td class="okbox" style="padding:16px;border-radius:14px;background:${TONES.ok.bg};">
+${table(`<tr>
+<td width="36" valign="top" style="width:36px;"><div class="oktile" style="width:36px;height:36px;border-radius:10px;background:#FFFFFF;text-align:center;">${image("glyph-badge-check", 20, "", "display:inline-block;margin-top:8px;")}</div></td>
+<td valign="middle" style="padding-left:12px;"><div class="okink" style="${t(16, 21, 700, TONES.ok.text)}">${esc(SUBSCRIBED_TITLE)}</div><div class="okink" style="padding-top:2px;${t(13.5, 19, 400, TONES.ok.text)}">${esc(subscribedLine(calendar))}</div></td>
+</tr>`)}
+</td></tr>`);
+}
+
+/** Under the buttons for everyone without a subscription: the way to one that stays current by itself. */
+function subscribeHint(calendar: MailCalendar) {
+  const url = safeUrl(calendar.subscribe ?? "");
+  return url ? `<p class="body" style="margin:14px 0 0;${t(13, 19, 400, C.body)}">Immer aktuell statt einer Kopie: <a class="link" href="${esc(url)}" style="color:${C.bordeaux};font-weight:600;text-decoration:underline;">Kalender abonnieren</a></p>` : "";
+}
+
 /** "In deinen Kalender eintragen": four ways, two by two on a computer, one below the other on a phone. */
 function calendarBlock(calendar: MailCalendar) {
+  if (calendar.subscribed) return subscribedBlock(calendar);
   const button = (entry: ReturnType<typeof calendarEntries>[number]) => {
     const href = esc(entry.url);
     // Both cells link, so Outlook for Windows keeps the link too.
@@ -383,25 +413,30 @@ ${table(`<tr>
 <td width="36" valign="top" style="width:36px;">${image("calendar-tile", 36)}</td>
 <td valign="middle" style="padding-left:14px;"><div class="ink" style="${t(16, 21, 700, C.ink, "letter-spacing:-0.005em;")}">${calendar.moved ? "Neue Zeit in deinen Kalender" : "In deinen Kalender eintragen"}</div><div class="muted" style="padding-top:2px;${t(13, 19, 400, C.muted)}">Mit allen Angaben und dem Link zum Hub. Ein Tipp genügt.</div></td>
 </tr>`)}
-${table(grid.join(""), ` style="margin-top:16px;"`)}${hint}
+${table(grid.join(""), ` style="margin-top:16px;"`)}${hint}${subscribeHint(calendar)}
 </td></tr>`, ` class="panel" style="background:${C.panel};border:1px solid ${C.panelLine};border-radius:18px;"`);
 }
 
 /** The compact version in a mail with several notices: small pills under the appointment. */
 function calendarPills(calendar: MailCalendar) {
+  if (calendar.subscribed) {
+    return `<div class="muted" style="padding-top:12px;${t(12, 16, 600, C.muted)}"><img src="cid:glyph-badge-check@hub.oalab.de" width="14" height="14" alt="" style="width:14px;height:14px;border:0;vertical-align:-3px;">&nbsp;&nbsp;${esc(SUBSCRIBED_TITLE)}</div>`;
+  }
   const pill = (entry: ReturnType<typeof calendarEntries>[number]) => `<a class="calpill" href="${esc(entry.url)}" style="display:inline-block;margin:6px 6px 0 0;padding:6px 12px;border:1px solid #E7DDE1;border-radius:999px;background:#FFFFFF;${t(13, 18, 600, C.ink, "text-decoration:none;white-space:nowrap;")}">${esc(entry.short)}</a>`;
   return `<div style="padding-top:12px;"><div class="muted" style="${t(12, 16, 600, C.muted)}"><img src="cid:calendar-small@hub.oalab.de" width="14" height="14" alt="" style="width:14px;height:14px;border:0;vertical-align:-3px;">&nbsp;&nbsp;In deinen Kalender eintragen:</div>
 <div>${calendarEntries(calendar).map(pill).join("")}</div>${calendar.moved ? `<div class="muted" style="padding-top:8px;${t(12, 18, 400, C.muted)}">${MOVED_HINT}</div>` : ""}</div>`;
 }
 
 function calendarText(calendar: MailCalendar) {
+  if (calendar.subscribed) return [`${SUBSCRIBED_TITLE}. ${subscribedLine(calendar)}`];
   const [ics, google, outlook] = [calendar.ics, calendar.google, calendar.outlook].map(safeUrl);
   const lines = [
     ics && `Apple Kalender und andere Apps (.ics): ${ics}`,
     google && `Google Kalender: ${google}`,
     outlook && `Outlook (Microsoft 365): ${outlook}`,
   ].filter(Boolean);
-  return lines.length ? ["In deinen Kalender eintragen:", ...lines, ...(calendar.moved ? [MOVED_HINT] : [])] : [];
+  const subscribe = safeUrl(calendar.subscribe ?? "");
+  return lines.length ? ["In deinen Kalender eintragen:", ...lines, ...(calendar.moved ? [MOVED_HINT] : []), ...(subscribe ? [`Immer aktuell statt einer Kopie, Kalender abonnieren: ${subscribe}`] : [])] : [];
 }
 
 /** The call to action spans the card's full width (512 px inside the margins; Outlook for Windows needs it fixed). */
@@ -461,8 +496,8 @@ function render(mail: Mail): MailContent {
   // Buttons lead to http(s) pages, or write a mail through a mailto link built above.
   const ctaUrl = mail.cta ? safeUrl(mail.cta.url) || (/^mailto:[^\s"'<>]+$/.test(mail.cta.url) ? mail.cta.url : "") : "";
   const cta = mail.cta && ctaUrl ? { label: mail.cta.label, url: ctaUrl } : undefined;
-  const calendar = mail.calendar && calendarEntries(mail.calendar).length ? mail.calendar : undefined;
-  const list = mail.list?.map((item) => ({ ...item, calendar: item.calendar && calendarEntries(item.calendar).length ? item.calendar : undefined }));
+  const calendar = showsCalendar(mail.calendar) ? mail.calendar : undefined;
+  const list = mail.list?.map((item) => ({ ...item, calendar: showsCalendar(item.calendar) ? item.calendar : undefined }));
   const section = (content: string, top = 28) => `<tr><td class="px" style="padding:${top}px 44px 0;">${content}</td></tr>`;
 
   const rows = [header(mail.area, shortDate.format(new Date()))];
@@ -896,7 +931,7 @@ export function noticeDigestMail(input: { firstName?: string; items: MailNotice[
     const item = input.items[0];
     const view = viewOf(item);
     const title = view.prefix && item.title.startsWith(view.prefix) ? item.title.slice(view.prefix.length) : item.title;
-    const calendar = item.calendar && calendarEntries(item.calendar).length ? item.calendar : undefined;
+    const calendar = showsCalendar(item.calendar) ? item.calendar : undefined;
     return render({
       subject: item.title,
       preheader: item.body || view.lead,

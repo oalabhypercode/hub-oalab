@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { mailSettings, sendMail } from "@/lib/hub-mail/send";
 import { noticeDigestMail } from "@/lib/hub-mail/templates";
 import { calendarLinks, calendarLinkSecret } from "@/lib/hub-calendar/links";
+import { CALENDAR_PATH } from "@/lib/hub-calendar/paths";
+import { feedReady, loginsWithFeed } from "@/lib/hub-calendar/feed-store";
 import { listAllUsers, roleOf } from "@/lib/hub-users/server";
 import { sendTelegram } from "@/lib/hub-telegram/server";
 import { telegramChatMessage } from "@/lib/hub-telegram/rules";
@@ -390,9 +392,13 @@ async function sendDueMails(db: SupabaseClient, origin: string, now: Date) {
   const seen = (pending.data ?? []).filter(skipsMail).map((row) => row.id);
   if (seen.length) await db.from("hub_inbox").update({ mail_state: "skipped" }).in("id", seen).eq("mail_state", "pending");
   const digests = dueDigests((pending.data ?? []).filter((row) => !skipsMail(row)), now);
-  // Without the token there are no signed links, and the mails go out without calendar buttons.
+  // Without the token there are no signed links, and the mails go out without calendar buttons. Recipients with an
+  // active calendar subscription get one sentence instead (lib/hub-calendar/feed-store.ts); a failed check keeps the buttons.
   const secret = calendarLinkSecret();
-  const appointments = secret ? await linkedAppointments(db, digests.flatMap((digest) => digest.rows)) : new Map();
+  const subscribers = feedReady() && digests.length
+    ? await loginsWithFeed([...new Set(digests.map((digest) => digest.userId))]).catch(() => new Set<string>())
+    : new Set<string>();
+  const appointments = secret || subscribers.size ? await linkedAppointments(db, digests.flatMap((digest) => digest.rows)) : new Map();
 
   for (const digest of digests) {
     const claimed = await db.from("hub_inbox").update({ mail_state: "sending" })
@@ -414,12 +420,16 @@ async function sendDueMails(db: SupabaseClient, origin: string, now: Date) {
         firstName: profile.data?.first_name ?? "",
         items: items.slice(0, MAIL_ITEMS).map((row) => {
           const appointmentId = calendar.get(row.id);
+          const subscribed = subscribers.has(digest.userId);
+          const links = appointmentId && secret ? calendarLinks(origin, appointmentId, secret) : null;
           return {
             kind: row.kind,
             title: row.title,
             body: row.body,
             url: `${origin}${row.href}`,
-            calendar: appointmentId && secret ? { ...calendarLinks(origin, appointmentId, secret), moved: row.kind === "appointment.changed" } : undefined,
+            calendar: appointmentId && (links || subscribed)
+              ? { ...(links ?? { ics: "", google: "", outlook: "" }), moved: row.kind === "appointment.changed", subscribed, subscribe: `${origin}${CALENDAR_PATH}?abo=1` }
+              : undefined,
           };
         }),
         more: Math.max(0, items.length - MAIL_ITEMS),

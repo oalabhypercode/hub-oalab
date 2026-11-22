@@ -22,6 +22,7 @@ import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
 import { CLAUDE_SWITCH, FREELANCER_CONNECTION_DAYS } from "@/lib/hub-mcp/config";
 import { connectorReady, disconnect, disconnectAll, listConnections, type ConnectionView } from "@/lib/hub-mcp/store";
 import { readEntriesWithoutActiveLogin } from "./deactivated";
+import { endFeedsOf, feedReady } from "@/lib/hub-calendar/feed-store";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
 // considers them an active admin before the service role touches anything. Inputs are validated here again,
@@ -46,6 +47,17 @@ async function context(): Promise<Context | null> {
 
 async function log(ctx: Context, action: string, summary: string, target: { userId?: string | null; customerId?: string | null } = {}) {
   await ctx.db.from("hub_admin_events").insert({ actor_id: ctx.actorId, action, summary: summary.slice(0, 300), target_user_id: target.userId ?? null, target_customer_id: target.customerId ?? null });
+}
+
+/**
+ * The login's calendar subscription ends with the change that took its ground (Kalender-Abo, 22.11.2026): a second
+ * factor reset by an admin, a deactivation, another role. Its link stops at once instead of with the next fetch, and
+ * the history says so. A failure leaves it to the fetch, which checks the same again (lib/hub-calendar/feed-store.ts).
+ */
+async function endCalendarFeed(ctx: Context, userId: string, why: string) {
+  if (!feedReady()) return;
+  const ended = await endFeedsOf(userId).catch(() => 0);
+  if (ended) await log(ctx, "calendar.feed_ended", `Kalender-Abo beendet: ${why}`, { userId });
 }
 
 async function loadUser(ctx: Context, userId: unknown): Promise<User | null> {
@@ -605,6 +617,7 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
     && await assignCustomer(ctx, user.id, customer.data.customerId);
   if (!done) return failed("Die Änderungen konnten nicht vollständig gespeichert werden. Bitte prüfe den Zugang.");
   await log(ctx, "user.updated", roleChanged ? `Zugang bearbeitet, Rolle jetzt ${roleLabels[role]}` : "Zugang bearbeitet", { userId: user.id, customerId: customer.data.customerId });
+  if (roleChanged) await endCalendarFeed(ctx, user.id, "Rolle geändert");
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -628,6 +641,7 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
   const banned = saved && !(await ctx.db.auth.admin.updateUserById(user.id, { ban_duration: active ? "none" : BLOCKED })).error;
   if (!banned) return failed(active ? "Der Zugang konnte nicht aktiviert werden." : "Der Zugang konnte nicht vollständig deaktiviert werden. Bitte erneut versuchen.");
   await log(ctx, active ? "user.reactivated" : "user.deactivated", active ? "Zugang wieder aktiviert" : "Zugang deaktiviert", { userId: user.id });
+  if (!active) await endCalendarFeed(ctx, user.id, "Zugang deaktiviert");
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -656,6 +670,7 @@ export async function setHubUserSecondFactor(input: { userId: string; choice: "o
   if (error) return failed("Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.");
   const summary = choice === "email" ? "Zwei-Faktor-Schutz: Code per E-Mail" : "Zwei-Faktor-Schutz ausgeschaltet";
   await log(ctx, choice === "email" ? "user.second_factor_email" : "user.second_factor_off", apps.length ? `${summary}, Authenticator-App entfernt` : summary, { userId: user.id });
+  await endCalendarFeed(ctx, user.id, "zweiter Faktor zurückgesetzt");
   refreshWorkspace();
   return { ok: true, data: null };
 }

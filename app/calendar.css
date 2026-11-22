@@ -369,3 +369,69 @@ html.is-dragging, html.is-dragging * { cursor: grabbing !important; }
 .cal-preview-line b { font-size: 15px; color: var(--tone-ok); }
 .cal-panel-note.is-warn { padding: 8px 10px; border-radius: 9px; background: var(--tone-todo-bg); color: var(--tone-todo); }
 .cal-mini-key.is-rules { margin-top: 2px; }
+
+/* ---------- Kalender-Abo (plan „Kalender des Hubs mit Apple Kalender synchron halten“, preview approved 22.11.2026) ---------- */
+/* The head's button: a green dot and „Abonniert“ while a subscription is active; accent ring while its panel is open. */
+.cal-feed-action.is-on { background: var(--sheet-select); box-shadow: inset 0 0 0 1.5px var(--accent-text); }
+.cal-feed-live { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #34c759; box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.22); }
+.cal-feed-action .cal-feed-live { margin: 0 2px; }
+.cal-feed-glyph { background: color-mix(in srgb, rgb(var(--accent-rgb)) 14%, var(--sheet)); color: var(--accent-text); }
+.cal-feed-lead { margin: 0 0 12px; font-size: 14px; line-height: 20px; color: var(--label-secondary); }
+.cal-feed-panel .um-sec > .cal-feed-lead:last-child { margin-bottom: 0; }
+/* „Was im Abo steht“: one framed list of switches, the task scope under its row. */
+.cal-feed-rows { border-radius: 12px; box-shadow: inset 0 0 0 1px var(--sheet-line); overflow: hidden; }
+.cal-feed-row-wrap + .cal-feed-row-wrap { border-top: 1px solid var(--sheet-divider); }
+.cal-feed-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px 8px 14px; }
+.cal-feed-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 19px; }
+.cal-feed-row-text strong { font-size: 14px; font-weight: 600; color: var(--label-body); }
+.cal-feed-row-text small { font-size: 12.5px; color: var(--sheet-muted); }
+.cal-feed-row-sub { padding: 2px 14px 12px; background: var(--sheet-sunken); }
+.cal-panel-note.is-box { padding: 10px 12px; border-radius: 10px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-secondary); }
+.cal-panel-note.is-box svg { color: var(--accent-text); }
+.cal-panel-note.is-box b { color: var(--label-body); }
+/* After creating: the link once, with Apple first. */
+.cal-feed-ready { margin-top: 16px; display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 14px; background: var(--tone-ok-bg); color: var(--tone-ok); }
+.cal-feed-ready svg { flex: none; }
+.cal-feed-ready > span { display: flex; flex-direction: column; gap: 2px; }
+.cal-feed-ready strong { font-size: 15px; line-height: 20px; }
+.cal-feed-ready small { font-size: 13px; line-height: 18px; }
+.cal-feed-big { margin-top: 14px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px; background: var(--accent-gradient); box-shadow: var(--accent-shadow); color: #ffffff; text-decoration: none; }
+.cal-feed-big:hover { filter: brightness(0.95); }
+.cal-feed-big > span { display: flex; flex-direction: column; line-height: 19px; }
+.cal-feed-big strong { font-size: 15.5px; }
+.cal-feed-big small { font-size: 12.5px; opacity: 0.85; }
+.cal-feed-alt { margin-top: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cal-feed-alt-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 9px 12px; border-radius: 12px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13.5px; font-weight: 600; color: var(--label-body); text-align: left; }
+.cal-feed-alt-btn:hover { background: var(--sheet-hover); }
+.cal-feed-alt-btn small { font-size: 11.5px; font-weight: 500; color: var(--sheet-muted); }
+.cal-feed-link { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 18px; color: var(--label-body); word-break: break-all; user-select: all; }
+.cal-feed-qr { margin-top: 12px; display: flex; align-items: center; gap: 16px; padding: 12px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cal-feed-qr img, .cal-feed-qr-wait { width: 104px; height: 104px; flex: none; border-radius: 8px; background: #ffffff; }
+.cal-feed-qr-wait { display: inline-flex; align-items: center; justify-content: center; }
+.cal-feed-qr p { margin: 0; font-size: 13px; line-height: 19px; color: var(--label-secondary); }
+.cal-feed-qr strong { display: block; margin-bottom: 3px; font-size: 14px; color: var(--label-body); }
+.cal-feed-steps { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: feed; display: flex; flex-direction: column; gap: 9px; }
+.cal-feed-steps li { position: relative; padding-left: 32px; font-size: 13.5px; line-height: 20px; color: var(--label-body); counter-increment: feed; }
+.cal-feed-steps li::before { content: counter(feed); position: absolute; left: 0; top: -1px; width: 22px; height: 22px; border-radius: 50%; background: var(--sheet-select); color: var(--accent-text); font-size: 12px; font-weight: 700; line-height: 22px; text-align: center; }
+/* An active subscription: its state, then the switches and the link's two buttons. */
+.cal-feed-status { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cal-feed-status-top { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--label); }
+.cal-feed-status-top .chat-pill { margin-left: auto; }
+.cal-feed-status small { font-size: 13px; line-height: 18px; color: var(--sheet-muted); }
+.cal-feed-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.cal-feed-confirm { margin-top: 12px; padding: 12px; border-radius: 12px; display: grid; gap: 8px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cal-feed-confirm.is-end { background: color-mix(in srgb, var(--tone-bad-bg) 60%, var(--sheet)); box-shadow: none; }
+.cal-feed-confirm strong { font-size: 14px; color: var(--label); }
+.cal-feed-confirm p { margin: 0; font-size: 13px; line-height: 19px; color: var(--label-secondary); }
+@media (max-width: 760px) {
+  .cal-feed-qr { display: none; }
+  .cal-feed-alt { grid-template-columns: minmax(0, 1fr); }
+}
+/* The profile card next to „Verbundene Apps“. */
+.calendar-feed-card .settings-card-title .calendar-feed-chip { margin-left: auto; }
+.calendar-feed-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.calendar-feed-actions .sheet-action.is-danger { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
+.calendar-feed-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 4px 0 8px; padding: 10px 0; border-top: 1px solid var(--separator, var(--sheet-divider)); border-bottom: 1px solid var(--separator, var(--sheet-divider)); }
+.calendar-feed-facts > div { display: contents; }
+.calendar-feed-facts dt { font-size: 13px; line-height: 20px; color: var(--label-secondary); }
+.calendar-feed-facts dd { margin: 0; font-size: 14px; line-height: 20px; color: var(--label-body); overflow-wrap: anywhere; }
