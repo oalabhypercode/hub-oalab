@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bell, Building2, CalendarDays, Check, Files, FolderOpen, ListTodo, MessageSquare, type LucideIcon } from "lucide-react";
+import { Bell, Building2, CalendarDays, Check, Files, FolderOpen, ListTodo, MessageSquare, NotebookPen, type LucideIcon } from "lucide-react";
 import { markNoticesRead } from "@/lib/hub-notify/actions";
 import { noticeColumns } from "@/lib/hub-notify/columns";
 import { appointmentNotice, chatNotice, fileNotice, taskNotice, taskNoticePrefix } from "@/lib/hub-notify/rules";
@@ -18,6 +18,7 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
   if (kind === "file.shared") return { icon: Files, color: categories.files.fill };
   // A release for a freelancer under „Kunden“ (18.11.2026): the page has no category colour, so the accent.
   if (kind === "share.granted") return { icon: Building2, color: "var(--accent-text)" };
+  if (kind === "note.shared" || kind === "note.changed") return { icon: NotebookPen, color: categories.projects.fill };
   if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill };
   return { icon: CalendarDays, color: categories.calendar.fill };
 }

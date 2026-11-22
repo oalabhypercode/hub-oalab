@@ -60,6 +60,8 @@
   --cal-confirmed-bg: #ffe0de; --cal-requested-bg: #fff0d9;
   /* Switches and ticks use the accent like every other choice; green stays for "done" and "active". */
   --switch-on: var(--accent-text);
+  /* The Schlüsselbund's lock switch while open. */
+  --lock-open: #34c759;
   /* Tones of the hub mails: to do, for information, done, off, problem. Background, text, and the bar of a note. */
   --tone-todo-bg: #fff0e3; --tone-todo: #9a3a00; --tone-todo-bar: #f37222;
   --tone-info-bg: #e6f0ff; --tone-info: #004285; --tone-info-bar: #2f6fd0;
@@ -195,12 +197,14 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .skeleton-bar { display: block; height: 12px; border-radius: 6px; background: var(--fill-tertiary); }
 
 /* ---------- App shell ---------- */
-.hub-main { min-height: 100dvh; padding: 20px 28px 64px calc(272px + 12px + 28px); }
-.hub-content { width: 100%; max-width: 1040px; margin: 0 auto; }
+/* Every page uses the whole width beside the sidebar (22.11.2026; before, 1040 px, tables 1240 px); --sidebar-w is 272 px,
+   72 px with the sidebar collapsed (app/sidebar.css). */
+.hub-main { min-height: 100dvh; padding: 20px 28px 64px calc(var(--sidebar-w) + 12px + 28px); }
+.hub-content { width: 100%; margin: 0 auto; }
 .hub-app .skip-link { border-radius: 999px; background: var(--surface); color: var(--label); }
 
 /* Design preview notice (/preview only): marks the fictional content. */
-.hub-notice { max-width: 1040px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; min-height: 36px; border-radius: 999px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.hub-notice { margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; min-height: 36px; border-radius: 999px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .hub-notice > span:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--label-body); font-weight: 600; }
 .hub-notice-detail { font-weight: 400; color: var(--label-secondary); }
 .hub-notice i { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex: 0 0 auto; }
@@ -276,9 +280,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .large-title-date { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--on-bg-soft); margin-bottom: 2px; }
 .large-title-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .title-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--surface); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
-.compact-nav { position: fixed; z-index: 35; top: 12px; left: calc(272px + 24px + 28px); right: 28px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--label); font-size: 17px; font-weight: 600; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity 250ms var(--ease-spring), transform 250ms var(--ease-spring); }
+.compact-nav { position: fixed; z-index: 35; top: 12px; left: calc(var(--sidebar-w) + 24px + 28px); right: 28px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--label); font-size: 17px; font-weight: 600; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity 250ms var(--ease-spring), transform 250ms var(--ease-spring); }
 .compact-nav.is-visible { opacity: 1; transform: none; }
-@media (min-width: 1404px) { .compact-nav { left: calc(272px + 24px + 28px + (100vw - 272px - 24px - 56px - 1040px) / 2); right: auto; width: 1040px; } }
 
 /* Dialogs as glass sheets */
 .hub-modal.glass { padding: 24px; border-radius: 26px; width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; color: var(--label-body); box-shadow: var(--glass-shadow-float); }
@@ -769,6 +772,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 
 /* Appearance */
 .appearance-stack { display: flex; flex-direction: column; gap: var(--grid-gap); max-width: 640px; }
+/* From 1024 px the cards of Darstellung stand side by side in columns of at least 460 px (22.11.2026). */
+@media (min-width: 1024px) {
+  .appearance-stack { display: block; max-width: none; columns: 460px; column-gap: var(--grid-gap); }
+  .appearance-stack > * { break-inside: avoid; margin-bottom: var(--grid-gap); }
+}
 .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 14px 10px; margin-top: 14px; }
 .swatch-grid + p { margin-top: 12px; }
 .background-swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0; }
@@ -826,8 +834,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   --tip-bg: #252027; --tip-shadow: 0 6px 18px rgba(20, 4, 14, 0.26);
 }
 .sheet { border-radius: 16px; background: var(--sheet); box-shadow: var(--sheet-shadow); color: var(--label-body); }
-/* Pages with a table may use more of the width, like Studio: up to 1240 px instead of 1040 px. */
-.hub-content:has(> .sheet) { max-width: 1240px; }
 /* From tablet width on, a sheet measures itself, so its table can drop details before it has to scroll (see below). */
 @media (min-width: 768px) {
   .sheet { container: sheet / inline-size; }
@@ -849,13 +855,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet-fill { flex: 1 0 auto; }
 }
 /* Darstellung › Breite „Breit (XL)“, from 1024 px on: like an IDE in full screen – 12 px to the sidebar, the window's
-   edge and the bottom, table pages over the whole width, the sheet down to 12 px above the bottom on every page
-   (whatever stands above it). Standard stays exactly as before. */
+   edge and the bottom, the sheet down to 12 px above the bottom on every page (whatever stands above it). Standard and XL
+   both use the whole width since 22.11.2026; XL keeps the narrower gaps. */
 @media (min-width: 1024px) {
-  :root[data-width="xl"] .hub-main { padding: 14px 12px 12px calc(272px + 12px + 12px); }
+  :root[data-width="xl"] .hub-main { padding: 14px 12px 12px calc(var(--sidebar-w) + 12px + 12px); }
   :root[data-width="xl"] .hub-app.has-assistant-dock .hub-main { padding-right: calc(var(--assistant-dock) + 12px + 12px); }
-  :root[data-width="xl"] :is(.hub-content, .hub-notice) { max-width: 1240px; }
-  :root[data-width="xl"] .hub-content:has(> .sheet), :root[data-width="xl"] .hub-app:has(.hub-content > .sheet) .hub-notice { max-width: none; }
   :root[data-width="xl"] .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px); }
   :root[data-width="xl"] .hub-content:has(> :is(.am, .chat)) { display: flex; flex-direction: column; height: calc(100dvh - 14px - 12px); }
   :root[data-width="xl"] .hub-app:has(.hub-notice) .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px - 52px); }
@@ -982,6 +986,27 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .user-table .table-group-toggle { min-width: 0; }
 .user-table .table-group-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .user-table .company-hint { display: inline-block; max-width: 160px; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; color: var(--sheet-muted); font-size: 12.5px; }
+/* A group heading in the table's own columns (TableGroup with cells; logins by company, user 22.11.2026): a row like the
+   customers' rows, the name over the names and its details in their columns, a click anywhere folds it. Folded groups
+   follow each other like rows; an open group keeps the space above and below it. */
+.table-group-body.is-columns > .table-group { cursor: pointer; }
+.table-group-body.is-columns > .table-group > :is(th, td) { height: 40px; padding: 0 10px; border-bottom: 1px solid var(--sheet-divider); background-clip: padding-box; color: var(--label); font-size: 13px; font-weight: 600; line-height: 18px; text-align: left; white-space: nowrap; vertical-align: middle; transition: background-color 120ms ease; }
+.table-group-body.is-columns > .table-group > th { padding-left: 4px; }
+.table-group-body.is-columns > .table-group > td:last-child { padding-right: 16px; }
+.table-group-body.is-columns > .table-group > .cell-action { text-align: right; }
+.table-group-body.is-columns > .table-group:hover > * { background-color: var(--sheet-hover); }
+.table-group-body.is-columns.is-open > .table-group > * { border-bottom-color: var(--sheet-line); }
+.table-group-body.is-columns + .table-group-body.is-columns > .table-group > th { border-top: 0; }
+.table-group-body.is-columns + .table-group-body.is-columns.is-open > .table-group > *,
+.table-group-body.is-columns.is-open + .table-group-body.is-columns > .table-group > * { border-top: 12px solid transparent; }
+.table-group-body.is-columns .table-group-label { display: inline-block; vertical-align: middle; }
+.table-group-body.is-columns > .table-group > .cell-login { color: var(--sheet-muted); font-weight: 500; }
+.table-group-body.is-columns .cell-status .status-cell { color: var(--label-body); font-weight: 500; }
+.table-group-body.is-columns .table-group-actions { justify-content: flex-end; margin-left: 0; }
+/* The company's name gets room; while a group is open, narrower sheets shorten it (below), so the table never scrolls
+   sideways. The number column is the company's; its logins leave it empty. */
+.user-table .table-group-body.is-columns .table-group-label { max-width: 250px; }
+.user-table .col-entry-number { white-space: nowrap; }
 
 /* User management (admins): logins and customers on one sheet; dialogs below. */
 .confirm-badge { flex: 0 0 auto; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--tone-ok-bg); color: var(--tone-ok); font-size: 12px; line-height: 18px; font-weight: 600; }
@@ -1366,13 +1391,32 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
    ("Seit …" and "Prüfen" for open registrations), so their customer number goes first; the account dialog still shows it. */
 @container sheet (max-width: 1200px) {
   .user-table .col-number { display: none; }
+  /* By company, its own number stays (from 900 px down it goes, below); while a group is open its name gets shorter. */
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 180px; }
+}
+@container sheet (min-width: 901px) and (max-width: 1200px) {
+  .user-table.is-by-company .mail-cell { max-width: 180px; }
+}
+/* By company, „Zugang“ in a company's row keeps its symbol and hint when room gets short. */
+@container sheet (max-width: 1080px) {
+  .user-table .table-group-body.is-columns .table-group-add { gap: 0; padding: 0 7px; font-size: 0; }
 }
 /* Then the start date and the last login go and descriptions and e-mail addresses get less room, then the details. */
+/* Wide sheets (22.11.2026): names, addresses, companies and descriptions get more room before they are shortened. */
+@container sheet (min-width: 1400px) {
+  .cell-milestone { max-width: 420px; }
+  .cell-file { max-width: 520px; }
+  .cell-description { max-width: 560px; }
+  .mail-cell { max-width: 320px; }
+  .data-table .company-name, .user-table .company-hint, .user-table .row-open strong { max-width: 280px; }
+  .user-table .table-group-body.is-columns .table-group-label { max-width: 300px; }
+}
 @container sheet (max-width: 1040px) {
   .sheet-search { flex-basis: 200px; }
   .project-table .col-start { display: none; }
   .user-table .col-login { display: none; }
   .user-table .mail-cell { max-width: 180px; }
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 160px; }
   .cell-description { max-width: 200px; }
 }
 @container sheet (max-width: 900px) {
@@ -1380,6 +1424,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .file-table .col-description { display: none; }
   .cell-deadline small { display: none; }
   .user-table .mail-cell { max-width: 160px; }
+  .user-table :is(.col-entry-number, .cell-entry-number) { display: none; }
   /* The symbol before the title and the groups already tell the status. */
   .project-table .col-status { display: none; }
 }
@@ -1387,6 +1432,25 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
    project dialog, and the area in the filter menu. */
 @container sheet (max-width: 760px) {
   .project-table .col-area { display: none; }
+  .user-table.is-by-company .mail-cell { max-width: 130px; }
+  .user-table .table-group-body.is-columns .table-group-label { max-width: 180px; }
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 120px; }
+}
+/* Phones: a company's row of the logins keeps name, logins and actions on one line; number, kind and last login stay in
+   its data, as before (rules stronger than the card rules below, so their order does not matter). */
+@media (max-width: 767px) {
+  .sheet .user-table .table-group-body.is-columns > .table-group { display: flex; align-items: center; gap: 10px; padding: 4px 14px 4px 0; border-bottom: 1px solid var(--sheet-divider); }
+  .sheet .user-table .table-group-body.is-columns > .table-group::after { content: none; }
+  .sheet .user-table .table-group-body.is-columns > .table-group:hover { background-color: var(--sheet-hover); }
+  .sheet .user-table .table-group-body.is-columns > .table-group:hover > * { background-color: transparent; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > * { display: block; height: auto; padding: 0; border: 0; font-size: 13px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > th { order: 0; flex: 1 1 0; min-width: 0; padding: 4px 0 4px 4px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > .cell-status { order: 1; font-size: 12.5px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > .cell-action { order: 2; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > :is(.cell-entry-number, .cell-role, .cell-mail, .cell-login) { display: none; }
+  .sheet .user-table .table-group-body.is-columns .table-group-label { max-width: none; }
+  .sheet .user-table .table-group-body.is-columns .table-group-add { gap: 0; padding: 0 7px; font-size: 0; }
+  .sheet .user-table .cell-entry-number { display: none; }
 }
 /* Phones: the tables become lists on the same sheet; groups stay as headings, the toolbar wraps, menus open at the bottom. */
 @media (max-width: 767px) {
@@ -1446,8 +1510,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .sheet .data-table .mail-cell { max-width: none; }
   .sheet .data-table :is(.cell-number, .cell-company):has(> .cell-none) { display: none; }
   .sheet .user-table .cell-login::before { content: "Letzter Login: "; }
-  /* A company's heading keeps its name and „Zugang“; the number stays in its data. */
-  .sheet .user-table .table-group-sub { display: none; }
   .sheet .data-table .cell-logins::before { content: "Zugänge: "; }
   /* The cells wrap here, so the row itself carries the rounded bar on the left. */
   .sheet .data-table tbody tr:is(.is-open, .is-no-login, .is-awaiting-login) { position: relative; }
@@ -2009,6 +2071,7 @@ a.teams-join:active { transform: scale(0.97); }
   --tone-todo-bg: #3a2614; --tone-todo: #ffbe8a;
   --tone-info-bg: #14263f; --tone-info: #9cc7ff;
   --tone-ok-bg: #16301d; --tone-ok: #9ee2ae;
+  --lock-open: #30d158;
   --tone-off-bg: #2c262a; --tone-off: #c2b7bd; --tone-off-bar: #7d7278;
   --tone-bad-bg: #3d1a18; --tone-bad: #ffb1aa;
   --veil-none: rgb(255 107 96 / 0.14); --veil-none-bar: #ff6b60;
@@ -3493,19 +3556,18 @@ html.am-dragging .hub-tip { display: none !important; }
 .kc-nav-empty { padding: 8px 4px; color: var(--sheet-muted); font-size: 13px; }
 .kc-count { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 26px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .kc-nav-item[aria-current="true"] .kc-count { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); box-shadow: none; color: var(--accent-text); }
-/* ---------- Pane head: lock state and the one button that changes it ---------- */
-.kc-lock-ctl { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
-.kc-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-.kc-chip.is-locked { background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
-.kc-chip.is-open { background: var(--tone-ok-bg); color: var(--tone-ok); }
-.kc-chip.is-setup { background: var(--tone-todo-bg); color: var(--tone-todo); }
-.kc-chip b { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* ---------- Pane head: „+“, the lock as a switch, the gear on the far right (22.11.2026) ---------- */
+.kc-head-acts { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
 .kc .am-pane-head .sheet-action { height: 32px; }
-/* Phone: the lock state gets its own line under the name, so the name never disappears. */
-@media (max-width: 767px) {
-  .kc .am-pane-head { flex-wrap: wrap; row-gap: 10px; }
-  .kc-lock-ctl { order: 5; flex: 1 0 100%; justify-content: space-between; margin-left: 0; }
-}
+/* The lock: grey with the knob on the left while locked, green with the knob on the right while open; the knob
+   carries the lock, closed or open. Green here means „open“, unlike the accent of the hub's other switches. */
+.kc-lock-switch .switch-knob { display: inline-flex; align-items: center; justify-content: center; color: #8e8e93; transition: transform 250ms var(--ease-spring), color 250ms ease; }
+.kc-lock-switch[aria-checked="true"] { background: var(--lock-open); }
+.kc-lock-switch[aria-checked="true"] .switch-knob { color: var(--lock-open); }
+.kc-lock-switch.is-blocked .switch-knob { color: var(--tone-bad-bar); }
+.kc-lock-switch:hover:not(:disabled) { filter: brightness(0.96); }
+.kc-confirm-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.kc-confirm-acts > * { flex: 1 1 160px; }
 /* ---------- Bar above the table ---------- */
 .kc .cdm-lock { align-items: center; }
 .kc .cdm-lock p { flex: 1 1 auto; }
@@ -3637,7 +3699,7 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
 .kc-v4 .am-pane { container: kcpane / inline-size; }
 .kc-v4 .kc-scroll { background: var(--sheet); }
 .kc-ptable-wrap { min-width: 0; }
-.kc-head-new { flex: 0 0 auto; }
+.kc-head-new { flex: 0 0 auto; width: 32px; padding: 0; justify-content: center; }
 @container kcpane (max-width: 899px) {
   .kc-v4 .sheet-menu-value { display: none; }
   .kc-v4 .sheet-toolbar .segment-count { display: none; }
@@ -3845,11 +3907,6 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
   .sheet .kc-ctable tr.kc-orow { padding-left: 26px; }
   .sheet .kc-ctable .kc-nested tr.kc-row { padding-left: 49px; }
 }
-/* Phone: „+ Zugang“ and the gear as two small square buttons, so the title keeps its room. */
-@media (max-width: 767px) {
-  .kc-head-new { width: 32px; padding: 0; justify-content: center; }
-  .kc-head-new .kc-head-label { display: none; }
-}
 /* V5 angepasst, last step: the category row in the table's columns. Name under „Kunde“, the total under „Zugänge“ in
    line with the customers' counts below it, the rest of the row empty; a click anywhere on it folds the category. */
 .kc-ctable .kc-cgroup { cursor: pointer; }
@@ -3914,7 +3971,6 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
 @container kcpane (max-width: 899px) { .kc-v4 .kc-menu-set .sheet-menu-value { display: inline; } }
 .cdm-lock:has(.kc-bar-action) { align-items: center; }
 .cdm-lock .kc-bar-action { flex: 0 0 auto; height: 28px; padding: 0 10px; font-size: 12.5px; }
-.kc-chip.is-blocked { background: var(--tone-bad-bg); color: var(--tone-bad); }
 .kc-brand-tile .brand-logo { width: 100%; height: 100%; object-fit: contain; }
 .kc-pick > :is(.kc-brand-tile, .am-avatar) { position: absolute; left: 8px; pointer-events: none; }
 .kc-cat-row .am-file-icon { width: 30px; height: 30px; border-radius: 9px; }

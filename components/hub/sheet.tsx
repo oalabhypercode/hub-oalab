@@ -161,9 +161,11 @@ export const groupTicks = (ids: string[], selected: readonly string[]) => {
 /**
  * A group of rows with its heading: chevron to fold it, symbol, name and count, optional details after them and actions
  * on the right. Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title). With
- * `select` the heading starts with a tick for all of its rows, in the column of the rows' ticks.
+ * `select` the heading starts with a tick for all of its rows, in the column of the rows' ticks. With `cells` the
+ * heading is a row of the table's own columns (user 22.11.2026): chevron, symbol and name in the first cell, then these
+ * cells, which carry the count, details and actions; a click anywhere on the row folds the group.
  */
-export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, sub, actions, select, empty, className, dropKey, children }: {
+export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, sub, actions, select, empty, className, dropKey, cells, children }: {
   colSpan: number;
   label: string;
   count: number;
@@ -179,8 +181,30 @@ export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, 
   className?: string;
   /** Files dragged onto this group land in it (the Asset Management's folders). */
   dropKey?: string;
+  /** The heading's other cells, one per column after the first (`<td>`s); replaces the count, `sub` and `actions`. */
+  cells?: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  if (cells) {
+    return (
+      <tbody className={`table-group-body is-columns${collapsed ? "" : " is-open"}${className ? ` ${className}` : ""}`}>
+        <tr className="table-group" onClick={(event) => { if (!(event.target instanceof Element && event.target.closest("button, a, input"))) onToggle(); }}>
+          <th scope="rowgroup">
+            <span className="table-group-in">
+              <button type="button" className="table-group-toggle" aria-expanded={!collapsed} onClick={onToggle}>
+                <ChevronDown size={14} className="table-group-chevron" aria-hidden="true" />
+                {glyph && <span className="table-group-glyph">{glyph}</span>}
+                <span className="table-group-label" data-tip={label}>{label}</span>
+                <span className="visually-hidden">, {count}</span>
+              </button>
+            </span>
+          </th>
+          {cells}
+        </tr>
+        {!collapsed && (count === 0 && empty ? <tr className="table-empty-row"><td colSpan={colSpan}>{empty}</td></tr> : children)}
+      </tbody>
+    );
+  }
   return (
     <tbody className={`table-group-body${className ? ` ${className}` : ""}`} data-drop-folder={dropKey}>
       <tr className="table-group">

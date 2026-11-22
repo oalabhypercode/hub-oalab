@@ -3,14 +3,10 @@
  * as a list, a window per card. Built from the hub's sheet, panel and list styles; only what is new lives here.
  */
 
-/* Sidebar: „Aufgaben“ hangs under „Projekte“ */
-.sidebar-item.sidebar-sub { position: relative; height: 34px; margin-top: -2px; padding-left: 40px; font-size: 14.5px; }
-.sidebar-item.sidebar-sub::before { content: ""; position: absolute; left: 19px; top: -8px; width: 13px; height: 25px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; border-bottom-left-radius: 8px; opacity: 0.22; }
-.sidebar-item.sidebar-sub.is-active::before { opacity: 0.45; }
+/* Sidebar: „Aufgaben“ hangs under „Projekte“ (its indent and line live in app/sidebar.css since 22.11.2026) */
 .sidebar-item.is-parent { color: var(--accent-text); font-weight: 600; }
 
-/* Page */
-.hub-content:has(.kb-sheet) { max-width: 1720px; }
+/* Page: as wide as the work area (22.11.2026; before, the board stopped at 1720 px) */
 .kb-sheet { display: flex; flex-direction: column; overflow: clip; }
 .kb-error-note { background: var(--tone-todo-bg); color: var(--tone-todo); box-shadow: inset 3px 0 0 var(--tone-todo-bar), var(--glass-shadow); }
 /* Read-only until the session confirms a code: information, not an error, with the way to the code on the right */

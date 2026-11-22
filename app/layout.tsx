@@ -11,10 +11,12 @@ import "./brand.css";
 import "./hub.css";
 import "./glass.css";
 import "./welcome-host.css";
+import "./sidebar.css";
 import "./loader.css";
 import "./motion.css";
 import "./tasks.css";
 import "./calendar.css";
+import "./notes.css";
 import "./web-app.css";
 import "./overview.css";
 

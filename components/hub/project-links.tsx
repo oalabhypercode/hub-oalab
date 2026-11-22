@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, SquareKanban, UserCog } from "lucide-react";
+import { KeyRound, NotebookPen, SquareKanban, UserCog } from "lucide-react";
 import { categories, type CategoryId } from "@/lib/categories";
 import { formatDeadline, hubHref, type HubSection, type Project } from "@/lib/hub-data";
 import { CategoryIcon } from "./glass";
@@ -34,6 +34,8 @@ export function quickLinks(project: Pick<Project, "customerId" | "company" | "du
     admin && known && { id: "customer", label: "Kunde", href: withCustomer("users", "customer"), icon: <UserCog size={18} color="var(--accent-text)" aria-hidden="true" />, tip: "Kundeneintrag in der Nutzerverwaltung" },
     // The board picks its project by id, so it needs no hub customer.
     admin && Boolean(project.id) && { id: "tasks", label: "Aufgaben", href: taskBoardHref(preview, project.id!), icon: <SquareKanban className="category-icon" size={18} color={categories.projects.fill} strokeWidth={2.2} aria-hidden="true" />, tip: "Aufgaben-Board dieses Projekts" },
+    // Notizen (22.11.2026) come last, so the digits of the others stay where they were.
+    known && { id: "notes", label: "Notizen", href: withCustomer("projects", "customer").replace(/\/projects(?=\?|$)/, "/projects/notes"), icon: <NotebookPen className="category-icon" size={18} color={categories.projects.fill} strokeWidth={2.2} aria-hidden="true" />, tip: admin ? `Notizen von ${project.company ?? "diesem Kunden"}` : "Notizen von oalab" },
   ];
   return links.filter((link): link is QuickLink => Boolean(link));
 }

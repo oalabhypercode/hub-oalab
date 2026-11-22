@@ -21,6 +21,7 @@ import { AssetPanel } from "./asset-panel";
 import { TaskGlyph } from "./tasks-parts";
 import { Field, FieldGrid, PanelSection } from "./users-panel";
 import { appointmentSlot, type CalendarGoal, type CalendarStore, type CalendarTask } from "./calendar-store";
+import { NoteMentions } from "./notes-links";
 
 /*
  * The calendar's side panels (16.11.2026): instead of the windows of before, a panel at the right edge like on the other
@@ -74,9 +75,11 @@ function SlotChecks({ store, day, start, minutes, exceptId }: { store: CalendarS
 
 /* ---------- Admins: create or change an appointment ---------- */
 
-export function AppointmentPanel({ store, appointment, initial, onClose, onDone }: {
+export function AppointmentPanel({ store, appointment, initial, extra, onClose, onDone }: {
   store: CalendarStore;
   appointment?: HubAppointment;
+  /** More about this appointment from elsewhere, like its meeting note (step 3 of the notes). */
+  extra?: React.ReactNode;
   /** A new appointment's start: the clicked day and time, the chosen customer, maybe a title ("Blockiert"). */
   initial?: { day: string; start: string; customerId: string | null; title?: string };
   onClose: () => void;
@@ -174,6 +177,7 @@ export function AppointmentPanel({ store, appointment, initial, onClose, onDone 
           </div>
         </div>
       )}
+      {extra}
       {error && <p className="form-error" role="alert">{error}</p>}
     </AssetPanel>
   );
@@ -280,7 +284,7 @@ export function RequestPanel({ store, appointment, related, onClose, onDone, onO
 
 /* ---------- Customers (and freelancers): an own appointment or request ---------- */
 
-export function CustomerAppointmentPanel({ store, appointment, canWithdraw, onClose, onDone }: { store: CalendarStore; appointment: HubAppointment; canWithdraw: boolean; onClose: () => void; onDone: (message: string) => void }) {
+export function CustomerAppointmentPanel({ store, appointment, canWithdraw, extra, onClose, onDone }: { store: CalendarStore; appointment: HubAppointment; canWithdraw: boolean; extra?: React.ReactNode; onClose: () => void; onDone: (message: string) => void }) {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -313,6 +317,7 @@ export function CustomerAppointmentPanel({ store, appointment, canWithdraw, onCl
           ? <span className="teams-join is-sample cal-teams" data-tip="Beispiel-Link aus der Vorschau, kein echtes Meeting"><Video size={18} aria-hidden="true" /><span className="teams-join-label">Teams-Meeting beitreten</span><small>Beispiel</small></span>
           : <a className="teams-join cal-teams" href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer"><Video size={18} aria-hidden="true" /><span className="teams-join-label">Teams-Meeting beitreten</span></a>
         : <Note icon={Video}>Den Teams-Link ergänzt dein oalab-Team.</Note>)}
+      {extra}
       {error && <p className="form-error" role="alert">{error}</p>}
     </AssetPanel>
   );
@@ -368,6 +373,7 @@ export function TaskPanel({ store, task, preview, freelancer = false, confirmHre
         {freelancer
           ? <Note icon={SquareKanban}>Ändern, kommentieren und verschieben geht im Board deiner Projekte.</Note>
           : <Note icon={Hand}>Diese Aufgabe hat dein oalab-Team für dich freigegeben. Alles Weitere steht im Projekt.</Note>}
+        <NoteMentions taskId={task.id} preview={preview} />
       </AssetPanel>
     );
   }
@@ -412,6 +418,7 @@ export function TaskPanel({ store, task, preview, freelancer = false, confirmHre
           <button type="button" className="cal-related-item is-appt" onClick={() => onOpenAppointment(nextAppointment.id)}><CalendarCheck size={14} aria-hidden="true" /><span>{nextAppointment.title}</span><small>{formatDayShort(dayOf(nextAppointment.start))}, {timeOf(nextAppointment.start)}{nextAppointment.status === "requested" ? " · Anfrage" : ""}</small></button>
         </PanelSection>
       )}
+      <NoteMentions taskId={task.id} preview={preview} />
       {error && <p className="form-error" role="alert">{error}</p>}
     </AssetPanel>
   );

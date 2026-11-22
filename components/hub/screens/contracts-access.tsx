@@ -49,9 +49,15 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
   const categoryName = (id: string) => domainMail.categories.find((category) => category.id === id)?.name ?? loginKinds[id as keyof typeof loginKinds] ?? id;
   const term = query.trim().toLocaleLowerCase("de");
   const mailboxes = domainMail.mailboxes.filter((item) => item.customerId === customer.id && item.kind === "mailbox");
-  const logins = domainMail.logins.filter((item) => item.customerId === customer.id);
+  const customerLogins = domainMail.logins.filter((item) => item.customerId === customer.id);
+  // Mailboxes made in the Schlüsselbund are logins of the category „Postfächer“: they stand with the mailboxes.
+  const mailLogins = customerLogins.filter((login) => login.kind === MAILBOX_CATEGORY);
+  const logins = customerLogins.filter((login) => login.kind !== MAILBOX_CATEGORY);
+  const loginHit = (login: ProviderLogin) => tableHit(term, login.label, categoryName(login.kind), login.loginUrl, login.username);
   const shownMailboxes = mailboxes.filter((mailbox) => tableHit(term, mailbox.display, mailbox.person));
-  const shownLogins = logins.filter((login) => tableHit(term, login.label, categoryName(login.kind), login.loginUrl, login.username));
+  const shownMailLogins = mailLogins.filter(loginHit);
+  const shownLogins = logins.filter(loginHit);
+  const mailboxCount = mailboxes.length + mailLogins.length;
   const info = useInfo("Zugangsdaten", {
     steps: [
       <><b>Nur mit dem Code aus der App</b> sichtbar, wie im Schlüsselbund.</>,
@@ -60,6 +66,32 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
     ],
     ask: "Wie funktionieren die Zugangsdaten unter Vertrag & Domain?",
   });
+
+  const loginRow = (login: ProviderLogin, mail: boolean) => {
+    const owner: VaultOwner = { kind: "login", id: login.id };
+    const name = mail ? `Postfach ${login.label}` : `Login ${login.label}`;
+    const Icon = mail ? Inbox : KeyRound;
+    return (
+      <tr key={login.id} className="file-row">
+        <td className="cell-file">
+          <span className="am-file">
+            <span className="am-file-icon cdm-file-icon"><Icon size={16} aria-hidden="true" /></span>
+            <span className="am-file-text">
+              <strong>{login.label}</strong>
+              <small>{mail ? "Zugang aus dem Schlüsselbund" : categoryName(login.kind)}{login.loginUrl && <> · <a href={login.loginUrl} target="_blank" rel="noopener noreferrer">{login.loginUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}<span className="visually-hidden"> (öffnet in neuem Tab)</span></a></>}</small>
+            </span>
+          </span>
+        </td>
+        <td className="cell-secret" colSpan={ADMIN_COLUMNS - 1}>
+          <span className="cdm-secret-line">
+            {login.username && <span className="dm-login-user"><span className="dm-mono">{login.username}</span><CopyButton value={login.username} label="Benutzername" /></span>}
+            <SecretControl key={`${login.id}-${login.hasPassword}`} owner={owner} name={name} stored={login.hasPassword} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
+            {confirmed && <button type="button" className="am-icon-btn" onClick={() => setDialog({ entry: login })} aria-label={`${login.label} bearbeiten`} data-tip="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
+          </span>
+        </td>
+      </tr>
+    );
+  };
 
   const note = fixtures
     ? "Fiktive Beispieldaten: Hier gibt es keine Passwörter. Anzeigen und Speichern gehen nur mit echtem Admin-Login."
@@ -90,7 +122,7 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
         <table className="file-table cdm-table cdm-admin-table cdm-access-table">
           <caption className="visually-hidden">Passwörter und Logins von {customer.company}</caption>
           {/* The tab's ⓘ sits at its first group and explains both. */}
-          <TableGroup colSpan={ADMIN_COLUMNS} label="Postfächer" count={shownMailboxes.length} glyph={<Mail size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("mailboxes")} onToggle={() => groups.toggle("mailboxes")} actions={info.button} empty={term ? "Kein Postfach passt zur Suche." : "Noch keine Postfächer. Leg sie im Reiter „Domain & Mail“ an; Weiterleitungen und Aliase haben kein Passwort."}>
+          <TableGroup colSpan={ADMIN_COLUMNS} label="Postfächer" count={shownMailboxes.length + shownMailLogins.length} glyph={<Mail size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("mailboxes")} onToggle={() => groups.toggle("mailboxes")} actions={info.button} empty={term ? "Kein Postfach passt zur Suche." : "Noch keine Postfächer. Leg sie im Reiter „Domain & Mail“ oder im Schlüsselbund an; Weiterleitungen und Aliase haben kein Passwort."}>
             {shownMailboxes.map((mailbox) => {
               const owner: VaultOwner = { kind: "mailbox", id: mailbox.id };
               const name = `Postfach ${mailbox.display}`;
@@ -103,32 +135,10 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
                 </tr>
               );
             })}
+            {shownMailLogins.map((login) => loginRow(login, true))}
           </TableGroup>
           <TableGroup colSpan={ADMIN_COLUMNS} label="Anbieter-Logins" count={shownLogins.length} glyph={<KeyRound size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("logins")} onToggle={() => groups.toggle("logins")} actions={confirmed && <button type="button" className="table-group-action is-accent" onClick={() => setDialog({})} data-tip="Login anlegen" aria-label="Login anlegen"><Plus size={15} aria-hidden="true" /></button>} empty={term ? "Kein Login passt zur Suche." : "Noch keine Logins für Domain-Anbieter, DNS oder Hosting."}>
-            {shownLogins.map((login) => {
-              const owner: VaultOwner = { kind: "login", id: login.id };
-              const name = `Login ${login.label}`;
-              return (
-                <tr key={login.id} className="file-row">
-                  <td className="cell-file">
-                    <span className="am-file">
-                      <span className="am-file-icon cdm-file-icon"><KeyRound size={16} aria-hidden="true" /></span>
-                      <span className="am-file-text">
-                        <strong>{login.label}</strong>
-                        <small>{categoryName(login.kind)}{login.loginUrl && <> · <a href={login.loginUrl} target="_blank" rel="noopener noreferrer">{login.loginUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}<span className="visually-hidden"> (öffnet in neuem Tab)</span></a></>}</small>
-                      </span>
-                    </span>
-                  </td>
-                  <td className="cell-secret" colSpan={ADMIN_COLUMNS - 1}>
-                    <span className="cdm-secret-line">
-                      {login.username && <span className="dm-login-user"><span className="dm-mono">{login.username}</span><CopyButton value={login.username} label="Benutzername" /></span>}
-                      <SecretControl key={`${login.id}-${login.hasPassword}`} owner={owner} name={name} stored={login.hasPassword} usable={usable} onNotice={onNotice} onSet={(replace) => setSecretFor({ owner, name, replace })} />
-                      {confirmed && <button type="button" className="am-icon-btn" onClick={() => setDialog({ entry: login })} aria-label={`${login.label} bearbeiten`} data-tip="Bearbeiten"><Pencil size={16} aria-hidden="true" /></button>}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
+            {shownLogins.map((login) => loginRow(login, false))}
           </TableGroup>
         </table>
         {info.box}
@@ -136,10 +146,11 @@ export function AccessTab({ customer, domainMail, fixtures, preview, query, onNo
       <SheetFooter hint="Jeder Blick auf ein Passwort steht im Verlauf">
         {live && vault
           ? vault.keyId ? <>Schlüssel auf diesem Server: <span className="dm-mono" translate="no">{vault.keyId}</span>. Gespeicherte Passwörter öffnen sich nur mit genau diesem Schlüssel.</> : "Auf diesem Server ist kein Schlüssel für die Zugangsdaten eingetragen."
-          : [mailboxes.length === 1 ? "1 Postfach" : `${mailboxes.length} Postfächer`, logins.length === 1 ? "1 Anbieter-Login" : `${logins.length} Anbieter-Logins`].join(" · ")}
+          : [mailboxCount === 1 ? "1 Postfach" : `${mailboxCount} Postfächer`, logins.length === 1 ? "1 Anbieter-Login" : `${logins.length} Anbieter-Logins`].join(" · ")}
       </SheetFooter>
 
-      {dialog && <LoginDialog customer={customer} entry={dialog.entry} canStoreSecret={usable} categories={domainMail.categories.filter((category) => category.id !== MAILBOX_CATEGORY)} onClose={() => setDialog(null)} onSaved={onNotice} />}
+      {/* „+ Login“ is for provider logins; a mailbox from the Schlüsselbund keeps its category when edited here. */}
+      {dialog && <LoginDialog customer={customer} entry={dialog.entry} canStoreSecret={usable} categories={domainMail.categories.filter((category) => category.id !== MAILBOX_CATEGORY || dialog.entry?.kind === MAILBOX_CATEGORY)} onClose={() => setDialog(null)} onSaved={onNotice} />}
       {secretFor && <SecretDialog owner={secretFor.owner} name={secretFor.name} replace={secretFor.replace} onClose={() => setSecretFor(null)} onSaved={onNotice} />}
       {unlocking && <UnlockDialog lock={keychain.lock} hint="Danach siehst und änderst du die Passwörter hier." onClose={() => setUnlocking(false)} onUnlocked={(next) => { keychain.setLock(next); setUnlocking(false); }} onLock={keychain.setLock} />}
     </>

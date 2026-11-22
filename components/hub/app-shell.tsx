@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, FolderOpen, LayoutGrid, LogOut, MessageCircleQuestion, Search } from "lucide-react";
+import { ArrowUpRight, Bell, FolderOpen, LayoutGrid, LogOut, MessageCircleQuestion, NotebookPen, Search } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { signOutAction } from "@/lib/hub-auth/actions";
 import { categories } from "@/lib/categories";
@@ -11,6 +11,8 @@ import { adminSections, freelancerSections, hubHref, metricHref, previewAccount,
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { pathSection } from "@/lib/hub-routes";
+import { searchNotes } from "@/lib/hub-notes/actions";
+import type { NoteSearchHit } from "@/lib/hub-notes/types";
 import { AppearanceProvider } from "./appearance-provider";
 import { AssistantPanel, type AssistantMode, type ChatTurn } from "./assistant-panel";
 import { applyProposalStatus, chatKey, MODE_KEY, openProposalIds, parseChat, serializeChat } from "@/lib/hub-assistant/chat-storage";
@@ -22,7 +24,8 @@ import { useLiveSync } from "./use-live-sync";
 import { BackgroundLayer } from "./background-layer";
 import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
-import { CategoryIcon, GlassButton } from "./glass";
+import { CategoryIcon, GlassButton, GlassLayers } from "./glass";
+import { LiquidGlassLayer } from "./liquid-glass";
 import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
@@ -154,6 +157,19 @@ export function AppShell({ children, preview = false, pending = false, email = "
 
   const term = query.trim().toLowerCase();
   const closeSearch = () => { setPanel(null); setQuery(""); };
+  // The notes (since step 3 of the notes): pages the person sees, by title and text, asked a moment after typing.
+  const [noteHits, setNoteHits] = useState<{ term: string; hits: NoteSearchHit[] }>({ term: "", hits: [] });
+  useEffect(() => {
+    if (panel !== "search" || term.length < 2) return;
+    let live = true;
+    const timer = window.setTimeout(() => {
+      // The preview's examples load only in the preview, so the shell stays light everywhere else.
+      if (preview) { void import("@/lib/hub-notes/fixtures").then(({ previewNoteSearch }) => { if (live) setNoteHits({ term, hits: previewNoteSearch(term) }); }); return; }
+      void searchNotes({ query: term }).then((result) => { if (live) setNoteHits({ term, hits: result.ok ? result.data : [] }); }, () => undefined);
+    }, 220);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [panel, term, preview]);
+  const noteResults = term.length >= 2 && term.startsWith(noteHits.term) && noteHits.term ? noteHits.hits : [];
   // The user management needs an admin session; the preview never shows it.
   const manageUsers = account.admin && !preview;
   const signOutLabel = preview ? "Vorschau verlassen" : "Abmelden";
@@ -204,7 +220,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
               {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. Tablets hide the
                   sidebar with its gear menu, so there signing out sits at the far right (wish of 5 November 2026). */}
-              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="glass glass-float glass-button topbar-signout" aria-label={signOutLabel} data-tip={signOutLabel} onClick={signOut} disabled={signingOut}>{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
+              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="lg glass-button topbar-signout" aria-label={signOutLabel} data-tip={signOutLabel} onClick={signOut} disabled={signingOut}><GlassLayers />{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
               {/* Profil shows its own message; on other pages a failed sign-out from the top row says so here. */}
               {logoutError && section !== "settings" && <p role="alert" className="form-error topbar-signout-error">{logoutError}</p>}
@@ -215,12 +231,13 @@ export function AppShell({ children, preview = false, pending = false, email = "
         </div>
         {panel === "search" && (
           <Modal title="Wonach suchst du?" onClose={closeSearch}>
-            <label className="search-field"><Search size={18} aria-hidden="true" /><input autoFocus aria-label="Suchbegriff" placeholder="Seiten, Kennzahlen und Projekte" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+            <label className="search-field"><Search size={18} aria-hidden="true" /><input autoFocus aria-label="Suchbegriff" placeholder="Seiten, Projekte und Notizen" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
             <div className="search-results">
               {sectionResults.map((key) => <Link key={key} href={hubHref(preview, key)} onClick={closeSearch}><LayoutGrid size={18} aria-hidden="true" /><span>{sectionLabel(key, account.admin || account.freelancer)}</span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {metricResults.map((id) => <Link key={id} href={metricHref(preview, id)} onClick={closeSearch}><CategoryIcon category={metricMeta[id].category} size={18} /><span>{metricMeta[id].name}<small>Kennzahl</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {projectResults.map((project) => <Link key={project.id} href={`${hubHref(preview, "projects")}?project=${project.id}`} onClick={closeSearch}><FolderOpen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{project.category || project.name}<small>{project.company ? `${project.company} · ` : ""}{project.category ? project.name : "Projekt"}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
-              {term && !sectionResults.length && !metricResults.length && !projectResults.length && <p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p>}
+              {noteResults.map((hit) => <Link key={hit.id} href={`${hubHref(preview, "projects")}/notes?customer=${encodeURIComponent(hit.customerId)}&page=${encodeURIComponent(hit.id)}`} onClick={closeSearch}><NotebookPen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{hit.title}<small>{hit.customer ? `${hit.customer} · ` : ""}Notiz{hit.snippet ? ` · ${hit.snippet}` : ""}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
+              {term && !sectionResults.length && !metricResults.length && !projectResults.length && !noteResults.length && <p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p>}
             </div>
           </Modal>
         )}
@@ -239,6 +256,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
         )}
         {/* Hover hints of the whole hub (data-tip), in place of the browser's title tooltips. */}
         <TooltipLayer />
+        {/* The refraction filter and the pointer light of the hub's liquid glass (sidebar, round buttons). */}
+        <LiquidGlassLayer />
         {/* The installed app's offline page (public/sw.js); importing the module also catches Chrome's install offer. */}
         <WebAppSetup />
       </ShellContext.Provider>

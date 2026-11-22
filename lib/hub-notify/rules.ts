@@ -15,7 +15,8 @@ export type NoticeKind =
   | "appointment.created" | "appointment.changed" | "appointment.confirmed" | "appointment.cancelled" | "appointment.declined"
   | "chat.message" | "chat.reply"
   | TaskNoticeKind
-  | "share.granted";
+  | "share.granted"
+  | "note.shared" | "note.changed";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -228,6 +229,17 @@ export function appointmentNotice(input: {
   if (Date.parse(input.before.startsAt) !== Date.parse(input.startsAt)) return make("appointment.changed", `Termin verschoben: ${input.title}`, when);
   return null;
 }
+
+/**
+ * A note page newly visible to a customer or their freelancers („Neue Notiz“, plan docs/planung/notizen.md 2.3), or a
+ * change the team tells them about („Änderung mitteilen“). Only the title, never the content; the link opens the page.
+ */
+export const noteNotice = (kind: "note.shared" | "note.changed", title: string, customerId: string, pageId: string): Notice => ({
+  kind,
+  title: clip(`${kind === "note.shared" ? "Neue Notiz" : "Notiz geändert"}: ${title}`, 200),
+  body: "Unter Projekte › Notizen",
+  href: `/dashboard/projects/notes?customer=${encodeURIComponent(customerId)}&page=${encodeURIComponent(pageId)}`,
+});
 
 /** A file shared with the customer; the link opens it in the files page. */
 export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });
