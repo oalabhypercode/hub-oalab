@@ -6,10 +6,11 @@ import { notifyNote } from "@/lib/hub-notify/server";
 import { fetchLinkPreview } from "./link-preview";
 import { isGalleryCover, cleanCoverPosition } from "./covers";
 import {
-  AUDIENCE_LABELS, childrenOf, cleanIcon, cleanNoteTitle, descendantsOf, emptyNoteDoc, gains, isIsoDate, isNoteAudience, isNoteWidth, isUuid, narrowedBelow,
+  AUDIENCE_LABELS, childrenOf, cleanIcon, cleanNoteTitle, emptyNoteDoc, gains, isIsoDate, isNoteAudience, isNoteWidth, isUuid, narrowedBelow,
   newPageAudience, positionAfter, validateNoteDoc, within,
 } from "./rules";
 import { namesOf, notesCustomers, PAGE_COLUMNS, readPage, readPages, SETTINGS_COLUMNS, toDoc, toMeta, toSettings, type NotesContext, type PageRow } from "./server";
+import { sweepNoteImages } from "./sweep";
 import type { NoteAudience, NoteCover, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteResult, NoteSaved, NoteSettings, NoteTrashItem } from "./types";
 
 // The core of writing notes, for the hub's actions now and the assistant or the Claude connector later: every write
@@ -123,7 +124,10 @@ export async function savePageAs(ctx: NotesContext, input: { id: string; version
   return { ok: true, data: { id: data.id, version: data.version, updatedAt: data.updated_at, updatedBy: data.updated_by } };
 }
 
-/** Removes images the notes stored (uploaded covers, link previews); a failure leaves them, it never fails the change. */
+/**
+ * Removes an uploaded cover the moment its page no longer has it (a cover is never in the history); a failure leaves it
+ * to the sweep (lib/hub-notes/sweep.ts) and never fails the change. Link previews only ever go with the sweep.
+ */
 async function removeStored(ctx: NotesContext, paths: string[]) {
   const own = paths.filter((path) => /^notes\/[0-9a-f-]{36}\//.test(path));
   if (own.length && ctx.db) await ctx.db.storage.from(HUB_FILES_BUCKET).remove(own).then(() => undefined, () => undefined);
@@ -232,22 +236,6 @@ export async function notifyChangeAs(ctx: NotesContext, input: { id: string }): 
 
 const TRASH_DAYS = 30;
 
-/** The images a page and its subpages stored in the hub's own storage. */
-function storedPaths(rows: { cover_kind: string | null; cover_value: string | null; content?: unknown }[]) {
-  const paths: string[] = [];
-  const walk = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
-    const value = node as { type?: string; attrs?: { image?: unknown }; content?: unknown[] };
-    if (value.type === "noteLinkCard" && typeof value.attrs?.image === "string") paths.push(value.attrs.image);
-    for (const child of value.content ?? []) walk(child);
-  };
-  for (const row of rows) {
-    if (row.cover_kind === "upload" && row.cover_value) paths.push(row.cover_value);
-    walk(row.content);
-  }
-  return paths;
-}
-
 /** „In den Papierkorb“ (team only): the page and its subpages, for 30 days. */
 export async function trashPageAs(ctx: NotesContext, input: { id: string }): Promise<NoteResult<{ pages: NotePageMeta[] }>> {
   if (ctx.viewer !== "admin") return fail("Löschen kann das oalab-Team.");
@@ -260,20 +248,20 @@ export async function trashPageAs(ctx: NotesContext, input: { id: string }): Pro
   return { ok: true, data: { pages: (fresh.data ?? []).map(toMeta) } };
 }
 
-type TrashRow = { id: string; title: string; icon: string; deleted_at: string; deleted_by: string | null; parent_id: string | null; customer_id: string; cover_kind: string | null; cover_value: string | null; content?: unknown };
+type TrashRow = { id: string; title: string; icon: string; deleted_at: string; deleted_by: string | null; parent_id: string | null; customer_id: string; cover_kind: string | null; cover_value: string | null };
 
 /**
  * The trash of a customer (team only): every page that went there itself (subpages go and come back with it). Pages
- * older than 30 days go for good on the way, with their images.
+ * older than 30 days go for good on the way, with their history; their images follow once nothing names them.
  */
 export async function listTrashAs(ctx: NotesContext, input: { customerId: string }): Promise<NoteResult<NoteTrashItem[]>> {
   if (ctx.viewer !== "admin") return fail("Den Papierkorb sieht das oalab-Team.");
   if (!isUuid(input?.customerId)) return fail("Der Kunde ist unbekannt.");
   const limit = new Date(Date.now() - TRASH_DAYS * 86_400_000).toISOString();
-  const old = await ctx.session.from("hub_note_pages").select("id, cover_kind, cover_value, content").eq("customer_id", input.customerId).lt("deleted_at", limit).returns<TrashRow[]>();
+  const old = await ctx.session.from("hub_note_pages").select("id").eq("customer_id", input.customerId).lt("deleted_at", limit).returns<{ id: string }[]>();
   if (old.data?.length) {
     const removed = await ctx.session.from("hub_note_pages").delete().in("id", old.data.map((row) => row.id));
-    if (!removed.error) await removeStored(ctx, storedPaths(old.data));
+    if (!removed.error) after(() => sweepNoteImages(input.customerId));
   }
   const { data, error } = await ctx.session.from("hub_note_pages").select("id, title, icon, deleted_at, deleted_by, parent_id, customer_id, cover_kind, cover_value").eq("customer_id", input.customerId).not("deleted_at", "is", null).order("deleted_at", { ascending: false }).returns<TrashRow[]>();
   if (error) return fail("Der Papierkorb konnte gerade nicht geladen werden.");
@@ -300,24 +288,28 @@ export async function restorePageAs(ctx: NotesContext, input: { id: string }): P
   return { ok: true, data: { pages: (fresh.data ?? []).map(toMeta) } };
 }
 
-/** „Endgültig löschen“ from the trash (team only): the page, its subpages and the images they stored. */
+/**
+ * „Endgültig löschen“ from the trash (team only): the page with its subpages and their history (the database deletes
+ * those along with it). The images they stored go right after the answer if nothing else names them, those younger
+ * than a day with a later sweep: a card copied to another page keeps its picture, and so does a version of another
+ * page (lib/hub-notes/sweep.ts).
+ */
 export async function purgePageAs(ctx: NotesContext, input: { id: string }): Promise<NoteResult<null>> {
   if (ctx.viewer !== "admin") return fail("Endgültig löschen kann das oalab-Team.");
   if (!isUuid(input?.id)) return fail("Diese Seite ist unbekannt.");
   const { data: row } = await ctx.session.from("hub_note_pages").select("id, customer_id").eq("id", input.id).not("deleted_at", "is", null).maybeSingle<{ id: string; customer_id: string }>();
   if (!row) return fail("Diese Seite liegt nicht mehr im Papierkorb.");
-  const all = await ctx.session.from("hub_note_pages").select("id, parent_id, title, audience, position, cover_kind, cover_value, content").eq("customer_id", row.customer_id).returns<(TrashRow & { audience: NoteAudience; position: number })[]>();
-  const pages = (all.data ?? []).map((item) => ({ ...item, parentId: item.parent_id }));
-  const subtree = [row.id, ...descendantsOf(pages, row.id).map((item) => item.id)];
-  const doomed = (all.data ?? []).filter((item) => subtree.includes(item.id));
   const { error } = await ctx.session.from("hub_note_pages").delete().eq("id", row.id);
   if (error) return fail("Die Seite konnte gerade nicht gelöscht werden.");
-  await removeStored(ctx, storedPaths(doomed));
+  after(() => sweepNoteImages(row.customer_id));
   await logNoteEvent(ctx, "note.deleted", "Notiz endgültig gelöscht", row.customer_id);
   return { ok: true, data: null };
 }
 
-/** The preview of a pasted address for a link card: read once by the server, its image stored downsized at the customer. */
+/**
+ * The preview of a pasted address for a link card: read once by the server, its image stored downsized at the customer
+ * as soon as the card goes in. If the page never keeps the card, the sweep removes the image a day later.
+ */
 export async function linkPreviewAs(ctx: NotesContext, input: { customerId: string; url: string }): Promise<NoteResult<NoteLinkPreview & { imageUrl: string | null }>> {
   if (ctx.viewer !== "admin" && ctx.viewer !== "freelancer") return fail("Linkkarten legen das oalab-Team und Freelancer an.");
   const customers = await notesCustomers(ctx);

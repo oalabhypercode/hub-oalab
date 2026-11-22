@@ -74,6 +74,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 30,
+    date: "2026-11-23",
+    title: "Aufgeräumte Bilder in Notizen",
+    summary: "Vorschaubilder von Linkkarten und hochgeladene Titelbilder der Notizen bleiben nicht mehr im Speicher liegen, wenn keine Seite sie mehr braucht. Der Hub entfernt ein solches Bild, sobald weder eine Seite des Kunden (auch im Papierkorb) noch eine Fassung im Verlauf es nennt und es älter als einen Tag ist: gleich nach „Endgültig löschen“ und nach den 30 Tagen im Papierkorb, sonst bei der regelmäßigen Wartung. Das betrifft vor allem Linkkarten, die eingefügt und vor dem Speichern wieder entfernt wurden, und Bilder aus Fassungen, die nach 90 Tagen aus dem Verlauf fallen. „Diese Fassung wiederherstellen“ findet sein Bild weiterhin. Beim endgültigen Löschen verschwindet außerdem nicht mehr das Bild einer Linkkarte, die auf eine andere Seite kopiert wurde.",
+    changes: [
+      { kind: "fixed", area: "projects", place: "Projekte › Notizen", title: "Ungenutzte Bilder werden entfernt", text: "Vorschaubilder von Linkkarten und hochgeladene Titelbilder, die weder eine Seite noch eine Fassung im Verlauf mehr nennt, entfernt der Hub jetzt nach einem Tag. „Diese Fassung wiederherstellen“ findet sein Bild weiterhin, und beim endgültigen Löschen behält eine auf eine andere Seite kopierte Linkkarte ihr Bild." },
+    ],
+  },
+  {
     number: 29,
     date: "2026-11-22",
     title: "Notizen unter Projekte, Benachrichtigungen in Spalten, Patch Notes als Tabelle und eine Sidebar zum Einklappen",
