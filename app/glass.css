@@ -738,6 +738,8 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 /* The count stands apart from the label: its own badge, lighter on the glass, tinted in the selected segment. */
 .segment-count { flex: 0 0 auto; min-width: 22px; height: 20px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(255, 255, 255, 0.24); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28); font-size: 12px; font-weight: 700; line-height: 1; }
 .segment[aria-pressed="true"] .segment-count { background: var(--accent-text); box-shadow: none; color: var(--on-accent); }
+/* Something is missing in this tab (e.g. the test domain): a red sign after the count, also when the counts hide. */
+.segment-alert { flex: 0 0 auto; margin-left: -2px; color: var(--tone-bad-bar); }
 .segment::after { content: ""; position: absolute; inset: -4px 0; }
 .segment[aria-pressed="true"] { background: var(--surface); color: var(--label); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
 .switch { position: relative; width: 51px; height: 31px; flex: 0 0 51px; border-radius: 999px; background: rgba(120, 120, 128, 0.32); transition: background 250ms ease; }
@@ -2889,10 +2891,17 @@ html.am-dragging .hub-tip { display: none !important; }
 .cdm-file-icon.is-service { background: rgb(88 86 214 / 0.1); color: rgb(88, 86, 214); }
 .cdm-file-icon.is-none { background: var(--tone-bad-bg); color: var(--tone-bad); }
 .cdm-file-icon.is-off { background: var(--fill-tertiary); color: var(--sheet-muted); }
+/* The website's test domain under „Domain & Mail“: orange flask like under „Projekte“; missing or live, a red sign. */
+.cdm-file-icon.is-test { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+.cdm-file-icon.is-alert { background: var(--tone-bad-bg); color: var(--tone-bad-bar); }
+.cdm-test-row.is-alert .am-file-text small { white-space: normal; }
+.cdm-test-alert { flex: 0 0 auto; color: var(--tone-bad-bar); }
 :root[data-theme="dark"] .cdm-file-icon { background: rgb(48 209 88 / 0.14); color: rgb(48, 209, 88); }
 :root[data-theme="dark"] .cdm-file-icon.is-domain { background: rgb(48 176 199 / 0.16); color: rgb(110, 214, 232); }
 :root[data-theme="dark"] .cdm-file-icon.is-service { background: rgb(94 92 230 / 0.2); color: rgb(169, 167, 255); }
 :root[data-theme="dark"] .cdm-file-icon.is-none { background: var(--tone-bad-bg); color: var(--tone-bad); }
+:root[data-theme="dark"] .cdm-file-icon.is-test { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+:root[data-theme="dark"] .cdm-file-icon.is-alert { background: var(--tone-bad-bg); color: var(--tone-bad-bar); }
 .cdm-group-alert .table-group-glyph { color: var(--tone-bad-bar); }
 .cdm-admin-table .cell-date small { margin-left: 6px; color: var(--sheet-muted); font-size: 12px; }
 .cdm-row-link { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 8px; color: var(--accent-text); font-size: 13px; font-weight: 600; white-space: nowrap; }

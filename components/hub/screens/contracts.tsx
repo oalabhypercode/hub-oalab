@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronLeft, Inbox, LayoutGrid, Plus, Search } from "lucide-react";
+import { Check, ChevronLeft, Inbox, LayoutGrid, Plus, Search, TriangleAlert } from "lucide-react";
 import type { HubFilesState } from "@/lib/hub-files/types";
+import { hubHref } from "@/lib/hub-data";
+import { testDomainAlert, testDomainOf, type TestDomain } from "@/lib/hub-domains/test-domain";
 import { formatDay, lastPayment } from "@/lib/hub-contracts/rules";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "@/lib/hub-contracts/types";
 import { HeaderActions } from "../app-shell";
@@ -88,6 +90,13 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
     .filter((customer) => !onlyMissing || !hasService(customer))
     .filter((customer) => !term || [customer.company, customer.customerNumber, packagesLine(customer.packages), ...domainsOf(customer.id)].some((value) => value.toLowerCase().includes(term)));
   const timelineOf = useMemo(() => (id: string) => state.timeline.filter((entry) => entry.customerId === id), [state.timeline]);
+  // Every website needs its own test domain: changes land there before the customer approves them.
+  const testDomains = useMemo(() => new Map(state.customers.map((customer) => [customer.id, testDomainOf(
+    (state.projectSites ?? []).filter((site) => site.customerId === customer.id),
+    state.domainMail.domains.filter((domain) => domain.customerId === customer.id),
+  )] as const)), [state.customers, state.projectSites, state.domainMail.domains]);
+  const projectsHref = (customerId: string, test: TestDomain | null) =>
+    `${hubHref(preview, "projects")}?customer=${encodeURIComponent(customerId)}${test?.projectId ? `&project=${encodeURIComponent(test.projectId)}` : ""}`;
 
   /* ---------- Customers ---------- */
   const list = (
@@ -113,7 +122,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
             <button type="button" className="chat-conv" aria-current={pane.kind === "customer" && pane.id === customer.id ? "true" : undefined} onClick={() => openCustomer(customer.id)}>
               <CustomerSign customer={customer} logo={customer.logo} />
               <span className="chat-conv-main">
-                <span className="chat-conv-top"><strong>{customer.company}</strong>{cancelled(customer) && <span className="chat-pill tone-todo">Gekündigt</span>}</span>
+                <span className="chat-conv-top"><strong>{customer.company}</strong>{testDomainAlert(testDomains.get(customer.id) ?? null) && <TriangleAlert size={13} className="cdm-test-alert" aria-label={testDomainAlert(testDomains.get(customer.id) ?? null)!} />}{cancelled(customer) && <span className="chat-pill tone-todo">Gekündigt</span>}</span>
                 <span className="chat-conv-sub"><span className="chat-conv-last">{customer.customerNumber} · {packagesLine(customer.packages) || "noch keine Pakete"}</span></span>
               </span>
             </button>
@@ -146,8 +155,9 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       <div className="am-pane-title"><strong>Überblick</strong><span>{plural(state.customers.length, "Kunde", "Kunden")} · {plural(missing.length, "ohne Servicepaket", "ohne Servicepaket")}</span></div>
     </header>
   );
+  const currentTest = current ? testDomains.get(current.id) ?? null : null;
   const counts = current ? {
-    domains: state.domainMail.domains.filter((item) => item.customerId === current.id).length + state.domainMail.mailboxes.filter((item) => item.customerId === current.id).length,
+    domains: state.domainMail.domains.filter((item) => item.customerId === current.id).length + (currentTest && currentTest.kind !== "missing" ? 1 : 0) + state.domainMail.mailboxes.filter((item) => item.customerId === current.id).length,
     access: state.domainMail.mailboxes.filter((item) => item.customerId === current.id && item.kind === "mailbox").length + state.domainMail.logins.filter((item) => item.customerId === current.id).length,
     freelancer: freelancerShares.assignments.filter((item) => item.customerId === current.id).length,
   } : { domains: 0, access: 0, freelancer: 0 };
@@ -157,7 +167,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       <SheetToolbar
         leading={<SegmentedControl label="Ansicht" value={tab} onChange={(next) => { setTab(next); setTabQuery(""); }} options={[
           { id: "contract", label: "Vertrag", name: "Vertrag" },
-          { id: "domains", label: "Domain & Mail", name: "Domain & Mail", count: counts.domains },
+          { id: "domains", label: "Domain & Mail", name: "Domain & Mail", count: counts.domains, alert: testDomainAlert(currentTest) },
           { id: "access", label: "Zugangsdaten", name: "Zugangsdaten", count: counts.access },
           { id: "timeline", label: "Verlauf", name: "Verlauf", count: entries.length },
           { id: "freelancer", label: "Freelancer", name: "Freelancer", count: counts.freelancer },
@@ -170,7 +180,7 @@ function ContractsAdmin({ state, asOf, preview, fileState }: { state: ContractsS
       {tab === "freelancer" ? (
         <FreelancerTab key={current.id} customer={current} state={freelancerShares} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} onNotice={setNotice} />
       ) : tab === "domains" ? (
-        <DomainMailTab key={current.id} customer={current} domainMail={state.domainMail} canManage={state.canManage && state.domainMail.ready} today={asOf} query={tabQuery} onNotice={setNotice} />
+        <DomainMailTab key={current.id} customer={current} domainMail={state.domainMail} testDomain={currentTest} projectsHref={projectsHref(current.id, currentTest)} canManage={state.canManage && state.domainMail.ready} today={asOf} query={tabQuery} onNotice={setNotice} />
       ) : tab === "access" ? (
         <AccessTab key={current.id} customer={current} domainMail={state.domainMail} fixtures={state.source === "fixtures"} preview={preview} query={tabQuery} onNotice={setNotice} />
       ) : tab === "contract" ? (

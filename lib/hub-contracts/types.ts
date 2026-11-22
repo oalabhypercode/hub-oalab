@@ -1,5 +1,6 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { DomainMailState } from "@/lib/hub-domains/types";
+import type { ProjectSite } from "@/lib/hub-domains/test-domain";
 import type { FreelancerShareState } from "@/lib/hub-freelancer-customers/types";
 import type { ServiceQuotaState } from "@/lib/hub-service-quota/types";
 import type { CustomerPackage } from "@/lib/service-packages";
@@ -51,5 +52,7 @@ export type ContractsState = {
   serviceQuota: ServiceQuotaState;
   /** Admins only: which freelancer looks after which customer and what they may read (tab „Freelancer“, 18.11.2026). */
   freelancerShares?: FreelancerShareState;
+  /** Admins only: live and test website of every project, for the test domain under „Domain & Mail“. */
+  projectSites?: ProjectSite[];
   error?: string;
 };

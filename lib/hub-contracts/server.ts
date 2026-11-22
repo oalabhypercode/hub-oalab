@@ -7,6 +7,7 @@ import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { loadDomainMailForAdmin, loadDomainMailForCustomer } from "@/lib/hub-domains/server";
 import { emptyDomainMail } from "@/lib/hub-domains/types";
+import type { ProjectSite } from "@/lib/hub-domains/test-domain";
 import { loadServiceQuotaForAdmin, loadServiceQuotaForCustomer } from "@/lib/hub-service-quota/server";
 import { emptyServiceQuota } from "@/lib/hub-service-quota/types";
 import { vaultKeyId } from "@/lib/hub-vault/key";
@@ -17,7 +18,8 @@ import { isTimelineKind } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
 import type { ContractCustomer, ContractsState, TimelineEntry } from "./types";
 
-type CustomerRow = { id: string; company: string; customer_number: string; kind: string | null };
+type CustomerRow = { id: string; company: string; customer_number: string; kind: string | null; organization_id: string | null };
+type ProjectRow = { id: string; organization_id: string; display_name: string; test_url: string | null; live_url: string | null };
 type TimelineRow = {
   id: string; customer_id: string; occurred_on: string; kind: string; title: string; amount_cents: number | null; file_id: string | null;
   customer_visible: boolean; created_at: string; note?: string; source?: string; created_by?: string | null;
@@ -52,8 +54,8 @@ async function loadForAdmin(): Promise<ContractsState> {
   // Passwords open with the Schlüsselbund's app code (unlocked in this browser and sign-in), as in the Schlüsselbund.
   const gate = await loadKeychainGate();
   const lock = gate?.lock ?? { status: "locked", attemptsLeft: 0, recoveryLeft: 0 } as const;
-  const [customers, packages, timeline, profiles, logos, domainMail, serviceQuota, archive, freelancerShares] = await Promise.all([
-    db.from("hub_customers").select("id, company, customer_number, kind").order("company").returns<CustomerRow[]>(),
+  const [customers, packages, timeline, profiles, logos, domainMail, serviceQuota, archive, freelancerShares, projects] = await Promise.all([
+    db.from("hub_customers").select("id, company, customer_number, kind, organization_id").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
     db.from("hub_customer_timeline").select(ADMIN_TIMELINE_COLUMNS).order("occurred_on", { ascending: false }).order("created_at", { ascending: false }).limit(3000).returns<TimelineRow[]>(),
     db.from("hub_profiles").select("user_id, first_name, last_name").returns<{ user_id: string; first_name: string; last_name: string }[]>(),
@@ -62,6 +64,8 @@ async function loadForAdmin(): Promise<ContractsState> {
     loadServiceQuotaForAdmin(db).catch(quotaFailed),
     readArchive(db),
     loadFreelancerSharesForAdmin(db).catch(() => ({ ready: false, assignments: [], error: "Die Freigaben für Freelancer konnten gerade nicht geladen werden." })),
+    // The test domain lives on the project (Projekte, Studio, NoteTree Business); without it the tab stays quiet.
+    db.from("customer_projects").select("id, organization_id, display_name, test_url, live_url").neq("status", "archived").order("created_at").returns<ProjectRow[]>(),
   ]);
   if (customers.error) return empty("admin", "Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   if (timeline.error && !isMissingContractTables(timeline.error)) return empty("admin", "Pakete und Verlauf konnten gerade nicht geladen werden. Bitte versuche es erneut.");
@@ -84,7 +88,17 @@ async function loadForAdmin(): Promise<ContractsState> {
     serviceQuota: { ...serviceQuota, customers: shown(serviceQuota.customers), switchedBy: serviceQuota.switchedBy ? nameOf(serviceQuota.switchedBy) : null },
     // Archived customers and archived freelancers stay out of the tab „Freelancer“ as well.
     freelancerShares: { ...freelancerShares, assignments: freelancerShares.assignments.filter((item) => !archive.customerIds.has(item.customerId) && !archive.customerIds.has(item.freelancerId)) },
+    projectSites: projectSitesOf(customers.data ?? [], projects.error ? [] : projects.data ?? []),
   };
+}
+
+/** Each project with its hub customer (over the Service organization); projects of no hub customer stay out. */
+function projectSitesOf(customers: readonly CustomerRow[], projects: readonly ProjectRow[]): ProjectSite[] {
+  const customerOf = new Map(customers.flatMap((row) => row.organization_id ? [[row.organization_id, row.id] as const] : []));
+  return projects.flatMap((row) => {
+    const customerId = customerOf.get(row.organization_id);
+    return customerId ? [{ customerId, projectId: row.id, projectName: row.display_name, liveUrl: row.live_url || null, testUrl: row.test_url || null }] : [];
+  });
 }
 
 /** The login's own customers with their packages and the released entries, read with its own session (RLS). */
