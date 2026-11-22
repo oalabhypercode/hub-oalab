@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   audienceChoices, audienceLabel, cleanIcon, cleanNoteTitle, descendantsOf, fitAudience, gains, isSafeHref, meet, narrowedBelow, newPageAudience, noteText,
-  pathOf, statusTone, validateNoteDoc, viewerEdits, viewerReads, within,
+  pathOf, plainDoc, statusTone, validateNoteDoc, viewerEdits, viewerReads, within,
 } from "../lib/hub-notes/rules.ts";
 import { EMOJIS, emojiCode, emojiSrc, searchEmojis, stripVariation } from "../lib/hub-notes/emoji.ts";
 import { GALLERY_COVERS, nextCoverPosition } from "../lib/hub-notes/covers.ts";
@@ -325,4 +325,39 @@ test("history, „bearbeitet gerade“ and the search read with the person's ses
   const shell = await source("components/hub/app-shell.tsx");
   assert.match(shell, /searchNotes\(\{ query: term \}\)/);
   assert.doesNotMatch(shell, /from "@\/lib\/hub-notes\/fixtures"/, "the preview's examples load only in the preview");
+});
+
+test("a page goes to the server as plain JSON: the editor's attributes have no prototype, which a Server Action does not carry", async () => {
+  // ProseMirror builds the attributes of blocks and marks with Object.create(null); React then sends "$T" instead of them.
+  const bare = (values) => Object.assign(Object.create(null), values);
+  const editorDoc = { type: "doc", content: [
+    { type: "heading", attrs: bare({ level: 2 }), content: [{ type: "text", text: "Ziele", marks: [{ type: "link", attrs: bare({ href: "https://www.figma.com/" }) }] }] },
+    { type: "noteLinkCard", attrs: bare({ href: "https://github.com/", title: "GitHub" }) },
+  ] };
+  const plain = plainDoc(editorDoc);
+  const prototypes = [];
+  const walk = (value) => {
+    if (!value || typeof value !== "object") return;
+    prototypes.push(Object.getPrototypeOf(value));
+    for (const child of Object.values(value)) walk(child);
+  };
+  walk(plain);
+  assert.ok(prototypes.every((proto) => proto === Object.prototype || proto === Array.prototype), "every object and array is a plain one");
+  assert.deepEqual(plain, JSON.parse(JSON.stringify(editorDoc)));
+  const checked = validateNoteDoc(plain);
+  assert.ok(checked.ok);
+  assert.deepEqual(checked.doc.content[0].attrs, { level: 2 });
+  assert.equal(checked.doc.content[0].content[0].marks[0].attrs.href, "https://www.figma.com/");
+  assert.equal(checked.doc.content[1].attrs.href, "https://github.com/");
+
+  // What arrives instead of an object (the placeholder) is refused, never dropped: no heading loses its level unnoticed.
+  const placeholder = { type: "doc", content: [{ type: "heading", attrs: "$T", content: [{ type: "text", text: "Ziele" }] }] };
+  assert.deepEqual(validateNoteDoc(placeholder), { ok: false, error: "Ein Block im Dokument ist unvollständig." });
+  const proxy = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Link", marks: [{ type: "link", attrs: () => undefined }] }] }] };
+  assert.equal(validateNoteDoc(proxy).ok, false);
+  assert.ok(validateNoteDoc({ type: "doc", content: [{ type: "paragraph", attrs: null }] }).ok, "missing attributes stay fine");
+
+  const notes = await source("components/hub/screens/notes.tsx");
+  assert.match(notes, /saveNotePage\(\{ id: current\.id, version: versionRef\.current, patch: patch\.content \? \{ \.\.\.patch, content: plainDoc\(patch\.content\) \} : patch \}\)/);
+  assert.equal((notes.match(/saveNotePage\(/g) ?? []).length, 1, "the only way a page is saved");
 });

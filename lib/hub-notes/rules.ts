@@ -281,6 +281,9 @@ export function validateNoteDoc(input: unknown): ValidDoc {
   const refs = new Map<string, NoteRef>();
 
   const cleanAttrs = (type: string, spec: Record<string, AttrCheck>, attrs: unknown) => {
+    // Attributes that are not an object (the placeholder a Server Action sends for an object without a prototype) are
+    // refused, not dropped: a heading would lose its level and a link its address without anybody noticing.
+    if (attrs !== undefined && attrs !== null && typeof attrs !== "object") error = "Ein Block im Dokument ist unvollständig.";
     const source = attrs && typeof attrs === "object" ? attrs as Record<string, unknown> : {};
     const out: Record<string, unknown> = {};
     for (const [key, check] of Object.entries(spec)) {
@@ -363,6 +366,15 @@ export function noteText(doc: NoteDoc): string {
 
 /** A page without content: one empty paragraph. */
 export const emptyNoteDoc = (): NoteDoc => ({ type: "doc", content: [{ type: "paragraph" }] });
+
+/**
+ * The document as plain JSON for a Server Action. ProseMirror keeps the attributes of blocks and marks in objects
+ * without a prototype, which Server Actions do not carry: React sends a placeholder instead, and the server never saw
+ * a heading's level, a link's address or a card (found live on 22.11.2026).
+ */
+export function plainDoc<T>(doc: T): T {
+  return JSON.parse(JSON.stringify(doc)) as T;
+}
 
 /** Whether a document holds anything beyond empty paragraphs (an empty new page offers its templates, step 2). */
 export const isEmptyDoc = (doc: NoteDoc) => !(doc.content ?? []).some((node) => node.type !== "paragraph" || (node.content ?? []).length > 0);

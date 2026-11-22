@@ -14,7 +14,7 @@ import {
   setNoteAudience, setNoteTaskDone, taskMentions, trashNotePage,
 } from "@/lib/hub-notes/actions";
 import { notesFixtures, previewAppointmentOptions, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
-import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads } from "@/lib/hub-notes/rules";
+import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads } from "@/lib/hub-notes/rules";
 import { noteTemplate } from "@/lib/hub-notes/templates";
 import { wallTimeToUtc } from "@/lib/hub-calendar/rules";
 import { DEMO_AS_OF } from "@/lib/hub-data";
@@ -148,7 +148,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     }
     setStatus("saving");
     const run = (async () => {
-      const result = await saveNotePage({ id: current.id, version: versionRef.current, patch });
+      // The editor's attributes have no prototype, which a Server Action does not carry: the page goes as plain JSON.
+      const result = await saveNotePage({ id: current.id, version: versionRef.current, patch: patch.content ? { ...patch, content: plainDoc(patch.content) } : patch });
       if (result.ok) {
         versionRef.current = result.data.version;
         setPages((list) => list.map((item) => item.id === current.id ? { ...item, ...metaPatch(patch), version: result.data.version, updatedAt: result.data.updatedAt, updatedBy: result.data.updatedBy } : item));
