@@ -94,3 +94,18 @@ test("changes refresh the browser only: nothing purges the server's prerendered 
     }
   }
 });
+
+test("Notizen hang under Projekte for everybody: sidebar, Mehr and the detail route (22.11.2026)", async () => {
+  const routes = await source("lib/hub-routes.ts");
+  assert.match(routes, /\{ section: "projects", detail: "notes" \}/);
+  const sidebar = await source("components/hub/glass-sidebar.tsx");
+  assert.match(sidebar, /const onNotes = \/\\\/projects\\\/notes\\\/\?\$\/\.test\(pathname\);/);
+  assert.match(sidebar, /const parent = id === "projects" && \(onTasks \|\| onCalendar \|\| onNotes\);/);
+  assert.match(sidebar, /href=\{`\$\{hubHref\(preview, "projects"\)\}\/notes`\}[^\n]*\{\.\.\.navTip\("Notizen", "Unter Projekte"\)\}/);
+  assert.match(sidebar, /<span data-tip-label="">Notizen<\/span>/, "collapsed, the entry names itself like Aufgaben and Kalender");
+  // Phones reach them through „Mehr“; the tab bar keeps its five entries.
+  assert.match(await source("components/hub/screens/workspace.tsx"), /key="notes" compact href=\{`\$\{hubHref\(preview, "projects"\)\}\/notes`\}/);
+  const page = await source("app/dashboard/[section]/[detail]/page.tsx");
+  assert.match(page, /notes \? loadNotes\(one\(query\.customer\), one\(query\.page\)\) : undefined/);
+  assert.match(await source("components/hub/hub-view.tsx"), /detail === "notes" \? <NotesScreen area=\{notes\} preview=\{preview\} \/>/);
+});

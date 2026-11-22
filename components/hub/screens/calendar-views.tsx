@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarOff, ChevronDown, Flag, Hand, Plus, TriangleAlert, Video } from "lucide-react";
+import { CalendarOff, ChevronDown, Flag, Hand, NotebookPen, Plus, TriangleAlert, Video } from "lucide-react";
 import {
   availableSpans, clockOf, dayOf, dayOff, exceptionsOn, formatDayLong, formatDayShort, layoutLanes, mergeIntervals, minutesOn, monthOf, monthWeeks, subtractSpans,
   timeOf, weekdayIndex, type Availability, type DaySpan, type Interval,
@@ -9,6 +9,7 @@ import type { HubAppointment } from "@/lib/hub-calendar/types";
 import { STATUS_NAMES } from "@/lib/hub-tasks/rules";
 import { CustomerSign } from "./customer-sign";
 import { TaskGlyph } from "./tasks-parts";
+import type { CalendarNote } from "@/lib/hub-notes/types";
 import type { CalendarGoal, CalendarTask } from "./calendar-store";
 
 /*
@@ -24,7 +25,7 @@ const monthLong = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", month: "lo
 /** An appointment as a view draws it; `faded` when a customer is chosen and it belongs to someone else. */
 export type ViewAppointment = HubAppointment & { faded: boolean };
 export type DayLabel = { text: string; tone: "ok" | "todo" | "bad" | "off" | "" };
-export type OpenTarget = { kind: "appointment"; id: string } | { kind: "task"; id: string } | { kind: "goal"; id: string };
+export type OpenTarget = { kind: "appointment"; id: string } | { kind: "task"; id: string } | { kind: "goal"; id: string } | { kind: "note"; id: string; customerId: string };
 /** A green block while editing the availability: from the weekly plan, or extra time of that one day. */
 export type AvailBlock = { day: string; kind: "week"; from: number; to: number } | { day: string; kind: "extra"; id: string; from: number; to: number };
 
@@ -37,6 +38,10 @@ export type CalendarViewProps = {
   apptsOn: (day: string) => ViewAppointment[];
   tasksOn: (day: string) => CalendarTask[];
   goalsOn: (day: string) => CalendarGoal[];
+  /** Pages of the notes with a date (only those the person sees), all day like the target dates. */
+  notesOn?: (day: string) => CalendarNote[];
+  /** Appointments with a meeting note the person sees carry a small note mark. */
+  hasNote?: (appointmentId: string) => boolean;
   /** Overdue open tasks, shown once on today. */
   overdue: CalendarTask[];
   dayLabel: (day: string) => DayLabel;
@@ -82,12 +87,21 @@ function GoalChip({ goal, today, showCompany, onOpen }: { goal: CalendarGoal; to
   );
 }
 
-function ApptChip({ item, admin, showCompany, onOpen }: { item: ViewAppointment; admin: boolean; showCompany: boolean; onOpen: CalendarViewProps["onOpen"] }) {
+function NoteChip({ note, onOpen }: { note: CalendarNote; onOpen: CalendarViewProps["onOpen"] }) {
+  return (
+    <button type="button" className="cal-chip is-note" data-tip={`Notiz: ${note.title}`} data-tip-sub="Öffnet die Seite in den Notizen" onClick={() => onOpen({ kind: "note", id: note.id, customerId: note.customerId })}>
+      <NotebookPen size={12} aria-hidden="true" /><span className="cal-chip-text">Notiz · {note.title}</span>
+    </button>
+  );
+}
+
+function ApptChip({ item, admin, showCompany, note = false, onOpen }: { item: ViewAppointment; admin: boolean; showCompany: boolean; note?: boolean; onOpen: CalendarViewProps["onOpen"] }) {
   const who = item.customer?.company ?? "Intern";
   return (
     <button type="button" className={`cal-chip is-appt is-${item.status}${item.faded ? " is-faded" : ""}${item.customer ? "" : " is-internal"}`} data-tip={item.title}
-      data-tip-sub={`${timeOf(item.start)}–${timeOf(item.end)} Uhr${admin ? ` · ${who}` : ""}${item.status === "requested" ? " · angefragt" : ""}`} onClick={() => onOpen({ kind: "appointment", id: item.id })}>
+      data-tip-sub={`${timeOf(item.start)}–${timeOf(item.end)} Uhr${admin ? ` · ${who}` : ""}${item.status === "requested" ? " · angefragt" : ""}${note ? " · mit Besprechungsnotiz" : ""}`} onClick={() => onOpen({ kind: "appointment", id: item.id })}>
       <span className="cal-chip-time numeric">{timeOf(item.start)}</span><span className="cal-chip-text">{admin && showCompany && item.customer ? item.customer.company : item.title}</span>
+      {note && <span className="cal-chip-note"><NotebookPen size={11} aria-hidden="true" /></span>}
     </button>
   );
 }
@@ -115,7 +129,7 @@ function hourBounds(days: string[], apptsOn: CalendarViewProps["apptsOn"], avail
 }
 
 export function WeekView(props: CalendarViewProps) {
-  const { days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks, showCompany, tasksInfo, availability, editing, onOpen, onDay, onOverdue, onFree, onAvailBlock, onDayOff } = props;
+  const { days, today, now, admin, apptsOn, tasksOn, goalsOn, notesOn, hasNote, overdue, dayLabel, freeOn, canDragTasks, showCompany, tasksInfo, availability, editing, onOpen, onDay, onOverdue, onFree, onAvailBlock, onDayOff } = props;
   const [from, to] = hourBounds(days, apptsOn, availability, editing);
   const y = (minutes: number) => ((minutes - from) / 60) * HOUR_PX;
   const height = y(to);
@@ -158,6 +172,7 @@ export function WeekView(props: CalendarViewProps) {
             const chips = [
               ...(day === today && overdue.length ? [<OverdueChip key="overdue" tasks={overdue} onOverdue={onOverdue} />] : []),
               ...goals.map((goal) => <GoalChip key={`g-${goal.id}`} goal={goal} today={today} showCompany={showCompany} onOpen={onOpen} />),
+              ...(notesOn?.(day) ?? []).map((note) => <NoteChip key={`n-${note.id}`} note={note} onOpen={onOpen} />),
               ...dayTasks.map((task) => <TaskChip key={`t-${task.id}`} task={task} today={today} draggable={canDragTasks} showCompany={showCompany && single} onOpen={onOpen} />),
             ];
             return (
@@ -244,11 +259,11 @@ export function WeekView(props: CalendarViewProps) {
                   <button key={item.id} type="button"
                     className={`cal-ev is-${item.status}${item.faded ? " is-faded" : ""}${item.customer ? "" : " is-internal"}${past ? " is-past" : ""}${h < 36 ? " is-short" : h < 66 ? " is-compact" : ""}`}
                     style={{ top: top + 1, height: h - 2, left: `calc(${(item.lane / item.lanes) * 100}% + 3px)`, width: `calc(${100 / item.lanes}% - 6px)` }}
-                    data-drag={canDrag ? `appt:${item.id}` : undefined} data-length={Math.round((item.end - item.start) / 60_000)} data-tip={item.title} data-tip-sub={`${meta}${item.status === "requested" ? " · angefragt" : ""}`}
+                    data-drag={canDrag ? `appt:${item.id}` : undefined} data-length={Math.round((item.end - item.start) / 60_000)} data-tip={item.title} data-tip-sub={`${meta}${item.status === "requested" ? " · angefragt" : ""}${hasNote?.(item.id) ? " · mit Besprechungsnotiz" : ""}`}
                     onClick={() => onOpen({ kind: "appointment", id: item.id })}>
                     {h < 36
                       ? <span className="cal-ev-line"><span className="cal-ev-time numeric">{timeOf(item.start)}</span> {item.title}</span>
-                      : <><span className="cal-ev-title">{item.status === "requested" && <span className="cal-ev-tag">Anfrage</span>}{item.title}</span><span className="cal-ev-meta numeric">{meta}</span></>}
+                      : <><span className="cal-ev-title">{item.status === "requested" && <span className="cal-ev-tag">Anfrage</span>}{hasNote?.(item.id) && <NotebookPen className="cal-ev-note" size={12} aria-label="Mit Besprechungsnotiz" />}{item.title}</span><span className="cal-ev-meta numeric">{meta}</span></>}
                     {item.teamsUrl && item.status === "confirmed" && h >= 52 && <span className="cal-ev-teams"><Video size={12} aria-hidden="true" />Teams</span>}
                   </button>
                 );
@@ -264,7 +279,7 @@ export function WeekView(props: CalendarViewProps) {
 
 /* ---------- Month: the classic grid; "+ weitere" opens the day ---------- */
 
-export function MonthView({ days, today, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, canDragTasks, showCompany, availability, onOpen, onDay, onOverdue, month }: CalendarViewProps & { month: string }) {
+export function MonthView({ days, today, admin, apptsOn, tasksOn, goalsOn, notesOn, hasNote, overdue, dayLabel, canDragTasks, showCompany, availability, onOpen, onDay, onOverdue, month }: CalendarViewProps & { month: string }) {
   const weeks = monthWeeks(month);
   return (
     <div className="cal-mo" style={{ "--weeks": weeks.length } as React.CSSProperties}>
@@ -276,8 +291,9 @@ export function MonthView({ days, today, admin, apptsOn, tasksOn, goalsOn, overd
           const chips = [
             ...(day === today && overdue.length ? [<OverdueChip key="overdue" tasks={overdue} onOverdue={onOverdue} />] : []),
             ...goalsOn(day).map((goal) => <GoalChip key={`g-${goal.id}`} goal={goal} today={today} showCompany={showCompany} onOpen={onOpen} />),
+            ...(notesOn?.(day) ?? []).map((note) => <NoteChip key={`n-${note.id}`} note={note} onOpen={onOpen} />),
             ...tasksOn(day).map((task) => <TaskChip key={`t-${task.id}`} task={task} today={today} draggable={canDragTasks} showCompany={false} onOpen={onOpen} />),
-            ...apptsOn(day).map((item) => <ApptChip key={`a-${item.id}`} item={item} admin={admin} showCompany={showCompany} onOpen={onOpen} />),
+            ...apptsOn(day).map((item) => <ApptChip key={`a-${item.id}`} item={item} admin={admin} showCompany={showCompany} note={hasNote?.(item.id)} onOpen={onOpen} />),
           ];
           const open = availableSpans(availability, day).length > 0;
           const absent = admin && Boolean(dayOff(availability, day));
@@ -305,7 +321,7 @@ const statusNames: Record<HubAppointment["status"], string> = { requested: "Anfr
 const statusTones: Record<HubAppointment["status"], string> = { requested: "todo", confirmed: "ok", declined: "bad", cancelled: "off" };
 const taskTones: Record<CalendarTask["status"], string> = { backlog: "off", todo: "info", progress: "ok", review: "todo", done: "off" };
 
-export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, overdue, onOpen, logoOf }: CalendarViewProps & { logoOf: (customerId: string) => Parameters<typeof CustomerSign>[0]["logo"] }) {
+export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, notesOn, hasNote, overdue, onOpen, logoOf }: CalendarViewProps & { logoOf: (customerId: string) => Parameters<typeof CustomerSign>[0]["logo"] }) {
   const columns = admin ? 5 : 4;
   const customerCell = (id: string | null, company: string) => !admin ? null : (
     <td className="cal-ag-cust">{id ? <><CustomerSign customer={{ id, company }} logo={logoOf(id)} size="xs" /><span>{company}</span></> : <span className="cell-none">Intern</span>}</td>
@@ -340,6 +356,15 @@ export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, overdu
           <td className="cal-ag-acts" />
         </tr>
       )),
+      ...(notesOn?.(day) ?? []).map((note) => (
+        <tr key={`n-${note.id}`} className="cal-ag-row" tabIndex={0} onClick={() => onOpen({ kind: "note", id: note.id, customerId: note.customerId })} onKeyDown={(event) => { if (event.key === "Enter") onOpen({ kind: "note", id: note.id, customerId: note.customerId }); }}>
+          <td className="cal-ag-time">ganztägig</td>
+          <td className="cal-ag-title"><span className="cell-title"><NotebookPen size={15} className="cal-ag-icon" aria-hidden="true" /><span>Notiz: {note.title}</span></span></td>
+          {customerCell(note.customerId, "")}
+          <td><span className="chat-pill tone-info">Notiz</span></td>
+          <td className="cal-ag-acts" />
+        </tr>
+      )),
       ...tasksOn(day).map((task) => taskRow(task, false)),
       ...apptsOn(day).filter((item) => !item.faded).map((item) => (
         <tr key={`a-${item.id}`} className={`cal-ag-row${item.status === "requested" ? " has-veil veil-open" : ""}${item.status === "cancelled" || item.status === "declined" ? " is-done" : ""}`} tabIndex={0} onClick={() => onOpen({ kind: "appointment", id: item.id })} onKeyDown={(event) => { if (event.key === "Enter") onOpen({ kind: "appointment", id: item.id }); }}>
@@ -347,7 +372,7 @@ export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, overdu
           <td className="cal-ag-title"><span className="cell-title"><span>{item.title}</span></span></td>
           {customerCell(item.customer?.id ?? null, item.customer?.company ?? "")}
           <td><span className={`chat-pill tone-${statusTones[item.status]}`}>{statusNames[item.status]}</span></td>
-          <td className="cal-ag-acts">{item.teamsUrl && item.status === "confirmed" ? <span className="row-action" data-tip="Teams-Meeting"><Video size={15} aria-hidden="true" /></span> : null}</td>
+          <td className="cal-ag-acts">{hasNote?.(item.id) ? <span className="row-action" data-tip="Mit Besprechungsnotiz"><NotebookPen size={15} aria-hidden="true" /></span> : null}{item.teamsUrl && item.status === "confirmed" ? <span className="row-action" data-tip="Teams-Meeting"><Video size={15} aria-hidden="true" /></span> : null}</td>
         </tr>
       )),
     ];

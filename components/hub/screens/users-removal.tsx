@@ -30,6 +30,7 @@ export function removalLines(preview: CustomerRemovalPreview) {
     preview.domains ? count(preview.domains, "Domain", "Domains") : "",
     preview.accesses ? count(preview.accesses, "Eintrag der Zugangsdaten", "Einträge der Zugangsdaten") : "",
     preview.messages ? count(preview.messages, "Chat-Nachricht", "Chat-Nachrichten") : "",
+    preview.notes ? count(preview.notes, "Notizseite", "Notizseiten") : "",
   ].filter(Boolean);
   const kept = [
     preview.sharedFiles ? `${count(preview.sharedFiles, "geteilte Datei", "geteilte Dateien")} bei den anderen Kunden` : "",

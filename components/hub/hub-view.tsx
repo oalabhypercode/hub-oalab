@@ -32,6 +32,9 @@ import { AssistantLogScreen } from "./screens/assistant-log";
 import { ContractsScreen } from "./screens/contracts";
 import { KeychainScreen } from "./screens/keychain";
 import { TasksScreen } from "./screens/tasks";
+import { NotesScreen } from "./screens/notes";
+import { ProjectNotes } from "./screens/notes-links";
+import type { CalendarNotes, NotesArea } from "@/lib/hub-notes/types";
 import type { KeychainState } from "@/lib/hub-keychain/types";
 import type { ProjectDesk } from "@/lib/hub-projects/desk";
 import type { TaskBoardState } from "@/lib/hub-tasks/types";
@@ -87,9 +90,13 @@ type HubViewProps = {
   overviewFacts?: OverviewFacts | null;
   /** Real admins and customers on the Übersicht: this week's appointments and the quota for the widgets. */
   overviewWidgets?: OverviewWidgetsData | null;
+  /** Notizen under Projekte for real logins; the preview shows examples. */
+  notes?: NotesArea;
+  /** The calendar's notes with a date and meeting notes at appointments (step 3 of the notes). */
+  calendarNotes?: CalendarNotes;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts, overviewWidgets }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts, overviewWidgets, notes, calendarNotes }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -120,8 +127,8 @@ export function HubView({ section = "overview", detail, preview = false, email =
     return { ...examples, serviceQuota: quotaFixtures({ admin, customerIds: examples.customers.map((customer) => customer.id) }) };
   }, [contracts, admin, preview, fileState.files]);
   const model = useMemo(() => buildHubModel({ preview, asOf, projects, files, populated, admin, completedSteps }), [preview, asOf, projects, files, populated, admin, completedSteps]);
-  // The task board uses ?project= to pick its board, so the project window stays closed there.
-  const selectedProject = detail === "tasks" ? undefined : projects.find((project) => project.id === searchParams.get("project"));
+  // The task board uses ?project= to pick its board, so the project window stays closed there (and on the notes).
+  const selectedProject = detail === "tasks" || detail === "notes" ? undefined : projects.find((project) => project.id === searchParams.get("project"));
   // Admins open a project on „Projekte“ in the page's own panel; the window stays for customers and every other page.
   // On „Projekte“ the admins' page opens a project in its own panel; without that page (no verified admin) the window stays.
   const panelShowsProject = admin && !preview && section === "projects" && !detail && Boolean(projectDesk && !projectDesk.error);
@@ -137,6 +144,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
     <>
       {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} />
         : detail === "tasks" ? <TasksScreen board={taskBoard} preview={preview} asOf={asOf} />
+        : detail === "notes" ? <NotesScreen area={notes} preview={preview} />
         : detail && isMetricId(detail) ? <MetricDetailScreen {...screen} metricId={detail} />
         : section === "overview" ? <OverviewScreen {...screen} userKey={userKey} facts={preview ? undefined : overviewFacts} widgets={preview ? undefined : overviewWidgets} board={preview ? undefined : taskBoard} />
         : section === "insights" ? <InsightsScreen {...screen} insights={preview ? undefined : insights} board={preview ? undefined : taskBoard} cards={preview ? undefined : freelancerCustomers} />
@@ -146,7 +154,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "contracts" ? <ContractsScreen {...screen} state={contractState} />
         : section === "customers" ? <FreelancerCustomersScreen {...screen} state={freelancerCustomers} board={taskBoard} />
         : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />
-        : section === "calendar" ? <CalendarScreen {...screen} taskBoard={taskBoard} />
+        : section === "calendar" ? <CalendarScreen {...screen} taskBoard={taskBoard} calendarNotes={calendarNotes} />
         : section === "users" && userManagement ? <UserManagementScreen state={userManagement} />
         : section === "ai-log" && assistantLog ? <AssistantLogScreen state={assistantLog} />
         : section === "keychain" && keychain ? <KeychainScreen state={keychain} />
@@ -239,6 +247,7 @@ function ProjectModal({ project, preview, admin, onClose }: { project: Project; 
       ) : null}
       {/* The assistant keeps this project as its reference, so "dieses Projekt" works. As a window it opens on top of
           this dialog; docked it sits next to the page, and this dialog closes, because a dialog would block the sidebar. */}
+      {tasks && <ProjectNotes projectId={project.id} customerId={project.customerId} preview={preview} canCreate={admin} />}
       {tasks && manageUsers && (
         <button type="button" className="sheet-button project-ask" onClick={() => { askAboutProject({ id: project.id, name: project.category || project.name }); if (assistantDocked) onClose(); }}><Sparkles size={17} aria-hidden="true" /> Assistent zu diesem Projekt fragen</button>
       )}

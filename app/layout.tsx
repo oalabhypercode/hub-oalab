@@ -16,6 +16,7 @@ import "./loader.css";
 import "./motion.css";
 import "./tasks.css";
 import "./calendar.css";
+import "./notes.css";
 import "./web-app.css";
 import "./overview.css";
 

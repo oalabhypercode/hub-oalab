@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, Building2, ChevronLeft, KeyRound, LogOut, Palette, ScrollText, Search, Settings, SquareKanban, UserCog, UserRound } from "lucide-react";
+import { Bot, Building2, ChevronLeft, KeyRound, LogOut, NotebookPen, Palette, ScrollText, Search, Settings, SquareKanban, UserCog, UserRound } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { categories, categoriesFor, categoryLabel, projectsHref, type CategoryId } from "@/lib/categories";
 import { appearanceHref, hubHref, sectionLabel, sectionLabels, type HubSection } from "@/lib/hub-data";
@@ -65,7 +65,10 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
   const [menuOpen, setMenuOpen] = useState(false);
   // „Aufgaben“ (the task board) and „Kalender“ hang under Projekte; on them, Projekte shows as their parent. Freelancers
   // reach their board through Projekte as well (16.11.2026), and since 18.11.2026 their calendar hangs there too.
-  const onTasks = /\/projects\/tasks\/?$/.test(usePathname() ?? "");
+  const pathname = usePathname() ?? "";
+  const onTasks = /\/projects\/tasks\/?$/.test(pathname);
+  // „Notizen“ (22.11.2026) hangs under Projekte as well, for everybody.
+  const onNotes = /\/projects\/notes\/?$/.test(pathname);
   const onCalendar = section === "calendar";
   const CalendarIcon = categories.calendar.icon;
   const corner = useRef<HTMLDivElement>(null);
@@ -183,7 +186,7 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
         {categoriesFor(account.freelancer).filter((id) => id !== "calendar").map((id) => {
           const Icon = categories[id].icon;
           const props = item(categories[id].section);
-          const parent = id === "projects" && (onTasks || onCalendar);
+          const parent = id === "projects" && (onTasks || onCalendar || onNotes);
           const href = id === "projects" ? projectsHref(props.href, account.freelancer) : props.href;
           const counted = id === "messages" ? (counts.messages ? `${counts.messages} ungelesen` : undefined) : counts[id] !== undefined && countNouns[id] ? `${counts[id]} ${countNouns[id]}` : undefined;
           const link = <Link key={id} {...props} href={href} className={parent ? "sidebar-item is-parent" : props.className} aria-current={parent ? undefined : props["aria-current"]} data-tip-sub={counted}><Icon size={19} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span data-tip-label="">{categoryLabel(id, account.admin || account.freelancer)}</span>{id === "messages" ? Boolean(counts.messages) && <span className="sidebar-count sidebar-count-alert" data-tip={`${counts.messages} ungelesen`}><span className="visually-hidden">Ungelesen: </span>{counts.messages}</span> : counts[id] !== undefined && <span className="sidebar-count">{counts[id]}</span>}</Link>;
@@ -209,6 +212,9 @@ export function GlassSidebar({ onSearch, preview, section, counts, name, account
               )}
               <Link href={hubHref(preview, "calendar")} className={`sidebar-item sidebar-sub${onCalendar ? " is-active" : ""}`} aria-current={onCalendar ? "page" : undefined} {...navTip(categories.calendar.name, "Unter Projekte")}>
                 <span className="sidebar-line" aria-hidden="true" /><CalendarIcon size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span data-tip-label="">{categories.calendar.name}</span>
+              </Link>
+              <Link href={`${hubHref(preview, "projects")}/notes`} className={`sidebar-item sidebar-sub${onNotes ? " is-active" : ""}`} aria-current={onNotes ? "page" : undefined} {...navTip("Notizen", "Unter Projekte")}>
+                <span className="sidebar-line" aria-hidden="true" /><NotebookPen size={17} strokeWidth={2.2} className="sidebar-accent-icon" aria-hidden="true" /><span data-tip-label="">Notizen</span>
               </Link>
             </Fragment>
           );

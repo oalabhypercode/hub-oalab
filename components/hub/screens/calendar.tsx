@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays, CalendarOff, CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Inbox, Layers, MousePointerClick, Paintbrush, Plus, Repeat, Search, SlidersHorizontal,
   SquareKanban, Trash2, type LucideIcon,
@@ -17,6 +17,8 @@ import {
 import type { HubAppointment } from "@/lib/hub-calendar/types";
 import { hubHref } from "@/lib/hub-data";
 import { taskFixtures } from "@/lib/hub-tasks/fixtures";
+import { previewCalendarNotes } from "@/lib/hub-notes/fixtures";
+import { NO_CALENDAR_NOTES, type CalendarNotes } from "@/lib/hub-notes/types";
 import type { TaskBoardState } from "@/lib/hub-tasks/types";
 import { useStoredValue } from "@/lib/use-stored-value";
 import { HeaderActions } from "../app-shell";
@@ -31,6 +33,7 @@ import { AvailabilityPanel, type ExceptionPreset } from "./calendar-availability
 import { AppointmentPanel, AskPanel, CustomerAppointmentPanel, GoalPanel, NewTaskPanel, RequestPanel, TaskPanel, type TaskProjectOption } from "./calendar-panels";
 import { boardTasks, projectGoals, projectTasks, useCalendarStore, type CalendarTask } from "./calendar-store";
 import { HOUR_PX, ListView, MonthView, WeekView, type AvailBlock, type CalendarViewProps, type DayLabel, type OpenTarget, type ViewAppointment } from "./calendar-views";
+import { MeetingNote } from "./notes-links";
 import type { ScreenProps } from "./types";
 
 /*
@@ -237,7 +240,7 @@ function useAvailabilityPaint(root: React.RefObject<HTMLElement | null>, enabled
   }, [root, enabled]);
 }
 
-export function CalendarScreen({ calendar, projects, preview, freelancer, fileState, asOf, taskBoard }: ScreenProps & { taskBoard?: TaskBoardState }) {
+export function CalendarScreen({ calendar, projects, preview, freelancer, fileState, asOf, taskBoard, calendarNotes }: ScreenProps & { taskBoard?: TaskBoardState; calendarNotes?: CalendarNotes }) {
   const admin = calendar.canManage;
   // Admins and freelancers read the tasks from the task board (freelancers only their projects, the database decides);
   // customers their released tasks from their projects.
@@ -248,6 +251,9 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   // Appointments made elsewhere meanwhile (a colleague, a customer's request, Claude) show when the page is opened again.
   useRefreshOnReturn(store.live);
   const goals = useMemo(() => projectGoals(projects), [projects]);
+  // Pages of the notes with a date and the meeting notes at appointments (only what the person sees, step 3).
+  const notes = useMemo(() => preview ? previewCalendarNotes(admin ? "admin" : freelancer ? "freelancer" : "customer") : calendarNotes ?? NO_CALENDAR_NOTES, [preview, admin, freelancer, calendarNotes]);
+  const router = useRouter();
   const logos = useMemo(() => new Map(fileState.customers.flatMap((customer) => customer.logo ? [[customer.id, customer.logo] as const] : [])), [fileState.customers]);
   const range = useMemo(() => calendarWindow(today), [today]);
 
@@ -264,6 +270,9 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const [paneOpen, setPaneOpen] = useState(() => Boolean(params.get("customer")));
   const [panel, setPanel] = useState<Panel | null>(() => linked ? { kind: "appointment", id: linked.id } : null);
   const [storedLayers, setStoredLayers] = useStoredValue("oalab-calendar-layers", DEFAULT_LAYERS);
+  // Notes with a date have their own switch, on unless someone turned it off (older stored layers know nothing of them).
+  const [storedNotes, setStoredNotes] = useStoredValue("oalab-calendar-notes", "on");
+  const notesShown = storedNotes !== "off";
   const layers = useMemo(() => new Set(storedLayers.split(",").filter(Boolean) as Layer[]), [storedLayers]);
   const on = useCallback((layer: Layer) => layers.has(layer), [layers]);
   const [listQuery, setListQuery] = useState("");
@@ -308,6 +317,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     .sort(byStart), [store.appointments, admin, selected, on]);
   const tasksOn = useCallback((date: string) => on("tasks") ? tasks.filter((task) => task.dueOn === date && inScope(task.customerId) && (task.status !== "done" || (admin && on("done")))).sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || b.number - a.number) : [], [tasks, inScope, admin, on]);
   const goalsOn = useCallback((date: string) => on("goals") ? goals.filter((goal) => goal.day === date && inScope(goal.customerId)) : [], [goals, inScope, on]);
+  const notesOn = useCallback((date: string) => notesShown ? notes.dated.filter((note) => note.day === date && inScope(note.customerId)) : [], [notes, inScope, notesShown]);
+  const hasNote = useCallback((appointmentId: string) => Boolean(notes.byAppointment[appointmentId]), [notes]);
   const overdue = useMemo(() => on("tasks") ? tasks.filter((task) => task.dueOn && task.dueOn < today && task.status !== "done" && inScope(task.customerId)) : [], [tasks, today, inScope, on]);
   // Customers and freelancers (since 18.11.2026) request inside oalab's availability, after the lead time, with the
   // buffer around booked appointments.
@@ -397,7 +408,12 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   useAvailabilityPaint(root, admin && editing && (view === "week" || view === "day"), onPaint);
 
   /* ---------- Opening things ---------- */
-  const open = (target: OpenTarget) => { setFloat(null); setNotice(""); setPanel(target.kind === "appointment" ? { kind: "appointment", id: target.id } : target.kind === "task" ? { kind: "task", id: target.id } : { kind: "goal", id: target.id }); };
+  const open = (target: OpenTarget) => {
+    setFloat(null);
+    setNotice("");
+    if (target.kind === "note") { router.push(`${hubHref(preview, "projects")}/notes?customer=${encodeURIComponent(target.customerId)}&page=${encodeURIComponent(target.id)}`); return; }
+    setPanel(target.kind === "appointment" ? { kind: "appointment", id: target.id } : target.kind === "task" ? { kind: "task", id: target.id } : { kind: "goal", id: target.id });
+  };
   // A new appointment starts at the first free hour of the day inside the availability, else at ten.
   const firstStart = (date: string) => {
     const free = adminFree(availability, date, store.busy, now).find((interval) => interval.end - interval.start >= 60 * MINUTE);
@@ -486,7 +502,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const taskProjects: TaskProjectOption[] = (board?.projects ?? []).map((project) => ({ id: project.id, name: project.name, company: project.company, done: project.status === "complete" }));
 
   const viewProps: CalendarViewProps = {
-    days, today, now, admin, apptsOn, tasksOn, goalsOn, overdue, dayLabel, freeOn, canDragTasks: store.canEditTasks,
+    days, today, now, admin, apptsOn, tasksOn, goalsOn, notesOn, hasNote, overdue, dayLabel, freeOn, canDragTasks: store.canEditTasks,
     showCompany: admin && selected === null, tasksInfo: admin ? tasksInfo.button : undefined,
     availability, editing: admin && editing,
     onOpen: open,
@@ -502,7 +518,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const title = view === "month" ? formatMonth(monthOf(day)) : view === "day" ? formatDayLong(day) : view === "week" ? weekTitle(day) : `${formatDayShort(days[0])} – ${formatDayShort(days[days.length - 1])}`;
   const titleSub = view === "week" || view === "day" ? `KW ${isoWeek(day)}` : view === "list" ? `${LIST_DAYS / 7} Wochen` : "";
   const viewOptions = (Object.keys(VIEW_NAMES) as CalendarView[]).filter((id) => admin || id !== "day").map((id) => ({ id, label: VIEW_NAMES[id], name: VIEW_NAMES[id] }));
-  const changedLayers = LAYERS.filter((layer) => admin || !layer.admin).filter((layer) => DEFAULT_LAYERS.split(",").includes(layer.id) !== on(layer.id)).length;
+  const changedLayers = LAYERS.filter((layer) => admin || !layer.admin).filter((layer) => DEFAULT_LAYERS.split(",").includes(layer.id) !== on(layer.id)).length + (notesShown ? 0 : 1);
   const toggleLayer = (layer: Layer) => { const next = new Set(layers); if (next.has(layer)) next.delete(layer); else next.add(layer); setStoredLayers([...next].join(",")); };
 
   const toolbar = (
@@ -521,6 +537,9 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
               {layer.label}<Check className="hub-option-check" size={15} aria-hidden="true" />
             </button>
           ))}
+          <button type="button" role="menuitemcheckbox" aria-checked={notesShown} className="sheet-choice" onClick={() => setStoredNotes(notesShown ? "off" : "on")}>
+            Notizen mit Datum<Check className="hub-option-check" size={15} aria-hidden="true" />
+          </button>
         </div>
       </ToolbarMenu>
       <SegmentedControl label="Ansicht" value={view} onChange={(next: CalendarView) => { if (next === "month" || next === "list") setEditing(false); setView(next); }} options={viewOptions} />
@@ -698,8 +717,10 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
         ? panelAppointment.status === "requested"
           ? <RequestPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish} onOpenTask={(id) => setPanel({ kind: "task", id })}
             related={tasks.filter((task) => task.customerId && task.customerId === panelAppointment.customer?.id && task.dueOn && task.status !== "done" && Math.abs(Date.parse(`${task.dueOn}T00:00:00Z`) - Date.parse(`${dayOf(panelAppointment.start)}T00:00:00Z`)) <= 3 * 86_400_000)} />
-          : <AppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish} />
-        : <CustomerAppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} canWithdraw onClose={close} onDone={finish} />
+          : <AppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish}
+            extra={panelAppointment.customer && panelAppointment.customer.kind !== "freelancer" ? <MeetingNote appointmentId={panelAppointment.id} note={notes.byAppointment[panelAppointment.id] ?? null} canCreate preview={preview} /> : null} />
+        : <CustomerAppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} canWithdraw onClose={close} onDone={finish}
+          extra={<MeetingNote appointmentId={panelAppointment.id} note={notes.byAppointment[panelAppointment.id] ?? null} canCreate={false} preview={preview} />} />
     : panel.kind === "new" ? <AppointmentPanel key={`new-${panel.day}-${panel.start}`} store={store} initial={panel} onClose={close} onDone={finish} />
     : panel.kind === "task" && panelTask
       ? <TaskPanel key={panelTask.id} store={store} task={panelTask} preview={preview} freelancer={freelancer} confirmHref={confirmHref} onClose={close} onDone={finish} onOpenAppointment={(id) => setPanel({ kind: "appointment", id })}

@@ -203,6 +203,23 @@ test("XL only narrows the gaps on desktops, Standard keeps its paddings beside t
   assert.match(css, /\n\.am \{ height: calc\(100dvh - 148px\);/);
 });
 
+test("Schriftgröße der Notizen: Mittel unless chosen, per device, set on <html> before the first paint (22.11.2026)", () => {
+  assert.equal(defaultAppearance.notesTextSize, "medium");
+  // An appearance stored before the notes existed means „Mittel“.
+  assert.equal(normalizeAppearance({ pageWidth: "xl" }).notesTextSize, "medium");
+  assert.equal(normalizeAppearance({ notesTextSize: "large" }).notesTextSize, "large");
+  assert.equal(normalizeAppearance({ notesTextSize: "huge" }).notesTextSize, "medium");
+  assert.equal(resolveAppearance({ notesTextSize: "small" }, backgroundPresets, false).notesText, "small");
+  assert.equal(resolveAppearance(null, backgroundPresets, false).notesText, "medium");
+  const root = { style: { setProperty() {} }, dataset: {} };
+  vm.runInNewContext(appearanceInlineScript(), {
+    localStorage: { getItem: () => JSON.stringify({ notesTextSize: "large" }) },
+    window: { matchMedia: () => ({ matches: false }) },
+    document: { documentElement: root },
+  });
+  assert.equal(root.dataset.notesText, "large");
+});
+
 test("the work area uses the whole width beside the sidebar: no page stops at 1040, 1240 or 1720 px (22.11.2026)", async () => {
   const css = await source("app/glass.css");
   assert.match(css, /\n\.hub-content \{ width: 100%; margin: 0 auto; \}/);
@@ -242,7 +259,7 @@ test("Sidebar: a handle on its edge and ⌘ . fold it, collapsed entries name th
   assert.match(sidebar, /update\(\{ sidebar: collapsed \? "expanded" : "collapsed" \}\)/);
   assert.match(sidebar, /event\.key !== "\."/);
   assert.match(sidebar, /"data-tip-compact": label,\n {2}"data-tip-side": "right",/);
-  assert.equal((sidebar.match(/<span className="sidebar-line" aria-hidden="true" \/>/g) ?? []).length, 2, "Aufgaben and Kalender hang on a line");
+  assert.equal((sidebar.match(/<span className="sidebar-line" aria-hidden="true" \/>/g) ?? []).length, 3, "Aufgaben, Kalender and Notizen hang on a line");
   const tooltip = await source("components/hub/tooltip.tsx");
   assert.match(tooltip, /element\.dataset\.tipSide === "right"/);
   assert.match(tooltip, /element\.dataset\.tipAlways === undefined/);

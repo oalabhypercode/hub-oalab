@@ -11,6 +11,7 @@ import { useInfo } from "../info-box";
 import { Select, SuggestInput } from "../select";
 import { AssetPanel } from "./asset-panel";
 import { Avatar, CompanyMark, LabelPill, PriorityIcon, RoleTag, TaskGlyph } from "./tasks-parts";
+import { NoteMentions } from "./notes-links";
 
 const moment = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const dayLong = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "long", year: "numeric" });
@@ -392,6 +393,8 @@ export function TaskPanel({ task, project, people, assignees, knownLabels, today
           </div>
         </section>
       )}
+
+      <NoteMentions taskId={task.id} preview={preview} />
 
       <section className="um-sec">
         <div className="um-sec-head"><h3><MessageSquare size={15} aria-hidden="true" />Verlauf und Kommentare</h3></div>
