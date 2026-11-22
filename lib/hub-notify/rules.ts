@@ -388,8 +388,12 @@ export function taskAudience(input: { before: TaskSight | null; after: TaskSight
 /** Where a task notice leads: the card in the board (team, freelancers) or the project (customers). */
 export const taskBoardHref = (projectId: string, taskNumber: number) => `/dashboard/projects/tasks?project=${projectId}&task=${taskNumber}`;
 
-/** The start of every line of a card: "Website · #12". */
-export const taskNoticePrefix = (project: string, taskNumber: number) => `${oneLine(project)} · #${taskNumber}`;
+/**
+ * The start of every line of a card: "Website · #12". The team reads the customer first ("Bäckerei Sonnenschein ·
+ * Website · #12", bell V3 of 22.11.2026), since many customers have a project called „Website“.
+ */
+export const taskNoticePrefix = (project: string, taskNumber: number, company = "") =>
+  [...[company, project].map(oneLine).filter(Boolean), `#${taskNumber}`].join(" · ");
 
 export type TaskNoticeDraft = { kind: TaskNoticeKind; taskTitle: string; prefix: string; parts: string[]; href: string };
 
