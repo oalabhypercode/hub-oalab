@@ -74,15 +74,6 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
-    number: 30,
-    date: "2026-11-23",
-    title: "Aufgeräumte Bilder in Notizen",
-    summary: "Vorschaubilder von Linkkarten und hochgeladene Titelbilder der Notizen bleiben nicht mehr im Speicher liegen, wenn keine Seite sie mehr braucht. Der Hub entfernt ein solches Bild, sobald weder eine Seite des Kunden (auch im Papierkorb) noch eine Fassung im Verlauf es nennt und es älter als einen Tag ist: gleich nach „Endgültig löschen“ und nach den 30 Tagen im Papierkorb, sonst bei der regelmäßigen Wartung. Das betrifft vor allem Linkkarten, die eingefügt und vor dem Speichern wieder entfernt wurden, und Bilder aus Fassungen, die nach 90 Tagen aus dem Verlauf fallen. „Diese Fassung wiederherstellen“ findet sein Bild weiterhin. Beim endgültigen Löschen verschwindet außerdem nicht mehr das Bild einer Linkkarte, die auf eine andere Seite kopiert wurde.",
-    changes: [
-      { kind: "fixed", area: "projects", place: "Projekte › Notizen", title: "Ungenutzte Bilder werden entfernt", text: "Vorschaubilder von Linkkarten und hochgeladene Titelbilder, die weder eine Seite noch eine Fassung im Verlauf mehr nennt, entfernt der Hub jetzt nach einem Tag. „Diese Fassung wiederherstellen“ findet sein Bild weiterhin, und beim endgültigen Löschen behält eine auf eine andere Seite kopierte Linkkarte ihr Bild." },
-    ],
-  },
-  {
     number: 29,
     date: "2026-11-22",
     title: "Notizen unter Projekte, Benachrichtigungen in Spalten, Patch Notes als Tabelle und eine Sidebar zum Einklappen",
@@ -111,6 +102,7 @@ export const patchPackages: PatchPackage[] = [
       { kind: "fixed", area: "projects", place: "Projekte › Notizen › Titelbild", title: "Titelbilder bleiben sichtbar", text: "Titelbilder aus den Dateien oder als eigener Upload zeigten nach dem Neuladen oder beim Wechsel der Seite nur eine ruhige Farbe statt des Bildes. Jetzt erscheint das Bild auf jeder geöffneten Seite, auch nach einer neuen Position.", customers: true, freelancers: true },
       { kind: "fixed", area: "projects", place: "Projekte › Notizen", title: "Linkleiste nur an Links im Text", text: "Fuhr man über eine Linkkarte, einen Termin oder „Im Board“, erschien die Leiste für Links im Text mit Knöpfen, die dort nichts taten, und blieb nach dem Löschen des Blocks stehen. Jetzt erscheint sie nur an Links im Text und verschwindet, sobald sich der Text ändert.", freelancers: true },
       { kind: "fixed", area: "projects", place: "Kalender › Termin und Projektfenster", title: "Notizen-Abschnitte in einer Zeile", text: "Im Terminfenster und im Projektfenster stand das Symbol über der Überschrift „Besprechungsnotiz“ oder „Notizen“ statt daneben. Jetzt stehen beide in einer Zeile, wie im Fenster einer Aufgabe.", customers: true },
+      { kind: "fixed", area: "projects", place: "Projekte › Notizen", title: "Ungenutzte Bilder werden entfernt", text: "Vorschaubilder von Linkkarten und hochgeladene Titelbilder, die weder eine Seite noch eine Fassung im Verlauf mehr nennt, entfernt der Hub jetzt nach einem Tag. „Diese Fassung wiederherstellen“ findet sein Bild weiterhin, und beim endgültigen Löschen behält eine auf eine andere Seite kopierte Linkkarte ihr Bild." },
       { kind: "improved", area: "customers", place: "User Management › Kunde löschen", title: "Notizen beim Löschen eines Kunden", text: "Die Vorschau „was wegfällt“ zählt jetzt auch die Notizseiten eines Kunden. Beim endgültigen Löschen gehen seine Notizen mit, samt hochgeladener Titelbilder und Vorschaubilder." },
       { kind: "improved", area: "messages", place: "Glocke", title: "Benachrichtigungen in Spalten", text: "In der Glocke steht jede Benachrichtigung jetzt in drei Spalten: wo etwas passiert ist, etwa Kunde, Projekt und Aufgabe, was sich geändert hat und von wem es kommt. So siehst du auf einen Blick, was wo neu ist.", customers: true, freelancers: true },
       { kind: "improved", area: "messages", place: "Glocke & E-Mail", title: "Firma in Aufgaben-Meldungen", text: "Meldungen zu Aufgaben aus dem Board nennen jetzt auch die Firma des Kunden. So ist in der Glocke und in der E-Mail sofort klar, zu welchem Kunden ein Projekt wie „Website“ gehört.", freelancers: true },
