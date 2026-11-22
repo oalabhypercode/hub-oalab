@@ -84,8 +84,12 @@ const groupings: { id: UserGrouping; label: string; short: string }[] = [
   { id: "none", label: "Keine Gruppen", short: "Keine" },
 ];
 const pendingEmpty = "Keine offenen Registrierungen. Neue Registrierungen von der Login-Seite erscheinen hier zur Freigabe.";
-/** A group heading of the logins by company: what stands after its name and what it offers on the right. */
-type CompanyHead = { label: string; glyph: React.ReactNode; sub?: React.ReactNode; actions?: React.ReactNode };
+/**
+ * A company's row among the logins by company: its name, then its number, its kind (Kunde, Freelancer, Admin), its
+ * logins with their state and its newest sign-in in the table's columns, its actions on the right.
+ */
+type CompanyHead = { label: string; glyph: React.ReactNode; number?: React.ReactNode; kind?: React.ReactNode; logins: React.ReactNode; lastSignInAt?: string | null; actions?: React.ReactNode };
+const loginCount = (count: number) => count === 1 ? "1 Zugang" : `${count} Zugänge`;
 
 /** Names of linked entries for a cell: the first two, then "+n". */
 const namesOf = (ids: string[], entries: ManagedCustomer[]) => {
@@ -253,6 +257,8 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
           {/* By company, a registration's own company has no column: it stands quietly after the name. */}
           {byCompany && !customer && user.role !== "oalab_admin" && user.companyName && <span className="company-hint" data-tip="Angabe aus der Registrierung">{user.companyName}</span>}
         </td>
+        {/* By company, the number belongs to the company's row above; the login leaves its column empty. */}
+        {byCompany && <td className="cell-entry-number" />}
         <td className="cell-role">{user.role ? roleLabels[user.role] : <span className="cell-none">–</span>}</td>
         <td className="cell-mail">
           <span className="mail-cell"><span data-tip={user.email}>{user.email}</span>{waiting && !user.emailConfirmed && <span className="confirm-badge is-open" data-tip="Die E-Mail-Adresse ist noch nicht bestätigt">unbestätigt</span>}</span>
@@ -334,15 +340,23 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
     </TableGroup>
   );
   /**
-   * A group of the logins by company (user 21.11.2026): logo, name, number and kind in the heading, „Zugang“ for one
-   * more login of this company and the gear to its data; oalab offers „Admin“. The other groups keep plain headings.
+   * A company among the logins by company (user 21.11.2026), since 22.11.2026 as a row in the table's columns like the
+   * customers' rows: logo and name, its number, its kind, its logins with their state (as under „Kunden“) and its newest
+   * sign-in; „Zugang“ for one more login of this company and the gear to its data, oalab offers „Admin“. Registrations,
+   * logins without a company and rejected ones have no number or kind.
    */
   const companyGroup = (group: CompanyGroup<ManagedUser, ManagedCustomer>) => {
     const entry = group.kind === "entry" ? group.entry : null;
+    const state = customerLoginState(group.rows);
+    const loginsCell = <span className="status-cell"><StatusGlyph kind={loginStateGlyph[state.state]} />{`${group.rows.length} · ${loginStateLabels[state.state]}`}</span>;
     const head: CompanyHead = entry ? {
       label: entry.company,
       glyph: <LogoMark logo={entry.logo} initials={companyMark(entry.company)} className="company-mark" />,
-      sub: <><span className="numeric">{entry.customerNumber}</span>{entry.kind === "freelancer" && <span className="role-tag">Freelancer</span>}{entry.archivedAt && <span className="role-tag">Archiviert</span>}</>,
+      number: <NumberChip value={entry.customerNumber} />,
+      kind: <span className="role-tag">{entry.kind === "freelancer" ? "Freelancer" : "Kunde"}</span>,
+      // An archived company's logins are blocked: its row says so where the others show their state.
+      logins: entry.archivedAt ? <span className="status-cell" data-tip="Mit dem Archivieren gesperrt; „Wiederherstellen“ in den Stammdaten gibt die Zugänge frei"><StatusGlyph kind="disabled" />{entry.archivedLoginIds.length ? `Archiviert · ${entry.archivedLoginIds.length} gesperrt` : "Archiviert"}</span> : loginsCell,
+      lastSignInAt: state.lastSignInAt,
       actions: <>
         {!entry.archivedAt && <button type="button" className="table-group-add" onClick={() => newLoginFor(entry.id)} aria-label={`Zugang für ${entry.company} anlegen`} data-tip="Weiteren Zugang für dieses Unternehmen anlegen"><UserPlus size={14} aria-hidden="true" />Zugang</button>}
         <button type="button" className="table-group-action" onClick={() => open(entryDialog(entry.kind, entry.id))} aria-label={`${entry.company} öffnen`} data-tip="Stammdaten öffnen"><Settings size={15} aria-hidden="true" /></button>
@@ -350,14 +364,25 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
     } : group.kind === "oalab" ? {
       label: "oalab",
       glyph: <span className="company-mark" aria-hidden="true">OA</span>,
-      sub: <span className="role-tag">Admins</span>,
+      number: <span className="cell-none">–</span>,
+      kind: <span className="role-tag">Admin</span>,
+      logins: loginsCell,
+      lastSignInAt: state.lastSignInAt,
       actions: <button type="button" className="table-group-add" onClick={() => open(adminLogin)} aria-label="Admin anlegen" data-tip="Weiteren Admin für das oalab-Team anlegen"><UserPlus size={14} aria-hidden="true" />Admin</button>,
-    } : group.kind === "pending" ? { label: "Wartet auf Freigabe", glyph: <StatusGlyph kind={statusGlyph.pending} /> }
-      : group.kind === "rejected" ? { label: displayStatusLabels.rejected, glyph: <StatusGlyph kind={statusGlyph.rejected} /> }
-      : { label: "Ohne Unternehmen", glyph: <Building2 size={16} aria-hidden="true" /> };
+    } : group.kind === "pending" ? { label: "Wartet auf Freigabe", glyph: <StatusGlyph kind={statusGlyph.pending} />, logins: <span className="status-cell"><StatusGlyph kind={statusGlyph.pending} />{`${group.rows.length} offen`}</span> }
+      : group.kind === "rejected" ? { label: displayStatusLabels.rejected, glyph: <StatusGlyph kind={statusGlyph.rejected} />, logins: <span className="status-cell">{loginCount(group.rows.length)}</span> }
+      : { label: "Ohne Unternehmen", glyph: <Building2 size={16} aria-hidden="true" />, logins: <span className="status-cell">{loginCount(group.rows.length)}</span> };
     return (
-      <TableGroup key={group.key} colSpan={6} label={head.label} count={group.rows.length} glyph={head.glyph} sub={head.sub} actions={head.actions}
-        collapsed={groups.isCollapsed(group.key)} onToggle={() => groups.toggle(group.key)} empty={group.kind === "pending" ? pendingEmpty : undefined}>
+      <TableGroup key={group.key} colSpan={7} label={head.label} count={group.rows.length} glyph={head.glyph}
+        collapsed={groups.isCollapsed(group.key)} onToggle={() => groups.toggle(group.key)} empty={group.kind === "pending" ? pendingEmpty : undefined}
+        cells={<>
+          <td className="cell-entry-number">{head.number}</td>
+          <td className="cell-role">{head.kind}</td>
+          <td className="cell-mail" />
+          <td className="cell-status">{head.logins}</td>
+          <td className="cell-login col-login">{head.lastSignInAt ? <time dateTime={head.lastSignInAt} data-tip={formatFileDateTime(head.lastSignInAt)}>{formatFileDate(head.lastSignInAt)}</time> : head.lastSignInAt === null ? <span className="cell-none">noch nie</span> : null}</td>
+          <td className="cell-action">{head.actions && <span className="table-group-actions">{head.actions}</span>}</td>
+        </>}>
         {group.rows.map(userRow)}
       </TableGroup>
     );
@@ -405,10 +430,11 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
           (byCompany ? companyGroups : userGroups).length ? (
             <div className="sheet-scroll">
               <table className={`data-table user-table${byCompany ? " is-by-company" : ""}`}>
-                <caption className="visually-hidden">{byCompany ? "Zugänge nach Unternehmen, mit Name, Rolle, E-Mail, Status und letztem Login" : "Zugänge mit Name, Rolle, E-Mail, Kundennummer, Unternehmen, Status und letztem Login"}</caption>
+                <caption className="visually-hidden">{byCompany ? "Zugänge nach Unternehmen: je Unternehmen Kundennummer, Art, Zugänge und letzter Login, darunter seine Zugänge mit Name, Rolle, E-Mail, Status und letztem Login" : "Zugänge mit Name, Rolle, E-Mail, Kundennummer, Unternehmen, Status und letztem Login"}</caption>
                 <thead>
                   <tr>
                     <SortHeader option={userSorts.name} sort={userSort} onChange={setUserSort} />
+                    {byCompany && <th scope="col" className="col-entry-number">Kunden-Nr.</th>}
                     <th scope="col">Rolle</th>
                     <th scope="col">E-Mail</th>
                     {!byCompany && <SortHeader option={userSorts.number} className="col-number" sort={userSort} onChange={setUserSort} />}
