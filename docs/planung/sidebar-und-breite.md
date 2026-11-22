@@ -9,9 +9,9 @@ Dieser Plan beschreibt zwei Änderungen für den Hub am Rechner, also ab 1024 px
 
 Handy und Tablet (unter 1024 px) bleiben, wie sie sind: unten die Tab-Leiste, oben das Logo.
 
-Vorschau (privat): https://claude.ai/artifact/STafMcH7JjbQMvJkajNME7 mit den Seiten „V2 · Liquid Glass“ (Stand dieses Plans), „V1 · Sidebar einklappen“ (MacBook Pro 14″, 1512 × 982) und „Breite auf 4K“ (2560 × 1440, dazu Full HD). Die Flächen sind bedienbar: Der Knopf klappt ein und aus, über den Symbolen gleitet ein Glastropfen und erscheinen die Namen, Übersicht, Aufgaben, Notizen, User Management und Darstellung lassen sich anklicken. Die Fläche „Animation“ spielt Tropfen und Ein- und Ausklappen von selbst ab.
+Vorschau (privat): https://claude.ai/artifact/STafMcH7JjbQMvJkajNME7 mit den Seiten „V3 · Klares Glas“ (Stand dieses Plans), „V2 · Liquid Glass“, „V1 · Sidebar einklappen“ (MacBook Pro 14″, 1512 × 982) und „Breite auf 4K“ (2560 × 1440, dazu Full HD). Die Flächen sind bedienbar: Der Knopf klappt ein und aus, über den Symbolen gleitet ein Glastropfen und erscheinen die Namen, Übersicht, Aufgaben, Notizen, User Management und Darstellung lassen sich anklicken. Die Fläche „Animation“ spielt Tropfen und Ein- und Ausklappen von selbst ab.
 
-V2 (22. November 2026) setzt die Rückmeldung zu V1 um: runde Auswahl wie bei Glocke und Assistent oben rechts, ein Liquid-Glass-Effekt statt bloßem Aufhellen, ein Tropfen beim Darüberfahren, federndes Ein- und Ausklappen und eingerückte Unterpunkte mit Verbindungslinie auch im eingeklappten Zustand (Abschnitt 1.7).
+V2 (22. November 2026) setzt die Rückmeldung zu V1 um: runde Auswahl wie bei Glocke und Assistent oben rechts, ein Liquid-Glass-Effekt statt bloßem Aufhellen, ein Tropfen beim Darüberfahren, federndes Ein- und Ausklappen und eingerückte Unterpunkte mit Verbindungslinie auch im eingeklappten Zustand (Abschnitt 1.7). V3 (am selben Tag) setzt die Rückmeldung zu V2 um: Der Knopf zum Ein- und Ausklappen ist ein Griff am Rand der Sidebar, weiter unten, damit um das Logo Platz bleibt, und das Glas ist klarer, nach dem Vorbild von Apple.
 
 Grundlage ist der Code auf `main` vom 22. November 2026 (nach #141). Notizen (`feat/notizen`) und Kalender-Abo (`feat/kalender-abo`) entstehen parallel; Abschnitt 5 regelt das Zusammenspiel.
 
@@ -21,7 +21,7 @@ Grundlage ist der Code auf `main` vom 22. November 2026 (nach #141). Notizen (`f
 |---|---|
 | Für wen | alle Rollen am Rechner ab 1024 px; Handy und Tablet unverändert |
 | Sidebar | ausgeklappt wie heute (272 px) oder eingeklappt (72 px, nur Symbole) |
-| Umschalten | Knopf oben in der Sidebar neben „oalab Client Hub“, eingeklappt direkt unter dem Logo; dazu ⌘ . (Windows: Strg + .) |
+| Umschalten | runder Griff aus Glas am rechten Rand der Sidebar, zwischen Suche und Einträgen; er fährt mit dem Rand mit; dazu ⌘ . (Windows: Strg + .) |
 | Aussehen | runde Formen aus Liquid Glass: ausgeklappt Kapseln, eingeklappt Kreise, wie Glocke und Assistent oben rechts; beim Darüberfahren gleitet ein Glastropfen von Eintrag zu Eintrag; Ein- und Ausklappen federt |
 | Darüberfahren | eingeklappt zusätzlich der Name rechts neben dem Symbol, bei Zahlen mit zweiter Zeile, z. B. „Nachrichten · 1 ungelesen“ |
 | Unterpunkte | Aufgaben, Kalender und Notizen nach rechts versetzt, mit Verbindungslinie zu Projekte, auch eingeklappt |
@@ -35,13 +35,13 @@ Grundlage ist der Code auf `main` vom 22. November 2026 (nach #141). Notizen (`f
 
 ### 1.1 Ausgeklappt (wie heute)
 
-Alles bleibt, wie es ist: 272 px breites Glas, 12 px vom Rand, Logo, Suche, Bereiche mit Zahlen, Konto-Ecke mit Zahnrad. Neu ist nur ein kleiner Knopf rechts neben „oalab Client Hub“: ein ruhiges Quadrat im Stil des Zahnrads unten, mit dem Symbol einer Seitenleiste. Sein Hinweis lautet „Sidebar einklappen“ mit „⌘ .“.
+Alles bleibt, wie es ist: 272 px breites Glas, 12 px vom Rand, Logo, Suche, Bereiche mit Zahlen, Konto-Ecke mit Zahnrad. Neu ist nur ein runder Griff aus Glas (28 px) am rechten Rand, in der Fuge zwischen Suche und Einträgen: halb auf der Sidebar, halb daneben, mit einem Pfeil nach links. Er fährt beim Ein- und Ausklappen mit dem Rand mit, und um das Logo bleibt der Abstand frei. Sein Hinweis lautet „Sidebar einklappen“ mit „⌘ .“.
 
 ### 1.2 Eingeklappt
 
 Eine 72 px schmale Leiste im selben Glas, mit derselben Rundung und denselben 12 px Abstand zum Rand. Sie zeigt dieselben Einträge in derselben Reihenfolge, nur als Symbole:
 
-- oben das Logo (führt zur Übersicht), direkt darunter der Knopf zum Ausklappen
+- oben das Logo (führt zur Übersicht) mit freiem Raum darum; der Griff zum Ausklappen sitzt am rechten Rand an derselben Stelle wie ausgeklappt, der Pfeil zeigt nach rechts
 - die Lupe für die Suche
 - Übersicht und Insights
 - eine feine Linie statt der Überschrift „Bereiche“, dann Projekte mit Aufgaben, Kalender und künftig Notizen direkt darunter, Dateien (Admins: Asset Management), Vertrag & Domain (Freelancer: Kunden), Nachrichten
@@ -83,7 +83,7 @@ Eingeklappt bleibt nur das Profilbild. Ein Klick öffnet das bekannte Konto-Men�
 ### 1.7 Aussehen und Bewegung (Vorschau V2)
 
 - **Runde Formen:** Alles, was man in der Sidebar anklickt, ist rund wie Glocke und Assistent oben rechts. Ausgeklappt sind Auswahl, Suche und Konto Kapseln mit runden Enden, eingeklappt Kreise (Einträge 40 px, Unterpunkte 34 px). Beim Einklappen wird aus der Kapsel ein Kreis. Das Symbol bleibt dabei an seiner Stelle. Einklappen, Zahnrad, Glocke und Assistent sind runde Knöpfe aus demselben Glas.
-- **Liquid Glass statt Aufhellen:** Die Auswahl ist ruhendes Glas mit hellem Rand oben, leichter Tönung in der Akzentfarbe und weichem Schatten. Beim Darüberfahren liegt ein Glastropfen über dem Eintrag: Seine Mitte bleibt klar, sodass Symbol und Name scharf bleiben, nur am Rand bricht er, was darunter liegt. Ein Lichtpunkt am oberen Rand folgt der Maus, das Symbol darunter wächst leicht wie unter einer Lupe.
+- **Klares Liquid Glass statt Aufhellen (V3):** Das Glas ist klar wie bei Apple, ohne milchigen Schleier, ohne dunkle Innenschatten und ohne Unschärfe in der Mitte. Seine Form zeigt sich nur durch einen feinen Lichtrand, der oben links und unten rechts heller ist und an den Seiten fast verschwindet, durch Brechung in einem schmalen Band am Rand und durch einen weichen Schatten. Die Auswahl ist dasselbe Glas mit einem Hauch Akzentfarbe. Beim Darüberfahren liegt ein Glastropfen über dem Eintrag; Symbol und Name bleiben darunter scharf und in voller Farbe. Ein schwaches Licht von innen folgt der Maus, das Symbol darunter wächst leicht wie unter einer Lupe.
 - **Tropfen:** Es gibt genau einen Tropfen. Er gleitet beim Darüberfahren von Eintrag zu Eintrag, dehnt sich in der Bewegung, federt beim Ankommen nach und zerfließt, wenn die Maus die Sidebar verlässt. Mit der Tastatur folgt er dem Fokus. Ausgeklappt und eingeklappt verhält er sich gleich.
 - **Ein- und Ausklappen federt:** Die Leiste schwingt beim Ausklappen etwa 18 px über ihre Breite hinaus und beim Einklappen etwa 12 px darunter, dann federt sie zurück (gedämpfte Feder, 0,8 s). Namen blenden beim Einklappen sofort aus und beim Ausklappen kurz verzögert ein. Der Arbeitsbereich zieht weich mit, ohne zu federn, damit die Seite ruhig bleibt.
 - **Variante Kreis:** Ausgeklappt kann die Auswahl statt einer Kapsel auch nur ein Kreis um das Symbol sein (Fläche „Variante Kreis“); der Name steht dann ohne Fläche in der Akzentfarbe daneben (Entscheidung 10).
@@ -165,7 +165,7 @@ Vor dem Livegang einmal jede Seite auf 1512, 1920, 2560 und 3840 px Breite anseh
 
 | # | Frage | Empfehlung |
 |---|---|---|
-| 1 | Knopf zum Einklappen oben in der Sidebar neben dem Logo (eingeklappt unter dem Logo)? Alternative: runder Griff am rechten Rand der Sidebar | Oben neben dem Logo |
+| 1 | Wo sitzt der Knopf zum Ein- und Ausklappen? | Entschieden am 22.11.2026: runder Griff am rechten Rand, zwischen Suche und Einträgen (V3) |
 | 2 | Tastenkürzel ⌘ . (Windows: Strg + .)? | Ja |
 | 3 | Zustand je Gerät merken, neue Geräte starten ausgeklappt? | Ja |
 | 4 | Eingeklappt öffnet das Profilbild das Konto-Menü (statt eines eigenen Zahnrads)? | Ja |
