@@ -1,8 +1,10 @@
 # Planung: Notizen unter Projekte
 
-Stand 21. November 2026 · Entwurf zur Entscheidung · im Hub ist davon noch nichts umgesetzt
+Stand 22. November 2026 · Entwurf zur Entscheidung · im Hub ist davon noch nichts umgesetzt
 
 Dieser Plan beschreibt einen neuen Bereich **Notizen**: je Kunde ein eigener Notizbereich wie in Notion, mit Seiten und Unterseiten, der mit den Aufgaben, den Projekten und dem Kalender zusammenspielt. Er hängt wie „Aufgaben“ und „Kalender“ unter **Projekte** und ist für Admins, Kunden und Freelancer da. Für jede Seite legt das Team fest, ob Kunde und Freelancer sie sehen, wie heute bei den Dateien („Sichtbar für“).
+
+Die Gestaltung folgt der Vorschau **V2 vom 22. November 2026**, die nach dem Vergleich mit Notion und Microsoft Loop freigegeben ist: Das Schreiben steht im Vordergrund, auf der Seite stehen nur Titelbild, Symbol, Titel und Text, alle Eckdaten liegen hinter einem Zahnrad. Dazu kommen Emojis und Titelbilder. Vorschau (privat, Seite „V2“): https://claude.ai/artifact/QNFjA2RFUNfzsTqanXjj9W
 
 Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137). Datenbankänderungen gehören wie bisher als Migration in `service-oalab`.
 
@@ -13,10 +15,14 @@ Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137). Datenbankä
 | Wo | Projekte › Notizen (`/dashboard/projects/notes`), in der Seitenleiste unter Aufgaben und Kalender; am Handy über „Mehr“ |
 | Wer | Admins: alle Kunden · Kunden: ihr eigener Bereich · Freelancer: die Bereiche der Kunden, die sie betreuen |
 | Gliederung | Kunde › Projekt (oder „Allgemein“) › Seite › Unterseiten |
+| Seite | Titelbild, Emoji als Seitensymbol, Titel und Text; keine Eckdaten auf der Seite |
+| Einstellungen | ein Zahnrad je Seite (Sichtbar für, Symbol, Titelbild, Projekt, Datum, Termin, Breite) und ein Zahnrad für alle Notizen mit den Standardwerten, einmal festgelegt |
+| Platz zum Schreiben | Seitenliste einklappbar; „Fokus“ blendet zusätzlich Hub-Leiste und Seitenkopf aus |
 | Sichtbar für | Nur Team (Standard) · Kunde und Freelancer · Nur Kunde · Nur Freelancer, also die drei Stufen der Dateien plus „Nur Team“ |
-| Aufgaben | Aufgabe als lebender Block, Zeile wird Aufgabe, Aufgabenliste eines Projekts als Block, im Aufgabenfenster „Erwähnt in“ |
+| Schreiben | Blockmenü mit „/“, Werkzeugleiste über markiertem Text, saubere Links mit Vorschau, Linkkarten, Tabellen, Emojis auch im Text |
+| Aufgaben | Aufgaben aus dem Board als schlanke Liste, Zeile oder Markierung wird Aufgabe, im Aufgabenfenster „Erwähnt in“ |
 | Kalender | Termin als Block, Besprechungsnotiz aus dem Termin, Termin anlegen oder anfragen aus der Notiz, Seiten mit Datum im Kalender |
-| Technik | zwei neue Tabellen mit Zeilenregeln wie bei den Dateien, Editor Tiptap 3 (MIT), Speichern als JSON mit Versionsprüfung |
+| Technik | zwei neue Tabellen mit Zeilenregeln wie bei den Dateien plus eine Zeile Standardwerte, Editor Tiptap 3 (MIT), Speichern als JSON mit Versionsprüfung |
 | Umfang | vier Etappen; nach Etappe 2 ist der Bereich im Alltag nutzbar |
 
 **Wichtigste Regel:** Eine Notiz speichert von Aufgaben, Terminen, Projekten und Dateien nur die Kennung. Titel, Status und Zeit liest der Hub beim Öffnen mit den Rechten der Person, die die Seite ansieht. Eine freigegebene Seite verrät deshalb nie eine interne Aufgabe oder einen fremden Termin.
@@ -32,30 +38,72 @@ Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137). Datenbankä
 
 ### 1.2 Aufbau der Seite
 
-Wie im Asset Management und unter Projekte: links eine Liste, rechts der Inhalt.
+Wie in Notion und Loop: links eine ruhige Seitenliste, rechts eine große Schreibfläche. Beides liegt auf einer Fläche wie die Tabellen des Hubs.
 
-- **Links (etwa 300 px):** oben der Kunde mit Logo und ein Umschalter mit Suche (Admins: alle Kunden, Freelancer: ihre Kunden; Kunden haben keinen). Darunter der Seitenbaum, gruppiert nach den Projekten des Kunden und „Allgemein“ für Seiten ohne Projekt. Unterseiten klappen auf, jede Gruppe hat „Neue Seite“, oben sucht ein Feld im Baum.
-- **Rechts:** die offene Seite mit Pfad (Kunde › Projekt › Elternseite), Symbol und Titel, einer Zeile mit Eigenschaften (Sichtbar für, Projekt, Datum, Termin, „bearbeitet von … vor 5 Minuten“) und darunter der Inhalt.
-- **Start für Admins:** der zuletzt geöffnete Kunde (im Browser gemerkt wie die Listenansicht), ohne ihn „Zuletzt bearbeitet“ über alle Kunden.
-- **Handy:** erst der Baum, dann die Seite bildschirmfüllend mit Zurück-Pfeil, wie im Chat.
+- **Seitenliste links (etwa 264 px, einklappbar):** oben der Kunde mit Logo; ein Klick darauf wechselt den Kunden (Admins: alle, Freelancer: ihre Kunden, Kunden haben keinen Wechsel). Daneben drei kleine Symbole: Suche, Zahnrad „für alle Notizen“ (nur Team) und Einklappen. Darunter „Neue Seite“ und die Seiten, gruppiert nach den Projekten des Kunden und „Allgemein“. Jede Seite zeigt ihr Emoji, Unterseiten klappen über einen Pfeil auf. Ein kleines Symbol rechts zeigt nur bei Seiten, die nicht „Nur Team“ sind, wer sie sieht (Auge: Kunde, Koffer: Freelancer, Personen: beide). Unten liegt der Papierkorb.
+- **Schreibfläche rechts:** oben nur eine schmale Leiste mit Pfad (Projekt › Elternseite › Seite), „Bearbeitet vor …“, dem Sichtbarkeits-Symbol (Schloss, Auge …; ein Klick öffnet das Zahnrad), dem Fokus-Knopf und dem Zahnrad. Darunter, falls gesetzt, das Titelbild über die ganze Breite, das Emoji der Seite, der Titel (40 px) und der Text in einer ruhigen Spalte von 720 px (Breite „Breit“: 980 px). Keine Eckdaten über dem Text.
+- **Fokus:** blendet die Seitenleiste des Hubs, den Seitenkopf „Notizen“ und die Seitenliste aus, bis nur die Seite bleibt. Die Leiste des Hubs bleibt außerhalb des Fokus wie heute.
+- **Start für Admins:** der zuletzt geöffnete Kunde (im Browser gemerkt wie die Listenansicht).
+- **Handy:** erst die Liste, dann die Seite bildschirmfüllend mit Zurück-Pfeil, wie im Chat. Tabellen scrollen dort seitlich in ihrem Kasten.
 
 ### 1.3 Seiten und Blöcke
 
-Bedienung wie in Notion:
+Bedienung wie in Notion und Loop:
 
-- „/“ öffnet das Blockmenü. Markdown-Kürzel (`# `, `- `, `1. `, `[] `, `> `) formatieren beim Tippen. Ein Griff links verschiebt Blöcke. „#“ sucht Aufgaben, „@“ Personen aus dem Team, ⌘K setzt einen Link.
-- **Blöcke in Etappe 1:** Text, Überschriften in drei Ebenen, Aufzählung, Nummerierung, Checkliste, Zitat, Hinweisbox, Trennlinie, Code, Link (nur `https:` und `mailto:`), Unterseite.
-- **Später:** Tabelle, Aufklapper, Bilder (in der eigenen Dateiablage, nie von fremden Servern), Datei aus dem Asset Management des Kunden (dort gilt weiter „Sichtbar für“ der Datei).
+- „/“ öffnet das Blockmenü. Markdown-Kürzel (`# `, `- `, `1. `, `[] `, `> `) formatieren beim Tippen. „#“ sucht Aufgaben, „@“ Personen aus dem Team, „:“ Emojis, ⌘K setzt einen Link. Griffe zum Verschieben und „+“ erscheinen erst, wenn die Maus über einem Block steht.
+- **Werkzeugleiste über markiertem Text** (im Glas-Look der Hub-Fenster): Textart, Fett, Kursiv, Unterstrichen, Durchgestrichen, Link, Emoji, Kommentar (Etappe 4) und „Als Aufgabe“.
+- **Blöcke in Etappe 1:** Text, Überschriften in drei Ebenen, Aufzählung, Nummerierung, Checkliste, Hinweisbox mit Emoji, Aufklapper, Tabelle, Trennlinie, Code, Link (nur `https:` und `mailto:`), Unterseite.
+- **Später:** Linkkarte mit abgerufener Vorschau, Bilder im Text (in der eigenen Dateiablage, nie von fremden Servern), Datei aus dem Asset Management des Kunden (dort gilt weiter „Sichtbar für“ der Datei).
 - **Vorlagen (Etappe 2):** Besprechung, Projektbriefing, Abnahme, leere Seite.
 - **Speichern** geschieht von selbst, etwa eine Sekunde nach der letzten Eingabe. Oben steht „Gespeichert“, „Speichert …“ oder „Nicht gespeichert – erneut versuchen“. Jede Seite trägt eine Versionsnummer wie die Aufgaben im Board: Hat inzwischen jemand anderes gespeichert, überschreibt der Hub nichts, sondern meldet „Inzwischen von … geändert“ und bietet „Neu laden“; der eigene Text bleibt daneben zum Übernehmen stehen.
 - **Bearbeitet gerade (Etappe 3):** Arbeitet jemand anderes an derselben Seite, steht oben „… bearbeitet gerade“.
 - **Löschen (Etappe 2)** legt eine Seite samt Unterseiten für 30 Tage in den Papierkorb. Wiederherstellen und endgültig löschen kann nur das Team.
 - **Verlauf (Etappe 3):** frühere Fassungen einer Seite, höchstens eine je 10 Minuten und immer eine vor jeder Änderung von „Sichtbar für“. Das Team stellt eine Fassung wieder her.
 
-### 1.4 Was es bewusst nicht gibt
+### 1.4 Zahnrad: Einstellungen je Seite und für alle Notizen
+
+**Je Seite** (Zahnrad oben rechts, ein Fenster im Glas-Look):
+
+- Sichtbar für (die vier Stufen aus Abschnitt 2, als Kacheln), darunter ein Satz, wer die Seite gerade sieht
+- Symbol (Emoji) und Titelbild, beides auch direkt auf der Seite änderbar
+- Projekt, Datum, verknüpfter Termin
+- Breite: Normal oder Breit
+- Änderung mitteilen (nur bei freigegebenen Seiten), Verlauf, Link kopieren, In den Papierkorb
+- unten: zuletzt bearbeitet von wem und wann
+
+Kunden sehen am Zahnrad nur, dass oalab die Seite geteilt hat, dazu Projekt, Datum und „Link kopieren“. Freelancer sehen zusätzlich, wer die Seite sieht; ändern können sie das nicht.
+
+**Für alle Notizen** (Zahnrad oben in der Seitenliste, nur Team), einmal festgelegt und für alle Kunden gültig:
+
+- wer neue Seiten sieht (Standard „Nur Team“)
+- ob eine Freigabe eine Meldung schickt (Standard an)
+- ob die Liste nach Projekten gegliedert ist (Standard an)
+- die Vorlage für Besprechungsnotizen
+- die Standardbreite (Normal)
+
+### 1.5 Links, Linkkarten und Tabellen
+
+- **Link im Text:** in der Akzentfarbe, dezent unterstrichen. Fährt man darüber, zeigt eine kleine Karte Titel, Beschreibung, Seitensymbol und Adresse.
+- **Adresse einfügen:** Der Editor fragt „Link im Text“ oder „Linkkarte“, wie Notion und Loop. Über die Werkzeugleiste wird markierter Text zum Link oder darunter entsteht eine Linkkarte.
+- **Linkkarte:** Titel, zwei Zeilen Beschreibung, Seitensymbol und Adresse, rechts ein Vorschaubild. Die Angaben holt der Hub-Server einmal beim Einfügen (Abschnitt 6.3); ein Klick öffnet die Seite in einem neuen Tab.
+- **Tabelle:** dünne Linien, Kopfzeile mit Symbol der Spaltenart (Text, Häkchen, Status, Person), Status als farbige Markierung in den Tönen des Hubs, „Neue Zeile“ am Ende, Spaltenbreiten ziehbar. Am Handy scrollt sie seitlich in ihrem Kasten. Keine Formeln und keine Datenbank-Eigenschaften.
+
+### 1.6 Emojis und Titelbilder
+
+- **Seitensymbol:** ein Emoji groß über dem Titel; es steht auch in der Seitenliste und im Pfad. Ein Klick öffnet die Auswahl: Suche mit deutschen Namen (etwa „rakete“), Kategorien, „Zuletzt benutzt“, „Zufällig“ und „Entfernen“. Ohne Symbol und Titelbild bietet die Seite beim Darüberfahren „Symbol hinzufügen“ und „Titelbild hinzufügen“.
+- **Emojis im Text:** „:“ plus Name schlägt passende Emojis vor (Enter übernimmt das erste), dazu „Emoji“ im Blockmenü und in der Werkzeugleiste. Hinweisboxen tragen ein Emoji als Symbol, das sich per Klick tauschen lässt.
+- **Emoji-Set:** Gespeichert wird das Emoji als normales Unicode-Zeichen im Dokument; wie es aussieht, bestimmt der Hub. Damit es auf jedem Gerät gleich modern aussieht, nutzt der Hub ein festes Set statt der Emojis von Windows, Android oder Apple (Entscheidung 12). Die Vorschau zeigt Noto Color Emoji.
+- **Titelbild:** ein Band über die ganze Breite der Seite. Beim Darüberfahren erscheinen „Titelbild ändern“, „Position“ (oben, Mitte, unten; im Hub später stufenlos durch Ziehen) und „Entfernen“. Die Auswahl hat drei Reiter:
+  - **Galerie:** die sechs Hintergründe des Hubs (oalab, Ozean, Aubergine, Smaragd, Glut, Graphit), ruhige Farben und Muster
+  - **Aus den Dateien:** Bilder aus dem Asset Management dieses Kunden
+  - **Hochladen:** JPG, PNG oder WebP bis 5 MB; der Hub verkleinert das Bild auf 1500 × 500 Pixel und legt es als WebP bei den Dateien des Kunden ab
+- **Wer das Titelbild sieht:** Ein hochgeladenes Titelbild ist so sichtbar wie die Seite (signierte Links wie bei den Logos). Ein Bild aus den Dateien bleibt an die Datei gebunden: Wer die Datei nicht sehen darf, sieht stattdessen eine ruhige Farbe.
+
+### 1.7 Was es bewusst nicht gibt
 
 - Datenbanken wie in Notion (Tabellen mit eigenen Eigenschaften): Für Aufgaben übernimmt das die Aufgabenliste aus dem Board (Abschnitt 4).
 - Öffentliche Links auf Seiten: Wer eine Seite sehen soll, hat einen Zugang zum Hub.
+- Titelbilder oder Bilder von fremden Bildquellen (etwa Bilddatenbanken im Netz): Bilder kommen aus der Galerie, den Dateien des Kunden oder dem Hochladen, damit keine fremden Server mitlesen.
 - Gleichzeitiges Tippen mehrerer Personen in Echtzeit (Abschnitt 6.5).
 
 ## 2. Sichtbar für
@@ -107,7 +155,7 @@ Gesperrte Zugänge sehen nichts. Notizen archivierter Kunden verschwinden wie ih
 
 Die Aufgaben sind Studios eigene Zeilen (`studio_tasks` und Nachbarn). Notizen legen keine zweite Aufgabenliste an, sondern verweisen auf diese Zeilen und schreiben über denselben Code wie das Board (`createTaskAs`, `updateTaskAs` in `lib/hub-tasks/write.ts`).
 
-1. **Aufgabe als Block** („/Aufgabe“ oder „#“ mit Nummer oder Titel): zeigt Nummer, Titel, Spalte, Fälligkeit, Zuständige und „Beim Kunden“. Ein Klick öffnet das Aufgabenfenster des Boards als Seitenleiste, bei Kunden das Projektfenster. Das Häkchen am Block setzt die Aufgabe auf „Erledigt“, mit Versionsprüfung und nur für die, die das im Board dürfen.
+1. **Aufgaben als schlanke Liste** („/Aufgabe“ oder „#“ mit Nummer oder Titel): je Aufgabe eine Zeile mit Nummer, Titel, Fälligkeit, Spalte, Zuständigen und „Beim Kunden“, mehrere Aufgaben in einem Kasten „Aufgaben · Projekt“ mit „Im Board“. Im Fließtext erscheint eine Aufgabe als kleine Erwähnung. Ein Klick öffnet das Aufgabenfenster des Boards als Seitenleiste, bei Kunden das Projektfenster. Das Häkchen am Block setzt die Aufgabe auf „Erledigt“, mit Versionsprüfung und nur für die, die das im Board dürfen.
 2. **Zeile wird Aufgabe:** An jeder Checklisten-Zeile und an markiertem Text steht „Als Aufgabe anlegen“: Projekt (vorbelegt von der Seite), Spalte „Zu erledigen“, Zuständig, Fällig und für das Team „Sichtbar für“ der Aufgabe. Vorbelegt ist „Nur Team“ auf internen Seiten, sonst „+ Freelancer“; „+ Kunde“ wählt das Team bewusst. Danach ist die Zeile ein Aufgaben-Block. „Alle offenen Punkte als Aufgaben“ legt bis zu 20 auf einmal an, wie der Assistent.
 3. **Aufgabenliste als Block** („/Aufgabenliste“): die Aufgaben eines Projekts mit Filter (offen, beim Kunden, fällig bis, mir zugewiesen), lebend wie eine verknüpfte Ansicht in Notion. Sie zeigt nur, was die Person auch im Board oder im Projektfenster sieht.
 4. **Projekt als Block** („/Projekt“): Status, Fortschritt und Zieltermin wie in der Projekttabelle.
@@ -137,7 +185,10 @@ Freelancer sehen im Board nur die Projekte, an denen sie arbeiten. Aufgaben ande
 | `project_id` | Studio-Projekt (`customer_projects`), leer für „Allgemein“; ein Trigger prüft, dass es zur Organisation des Kunden gehört |
 | `parent_id` | Elternseite, gleicher Kunde, keine Kreise, höchstens fünf Ebenen |
 | `appointment_id` | Termin der Besprechungsnotiz, eindeutig, gleicher Kunde, `on delete set null` |
-| `title`, `icon` | 1 bis 200 Zeichen; ein Emoji |
+| `title` | 1 bis 200 Zeichen |
+| `icon` | ein Emoji als Unicode-Zeichen (auch zusammengesetzte), höchstens 16 Zeichen |
+| `cover_kind`, `cover_value`, `cover_position` | Titelbild: Galerie (Schlüssel), Datei (ID aus dem Asset Management) oder hochgeladen (Speicherpfad); Position 0 bis 100 % |
+| `width` | `normal` oder `wide` |
 | `audience` | `team`, `both`, `customer`, `freelancer`; Standard `team` |
 | `content` | das Dokument als JSON (Tiptap), höchstens 1 MB |
 | `content_text` | reiner Text für die Suche, geschrieben vom Hub-Server |
@@ -148,6 +199,8 @@ Freelancer sehen im Board nur die Projekte, an denen sie arbeiten. Aufgaben ande
 | `deleted_at`, `deleted_by` | Papierkorb |
 
 `hub_note_links` hält fest, wer auf wen verweist (`page_id`, `target_kind` aus task, project, appointment, file, page, `target_id`). Ein Trigger liest die Verweise bei jedem Speichern aus dem JSON. So stimmen die Rückverweise, egal ob der Hub schreibt oder später der Assistent oder der Claude-Connector.
+
+`hub_note_settings` hält in einer Zeile die Standardwerte für alle Notizen (Abschnitt 1.4); schreiben dürfen nur Admins. Linkkarten speichern Titel, Beschreibung, Adresse und den Speicherpfad ihres Vorschaubilds im Block selbst.
 
 Später kommen `hub_note_revisions` (Verlauf, nur Team, 90 Tage) und `hub_note_presence` (wer gerade bearbeitet, Herzschlag alle 15 Sekunden) dazu.
 
@@ -163,7 +216,7 @@ Später kommen `hub_note_revisions` (Verlauf, nur Team, 90 Tage) und `hub_note_p
 
 ### 6.2 Editor
 
-**Tiptap 3** (MIT-Lizenz, auf ProseMirror). Seit Version 3 sind auch der Griff zum Verschieben, Emoji und die Dateiablage quelloffen, und Erwähnungen kennen mehrere Auslöser wie „@“ und „#“. Dazu kommen eigene Erweiterungen: das Blockmenü auf „/“, die Verweis-Blöcke (Aufgabe, Aufgabenliste, Projekt, Termin, Datei, Unterseite) als React-Ansichten und die Hinweisbox. Der Editor wird nur auf der Notizen-Seite nachgeladen, damit der übrige Hub nicht schwerer wird. Wer nur lesen darf, sieht dieselbe Darstellung ohne Bearbeiten.
+**Tiptap 3** (MIT-Lizenz, auf ProseMirror). Seit Version 3 sind auch der Griff zum Verschieben, Emoji und die Dateiablage quelloffen, und Erwähnungen kennen mehrere Auslöser wie „@“, „#“ und „:“. Tabellen bringt das Paket `@tiptap/extension-table` mit. Die Emoji-Erweiterung speichert Unicode und zeigt die Bilder des gewählten Emoji-Sets, die der Hub selbst ausliefert. Dazu kommen eigene Erweiterungen: das Blockmenü auf „/“, die Verweis-Blöcke (Aufgabe, Aufgabenliste, Projekt, Termin, Datei, Unterseite) als React-Ansichten und die Hinweisbox. Der Editor wird nur auf der Notizen-Seite nachgeladen, damit der übrige Hub nicht schwerer wird. Wer nur lesen darf, sieht dieselbe Darstellung ohne Bearbeiten.
 
 Verglichen wurden:
 
@@ -176,13 +229,16 @@ Vor dem Einbau prüfen: aktuelle Version, Lizenz jedes einzelnen Pakets (die Erw
 
 - Gespeichert wird JSON, nie HTML. Der Server prüft jedes Speichern gegen eine Liste erlaubter Blöcke und Formate, lässt Links nur mit `https:` und `mailto:` zu, begrenzt die Größe auf 1 MB und rechnet daraus `content_text`. Unbekannte Blöcke lehnt er ab.
 - Verweis-Blöcke tragen nur die Kennung (bei Aufgaben dazu die Nummer). Beim Öffnen löst der Server alle Verweise einer Seite in einem Zug auf, mit der Sitzung der Person: Studios Zeilenregeln und die Regeln von `hub_appointments` und `hub_files` entscheiden. Was die Person nicht sehen darf, kommt als „Nicht freigegeben“ zurück, ohne Titel.
+- **Linkvorschau:** Der Hub-Server ruft eine eingefügte Adresse einmal ab: nur `http` und `https` auf den Ports 80 und 443, nie interne oder private Adressen (Schutz gegen SSRF, auch nach Weiterleitungen), höchstens 1 MB und 5 Sekunden, ohne Cookies. Das Vorschaubild speichert er verkleinert in der eigenen Dateiablage, sodass Browser von Kunden nie etwas von fremden Servern laden.
+- **Titelbilder und Emojis** kommen vom Hub selbst (eigene Dateiablage, eigene Kopie des Emoji-Sets), nie von fremden Servern oder CDNs.
 - Admin-Protokoll (`hub_admin_events`): Seite angelegt, freigegeben (Stufe vorher und nachher), gelöscht, wiederhergestellt; nie der Inhalt.
 - Datenschutz: Notizen sind Inhalte im Hub wie Chat und Dateien. Vor dem Livegang prüfen, ob die Datenschutzerklärung sie abdeckt, und die Fristen festhalten (Papierkorb 30 Tage, Verlauf 90 Tage).
 
 ### 6.4 Code im Hub
 
 - `lib/hub-notes/`: `types.ts`; `rules.ts` mit Stufen, Unterseiten-Regel, Prüfung des JSON, Auslesen von Text und Verweisen und der Vorbelegung Seitenstufe → Aufgabenstufe (eigenständig, damit `node --test` sie lädt); `server.ts` (Baum und Seite laden, Verweise auflösen, ohne Migration der Hinweis „Notizen sind noch nicht eingerichtet“); `write.ts` (Kern fürs Speichern, später auch für Assistent und Connector); `actions.ts`; `fixtures.ts` für die Vorschau.
-- Oberfläche: `components/hub/screens/notes.tsx`, `notes-tree.tsx`, `notes-editor.tsx`, `notes-blocks.tsx`, `notes-panels.tsx`, Stile in `app/notes.css` (hell und dunkel).
+- Dazu in `lib/hub-notes/`: `emoji.ts` (Liste mit deutschen Namen, Suche für Auswahl und „:“), `covers.ts` (Galerie und Prüfung der Titelbilder), `link-preview.ts` (Abruf mit Schutz aus Abschnitt 6.3).
+- Oberfläche: `components/hub/screens/notes.tsx`, `notes-tree.tsx`, `notes-editor.tsx`, `notes-blocks.tsx`, `notes-panels.tsx`, `notes-settings.tsx` (beide Zahnräder), `notes-emoji-picker.tsx`, `notes-cover.tsx`, Stile in `app/notes.css` (hell und dunkel, Fenster im Glas-Look).
 - Navigation: `lib/hub-routes.ts`, `lib/hub-data.ts`, `components/hub/glass-sidebar.tsx`, „Mehr“ in `components/hub/screens/workspace.tsx`, `components/hub/project-links.tsx`, `app/dashboard/[section]/[detail]/page.tsx`, `components/hub/hub-view.tsx`.
 - Aufgaben und Projekte: „Erwähnt in“ in `tasks-panel.tsx`, Abschnitt „Notizen“ in `projects-panel.tsx` und im Projektfenster der Kunden.
 - Kalender: „Notiz anlegen/öffnen“ in `calendar-panels.tsx`, Einträge mit Datum und Symbol am Termin in `calendar-views.tsx`, Seiten mit Datum im Zeitfenster über `lib/hub-calendar/server.ts`.
@@ -199,10 +255,10 @@ Gleichzeitiges Tippen wie in Notion braucht Yjs, einen eigenen WebSocket-Dienst 
 
 | Etappe | Inhalt | Umfang |
 |---|---|---|
-| **1 Grundgerüst** | Migration (Seiten, Verweise, Regeln), Navigation, Baum je Kunde und Projekt, Editor mit den Grundblöcken, automatisches Speichern mit Versionsprüfung, Sichtbar für mit Unterseiten-Regel, Sicht der Kunden (lesen) und Freelancer (lesen, in „Nur Freelancer“ schreiben), Vorschau, Tests | groß: ein PR in `service-oalab`, ein bis zwei im Hub |
-| **2 Aufgaben und Projekte** | Aufgaben-Block, „#“, Zeile → Aufgabe, Aufgabenliste, Projekt-Block, „Erwähnt in“, Abschnitt „Notizen“ im Projektfenster, Schnellzugriff, Prüfung und Meldung beim Freigeben, Papierkorb, Vorlagen | mittel |
+| **1 Grundgerüst** | Migration (Seiten, Verweise, Standardwerte, Regeln), Navigation, Seitenliste je Kunde und Projekt (einklappbar), Fokus, Zahnrad je Seite und für alle Notizen, Editor mit den Grundblöcken inklusive Tabelle und Aufklapper, Werkzeugleiste, Links im Text, Emojis (Seitensymbol, im Text, Hinweisbox), Titelbilder aus der Galerie, automatisches Speichern mit Versionsprüfung, Sichtbar für mit Unterseiten-Regel, Sicht der Kunden (lesen) und Freelancer (lesen, in „Nur Freelancer“ schreiben), Vorschau, Tests | groß: ein PR in `service-oalab`, zwei im Hub |
+| **2 Aufgaben, Projekte, Links und Bilder** | Aufgaben als Liste, „#“, Zeile oder Markierung → Aufgabe, Projekt-Block, „Erwähnt in“, Abschnitt „Notizen“ im Projektfenster, Schnellzugriff, Prüfung und Meldung beim Freigeben, Papierkorb, Vorlagen; Linkkarten und Linkvorschau mit Abruf durch den Server, Titelbilder aus den Dateien und hochgeladen | mittel bis groß |
 | **3 Kalender** | Termin-Block, Besprechungsnotiz aus dem Termin, Termin anlegen oder anfragen aus der Notiz, Datum mit Anzeige im Kalender, Symbol am Termin, Verlauf, „bearbeitet gerade“, Notizen in der Suche | mittel |
-| **4 optional** | Kunden schreiben mit und legen eigene Seiten an, Tabellen und Bilder, Kommentare, Export als PDF, Assistent „Aufgaben aus dieser Notiz vorschlagen“ (wie bei Meetingtranskripten, mit Belegzitat), Werkzeuge im Claude-Connector, Kachel in der Übersicht, eigener Bereich zwischen oalab und jedem Freelancer | je Punkt klein bis mittel |
+| **4 optional** | Kunden schreiben mit und legen eigene Seiten an, Bilder im Text, Kommentare, Export als PDF, Assistent „Aufgaben aus dieser Notiz vorschlagen“ (wie bei Meetingtranskripten, mit Belegzitat), Werkzeuge im Claude-Connector, Kachel in der Übersicht, eigener Bereich zwischen oalab und jedem Freelancer | je Punkt klein bis mittel |
 
 Jede Etappe geht einzeln live, mit Patch Notes. Ohne Migration liest der Hub fehlertolerant und zeigt „Notizen sind noch nicht eingerichtet“. Assistent und Claude-Connector bekommen wie bisher einen eigenen Plan und eine eigene Freigabe.
 
@@ -221,6 +277,10 @@ Jede Etappe geht einzeln live, mit Patch Notes. Ohne Migration liest der Hub feh
 | 9 | Ohne Echtzeit-Mitschrift starten? | Ja |
 | 10 | Eigener Notizbereich zwischen oalab und jedem Freelancer, wie „Meine Dateien“? | Später (Etappe 4) |
 | 11 | Reihenfolge Grundgerüst → Aufgaben und Projekte → Kalender? | Ja |
+| 12 | Welches Emoji-Set? Microsoft Fluent Emoji 3D (der Look von Loop, MIT-Lizenz laut Projekt), Noto Color Emoji (Google, SIL OFL 1.1, als Schrift am einfachsten) oder die Emojis des jeweiligen Geräts | Fluent Emoji 3D, vom Hub selbst ausgeliefert; Lizenz vor dem Einbau prüfen |
+| 13 | Titelbilder nur aus Galerie, Dateien des Kunden und Hochladen, keine fremden Bildquellen? | Ja |
+| 14 | Linkvorschau holt der Hub-Server mit Schutz gegen interne Adressen und speichert das Bild selbst? | Ja |
+| 15 | Die Leiste des Hubs nur im Fokus ausblenden, sonst bleibt sie wie heute? | Ja |
 
 ## 9. Abnahme
 
@@ -233,4 +293,9 @@ Jede Etappe geht einzeln live, mit Patch Notes. Ohne Migration liest der Hub feh
 - Termin → Besprechungsnotiz: Symbol im Kalender; der Kunde sieht „Notiz öffnen“ erst nach der Freigabe.
 - Freelancer ohne bestätigten Code sieht keine Notizen seiner Kunden.
 - Archivierter Kunde: Notizen verschwinden und kommen mit „Wiederherstellen“ zurück. Gelöschter Kunde: Notizen sind gelöscht.
-- Handy: Baum, Seite und Blockmenü sind bedienbar, die Tab-Leiste verdeckt den Editor nicht.
+- Handy: Liste, Seite und Blockmenü sind bedienbar, die Tab-Leiste verdeckt den Editor nicht, Tabellen scrollen seitlich in ihrem Kasten.
+- Auf der Seite stehen nur Titelbild, Symbol, Titel und Text; alle Eckdaten erreicht man über das Zahnrad. Die Standardwerte für alle Notizen wirken auf neue Seiten.
+- Seitenliste einklappen und wieder ausklappen; Fokus blendet Hub-Leiste, Kopf und Liste aus und stellt sie wieder her.
+- Seitensymbol und Titelbild: gewählt, in Liste und Pfad sichtbar, nach dem Neuladen noch da. Ein Titelbild aus einer Datei „Nur Freelancer“ sieht der Kunde als ruhige Farbe.
+- Emojis mit „:“ und Name im Text, in Hinweisboxen und als Seitensymbol sehen auf Mac, Windows und Android gleich aus.
+- Linkvorschau: eine interne Adresse (etwa `127.0.0.1` oder `10.0.0.1`, auch über eine Weiterleitung) wird abgelehnt; eine normale Adresse ergibt eine Karte mit Bild aus der eigenen Dateiablage.
