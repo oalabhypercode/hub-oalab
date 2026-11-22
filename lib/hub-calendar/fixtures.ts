@@ -43,6 +43,13 @@ const appointments: HubAppointment[] = fixtures.map(([day, start, end, customer,
   sample: true,
 }));
 
+/** Busy times from the team's other calendars (stage 2): admins see them as „Privat“, customers only as busy. */
+const privateBusy = [
+  { day: "2026-10-14", start: "12:00", end: "13:30", source: "iCloud · Privat" },
+  { day: "2026-10-16", start: "15:00", end: "17:00", source: "Microsoft 365 · Postfach Team" },
+  { day: "2026-10-21", start: "13:00", end: "14:00", source: "iCloud · Privat" },
+].map(({ day, start, end, source }) => ({ start: wallTimeToUtc(day, start), end: wallTimeToUtc(day, end), source }));
+
 /** A fictional availability like the approved preview: lunch break, a short Friday, a fair, a day off, an extra Saturday. */
 const availability: Availability = {
   week: [[[540, 720], [780, 1020]], [[540, 720], [780, 1020]], [[540, 720], [780, 1020]], [[540, 720], [780, 1020]], [[540, 780]], [], []],
@@ -60,7 +67,8 @@ export function calendarFixtures({ admin, customerNumber }: { admin: boolean; cu
   return {
     source: "fixtures",
     appointments: admin ? appointments : own,
-    busy: appointments.filter((item) => item.status === "confirmed").map(({ start, end }) => ({ start, end })),
+    busy: [...appointments.filter((item) => item.status === "confirmed").map(({ start, end }) => ({ start, end })), ...privateBusy.map(({ start, end }) => ({ start, end }))],
+    ...(admin ? { privateBusy } : {}),
     customers: Object.values(customers).filter((customer) => admin || customer.customerNumber === customerNumber),
     canManage: admin,
     // The preview's changes never leave the browser, so its tasks move without a code.

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bell, Building2, CalendarDays, Check, Files, FolderOpen, ListTodo, MessageSquare, type LucideIcon } from "lucide-react";
+import { Bell, Building2, CalendarDays, CalendarX2, Check, Files, FolderOpen, ListTodo, MessageSquare, type LucideIcon } from "lucide-react";
 import { markNoticesRead } from "@/lib/hub-notify/actions";
 import { noticeColumns } from "@/lib/hub-notify/columns";
 import { appointmentNotice, chatNotice, fileNotice, taskNotice, taskNoticePrefix } from "@/lib/hub-notify/rules";
@@ -19,6 +19,8 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
   // A release for a freelancer under „Kunden“ (18.11.2026): the page has no category colour, so the accent.
   if (kind === "share.granted") return { icon: Building2, color: "var(--accent-text)" };
   if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill };
+  // A calendar of the availability that cannot be read for 24 hours (admins, 22.11.2026).
+  if (kind === "calendar.source") return { icon: CalendarX2, color: categories.calendar.fill };
   return { icon: CalendarDays, color: categories.calendar.fill };
 }
 

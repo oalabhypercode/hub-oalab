@@ -1,6 +1,6 @@
 # Planung: Kalender des Hubs mit Apple Kalender synchron halten
 
-Stand 22. November 2026 · alle Entscheidungen getroffen (Abschnitt 8), Etappe 1 kann gebaut werden · im Hub ist davon noch nichts umgesetzt
+Stand 22. November 2026 · alle Entscheidungen getroffen (Abschnitt 8) · Etappe 1 und 2 gebaut auf dem Branch `feat/kalender-abo` (Migrationen 202611220001 und 202611220002 in `service-oalab`, Branch `feat/hub-calendar-feeds`), noch nicht live · Umsetzung und Einrichtung in Abschnitt 11
 
 Ziel: Was im Kalender des Hubs steht, soll ohne Zutun im Apple Kalender auf iPhone, iPad und Mac stehen und dort aktuell bleiben. Dieser Plan vergleicht die möglichen Wege, schlägt drei Etappen vor und beschreibt die erste so genau, dass sie gebaut werden kann. Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137), Apples Hilfeseiten zu Kalenderabos (Stand Mai 2026) und Microsofts Dokumentation zu Frei/Belegt in Microsoft Graph (Stand November 2026).
 
@@ -171,3 +171,47 @@ Alle Entscheidungen sind am 22. November 2026 getroffen:
 - Die App für Microsoft 365 liest nur die Postfächer des Teams; ein anderes Postfach im Mandanten ergibt einen Fehler.
 - Eine Quelle ist 24 Stunden nicht erreichbar: Meldung in der Glocke, bis dahin gelten die zuletzt gelesenen Zeiten.
 - Der iCloud-Link steht verschlüsselt in der Datenbank und wird im Hub nie wieder angezeigt.
+
+## 11. Umsetzung (22. November 2026) und Einrichtung
+
+### 11.1 Was gebaut ist
+
+- **Etappe 1:** Tabelle `hub_calendar_feeds` (nur Prüfsumme, Rolle beim Anlegen, Inhalte, letzter Abruf und Programm, Zähler je Stunde, Ende). Abo-Adresse `app/api/calendar/feed/[token]/[file]` (GET und HEAD, ETag und 304, 429 ab 60 Abrufen je Stunde, 404 für falsche und beendete Schlüssel). Knopf „Abonnieren“ im Kalenderkopf, Fenster „Kalender abonnieren“ mit den drei Schritten der Vorschau, Karte „Kalender-Abo“ im Profil, Satz in Termin-Mails für Abonnenten, Absatz in der Datenschutzerklärung. Das Abo endet beim Rücksetzen des zweiten Faktors, beim Deaktivieren und beim Rollenwechsel durch einen Admin sofort, sonst beim nächsten Abruf (Zugang nicht aktiv, gesperrt, andere Rolle, 180 Tage ohne Abruf).
+- **Etappe 2:** Tabellen `hub_calendar_sources` und `hub_calendar_external_busy`, `hub_calendar_replace_busy()`, neue Fassungen von `hub_calendar_busy()` und `hub_calendar_request_allowed()` (fremde belegte Zeiten mit demselben Puffer), Meldungsart `calendar.source`. Abschnitt „Andere Kalender berücksichtigen“ in der Verfügbarkeit, Abruf alle 10 Minuten im Zeitplan der Benachrichtigungen, graue Blöcke „Privat“ für Admins, Meldung in der Glocke nach 24 Stunden Störung.
+
+### 11.2 Abweichungen vom Plan
+
+- **Code beim Anlegen:** Statt eines eigenen Code-Fensters führt „Mit Code bestätigen“ über die vorhandene Bestätigungsseite des Hubs und zurück zum offenen Abo-Fenster (`?abo=1`), wie bei den Aufgaben im Kalender.
+- **„Abo beenden“ und „Neuen Link erzeugen“** fragen im Fenster selbst nach (wie „Endgültig löschen“ bei Terminen), nicht in einem eigenen Dialog.
+- **Outlook und Google:** Für das Abonnieren gibt es keinen dokumentierten Direktlink. Die Knöpfe öffnen Googles `cid=`-Link bzw. Outlooks „Aus dem Web abonnieren“ und kopieren den Link zusätzlich, damit man ihn notfalls einfügt.
+- **ICS-Quellen ohne Bibliothek:** Statt ical.js (eine neue Abhängigkeit braucht das Okay des Nutzers) liest `lib/hub-calendar/external-busy.ts` die Kalender selbst: Zeitzonen über Intl und eine Tabelle der Windows-Namen, Wiederholungen (täglich, wöchentlich, monatlich, jährlich mit BYDAY samt Position, BYMONTHDAY, BYMONTH, BYSETPOS, COUNT, UNTIL, INTERVAL), EXDATE, RDATE, verschobene Einzeltermine und VFREEBUSY; seltene Regelteile (BYWEEKNO, BYYEARDAY, BYHOUR) bleiben außen vor.
+- **Entscheidung 9, Rechte in Microsoft 365:** Die Rollensteuerung für Apps in Exchange Online (RBAC for Applications) kennt keine Rolle „Application Calendars.ReadBasic“, nur „Application Calendars.Read“ und „…ReadWrite“. Auf die Postfächer des Teams begrenzen lässt sich also nur `Calendars.Read`; `Calendars.ReadBasic` gäbe es nur für den ganzen Mandanten (in Entra ID erteilt, ohne Begrenzung). Empfehlung: Weg A unten (begrenzt, `Calendars.Read`). Der Hub fragt in beiden Fällen nur Frei/Belegt ab und speichert nur Beginn und Ende.
+
+### 11.3 Einrichtung Microsoft 365 (Weg A, empfohlen)
+
+Voraussetzung: Rolle Exchange-Administrator in Entra ID (oder die Rollengruppe Organization Management in Exchange Online).
+
+1. **App registrieren:** entra.microsoft.com › Anwendungen › App-Registrierungen › Neue Registrierung. Name zum Beispiel „oalab Client Hub Frei/Belegt“, Kontotyp „Nur Konten in diesem Organisationsverzeichnis“, keine Umleitungs-URI. Registrieren.
+2. **IDs notieren:** In der Übersicht „Anwendungs-ID (Client)“ → `HUB_MS365_CLIENT_ID`, „Verzeichnis-ID (Mandant)“ → `HUB_MS365_TENANT_ID`.
+3. **Geheimnis anlegen:** Zertifikate & Geheimnisse › Neuer geheimer Clientschlüssel, Ablauf zum Beispiel 24 Monate (Datum im Kalender vormerken). Den **Wert** (nicht die ID) sofort kopieren → `HUB_MS365_CLIENT_SECRET`; er wird nur einmal angezeigt.
+4. **Keine Kalenderrechte in Entra ID erteilen:** Unter API-Berechtigungen kein `Calendars.Read` oder `Calendars.ReadBasic` als Anwendungsberechtigung hinzufügen und keine Administratorzustimmung dafür geben. Rechte aus Entra ID gelten für den ganzen Mandanten und hebeln die Begrenzung aus.
+5. **Objekt-ID des Dienstprinzipals:** Unternehmensanwendungen › die neue App › „Objekt-ID“ kopieren (nicht die aus den App-Registrierungen).
+6. **Gruppe der Team-Postfächer:** Im Exchange Admin Center eine E-Mail-aktivierte Sicherheitsgruppe (oder Microsoft-365-Gruppe) „Hub Kalender“ anlegen und die Postfächer des Teams direkt als Mitglieder aufnehmen (verschachtelte Gruppen zählen nicht).
+7. **In Exchange Online PowerShell** (`Connect-ExchangeOnline`):
+   - `New-ServicePrincipal -AppId <Client-ID> -ObjectId <Objekt-ID aus Schritt 5> -DisplayName "oalab Client Hub"`
+   - `$dn = (Get-DistributionGroup "Hub Kalender").DistinguishedName` (bei einer Microsoft-365-Gruppe `Get-UnifiedGroup`)
+   - `New-ManagementScope -Name "Hub Kalender Team" -RecipientRestrictionFilter "MemberOfGroup -eq '$dn'"`
+   - `New-ManagementRoleAssignment -App <Client-ID> -Role "Application Calendars.Read" -CustomResourceScope "Hub Kalender Team"`
+   - Prüfen: `Test-ServicePrincipalAuthorization -Identity <Client-ID> -Resource <Team-Postfach>` zeigt `InScope: True`, für ein anderes Postfach `False`. Änderungen brauchen 30 Minuten bis 2 Stunden, bis sie gelten.
+8. **Im Hub eintragen:** In der Umgebung der App auf dem Server `HUB_MS365_TENANT_ID`, `HUB_MS365_CLIENT_ID`, `HUB_MS365_CLIENT_SECRET` und auf Wunsch `HUB_MS365_MAILBOXES` (weitere Team-Postfächer zur Auswahl, durch Komma getrennt) setzen und neu ausrollen. `HUB_VAULT_KEY` ist schon gesetzt (Schlüsselbund).
+9. **Postfach wählen:** Kalender › Zahnrad › Wochenplan & Regeln › Andere Kalender berücksichtigen › „+ Microsoft 365“, Postfach wählen, Hinzufügen. Spätestens nach 10 Minuten stehen die belegten Zeiten im Kalender.
+
+**Weg B (nicht begrenzt):** In Schritt 4 stattdessen die Anwendungsberechtigung `Calendars.ReadBasic` hinzufügen und die Administratorzustimmung erteilen, Schritte 5 bis 7 entfallen. Dann liest die App Frei/Belegt aller Postfächer des Mandanten, und Abnahme 10 („ein anderes Postfach ergibt einen Fehler“) gilt nicht.
+
+### 11.4 Einrichtung iCloud
+
+Auf iCloud.com › Kalender beim gewünschten Kalender auf das Info-Symbol klicken, „Öffentlicher Kalender“ einschalten, „Link kopieren“. Im Hub unter „+ iCloud-Kalender“ einfügen, einen Namen wie „Privat“ geben, Hinzufügen. Wer den Link kennt, sieht alle Einträge; der Hub speichert ihn verschlüsselt und zeigt ihn nie wieder an. Ein in Outlook mit „Kann sehen, wann ich beschäftigt bin“ veröffentlichter Kalender geht auf demselben Weg.
+
+### 11.5 Livegang
+
+Erst beide Migrationen in `service-oalab` einspielen (Reihenfolge mit `202611221002` der Notizen egal, beide Listen der Meldungsarten enthalten die Arten der anderen), dann den Hub ausrollen. Ohne Migration sagt der Hub freundlich, dass die Erweiterung der Datenbank fehlt; die Abo-Adresse antwortet dann mit 503.

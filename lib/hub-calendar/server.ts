@@ -6,6 +6,7 @@ import { loadFreelancerCustomerList, withFreelancerCustomers } from "@/lib/hub-f
 import { addDays, addMonths, availabilityFrom, calendarWindow, FIXED_AVAILABILITY, isAppointmentStatus, type Availability } from "./rules";
 import { feedRoleOf } from "./feed-rules";
 import { activeFeed, feedReady } from "./feed-store";
+import { loadPrivateBlocks } from "./sources-store";
 import type { HubFileCustomer } from "../hub-files/types";
 import type { HubAppointment, HubCalendarState } from "./types";
 
@@ -75,7 +76,7 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
 
   const lastDay = addDays(`${addMonths(window.lastMonth, 1)}-01`, -1);
   const feedRole = feedRoleOf(role);
-  const [appointments, customers, busy, open, archive, theirs, feed] = await Promise.all([
+  const [appointments, customers, busy, open, archive, theirs, feed, privateBusy] = await Promise.all([
     supabase
       .from("hub_appointments")
       .select("id, title, description, starts_at, ends_at, status, teams_url, response_note, customer:hub_customers(id, customer_number, company)")
@@ -92,6 +93,8 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
     feedRole && claims?.claims.sub && feedReady()
       ? activeFeed(claims.claims.sub, feedRole).then((found) => ({ active: Boolean(found) }), () => undefined)
       : undefined,
+    // Admins: the other calendars' busy times as „Privat“ (read with the service role after the role check above).
+    canManage ? loadPrivateBlocks(from, to).catch(() => []) : [],
   ]);
   const error = appointments.error ?? busy.error;
   if (error) return { ...base, appointments: [], busy: [], customers: [], availability: FIXED_AVAILABILITY, availabilityReady: false, error: describeCalendarError(error) };
@@ -99,6 +102,7 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
   return {
     ...base,
     ...(feed ? { feed } : {}),
+    ...(privateBusy.length ? { privateBusy } : {}),
     availability: open.availability,
     availabilityReady: open.ready,
     customers: withFreelancerCustomers(customers.data ?? [], theirs).filter((row) => !archive.customerIds.has(row.id)).map(toCustomer),

@@ -11,9 +11,10 @@ export const VAULT_KEY_VERSION = 1;
 
 /**
  * What a ciphertext belongs to: a mailbox's or login's password, their note (Schlüsselbund), or an admin's
- * authenticator key for the Schlüsselbund. The kind is part of the additional data, so a note never opens as a password.
+ * authenticator key for the Schlüsselbund, or the link of a calendar whose busy times block requests (calendar-source).
+ * The kind is part of the additional data, so a note never opens as a password.
  */
-export type VaultOwnerRef = { kind: "mailbox" | "login" | "mailbox-note" | "login-note" | "keychain-app"; id: string };
+export type VaultOwnerRef = { kind: "mailbox" | "login" | "mailbox-note" | "login-note" | "keychain-app" | "calendar-source"; id: string };
 /** As stored: Base64 of the 12-byte IV, the 16-byte tag and the ciphertext. */
 export type SealedSecret = { keyVersion: number; iv: string; authTag: string; ciphertext: string };
 

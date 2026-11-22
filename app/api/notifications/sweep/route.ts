@@ -4,10 +4,12 @@ import { siteOrigin } from "@/lib/site-origin";
 import { runNotificationSweep } from "@/lib/hub-notify/server";
 import { usesOwnPlatform } from "@/lib/platform/config";
 import { sweepAbandonedUploads } from "@/lib/platform/storage";
+import { syncCalendarSources } from "@/lib/hub-calendar/sources-store";
 
 // The schedule for notifications: pg_cron in the database calls this every five minutes with the token from Vault
 // (migration hub_notifications). Without HUB_NOTIFY_TOKEN, or with another token, nothing happens. A run only does
-// what is due, so an extra call never sends twice. On the own platform it also clears abandoned uploads.
+// what is due, so an extra call never sends twice. It also reads the other calendars of the availability that are due
+// (every ten minutes, lib/hub-calendar/sources-store.ts), and on the own platform it clears abandoned uploads.
 
 // Room for the mails that run after the response.
 export const maxDuration = 60;
@@ -27,6 +29,11 @@ export async function POST(request: Request) {
   after(async () => {
     const result = await runNotificationSweep(origin);
     console.info(`[hub-notify] ${JSON.stringify(result)}`);
+    // Counts only: never a link, a mailbox or a time.
+    await syncCalendarSources().then(
+      (report) => { if (report.checked || report.skipped === "read") console.info(`[hub-calendar] ${JSON.stringify(report)}`); },
+      (error: unknown) => console.error("[hub-calendar] sources failed", error instanceof Error ? error.name : "unknown"),
+    );
     if (!usesOwnPlatform()) return;
     await sweepAbandonedUploads().then(
       (removed) => { if (removed) console.info(`[hub-storage] removed ${removed} abandoned upload rows`); },

@@ -264,7 +264,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const [day, setDay] = useState(() => isDay(startDay) ? startDay : today);
   const [selected, setSelected] = useState<string | null>(() => admin && store.customers.some((customer) => customer.id === params.get("customer")) ? params.get("customer") : null);
   const [paneOpen, setPaneOpen] = useState(() => Boolean(params.get("customer")));
-  const [panel, setPanel] = useState<Panel | null>(() => linked ? { kind: "appointment", id: linked.id } : params.get("abo") === "1" ? { kind: "feed" } : null);
+  const [panel, setPanel] = useState<Panel | null>(() => linked ? { kind: "appointment", id: linked.id } : params.get("abo") === "1" ? { kind: "feed" } : admin && params.get("avail") === "1" ? { kind: "avail" } : null);
   // The calendar subscription: the head's button says „Abonniert“ while one is active (lib/hub-calendar/feed*.ts).
   const [feedActive, setFeedActive] = useState(Boolean(calendar.feed?.active));
   const [storedLayers, setStoredLayers] = useStoredValue("oalab-calendar-layers", DEFAULT_LAYERS);
@@ -310,6 +310,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     .map((item) => ({ ...item, faded: admin && selected !== null && item.customer?.id !== selected }))
     .filter((item) => !(item.faded && item.status !== "confirmed" && item.status !== "requested"))
     .sort(byStart), [store.appointments, admin, selected, on]);
+  // Admins: busy times from the team's other calendars as grey „Privat“ blocks, without titles (stage 2, 22.11.2026).
+  const privateOn = useCallback((date: string) => admin ? (calendar.privateBusy ?? []).filter((block) => dayOf(block.start) <= date && dayOf(block.end - 1) >= date) : [], [admin, calendar.privateBusy]);
   const tasksOn = useCallback((date: string) => on("tasks") ? tasks.filter((task) => task.dueOn === date && inScope(task.customerId) && (task.status !== "done" || (admin && on("done")))).sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || b.number - a.number) : [], [tasks, inScope, admin, on]);
   const goalsOn = useCallback((date: string) => on("goals") ? goals.filter((goal) => goal.day === date && inScope(goal.customerId)) : [], [goals, inScope, on]);
   const overdue = useMemo(() => on("tasks") ? tasks.filter((task) => task.dueOn && task.dueOn < today && task.status !== "done" && inScope(task.customerId)) : [], [tasks, today, inScope, on]);
@@ -498,6 +500,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     onOverdue: () => { setEditing(false); setView("list"); setDay(today); },
     onFree: (date, minute) => setPanel({ kind: "ask", day: date, start: clockOf(minute) }),
     onAvailBlock, onDayOff,
+    privateOn,
+    onPrivate: (block) => showToast(`Belegt aus „${block.source}“. Titel liest der Hub nicht; Kunden sehen hier nur „Belegt“.`),
   };
   const content = view === "month" ? <MonthView {...viewProps} month={monthOf(day)} />
     : view === "list" ? <ListView {...viewProps} logoOf={(id) => logos.get(id) ?? null} />
@@ -574,7 +578,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const legend = (
     <span className="cal-legend">
       {(admin
-        ? [["is-confirmed", "Termin"], ["is-requested", "Anfrage"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"], ...(editing ? [["is-avail", "Verfügbar"]] : []), ["is-off", "Nicht verfügbar"]]
+        ? [["is-confirmed", "Termin"], ["is-requested", "Anfrage"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"], ...(editing ? [["is-avail", "Verfügbar"]] : []), ["is-off", "Nicht verfügbar"], ...(calendar.privateBusy?.length ? [["is-private", "Privat aus anderen Kalendern"]] : [])]
         : [["is-confirmed", "Dein Termin"], ["is-requested", "Deine Anfrage"], ["is-free", "Frei"], ["is-task", "Aufgabe"], ["is-goal", "Zieltermin"]]
       ).map(([cls, label]) => <span key={cls} className="cal-key"><span className={`cal-key-swatch ${cls}`} aria-hidden="true" />{label}</span>)}
     </span>

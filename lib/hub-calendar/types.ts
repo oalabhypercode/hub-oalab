@@ -56,6 +56,11 @@ export type HubCalendarState = {
    * and where it is not set up; the panel loads the rest itself (lib/hub-calendar/actions.ts loadCalendarFeed).
    */
   feed?: { active: boolean };
+  /**
+   * Admins only: busy times from the team's other calendars (iCloud, Microsoft 365), shown as grey blocks „Privat“ with
+   * where they come from. Customers get them inside `busy`, without any origin.
+   */
+  privateBusy?: { start: number; end: number; source: string }[];
   error?: string;
 };
 

@@ -35,7 +35,7 @@ function areaOf(kind: string) {
   if (kind === "file.shared") return "Dateien";
   if (kind === "share.granted") return "Kunden";
   if (kind.startsWith("chat.")) return "Nachrichten";
-  if (kind.startsWith("appointment.")) return "Kalender";
+  if (kind.startsWith("appointment.") || kind.startsWith("calendar.")) return "Kalender";
   return "Hub";
 }
 
