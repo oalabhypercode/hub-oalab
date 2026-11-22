@@ -388,3 +388,10 @@ test("the bar for links in the text shows only at links in the text and goes whe
   const css = await source("app/notes.css");
   assert.match(css, /\.nz-prose a:not\(\[class\]\) \{/, "the same rule tells text links apart in the styles");
 });
+
+test("the notes sections in the appointment and project windows show icon and heading on one line", async () => {
+  const links = await source("components/hub/screens/notes-links.tsx");
+  assert.equal((links.match(/<section className="um-sec nz-links">/g) ?? []).length, 3);
+  const css = await source("app/notes.css");
+  assert.match(css, /\.nz-links \.um-sec-head h3 \{ display: flex; align-items: center; gap: 8px; \}/, "not only inside the task window (.kb-panel)");
+});
