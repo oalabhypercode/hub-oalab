@@ -11,6 +11,7 @@ import { coverWithLink, GALLERY_COVERS, keepCoverLink, nextCoverPosition } from 
 import { filterTasks, isTaskFilter, taskAudienceFor } from "../lib/hub-notes/rules.ts";
 import { checkPreviewUrl, isPrivateAddress, readPreview } from "../lib/hub-notes/link-guard.ts";
 import { meetingDate, noteTemplate, TEMPLATE_CHOICES } from "../lib/hub-notes/templates.ts";
+import { isNoteImageFolder, NOTE_IMAGE_FOLDERS_SQL, NOTE_IMAGE_GRACE_HOURS, NOTE_IMAGE_SWEEP_HOURS, NOTE_IMAGES_SQL, removableNoteImages } from "../lib/hub-notes/images.ts";
 import { noteNotice } from "../lib/hub-notify/rules.ts";
 
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -394,4 +395,60 @@ test("the notes sections in the appointment and project windows show icon and he
   assert.equal((links.match(/<section className="um-sec nz-links">/g) ?? []).length, 3);
   const css = await source("app/notes.css");
   assert.match(css, /\.nz-links \.um-sec-head h3 \{ display: flex; align-items: center; gap: 8px; \}/, "not only inside the task window (.kb-panel)");
+});
+
+// ---- Stored images: covers and link previews go once nothing names them --------------------------------------------
+
+test("a stored image goes once no page and no version names it, and not before it is a day old", () => {
+  const hour = 3_600_000;
+  const now = Date.parse("2026-11-23T12:00:00Z");
+  const ago = (hours) => new Date(now - hours * hour);
+  const preview = `notes/${CUSTOMER}/links/${TASK}.webp`;
+  const cover = `notes/${CUSTOMER}/${PROJECT}.webp`;
+  const rows = [
+    { name: preview, created_at: ago(48), used: false },
+    { name: cover, created_at: ago(25).toISOString(), used: false },
+    { name: `notes/${CUSTOMER}/links/${PROJECT}.webp`, created_at: ago(48), used: true },
+    { name: `notes/${CUSTOMER}/links/22222222-2222-4333-8444-555555555555.webp`, created_at: ago(23), used: false },
+    { name: `notes/${CUSTOMER}/links/33333333-2222-4333-8444-555555555555.webp`, created_at: ago(48), used: null },
+    { name: `notes/${CUSTOMER}/links/44444444-2222-4333-8444-555555555555.webp`, created_at: "kein Datum", used: false },
+    { name: `notes/${PROJECT}/links/${TASK}.webp`, created_at: ago(48), used: false },
+    { name: `notes/${CUSTOMER}/links/sub/${TASK}.webp`, created_at: ago(48), used: false },
+    { name: `notes/${CUSTOMER}/links/${TASK}.png`, created_at: ago(48), used: false },
+    { name: `notes/${CUSTOMER}/readme.txt`, created_at: ago(48), used: false },
+  ];
+  assert.deepEqual(removableNoteImages(rows, CUSTOMER, now), [preview, cover], "only the hub's own covers and previews in this folder, unused and older than a day");
+  assert.deepEqual(removableNoteImages(rows, CUSTOMER.toUpperCase(), now), [], "folders carry the id in small letters");
+  assert.deepEqual(removableNoteImages(rows, "kein-kunde", now), []);
+  assert.equal(NOTE_IMAGE_GRACE_HOURS, 24);
+  assert.equal(NOTE_IMAGE_SWEEP_HOURS, 6);
+  assert.ok(isNoteImageFolder(CUSTOMER) && !isNoteImageFolder("..") && !isNoteImageFolder(`${CUSTOMER}/links`));
+});
+
+test("what names an image: pages of its customer also in the trash, with covers and cards in any block, and their history", async () => {
+  // A version keeps a removed card's picture, so „Verlauf → Diese Fassung wiederherstellen“ always finds it.
+  assert.match(NOTE_IMAGES_SQL, /from public\.hub_note_revisions r\s+join public\.hub_note_pages p on p\.id = r\.page_id/);
+  assert.equal((NOTE_IMAGES_SQL.match(/jsonb_path_query\((p|r)\.content, 'lax \$\.\*\* \? \(@\.type == "noteLinkCard"\)'\)/g) ?? []).length, 2, "cards in callouts, lists, tables and toggles too, in pages and versions");
+  assert.match(NOTE_IMAGES_SQL, /p\.customer_id = \$2::uuid and p\.cover_kind = 'upload'/);
+  assert.doesNotMatch(NOTE_IMAGES_SQL, /deleted_at/, "a page in the trash can come back with its pictures");
+  assert.match(NOTE_IMAGES_SQL, /left join used u on u\.name = o\.name/, "the names in use are gathered once, not once per object");
+  assert.match(NOTE_IMAGE_FOLDERS_SQL, /o\.created_at < now\(\) - make_interval\(hours => \$2::int\)/);
+
+  const sweep = await source("lib/hub-notes/sweep.ts");
+  assert.match(sweep, /^import "server-only";/);
+  assert.match(sweep, /if \(!usesOwnPlatform\(\)\) return result;/);
+  assert.match(sweep, /sql<StoredNoteImage>\(NOTE_IMAGES_SQL, \[HUB_FILES_BUCKET, customer, `notes\/\$\{customer\}\/`\]\)/);
+  assert.match(sweep, /removableNoteImages\(rows, customer\)/);
+  assert.match(sweep, /const MAX_PER_RUN = 500;/);
+  assert.match(sweep, /if \(now - lastScheduled < NOTE_IMAGE_SWEEP_HOURS \* 3_600_000\) return null;/);
+  // The hub's schedule runs it every six hours; deleting for good and the trash's 30 days run it for that customer.
+  const route = await source("app/api/notifications/sweep/route.ts");
+  assert.match(route, /if \(!usesOwnPlatform\(\)\) return;\s+await sweepAbandonedUploads\(\)[\s\S]*await sweepNoteImagesOnSchedule\(\);/);
+  const write = await source("lib/hub-notes/write.ts");
+  assert.match(write, /delete\(\)\.eq\("id", row\.id\);\s+if \(error\) return fail\("Die Seite konnte gerade nicht gelöscht werden\."\);\s+after\(\(\) => sweepNoteImages\(row\.customer_id\)\);/);
+  assert.match(write, /if \(!removed\.error\) after\(\(\) => sweepNoteImages\(input\.customerId\)\);/);
+  assert.doesNotMatch(write, /storedPaths/, "deleting a page never removes a picture another page or version still names");
+  // A cover is never in the history: a replaced or removed upload goes at once.
+  assert.match(write, /await removeStored\(ctx, \[before\.data\.cover_value\]\)/);
+  assert.match(write, /if \(previous\) await removeStored\(ctx, \[previous\]\);/);
 });
