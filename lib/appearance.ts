@@ -15,7 +15,10 @@ export type ColorScheme = "system" | "light" | "dark";
  */
 export type ListView = "minimal" | "list" | "detail";
 
-/** Breite: the page as it was (Standard), or the sheets almost edge to edge like an IDE (XL). */
+/**
+ * Breite: Standard uses the whole width beside the sidebar and grows with the screen (since 22.11.2026; before, the
+ * content stopped at 1040 px), XL moves the sheets almost to the window's edge like an IDE.
+ */
 export type PageWidth = "standard" | "xl";
 
 /**
@@ -23,6 +26,8 @@ export type PageWidth = "standard" | "xl";
  * width, never in the account; app/notes.css scales the whole writing area from it.
  */
 export type NotesTextSize = "small" | "medium" | "large";
+/** The sidebar from 1024 px (22.11.2026): expanded as before, or collapsed to its symbols. Per device, like the width. */
+export type SidebarState = "expanded" | "collapsed";
 
 export type BackgroundPreset = {
   id: BackgroundPresetId;
@@ -39,6 +44,7 @@ export type Appearance = {
   glassBlur: number;
   reduceTransparency: boolean;
   reduceMotion: boolean;
+  sidebar: SidebarState;
   listView: ListView;
   pageWidth: PageWidth;
   notesTextSize: NotesTextSize;
@@ -67,12 +73,13 @@ export const defaultAppearance: Appearance = {
   glassBlur: 24,
   reduceTransparency: false,
   reduceMotion: false,
+  sidebar: "expanded",
   listView: "minimal",
   pageWidth: "standard",
   notesTextSize: "medium",
 };
 
-export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark"; width: PageWidth; notesText: NotesTextSize };
+export type AppearanceDom = { variables: Record<string, string>; reduceTransparency: boolean; reduceMotion: boolean; onBackground: "light" | "dark"; theme: "light" | "dark"; width: PageWidth; notesText: NotesTextSize; sidebar: SidebarState };
 
 /** The dark theme shows the background at this brightness at most (glass.css mixes it with black, --bg-shade). */
 export const DARK_BACKGROUND_SHADE = 0.62;
@@ -124,6 +131,8 @@ export function resolveAppearance(stored: unknown, presets: BackgroundPreset[], 
     width: input.pageWidth === "xl" ? "xl" : "standard",
     // The notes' text size, also before the first paint, so a page in Groß does not open in Mittel and then grow.
     notesText: input.notesTextSize === "small" || input.notesTextSize === "large" ? input.notesTextSize : "medium",
+    // The same for a collapsed sidebar: it opens narrow instead of sliding in from the full width.
+    sidebar: input.sidebar === "collapsed" ? "collapsed" : "expanded",
   };
 }
 
@@ -141,6 +150,7 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     glassBlur: Math.min(GLASS_BLUR_RANGE.max, Math.max(GLASS_BLUR_RANGE.min, number(input.glassBlur, defaultAppearance.glassBlur))),
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : defaultAppearance.reduceMotion,
+    sidebar: input.sidebar === "collapsed" ? "collapsed" : "expanded",
     listView: input.listView === "detail" || input.listView === "list" ? input.listView : "minimal",
     pageWidth: input.pageWidth === "xl" ? "xl" : "standard",
     notesTextSize: input.notesTextSize === "small" || input.notesTextSize === "large" ? input.notesTextSize : "medium",
@@ -156,6 +166,7 @@ export function applyAppearanceToDocument(dom: AppearanceDom, root: HTMLElement)
   root.dataset.theme = dom.theme;
   root.dataset.width = dom.width;
   root.dataset.notesText = dom.notesText;
+  root.dataset.sidebar = dom.sidebar;
   // Native controls and scrollbars follow the theme as well.
   root.style.colorScheme = dom.theme;
 }

@@ -41,7 +41,7 @@ export function AppearanceScreen({ preview, admin = false }: { preview: boolean;
           <div className="swatch-grid list-swatches">
             {widths.map((width) => <WidthSwatch key={width.id} width={width.id} label={width.label} selected={appearance.pageWidth === width.id} onSelect={() => update({ pageWidth: width.id })} />)}
           </div>
-          <p className="t-footnote t-secondary">Breit nutzt den Bildschirm wie ein Programm im Vollbild: Tabellen und Panels reichen fast bis an den Rand, auch nach unten. Auf Handy und Tablet bleibt alles gleich.</p>
+          <p className="t-footnote t-secondary">Standard nutzt die ganze Fläche neben der Sidebar und wächst mit dem Bildschirm. Breit (XL) rückt wie ein Programm im Vollbild bis knapp an den Rand, auch nach unten. Auf Handy und Tablet bleibt alles gleich.</p>
         </GlassCard>
 
         {/* Notizen (22.11.2026): the same choice as „Aa“ on the notes page, per device. */}

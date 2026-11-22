@@ -24,7 +24,8 @@ import { useLiveSync } from "./use-live-sync";
 import { BackgroundLayer } from "./background-layer";
 import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
-import { CategoryIcon, GlassButton } from "./glass";
+import { CategoryIcon, GlassButton, GlassLayers } from "./glass";
+import { LiquidGlassLayer } from "./liquid-glass";
 import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
@@ -219,7 +220,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
               {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. Tablets hide the
                   sidebar with its gear menu, so there signing out sits at the far right (wish of 5 November 2026). */}
-              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="glass glass-float glass-button topbar-signout" aria-label={signOutLabel} data-tip={signOutLabel} onClick={signOut} disabled={signingOut}>{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
+              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="lg glass-button topbar-signout" aria-label={signOutLabel} data-tip={signOutLabel} onClick={signOut} disabled={signingOut}><GlassLayers />{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
               {/* Profil shows its own message; on other pages a failed sign-out from the top row says so here. */}
               {logoutError && section !== "settings" && <p role="alert" className="form-error topbar-signout-error">{logoutError}</p>}
@@ -255,6 +256,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
         )}
         {/* Hover hints of the whole hub (data-tip), in place of the browser's title tooltips. */}
         <TooltipLayer />
+        {/* The refraction filter and the pointer light of the hub's liquid glass (sidebar, round buttons). */}
+        <LiquidGlassLayer />
         {/* The installed app's offline page (public/sw.js); importing the module also catches Chrome's install offer. */}
         <WebAppSetup />
       </ShellContext.Provider>
