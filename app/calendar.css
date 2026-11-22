@@ -5,10 +5,7 @@
  */
 :root { --cal-task: #FF9500; --cal-now: #FF3B30; --cal-teams: #4b53bc; }
 :root[data-theme=dark] { --cal-teams: #a3a9ff; }
-.hub-content:has(.cal-sheet) { max-width: 1720px; }
-
-/* Sidebar: a second entry under „Projekte“ continues the line of the first */
-.sidebar-item.sidebar-sub + .sidebar-item.sidebar-sub::before { top: -26px; height: 43px; }
+/* As wide as the work area since 22.11.2026 (before, 1720 px); the line of the entries under „Projekte“ lives in app/sidebar.css. */
 
 /* Sheet: admins list left / calendar right (.am); customers the calendar alone, same height */
 .cal-sheet.is-customer { height: calc(100dvh - 148px); min-height: 560px; overflow: hidden; display: flex; }

@@ -201,6 +201,16 @@
 .nt-zone.has-charts > .nt > .nt-none { position: absolute; left: 0; right: 0; top: 100%; margin-top: 14px; }
 .ch-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding-top: 78px; }
 .ch-col > .stk { flex: 1 1 0; min-height: 262px; }
+/* Wide screens (22.11.2026): from about 1500 px of work area the two stacks stand side by side instead of one above the
+   other, each as tall as it needs; the notifications keep a readable width. */
+@media (min-width: 1840px) {
+  .hub-app:not(.has-assistant-dock) .nt-zone.has-charts { grid-template-columns: minmax(0, 1.25fr) minmax(0, 2fr); }
+  .hub-app:not(.has-assistant-dock) .ch-col { flex-direction: row; align-self: start; }
+}
+@media (min-width: 1640px) {
+  :root[data-sidebar="collapsed"] .hub-app:not(.has-assistant-dock) .nt-zone.has-charts { grid-template-columns: minmax(0, 1.25fr) minmax(0, 2fr); }
+  :root[data-sidebar="collapsed"] .hub-app:not(.has-assistant-dock) .ch-col { flex-direction: row; align-self: start; }
+}
 
 /* a stack: the tile shows one widget, the dots switch, the gear chooses */
 .in-tile.stk { position: relative; overflow: visible; }
