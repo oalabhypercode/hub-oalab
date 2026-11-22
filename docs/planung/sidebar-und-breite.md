@@ -1,6 +1,6 @@
 # Planung: Einklappbare Sidebar und mitwachsender Arbeitsbereich
 
-Stand 22. November 2026 · V3 freigegeben („Passt, umsetzen“), mit den Empfehlungen aus Abschnitt 6 umgesetzt und seit dem 22.11. live · Vorschau V4 (Zahnrad am Profilbild, Abschnitt 1.8) zur Freigabe
+Stand 22. November 2026 · V3 freigegeben („Passt, umsetzen“), mit den Empfehlungen aus Abschnitt 6 umgesetzt und seit dem 22.11. live · V4 (Zahnrad am Profilbild, Abschnitt 1.8) freigegeben („Menü, umsetzen“) und auf dem Branch `feat/sidebar-zahnrad-profil` umgesetzt
 
 Dieser Plan beschreibt zwei Änderungen für den Hub am Rechner, also ab 1024 px Fensterbreite:
 
@@ -96,10 +96,10 @@ Wunsch vom 22. November 2026: Eingeklappt sollen die Einstellungen direkt zu err
 
 - **Aussehen:** Eingeklappt trägt das Profilbild unten in der Leiste die Zacken des Zahnrads: acht runde Zacken auf einem feinen Ring, mit etwas Luft zum Profilbild (34 px im 48-px-Kreis). Kunden mit Logo sehen ihr Logo rund im Zahnrad. Der Ring hat die Farbe des Nebentexts, damit er nicht lauter ist als die Symbole darüber.
 - **Darüberfahren und Fokus:** Das Zahnrad dreht sich federnd um einen Zacken weiter und nimmt die Akzentfarbe an; darüber liegt wie bei jedem Eintrag der Glastropfen. Der Hinweis rechts daneben heißt „Einstellungen“, darunter stehen Name und Firma (bisher stand dort nur der Name).
-- **Klick:** öffnet das Konto-Menü wie bisher (Abschnitt 1.4): Profil, Darstellung, Abmelden, Impressum · Datenschutz, rechts neben der Leiste. Solange das Menü offen ist, bleibt das Zahnrad gedreht und farbig. Alternative: Der Klick führt direkt zur Seite Profil (Entscheidung 13).
+- **Klick:** öffnet das Konto-Menü wie bisher (Abschnitt 1.4): Profil, Darstellung, Abmelden, Impressum · Datenschutz, rechts neben der Leiste. Solange das Menü offen ist, bleibt das Zahnrad gedreht und farbig. Die Alternative, direkt zur Seite Profil, ist verworfen (Entscheidung 13).
 - **Ausgeklappt** bleibt alles wie heute: Name und Bild führen zum Profil, das Zahnrad daneben öffnet das Menü.
 - **Bildschirmleser:** Der Eintrag heißt „Einstellungen: Profil, Darstellung, Abmelden, Impressum und Datenschutz“ und meldet, ob das Menü offen ist.
-- **Technik:** ein kleines SVG im Konto-Link (zwei Kreise, die Zacken als gestrichelter Rand), sichtbar nur bei eingeklappter Sidebar ab 1024 px. Die Drehung nutzt dieselbe Feder wie die runden Knöpfe; mit „Bewegung reduzieren“ wechselt nur die Farbe.
+- **Technik:** ein kleines SVG im Konto-Link (zwei Kreise, die Zacken als gestrichelter Rand), sichtbar nur bei eingeklappter Sidebar ab 1024 px. Die Drehung nutzt dieselbe Feder wie die runden Knöpfe; mit „Bewegung reduzieren“ wechselt nur die Farbe. Eingeklappt gibt der Name seine Höhe weich ab, sodass das Zeichen mit Tropfen und Auswahl ein Kreis von 48 px ist. Das Zahnrad neben dem Namen ist eingeklappt auch für die Tastatur weg; Escape bringt den Fokus zurück auf das Zeichen.
 
 ## 2. Der Arbeitsbereich wächst mit
 
@@ -174,7 +174,7 @@ Vor dem Livegang einmal jede Seite auf 1512, 1920, 2560 und 3840 px Breite anseh
 
 ## 6. Entscheidungen
 
-Am 22. November 2026 mit der Freigabe von V3 entschieden (1–12): Umgesetzt ist jeweils die Empfehlung. Frage 13 kommt mit V4 und ist offen.
+Am 22. November 2026 mit der Freigabe von V3 entschieden (1–12): Umgesetzt ist jeweils die Empfehlung. Frage 13 kam mit V4 und ist mit dessen Freigabe entschieden.
 
 | # | Frage | Empfehlung |
 |---|---|---|
@@ -190,7 +190,7 @@ Am 22. November 2026 mit der Freigabe von V3 entschieden (1–12): Umgesetzt ist
 | 10 | Auswahl ausgeklappt als Kapsel über die ganze Zeile oder nur als Kreis um das Symbol? | Kapsel (Kreis bleibt eingeklappt) |
 | 11 | Brechung im Glas nur dort, wo der Browser sie kann (Chrome, Edge), sonst derselbe Tropfen ohne Brechung? | Ja |
 | 12 | Glocke, Assistent und die anderen runden Knöpfe im ganzen Hub ebenfalls aus Liquid Glass? | Ja, im selben PR |
-| 13 | Eingeklappt: Öffnet das Profilbild mit Zahnrad das Konto-Menü oder führt es direkt zur Seite Profil? (V4) | Offen; Empfehlung: Menü, so bleiben Darstellung und Abmelden einen Klick entfernt |
+| 13 | Eingeklappt: Öffnet das Profilbild mit Zahnrad das Konto-Menü oder führt es direkt zur Seite Profil? (V4) | Entschieden am 22.11.2026: Menü, so bleiben Darstellung und Abmelden einen Klick entfernt |
 
 ## 7. Abnahme
 

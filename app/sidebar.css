@@ -75,7 +75,7 @@
 .sidebar-account-gear:hover, .sidebar-account-gear:focus-visible, .sidebar-account-gear[aria-expanded="true"] { background: transparent; }
 
 /* ---------- Sidebar ab 1024 px ---------- */
-.sidebar-toggle, .sidebar-drop { display: none; }
+.sidebar-toggle, .sidebar-drop, .sidebar-gear-ring { display: none; }
 @media (min-width: 1024px) {
   :root[data-sidebar="collapsed"] { --sidebar-w: 72px; }
   .glass-sidebar { width: var(--sidebar-w); overflow: visible; transition: width 860ms var(--sp-open); }
@@ -150,17 +150,34 @@
   }
   @keyframes sidebar-sel-in { from { transform: scale(0.55); opacity: 0; } }
 
-  /* Konto-Ecke: eingeklappt nur das Zeichen; ein Klick öffnet das Menü rechts neben der Sidebar. */
+  /* Konto-Ecke: eingeklappt nur das Zeichen mit den Zacken des Zahnrads; ein Klick öffnet das Menü rechts neben der
+     Sidebar. Das Zahnrad selbst ist dann weg, auch für die Tastatur. */
   .sidebar-account { flex: none; }
   .sidebar-account-link { position: relative; isolation: isolate; border-radius: 999px; transition: width 760ms var(--sp-item), padding 760ms var(--sp-item), min-height 760ms var(--sp-item); }
   .sidebar-account-link:hover, .sidebar-account-link.is-active { background: transparent; box-shadow: none; }
   .sidebar-account-link .avatar { transition: scale 560ms var(--sp-pop); }
   .sidebar-account-link:hover .avatar { scale: 1.07; }
-  .sidebar-account-text { transition: opacity 280ms ease 150ms; }
+  /* Eingeklappt gibt der Name seine Höhe ab, damit das Zeichen ein runder Kreis von 48 px bleibt; das geht weich. */
+  .sidebar-account-text { max-height: 72px; transition: opacity 280ms ease 150ms, max-height 760ms var(--sp-item); }
   .sidebar-account-gear { transition: opacity 260ms ease 140ms, scale 560ms var(--sp-pop), color 200ms ease; }
-  :root[data-sidebar="collapsed"] .sidebar-account-link { flex: none; width: 48px; min-height: 48px; padding: 6px; }
-  :root[data-sidebar="collapsed"] .sidebar-account-text { opacity: 0; transition: opacity 100ms ease; }
-  :root[data-sidebar="collapsed"] .sidebar-account-gear { position: absolute; right: 0; opacity: 0; scale: 0.5; pointer-events: none; transition: opacity 120ms ease, scale 300ms ease; }
+  :root[data-sidebar="collapsed"] .sidebar-account-link { flex: none; width: 48px; min-height: 48px; padding: 7px; }
+  :root[data-sidebar="collapsed"] .sidebar-account-text { max-height: 0; opacity: 0; transition: opacity 100ms ease, max-height 760ms var(--sp-item); }
+  :root[data-sidebar="collapsed"] .sidebar-account-gear { position: absolute; right: 0; opacity: 0; scale: 0.5; visibility: hidden; pointer-events: none; transition: opacity 120ms ease, scale 300ms ease, visibility 0s linear 120ms; }
+  /* Die Zacken des Zahnrads um das Zeichen (Wunsch vom 22.11.2026, Vorschau V4): acht runde Zacken auf einem feinen Ring,
+     mit etwas Luft zum Zeichen, in der Farbe des Nebentexts. Darüberfahren, Fokus und offenes Menü drehen das Zahnrad
+     federnd um einen Zacken weiter, in der Akzentfarbe. Ein Logo sitzt rund darin. */
+  :root[data-sidebar="collapsed"] .sidebar-account-link .avatar { width: 34px; height: 34px; }
+  :root[data-sidebar="collapsed"] .sidebar-account-link .avatar.has-logo { border-radius: 50%; }
+  :root[data-sidebar="collapsed"] .sidebar-gear-ring {
+    display: block; position: absolute; left: 0; top: 0; bottom: 0; width: 48px; height: 48px; margin: auto 0;
+    overflow: visible; pointer-events: none;
+    fill: none; stroke: currentColor; stroke-width: 1.5; color: var(--label-secondary);
+    transition: rotate 640ms var(--sp-pop), color 200ms ease;
+    animation: sidebar-gear-in 560ms var(--sp-pop) 120ms backwards;
+  }
+  .sidebar-gear-teeth { stroke-width: 4; stroke-linecap: round; stroke-dasharray: 5.5 11.386; stroke-dashoffset: 2.75; }
+  :root[data-sidebar="collapsed"] .sidebar-account-link:is(:hover, :focus-visible, [aria-expanded="true"]) .sidebar-gear-ring { rotate: 45deg; color: var(--accent-text); }
+  @keyframes sidebar-gear-in { from { scale: 0.6; opacity: 0; } }
   :root[data-sidebar="collapsed"] .sidebar-account-menu { left: calc(100% + 22px); right: auto; bottom: 0; min-width: 240px; }
   .sidebar-account-who { display: none; }
   :root[data-sidebar="collapsed"] .sidebar-account-who { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px 4px; }
@@ -201,5 +218,5 @@
 :root[data-reduce-transparency="true"] .sidebar-drop { z-index: -1; }
 :root[data-reduce-transparency="true"] .sidebar-drop .lg-fx { -webkit-mask-image: none; mask-image: none; background: var(--selected-pill); }
 /* „Bewegung reduzieren“: ein- und ausklappen ohne Federn, der Tropfen ohne Gleiten und Nachfedern. */
-:root[data-reduce-motion="true"] :is(.glass-sidebar, .hub-main, .compact-nav, .sidebar-brand, .sidebar-brand-text, .sidebar-search, .sidebar-item, .sidebar-item > [data-tip-label], .sidebar-line, .sidebar-account-link, .sidebar-account-gear, .sidebar-toggle > svg, .sidebar-drop, .sidebar-drop-body, .lg, .sidebar-accent-icon) { transition: none !important; }
-:root[data-reduce-motion="true"] :is(.sidebar-drop-body, .sidebar-item.is-active::before, .sidebar-item.is-active::after, .sidebar-account-link.is-active::before, .sidebar-account-link.is-active::after) { animation: none !important; }
+:root[data-reduce-motion="true"] :is(.glass-sidebar, .hub-main, .compact-nav, .sidebar-brand, .sidebar-brand-text, .sidebar-search, .sidebar-item, .sidebar-item > [data-tip-label], .sidebar-line, .sidebar-account-link, .sidebar-account-text, .sidebar-account-gear, .sidebar-gear-ring, .sidebar-toggle > svg, .sidebar-drop, .sidebar-drop-body, .lg, .sidebar-accent-icon) { transition: none !important; }
+:root[data-reduce-motion="true"] :is(.sidebar-gear-ring, .sidebar-drop-body, .sidebar-item.is-active::before, .sidebar-item.is-active::after, .sidebar-account-link.is-active::before, .sidebar-account-link.is-active::after) { animation: none !important; }
