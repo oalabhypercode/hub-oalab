@@ -4,7 +4,7 @@ Stand 22. November 2026 · Entwurf zur Entscheidung · im Hub ist davon noch nic
 
 Dieser Plan beschreibt einen neuen Bereich **Notizen**: je Kunde ein eigener Notizbereich wie in Notion, mit Seiten und Unterseiten, der mit den Aufgaben, den Projekten und dem Kalender zusammenspielt. Er hängt wie „Aufgaben“ und „Kalender“ unter **Projekte** und ist für Admins, Kunden und Freelancer da. Für jede Seite legt das Team fest, ob Kunde und Freelancer sie sehen, wie heute bei den Dateien („Sichtbar für“).
 
-Die Gestaltung folgt der Vorschau **V2 vom 22. November 2026**, die nach dem Vergleich mit Notion und Microsoft Loop freigegeben ist: Das Schreiben steht im Vordergrund, auf der Seite stehen nur Titelbild, Symbol, Titel und Text, alle Eckdaten liegen hinter einem Zahnrad. Dazu kommen Emojis und Titelbilder. Vorschau (privat, Seite „V2“): https://claude.ai/artifact/QNFjA2RFUNfzsTqanXjj9W
+Die Gestaltung folgt der Vorschau **V2 vom 22. November 2026**, die nach dem Vergleich mit Notion und Microsoft Loop freigegeben ist: Das Schreiben steht im Vordergrund, auf der Seite stehen nur Titelbild, Symbol, Titel und Text, alle Eckdaten liegen hinter einem Zahnrad. Dazu kommen Emojis, Titelbilder und eine Schriftgröße je Gerät. Vorschau (privat, Seite „V2“): https://claude.ai/artifact/QNFjA2RFUNfzsTqanXjj9W
 
 Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137). Datenbankänderungen gehören wie bisher als Migration in `service-oalab`.
 
@@ -16,7 +16,7 @@ Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137). Datenbankä
 | Wer | Admins: alle Kunden · Kunden: ihr eigener Bereich · Freelancer: die Bereiche der Kunden, die sie betreuen |
 | Gliederung | Kunde › Projekt (oder „Allgemein“) › Seite › Unterseiten |
 | Seite | Titelbild, Emoji als Seitensymbol, Titel und Text; keine Eckdaten auf der Seite |
-| Einstellungen | ein Zahnrad je Seite (Sichtbar für, Symbol, Titelbild, Projekt, Datum, Termin, Breite) und ein Zahnrad für alle Notizen mit den Standardwerten, einmal festgelegt |
+| Einstellungen | ein Zahnrad je Seite (Sichtbar für, Symbol, Titelbild, Projekt, Datum, Termin, Breite) und ein Zahnrad für alle Notizen mit den Standardwerten, einmal festgelegt; dazu „Aa“ für die Schriftgröße (Klein, Mittel, Groß), die jedes Gerät für sich behält |
 | Platz zum Schreiben | Seitenliste einklappbar; „Fokus“ blendet zusätzlich Hub-Leiste und Seitenkopf aus |
 | Sichtbar für | Nur Team (Standard) · Kunde und Freelancer · Nur Kunde · Nur Freelancer, also die drei Stufen der Dateien plus „Nur Team“ |
 | Schreiben | Blockmenü mit „/“, Werkzeugleiste über markiertem Text, saubere Links mit Vorschau, Linkkarten, Tabellen, Emojis auch im Text |
@@ -41,8 +41,9 @@ Grundlage ist der Code auf `main` vom 21. November 2026 (nach #137). Datenbankä
 Wie in Notion und Loop: links eine ruhige Seitenliste, rechts eine große Schreibfläche. Beides liegt auf einer Fläche wie die Tabellen des Hubs.
 
 - **Seitenliste links (etwa 264 px, einklappbar):** oben der Kunde mit Logo; ein Klick darauf wechselt den Kunden (Admins: alle, Freelancer: ihre Kunden, Kunden haben keinen Wechsel). Daneben drei kleine Symbole: Suche, Zahnrad „für alle Notizen“ (nur Team) und Einklappen. Darunter „Neue Seite“ und die Seiten, gruppiert nach den Projekten des Kunden und „Allgemein“. Jede Seite zeigt ihr Emoji, Unterseiten klappen über einen Pfeil auf. Ein kleines Symbol rechts zeigt nur bei Seiten, die nicht „Nur Team“ sind, wer sie sieht (Auge: Kunde, Koffer: Freelancer, Personen: beide). Unten liegt der Papierkorb.
-- **Schreibfläche rechts:** oben nur eine schmale Leiste mit Pfad (Projekt › Elternseite › Seite), „Bearbeitet vor …“, dem Sichtbarkeits-Symbol (Schloss, Auge …; ein Klick öffnet das Zahnrad), dem Fokus-Knopf und dem Zahnrad. Darunter, falls gesetzt, das Titelbild über die ganze Breite, das Emoji der Seite, der Titel (40 px) und der Text in einer ruhigen Spalte von 720 px (Breite „Breit“: 980 px). Keine Eckdaten über dem Text.
-- **Schrift und Abstände:** Text in 16,5 px mit großzügiger Zeilenhöhe von 31 px, spürbar Luft zwischen Absätzen, Listenpunkten und Checklisten; Überschriften mit viel Abstand nach oben (38 px) und etwas nach unten (10 px); Hinweisboxen, Tabellenzeilen und Aufgabenlisten ebenso luftig. Maßstab ist die Vorschau V2 vom 22. November 2026.
+- **Schreibfläche rechts:** oben nur eine schmale Leiste mit Pfad (Projekt › Elternseite › Seite), „Bearbeitet vor …“, dem Sichtbarkeits-Symbol (Schloss, Auge …; ein Klick öffnet das Zahnrad), dem Fokus-Knopf, „Aa“ für die Schriftgröße und dem Zahnrad. Darunter, falls gesetzt, das Titelbild über die ganze Breite, das Emoji der Seite, der Titel (40 px) und der Text in einer ruhigen Spalte von 720 px (Breite „Breit“: 980 px). Keine Eckdaten über dem Text.
+- **Schrift und Abstände:** Text in 16,5 px mit großzügiger Zeilenhöhe von 31 px, spürbar Luft zwischen Absätzen, Listenpunkten und Checklisten; Überschriften mit viel Abstand nach oben (38 px) und etwas nach unten (10 px); Hinweisboxen, Tabellenzeilen und Aufgabenlisten ebenso luftig. Maßstab ist die Vorschau V2 vom 22. November 2026; die Werte gelten für die Stufe „Mittel“.
+- **Schriftgröße je Gerät:** Der Knopf „Aa“ links neben dem Zahnrad öffnet ein kleines Fenster im Glas-Look mit drei Kacheln: Klein (15 px), Mittel (16,5 px, Standard) und Groß (18,5 px). Titel, Überschriften, Abstände, Tabellen, Hinweisboxen und Aufgabenlisten wachsen im selben Verhältnis mit, und die Schreibfläche wird schmaler oder breiter (656, 720 oder 808 px), damit eine Zeile gleich viele Zeichen hat. Am Handy bleibt der Titel kleiner (25, 28 oder 31 px). Die Wahl gilt nur auf dem Gerät, auf dem man sie trifft, für alle Notizen und in jeder Rolle; für andere ändert sich nichts. So liest sich eine Seite am Handy, am Laptop und am großen Bildschirm ähnlich. Dieselbe Wahl steht auch in „Darstellung“.
 - **Fokus:** blendet die Seitenleiste des Hubs, den Seitenkopf „Notizen“ und die Seitenliste aus, bis nur die Seite bleibt. Die Leiste des Hubs bleibt außerhalb des Fokus wie heute.
 - **Start für Admins:** der zuletzt geöffnete Kunde (im Browser gemerkt wie die Listenansicht).
 - **Handy:** erst die Liste, dann die Seite bildschirmfüllend mit Zurück-Pfeil, wie im Chat. Tabellen scrollen dort seitlich in ihrem Kasten.
@@ -81,6 +82,8 @@ Kunden sehen am Zahnrad nur, dass oalab die Seite geteilt hat, dazu Projekt, Dat
 - ob die Liste nach Projekten gegliedert ist (Standard an)
 - die Vorlage für Besprechungsnotizen
 - die Standardbreite (Normal)
+
+**Nicht im Zahnrad** steht die Schriftgröße: Sie gilt nur für das eigene Gerät und liegt deshalb am Knopf „Aa“ und in „Darstellung“ (Abschnitt 1.2).
 
 ### 1.5 Links, Linkkarten und Tabellen
 
@@ -240,13 +243,14 @@ Vor dem Einbau prüfen: aktuelle Version, Lizenz jedes einzelnen Pakets (die Erw
 - `lib/hub-notes/`: `types.ts`; `rules.ts` mit Stufen, Unterseiten-Regel, Prüfung des JSON, Auslesen von Text und Verweisen und der Vorbelegung Seitenstufe → Aufgabenstufe (eigenständig, damit `node --test` sie lädt); `server.ts` (Baum und Seite laden, Verweise auflösen, ohne Migration der Hinweis „Notizen sind noch nicht eingerichtet“); `write.ts` (Kern fürs Speichern, später auch für Assistent und Connector); `actions.ts`; `fixtures.ts` für die Vorschau.
 - Dazu in `lib/hub-notes/`: `emoji.ts` (Liste mit deutschen Namen, Suche für Auswahl und „:“), `covers.ts` (Galerie und Prüfung der Titelbilder), `link-preview.ts` (Abruf mit Schutz aus Abschnitt 6.3).
 - Oberfläche: `components/hub/screens/notes.tsx`, `notes-tree.tsx`, `notes-editor.tsx`, `notes-blocks.tsx`, `notes-panels.tsx`, `notes-settings.tsx` (beide Zahnräder), `notes-emoji-picker.tsx`, `notes-cover.tsx`, Stile in `app/notes.css` (hell und dunkel, Fenster im Glas-Look).
+- Schriftgröße: Feld `notesTextSize` (`small`, `medium`, `large`; Standard `medium`) im Erscheinungsbild in `lib/appearance.ts`. Es liegt wie Breite und Listenansicht je Gerät im Browser (`oalab-hub-appearance`); das Skript vor dem ersten Bild setzt es als `data-notes-text` an `<html>`, sodass beim Laden nichts springt. Der Knopf „Aa“ in `notes-settings.tsx` und eine neue Zeile „Schriftgröße der Notizen“ in `components/hub/screens/appearance.tsx` schreiben denselben Wert. In `app/notes.css` hängen alle Maße der Schreibfläche an wenigen Variablen, die die drei Stufen setzen. Keine Spalte in der Datenbank.
 - Navigation: `lib/hub-routes.ts`, `lib/hub-data.ts`, `components/hub/glass-sidebar.tsx`, „Mehr“ in `components/hub/screens/workspace.tsx`, `components/hub/project-links.tsx`, `app/dashboard/[section]/[detail]/page.tsx`, `components/hub/hub-view.tsx`.
 - Aufgaben und Projekte: „Erwähnt in“ in `tasks-panel.tsx`, Abschnitt „Notizen“ in `projects-panel.tsx` und im Projektfenster der Kunden.
 - Kalender: „Notiz anlegen/öffnen“ in `calendar-panels.tsx`, Einträge mit Datum und Symbol am Termin in `calendar-views.tsx`, Seiten mit Datum im Zeitfenster über `lib/hub-calendar/server.ts`.
 - Meldungen: `note.shared` in `lib/hub-notify/rules.ts`, `notifyNoteShared` in `lib/hub-notify/server.ts` nach dem Muster von `notifyFileShared`, Mail-Vorlage.
 - Archiv: `lib/hub-archive` blendet für Admins Notizen archivierter Kunden aus.
 - Wissen des Assistenten (`lib/hub-assistant/knowledge.ts`), `/hub-hilfe`, Patch Notes, `PROJECT_CONTEXT.md`.
-- Tests: `tests/hub-notes.test.mjs` (Regeln, Prüfung des JSON, Verweise) in `npm test`; `tests/hub-navigation.test.mjs` erweitern.
+- Tests: `tests/hub-notes.test.mjs` (Regeln, Prüfung des JSON, Verweise) in `npm test`; `tests/hub-navigation.test.mjs` erweitern; `tests/appearance.test.mjs` prüft, dass ein gespeichertes Erscheinungsbild ohne Schriftgröße „Mittel“ ergibt.
 
 ### 6.5 Warum keine Echtzeit-Mitschrift
 
@@ -256,7 +260,7 @@ Gleichzeitiges Tippen wie in Notion braucht Yjs, einen eigenen WebSocket-Dienst 
 
 | Etappe | Inhalt | Umfang |
 |---|---|---|
-| **1 Grundgerüst** | Migration (Seiten, Verweise, Standardwerte, Regeln), Navigation, Seitenliste je Kunde und Projekt (einklappbar), Fokus, Zahnrad je Seite und für alle Notizen, Editor mit den Grundblöcken inklusive Tabelle und Aufklapper, Werkzeugleiste, Links im Text, Emojis (Seitensymbol, im Text, Hinweisbox), Titelbilder aus der Galerie, automatisches Speichern mit Versionsprüfung, Sichtbar für mit Unterseiten-Regel, Sicht der Kunden (lesen) und Freelancer (lesen, in „Nur Freelancer“ schreiben), Vorschau, Tests | groß: ein PR in `service-oalab`, zwei im Hub |
+| **1 Grundgerüst** | Migration (Seiten, Verweise, Standardwerte, Regeln), Navigation, Seitenliste je Kunde und Projekt (einklappbar), Fokus, Zahnrad je Seite und für alle Notizen, Schriftgröße je Gerät, Editor mit den Grundblöcken inklusive Tabelle und Aufklapper, Werkzeugleiste, Links im Text, Emojis (Seitensymbol, im Text, Hinweisbox), Titelbilder aus der Galerie, automatisches Speichern mit Versionsprüfung, Sichtbar für mit Unterseiten-Regel, Sicht der Kunden (lesen) und Freelancer (lesen, in „Nur Freelancer“ schreiben), Vorschau, Tests | groß: ein PR in `service-oalab`, zwei im Hub |
 | **2 Aufgaben, Projekte, Links und Bilder** | Aufgaben als Liste, „#“, Zeile oder Markierung → Aufgabe, Projekt-Block, „Erwähnt in“, Abschnitt „Notizen“ im Projektfenster, Schnellzugriff, Prüfung und Meldung beim Freigeben, Papierkorb, Vorlagen; Linkkarten und Linkvorschau mit Abruf durch den Server, Titelbilder aus den Dateien und hochgeladen | mittel bis groß |
 | **3 Kalender** | Termin-Block, Besprechungsnotiz aus dem Termin, Termin anlegen oder anfragen aus der Notiz, Datum mit Anzeige im Kalender, Symbol am Termin, Verlauf, „bearbeitet gerade“, Notizen in der Suche | mittel |
 | **4 optional** | Kunden schreiben mit und legen eigene Seiten an, Bilder im Text, Kommentare, Export als PDF, Assistent „Aufgaben aus dieser Notiz vorschlagen“ (wie bei Meetingtranskripten, mit Belegzitat), Werkzeuge im Claude-Connector, Kachel in der Übersicht, eigener Bereich zwischen oalab und jedem Freelancer | je Punkt klein bis mittel |
@@ -282,6 +286,7 @@ Jede Etappe geht einzeln live, mit Patch Notes. Ohne Migration liest der Hub feh
 | 13 | Titelbilder nur aus Galerie, Dateien des Kunden und Hochladen, keine fremden Bildquellen? | Ja |
 | 14 | Linkvorschau holt der Hub-Server mit Schutz gegen interne Adressen und speichert das Bild selbst? | Ja |
 | 15 | Die Leiste des Hubs nur im Fokus ausblenden, sonst bleibt sie wie heute? | Ja |
+| 16 | Schriftgröße in drei Stufen (Klein, Mittel, Groß) je Gerät statt im Konto, mit „Aa“ in den Notizen und einer Zeile in „Darstellung“? Sie gilt zunächst nur für die Notizen | Ja |
 
 ## 9. Abnahme
 
@@ -300,3 +305,4 @@ Jede Etappe geht einzeln live, mit Patch Notes. Ohne Migration liest der Hub feh
 - Seitensymbol und Titelbild: gewählt, in Liste und Pfad sichtbar, nach dem Neuladen noch da. Ein Titelbild aus einer Datei „Nur Freelancer“ sieht der Kunde als ruhige Farbe.
 - Emojis mit „:“ und Name im Text, in Hinweisboxen und als Seitensymbol sehen auf Mac, Windows und Android gleich aus.
 - Linkvorschau: eine interne Adresse (etwa `127.0.0.1` oder `10.0.0.1`, auch über eine Weiterleitung) wird abgelehnt; eine normale Adresse ergibt eine Karte mit Bild aus der eigenen Dateiablage.
+- Schriftgröße: am Handy „Klein“, am Mac „Groß“ gewählt; beide Geräte behalten ihre Wahl nach dem Neuladen, beim Laden springt nichts, und andere Personen sehen weiter ihre eigene Stufe. Bei „Klein“ und „Groß“ passen in eine Zeile so viele Zeichen wie bei „Mittel“.
