@@ -9,7 +9,9 @@ Dieser Plan beschreibt zwei Änderungen für den Hub am Rechner, also ab 1024 px
 
 Handy und Tablet (unter 1024 px) bleiben, wie sie sind: unten die Tab-Leiste, oben das Logo.
 
-Vorschau (privat): https://claude.ai/artifact/STafMcH7JjbQMvJkajNME7 mit den Seiten „Sidebar einklappen“ (MacBook Pro 14″, 1512 × 982) und „Breite auf 4K“ (2560 × 1440, dazu Full HD). Die Flächen sind bedienbar: Der Knopf klappt ein und aus, über den Symbolen erscheinen die Namen, Übersicht, Aufgaben, Notizen, User Management und Darstellung lassen sich anklicken.
+Vorschau (privat): https://claude.ai/artifact/STafMcH7JjbQMvJkajNME7 mit den Seiten „V2 · Liquid Glass“ (Stand dieses Plans), „V1 · Sidebar einklappen“ (MacBook Pro 14″, 1512 × 982) und „Breite auf 4K“ (2560 × 1440, dazu Full HD). Die Flächen sind bedienbar: Der Knopf klappt ein und aus, über den Symbolen gleitet ein Glastropfen und erscheinen die Namen, Übersicht, Aufgaben, Notizen, User Management und Darstellung lassen sich anklicken. Die Fläche „Animation“ spielt Tropfen und Ein- und Ausklappen von selbst ab.
+
+V2 (22. November 2026) setzt die Rückmeldung zu V1 um: runde Auswahl wie bei Glocke und Assistent oben rechts, ein Liquid-Glass-Effekt statt bloßem Aufhellen, ein Tropfen beim Darüberfahren, federndes Ein- und Ausklappen und eingerückte Unterpunkte mit Verbindungslinie auch im eingeklappten Zustand (Abschnitt 1.7).
 
 Grundlage ist der Code auf `main` vom 22. November 2026 (nach #141). Notizen (`feat/notizen`) und Kalender-Abo (`feat/kalender-abo`) entstehen parallel; Abschnitt 5 regelt das Zusammenspiel.
 
@@ -20,7 +22,9 @@ Grundlage ist der Code auf `main` vom 22. November 2026 (nach #141). Notizen (`f
 | Für wen | alle Rollen am Rechner ab 1024 px; Handy und Tablet unverändert |
 | Sidebar | ausgeklappt wie heute (272 px) oder eingeklappt (72 px, nur Symbole) |
 | Umschalten | Knopf oben in der Sidebar neben „oalab Client Hub“, eingeklappt direkt unter dem Logo; dazu ⌘ . (Windows: Strg + .) |
-| Darüberfahren | Name des Bereichs rechts neben dem Symbol, bei Zahlen mit zweiter Zeile, z. B. „Nachrichten · 1 ungelesen“ |
+| Aussehen | runde Formen aus Liquid Glass: ausgeklappt Kapseln, eingeklappt Kreise, wie Glocke und Assistent oben rechts; beim Darüberfahren gleitet ein Glastropfen von Eintrag zu Eintrag; Ein- und Ausklappen federt |
+| Darüberfahren | eingeklappt zusätzlich der Name rechts neben dem Symbol, bei Zahlen mit zweiter Zeile, z. B. „Nachrichten · 1 ungelesen“ |
+| Unterpunkte | Aufgaben, Kalender und Notizen nach rechts versetzt, mit Verbindungslinie zu Projekte, auch eingeklappt |
 | Merken | je Gerät, wie Breite und Listenansicht; beim Laden springt nichts |
 | Arbeitsbereich | jede Seite nutzt die ganze Breite neben der Sidebar; Tabellen, Board, Kalender und Panels ziehen sich mit, die Übersicht stellt die Widgets neben die Benachrichtigungen, Profil und Darstellung ordnen ihre Karten in Spalten |
 | Lesbarkeit | Fließtext bleibt schmal (Notizen 720 px, Seite „Breit“ 980 px); Dialoge, Menüs und Fenster behalten ihre Größe |
@@ -44,7 +48,7 @@ Eine 72 px schmale Leiste im selben Glas, mit derselben Rundung und denselben 12
 - eine feine Linie statt „Verwaltung“ (Admins: User Management, KI-Protokoll, Schlüsselbund) beziehungsweise „Neuigkeiten“, dann Patch Notes
 - unten das Profilbild, bei Kunden mit Logo das Logo
 
-Der aktive Bereich trägt dieselbe helle Fläche wie heute, als Quadrat um das Symbol. Auf Aufgaben, Kalender und Notizen bleibt Projekte als Elternpunkt markiert. Unterpunkte behalten ihr etwas kleineres Symbol.
+Der aktive Bereich liegt in einem Kreis aus Glas (Abschnitt 1.7). Auf Aufgaben, Kalender und Notizen bleibt Projekte als Elternpunkt markiert. Unterpunkte behalten ihr etwas kleineres Symbol, sitzen etwas nach rechts versetzt und hängen über eine feine Linie an Projekte, wie ausgeklappt.
 
 Zahlen: Reine Mengen (Projekte, Dateien) entfallen in der Leiste und stehen im Hinweis. Zahlen, die etwas verlangen (ungelesene Nachrichten, offene Registrierungen), bleiben als kleiner Punkt mit Zahl oben rechts am Symbol, wie in der Tab-Leiste am Handy.
 
@@ -67,7 +71,7 @@ Eingeklappt bleibt nur das Profilbild. Ein Klick öffnet das bekannte Konto-Men�
 - Knopf oder ⌘ . (Windows: Strg + .) klappt ein und aus. Das Kürzel ist im Hub frei und liegt auf deutschen Tastaturen ohne Umweg; in Textfeldern und im Editor der Notizen hat es keine andere Bedeutung.
 - Der Zustand gilt je Gerät und liegt im Browser beim Erscheinungsbild (`oalab-hub-appearance`), wie Breite und Listenansicht. Das Skript vor dem ersten Bild setzt ihn an `<html>`, sodass eine eingeklappte Sidebar beim Laden nicht erst breit erscheint.
 - Neue Geräte starten ausgeklappt, also wie heute.
-- Die Sidebar wird in 0,3 s schmaler, mit der Federkurve des Hubs; der Arbeitsbereich zieht mit. Mit „Bewegung reduzieren“ wechselt sie ohne Animation.
+- Die Sidebar klappt federnd ein und aus (Abschnitt 1.7); der Arbeitsbereich zieht weich mit. Mit „Bewegung reduzieren“ wechselt sie ohne Animation.
 - Bildschirmleser: Der Knopf heißt „Sidebar einklappen“ oder „Sidebar ausklappen“ und meldet, ob sie offen ist. Jeder Eintrag behält seinen Namen, eingeklappt nur unsichtbar; für Bildschirmleser ändert sich also nichts.
 
 ### 1.6 Notizen und andere Stellen
@@ -75,6 +79,16 @@ Eingeklappt bleibt nur das Profilbild. Ein Klick öffnet das bekannte Konto-Men�
 - **Notizen:** Der Fokus blendet die Sidebar ganz aus (Entscheidung 15 im Notizen-Plan). Nach dem Fokus kehrt sie in den Zustand davor zurück, also ein- oder ausgeklappt. Die Seitenliste der Notizen (264 px) klappt weiter für sich ein. Mit eingeklappter Sidebar passt am MacBook eine Seite in „Breit“ (980 px) bequem neben die Seitenliste.
 - Die kompakte Titelleiste beim Scrollen, der angedockte Assistent und die Fenster am rechten Rand (Aufgabenfenster, User-Panel) richten sich nach der neuen Breite.
 - Unter 1024 px gibt es weder Knopf noch Kürzel; dort bleibt die Tab-Leiste.
+
+### 1.7 Aussehen und Bewegung (Vorschau V2)
+
+- **Runde Formen:** Alles, was man in der Sidebar anklickt, ist rund wie Glocke und Assistent oben rechts. Ausgeklappt sind Auswahl, Suche und Konto Kapseln mit runden Enden, eingeklappt Kreise (Einträge 40 px, Unterpunkte 34 px). Beim Einklappen wird aus der Kapsel ein Kreis. Das Symbol bleibt dabei an seiner Stelle. Einklappen, Zahnrad, Glocke und Assistent sind runde Knöpfe aus demselben Glas.
+- **Liquid Glass statt Aufhellen:** Die Auswahl ist ruhendes Glas mit hellem Rand oben, leichter Tönung in der Akzentfarbe und weichem Schatten. Beim Darüberfahren liegt ein Glastropfen über dem Eintrag: Seine Mitte bleibt klar, sodass Symbol und Name scharf bleiben, nur am Rand bricht er, was darunter liegt. Ein Lichtpunkt am oberen Rand folgt der Maus, das Symbol darunter wächst leicht wie unter einer Lupe.
+- **Tropfen:** Es gibt genau einen Tropfen. Er gleitet beim Darüberfahren von Eintrag zu Eintrag, dehnt sich in der Bewegung, federt beim Ankommen nach und zerfließt, wenn die Maus die Sidebar verlässt. Mit der Tastatur folgt er dem Fokus. Ausgeklappt und eingeklappt verhält er sich gleich.
+- **Ein- und Ausklappen federt:** Die Leiste schwingt beim Ausklappen etwa 18 px über ihre Breite hinaus und beim Einklappen etwa 12 px darunter, dann federt sie zurück (gedämpfte Feder, 0,8 s). Namen blenden beim Einklappen sofort aus und beim Ausklappen kurz verzögert ein. Der Arbeitsbereich zieht weich mit, ohne zu federn, damit die Seite ruhig bleibt.
+- **Variante Kreis:** Ausgeklappt kann die Auswahl statt einer Kapsel auch nur ein Kreis um das Symbol sein (Fläche „Variante Kreis“); der Name steht dann ohne Fläche in der Akzentfarbe daneben (Entscheidung 10).
+- **Browser:** Die Brechung im Glas läuft über einen SVG-Filter und zeigt sich in Chrome, Edge und der Claude-App. Safari und Firefox zeigen denselben Tropfen mit Rand, Lichtpunkt und Bewegung, nur ohne Brechung.
+- **Rücksicht:** Mit „Bewegung reduzieren“ springt die Sidebar ohne Federn, und der Tropfen erscheint ohne Gleiten. Mit „Transparenz reduzieren“ ist das Glas deckend, ohne Unschärfe und Brechung.
 
 ## 2. Der Arbeitsbereich wächst mit
 
@@ -122,6 +136,7 @@ Heute: „Standard“ (1040 px, Tabellen 1240 px) und „Breit (XL)“ (12 px Ra
 - `lib/appearance.ts`: neues Feld `sidebar` (`expanded` | `collapsed`, Standard `expanded`) im Erscheinungsbild; `normalizeAppearance` und `resolveAppearance` lesen es, `applyAppearanceToDocument` setzt `data-sidebar` an `<html>`. Damit übernimmt es das Skript vor dem ersten Bild von selbst. Ungültige oder fehlende Werte ergeben „ausgeklappt“.
 - `components/hub/glass-sidebar.tsx`: Knopf zum Ein- und Ausklappen mit `aria-expanded` und `aria-controls`. Alle Einträge laufen über eine kleine gemeinsame Funktion, die Symbol, Namen, Zahl, Punkt und Hinweis setzt (`data-tip-compact`, `data-tip-label` am sichtbaren Namen, `data-tip-sub` für die Zahl, `data-tip-side="right"`), damit spätere Einträge wie Notizen von selbst passen. Konto-Menü eingeklappt rechts neben der Leiste, mit Namen und Paketen oben.
 - `components/hub/app-shell.tsx`: Kürzel ⌘ . neben ⌘K; schreibt über `useAppearance` denselben Wert wie der Knopf.
+- Liquid Glass (V2): ein Tropfen-Element in der Sidebar, dessen Lage und Größe ein Zeiger-Handler über CSS-Variablen setzt; Federkurven als CSS `linear()` (gedämpfte Feder, in Chrome, Safari und Firefox); Brechung über einen SVG-Filter (`feTurbulence` und `feDisplacementMap`) auf einer Glasschicht, die nur am Rand sichtbar ist; Auswahl und runde Knöpfe als Glas mit Randlicht und Schatten. Gilt für `glass-sidebar.tsx`, `HeaderActions` in `app-shell.tsx` und `components/hub/glass.tsx` (runde Knöpfe). Einträge bekommen eine runde Hülle um das Symbol; Unterpunkte die Klasse für Versatz und Linie.
 - `components/hub/tooltip.tsx`: `data-tip-side="right"` stellt das Schild rechts neben das Element, der Pfeil zeigt nach links; reicht der Platz rechts nicht, fällt es auf oben oder unten zurück. `data-tip-compact` zeigt den Hinweis schon heute nur, solange der Name verborgen ist; das nutzt die eingeklappte Leiste.
 - `app/glass.css`: Variable `--sidebar-w` (272 px, eingeklappt 72 px) statt der festen 272 px in `.hub-main`, `.compact-nav` und dem XL-Block; Stile der Leiste unter `:root[data-sidebar="collapsed"]` ab 1024 px; Übergang nur ohne `data-reduce-motion="true"`; `.hub-content`, `.hub-notice` und `.hub-topbar` ohne Höchstbreite; die Regel für Tabellen-Seiten (1240 px) und die Mittelung der kompakten Titelleiste ab 1404 px entfallen.
 - `app/tasks.css`, `app/calendar.css`: die Grenze von 1720 px entfällt.
@@ -159,6 +174,9 @@ Vor dem Livegang einmal jede Seite auf 1512, 1920, 2560 und 3840 px Breite anseh
 | 7 | Übersicht: Widget-Stapel ab etwa 1500 px Platz nebeneinander? | Ja |
 | 8 | Profil und Darstellung: Karten in Spalten nebeneinander? | Ja |
 | 9 | Sidebar und Breite vor den Notizen live bringen? | Ja |
+| 10 | Auswahl ausgeklappt als Kapsel über die ganze Zeile oder nur als Kreis um das Symbol? | Kapsel (Kreis bleibt eingeklappt) |
+| 11 | Brechung im Glas nur dort, wo der Browser sie kann (Chrome, Edge), sonst derselbe Tropfen ohne Brechung? | Ja |
+| 12 | Glocke, Assistent und die anderen runden Knöpfe im ganzen Hub ebenfalls aus Liquid Glass? | Ja, im selben PR |
 
 ## 7. Abnahme
 
@@ -166,7 +184,10 @@ Vor dem Livegang einmal jede Seite auf 1512, 1920, 2560 und 3840 px Breite anseh
 - Eingeklappt zeigt jedes Symbol beim Darüberfahren und bei Tastaturfokus seinen Namen rechts daneben; ausgeklappt erscheint kein doppelter Hinweis.
 - Ungelesene Nachrichten und offene Registrierungen sind eingeklappt als Punkt mit Zahl zu sehen.
 - Konto-Menü eingeklappt: öffnet rechts neben der Leiste; Profil, Darstellung, Abmelden, Impressum und Datenschutz funktionieren; Escape schließt es.
-- „Bewegung reduzieren“: Ein- und Ausklappen ohne Animation.
+- „Bewegung reduzieren“: Ein- und Ausklappen ohne Animation, der Tropfen ohne Gleiten.
+- Tropfen: folgt der Maus und dem Tastaturfokus über alle Einträge, ausgeklappt und eingeklappt; Symbol und Name bleiben darunter lesbar, hell und dunkel.
+- Unterpunkte: ausgeklappt und eingeklappt nach rechts versetzt, die Linie zu Projekte durchgehend sichtbar.
+- Ein- und Ausklappen federt sichtbar, ohne dass Einträge über den Rand der Leiste ragen.
 - Unter 1024 px sieht alles aus wie heute.
 - Auf 1512, 1920, 2560 und 3840 px Breite, je ein- und ausgeklappt: Jede Seite nutzt die ganze Breite, nirgends eine waagrechte Scrollleiste, kein Blatt endet vor dem rechten Rand.
 - Übersicht: ab Full HD stehen die Stapel nebeneinander, am MacBook untereinander wie heute.
