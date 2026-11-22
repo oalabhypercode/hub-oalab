@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { BriefcaseBusiness, CalendarDays, Eye, FolderOpen, Image as ImageIcon, Link2, Lock, Rows3, Smile, Users, X, Bell } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BriefcaseBusiness, CalendarDays, Eye, FolderOpen, Image as ImageIcon, Link2, Lock, Rows3, Smile, SquareKanban, Trash2, Users, X, Bell } from "lucide-react";
 import { audienceChoices, audienceLabel, audienceSentence, editedAgo, within } from "@/lib/hub-notes/rules";
 import { galleryCover } from "@/lib/hub-notes/covers";
 import type { NoteAudience, NoteCustomer, NotePageMeta, NoteProject, NoteSettings, NotesTextSize, NoteViewer, NoteWidth } from "@/lib/hub-notes/types";
@@ -72,10 +72,15 @@ type GearProps = {
   onCover: () => void;
   onCopyLink: () => void;
   onClose: () => void;
+  /** Step 2: tell everybody who sees the page about a change, the trash, and open checklist points as tasks. */
+  onNotify?: () => void;
+  onTrash?: () => void;
+  openItems?: number;
+  onOpenItems?: () => void;
 };
 
 /** „Diese Seite“: who sees it, project, date, symbol, cover, width, the link; last edited at the bottom. */
-export function PageGear({ page, viewer, customer, projects, parent, people, canEdit, onAudience, onProject, onDate, onWidth, onIcon, onCover, onCopyLink, onClose }: GearProps) {
+export function PageGear({ page, viewer, customer, projects, parent, people, canEdit, onAudience, onProject, onDate, onWidth, onIcon, onCover, onCopyLink, onClose, onNotify, onTrash, openItems = 0, onOpenItems }: GearProps) {
   const box = useRef<HTMLDivElement>(null);
   useDismiss(box, onClose, "[data-gear-button]");
   const admin = viewer === "admin";
@@ -128,7 +133,10 @@ export function PageGear({ page, viewer, customer, projects, parent, people, can
         <div className="nz-pop-row"><Rows3 size={16} aria-hidden="true" /><span>Breite</span><span className="nz-pop-right"><WidthSwitch value={page.width} onChange={onWidth} /></span></div>
       </>}
       <div className="nz-pop-sep" />
+      {onNotify && page.audience !== "team" && <button type="button" className="nz-pop-row" onClick={onNotify}><Bell size={16} aria-hidden="true" /><span>Änderung mitteilen</span></button>}
+      {onOpenItems && openItems > 0 && <button type="button" className="nz-pop-row" onClick={onOpenItems}><SquareKanban size={16} aria-hidden="true" /><span>Offene Punkte als Aufgaben</span><span className="nz-pop-val">{openItems}</span></button>}
       <button type="button" className="nz-pop-row" onClick={onCopyLink}><Link2 size={16} aria-hidden="true" /><span>Link kopieren</span></button>
+      {onTrash && <button type="button" className="nz-pop-row is-danger" onClick={onTrash}><Trash2 size={16} aria-hidden="true" /><span>In den Papierkorb</span></button>}
       {viewer !== "customer" && <p className="nz-pop-foot">Zuletzt bearbeitet{editedBy ? ` von ${editedBy}` : ""} · {editedAgo(page.updatedAt)}</p>}
     </div>
   );
@@ -190,18 +198,19 @@ export function TextSizeTiles({ value, onChange }: { value: NotesTextSize; onCha
   );
 }
 
-export type AudienceAsk = { page: NotePageMeta; target: NoteAudience; narrowed: { title: string; audience: NoteAudience }[] };
+export type AudienceAsk = { page: NotePageMeta; target: NoteAudience; narrowed: { title: string; audience: NoteAudience }[]; hidden: string[] };
 
 /**
  * Before „Sichtbar für“ widens or takes subpages along: who will see the page afterwards and which subpages become
  * narrower too. Releasing goes anyway; the team decides.
  */
-export function AudienceDialog({ ask, customer, onConfirm, onClose }: { ask: AudienceAsk; customer: NoteCustomer; onConfirm: () => void; onClose: () => void }) {
+export function AudienceDialog({ ask, customer, notifyDefault, onConfirm, onClose }: { ask: AudienceAsk; customer: NoteCustomer; notifyDefault: boolean; onConfirm: (notify: boolean) => void; onClose: () => void }) {
+  const [notify, setNotify] = useState(notifyDefault);
   const before = ask.page.audience;
   const gainCustomer = (ask.target === "both" || ask.target === "customer") && !(before === "both" || before === "customer");
   const gainFreelancer = (ask.target === "both" || ask.target === "freelancer") && !(before === "both" || before === "freelancer");
   const release = gainCustomer || gainFreelancer;
-  const who = gainCustomer && gainFreelancer ? `${customer.name} und die Freelancer des Kunden` : gainCustomer ? customer.name : "die Freelancer des Kunden";
+  const who = gainCustomer && gainFreelancer ? `${customer.name} und den Freelancern des Kunden` : gainCustomer ? customer.name : "den Freelancern des Kunden";
   const title = release ? (gainCustomer && gainFreelancer ? "Für Kunde und Freelancer freigeben?" : gainCustomer ? `Für ${customer.name} freigeben?` : "Für die Freelancer freigeben?") : "Unterseiten werden mit eingeschränkt";
   const count = ask.narrowed.length;
   return (
@@ -217,9 +226,17 @@ export function AudienceDialog({ ask, customer, onConfirm, onClose }: { ask: Aud
           {ask.narrowed.map((item) => <span key={item.title} className="nz-warn-row">{item.title}: {audienceLabel(item.audience, customer.hasFreelancer)}</span>)}
         </div>
       )}
+      {release && ask.hidden.length > 0 && (
+        <div className="nz-warn">
+          <strong>{gainCustomer && !gainFreelancer ? `Das sieht ${customer.name} auf dieser Seite nicht:` : gainFreelancer && !gainCustomer ? "Das sehen die Freelancer auf dieser Seite nicht:" : "Nicht alles auf dieser Seite ist für beide sichtbar:"}</strong>
+          {ask.hidden.map((item) => <span key={item} className="nz-warn-row">{item}</span>)}
+          <small>Dort steht für sie nur „Nicht freigegeben“. Freigeben geht trotzdem.</small>
+        </div>
+      )}
+      {release && <label className="nz-check-row"><input type="checkbox" checked={notify} onChange={(event) => setNotify(event.target.checked)} /><span>Meldung in der Glocke und gebündelt per Mail senden</span></label>}
       <div className="nz-dialog-actions">
         <button type="button" className="nz-btn" onClick={onClose}>Abbrechen</button>
-        <button type="button" className="nz-btn is-primary" onClick={onConfirm}>{release ? "Freigeben" : "Einschränken"}</button>
+        <button type="button" className="nz-btn is-primary" onClick={() => onConfirm(release && notify)}>{release ? "Freigeben" : "Einschränken"}</button>
       </div>
     </Modal>
   );

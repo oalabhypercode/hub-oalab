@@ -34,6 +34,7 @@ function areaOf(kind: string) {
   if (kind === "project.changed") return "Projekte";
   if (kind === "file.shared") return "Dateien";
   if (kind === "share.granted") return "Kunden";
+  if (kind.startsWith("note.")) return "Notizen";
   if (kind.startsWith("chat.")) return "Nachrichten";
   if (kind.startsWith("appointment.")) return "Kalender";
   return "Hub";
@@ -99,6 +100,9 @@ export function noticeColumns(notice: { kind: string; title: string; body: strin
       ...OALAB,
     };
   }
+
+  // „Neue Notiz: Kickoff“ or „Notiz geändert: Kickoff“, from the team.
+  if (kind === "note.shared" || kind === "note.changed") return { where: fallback, path: "Projekte › Notizen", title: event, body: subject, ...OALAB };
 
   // „Neue Nachricht von Müller Holzbau“ with "Jonas Müller: Text"; the customer's line comes „von oalab“.
   if (kind === "chat.message" || kind === "chat.reply") {

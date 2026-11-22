@@ -21,6 +21,7 @@ import { AssetPanel } from "./asset-panel";
 import { TaskGlyph } from "./tasks-parts";
 import { Field, FieldGrid, PanelSection } from "./users-panel";
 import { appointmentSlot, type CalendarGoal, type CalendarStore, type CalendarTask } from "./calendar-store";
+import { NoteMentions } from "./notes-links";
 
 /*
  * The calendar's side panels (16.11.2026): instead of the windows of before, a panel at the right edge like on the other
@@ -368,6 +369,7 @@ export function TaskPanel({ store, task, preview, freelancer = false, confirmHre
         {freelancer
           ? <Note icon={SquareKanban}>Ändern, kommentieren und verschieben geht im Board deiner Projekte.</Note>
           : <Note icon={Hand}>Diese Aufgabe hat dein oalab-Team für dich freigegeben. Alles Weitere steht im Projekt.</Note>}
+        <NoteMentions taskId={task.id} preview={preview} />
       </AssetPanel>
     );
   }
@@ -412,6 +414,7 @@ export function TaskPanel({ store, task, preview, freelancer = false, confirmHre
           <button type="button" className="cal-related-item is-appt" onClick={() => onOpenAppointment(nextAppointment.id)}><CalendarCheck size={14} aria-hidden="true" /><span>{nextAppointment.title}</span><small>{formatDayShort(dayOf(nextAppointment.start))}, {timeOf(nextAppointment.start)}{nextAppointment.status === "requested" ? " · Anfrage" : ""}</small></button>
         </PanelSection>
       )}
+      <NoteMentions taskId={task.id} preview={preview} />
       {error && <p className="form-error" role="alert">{error}</p>}
     </AssetPanel>
   );

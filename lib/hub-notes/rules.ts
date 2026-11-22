@@ -172,6 +172,28 @@ export function statusTone(text: string): "ok" | "info" | "todo" | "off" {
 /** A tick cell counts as ticked with „ja“, „x“ or a tick mark. */
 export const isTicked = (text: string) => /^(ja|x|✓|✔|✅|yes|true|1)$/i.test(text.trim());
 
+/** What a task list block shows: open tasks, those waiting for the customer, due by a day, or assigned to oneself. */
+export type TaskFilter = "open" | "customer" | "due" | "mine";
+export const TASK_FILTERS: { id: TaskFilter; label: string }[] = [
+  { id: "open", label: "Offen" }, { id: "customer", label: "Beim Kunden" }, { id: "due", label: "Fällig bis" }, { id: "mine", label: "Mir zugewiesen" },
+];
+export const isTaskFilter = (value: unknown): value is TaskFilter => value === "open" || value === "customer" || value === "due" || value === "mine";
+const isTaskNumber = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value > 0 && value < 1e9;
+/** A link card's image lies in the hub's own storage, under the notes of a customer. */
+const isPreviewImage = (value: unknown): value is string => typeof value === "string" && /^notes\/[0-9a-f-]{36}\/links\/[0-9a-f-]{36}\.webp$/.test(value);
+
+/** Which tasks a task list block shows for this viewer. */
+export function filterTasks<T extends { status: string; customerTurn: boolean; dueOn: string | null; assignees: { id: string }[] }>(tasks: readonly T[], filter: TaskFilter, viewerId: string, dueBy?: string | null): T[] {
+  const open = tasks.filter((task) => task.status !== "done");
+  if (filter === "customer") return open.filter((task) => task.customerTurn);
+  if (filter === "mine") return open.filter((task) => task.assignees.some((person) => person.id === viewerId));
+  if (filter === "due") return open.filter((task) => task.dueOn && (!dueBy || task.dueOn <= dueBy)).sort((a, b) => (a.dueOn ?? "").localeCompare(b.dueOn ?? ""));
+  return open;
+}
+
+/** The task's „Sichtbar für“ a note suggests (plan 4.2): „Nur Team“ on internal pages, otherwise „+ Freelancer“. */
+export const taskAudienceFor = (pageAudience: NoteAudience): "team" | "shared" => pageAudience === "team" ? "team" : "shared";
+
 type AttrCheck = (value: unknown) => unknown;
 const keep = <T>(test: (value: unknown) => value is T, fallback: T | null = null): AttrCheck => (value) => test(value) ? value : fallback;
 const isShortText = (max: number) => (value: unknown): value is string => typeof value === "string" && value.length <= max;
@@ -206,6 +228,14 @@ const NODES: Record<string, Record<string, AttrCheck>> = {
   noteCallout: { emoji: (value) => isEmojiChar(value) ? value : "" },
   noteEmoji: { char: keep(isEmojiChar) },
   noteSubpage: { refKind: () => "page", refId: keep(isUuid) },
+  // Step 2: tasks of the board (a box of rows, or a mention in the text), a live task list of a project, a project and
+  // a link card with what the server read from the page.
+  noteTaskGroup: {},
+  noteTaskItem: { refKind: () => "task", refId: keep(isUuid), number: keep(isTaskNumber) },
+  noteTaskMention: { refKind: () => "task", refId: keep(isUuid), number: keep(isTaskNumber) },
+  noteTaskList: { refKind: () => "project", refId: keep(isUuid), filter: (value) => isTaskFilter(value) ? value : "open", dueBy: keep(isIsoDate) },
+  noteProject: { refKind: () => "project", refId: keep(isUuid) },
+  noteLinkCard: { href: (value) => typeof value === "string" && /^https:/i.test(value) && isSafeHref(value) ? value : null, title: keep(isShortText(300)), description: keep(isShortText(600)), site: keep(isShortText(120)), image: keep(isPreviewImage) },
 };
 
 const MARKS: Record<string, Record<string, AttrCheck>> = {
@@ -226,7 +256,7 @@ const MARKS: Record<string, Record<string, AttrCheck>> = {
 };
 
 /** Attributes without which a node makes no sense. */
-const REQUIRED: Record<string, string[]> = { noteEmoji: ["char"], noteSubpage: ["refId"] };
+const REQUIRED: Record<string, string[]> = { noteEmoji: ["char"], noteSubpage: ["refId"], noteTaskItem: ["refId"], noteTaskMention: ["refId"], noteTaskList: ["refId"], noteProject: ["refId"], noteLinkCard: ["href"] };
 
 export type NoteRef = { kind: "task" | "project" | "appointment" | "file" | "page"; id: string };
 const REF_KINDS = new Set(["task", "project", "appointment", "file", "page"]);
@@ -310,7 +340,7 @@ export function validateNoteDoc(input: unknown): ValidDoc {
 
 const byteLength = (text: string) => new TextEncoder().encode(text).length;
 
-const BLOCKS = new Set(["paragraph", "heading", "listItem", "taskItem", "codeBlock", "tableRow", "detailsSummary", "noteCallout"]);
+const BLOCKS = new Set(["paragraph", "heading", "listItem", "taskItem", "codeBlock", "tableRow", "detailsSummary", "noteCallout", "noteLinkCard"]);
 
 /** The plain text of a document for the search: blocks on their own lines, cells separated, emojis as characters. */
 export function noteText(doc: NoteDoc): string {
@@ -319,6 +349,8 @@ export function noteText(doc: NoteDoc): string {
     if (node.type === "text" && node.text) parts.push(node.text);
     else if (node.type === "noteEmoji" && typeof node.attrs?.char === "string") parts.push(node.attrs.char);
     else if (node.type === "hardBreak") parts.push("\n");
+    else if (node.type === "noteLinkCard") parts.push([node.attrs?.title, node.attrs?.description, node.attrs?.href].filter((part) => typeof part === "string" && part).join(" "));
+    else if ((node.type === "noteTaskItem" || node.type === "noteTaskMention") && typeof node.attrs?.number === "number") parts.push(`#${node.attrs.number}`);
     else if (node.type === "tableCell" || node.type === "tableHeader") parts.push(" ");
     for (const child of node.content ?? []) walk(child);
     if (BLOCKS.has(node.type)) parts.push("\n");

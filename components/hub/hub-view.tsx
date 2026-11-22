@@ -33,6 +33,7 @@ import { ContractsScreen } from "./screens/contracts";
 import { KeychainScreen } from "./screens/keychain";
 import { TasksScreen } from "./screens/tasks";
 import { NotesScreen } from "./screens/notes";
+import { ProjectNotes } from "./screens/notes-links";
 import type { NotesArea } from "@/lib/hub-notes/types";
 import type { KeychainState } from "@/lib/hub-keychain/types";
 import type { ProjectDesk } from "@/lib/hub-projects/desk";
@@ -244,6 +245,7 @@ function ProjectModal({ project, preview, admin, onClose }: { project: Project; 
       ) : null}
       {/* The assistant keeps this project as its reference, so "dieses Projekt" works. As a window it opens on top of
           this dialog; docked it sits next to the page, and this dialog closes, because a dialog would block the sidebar. */}
+      {tasks && <ProjectNotes projectId={project.id} customerId={project.customerId} preview={preview} canCreate={admin} />}
       {tasks && manageUsers && (
         <button type="button" className="sheet-button project-ask" onClick={() => { askAboutProject({ id: project.id, name: project.category || project.name }); if (assistantDocked) onClose(); }}><Sparkles size={17} aria-hidden="true" /> Assistent zu diesem Projekt fragen</button>
       )}

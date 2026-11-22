@@ -2,8 +2,9 @@
 
 import { isUuid } from "./rules";
 import { customerView, namesOf, notesContext, notesCustomers, readPage } from "./server";
-import { createPageAs, fail, saveSettingsAs, savePageAs, setAudienceAs, type CreateInput } from "./write";
-import type { NoteAudience, NotePage, NotePageMeta, NotePatch, NoteResult, NoteSaved, NoteSettings, NotesCustomerView } from "./types";
+import { coverFilesAs, createPageAs, fail, linkPreviewAs, listTrashAs, notifyChangeAs, projectNotesAs, purgePageAs, restorePageAs, saveSettingsAs, savePageAs, setAudienceAs, taskMentionsAs, trashPageAs, type CreateInput } from "./write";
+import { createNoteTaskAs, noteTaskOptionsAs, searchNoteTasksAs, setNoteTaskDoneAs, type NoteTaskInput } from "./tasks";
+import type { NoteAudience, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteProject, NoteResult, NoteSaved, NoteSettings, NotesCustomerView, NoteTaskView, NoteTrashItem } from "./types";
 
 // Every action is a public POST endpoint: it checks who asks (lib/hub-notes/server.ts notesContext) and reads and
 // writes with that person's own session, so the database's rules decide. None of them re-renders the page: the notes
@@ -40,7 +41,7 @@ export async function saveNotePage(input: { id: string; version: number; patch: 
   return ctx ? savePageAs(ctx, input) : fail(noAccess);
 }
 
-export async function setNoteAudience(input: { id: string; audience: NoteAudience }): Promise<NoteResult<{ pages: NotePageMeta[]; narrowed: number }>> {
+export async function setNoteAudience(input: { id: string; audience: NoteAudience; notify?: boolean }): Promise<NoteResult<{ pages: NotePageMeta[]; narrowed: number }>> {
   const ctx = await notesContext();
   return ctx ? setAudienceAs(ctx, input) : fail(noAccess);
 }
@@ -48,4 +49,73 @@ export async function setNoteAudience(input: { id: string; audience: NoteAudienc
 export async function saveNoteSettings(patch: Partial<NoteSettings>): Promise<NoteResult<NoteSettings>> {
   const ctx = await notesContext();
   return ctx ? saveSettingsAs(ctx, patch) : fail(noAccess);
+}
+
+// ---- Step 2 ---------------------------------------------------------------------------------------------------------
+
+export async function notifyNoteChange(input: { id: string }): Promise<NoteResult<null>> {
+  const ctx = await notesContext();
+  return ctx ? notifyChangeAs(ctx, input) : fail(noAccess);
+}
+
+export async function trashNotePage(input: { id: string }): Promise<NoteResult<{ pages: NotePageMeta[] }>> {
+  const ctx = await notesContext();
+  return ctx ? trashPageAs(ctx, input) : fail(noAccess);
+}
+
+export async function loadNoteTrash(input: { customerId: string }): Promise<NoteResult<NoteTrashItem[]>> {
+  const ctx = await notesContext();
+  return ctx ? listTrashAs(ctx, input) : fail(noAccess);
+}
+
+export async function restoreNotePage(input: { id: string }): Promise<NoteResult<{ pages: NotePageMeta[] }>> {
+  const ctx = await notesContext();
+  return ctx ? restorePageAs(ctx, input) : fail(noAccess);
+}
+
+export async function purgeNotePage(input: { id: string }): Promise<NoteResult<null>> {
+  const ctx = await notesContext();
+  return ctx ? purgePageAs(ctx, input) : fail(noAccess);
+}
+
+export async function noteTaskOptions(input: { customerId: string; projectId?: string | null }): Promise<NoteResult<{ projects: NoteProject[]; people: { id: string; name: string; initials: string }[] }>> {
+  const ctx = await notesContext();
+  return ctx ? noteTaskOptionsAs(ctx, input) : fail(noAccess);
+}
+
+export async function createNoteTask(input: NoteTaskInput): Promise<NoteResult<NoteTaskView>> {
+  const ctx = await notesContext();
+  return ctx ? createNoteTaskAs(ctx, input) : fail(noAccess);
+}
+
+export async function setNoteTaskDone(input: { taskId: string; done: boolean; version: number }): Promise<NoteResult<NoteTaskView>> {
+  const ctx = await notesContext();
+  return ctx ? setNoteTaskDoneAs(ctx, input) : fail(noAccess);
+}
+
+export async function searchNoteTasks(input: { customerId: string; query: string }): Promise<NoteResult<NoteTaskView[]>> {
+  const ctx = await notesContext();
+  return ctx ? searchNoteTasksAs(ctx, input) : fail(noAccess);
+}
+
+export async function noteLinkPreview(input: { customerId: string; url: string }): Promise<NoteResult<NoteLinkPreview & { imageUrl: string | null }>> {
+  const ctx = await notesContext();
+  return ctx ? linkPreviewAs(ctx, input) : fail(noAccess);
+}
+
+export async function noteCoverFiles(input: { customerId: string }): Promise<NoteResult<{ id: string; title: string; url: string | null }[]>> {
+  const ctx = await notesContext();
+  return ctx ? coverFilesAs(ctx, input) : fail(noAccess);
+}
+
+/** The project window's „Notizen“ (team, customers and freelancers): only pages the person sees. */
+export async function projectNotes(input: { projectId: string }): Promise<NoteResult<{ id: string; title: string; icon: string; customerId: string; updatedAt: string }[]>> {
+  const ctx = await notesContext();
+  return ctx ? projectNotesAs(ctx, input) : { ok: true, data: [] };
+}
+
+/** „Erwähnt in“ at a task (board and calendar): only pages the person sees. */
+export async function taskMentions(input: { taskId: string }): Promise<NoteResult<{ id: string; title: string; icon: string; customerId: string }[]>> {
+  const ctx = await notesContext();
+  return ctx ? taskMentionsAs(ctx, input) : { ok: true, data: [] };
 }

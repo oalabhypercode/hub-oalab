@@ -3,15 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronLeft, Copy, Maximize2, Minimize2, NotebookPen, PanelLeftOpen, RefreshCw, Settings, Smile, Image as ImageIcon, Type } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChevronLeft, Copy, Maximize2, Minimize2, NotebookPen, PanelLeftOpen, RefreshCw, Settings, Smile, Image as ImageIcon, Trash2, Type } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
 import { useStoredValue } from "@/lib/use-stored-value";
-import { createNotePage, loadNotesCustomer, openNotePage, saveNotePage, saveNoteSettings, setNoteAudience } from "@/lib/hub-notes/actions";
-import { notesFixtures, previewPage, toMetaOnly } from "@/lib/hub-notes/fixtures";
-import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, narrowedBelow, noteText, pathOf, positionAfter, childrenOf, viewerEdits, newPageAudience } from "@/lib/hub-notes/rules";
-import type { NoteAudience, NoteCustomer, NoteDoc, NotePage, NotePageMeta, NotePatch, NoteProject, NotesArea, NoteSettings, NoteViewer } from "@/lib/hub-notes/types";
+import {
+  createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteCoverFiles, noteLinkPreview, noteTaskOptions, notifyNoteChange, openNotePage, purgeNotePage, restoreNotePage,
+  saveNotePage, saveNoteSettings, searchNoteTasks, setNoteAudience, setNoteTaskDone, taskMentions, trashNotePage,
+} from "@/lib/hub-notes/actions";
+import { notesFixtures, previewMentions, previewPage, previewRefs, toMetaOnly } from "@/lib/hub-notes/fixtures";
+import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads } from "@/lib/hub-notes/rules";
+import { noteTemplate } from "@/lib/hub-notes/templates";
+import { DEMO_AS_OF } from "@/lib/hub-data";
+import { todayIso } from "@/lib/hub-routes";
+import { NO_REFS, type NoteAudience, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteRefs, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
+import type { NoteRefsUi } from "./notes-refs";
+import type { TaskDraft, TaskOptions } from "./notes-tasks-ui";
+import { TaskPeek, TemplateChips, TrashPanel } from "./notes-panels";
 import { useAppearance } from "../appearance-provider";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
@@ -32,10 +41,10 @@ const NoteEditor = dynamic(() => import("./notes-editor"), { ssr: false, loading
 const TREE_KEY = "oalab-notes-tree";
 const NOTES_CUSTOMER_COOKIE = "oalab-notes-customer";
 type SaveStatus = "saved" | "saving" | "error" | "stale";
-type Pop = null | "gear" | "area" | "size" | "cover";
+type Pop = null | "gear" | "area" | "size" | "cover" | "trash";
 type Stale = { message: string; current: NotePage; mine: NoteDoc; reloaded: boolean };
 
-const unavailable: NotesArea = { viewer: "customer", viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" }, people: {}, ready: true, error: "Die Notizen konnten gerade nicht geladen werden." };
+const unavailable: NotesArea = { viewer: "customer", viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" }, people: {}, taskWriter: false, ready: true, error: "Die Notizen konnten gerade nicht geladen werden." };
 
 const phoneQuery = "(max-width: 767px)";
 const subscribePhone = (listener: () => void) => { const list = window.matchMedia(phoneQuery); list.addEventListener("change", listener); return () => list.removeEventListener("change", listener); };
@@ -45,12 +54,15 @@ export function NotesScreen({ area, preview }: { area?: NotesArea; preview: bool
   const searchParams = useSearchParams();
   const role = searchParams.get("role");
   const previewViewer: NoteViewer = role === "customer" ? "customer" : role === "freelancer" ? "freelancer" : "admin";
-  const initial = useMemo(() => preview ? notesFixtures(previewViewer) : area ?? unavailable, [preview, previewViewer, area]);
+  // The preview opens the page of its address once (a link from „Erwähnt in“, a reload); later clicks only change the view.
+  const [startPage] = useState(() => searchParams.get("page"));
+  const initial = useMemo(() => preview ? notesFixtures(previewViewer, startPage) : area ?? unavailable, [preview, previewViewer, startPage, area]);
   return <NotesWorkspace key={preview ? previewViewer : "live"} initial={initial} preview={preview} />;
 }
 
 function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const phone = usePhone();
   const { appearance, update } = useAppearance();
@@ -75,6 +87,13 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
   const [stale, setStale] = useState<Stale | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [refs, setRefs] = useState<NoteRefs>(initial.page?.refs ?? NO_REFS);
+  const [trash, setTrash] = useState<{ items: NoteTrashItem[]; loading: boolean }>({ items: [], loading: false });
+  // The preview keeps its trash in memory: what went in, with its subpages, to show restoring and deleting for good.
+  const [previewBin, setPreviewBin] = useState<{ item: NoteTrashItem; pages: NotePageMeta[] }[]>([]);
+  const [peek, setPeek] = useState<NoteTaskView | null>(null);
+  const [fresh, setFresh] = useState<string | null>(null);
+  const [openItems, setOpenItems] = useState(0);
   const editor = useRef<NoteEditorHandle | null>(null);
   const titleField = useRef<HTMLTextAreaElement>(null);
 
@@ -181,6 +200,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     lastDoc.current = next?.content ?? null;
     pending.current = {};
     setTitleDraft(next?.title ?? "");
+    setRefs(next?.refs ?? NO_REFS);
+    setPeek(null);
     setStale(null);
     setStatus("saved");
     setPop(null);
@@ -192,7 +213,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     if (page?.id === id) { setMobileView("page"); return; }
     if (!(await flush())) { say("Diese Seite ist noch nicht gespeichert. Bitte erst speichern oder neu laden."); return; }
     let next: NotePage | null = null;
-    if (preview) next = previewPage(id);
+    if (preview) next = previewPage(id, viewer);
     else {
       setBusy(true);
       const result = await openNotePage(id);
@@ -207,7 +228,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     setOpenNodes((current) => ({ ...current, ...Object.fromEntries(pathOf(pages, id).filter((item) => item.id !== id).map((item) => [item.id, true])) }));
     setMobileView("page");
     remember(customerId, id);
-  }, [page?.id, flush, preview, pages, showPage, remember, customerId, say]);
+  }, [page?.id, flush, preview, pages, showPage, remember, customerId, say, viewer]);
 
   const switchCustomer = useCallback(async (id: string) => {
     if (id === customerId) return;
@@ -219,7 +240,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
       setPages(shown);
       setProjects(id === initial.customerId ? initial.projects : []);
       const first = childrenOf(shown, null)[0];
-      showPage(first ? previewPage(first.id) : null);
+      showPage(first ? previewPage(first.id, viewer) : null);
       setMobileView("tree");
       remember(id, first?.id ?? null);
       return;
@@ -271,6 +292,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     if (!meta) return;
     const full: NotePage = { ...meta, content: emptyNoteDoc() };
     showPage(full);
+    setFresh(meta.id);
     setMobileView("page");
     remember(customerId, meta.id);
     say(`Neue Seite angelegt. Sichtbar für: ${audienceLabel(meta.audience, customer?.hasFreelancer ?? true)}.`);
@@ -302,7 +324,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     field.style.height = `${field.scrollHeight}px`;
   }, [titleDraft, textSize, page?.id]);
 
-  const applyAudience = useCallback(async (target: NoteAudience) => {
+  const applyAudience = useCallback(async (target: NoteAudience, notify = false) => {
     if (!page) return;
     setAsk(null);
     if (preview) {
@@ -314,7 +336,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     }
     if (!(await flush())) return;
     setBusy(true);
-    const result = await setNoteAudience({ id: page.id, audience: target });
+    const result = await setNoteAudience({ id: page.id, audience: target, notify });
     setBusy(false);
     if (!result.ok) { say(result.error); return; }
     setPages(result.data.pages);
@@ -328,9 +350,208 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     if (!page || target === page.audience) return;
     const narrowed = narrowedBelow(pages, page.id, target).map(({ title, audience }) => ({ title, audience }));
     const gained = gains(page.audience, target);
-    if (gained.customer || gained.freelancer || narrowed.length) setAsk({ page: pageMeta ?? page, target, narrowed });
+    if (gained.customer || gained.freelancer || narrowed.length) setAsk({ page: pageMeta ?? page, target, narrowed, hidden: gained.customer || gained.freelancer ? hiddenFor(target) : [] });
     else void applyAudience(target);
   };
+
+  // ---- Step 2: references, tasks, trash, templates, covers -------------------------------------------------------
+
+  const today = preview ? DEMO_AS_OF : todayIso();
+  const boardHref = useCallback((projectId: string, number?: number) => viewer === "customer"
+    ? `${hubHref(preview, "projects")}?project=${encodeURIComponent(projectId)}`
+    : `${hubHref(preview, "projects")}/tasks?project=${encodeURIComponent(projectId)}${number ? `&task=${number}` : ""}`, [preview, viewer]);
+  const addTasks = useCallback((tasks: NoteTaskView[]) => setRefs((current) => {
+    const nextTasks = { ...current.tasks };
+    for (const task of tasks) nextTasks[task.id] = task;
+    const projectTasks = Object.fromEntries(Object.entries(current.projectTasks).map(([id, list]) => [id, list ? list.map((item) => tasks.find((task) => task.id === item.id) ?? item) : list]));
+    return { ...current, tasks: nextTasks, projectTasks };
+  }), []);
+  const addImage = useCallback((path: string, url: string) => setRefs((current) => ({ ...current, images: { ...current.images, [path]: url } })), []);
+  const toggleTask = useCallback(async (task: NoteTaskView) => {
+    const done = task.status !== "done";
+    if (preview || task.version === null) {
+      addTasks([{ ...task, status: done ? "done" : "todo" }]);
+      say(done ? `#${task.number} ist erledigt. Board und Studio zeigen es auch.` : `#${task.number} ist wieder offen.`);
+      return;
+    }
+    addTasks([{ ...task, status: done ? "done" : "todo" }]);
+    const result = await setNoteTaskDone({ taskId: task.id, done, version: task.version });
+    if (result.ok) { addTasks([result.data]); say(done ? `#${task.number} ist erledigt. Board und Studio zeigen es auch.` : `#${task.number} ist wieder offen.`); }
+    else { addTasks([task]); say(result.error); }
+  }, [preview, addTasks, say]);
+  const searchTasks = useCallback(async (query: string): Promise<NoteTaskView[]> => {
+    if (preview) {
+      const term = query.trim().toLowerCase().replace(/^#/, "");
+      return Object.values(previewRefs(viewer).tasks).filter((task): task is NoteTaskView => Boolean(task) && (!term || String(task!.number).includes(term) || task!.title.toLowerCase().includes(term))).slice(0, 8);
+    }
+    if (!customerId) return [];
+    const result = await searchNoteTasks({ customerId, query });
+    if (!result.ok) return [];
+    addTasks(result.data);
+    return result.data;
+  }, [preview, viewer, customerId, addTasks]);
+  const refsUi: NoteRefsUi = useMemo(() => ({
+    refs, viewer, viewerId: initial.viewerId, taskWriter: initial.taskWriter, editable: canEdit, today,
+    toggleTask: (task) => void toggleTask(task), openTask: (task) => setPeek(task), boardHref, searchTasks, addTasks, addImage,
+  }), [refs, viewer, initial.viewerId, initial.taskWriter, canEdit, today, toggleTask, boardHref, searchTasks, addTasks, addImage]);
+  const loadTaskOptions = useCallback(async (projectId: string | null): Promise<TaskOptions | null> => {
+    if (preview) return { projects, people: [{ id: "p-jonas", name: "Jonas Keller", initials: "JK" }, { id: "p-lea", name: "Lea Brandt", initials: "LB" }, { id: "p-mia", name: "Mia Berger", initials: "MB" }] };
+    if (!customerId) return null;
+    const result = await noteTaskOptions({ customerId, projectId });
+    return result.ok ? result.data : null;
+  }, [preview, projects, customerId]);
+  const createTasks = useCallback(async (drafts: TaskDraft[]): Promise<NoteTaskView[]> => {
+    const created: NoteTaskView[] = [];
+    for (const draft of drafts) {
+      if (preview) {
+        const number = 1047 + created.length;
+        created.push({ id: crypto.randomUUID(), number, title: draft.title, status: "todo", dueOn: draft.dueOn, projectId: draft.projectId, projectName: projects.find((item) => item.id === draft.projectId)?.name ?? "", assignees: [], customerTurn: false, audience: draft.audience, version: 1 });
+        continue;
+      }
+      if (!customerId) break;
+      const result = await createNoteTask({ customerId, ...draft });
+      if (!result.ok) { say(result.error); break; }
+      created.push(result.data);
+    }
+    if (created.length) {
+      addTasks(created);
+      say(created.length === 1 ? `Aufgabe #${created[0].number} angelegt. Sie steht jetzt auch im Board und in Studio.` : `${created.length} Aufgaben angelegt. Sie stehen jetzt auch im Board und in Studio.`);
+    }
+    return created;
+  }, [preview, projects, customerId, addTasks, say]);
+  const loadPreview = useCallback(async (url: string): Promise<{ ok: true; data: NoteLinkPreview & { imageUrl: string | null } } | { ok: false; error: string }> => {
+    if (preview) {
+      const site = (/^https?:\/\/([^/?#]+)/i.exec(url)?.[1] ?? url).replace(/^www\./, "");
+      return { ok: true, data: { href: url.replace(/^http:/i, "https:"), title: `Seite auf ${site}`, description: "Titel, Beschreibung und Bild lädt der Hub beim Einfügen von der Seite.", site, image: null, imageUrl: null } };
+    }
+    if (!customerId) return { ok: false, error: "Kein Kunde gewählt." };
+    return noteLinkPreview({ customerId, url });
+  }, [preview, customerId]);
+
+  const openTrash = useCallback(async () => {
+    setPop((value) => value === "trash" ? null : "trash");
+    if (preview || !customerId) { setTrash({ items: previewBin.map((entry) => entry.item), loading: false }); return; }
+    setTrash((current) => ({ ...current, loading: true }));
+    const result = await loadNoteTrash({ customerId });
+    setTrash({ items: result.ok ? result.data : [], loading: false });
+  }, [preview, customerId, previewBin]);
+  const trashPage = useCallback(async () => {
+    if (!page) return;
+    setPop(null);
+    if (preview) {
+      const meta = pages.find((item) => item.id === page.id);
+      const gone = meta ? [meta, ...descendantsOf(pages, page.id)] : [];
+      const rest = pages.filter((item) => !gone.some((entry) => entry.id === item.id));
+      setPages(rest);
+      setPreviewBin((bin) => [{ item: { id: page.id, title: page.title, icon: page.icon, deletedAt: new Date().toISOString(), deletedBy: initial.viewerId, parentId: page.parentId }, pages: gone }, ...bin]);
+      const first = childrenOf(rest, null)[0];
+      showPage(first ? previewPage(first.id, viewer) : null);
+      remember(customerId, first?.id ?? null);
+      say("Die Seite liegt jetzt 30 Tage im Papierkorb, mit ihren Unterseiten.");
+      return;
+    }
+    if (!(await flush())) return;
+    const result = await trashNotePage({ id: page.id });
+    if (!result.ok) { say(result.error); return; }
+    setPages(result.data.pages);
+    const first = childrenOf(result.data.pages, null)[0];
+    const opened = first ? await openNotePage(first.id) : null;
+    showPage(opened?.ok ? opened.data.page : null);
+    remember(customerId, first?.id ?? null);
+    say("Die Seite liegt jetzt 30 Tage im Papierkorb, mit ihren Unterseiten.");
+  }, [page, preview, pages, initial.viewerId, viewer, flush, showPage, remember, customerId, say]);
+  const restorePage = useCallback(async (id: string) => {
+    if (preview) {
+      const entry = previewBin.find((item) => item.item.id === id);
+      if (!entry) return;
+      // Back where it was, or at the top level when its parent is gone meanwhile.
+      setPages((list) => [...list, ...entry.pages.map((item) => item.id === id && item.parentId && !list.some((other) => other.id === item.parentId) ? { ...item, parentId: null } : item)]);
+      setPreviewBin((bin) => bin.filter((item) => item.item.id !== id));
+      setTrash((current) => ({ ...current, items: current.items.filter((item) => item.id !== id) }));
+      say("Die Seite ist wieder da.");
+      return;
+    }
+    const result = await restoreNotePage({ id });
+    if (!result.ok) { say(result.error); return; }
+    setPages(result.data.pages);
+    setTrash((current) => ({ ...current, items: current.items.filter((item) => item.id !== id) }));
+    say("Die Seite ist wieder da.");
+  }, [preview, previewBin, say]);
+  const purgePage = useCallback(async (id: string) => {
+    if (preview) {
+      setPreviewBin((bin) => bin.filter((item) => item.item.id !== id));
+      setTrash((current) => ({ ...current, items: current.items.filter((item) => item.id !== id) }));
+      say("Die Seite ist endgültig gelöscht.");
+      return;
+    }
+    const result = await purgeNotePage({ id });
+    if (!result.ok) { say(result.error); return; }
+    setTrash((current) => ({ ...current, items: current.items.filter((item) => item.id !== id) }));
+    say("Die Seite ist endgültig gelöscht.");
+  }, [preview, say]);
+  const notifyChange = useCallback(async () => {
+    if (!page) return;
+    setPop(null);
+    if (preview) { say("Meldung „Notiz geändert“ an alle, die die Seite sehen, ist unterwegs."); return; }
+    const result = await notifyNoteChange({ id: page.id });
+    say(result.ok ? "Meldung „Notiz geändert“ an alle, die die Seite sehen, ist unterwegs." : result.error);
+  }, [page, preview, say]);
+  const applyTemplate = useCallback((id: NoteTemplateId) => {
+    setFresh(null);
+    if (id === "blank" || !page) return;
+    const template = noteTemplate(id);
+    editor.current?.editor()?.commands.setContent(template.doc, { emitUpdate: true });
+    if (page.title === "Neue Seite") { setTitleDraft(template.title); patchPage({ title: template.title, ...(template.icon && !page.icon ? { icon: template.icon } : {}) }); }
+  }, [page, patchPage]);
+  const uploadCover = useCallback(async (file: File): Promise<string | null> => {
+    if (!page) return "Keine Seite offen.";
+    if (preview) return "In der Vorschau wird nichts hochgeladen.";
+    if (!(await flush())) return "Die Seite ist noch nicht gespeichert.";
+    const form = new FormData();
+    form.set("pageId", page.id);
+    form.set("version", String(versionRef.current));
+    form.set("file", file);
+    const response = await fetch("/api/notes/cover", { method: "POST", body: form }).catch(() => null);
+    const result = response ? await response.json().catch(() => null) as { ok: boolean; error?: string; data?: { version: number; updatedAt: string; updatedBy: string | null; cover: NonNullable<NotePageMeta["cover"]> } } | null : null;
+    if (!result?.ok || !result.data) return result?.error ?? "Das Bild konnte gerade nicht hochgeladen werden.";
+    const saved = result.data;
+    versionRef.current = saved.version;
+    setPage((open) => open ? { ...open, cover: saved.cover, version: saved.version, updatedAt: saved.updatedAt } : open);
+    setPages((list) => list.map((item) => item.id === page.id ? { ...item, cover: saved.cover, version: saved.version, updatedAt: saved.updatedAt, updatedBy: saved.updatedBy } : item));
+    setPop(null);
+    return null;
+  }, [page, preview, flush]);
+  /** What a release would leave hidden on this page: tasks and subpages the new readers may not see. */
+  const hiddenFor = useCallback((target: NoteAudience): string[] => {
+    if (!page) return [];
+    const gained = gains(page.audience, target);
+    const hidden: string[] = [];
+    const seen = new Set<string>();
+    // Gaining both, each line says who misses it; gaining one, the dialog's heading names who, the line says why.
+    const note = (missCustomer: boolean, missFreelancer: boolean, why: string) => gained.customer && gained.freelancer
+      ? (missCustomer && missFreelancer ? "sehen beide nicht" : missCustomer ? "sieht der Kunde nicht" : "sehen die Freelancer nicht")
+      : why;
+    const walk = (node: { type: string; attrs?: Record<string, unknown>; content?: unknown[] }) => {
+      const id = String(node.attrs?.refId ?? "");
+      if ((node.type === "noteTaskItem" || node.type === "noteTaskMention") && id && !seen.has(id)) {
+        seen.add(id);
+        const task = refs.tasks[id];
+        const label = task ? `#${task.number} ${task.title}` : "Eine Aufgabe";
+        const missCustomer = Boolean(task && gained.customer && task.audience !== "customer");
+        const missFreelancer = Boolean(task && gained.freelancer && task.audience === "team");
+        if (task && (missCustomer || missFreelancer)) hidden.push(`${label} (${note(missCustomer, missFreelancer, task.audience === "team" ? "Nur Team" : task.audience === "shared" ? "+ Freelancer" : "+ Kunde")})`);
+      }
+      if (node.type === "noteSubpage" && id) {
+        const child = pages.find((item) => item.id === id);
+        const missCustomer = Boolean(child && gained.customer && !viewerReads("customer", child.audience));
+        const missFreelancer = Boolean(child && gained.freelancer && !viewerReads("freelancer", child.audience));
+        if (child && (missCustomer || missFreelancer)) hidden.push(`Unterseite „${child.title}“ (${note(missCustomer, missFreelancer, audienceLabel(child.audience))})`);
+      }
+      for (const child of (node.content ?? []) as typeof node[]) walk(child);
+    };
+    walk((lastDoc.current ?? page.content) as Parameters<typeof walk>[0]);
+    return hidden;
+  }, [page, refs, pages]);
 
   const changeSettings = async (patch: Partial<NoteSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
@@ -414,9 +635,11 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
             areaOpen={pop === "area"}
             onCollapse={() => setStoredTree("closed")}
             phone={phone}
+            footer={viewer === "admin" ? <button type="button" className="nz-new" data-trash-button onClick={() => void openTrash()}><Trash2 size={16} aria-hidden="true" /><span>Papierkorb</span></button> : undefined}
           />
         )}
         {pop === "area" && viewer === "admin" && <AreaGear settings={settings} onChange={(patch) => void changeSettings(patch)} onClose={() => setPop(null)} />}
+        {pop === "trash" && viewer === "admin" && <TrashPanel items={trash.items} loading={trash.loading} onRestore={(id) => void restorePage(id)} onPurge={(id) => void purgePage(id)} onClose={() => setPop(null)} />}
 
         {showPageArea && (
           <div className="nz-page">
@@ -441,7 +664,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
               )}
               {pageMeta && !phone && <button type="button" className={`nz-ibtn${focus ? " is-on" : ""}`} aria-pressed={focus} aria-label={focus ? "Fokus beenden" : "Fokus: nur die Seite"} data-tip={focus ? "Fokus beenden (Esc)" : "Fokus: nur die Seite"} onClick={() => setFocus((value) => !value)}>{focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}</button>}
               <button type="button" className={`nz-ibtn${pop === "size" ? " is-on" : ""}`} data-size-button aria-label="Schriftgröße" data-tip="Schriftgröße" aria-expanded={pop === "size"} onClick={() => setPop((value) => value === "size" ? null : "size")}><Type size={16} aria-hidden="true" /></button>
-              {pageMeta && <button type="button" className={`nz-ibtn${pop === "gear" ? " is-on" : ""}`} data-gear-button aria-label="Einstellungen dieser Seite" data-tip="Einstellungen dieser Seite" aria-expanded={pop === "gear"} onClick={() => setPop((value) => value === "gear" ? null : "gear")}><Settings size={17} aria-hidden="true" /></button>}
+              {pageMeta && <button type="button" className={`nz-ibtn${pop === "gear" ? " is-on" : ""}`} data-gear-button aria-label="Einstellungen dieser Seite" data-tip="Einstellungen dieser Seite" aria-expanded={pop === "gear"} onClick={() => { setOpenItems(editor.current?.openItemCount() ?? 0); setPop((value) => value === "gear" ? null : "gear"); }}><Settings size={17} aria-hidden="true" /></button>}
             </div>
 
             {stale && (
@@ -471,7 +694,16 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                   {pop === "cover" && canEdit && (
                     <CoverPicker
                       value={pageMeta.cover?.kind === "gallery" ? pageMeta.cover.value : null}
+                      fileId={pageMeta.cover?.kind === "file" ? pageMeta.cover.value : null}
                       hasCover={hasCover}
+                      customerName={customer.name}
+                      loadFiles={async () => {
+                        if (preview || !customerId) return [];
+                        const result = await noteCoverFiles({ customerId });
+                        return result.ok ? result.data : [];
+                      }}
+                      onPickFile={(file) => { patchPage({ cover: { kind: "file", value: file.id, position: 50 } }); setPage((open) => open && open.cover?.kind === "file" ? { ...open, cover: { ...open.cover, url: file.url, name: file.title } } : open); setPages((list) => list.map((item) => item.id === pageMeta.id && item.cover?.kind === "file" ? { ...item, cover: { ...item.cover, url: file.url, name: file.title } } : item)); }}
+                      onUpload={uploadCover}
                       onPick={(key) => patchPage({ cover: { kind: "gallery", value: key, position: pageMeta.cover?.position ?? 50 } })}
                       onRemove={() => { patchPage({ cover: null }); setPop(null); }}
                       onClose={() => setPop(null)}
@@ -505,15 +737,23 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                         onBlur={() => { if (!cleanNoteTitle(titleDraft)) onTitle("Ohne Titel"); }}
                       />
                     ) : <h2 className="nz-title">{pageMeta.title}</h2>}
+                    {canEdit && fresh === page.id && isEmptyDoc(page.content) && <TemplateChips onPick={applyTemplate} />}
                     <NoteEditor
                       key={`${page.id}-${editorKey}`}
                       page={page}
                       editable={canEdit}
                       pages={pages}
-                      onChange={(doc) => { lastDoc.current = doc; queue({ content: doc }); }}
+                      onChange={(doc) => { lastDoc.current = doc; if (fresh) setFresh(null); queue({ content: doc }); }}
                       onOpenPage={(id) => void openPage(id)}
                       onCreateSubpage={createSubpage}
                       handleRef={editor}
+                      refsUi={refsUi}
+                      projects={projects}
+                      viewer={viewer}
+                      pageAudience={page.audience}
+                      loadTaskOptions={loadTaskOptions}
+                      createTasks={createTasks}
+                      loadPreview={loadPreview}
                     />
                   </article>
                 </>
@@ -539,6 +779,10 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                 onCover={() => setPop("cover")}
                 onCopyLink={copyLink}
                 onClose={() => setPop(null)}
+                onNotify={viewer === "admin" ? () => void notifyChange() : undefined}
+                onTrash={viewer === "admin" ? () => void trashPage() : undefined}
+                openItems={initial.taskWriter && canEdit ? openItems : 0}
+                onOpenItems={() => { setPop(null); editor.current?.convertOpenItems(); }}
               />
             )}
             {pop === "size" && <TextSizePop value={textSize} onChange={(notesTextSize) => update({ notesTextSize })} onClose={() => setPop(null)} />}
@@ -554,7 +798,24 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
           onClose={() => setIconAnchor(null)}
         />
       )}
-      {ask && <AudienceDialog ask={ask} customer={customer} onConfirm={() => void applyAudience(ask.target)} onClose={() => setAsk(null)} />}
+      {ask && <AudienceDialog ask={ask} customer={customer} notifyDefault={settings.notifyOnShare} onConfirm={(notify) => void applyAudience(ask.target, notify)} onClose={() => setAsk(null)} />}
+      {peek && (
+        <TaskPeek
+          key={peek.id}
+          task={refs.tasks[peek.id] ?? peek}
+          viewer={viewer}
+          canTick={initial.taskWriter && (refs.tasks[peek.id] ?? peek).version !== null}
+          boardHref={boardHref(peek.projectId, peek.number)}
+          loadMentions={async (taskId) => {
+            if (preview) return previewMentions(taskId, viewer);
+            const result = await taskMentions({ taskId });
+            return result.ok ? result.data : [];
+          }}
+          onToggle={() => void toggleTask(refs.tasks[peek.id] ?? peek)}
+          onOpenPage={(mention) => { setPeek(null); if (mention.customerId === customerId) void openPage(mention.id); else router.push(`${hubHref(preview, "projects")}/notes?customer=${encodeURIComponent(mention.customerId)}&page=${encodeURIComponent(mention.id)}`); }}
+          onClose={() => setPeek(null)}
+        />
+      )}
       {toast && <div className="nz-toast" role="status">{toast}</div>}
     </>
   );

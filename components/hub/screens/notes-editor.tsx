@@ -16,23 +16,27 @@ import { TableMap } from "@tiptap/pm/tables";
 import {
   Bold, ChevronDown, ChevronRight, CheckSquare, Code, Columns3, Copy, ExternalLink, FileText, GripVertical, Heading1, Heading2, Heading3, Italic,
   Lightbulb, Link2, List, ListOrdered, Minus, Pencil, Plus, Rows3, Smile, Strikethrough, Table2, Trash2, Type, Underline, ArrowDown, ArrowUp, Unlink,
-  SquareCheck, CircleDot, UserRound,
+  SquareCheck, CircleDot, UserRound, SquareKanban, ListTodo, FolderOpen, IdCard,
 } from "lucide-react";
 import { isSafeHref, COLUMN_TYPE_LABELS, COLUMN_TYPES, isColumnType, type ColumnType } from "@/lib/hub-notes/rules";
-import type { NoteDoc, NotePage, NotePageMeta } from "@/lib/hub-notes/types";
+import type { NoteAudience, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NoteProject, NoteTaskView, NoteViewer } from "@/lib/hub-notes/types";
 import type { EmojiEntry } from "@/lib/hub-notes/emoji";
 import {
   createColonExtension, createSlashExtension, EmojiGlyph, NoteCallout, NoteEditorContext, NoteEmoji, NoteSubpage, NoteTableColumns, NoteTableHeader,
   NoteTypingRules, setSlashItems, type MenuHandle, type MenuProps, type NoteEditorUi, type SlashItem,
 } from "./notes-blocks";
 import { EmojiPicker } from "./notes-emoji-picker";
+import { createHashExtension, NoteLinkCard, NoteProject as NoteProjectNode, NoteRefsContext, NoteTaskGroup, NoteTaskItem, NoteTaskList, NoteTaskMention, setTaskSearch, type NoteRefsUi } from "./notes-refs";
+import { RefPicker, TaskConvertDialog, type PickerKind, type TaskDraft, type TaskOptions } from "./notes-tasks-ui";
 
 // The writing area of a note (plan 1.3): Tiptap 3 with the basic blocks of step 1, the block menu on „/“, Markdown
 // shortcuts, emojis after „:“, a toolbar over selected text, clean links with a card on hover, tables with column
 // kinds, and handles to move blocks. Loaded only on the notes page (next/dynamic), so the rest of the hub stays light.
 // Who may only read sees the same page without any of the editing tools.
 
-export type NoteEditorHandle = { focusStart: () => void; insertEmojiAtEnd: (char: string) => void; editor: () => Editor | null };
+export type NoteEditorHandle = { focusStart: () => void; insertEmojiAtEnd: (char: string) => void; editor: () => Editor | null; convertOpenItems: () => void; openItemCount: () => number };
+
+type PreviewResult = { ok: true; data: NoteLinkPreview & { imageUrl: string | null } } | { ok: false; error: string };
 
 type Props = {
   page: NotePage;
@@ -42,7 +46,38 @@ type Props = {
   onOpenPage: (id: string) => void;
   onCreateSubpage: () => Promise<NotePageMeta | null>;
   handleRef?: React.Ref<NoteEditorHandle>;
+  /** Step 2: what references show, and the ways to add tasks, projects and link cards. */
+  refsUi: NoteRefsUi;
+  projects: NoteProject[];
+  viewer: NoteViewer;
+  pageAudience: NoteAudience;
+  loadTaskOptions: (projectId: string | null) => Promise<TaskOptions | null>;
+  createTasks: (drafts: TaskDraft[]) => Promise<NoteTaskView[]>;
+  loadPreview: (url: string) => Promise<PreviewResult>;
 };
+
+/** Puts a block where the caret stands: in place of an empty line, else after the line. */
+function insertBlock(editor: Editor, at: number, content: Record<string, unknown>) {
+  const $at = editor.state.doc.resolve(Math.min(at, editor.state.doc.content.size));
+  const empty = $at.parent.isTextblock && $at.parent.content.size === 0 && $at.depth > 0;
+  if (empty) return editor.chain().focus().insertContentAt({ from: $at.before(), to: $at.after() }, content).run();
+  const after = $at.depth > 0 ? $at.after(1) : at;
+  return editor.chain().focus().insertContentAt(after, content).run();
+}
+
+/** A task as a row: into the task box right before the caret's line, or as a new box. */
+function insertTaskRow(editor: Editor, at: number, task: NoteTaskView) {
+  const item = { type: "noteTaskItem", attrs: { refKind: "task", refId: task.id, number: task.number } };
+  const $at = editor.state.doc.resolve(Math.min(at, editor.state.doc.content.size));
+  const index = $at.index(0);
+  const before = index > 0 ? editor.state.doc.child(index - 1) : null;
+  if (before?.type.name === "noteTaskGroup" && $at.parent.content.size === 0) {
+    let pos = 0;
+    for (let i = 0; i < index - 1; i++) pos += editor.state.doc.child(i).nodeSize;
+    return editor.chain().focus().insertContentAt(pos + before.nodeSize - 1, item).run();
+  }
+  return insertBlock(editor, at, { type: "noteTaskGroup", content: [item] });
+}
 
 type Picker = { anchor: DOMRect; heading: string; onPick: (char: string) => void; onRemove?: () => void };
 
@@ -125,7 +160,12 @@ function ColonMenu({ items, command, query, handleRef }: MenuProps<EmojiEntry> &
 
 const domainOf = (href: string) => /^https:\/\/([^/?#]+)/i.exec(href)?.[1]?.replace(/^www\./i, "") ?? href.replace(/^mailto:/i, "");
 
-export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef }: Props) {
+export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef, refsUi, projects, viewer, pageAudience, loadTaskOptions, createTasks, loadPreview }: Props) {
+  const [picker2, setPicker2] = useState<{ kind: PickerKind; anchor: DOMRect; at: number } | null>(null);
+  const [convert, setConvert] = useState<{ titles: string[]; apply: (tasks: NoteTaskView[]) => void } | null>(null);
+  const [pasted, setPasted] = useState<{ url: string; from: number; to: number; locate: () => DOMRect | null } | null>(null);
+  const previewRef = useRef(loadPreview);
+  useEffect(() => { previewRef.current = loadPreview; });
   const [picker, setPicker] = useState<Picker | null>(null);
   const [linkEdit, setLinkEdit] = useState<{ url: string; rect: DOMRect; existing: boolean } | null>(null);
   const [hoverLink, setHoverLink] = useState<{ href: string; title: string; description: string; rect: DOMRect; pos: number } | null>(null);
@@ -170,6 +210,22 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
           editor.chain().focus().deleteRange(range).run();
           pickEmoji(caretRect(editor), "Emoji einfügen", (char) => editor.chain().focus().insertContent({ type: "noteEmoji", attrs: { char } }).run());
         },
+      },
+      {
+        id: "task", group: hub, label: "Aufgabe", hint: "Aus dem Board, im Text auch mit „#“", keywords: "task board", icon: <SquareKanban size={16} />,
+        run: (editor, range) => { editor.chain().focus().deleteRange(range).run(); setPicker2({ kind: "task", anchor: caretRect(editor), at: editor.state.selection.from }); },
+      },
+      {
+        id: "taskList", group: hub, label: "Aufgabenliste", hint: "Die Aufgaben eines Projekts, lebend", keywords: "tasks liste board", icon: <ListTodo size={16} />,
+        run: (editor, range) => { editor.chain().focus().deleteRange(range).run(); setPicker2({ kind: "taskList", anchor: caretRect(editor), at: editor.state.selection.from }); },
+      },
+      {
+        id: "project", group: hub, label: "Projekt", hint: "Status, Fortschritt und Ziel", keywords: "projekt status", icon: <FolderOpen size={16} />,
+        run: (editor, range) => { editor.chain().focus().deleteRange(range).run(); setPicker2({ kind: "project", anchor: caretRect(editor), at: editor.state.selection.from }); },
+      },
+      {
+        id: "linkCard", group: hub, label: "Linkkarte", hint: "Adresse einfügen, als Karte zeigen", keywords: "link bookmark karte", icon: <Link2 size={16} />,
+        run: (editor, range) => { editor.chain().focus().deleteRange(range).run(); setPicker2({ kind: "linkCard", anchor: caretRect(editor), at: editor.state.selection.from }); },
       },
       {
         id: "subpage", group: hub, label: "Unterseite", hint: "Neue Seite unter dieser", keywords: "seite page", icon: <FileText size={16} />,
@@ -227,6 +283,13 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
     NoteCallout,
     NoteSubpage,
     NoteTypingRules,
+    NoteTaskGroup,
+    NoteTaskItem,
+    NoteTaskMention,
+    NoteTaskList,
+    NoteProjectNode,
+    NoteLinkCard,
+    createHashExtension(),
     createSlashExtension(SlashMenu),
     createColonExtension(ColonMenu),
   ], []);
@@ -248,6 +311,22 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
         }
         return false;
       },
+      // A pasted address on its own: a link in the text at once, and the question „Link im Text oder Linkkarte?“.
+      handlePaste: (view, event) => {
+        const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+        if (!view.editable || !view.state.selection.empty || !/^https:\/\/\S+$/i.test(text) || !isSafeHref(text)) return false;
+        const from = view.state.selection.from;
+        const mark = view.state.schema.marks.link.create({ href: text });
+        view.dispatch(view.state.tr.insert(from, view.state.schema.text(text, [mark])).scrollIntoView());
+        // Where the link stands is read again while the page scrolls (it may still be scrolling to it).
+        const locate = () => {
+          if (view.isDestroyed || from > view.state.doc.content.size) return null;
+          const at = view.coordsAtPos(from);
+          return new DOMRect(at.left, at.top, 1, at.bottom - at.top);
+        };
+        setPasted({ url: text, from, to: from + text.length, locate });
+        return true;
+      },
       handleClick: (view, _pos, event) => {
         const anchor = (event.target as HTMLElement).closest("a[href]");
         if (!anchor) return false;
@@ -267,13 +346,61 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
 
   useEffect(() => { editorRef.current = editor; }, [editor]);
   useEffect(() => { if (editor) setSlashItems(editor, slashItems); }, [editor, slashItems]);
+  useEffect(() => { if (editor) setTaskSearch(editor, refsUi.searchTasks); }, [editor, refsUi.searchTasks]);
   useEffect(() => { editor?.setEditable(editable); }, [editor, editable]);
+
+  /** Open points of the checklists on this page: their text and where they stand. */
+  const openItems = useCallback(() => {
+    const found: { pos: number; text: string }[] = [];
+    editor?.state.doc.descendants((node, pos) => {
+      if (node.type.name === "taskItem" && !node.attrs.checked && node.textContent.trim()) found.push({ pos, text: node.textContent.trim().slice(0, 240) });
+    });
+    return found;
+  }, [editor]);
+
+  /**
+   * Turns checklist lines into task rows once the tasks exist (the lines are found again by their text): the rows of one
+   * list go into one box right after it, and a list whose lines all became tasks gives way to its box.
+   */
+  const replaceItems = useCallback((done: { text: string; task: NoteTaskView }[]) => {
+    if (!editor || !done.length) return;
+    const { state } = editor;
+    type Line = { pos: number; size: number; list: { from: number; to: number; items: number }; task: NoteTaskView };
+    const lines: Line[] = [];
+    state.doc.descendants((node, pos) => {
+      if (node.type.name !== "taskItem") return;
+      const text = node.textContent.trim().slice(0, 240);
+      const match = done.find((item) => item.text === text && !lines.some((line) => line.task.id === item.task.id));
+      if (!match) return;
+      const $pos = state.doc.resolve(pos);
+      let depth = 1;
+      while (depth < $pos.depth && $pos.node(depth).type.name !== "taskList") depth += 1;
+      lines.push({ pos, size: node.nodeSize, list: { from: $pos.before(depth), to: $pos.after(depth), items: $pos.node(depth).childCount }, task: match.task });
+    });
+    if (!lines.length) return;
+    const lists = new Map<number, Line[]>();
+    for (const line of lines) lists.set(line.list.to, [...(lists.get(line.list.to) ?? []), line]);
+    const tr = state.tr;
+    for (const [listEnd, rows] of [...lists].sort((a, b) => b[0] - a[0])) {
+      const box = state.schema.nodeFromJSON({ type: "noteTaskGroup", content: rows.sort((a, b) => a.pos - b.pos).map((row) => ({ type: "noteTaskItem", attrs: { refKind: "task", refId: row.task.id, number: row.task.number } })) });
+      tr.insert(tr.mapping.map(listEnd), box);
+      const whole = rows.length >= rows[0].list.items && rows.every((row) => state.doc.resolve(row.pos).depth === state.doc.resolve(rows[0].list.from).depth + 1);
+      if (whole) tr.delete(tr.mapping.map(rows[0].list.from), tr.mapping.map(listEnd, -1));
+      else for (const row of [...rows].sort((a, b) => b.pos - a.pos)) tr.delete(tr.mapping.map(row.pos), tr.mapping.map(row.pos + row.size, -1));
+    }
+    editor.view.dispatch(tr);
+  }, [editor]);
 
   useImperativeHandle(handleRef, () => ({
     focusStart: () => editor?.chain().focus("start").run(),
     insertEmojiAtEnd: (char) => editor?.chain().focus("end").insertContent({ type: "noteEmoji", attrs: { char } }).run(),
     editor: () => editor,
-  }), [editor]);
+    openItemCount: () => openItems().length,
+    convertOpenItems: () => {
+      const items = openItems();
+      if (items.length) setConvert({ titles: items.map((item) => item.text), apply: (tasks) => replaceItems(tasks.map((task) => ({ text: task.title, task }))) });
+    },
+  }), [editor, openItems, replaceItems]);
 
   const ui: NoteEditorUi = useMemo(() => ({ pages: new Map(pages.map((item) => [item.id, item])), editable, openPage: onOpenPage, pickEmoji }), [pages, editable, onOpenPage, pickEmoji]);
 
@@ -300,14 +427,68 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
     return () => { dom.removeEventListener("mouseover", over); dom.removeEventListener("mouseout", out); window.clearTimeout(hoverTimer.current); };
   }, [editor]);
 
+  const asTask = (title: string, apply: (task: NoteTaskView) => void) => setConvert({ titles: [title], apply: (tasks) => { if (tasks[0]) apply(tasks[0]); } });
+
   return (
+    <NoteRefsContext.Provider value={refsUi}>
     <NoteEditorContext.Provider value={ui}>
       <div className={`nz-editor${editable ? " is-edit" : " is-read"}`} ref={wrap}>
         {editor && editable && <BlockHandles editor={editor} wrap={wrap} />}
+        {editor && editable && refsUi.taskWriter && <CheckLineAction editor={editor} wrap={wrap} onConvert={(pos, text) => asTask(text, (task) => replaceItems([{ text, task: { ...task, title: text } }]))} />}
         <EditorContent editor={editor} />
-        {editor && editable && !linkEdit && !picker && <SelectionToolbar editor={editor} onLink={openLink} onEmoji={() => pickEmoji(caretRect(editor), "Emoji einfügen", (char) => editor.chain().focus().setTextSelection(editor.state.selection.to).insertContent({ type: "noteEmoji", attrs: { char } }).run())} />}
+        {editor && editable && !linkEdit && !picker && !convert && <SelectionToolbar editor={editor} onLink={openLink} onEmoji={() => pickEmoji(caretRect(editor), "Emoji einfügen", (char) => editor.chain().focus().setTextSelection(editor.state.selection.to).insertContent({ type: "noteEmoji", attrs: { char } }).run())}
+          onTask={refsUi.taskWriter ? () => {
+            const { from, to } = editor.state.selection;
+            const text = editor.state.doc.textBetween(from, to, " ").trim().slice(0, 240);
+            if (text) asTask(text, (task) => editor.chain().focus().insertContentAt({ from, to }, [{ type: "noteTaskMention", attrs: { refKind: "task", refId: task.id, number: task.number } }, { type: "text", text: " " }]).run());
+          } : undefined} />}
         {editor && editable && <TableToolbar editor={editor} />}
-        {editor && linkEdit && <LinkPopover editor={editor} state={linkEdit} onClose={() => setLinkEdit(null)} />}
+        {editor && linkEdit && <LinkPopover editor={editor} state={linkEdit} onClose={() => setLinkEdit(null)} onCard={async (href) => {
+          const result = await previewRef.current(href);
+          if (!result.ok) return result.error;
+          const $pos = editor.state.doc.resolve(editor.state.selection.to);
+          editor.chain().focus().insertContentAt($pos.depth > 0 ? $pos.after(1) : editor.state.selection.to, { type: "noteLinkCard", attrs: { href: result.data.href, title: result.data.title, description: result.data.description, site: result.data.site, image: result.data.image } }).run();
+          if (result.data.image && result.data.imageUrl) refsUi.addImage(result.data.image, result.data.imageUrl);
+          return null;
+        }} />}
+        {editor && pasted && (
+          <PasteChoice locate={pasted.locate} url={pasted.url} onClose={() => setPasted(null)} onCard={async () => {
+            const result = await previewRef.current(pasted.url);
+            if (!result.ok) return result.error;
+            if (result.data.image && result.data.imageUrl) refsUi.addImage(result.data.image, result.data.imageUrl);
+            editor.chain().focus().insertContentAt({ from: pasted.from, to: pasted.to }, { type: "noteLinkCard", attrs: { href: result.data.href, title: result.data.title, description: result.data.description, site: result.data.site, image: result.data.image } }).run();
+            setPasted(null);
+            return null;
+          }} />
+        )}
+        {editor && picker2 && (
+          <RefPicker
+            kind={picker2.kind}
+            anchor={picker2.anchor}
+            projects={projects}
+            searchTasks={refsUi.searchTasks}
+            loadPreview={(url) => previewRef.current(url)}
+            onClose={() => setPicker2(null)}
+            onTask={(task) => { refsUi.addTasks([task]); insertTaskRow(editor, picker2.at, task); setPicker2(null); }}
+            onProject={(project) => { insertBlock(editor, picker2.at, { type: picker2.kind === "taskList" ? "noteTaskList" : "noteProject", attrs: { refKind: "project", refId: project.id, ...(picker2.kind === "taskList" ? { filter: "open" } : {}) } }); setPicker2(null); }}
+            onLinkCard={(card) => { if (card.image && card.imageUrl) refsUi.addImage(card.image, card.imageUrl); insertBlock(editor, picker2.at, { type: "noteLinkCard", attrs: { href: card.href, title: card.title, description: card.description, site: card.site, image: card.image } }); setPicker2(null); }}
+          />
+        )}
+        {convert && (
+          <TaskConvertDialog
+            titles={convert.titles}
+            viewer={viewer}
+            pageAudience={pageAudience}
+            projectId={page.projectId}
+            loadOptions={loadTaskOptions}
+            onClose={() => setConvert(null)}
+            onCreate={async (drafts) => {
+              const created = await createTasks(drafts);
+              if (created.length) convert.apply(created);
+              setConvert(null);
+            }}
+          />
+        )}
         {hoverLink && !linkEdit && (
           <LinkCard
             link={hoverLink}
@@ -326,7 +507,65 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
         {picker && <EmojiPicker anchor={picker.anchor} heading={picker.heading} onPick={picker.onPick} onRemove={picker.onRemove} onClose={() => setPicker(null)} />}
       </div>
     </NoteEditorContext.Provider>
+    </NoteRefsContext.Provider>
   );
+}
+
+/** „Link im Text oder Linkkarte?“ right after an address was pasted, as in Notion and Loop. */
+function PasteChoice({ locate, url, onCard, onClose }: { locate: () => DOMRect | null; url: string; onCard: () => Promise<string | null>; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  // It stays at the link: read after the page settled, and again on every scroll and resize.
+  useEffect(() => {
+    let frame = 0;
+    const update = () => { window.cancelAnimationFrame(frame); frame = window.requestAnimationFrame(() => setRect(locate())); };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener("scroll", update, true); window.removeEventListener("resize", update); };
+  }, [locate]);
+  if (!rect) return null;
+  const domain = (/^https:\/\/([^/?#]+)/i.exec(url)?.[1] ?? url).replace(/^www\./, "");
+  return (
+    <Floating rect={rect} className="nz-pop nz-paste-pop" above={false} label="Link einfügen als">
+      <div className="nz-menu-caption">{domain} einfügen als</div>
+      <button type="button" className="nz-menu-item" onClick={onClose}><span className="nz-menu-icon"><Link2 size={15} aria-hidden="true" /></span><span className="nz-menu-text"><strong>Link im Text</strong><span>Unterstrichen, Vorschau beim Darüberfahren</span></span></button>
+      <button type="button" className="nz-menu-item" disabled={busy} onClick={async () => { setBusy(true); const failed = await onCard(); setBusy(false); if (failed) setError(failed); }}><span className="nz-menu-icon"><IdCard size={15} aria-hidden="true" /></span><span className="nz-menu-text"><strong>{busy ? "Lädt Vorschau …" : "Linkkarte"}</strong><span>Titel, Beschreibung und Bild als Karte</span></span></button>
+      {error && <p className="nz-pop-note is-warn">{error}</p>}
+      <div className="nz-menu-foot">Esc lässt den Link im Text</div>
+    </Floating>
+  );
+}
+
+/** „Als Aufgabe“ at the end of a checklist line under the mouse (team with a confirmed code and freelancers). */
+function CheckLineAction({ editor, wrap, onConvert }: { editor: Editor; wrap: React.RefObject<HTMLDivElement | null>; onConvert: (pos: number, text: string) => void }) {
+  const [line, setLine] = useState<{ pos: number; top: number; text: string } | null>(null);
+  useEffect(() => {
+    const host = wrap.current;
+    if (!host) return;
+    const onMove = (event: MouseEvent) => {
+      const item = (event.target as HTMLElement).closest?.('ul[data-type="taskList"] > li');
+      if (!item || !editor.view.dom.contains(item) || item.getAttribute("data-checked") === "true") { setLine((current) => current && (event.target as HTMLElement).closest?.(".nz-to-task") ? current : null); return; }
+      const pos = editor.view.posAtDOM(item, 0) - 1;
+      const node = editor.state.doc.nodeAt(Math.max(0, pos));
+      const text = node?.type.name === "taskItem" ? node.textContent.trim() : "";
+      if (!text) return;
+      const rect = item.getBoundingClientRect();
+      setLine({ pos, top: rect.top - host.getBoundingClientRect().top, text });
+    };
+    const onLeave = () => setLine(null);
+    host.addEventListener("mousemove", onMove);
+    host.addEventListener("mouseleave", onLeave);
+    return () => { host.removeEventListener("mousemove", onMove); host.removeEventListener("mouseleave", onLeave); };
+  }, [editor, wrap]);
+  if (!line) return null;
+  return <button type="button" className="nz-to-task" style={{ top: line.top }} contentEditable={false} onClick={() => { setLine(null); onConvert(line.pos, line.text.slice(0, 240)); }}><SquareKanban size={14} aria-hidden="true" />Als Aufgabe</button>;
 }
 
 /** A floating glass bar at a screen rectangle, kept on screen; it never takes the editor's focus. */
@@ -337,7 +576,10 @@ function Floating({ rect, className, children, above = true, label }: { rect: DO
     const width = box.current?.offsetWidth ?? 300;
     const height = box.current?.offsetHeight ?? 40;
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-    const top = above && rect.top - height - 8 > 8 ? rect.top - height - 8 : rect.bottom + 8;
+    // Its preferred side, or the other one when it would leave the window there.
+    const over = rect.top - height - 8;
+    const under = rect.bottom + 8;
+    const top = above ? (over > 8 ? over : under) : (under + height > window.innerHeight - 8 && over > 8 ? over : under);
     setPlace({ left, top });
   }, [rect, above]);
   return (
@@ -366,7 +608,7 @@ const blockKinds: { id: BlockKind; label: string }[] = [
   { id: "bullets", label: "Aufzählung" }, { id: "numbers", label: "Nummerierung" }, { id: "checks", label: "Checkliste" }, { id: "code", label: "Code" },
 ];
 
-function SelectionToolbar({ editor, onLink, onEmoji }: { editor: Editor; onLink: () => void; onEmoji: () => void }) {
+function SelectionToolbar({ editor, onLink, onEmoji, onTask }: { editor: Editor; onLink: () => void; onEmoji: () => void; onTask?: () => void }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => {
@@ -423,22 +665,32 @@ function SelectionToolbar({ editor, onLink, onEmoji }: { editor: Editor; onLink:
       <span className="nz-tb-sep" />
       <button type="button" className={`nz-tb nz-tb-wide${state.link ? " is-on" : ""}`} aria-pressed={state.link} onClick={onLink}><Link2 size={15} aria-hidden="true" /><span>Link</span></button>
       <button type="button" className="nz-tb" aria-label="Emoji einfügen" data-tip="Emoji einfügen" onClick={onEmoji}><Smile size={15} aria-hidden="true" /></button>
+      {onTask && <><span className="nz-tb-sep" /><button type="button" className="nz-tb nz-tb-wide" onClick={onTask}><SquareKanban size={15} aria-hidden="true" /><span>Als Aufgabe</span></button></>}
     </Floating>
   );
 }
 
 /** Address of a link for the selected text (toolbar, ⌘K): only https: and mailto:, „beispiel.de“ becomes https://beispiel.de. */
-function LinkPopover({ editor, state, onClose }: { editor: Editor; state: { url: string; rect: DOMRect; existing: boolean }; onClose: () => void }) {
+function LinkPopover({ editor, state, onClose, onCard }: { editor: Editor; state: { url: string; rect: DOMRect; existing: boolean }; onClose: () => void; onCard: (href: string) => Promise<string | null> }) {
   const [url, setUrl] = useState(state.url);
+  const [mode, setMode] = useState<"text" | "card">("text");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
   const field = useRef<HTMLInputElement>(null);
   // The editor keeps the focus through the toolbar's click; the field takes it as soon as it stands.
   useLayoutEffect(() => { field.current?.focus(); field.current?.select(); }, []);
   const value = url.trim();
   const href = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : value.includes("@") && !value.includes("/") ? `mailto:${value}` : value ? `https://${value}` : "";
   const valid = isSafeHref(href);
-  const apply = () => {
-    if (!valid) return;
+  const apply = async () => {
+    if (!valid || busy) return;
     editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+    if (mode === "card" && /^https:/i.test(href)) {
+      setBusy(true);
+      const error = await onCard(href);
+      setBusy(false);
+      if (error) { setFailed(error); return; }
+    }
     onClose();
   };
   useEffect(() => {
@@ -450,14 +702,24 @@ function LinkPopover({ editor, state, onClose }: { editor: Editor; state: { url:
     <Floating rect={state.rect} className="nz-pop nz-link-pop" above={false} label="Link einfügen">
       <label className="nz-field">
         <span>Adresse</span>
-        <input ref={field} type="url" inputMode="url" placeholder="https://… oder name@firma.de" value={url} onChange={(event) => setUrl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); apply(); } }} />
+        <input ref={field} type="url" inputMode="url" placeholder="https://… oder name@firma.de" value={url} onChange={(event) => setUrl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void apply(); } }} />
       </label>
       {value && !valid && <p className="nz-pop-note is-warn">Links gehen nur mit https: oder als E-Mail-Adresse.</p>}
+      {!state.existing && (
+        <div className="nz-pop-sec">
+          <div className="nz-pop-label">Zeigen als</div>
+          <div className="nz-grid2">
+            <button type="button" className={`nz-opt${mode === "text" ? " is-on" : ""}`} aria-pressed={mode === "text"} onClick={() => setMode("text")}><Link2 size={16} aria-hidden="true" /><span>Link im Text</span></button>
+            <button type="button" className={`nz-opt${mode === "card" ? " is-on" : ""}`} aria-pressed={mode === "card"} onClick={() => setMode("card")}><IdCard size={16} aria-hidden="true" /><span>Linkkarte</span></button>
+          </div>
+        </div>
+      )}
+      {failed && <p className="nz-pop-note is-warn">{failed}</p>}
       <div className="nz-actions">
         {state.existing && <button type="button" className="nz-btn is-danger" onClick={() => { editor.chain().focus().extendMarkRange("link").unsetLink().run(); onClose(); }}><Unlink size={14} aria-hidden="true" />Entfernen</button>}
         <span className="nz-spacer" />
         <button type="button" className="nz-btn" onClick={() => { onClose(); editor.commands.focus(); }}>Abbrechen</button>
-        <button type="button" className="nz-btn is-primary" disabled={!valid} onClick={apply}>{state.existing ? "Übernehmen" : "Einfügen"}</button>
+        <button type="button" className="nz-btn is-primary" disabled={!valid || busy} onClick={() => void apply()}>{busy ? "Lädt Vorschau …" : state.existing ? "Übernehmen" : "Einfügen"}</button>
       </div>
     </Floating>
   );

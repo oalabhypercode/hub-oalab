@@ -59,7 +59,46 @@ export type NotePageMeta = {
   createdAt: string;
 };
 
-export type NotePage = NotePageMeta & { content: NoteDoc };
+/** A task of the board as a note shows it, read with the viewer's rights; null in NoteRefs: not released for them. */
+export type NoteTaskView = {
+  id: string;
+  number: number;
+  title: string;
+  status: "backlog" | "todo" | "progress" | "review" | "done";
+  dueOn: string | null;
+  projectId: string;
+  projectName: string;
+  assignees: { id: string; name: string; initials: string }[];
+  /** Open, released and labelled „Kunde“: the customer has to act („Beim Kunden“, for customers „Du bist am Zug“). */
+  customerTurn: boolean;
+  /** Who sees it besides the team (team and freelancers only; customers never learn it). */
+  audience: "team" | "shared" | "customer" | null;
+  /** Studio's row version for the tick; null where the viewer may not change it (customers). */
+  version: number | null;
+};
+
+/** A project block: status, progress and target date as in the projects table. */
+export type NoteProjectView = { id: string; name: string; status: string; progress: number; dueOn: string | null };
+
+/** What a page's references show, resolved in one go with the viewer's rights when the page opens. */
+export type NoteRefs = {
+  tasks: Record<string, NoteTaskView | null>;
+  projects: Record<string, NoteProjectView | null>;
+  /** The open tasks a task list block shows, per project; null: the project is not visible to the viewer. */
+  projectTasks: Record<string, NoteTaskView[] | null>;
+  /** Signed links to the preview images of link cards, by storage path. */
+  images: Record<string, string>;
+};
+
+export const NO_REFS: NoteRefs = { tasks: {}, projects: {}, projectTasks: {}, images: {} };
+
+export type NotePage = NotePageMeta & { content: NoteDoc; refs?: NoteRefs };
+
+/** A page in the trash (team only): it goes for good after 30 days. */
+export type NoteTrashItem = { id: string; title: string; icon: string; deletedAt: string; deletedBy: string | null; parentId: string | null };
+
+/** What a link card keeps in the document: read once from the page by the hub's server. */
+export type NoteLinkPreview = { href: string; title: string; description: string; site: string; image: string | null };
 
 export type NoteCustomer = {
   id: string;
@@ -94,6 +133,8 @@ export type NotesArea = {
   settings: NoteSettings;
   /** Names of the people who last edited a page, by user id (not for customers). */
   people: Record<string, string>;
+  /** The viewer may create and tick tasks from a note (an admin with a confirmed code, or a freelancer). */
+  taskWriter: boolean;
   /** The database knows notes (migration 202611221001); without it the page says that they are not set up yet. */
   ready: boolean;
   error: string | null;

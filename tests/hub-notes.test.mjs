@@ -8,6 +8,10 @@ import {
 } from "../lib/hub-notes/rules.ts";
 import { EMOJIS, emojiCode, emojiSrc, searchEmojis, stripVariation } from "../lib/hub-notes/emoji.ts";
 import { GALLERY_COVERS, nextCoverPosition } from "../lib/hub-notes/covers.ts";
+import { filterTasks, isTaskFilter, taskAudienceFor } from "../lib/hub-notes/rules.ts";
+import { checkPreviewUrl, isPrivateAddress, readPreview } from "../lib/hub-notes/link-guard.ts";
+import { meetingDate, noteTemplate, TEMPLATE_CHOICES } from "../lib/hub-notes/templates.ts";
+import { noteNotice } from "../lib/hub-notify/rules.ts";
 
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 const page = (id, audience, parentId = null, title = id) => ({ id, audience, parentId, title, position: 0 });
@@ -139,4 +143,137 @@ test("the page saves on its own without reloading the hub, and reads and writes 
   assert.match(await source("components/hub/screens/notes.tsx"), /dynamic\(\(\) => import\("\.\/notes-editor"\), \{ ssr: false/);
   // Tiptap's own normalising (the empty line at the end) does not save a page that was merely opened.
   assert.match(await source("components/hub/screens/notes-editor.tsx"), /if \(transaction\.steps\.length\) changeRef\.current/);
+});
+
+// ---- Step 2: tasks, links, trash, templates ----------------------------------------------------------------------
+
+const TASK = "11111111-2222-4333-8444-555555555555";
+const PROJECT = "aaaaaaaa-2222-4333-8444-555555555555";
+const CUSTOMER = "cccccccc-2222-4333-8444-555555555555";
+
+test("blocks from the hub carry only references: tasks, task lists, projects and link cards are checked", () => {
+  const check = (block) => validateNoteDoc({ type: "doc", content: [block] });
+  const group = check({ type: "noteTaskGroup", content: [{ type: "noteTaskItem", attrs: { refKind: "task", refId: TASK, number: 1031, title: "Titel aus dem Board" } }] });
+  assert.equal(group.ok, true);
+  assert.deepEqual(group.doc.content[0].content[0].attrs, { refKind: "task", refId: TASK, number: 1031 }, "a task's title is never stored in the note");
+  assert.deepEqual(group.refs, [{ kind: "task", id: TASK }]);
+  const mention = check({ type: "paragraph", content: [{ type: "noteTaskMention", attrs: { refKind: "task", refId: TASK, number: 1031 } }] });
+  assert.equal(mention.text, "#1031");
+  const list = check({ type: "noteTaskList", attrs: { refKind: "project", refId: PROJECT, filter: "evil", dueBy: "2026-13-40" } });
+  assert.deepEqual(list.doc.content[0].attrs, { refKind: "project", refId: PROJECT, filter: "open" }, "an unknown filter falls back, a wrong date goes");
+  assert.deepEqual(check({ type: "noteTaskList", attrs: { refKind: "project", refId: PROJECT, filter: "due", dueBy: "2026-11-30" } }).doc.content[0].attrs.dueBy, "2026-11-30");
+  assert.deepEqual(check({ type: "noteProject", attrs: { refKind: "project", refId: PROJECT } }).refs, [{ kind: "project", id: PROJECT }]);
+  assert.equal(check({ type: "noteTaskGroup", content: [{ type: "noteTaskItem", attrs: { refKind: "task", refId: "x" } }] }).ok, false, "a task row needs a real id");
+  // Link cards: https only, a picture only from the hub's own storage.
+  const card = { href: "https://example.org/a", title: "Titel", description: "Text", site: "example.org" };
+  assert.equal(check({ type: "noteLinkCard", attrs: { ...card, image: `notes/${CUSTOMER}/links/${TASK}.webp` } }).doc.content[0].attrs.image, `notes/${CUSTOMER}/links/${TASK}.webp`);
+  assert.equal(check({ type: "noteLinkCard", attrs: { ...card, image: "https://elsewhere.example/x.png" } }).doc.content[0].attrs.image, undefined);
+  assert.equal(check({ type: "noteLinkCard", attrs: { ...card, href: "http://example.org/a" } }).ok, false);
+  assert.equal(check({ type: "noteLinkCard", attrs: { ...card, href: "javascript:alert(1)" } }).ok, false);
+});
+
+test("task lists filter like the board, and a task from a note starts as visible as the page allows", () => {
+  const tasks = [
+    { id: "a", status: "todo", customerTurn: true, dueOn: "2026-11-25", assignees: [{ id: "u1" }] },
+    { id: "b", status: "progress", customerTurn: false, dueOn: "2026-11-20", assignees: [{ id: "u2" }] },
+    { id: "c", status: "done", customerTurn: true, dueOn: "2026-11-19", assignees: [{ id: "u1" }] },
+    { id: "d", status: "todo", customerTurn: false, dueOn: null, assignees: [] },
+  ];
+  const ids = (list) => list.map((task) => task.id);
+  assert.deepEqual(ids(filterTasks(tasks, "open", "u1")), ["a", "b", "d"], "done tasks never show");
+  assert.deepEqual(ids(filterTasks(tasks, "customer", "u1")), ["a"]);
+  assert.deepEqual(ids(filterTasks(tasks, "mine", "u1")), ["a"]);
+  assert.deepEqual(ids(filterTasks(tasks, "due", "u1")), ["b", "a"], "by date, without undated ones");
+  assert.deepEqual(ids(filterTasks(tasks, "due", "u1", "2026-11-22")), ["b"]);
+  assert.ok(isTaskFilter("mine") && !isTaskFilter("all"));
+  assert.equal(taskAudienceFor("team"), "team");
+  for (const audience of ["both", "customer", "freelancer"]) assert.equal(taskAudienceFor(audience), "shared", "„+ Kunde“ is chosen on purpose");
+});
+
+test("link previews: only public web pages on the usual ports, read from their head", () => {
+  for (const address of ["127.0.0.1", "10.0.0.1", "172.16.5.4", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "224.0.0.1",
+    "::1", "::", "::ffff:127.0.0.1", "::ffff:7f00:1", "::127.0.0.1", "fe80::1", "fd12::1", "ff02::1", "64:ff9b::a00:1", "2001:db8::1", "2002:7f00:1::1", "2001::1", "localhost"]) {
+    assert.ok(isPrivateAddress(address), address);
+  }
+  for (const address of ["8.8.8.8", "93.184.215.14", "2a00:1450:4001:82a::200e", "2606:4700::1111"]) assert.ok(!isPrivateAddress(address), address);
+  assert.equal(checkPreviewUrl("https://example.org/seite").ok, true);
+  assert.equal(checkPreviewUrl("http://example.org/").ok, true, "a redirect to https is checked again");
+  for (const bad of ["http://example.org:8080/", "https://user:pw@example.org/", "https://localhost/", "https://intranet.local/", "https://127.0.0.1/", "https://[::1]/",
+    "https://2130706433/", "https://0x7f.0.0.1/", "ftp://example.org/", "file:///etc/passwd", "x".repeat(3000)]) {
+    assert.equal(checkPreviewUrl(bad).ok, false, bad);
+  }
+  const base = new URL("https://www.example.org/projekt/");
+  const head = `<html><head><title>Fallback</title>
+    <meta property="og:title" content="Neuer Auftritt &amp; mehr">
+    <meta name="description" content="Kurz   und
+      klar.">
+    <meta property="og:site_name" content="Example">
+    <meta property="og:image" content="/bilder/vorschau.png"></head><body>…</body></html>`;
+  assert.deepEqual(readPreview(head, base), { title: "Neuer Auftritt & mehr", description: "Kurz und klar.", site: "Example", image: "https://www.example.org/bilder/vorschau.png" });
+  assert.deepEqual(readPreview("<p>nichts</p>", base), { title: "example.org", description: "", site: "example.org", image: null });
+  assert.equal(readPreview(`<meta property="og:image" content="javascript:alert(1)">`, base).image, null);
+});
+
+test("the server fetches a preview only through the guarded lookup, within limits, and stores the picture itself", async () => {
+  const preview = await source("lib/hub-notes/link-preview.ts");
+  assert.match(preview, /^import "server-only";/);
+  assert.match(preview, /lookup: guardedLookup/);
+  assert.match(preview, /isPrivateAddress\(entry\.address\)/);
+  assert.match(preview, /const REDIRECTS = 3;/);
+  assert.match(preview, /checked = checkPreviewUrl\(next\);/, "every redirect is checked like the first address");
+  assert.match(preview, /const deadline = setTimeout\(\(\) => req\.destroy\(new Error\("TIMEOUT"\)\), TIMEOUT\)/);
+  assert.match(preview, /!picture\.truncated/);
+  const write = await source("lib/hub-notes/write.ts");
+  assert.match(write, /`notes\/\$\{input\.customerId\.toLowerCase\(\)\}\/links\/\$\{crypto\.randomUUID\(\)\}\.webp`/);
+  const refs = await source("lib/hub-notes/refs.ts");
+  assert.match(refs, /path\.startsWith\(own\)/, "pictures are signed only from the page's own customer");
+});
+
+test("templates: meeting, briefing and acceptance are valid pages and end with an empty line", () => {
+  assert.deepEqual(TEMPLATE_CHOICES.map((choice) => choice.id), ["blank", "meeting", "briefing", "acceptance"]);
+  for (const choice of TEMPLATE_CHOICES) {
+    const template = noteTemplate(choice.id);
+    const checked = validateNoteDoc(template.doc);
+    assert.equal(checked.ok, true, choice.id);
+    assert.equal(template.doc.content.at(-1).type, "paragraph");
+  }
+  const meeting = noteTemplate("meeting", { title: "Abstimmung Startseite", date: "2026-11-02" });
+  assert.equal(meeting.title, "Besprechung: Abstimmung Startseite");
+  assert.match(JSON.stringify(meeting.doc), /Besprechung am Mo\., 2\. Nov\. 2026\./);
+  assert.equal(meetingDate("kein Datum"), "");
+  assert.equal(noteTemplate("meeting", { title: "x".repeat(300) }).title.length, 200);
+});
+
+test("notices: a released or changed note rings the bell of everybody who sees it, with a link to the page", async () => {
+  const shared = noteNotice("note.shared", "Kickoff", CUSTOMER, TASK);
+  assert.equal(shared.title, "Neue Notiz: Kickoff");
+  assert.equal(shared.href, `/dashboard/projects/notes?customer=${CUSTOMER}&page=${TASK}`);
+  assert.equal(noteNotice("note.changed", "Kickoff", CUSTOMER, TASK).title, "Notiz geändert: Kickoff");
+  const write = await source("lib/hub-notes/write.ts");
+  assert.match(write, /notifyNote\(/);
+  const server = await source("lib/hub-notify/server.ts");
+  assert.match(server, /export async function notifyNote\(/);
+});
+
+test("the trash keeps pages 30 days for the team; deleting a customer counts its notes and frees their pictures", async () => {
+  const write = await source("lib/hub-notes/write.ts");
+  assert.match(write, /const TRASH_DAYS = 30;/);
+  assert.match(write, /set\(\{ deleted_at|deleted_at: new Date|\.update\(\{ deleted_at/);
+  const users = await source("lib/hub-users/actions.ts");
+  assert.match(users, /counted\(ctx\.db\.from\("hub_note_pages"\)\.select\("id", HEAD\)\.eq\("customer_id", id\)\)/);
+  assert.match(users, /const images = await noteImages\(ctx\.db, entry\.id\);/);
+  assert.match(await source("components/hub/screens/users-removal.tsx"), /count\(preview\.notes, "Notizseite", "Notizseiten"\)/);
+});
+
+test("tasks, projects and appointments point back to the notes that name them", async () => {
+  for (const path of ["components/hub/screens/tasks-panel.tsx", "components/hub/screens/calendar-panels.tsx"]) {
+    assert.match(await source(path), /<NoteMentions taskId=\{task\.id\} preview=\{preview\} \/>/, path);
+  }
+  assert.equal((await source("components/hub/screens/calendar-panels.tsx")).match(/<NoteMentions /g).length, 2, "the calendar shows them to the team and to customers");
+  assert.match(await source("components/hub/screens/projects-side-panel.tsx"), /<ProjectNotes /);
+  const actions = await source("lib/hub-notes/actions.ts");
+  for (const name of ["taskMentions", "projectNotes", "createNoteTask", "setNoteTaskDone", "searchNoteTasks", "noteLinkPreview", "trashNotePage", "restoreNotePage", "purgeNotePage"]) {
+    assert.match(actions, new RegExp(`export async function ${name}\\(`), name);
+  }
+  assert.equal((actions.match(/await notesContext\(\)/g) ?? []).length, (actions.match(/^export async function /gm) ?? []).length, "every action checks who asks");
 });

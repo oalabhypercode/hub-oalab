@@ -9,9 +9,11 @@ import { loadArchive } from "@/lib/hub-archive/server";
 import { loadCustomerLogos, signCustomerLogos } from "@/lib/hub-logos/server";
 import { loadFreelancerCustomerList } from "@/lib/hub-freelancer-customers/list";
 import { loadLiveProjects } from "@/lib/hub-projects/server";
+import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { cleanCoverPosition, isGalleryCover } from "./covers";
+import { resolveRefs } from "./refs";
 import { childrenOf, emptyNoteDoc, isNoteAudience, isNoteWidth, isUuid } from "./rules";
-import type { NoteCover, NoteCustomer, NoteDoc, NotePage, NotePageMeta, NoteProject, NotesArea, NoteSettings, NotesCustomerView, NoteTemplateId, NoteViewer } from "./types";
+import { NO_REFS, type NoteCover, type NoteCustomer, type NoteDoc, type NotePage, type NotePageMeta, type NoteProject, type NotesArea, type NoteSettings, type NotesCustomerView, type NoteTemplateId, type NoteViewer } from "./types";
 
 // Notes (plan docs/planung/notizen.md) are read with the person's *own* session: the rules of hub_note_pages decide
 // (migration 202611221001 in service-oalab). Admins pass the user management's check (hub role, second factor,
@@ -154,7 +156,7 @@ export async function notesCustomers(ctx: NotesContext): Promise<Listed[] | null
 }
 
 /** The projects a page of this customer may hang under, as the viewer may name them. */
-async function notesProjects(ctx: NotesContext, customer: Listed): Promise<NoteProject[]> {
+export async function notesProjects(ctx: NotesContext, customer: Listed): Promise<NoteProject[]> {
   if (ctx.viewer === "customer") {
     const live = await loadLiveProjects();
     return live.projects.filter((project) => project.customerId === customer.id).map((project) => ({ id: project.id, name: project.name }));
@@ -187,11 +189,32 @@ export async function readPages(ctx: NotesContext, customerId: string) {
 }
 
 /** One page with its document, as the viewer may see it; null when it is gone or not visible. */
-export async function readPage(ctx: NotesContext, id: string): Promise<NotePage | null> {
+export async function readPage(ctx: NotesContext, id: string, withRefs = true): Promise<NotePage | null> {
   if (!isUuid(id)) return null;
   const { data, error } = await ctx.session.from("hub_note_pages").select(`${PAGE_COLUMNS}, content`).eq("id", id).is("deleted_at", null).maybeSingle<PageRow>();
   if (error || !data) return null;
-  return { ...toMeta(data), content: toDoc(data.content) };
+  const meta = toMeta(data);
+  const content = toDoc(data.content);
+  if (!withRefs) return { ...meta, content };
+  const [refs, cover] = await Promise.all([resolveRefs(ctx, content, meta.customerId).catch(() => NO_REFS), signCover(ctx, meta.cover)]);
+  return { ...meta, cover, content, refs };
+}
+
+/**
+ * The link of a cover from the files or an upload, with the viewer's rights: an upload is as visible as its page (the
+ * server signs it once the viewer has read the page); an image from the files only for who may see that file, else a
+ * calm colour (url null).
+ */
+export async function signCover(ctx: NotesContext, cover: NoteCover | null): Promise<NoteCover | null> {
+  if (!cover || cover.kind === "gallery") return cover;
+  if (cover.kind === "upload") {
+    const signed = ctx.db ? await ctx.db.storage.from(HUB_FILES_BUCKET).createSignedUrl(cover.value, 60 * 60) : null;
+    return { ...cover, url: signed?.data?.signedUrl ?? null };
+  }
+  const file = await ctx.session.from("hub_files").select("id, title, storage_path, mime_type").eq("id", cover.value).maybeSingle<{ id: string; title: string; storage_path: string; mime_type: string }>();
+  if (!file.data || !file.data.mime_type.startsWith("image/")) return { ...cover, url: null };
+  const signed = await ctx.session.storage.from(HUB_FILES_BUCKET).createSignedUrl(file.data.storage_path, 60 * 60);
+  return { ...cover, url: signed.data?.signedUrl ?? null, name: file.data.title };
 }
 
 /** List, projects and names for one customer the viewer may open; null when they may not. */
@@ -204,7 +227,15 @@ export async function customerView(ctx: NotesContext, customers: Listed[], custo
   return { customerId: customer.id, projects, pages: metas, people: await namesOf(ctx, metas.map((page) => page.updatedBy)) };
 }
 
-const failed = (viewer: NoteViewer, error: string, ready = true): NotesArea => ({ viewer, viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: DEFAULT_SETTINGS, people: {}, ready, error });
+const failed = (viewer: NoteViewer, error: string, ready = true): NotesArea => ({ viewer, viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: DEFAULT_SETTINGS, people: {}, taskWriter: false, ready, error });
+
+/** Tasks from a note are written like on the board: freelancers always confirmed a code, admins need one too (aal2). */
+export async function canWriteTasks(ctx: NotesContext) {
+  if (ctx.viewer === "freelancer") return true;
+  if (ctx.viewer !== "admin") return false;
+  const { data } = await ctx.session.auth.getClaims();
+  return data?.claims?.aal === "aal2";
+}
 
 /** The first page of the list: the first top-level page in the order of the list. */
 const firstPage = (pages: NotePageMeta[]) => childrenOf(pages, null)[0] ?? null;
@@ -221,7 +252,7 @@ export const loadNotes = cache(async (customer?: string, page?: string): Promise
   if (notesMissing(settings.error)) return failed(ctx.viewer, NOT_READY, false);
   const customers = await notesCustomers(ctx);
   if (!customers) return failed(ctx.viewer, LOAD_ERROR);
-  const base = { viewer: ctx.viewer, viewerId: ctx.userId, settings: toSettings(settings.data), ready: true, error: null };
+  const base = { viewer: ctx.viewer, viewerId: ctx.userId, settings: toSettings(settings.data), ready: true, error: null, taskWriter: await canWriteTasks(ctx) };
   const list: NotesArea["customers"] = customers.map((item) => ({ id: item.id, name: item.name, number: item.number, hasFreelancer: item.hasFreelancer, ...(item.logo ? { logo: item.logo } : {}) }));
   if (!customers.length) return { ...base, customers: list, customerId: null, projects: [], pages: [], page: null, people: {} };
 

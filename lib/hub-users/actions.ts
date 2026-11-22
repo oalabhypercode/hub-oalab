@@ -967,6 +967,8 @@ export type CustomerRemovalPreview = {
   /** Accesses and mailboxes of the Schlüsselbund. */
   accesses: number;
   messages: number;
+  /** Pages of the notes, the trash included. */
+  notes: number;
   /** What Service keeps, archived with the organization; null for entries that live only in the hub. */
   service: { requests: number; projects: number } | null;
 };
@@ -982,7 +984,7 @@ export async function previewCustomerRemoval(input: { customerId: string }): Pro
   if (!entry) return failed(gone);
   const id = entry.id;
   const organization = entry.organizationId;
-  const [assignments, members, blocked, clients, folders, appointments, upcoming, packages, domains, logins, mailboxes, messages, requests, projects] = await Promise.all([
+  const [assignments, members, blocked, clients, folders, appointments, upcoming, packages, domains, logins, mailboxes, messages, notes, requests, projects] = await Promise.all([
     ctx.db.from("hub_file_assignments").select("file_id").eq("customer_id", id).returns<{ file_id: string }[]>(),
     ctx.db.from("hub_customer_members").select("user_id").eq("customer_id", id).returns<{ user_id: string }[]>(),
     ctx.db.from("hub_customers").select("archived_logins").eq("id", id).maybeSingle<{ archived_logins: string[] | null }>(),
@@ -995,6 +997,7 @@ export async function previewCustomerRemoval(input: { customerId: string }): Pro
     counted(ctx.db.from("hub_customer_logins").select("id", HEAD).eq("customer_id", id)),
     counted(ctx.db.from("hub_customer_mailboxes").select("id", HEAD).eq("customer_id", id)),
     counted(ctx.db.from("hub_private_messages").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_note_pages").select("id", HEAD).eq("customer_id", id)),
     organization ? counted(ctx.db.from("service_requests").select("id", HEAD).eq("organization_id", organization)) : 0,
     organization ? counted(ctx.db.from("customer_projects").select("id", HEAD).eq("organization_id", organization)) : 0,
   ]);
@@ -1014,10 +1017,25 @@ export async function previewCustomerRemoval(input: { customerId: string }): Pro
       logins: people.size,
       files: fileIds.filter((fileId) => !shared.has(fileId)).length,
       sharedFiles: shared.size,
-      folders, appointments, upcoming, packages, domains, accesses: logins + mailboxes, messages,
+      folders, appointments, upcoming, packages, domains, accesses: logins + mailboxes, messages, notes,
       service: organization ? { requests, projects } : null,
     },
   };
+}
+
+/** The pictures the notes of an entry stored: uploaded covers under notes/<id>/, link pictures under notes/<id>/links/. */
+async function noteImages(db: SupabaseClient, customerId: string) {
+  const root = `notes/${customerId.toLowerCase()}`;
+  const paths: string[] = [];
+  for (const folder of [root, `${root}/links`]) {
+    for (let offset = 0; offset < 20_000; offset += 1000) {
+      const { data, error } = await db.storage.from(HUB_FILES_BUCKET).list(folder, { limit: 1000, offset });
+      if (error || !data?.length) break;
+      paths.push(...data.filter((item) => /^[0-9a-f-]{36}\.webp$/.test(item.name)).map((item) => `${folder}/${item.name}`));
+      if (data.length < 1000) break;
+    }
+  }
+  return paths;
 }
 
 export type CustomerDeletion = { removed: number; blocked: number; detached: number; files: number; storageFailed: boolean };
@@ -1049,6 +1067,12 @@ export async function deleteCustomer(input: { customerId: string; confirmNumber:
   }
   if (result.logo) {
     const removed = await ctx.db.storage.from(LOGO_BUCKET).remove([result.logo]);
+    if (removed.error) storageFailed = true;
+  }
+  // The notes went with the entry (the database cascades); their uploaded covers and link pictures stay in the storage.
+  const images = await noteImages(ctx.db, entry.id);
+  for (let start = 0; start < images.length; start += 100) {
+    const removed = await ctx.db.storage.from(HUB_FILES_BUCKET).remove(images.slice(start, start + 100));
     if (removed.error) storageFailed = true;
   }
   const blocked = result.blocked ?? [];

@@ -60,6 +60,24 @@ export async function notifyCustomers(customerIds: string[], notice: Notice) {
 }
 
 /**
+ * A note page newly visible (or changed, „Änderung mitteilen“): the customer's logins when the customer gained sight,
+ * the logins of the freelancers who look after the customer when they did. Bundled into the mail like files.
+ */
+export async function notifyNote(customerId: string, notice: Notice, to: { customer: boolean; freelancer: boolean }) {
+  const db = createAdminClient();
+  if (!db || (!to.customer && !to.freelancer)) return;
+  try {
+    const links = to.freelancer ? await db.from("hub_freelancer_customers").select("freelancer_id").eq("customer_id", customerId).returns<{ freelancer_id: string }[]>() : null;
+    const freelancers = [...new Set((links?.data ?? []).map((row) => row.freelancer_id))];
+    const recipients = new Set([...(to.customer ? await customerLogins(db, [customerId]) : []), ...(await customerLogins(db, freelancers))]);
+    await insertNotices(db, [...recipients], notice);
+  } catch (error) {
+    // The release itself succeeded; the bell simply misses this one.
+    logFailure(`notice ${notice.kind}`, error);
+  }
+}
+
+/**
  * Writes file notices for these logins, each file given as its single-file notice, newest first: into the file line
  * each one has not read yet and whose mail is not on its way, else as a new line, several files in one (19.11.2026).
  * A merged line moves to the top of the bell and waits its quarter of an hour for the mail again, so an upload or a

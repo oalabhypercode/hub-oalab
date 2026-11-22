@@ -13,6 +13,7 @@ import { AssetPanel } from "./asset-panel";
 import { DomainFields, FieldError, focusInvalid, MilestoneEditor, PanelError, ProjectFieldsSection, StatusPicks, VisibleRow, type DraftError } from "./projects-edit-parts";
 import { StudioGlyph } from "./projects-parts";
 import { PanelSection, SaveStatus, useDirtyReport } from "./users-panel";
+import { ProjectNotes } from "./notes-links";
 
 const taskLabel: Record<ProjectTask["status"], string> = { backlog: "Backlog", todo: "Offen", progress: "In Arbeit", review: "In Prüfung", done: "Erledigt" };
 const failed = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
@@ -167,6 +168,7 @@ export function ProjectSidePanel({ project, asOf, busy, confirmHref, boardHref, 
             </ul>
           ) : <p className="pj-empty">{tasks.length ? "Alle Aufgaben erledigt." : "Noch keine Aufgaben. Im Board legst du welche an."}</p>}
         </PanelSection>
+        <ProjectNotes projectId={project.id} customerId={project.customerId} preview={false} canCreate />
       </form>
     </AssetPanel>
   );

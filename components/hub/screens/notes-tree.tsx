@@ -30,9 +30,11 @@ type TreeProps = {
   areaOpen: boolean;
   onCollapse: () => void;
   phone: boolean;
+  /** Below the list: the trash (team only). */
+  footer?: React.ReactNode;
 };
 
-export function NotesTree({ viewer, customers, customer, projects, pages, openId, groupByProject, canCreate, open, onToggle, onOpen, onCreate, onCustomer, onArea, areaOpen, onCollapse, phone }: TreeProps) {
+export function NotesTree({ viewer, customers, customer, projects, pages, openId, groupByProject, canCreate, open, onToggle, onOpen, onCreate, onCustomer, onArea, areaOpen, onCollapse, phone, footer }: TreeProps) {
   const [search, setSearch] = useState(false);
   const [query, setQuery] = useState("");
   const [switching, setSwitching] = useState(false);
@@ -129,6 +131,7 @@ export function NotesTree({ viewer, customers, customer, projects, pages, openId
         ))}
         {!sections.length && <p className="nz-tree-empty">{empty}</p>}
       </div>
+      {footer && <div className="nz-tree-foot">{footer}</div>}
     </aside>
   );
 }
