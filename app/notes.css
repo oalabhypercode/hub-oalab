@@ -569,6 +569,9 @@ button.nz-mention:hover { background: var(--sheet-hover); }
   .nz-to-task { right: 0; }
   .nz-trash-pop { position: fixed; left: 8px; right: 8px; bottom: calc(96px + env(safe-area-inset-bottom)); width: auto; }
 }
+/* Icon and words of the heading on one line in every window (appointment, project), as in the task window. */
+.nz-links .um-sec-head h3 { display: flex; align-items: center; gap: 8px; }
+.nz-links .um-sec-head h3 svg { flex: none; color: var(--sheet-icon); }
 .nz-links .nz-link-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 0 8px; border-radius: 9px; font-size: 14px; color: var(--label-body); text-decoration: none; text-align: left; }
 .nz-links .nz-link-row:hover { background: var(--sheet-hover); }
 .nz-links .nz-link-row.is-new { color: var(--accent-text); font-weight: 600; }

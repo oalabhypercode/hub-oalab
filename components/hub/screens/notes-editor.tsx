@@ -420,7 +420,8 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
     const dom = editor?.view.dom;
     if (!dom) return;
     const over = (event: MouseEvent) => {
-      const anchor = (event.target as HTMLElement).closest("a[href]");
+      // Only links in the text (no class, as in app/notes.css): cards, appointments and „Im Board“ bring their own buttons.
+      const anchor = (event.target as HTMLElement).closest("a[href]:not([class])");
       if (!anchor || !dom.contains(anchor)) return;
       window.clearTimeout(hoverTimer.current);
       const pos = editor.view.posAtDOM(anchor, 0);
@@ -433,9 +434,12 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
       window.clearTimeout(hoverTimer.current);
       hoverTimer.current = window.setTimeout(() => setHoverLink(null), 220);
     };
+    // A changed text may have taken the link away while the mouse rested on it (no „mouseout“ then): the card goes too.
+    const changed = () => { window.clearTimeout(hoverTimer.current); setHoverLink(null); };
     dom.addEventListener("mouseover", over);
     dom.addEventListener("mouseout", out);
-    return () => { dom.removeEventListener("mouseover", over); dom.removeEventListener("mouseout", out); window.clearTimeout(hoverTimer.current); };
+    editor.on("update", changed);
+    return () => { dom.removeEventListener("mouseover", over); dom.removeEventListener("mouseout", out); editor.off("update", changed); window.clearTimeout(hoverTimer.current); };
   }, [editor]);
 
   const asTask = (title: string, apply: (task: NoteTaskView) => void) => setConvert({ titles: [title], apply: (tasks) => { if (tasks[0]) apply(tasks[0]); } });

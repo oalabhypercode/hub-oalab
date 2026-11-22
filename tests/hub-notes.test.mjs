@@ -4,10 +4,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   audienceChoices, audienceLabel, cleanIcon, cleanNoteTitle, descendantsOf, fitAudience, gains, isSafeHref, meet, narrowedBelow, newPageAudience, noteText,
-  pathOf, statusTone, validateNoteDoc, viewerEdits, viewerReads, within,
+  pathOf, plainDoc, statusTone, validateNoteDoc, viewerEdits, viewerReads, within,
 } from "../lib/hub-notes/rules.ts";
 import { EMOJIS, emojiCode, emojiSrc, searchEmojis, stripVariation } from "../lib/hub-notes/emoji.ts";
-import { GALLERY_COVERS, nextCoverPosition } from "../lib/hub-notes/covers.ts";
+import { coverWithLink, GALLERY_COVERS, keepCoverLink, nextCoverPosition } from "../lib/hub-notes/covers.ts";
 import { filterTasks, isTaskFilter, taskAudienceFor } from "../lib/hub-notes/rules.ts";
 import { checkPreviewUrl, isPrivateAddress, readPreview } from "../lib/hub-notes/link-guard.ts";
 import { meetingDate, noteTemplate, TEMPLATE_CHOICES } from "../lib/hub-notes/templates.ts";
@@ -325,4 +325,73 @@ test("history, „bearbeitet gerade“ and the search read with the person's ses
   const shell = await source("components/hub/app-shell.tsx");
   assert.match(shell, /searchNotes\(\{ query: term \}\)/);
   assert.doesNotMatch(shell, /from "@\/lib\/hub-notes\/fixtures"/, "the preview's examples load only in the preview");
+});
+
+test("a page goes to the server as plain JSON: the editor's attributes have no prototype, which a Server Action does not carry", async () => {
+  // ProseMirror builds the attributes of blocks and marks with Object.create(null); React then sends "$T" instead of them.
+  const bare = (values) => Object.assign(Object.create(null), values);
+  const editorDoc = { type: "doc", content: [
+    { type: "heading", attrs: bare({ level: 2 }), content: [{ type: "text", text: "Ziele", marks: [{ type: "link", attrs: bare({ href: "https://www.figma.com/" }) }] }] },
+    { type: "noteLinkCard", attrs: bare({ href: "https://github.com/", title: "GitHub" }) },
+  ] };
+  const plain = plainDoc(editorDoc);
+  const prototypes = [];
+  const walk = (value) => {
+    if (!value || typeof value !== "object") return;
+    prototypes.push(Object.getPrototypeOf(value));
+    for (const child of Object.values(value)) walk(child);
+  };
+  walk(plain);
+  assert.ok(prototypes.every((proto) => proto === Object.prototype || proto === Array.prototype), "every object and array is a plain one");
+  assert.deepEqual(plain, JSON.parse(JSON.stringify(editorDoc)));
+  const checked = validateNoteDoc(plain);
+  assert.ok(checked.ok);
+  assert.deepEqual(checked.doc.content[0].attrs, { level: 2 });
+  assert.equal(checked.doc.content[0].content[0].marks[0].attrs.href, "https://www.figma.com/");
+  assert.equal(checked.doc.content[1].attrs.href, "https://github.com/");
+
+  // What arrives instead of an object (the placeholder) is refused, never dropped: no heading loses its level unnoticed.
+  const placeholder = { type: "doc", content: [{ type: "heading", attrs: "$T", content: [{ type: "text", text: "Ziele" }] }] };
+  assert.deepEqual(validateNoteDoc(placeholder), { ok: false, error: "Ein Block im Dokument ist unvollständig." });
+  const proxy = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Link", marks: [{ type: "link", attrs: () => undefined }] }] }] };
+  assert.equal(validateNoteDoc(proxy).ok, false);
+  assert.ok(validateNoteDoc({ type: "doc", content: [{ type: "paragraph", attrs: null }] }).ok, "missing attributes stay fine");
+
+  const notes = await source("components/hub/screens/notes.tsx");
+  assert.match(notes, /saveNotePage\(\{ id: current\.id, version: versionRef\.current, patch: patch\.content \? \{ \.\.\.patch, content: plainDoc\(patch\.content\) \} : patch \}\)/);
+  assert.equal((notes.match(/saveNotePage\(/g) ?? []).length, 1, "the only way a page is saved");
+});
+
+test("an uploaded cover or one from the files keeps its image after a reload, another page and a new position", async () => {
+  const listed = { kind: "upload", value: "notes/c/1.webp", position: 50 };
+  const open = { kind: "upload", value: "notes/c/1.webp", position: 50, url: "https://files.example/notes/c/1.webp?sig" };
+  assert.deepEqual(coverWithLink(listed, open), { ...listed, url: open.url }, "the list has no link, the open page has one");
+  assert.equal(coverWithLink(listed, { ...open, value: "notes/c/2.webp" }), listed, "another image keeps its own state");
+  assert.equal(coverWithLink({ kind: "gallery", value: "ozean", position: 50 }, open).url, undefined);
+  assert.equal(coverWithLink(null, open), null);
+  const file = { kind: "file", value: "f1", position: 50, url: "https://files.example/f1?sig", name: "Moodboard" };
+  assert.deepEqual(keepCoverLink(file, { kind: "file", value: "f1", position: 0 }), { kind: "file", value: "f1", position: 0, url: file.url, name: "Moodboard" });
+  assert.deepEqual(keepCoverLink(file, { kind: "upload", value: "notes/c/1.webp", position: 50 }), { kind: "upload", value: "notes/c/1.webp", position: 50 });
+  assert.equal(keepCoverLink(file, null), null);
+
+  const notes = await source("components/hub/screens/notes.tsx");
+  assert.match(notes, /cover=\{coverWithLink\(pageMeta\.cover, page\.cover\)\}/);
+  assert.doesNotMatch(notes, /\.\.\.metaPatch\(patch\)/, "every save applies its fields through withMeta");
+  assert.equal((notes.match(/withMeta\((item|open), patch\)/g) ?? []).length, 5);
+});
+
+test("the bar for links in the text shows only at links in the text and goes when the text changes", async () => {
+  const editor = await source("components/hub/screens/notes-editor.tsx");
+  assert.match(editor, /closest\("a\[href\]:not\(\[class\]\)"\)/, "cards, appointments and „Im Board“ bring their own buttons");
+  assert.match(editor, /editor\.on\("update", changed\)/);
+  assert.match(editor, /editor\.off\("update", changed\)/);
+  const css = await source("app/notes.css");
+  assert.match(css, /\.nz-prose a:not\(\[class\]\) \{/, "the same rule tells text links apart in the styles");
+});
+
+test("the notes sections in the appointment and project windows show icon and heading on one line", async () => {
+  const links = await source("components/hub/screens/notes-links.tsx");
+  assert.equal((links.match(/<section className="um-sec nz-links">/g) ?? []).length, 3);
+  const css = await source("app/notes.css");
+  assert.match(css, /\.nz-links \.um-sec-head h3 \{ display: flex; align-items: center; gap: 8px; \}/, "not only inside the task window (.kb-panel)");
 });
