@@ -11,8 +11,15 @@ import type { CustomerLogo } from "../hub-logos/rules";
  */
 export type NoteAudience = "team" | "both" | "customer" | "freelancer";
 export type NoteWidth = "normal" | "wide";
-/** Who looks: the oalab team, a customer (reads what is shared) or a freelancer (reads and writes „Nur Freelancer“). */
+/**
+ * Who looks: the oalab team, a customer or a freelancer. Customers and freelancers read what is shared with them and
+ * write where the team lets them (23.11.2026); freelancers also write the pages they add themselves.
+ */
 export type NoteViewer = "admin" | "customer" | "freelancer";
+/** What the customer, or the customer's freelancers, may do on a page: nothing, read it, or edit it too (23.11.2026). */
+export type NoteAccess = "none" | "read" | "edit";
+/** „Sichtbar für“ with the rights to edit, as hub_note_pages keeps them (migration 202611230001 in service-oalab). */
+export type NoteRights = { audience: NoteAudience; customerEdits: boolean; freelancerEdits: boolean };
 /** Text size of the writing area, per device (Darstellung, stored in this browser only). */
 export type NotesTextSize = "small" | "medium" | "large";
 export type NoteTemplateId = "meeting" | "briefing" | "acceptance" | "blank";
@@ -49,6 +56,14 @@ export type NotePageMeta = {
   cover: NoteCover | null;
   width: NoteWidth;
   audience: NoteAudience;
+  /** The customer edits the page („Bearbeiten“); only while the customer sees it. */
+  customerEdits: boolean;
+  /** The customer's freelancers edit it; only while they see it. Their own pages are theirs to write. */
+  freelancerEdits: boolean;
+  /** When somebody outside the team (customer, freelancer) last wrote on it; set by the database. */
+  outsideEditedAt: string | null;
+  /** When the viewer last opened the page (the team's list marks pages with news from outside); null: never. */
+  seenAt?: string | null;
   /** YYYY-MM-DD; pages with a date show in the calendar (step 3). */
   datedOn: string | null;
   position: number;
@@ -58,6 +73,11 @@ export type NotePageMeta = {
   updatedAt: string;
   createdAt: string;
 };
+
+/** A login that may open a page, and when they last did (the team's „Zugriff“ on a page). */
+export type NoteReader = { id: string; name: string; seenAt: string | null };
+/** Who of the customer and of the customer's freelancers may open a page. */
+export type NoteReaders = { customer: NoteReader[]; freelancer: NoteReader[] };
 
 /** A task of the board as a note shows it, read with the viewer's rights; null in NoteRefs: not released for them. */
 export type NoteTaskView = {
@@ -133,6 +153,8 @@ export type NoteSettings = {
   groupByProject: boolean;
   meetingTemplate: NoteTemplateId;
   defaultWidth: NoteWidth;
+  /** What customers may do on a page the team newly shares with them (23.11.2026; default „Bearbeiten“). */
+  customerAccess: "read" | "edit";
 };
 
 /** Everything the notes page needs for one customer; the documents of other pages load when they open. */

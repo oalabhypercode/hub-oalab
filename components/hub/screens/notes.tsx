@@ -4,23 +4,23 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Copy, Maximize2, Minimize2, NotebookPen, PanelLeftOpen, RefreshCw, Settings, Smile, Image as ImageIcon, Trash2, Type } from "lucide-react";
+import { ChevronLeft, Copy, Lock, Maximize2, MessageCircle, Minimize2, NotebookPen, PanelLeftOpen, RefreshCw, Settings, Smile, Image as ImageIcon, Trash2, Type, X } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
 import { useStoredValue } from "@/lib/use-stored-value";
 import {
-  createNoteAppointment, createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteAppointmentOptions, noteCoverFiles, noteHistory, noteLinkPreview, notePresence, noteRequestSlots,
+  createNoteAppointment, createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteAppointmentOptions, noteCoverFiles, noteHistory, noteLinkPreview, notePresence, noteReaders, noteRequestSlots,
   noteTaskOptions, notifyNoteChange, openNotePage, purgeNotePage, requestNoteAppointment, restoreNotePage, restoreNoteRevision, saveNotePage, saveNoteSettings, searchNoteTasks,
-  setNoteAudience, setNoteTaskDone, taskMentions, trashNotePage,
+  setNoteAccess, setNoteTaskDone, taskMentions, trashNotePage,
 } from "@/lib/hub-notes/actions";
 import { notesFixtures, previewAppointmentOptions, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
-import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads, within } from "@/lib/hub-notes/rules";
+import { accessLabel, accessOf, audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, fitRights, gains, isEmptyDoc, narrowedBelow, newPageRights, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, rightsFrom, viewerEdits, viewerReads, within } from "@/lib/hub-notes/rules";
 import { coverWithLink, keepCoverLink } from "@/lib/hub-notes/covers";
 import { noteTemplate } from "@/lib/hub-notes/templates";
 import { wallTimeToUtc } from "@/lib/hub-calendar/rules";
 import { DEMO_AS_OF } from "@/lib/hub-data";
 import { todayIso } from "@/lib/hub-routes";
-import { NO_REFS, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCover, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteRefs, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
+import { NO_REFS, type NoteAccess, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCover, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteReaders, type NoteRefs, type NoteRights, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
 import type { NoteRefsUi } from "./notes-refs";
 import type { TaskDraft, TaskOptions } from "./notes-tasks-ui";
 import { HistoryPanel, TaskPeek, TemplateChips, TrashAsk, TrashPanel } from "./notes-panels";
@@ -32,7 +32,7 @@ import { EmojiGlyph } from "./notes-blocks";
 import { CoverBand, CoverPicker } from "./notes-cover";
 import type { NoteEditorHandle } from "./notes-editor";
 import { EmojiPicker } from "./notes-emoji-picker";
-import { AreaGear, AudienceDialog, audienceIcons, PageGear, TextSizePop, type AudienceAsk } from "./notes-settings";
+import { accessMark, AreaGear, AudienceDialog, PageGear, TextSizePop, type AudienceAsk } from "./notes-settings";
 import { NotesTree } from "./notes-tree";
 
 // „Notizen“ under Projekte (plan docs/planung/notizen.md, design V2 of 22.11.2026): a calm page list on the left, a
@@ -45,12 +45,14 @@ const NoteEditor = dynamic(() => import("./notes-editor"), { ssr: false, loading
 const TREE_KEY = "oalab-notes-tree";
 /** The preview shows „bearbeitet gerade“ on this page (Abstimmung Startseite). */
 const previewPresencePage = "0b0e0000-0000-4000-8000-000000000002";
+/** Who opened a page in the preview, for „Zugriff“. */
+const previewReaders: NoteReaders = { customer: [{ id: "p-jana", name: "Jana Sommer", seenAt: new Date(Date.UTC(2026, 9, 15, 8, 40)).toISOString() }], freelancer: [{ id: "p-mia", name: "Mia Berger", seenAt: null }] };
 const NOTES_CUSTOMER_COOKIE = "oalab-notes-customer";
 type SaveStatus = "saved" | "saving" | "error" | "stale";
 type Pop = null | "gear" | "area" | "size" | "cover" | "trash" | "bin" | "history";
 type Stale = { message: string; current: NotePage; mine: NoteDoc; reloaded: boolean };
 
-const unavailable: NotesArea = { viewer: "customer", viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" }, people: {}, taskWriter: false, ready: true, error: "Die Notizen konnten gerade nicht geladen werden." };
+const unavailable: NotesArea = { viewer: "customer", viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal", customerAccess: "edit" }, people: {}, taskWriter: false, ready: true, error: "Die Notizen konnten gerade nicht geladen werden." };
 
 const phoneQuery = "(max-width: 767px)";
 const subscribePhone = (listener: () => void) => { const list = window.matchMedia(phoneQuery); list.addEventListener("change", listener); return () => list.removeEventListener("change", listener); };
@@ -103,6 +105,10 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
   // Step 3: the history of the open page (team) and who else is on it right now.
   const [history, setHistory] = useState<{ items: NoteRevision[] | null; error: string }>({ items: null, error: "" });
   const [others, setOthers] = useState<{ id: string; name: string }[]>([]);
+  // „Zugriff“: who may open the open page and when they did (team; undefined until the gear asks, null while loading).
+  const [readers, setReaders] = useState<NoteReaders | null | undefined>(undefined);
+  // A new page that only the team sees offers „Mit Kunde teilen“ right under its title until it is shared or closed.
+  const [shareHint, setShareHint] = useState<string | null>(null);
   const editor = useRef<NoteEditorHandle | null>(null);
   const titleField = useRef<HTMLTextAreaElement>(null);
 
@@ -119,7 +125,9 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
   const customer: NoteCustomer | null = initial.customers.find((item) => item.id === customerId) ?? null;
   const treeOpen = storedTree !== "closed";
   const canCreate = viewer === "admin" || viewer === "freelancer";
-  const canEdit = Boolean(page) && viewerEdits(viewer, page!.audience);
+  const canEdit = Boolean(page) && viewerEdits(viewer, page!);
+  // Customers write title, symbol and text; cover, width, project and date stay with the team (and freelancers).
+  const canArrange = canEdit && viewer !== "customer";
   const textSize = appearance.notesTextSize;
   const pageMeta = page ? pages.find((item) => item.id === page.id) ?? toMetaOnly(page) : null;
 
@@ -215,6 +223,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     setStale(null);
     setStatus("saved");
     setPop(null);
+    setReaders(undefined);
     setEditorKey((value) => value + 1);
     if (morePeople) setPeople((current) => ({ ...current, ...morePeople }));
   }, []);
@@ -235,6 +244,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     if (!next) return;
     const shown = preview ? { ...next, ...(pages.find((item) => item.id === id) ?? {}) } as NotePage : next;
     showPage(shown);
+    // Opened counts as seen: the dot for news from outside goes.
+    if (viewer === "admin") { const at = new Date().toISOString(); setPages((list) => list.map((item) => item.id === id ? { ...item, seenAt: at } : item)); }
     setOpenNodes((current) => ({ ...current, ...Object.fromEntries(pathOf(pages, id).filter((item) => item.id !== id).map((item) => [item.id, true])) }));
     setMobileView("page");
     remember(customerId, id);
@@ -281,7 +292,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
       const now = new Date().toISOString();
       created = {
         id: crypto.randomUUID(), customerId: customer.id, projectId, parentId: parent?.id ?? null, appointmentId: null, title: "Neue Seite", icon: "", cover: null,
-        width: settings.defaultWidth, audience: newPageAudience(viewer, parent, settings, customer.hasFreelancer), datedOn: null,
+        width: settings.defaultWidth, ...newPageRights(viewer, parent, settings, customer.hasFreelancer), outsideEditedAt: null, seenAt: now, datedOn: null,
         position: positionAfter(childrenOf(pages, parent?.id ?? null)), version: 1, updatedBy: initial.viewerId, updatedAt: now, createdAt: now, content: emptyNoteDoc(),
       };
     } else {
@@ -306,10 +317,12 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     setFresh(meta.id);
     setMobileView("page");
     remember(customerId, meta.id);
-    const seen = `Sichtbar für: ${audienceLabel(meta.audience, customer?.hasFreelancer ?? true)}.`;
+    const seen = `Zugriff: ${accessLabel(meta, customer?.hasFreelancer ?? true)}.`;
     say(parent ? `Neue Unterseite in „${parent.title}“ angelegt. ${seen}` : `Neue Seite angelegt. ${seen}`);
+    // The team decides right away whether the customer gets the page (unless a page above keeps it from them).
+    setShareHint(viewer === "admin" && accessOf(meta).customer === "none" && (!parent || accessOf(parent).customer !== "none") ? meta.id : null);
     window.setTimeout(() => { titleField.current?.focus(); titleField.current?.select(); }, 60);
-  }, [createPage, showPage, remember, customerId, say, customer?.hasFreelancer]);
+  }, [createPage, showPage, remember, customerId, say, customer?.hasFreelancer, viewer]);
   // Freelancers add pages only below pages the freelancers see (the server checks the same).
   const canAddUnder = useCallback((parent: NotePageMeta) => viewer === "admin" || (viewer === "freelancer" && within("freelancer", parent.audience)), [viewer]);
 
@@ -338,34 +351,52 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     field.style.height = `${field.scrollHeight}px`;
   }, [titleDraft, textSize, page?.id]);
 
-  const applyAudience = useCallback(async (target: NoteAudience, notify = false) => {
+  /** Who reads and who edits the open page (team): the list and the page follow, subpages narrow with it. */
+  const applyRights = useCallback(async (target: NoteRights, notify = false) => {
     if (!page) return;
     setAsk(null);
+    const rights = fitRights(target);
+    const label = accessLabel(rights, customer?.hasFreelancer ?? true);
     if (preview) {
-      const changes = new Map(narrowedBelow(pages, page.id, target).map((item) => [item.id, item.audience]));
-      setPages((list) => list.map((item) => item.id === page.id ? { ...item, audience: target } : changes.has(item.id) ? { ...item, audience: changes.get(item.id)! } : item));
-      setPage((open) => open ? { ...open, audience: target } : open);
-      say(`Sichtbar für: ${audienceLabel(target, customer?.hasFreelancer ?? true)}.${changes.size ? ` ${changes.size} ${changes.size === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
+      const changes = new Map(narrowedBelow(pages, page.id, rights.audience).map((item) => [item.id, item.audience]));
+      setPages((list) => list.map((item) => item.id === page.id ? { ...item, ...rights } : changes.has(item.id) ? { ...item, ...fitRights({ ...item, audience: changes.get(item.id)! }) } : item));
+      setPage((open) => open ? { ...open, ...rights } : open);
+      if (accessOf(rights).customer !== "none") setShareHint(null);
+      say(`Zugriff: ${label}.${changes.size ? ` ${changes.size} ${changes.size === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
       return;
     }
     if (!(await flush())) return;
     setBusy(true);
-    const result = await setNoteAudience({ id: page.id, audience: target, notify });
+    const result = await setNoteAccess({ id: page.id, rights, notify });
     setBusy(false);
     if (!result.ok) { say(result.error); return; }
     setPages(result.data.pages);
     const fresh = result.data.pages.find((item) => item.id === page.id);
-    if (fresh) { versionRef.current = fresh.version; setPage((open) => open ? { ...open, audience: fresh.audience, version: fresh.version, updatedAt: fresh.updatedAt, updatedBy: fresh.updatedBy } : open); }
+    if (fresh) { versionRef.current = fresh.version; setPage((open) => open ? { ...open, audience: fresh.audience, customerEdits: fresh.customerEdits, freelancerEdits: fresh.freelancerEdits, version: fresh.version, updatedAt: fresh.updatedAt, updatedBy: fresh.updatedBy } : open); }
+    if (accessOf(rights).customer !== "none") setShareHint(null);
     const n = result.data.narrowed;
-    say(`${target === "team" ? "Nur noch das oalab-Team sieht diese Seite." : `Sichtbar für: ${audienceLabel(target, customer?.hasFreelancer ?? true)}.`}${n ? ` ${n} ${n === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
+    say(`${rights.audience === "team" ? "Nur noch das oalab-Team sieht diese Seite." : `Zugriff: ${label}.`}${n ? ` ${n} ${n === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
   }, [page, preview, pages, flush, say, customer?.hasFreelancer]);
 
-  const requestAudience = (target: NoteAudience) => {
-    if (!page || target === page.audience) return;
-    const narrowed = narrowedBelow(pages, page.id, target).map(({ title, audience }) => ({ title, audience }));
-    const gained = gains(page.audience, target);
-    if (gained.customer || gained.freelancer || narrowed.length) setAsk({ page: pageMeta ?? page, target, narrowed, hidden: gained.customer || gained.freelancer ? hiddenFor(target) : [] });
-    else void applyAudience(target);
+  /**
+   * One side's choice in „Zugriff“: releasing a page (or narrowing it with subpages) asks first, as before; only
+   * switching between „Lesen“ and „Bearbeiten“ applies at once and tells whoever may now write along.
+   */
+  const requestAccess = (side: "customer" | "freelancer", value: NoteAccess) => {
+    if (!page) return;
+    const current = accessOf(page);
+    const target = side === "customer" ? rightsFrom(value, current.freelancer) : rightsFrom(current.customer, value);
+    if (target.audience === page.audience && target.customerEdits === page.customerEdits && target.freelancerEdits === page.freelancerEdits) return;
+    const narrowed = narrowedBelow(pages, page.id, target.audience).map(({ title, audience }) => ({ title, audience }));
+    const gained = gains(page.audience, target.audience);
+    if (gained.customer || gained.freelancer || narrowed.length) setAsk({ page: pageMeta ?? page, target: target.audience, rights: target, narrowed, hidden: gained.customer || gained.freelancer ? hiddenFor(target.audience) : [] });
+    else void applyRights(target, settings.notifyOnShare);
+  };
+
+  /** „Mit Kunde teilen“ under a new page's title: the customer reads or writes along as the default for all notes says. */
+  const shareWithCustomer = () => {
+    if (!page) return;
+    requestAccess("customer", settings.customerAccess);
   };
 
   // ---- Step 2: references, tasks, trash, templates, covers -------------------------------------------------------
@@ -439,6 +470,20 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
       ? `„${appointment.title}“ steht im Kalender${customer ? `; ${customer.name} bekommt eine Meldung` : ""}.${onPage ? " Der Termin steht jetzt auch auf der Seite." : ""}`
       : `Deine Anfrage „${appointment.title}“ ist bei oalab. Du bekommst eine Meldung, sobald sie bestätigt ist.${onPage ? " Sie steht jetzt auch auf der Seite." : ""}`),
   }), [viewer, today, preview, customerId, pageId, say, customer]);
+
+  /** „Zugriff“ in the gear: who may open the page and when they last did (team). */
+  const loadReaders = useCallback(async () => {
+    if (viewer !== "admin" || !page) return;
+    if (preview) { setReaders(previewReaders); return; }
+    setReaders(null);
+    const result = await noteReaders({ pageId: page.id });
+    setReaders(result.ok ? result.data : { customer: [], freelancer: [] });
+  }, [viewer, page, preview]);
+  const toggleGear = () => {
+    setOpenItems(editor.current?.openItemCount() ?? 0);
+    if (pop !== "gear") void loadReaders();
+    setPop((value) => value === "gear" ? null : "gear");
+  };
 
   const openHistory = useCallback(async () => {
     if (!page) return;
@@ -694,7 +739,9 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     projects.find((item) => item.id === pathOf(pages, pageMeta.id)[0]?.projectId)?.name ?? "Allgemein",
     ...pathOf(pages, pageMeta.id).slice(0, -1).map((item) => item.title),
   ] : [];
-  const AudienceMark = pageMeta ? audienceIcons[pageMeta.audience] : null;
+  // Who reads and who writes the page, always in sight on top (23.11.2026).
+  const mark = pageMeta ? accessMark(pageMeta, viewer, customer.hasFreelancer) : null;
+  const markText = mark ? viewer === "customer" ? `Von oalab geteilt · ${mark.label}` : mark.label : "";
   const showTree = phone ? mobileView === "tree" : treeOpen && !focus;
   const showPageArea = !phone || mobileView === "page";
   const wide = pageMeta?.width === "wide";
@@ -746,18 +793,21 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
               )}
               <span className="nz-spacer" />
               {others.length > 0 && <span className="nz-presence" role="status" data-tip={others.map((item) => item.name).join(", ")}><span className="nz-presence-dot" aria-hidden="true" /><span className="nz-presence-text">{others.length === 1 ? `${others[0].name} bearbeitet gerade` : `${others.length} Personen bearbeiten gerade`}</span></span>}
-              {pageMeta && viewer === "customer" && <span className="nz-shared">Von oalab geteilt</span>}
-              {pageMeta && viewer !== "customer" && (
+              {pageMeta && (viewer !== "customer" || canEdit) && (
                 status === "error"
                   ? <button type="button" className="nz-meta is-error" onClick={() => void flush()} data-tip={saveError}><RefreshCw size={13} aria-hidden="true" />Nicht gespeichert – erneut versuchen</button>
                   : <span className={`nz-meta${status === "stale" ? " is-error" : ""}`} aria-live="polite">{canEdit ? statusLabel : `Bearbeitet ${editedAgo(pageMeta.updatedAt)}`}</span>
               )}
-              {pageMeta && viewer !== "customer" && AudienceMark && (
-                <button type="button" className="nz-ibtn" data-gear-button aria-label={`Sichtbar für: ${audienceLabel(pageMeta.audience, customer.hasFreelancer)}`} data-tip={`Sichtbar für: ${audienceLabel(pageMeta.audience, customer.hasFreelancer)}`} onClick={() => setPop("gear")}><AudienceMark size={16} aria-hidden={true} /></button>
+              {pageMeta && mark && (
+                <button type="button" className={`nz-access is-${mark.tone}`} data-gear-button aria-label={`Zugriff: ${markText}`} data-tip={viewer === "admin" ? "Wer diese Seite sieht und bearbeitet" : undefined} aria-expanded={pop === "gear"} onClick={toggleGear}>
+                  <mark.Icon size={14} aria-hidden={true} /><span className="nz-access-text">{markText}</span>
+                  {/* On phones customers and freelancers keep the short words, the team the symbol. */}
+                  {viewer !== "admin" && <span className="nz-access-short">{mark.label}</span>}
+                </button>
               )}
               {pageMeta && !phone && <button type="button" className={`nz-ibtn${focus ? " is-on" : ""}`} aria-pressed={focus} aria-label={focus ? "Fokus beenden" : "Fokus: nur die Seite"} data-tip={focus ? "Fokus beenden (Esc)" : "Fokus: nur die Seite"} onClick={() => setFocus((value) => !value)}>{focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}</button>}
               <button type="button" className={`nz-ibtn${pop === "size" ? " is-on" : ""}`} data-size-button aria-label="Schriftgröße" data-tip="Schriftgröße" aria-expanded={pop === "size"} onClick={() => setPop((value) => value === "size" ? null : "size")}><Type size={16} aria-hidden="true" /></button>
-              {pageMeta && <button type="button" className={`nz-ibtn${pop === "gear" ? " is-on" : ""}`} data-gear-button aria-label="Einstellungen dieser Seite" data-tip="Einstellungen dieser Seite" aria-expanded={pop === "gear"} onClick={() => { setOpenItems(editor.current?.openItemCount() ?? 0); setPop((value) => value === "gear" ? null : "gear"); }}><Settings size={17} aria-hidden="true" /></button>}
+              {pageMeta && <button type="button" className={`nz-ibtn${pop === "gear" ? " is-on" : ""}`} data-gear-button aria-label="Einstellungen dieser Seite" data-tip="Einstellungen dieser Seite" aria-expanded={pop === "gear"} onClick={toggleGear}><Settings size={17} aria-hidden="true" /></button>}
               {pageMeta && viewer === "admin" && <button type="button" className={`nz-ibtn is-danger${pop === "bin" ? " is-on" : ""}`} data-bin-button aria-label="In den Papierkorb legen" data-tip="In den Papierkorb legen" aria-expanded={pop === "bin"} onClick={() => setPop((value) => value === "bin" ? null : "bin")}><Trash2 size={16} aria-hidden="true" /></button>}
             </div>
 
@@ -779,13 +829,13 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                   {pageMeta.cover && (
                     <CoverBand
                       cover={coverWithLink(pageMeta.cover, page.cover)}
-                      editable={canEdit}
+                      editable={canArrange}
                       onOpenPicker={() => setPop("cover")}
                       onPosition={(position) => patchPage({ cover: { kind: pageMeta.cover!.kind, value: pageMeta.cover!.value, position } })}
                       onRemove={() => { patchPage({ cover: null }); say("Titelbild entfernt."); }}
                     />
                   )}
-                  {pop === "cover" && canEdit && (
+                  {pop === "cover" && canArrange && (
                     <CoverPicker
                       value={pageMeta.cover?.kind === "gallery" ? pageMeta.cover.value : null}
                       fileId={pageMeta.cover?.kind === "file" ? pageMeta.cover.value : null}
@@ -810,10 +860,10 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                           <EmojiGlyph char={pageMeta.icon} />
                         </button>
                       )}
-                      {canEdit && (!pageMeta.icon || !hasCover) && (
+                      {canEdit && (!pageMeta.icon || (!hasCover && canArrange)) && (
                         <div className="nz-head-actions">
                           {!pageMeta.icon && <button type="button" className="nz-ghost" onClick={(event) => setIconAnchor(event.currentTarget.getBoundingClientRect())}><Smile size={16} aria-hidden="true" /><span>Symbol hinzufügen</span></button>}
-                          {!hasCover && <button type="button" className="nz-ghost" data-cover-button onClick={() => setPop("cover")}><ImageIcon size={16} aria-hidden="true" /><span>Titelbild hinzufügen</span></button>}
+                          {!hasCover && canArrange && <button type="button" className="nz-ghost" data-cover-button onClick={() => setPop("cover")}><ImageIcon size={16} aria-hidden="true" /><span>Titelbild hinzufügen</span></button>}
                         </div>
                       )}
                     </div>
@@ -831,6 +881,14 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                         onBlur={() => { if (!cleanNoteTitle(titleDraft)) onTitle("Ohne Titel"); }}
                       />
                     ) : <h2 className="nz-title">{pageMeta.title}</h2>}
+                    {viewer === "admin" && shareHint === page.id && accessOf(pageMeta).customer === "none" && (
+                      <div className="nz-share-hint" role="note">
+                        <Lock size={14} aria-hidden="true" />
+                        <span className="nz-share-text">Nur das oalab-Team sieht diese Seite.</span>
+                        <button type="button" className="nz-share-btn" onClick={shareWithCustomer}>Mit {customer.name} teilen</button>
+                        <button type="button" className="nz-ibtn is-sm" aria-label="Hinweis schließen" onClick={() => setShareHint(null)}><X size={14} aria-hidden="true" /></button>
+                      </div>
+                    )}
                     {canEdit && fresh === page.id && isEmptyDoc(page.content) && <TemplateChips onPick={applyTemplate} />}
                     <NoteEditor
                       key={`${page.id}-${editorKey}`}
@@ -850,6 +908,9 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                       loadPreview={loadPreview}
                       calendarUi={calendarUi}
                     />
+                    {viewer === "customer" && !canEdit && (
+                      <p className="nz-readonly-note"><MessageCircle size={15} aria-hidden="true" /><span>Diese Seite ist zum Lesen. Etwas ergänzen oder fragen? <Link href={hubHref(preview, "messages")}>Schreib uns im Chat</Link></span></p>
+                    )}
                   </article>
                 </>
               ) : (
@@ -866,7 +927,10 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                 parent={parent}
                 people={people}
                 canEdit={canEdit}
-                onAudience={requestAudience}
+                canArrange={canArrange}
+                onAccess={requestAccess}
+                readers={viewer === "admin" ? readers : undefined}
+                chatHref={hubHref(preview, "messages")}
                 onProject={(projectId) => patchPage({ projectId })}
                 onDate={(datedOn) => patchPage({ datedOn })}
                 onWidth={(width) => patchPage({ width })}
@@ -897,7 +961,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
           onClose={() => setIconAnchor(null)}
         />
       )}
-      {ask && <AudienceDialog ask={ask} customer={customer} notifyDefault={settings.notifyOnShare} onConfirm={(notify) => void applyAudience(ask.target, notify)} onClose={() => setAsk(null)} />}
+      {ask && <AudienceDialog ask={ask} customer={customer} notifyDefault={settings.notifyOnShare} onConfirm={(notify) => void applyRights(ask.rights, notify)} onClose={() => setAsk(null)} />}
       {peek && (
         <TaskPeek
           key={peek.id}

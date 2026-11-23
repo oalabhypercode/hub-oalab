@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   audienceChoices, audienceLabel, cleanIcon, cleanNoteTitle, descendantsOf, fitAudience, gains, isSafeHref, meet, narrowedBelow, newPageAudience, noteText,
   pathOf, plainDoc, statusTone, validateNoteDoc, viewerEdits, viewerReads, within,
+  accessLabel, accessOf, accessSentence, fitRights, gainsRights, hasOutsideNews, isNoteAccess, newPageRights, rightsFrom,
 } from "../lib/hub-notes/rules.ts";
 import { EMOJIS, emojiCode, emojiSrc, searchEmojis, stripVariation } from "../lib/hub-notes/emoji.ts";
 import { coverWithLink, GALLERY_COVERS, keepCoverLink, nextCoverPosition } from "../lib/hub-notes/covers.ts";
@@ -45,14 +46,77 @@ test("who reads and writes what, as the database decides", () => {
   assert.ok(!viewerReads("customer", "team") && !viewerReads("customer", "freelancer"));
   assert.ok(viewerReads("freelancer", "both") && viewerReads("freelancer", "freelancer"));
   assert.ok(!viewerReads("freelancer", "customer") && !viewerReads("freelancer", "team"));
-  // Freelancers write only pages „Nur Freelancer“; customers write nothing in steps 1 to 3.
-  assert.ok(viewerEdits("freelancer", "freelancer") && !viewerEdits("freelancer", "both"));
-  assert.ok(!viewerEdits("customer", "customer"));
+  // Since 23.11.2026 the team decides per page: customer and freelancers read („Lesen“) or write along („Bearbeiten“).
+  const rights = (audience, customerEdits = false, freelancerEdits = false) => ({ audience, customerEdits, freelancerEdits });
+  assert.ok(viewerEdits("admin", rights("team")));
+  assert.ok(!viewerEdits("customer", rights("customer")), "a shared page without „Bearbeiten“ is read only");
+  assert.ok(viewerEdits("customer", rights("customer", true)) && viewerEdits("customer", rights("both", true)));
+  assert.ok(!viewerEdits("customer", rights("freelancer", true)) && !viewerEdits("customer", rights("team", true)), "no right without sight");
+  assert.ok(viewerEdits("freelancer", rights("freelancer", false, true)) && !viewerEdits("freelancer", rights("both")));
+  assert.ok(viewerEdits("freelancer", rights("both", false, true)) && !viewerEdits("freelancer", rights("customer", false, true)));
   const settings = { defaultAudience: "both" };
   assert.equal(newPageAudience("admin", null, settings, true), "both");
   assert.equal(newPageAudience("admin", null, settings, false), "customer");
   assert.equal(newPageAudience("admin", { audience: "team" }, settings, true), "team", "a subpage takes its parent's level");
   assert.equal(newPageAudience("freelancer", null, settings, true), "freelancer");
+  // New pages: the team's follow the defaults, subpages their parent, a freelancer's page is theirs to write.
+  assert.deepEqual(newPageRights("admin", null, { defaultAudience: "customer", customerAccess: "edit" }, true), rights("customer", true));
+  assert.deepEqual(newPageRights("admin", null, { defaultAudience: "customer", customerAccess: "read" }, true), rights("customer"));
+  assert.deepEqual(newPageRights("admin", null, { defaultAudience: "team", customerAccess: "edit" }, true), rights("team"), "no right without sight");
+  assert.deepEqual(newPageRights("admin", rights("both", true, true), { defaultAudience: "team", customerAccess: "read" }, true), rights("both", true, true), "a subpage takes its parent's rights");
+  assert.deepEqual(newPageRights("freelancer", rights("both", true), { defaultAudience: "team", customerAccess: "edit" }, true), rights("freelancer", false, true));
+});
+
+test("Zugriff: „Kein Zugriff · Lesen · Bearbeiten“ per side, rights only with sight, labels and news from outside", () => {
+  const rights = (audience, customerEdits = false, freelancerEdits = false) => ({ audience, customerEdits, freelancerEdits });
+  assert.ok(isNoteAccess("edit") && !isNoteAccess("write"));
+  assert.deepEqual(accessOf(rights("team", true, true)), { customer: "none", freelancer: "none" });
+  assert.deepEqual(accessOf(rights("both", true)), { customer: "edit", freelancer: "read" });
+  assert.deepEqual(rightsFrom("edit", "none"), rights("customer", true));
+  assert.deepEqual(rightsFrom("read", "edit"), rights("both", false, true));
+  assert.deepEqual(rightsFrom("none", "none"), rights("team"));
+  assert.deepEqual(fitRights(rights("customer", true, true)), rights("customer", true), "the database drops a right without sight");
+  // A release or a new right to write is told once; „Lesen“ after „Bearbeiten“ is not news.
+  assert.deepEqual(gainsRights(rights("team"), rights("customer", true)), { customer: true, freelancer: false, customerEdit: true, freelancerEdit: false });
+  assert.deepEqual(gainsRights(rights("customer"), rights("customer", true)), { customer: false, freelancer: false, customerEdit: true, freelancerEdit: false });
+  assert.deepEqual(gainsRights(rights("customer", true), rights("customer")), { customer: false, freelancer: false, customerEdit: false, freelancerEdit: false });
+  assert.equal(accessLabel(rights("team")), "Nur Team");
+  assert.equal(accessLabel(rights("customer", true)), "Kunde: Bearbeiten");
+  assert.equal(accessLabel(rights("customer")), "Kunde: Lesen");
+  assert.equal(accessLabel(rights("freelancer", false, true)), "Freelancer: Bearbeiten");
+  assert.equal(accessLabel(rights("both", true, true)), "Kunde und Freelancer: Bearbeiten");
+  assert.equal(accessLabel(rights("both", true)), "Kunde: Bearbeiten · Freelancer: Lesen");
+  assert.equal(accessLabel(rights("both", true), false), "Kunde: Bearbeiten", "customers without freelancers know only the customer");
+  assert.equal(accessSentence("customer", "none", "Nordlicht Studio"), "Nordlicht Studio sieht diese Seite nicht.");
+  assert.match(accessSentence("customer", "edit", "Nordlicht Studio"), /schreibt auf dieser Seite mit; Neues meldet die Glocke dem Team\./);
+  assert.match(accessSentence("freelancer", "read", "X"), /^Die Freelancer des Kunden lesen diese Seite/);
+  // The dot: somebody outside the team wrote after the last look; unknown looks show nothing.
+  assert.equal(hasOutsideNews({ outsideEditedAt: null, seenAt: null }), false);
+  assert.equal(hasOutsideNews({ outsideEditedAt: "2026-11-23T11:20:00.123456+00:00", seenAt: null }), true);
+  assert.equal(hasOutsideNews({ outsideEditedAt: "2026-11-23T11:20:00+00:00", seenAt: "2026-11-23T11:21:00.000Z" }), false);
+  assert.equal(hasOutsideNews({ outsideEditedAt: "2026-11-23T11:22:00+00:00", seenAt: "2026-11-23T11:21:00.000Z" }), true);
+  assert.equal(hasOutsideNews({ outsideEditedAt: "2026-11-23T11:22:00+00:00" }), false);
+});
+
+test("customers write where the team lets them: title, symbol and text, and the team hears of it", async () => {
+  const write = await source("lib/hub-notes/write.ts");
+  assert.match(write, /const CUSTOMER_FIELDS = new Set\(\["title", "content", "content_text", "icon"\]\);/);
+  assert.match(write, /if \(ctx\.viewer === "customer" && Object\.keys\(row\)\.some\(\(key\) => !CUSTOMER_FIELDS\.has\(key\)\)\) return fail\("Das ändert nur das oalab-Team\."\);/);
+  assert.match(write, /if \(ctx\.viewer !== "admin"\) \{\s+const side = ctx\.viewer;\s+after\(\(\) => notifyNoteEdit\(/);
+  // Saving still carries the version and goes through the person's own session.
+  assert.match(write, /ctx\.session\.from\("hub_note_pages"\)\.update\(row\)\.eq\("id", input\.id\)\.eq\("version", input\.version\)/);
+  // Rights are the team's, and new readers or writers hear of it once.
+  assert.match(write, /export async function setRightsAs\(ctx: NotesContext, input: \{ id: string; rights: NoteRights; notify\?: boolean \}\)/);
+  assert.match(write, /if \(ctx\.viewer !== "admin"\) return fail\("Wer eine Seite sieht und bearbeitet, legt das oalab-Team fest\."\);/);
+  assert.match(write, /update\(\{ audience: target\.audience, customer_edits: target\.customerEdits, freelancer_edits: target\.freelancerEdits \}\)/);
+  const server = await source("lib/hub-notes/server.ts");
+  // Customers never learn who looks after them through a page.
+  assert.match(server, /return \{ \.\.\.page, audience: page\.audience === "both" \? "customer" : page\.audience, freelancerEdits: false, outsideEditedAt: null \};/);
+  // „Zuletzt geöffnet“ only after the person's own session read the page; written with the server key.
+  assert.match(server, /ctx\.db\.from\("hub_note_views"\)\.upsert\(\{ page_id: page\.id, user_id: ctx\.userId, seen_at: at \}, \{ onConflict: "page_id,user_id" \}\)/);
+  const actions = await source("lib/hub-notes/actions.ts");
+  assert.match(actions, /await markSeen\(ctx, page\);/);
+  assert.ok(actions.indexOf("const page = await readPage(ctx, pageId);") < actions.indexOf("await markSeen(ctx, page);"), "seen only after the person read it");
 });
 
 test("documents: JSON with known blocks only, links only https: and mailto:, attributes checked, text and references read", () => {
@@ -317,7 +381,7 @@ test("history, „bearbeitet gerade“ and the search read with the person's ses
   const history = await source("lib/hub-notes/history.ts");
   assert.match(history, /if \(ctx\.viewer !== "admin"\) return fail\("Den Verlauf sieht das oalab-Team\."\);/);
   assert.match(history, /ctx\.session\.rpc\("hub_restore_note_revision", \{ revision_id: input\.revisionId, expected_version: input\.version \}\)/);
-  assert.match(history, /if \(input\.editing && ctx\.viewer !== "customer"\)/, "customers only read, they leave no mark");
+  assert.match(history, /if \(input\.editing\) \{/, "who may edit marks the page; the rules of hub_note_presence decide");
   assert.equal((history.match(/\.ilike\(/g) ?? []).length, 2);
   assert.doesNotMatch(history, /\.or\(/, "the words never become part of a filter expression");
   const notes = await source("components/hub/screens/notes.tsx");

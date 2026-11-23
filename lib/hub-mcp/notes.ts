@@ -10,7 +10,7 @@ import { noteHistoryAs, restoreRevisionAs, searchNotesAs } from "@/lib/hub-notes
 import { addToNote, markdownToNote, noteToMarkdown, taskNumbersIn, type MarkdownLabels } from "@/lib/hub-notes/markdown";
 import {
   AUDIENCE_LABELS, audienceChoices, audienceLabel, childrenOf, cleanIcon, descendantsOf, gains, isIsoDate, isNoteAudience, isNoteWidth, isUuid, pathOf,
-  validateNoteDoc, viewerEdits,
+  validateNoteDoc, viewerEdits, accessLabel, accessOf, gainsRights,
 } from "@/lib/hub-notes/rules";
 import { namesOf, notesCustomers, notesMissing, notesProjects, NOT_READY, readPage, readPages, toMeta, type NotesContext } from "@/lib/hub-notes/server";
 import { noteTemplate } from "@/lib/hub-notes/templates";
@@ -203,9 +203,15 @@ const pageJson = (run: Run, page: Pick<NotePageMeta, "id" | "title" | "icon"> & 
   title: page.title,
   icon: page.icon || null,
   ...(page.audience ? { visibility: audienceLabel(page.audience, customer.hasFreelancer) } : {}),
+  // Who reads and who edits (23.11.2026): „Kunde: Bearbeiten“, and for the team each side as none, read or edit.
+  ...(page.audience ? { access: accessLabel(rightsOf(page), customer.hasFreelancer) } : {}),
+  ...(page.audience && run.ctx.viewer === "admin" ? { customer_access: accessOf(rightsOf(page)).customer, ...(customer.hasFreelancer ? { freelancer_access: accessOf(rightsOf(page)).freelancer } : {}) } : {}),
   ...extra,
   link: pageLink(run.origin, page.id),
 });
+
+/** The rights of a page the connector holds (pages from the hub's readers always carry them). */
+const rightsOf = (page: Partial<NotePageMeta>) => ({ audience: page.audience ?? "team", customerEdits: page.customerEdits === true, freelancerEdits: page.freelancerEdits === true });
 
 /* ---------- Reading ---------- */
 
@@ -237,7 +243,7 @@ async function listNotes(run: Run): Promise<ToolResult> {
       updated_at: page.updatedAt,
       updated_by: page.updatedBy ? people[page.updatedBy] ?? null : null,
       subpages: metas.filter((item) => item.parentId === page.id).length,
-      can_edit: viewerEdits(ctx.viewer, page.audience),
+      can_edit: viewerEdits(ctx.viewer, page),
     })),
     link: `${run.origin}/dashboard/projects/notes?customer=${customer.id}`,
     note: ordered.length ? undefined : only ? "Zu diesem Projekt gibt es noch keine Notizseiten." : "Bei diesem Kunden gibt es noch keine Notizseiten, die du sehen kannst.",
@@ -265,7 +271,7 @@ async function readNote(run: Run): Promise<ToolResult> {
     version: page.version,
     updated_at: page.updatedAt,
     updated_by: page.updatedBy ? names[page.updatedBy] ?? null : null,
-    can_edit: viewerEdits(ctx.viewer, page.audience),
+    can_edit: viewerEdits(ctx.viewer, page),
     subpages: childrenOf(metas, page.id).map((item) => ({ page_id: item.id, title: item.title, icon: item.icon || null })),
     content_markdown: noteToMarkdown(page.content, labelsOf(page, metas)),
   }));
@@ -376,10 +382,10 @@ async function createNote(run: Run): Promise<ToolResult> {
   });
   if (!created.ok) return refuse(created.error);
   const page = created.data;
-  const visibility = audienceLabel(page.audience, customer.hasFreelancer);
+  const visibility = accessLabel(page, customer.hasFreelancer);
   return json({
     saved: true,
-    message: `Die Seite „${page.title}“ ist bei ${customer.name} angelegt. Sichtbar für: ${visibility}.`,
+    message: `Die Seite „${page.title}“ ist bei ${customer.name} angelegt. Zugriff: ${visibility}.`,
     page: pageJson(run, page, customer, { version: page.version, parent_id: page.parentId, project_id: page.projectId, dated_on: page.datedOn }),
     ...(ctx.viewer === "admin" && page.audience === "team" ? { next: "Für den Kunden oder Freelancer freigeben: set_note_visibility." } : {}),
   });
@@ -399,7 +405,7 @@ async function updateNote(run: Run): Promise<ToolResult> {
   const loaded = await pageFor(ctx, args.page_id, false);
   if (!loaded.ok) return refuse(loaded.error);
   const { page, customer } = loaded;
-  if (!viewerEdits(ctx.viewer, page.audience)) return refuse("Diese Seite kannst du nur lesen: Freelancer ändern nur ihre „Nur Freelancer“-Seiten.");
+  if (!viewerEdits(ctx.viewer, page)) return refuse("Diese Seite kannst du nur lesen: Freelancer ändern ihre eigenen Seiten und die, auf denen das oalab-Team ihnen „Bearbeiten“ gibt.");
 
   const patch: NotePatch = {};
   if (args.title !== undefined) {
@@ -469,19 +475,28 @@ async function setVisibility(run: Run): Promise<ToolResult> {
   const { page, customer } = loaded;
   if (!isNoteAudience(args.audience)) return refuse("audience ist team, both, customer oder freelancer.");
   if (args.notify !== undefined && typeof args.notify !== "boolean") return refuse("notify ist true oder false.");
+  for (const key of ["customer_can_edit", "freelancer_can_edit"]) if (args[key] !== undefined && typeof args[key] !== "boolean") return refuse(`${key} ist true oder false.`);
   const audience = args.audience;
-  const label = audienceLabel(audience, customer.hasFreelancer);
-  if (page.audience === audience) return json({ saved: false, message: `„${page.title}“ ist schon „${label}“.`, page: pageJson(run, page, customer) });
   const notify = args.notify !== false;
-  const result = await setAudienceAs(ctx, { id: page.id, audience, notify });
+  const result = await setAudienceAs(ctx, {
+    id: page.id, audience, notify,
+    ...(typeof args.customer_can_edit === "boolean" ? { customerEdits: args.customer_can_edit } : {}),
+    ...(typeof args.freelancer_can_edit === "boolean" ? { freelancerEdits: args.freelancer_can_edit } : {}),
+  });
   if (!result.ok) return refuse(result.error);
-  const gained = gains(page.audience, audience);
-  const told = notify && (gained.customer || gained.freelancer);
+  const after = result.data.pages.find((item) => item.id === page.id) ?? { ...page, audience };
+  const label = accessLabel(after, customer.hasFreelancer);
+  const gained = gainsRights(page, after);
+  const told = notify && (gained.customer || gained.freelancer || gained.customerEdit || gained.freelancerEdit);
+  const toCustomer = gained.customer || gained.customerEdit;
+  const toFreelancer = gained.freelancer || gained.freelancerEdit;
   const narrowed = result.data.narrowed;
+  const unchanged = page.audience === after.audience && page.customerEdits === after.customerEdits && page.freelancerEdits === after.freelancerEdits;
+  if (unchanged) return json({ saved: false, message: `„${page.title}“ ist schon „${label}“.`, page: pageJson(run, page, customer) });
   return json({
     saved: true,
-    message: `„${page.title}“ ist jetzt „${label}“.${narrowed ? ` ${narrowed === 1 ? "Eine Unterseite ist" : `${narrowed} Unterseiten sind`} mit eingeschränkt.` : ""}${told ? ` ${gained.customer && gained.freelancer ? "Kunde und Freelancer bekommen" : gained.customer ? "Der Kunde bekommt" : "Die Freelancer bekommen"} eine Meldung.` : ""}`,
-    page: pageJson(run, { ...page, audience }, customer),
+    message: `„${page.title}“ ist jetzt „${label}“.${narrowed ? ` ${narrowed === 1 ? "Eine Unterseite ist" : `${narrowed} Unterseiten sind`} mit eingeschränkt.` : ""}${told ? ` ${toCustomer && toFreelancer ? "Kunde und Freelancer bekommen" : toCustomer ? "Der Kunde bekommt" : "Die Freelancer bekommen"} eine Meldung.` : ""}`,
+    page: pageJson(run, after, customer),
   });
 }
 

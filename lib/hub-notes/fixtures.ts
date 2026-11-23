@@ -46,7 +46,7 @@ const KICKOFF = id(1), ABSTIMMUNG = id(2), BRIEFING = id(3), ZIELGRUPPEN = id(4)
 
 const at = (daysAgo: number, hour = 10) => new Date(Date.UTC(2026, 9, 15 - daysAgo, hour, 12)).toISOString();
 
-type Seed = Omit<NotePage, "customerId" | "parentId" | "projectId" | "appointmentId" | "width" | "datedOn" | "position" | "version" | "updatedBy" | "createdAt" | "cover"> & Partial<NotePage>;
+type Seed = Omit<NotePage, "customerId" | "parentId" | "projectId" | "appointmentId" | "width" | "datedOn" | "position" | "version" | "updatedBy" | "createdAt" | "cover" | "customerEdits" | "freelancerEdits" | "outsideEditedAt"> & Partial<NotePage>;
 
 const seeds: Seed[] = [
   {
@@ -84,7 +84,7 @@ const seeds: Seed[] = [
     ),
   },
   {
-    id: BRIEFING, title: "Projektbriefing", icon: "📋", audience: "both", projectId: WEB, cover: { kind: "gallery", value: "ocean", position: 50 }, updatedAt: at(3), updatedBy: "p-lea",
+    id: BRIEFING, title: "Projektbriefing", icon: "📋", audience: "both", customerEdits: true, freelancerEdits: true, outsideEditedAt: at(0, 10), projectId: WEB, cover: { kind: "gallery", value: "ocean", position: 50 }, updatedAt: at(3), updatedBy: "p-lea",
     content: doc(
       callout("🎯", text("Ziel: Bis Ende Oktober steht die neue Website mit Startseite, Leistungen und Kontakt.")),
       projectBlock(WEB),
@@ -101,7 +101,7 @@ const seeds: Seed[] = [
     content: doc(p(text("Wen die neue Website anspricht:")), bullets([text("Unternehmen aus der Region, die ein Studio für Marke und Web suchen")], [text("Agenturen, die einen Partner für Fotografie brauchen")], [text("Bewerberinnen und Bewerber")])),
   },
   {
-    id: TEXTE, title: "Tonalität & Texte", icon: "✍️", audience: "customer", parentId: BRIEFING, projectId: WEB, datedOn: "2026-10-16", updatedAt: at(2), updatedBy: "p-jonas",
+    id: TEXTE, title: "Tonalität & Texte", icon: "✍️", audience: "customer", customerEdits: true, outsideEditedAt: at(0, 9), parentId: BRIEFING, projectId: WEB, datedOn: "2026-10-16", updatedAt: at(2), updatedBy: "p-jonas",
     content: doc(callout("⏳", text("Bitte die Texte der Leistungen freigeben, dann geht die Leistungsseite live.")), h(2, "So klingt Nordlicht"), bullets([text("Du statt Sie, freundlich und klar")], [text("Kurze Sätze, keine Fachbegriffe ohne Erklärung")])),
   },
   {
@@ -133,6 +133,10 @@ const seeds: Seed[] = [
 ];
 
 export const previewNotePages: NotePage[] = seeds.map((seed, index) => ({
+  customerEdits: false,
+  // Freelancers write the pages that are theirs alone, as in the database.
+  freelancerEdits: seed.audience === "freelancer",
+  outsideEditedAt: null,
   customerId: PREVIEW_CUSTOMER,
   parentId: null,
   projectId: null,
@@ -237,9 +241,10 @@ export function notesFixtures(viewer: NoteViewer, pageId?: string | null): Notes
     customers,
     customerId: PREVIEW_CUSTOMER,
     projects: viewer === "freelancer" ? [{ id: WEB, name: "Ein neuer digitaler Auftritt." }] : [{ id: WEB, name: "Ein neuer digitaler Auftritt." }, { id: BRAND, name: "Eine Marke. Ein Gefühl." }],
-    pages: visible.map(toMetaOnly),
+    // The team looked at its pages yesterday; the open page counts as seen now, like on the live page.
+    pages: visible.map(toMetaOnly).map((page) => viewer === "admin" ? { ...page, seenAt: page.id === found?.id ? at(0, 12) : at(1) } : page),
     page: first,
-    settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" },
+    settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal", customerAccess: "edit" },
     people: viewer === "customer" ? {} : people,
     taskWriter: viewer !== "customer",
     ready: true,

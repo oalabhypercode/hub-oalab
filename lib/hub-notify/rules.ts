@@ -16,7 +16,8 @@ export type NoticeKind =
   | "chat.message" | "chat.reply"
   | TaskNoticeKind
   | "share.granted"
-  | "note.shared" | "note.changed";
+  | "note.shared" | "note.changed" | "note.edited"
+  | "service.message";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -148,14 +149,20 @@ export type PendingRow = { id: number; user_id: string; created_at: string; read
 
 /** Notices of the private chat (4.11.2026): a customer wrote (to the admins) or oalab answered (to the customer). */
 export const isChatKind = (kind: string) => kind === "chat.message" || kind === "chat.reply";
-export const mailWaitMinutes = (kind: string) => kind === "chat.message" ? CHAT_MAIL_WAIT_MINUTES : MAIL_WAIT_MINUTES;
+/**
+ * Notices about something to read in the hub (23.11.2026): a chat message, a customer's message on the service platform,
+ * a page a customer or freelancer wrote on. Seen in the hub, they need no mail.
+ */
+export const isReadInHub = (kind: string) => isChatKind(kind) || kind === "service.message" || kind === "note.edited";
+/** A customer's message, in the chat or on the service platform, reaches the admins' mail sooner. */
+export const mailWaitMinutes = (kind: string) => kind === "chat.message" || kind === "service.message" ? CHAT_MAIL_WAIT_MINUTES : MAIL_WAIT_MINUTES;
 
 /**
- * Chat notices read before their mail is due stay out of it: the message was seen in the hub, as when a customer reads
- * an answer on the service platform. Every other notice goes into the mail even if it was opened in the bell (decision
- * of 30.10.2026: the mail is the record, whatever was read).
+ * Chat notices (and the team's lines about service messages and edited notes) read before their mail is due stay out
+ * of it: the message was seen in the hub, as when a customer reads an answer on the service platform. Every other
+ * notice goes into the mail even if it was opened in the bell (decision of 30.10.2026: the mail is the record).
  */
-export const skipsMail = (row: Pick<PendingRow, "kind" | "read_at">) => isChatKind(row.kind) && Boolean(row.read_at);
+export const skipsMail = (row: Pick<PendingRow, "kind" | "read_at">) => isReadInHub(row.kind) && Boolean(row.read_at);
 
 /**
  * Logins with a notice that waited long enough (chat messages to admins a few minutes, everything else a quarter of an
@@ -234,12 +241,54 @@ export function appointmentNotice(input: {
  * A note page newly visible to a customer or their freelancers („Neue Notiz“, plan docs/planung/notizen.md 2.3), or a
  * change the team tells them about („Änderung mitteilen“). Only the title, never the content; the link opens the page.
  */
-export const noteNotice = (kind: "note.shared" | "note.changed", title: string, customerId: string, pageId: string): Notice => ({
+export const noteNotice = (kind: "note.shared" | "note.changed", title: string, customerId: string, pageId: string, edit?: "with" | "only"): Notice => ({
   kind,
-  title: clip(`${kind === "note.shared" ? "Neue Notiz" : "Notiz geändert"}: ${title}`, 200),
-  body: "Unter Projekte › Notizen",
-  href: `/dashboard/projects/notes?customer=${encodeURIComponent(customerId)}&page=${encodeURIComponent(pageId)}`,
+  title: clip(`${kind === "note.changed" ? "Notiz geändert" : edit === "with" ? "Neue Notiz zum Mitschreiben" : edit === "only" ? "Du kannst mitschreiben" : "Neue Notiz"}: ${title}`, 200),
+  body: edit ? "Unter Projekte › Notizen, zum Lesen und Mitschreiben" : "Unter Projekte › Notizen",
+  href: notePageHref(customerId, pageId),
 });
+
+/** Where a note notice leads: the page under Projekte › Notizen. */
+export const notePageHref = (customerId: string, pageId: string) => `/dashboard/projects/notes?customer=${encodeURIComponent(customerId)}&page=${encodeURIComponent(pageId)}`;
+
+/**
+ * The team's line when a customer or a freelancer wrote on a page (23.11.2026): „Notiz bearbeitet: Feedback“ with who
+ * and where. A further edit before the line is read updates it, so a page fills the bell with one line.
+ */
+export function noteEditNotice(input: { title: string; customerId: string; pageId: string; company: string; author: string; side: "customer" | "freelancer" }): Notice {
+  const who = oneLine(input.author) || (input.side === "customer" ? "Kunde" : "Freelancer");
+  const body = input.side === "customer" ? `${who} · ${oneLine(input.company)}` : `${who} (Freelancer) · ${oneLine(input.company)}`;
+  return { kind: "note.edited", title: clip(`Notiz bearbeitet: ${oneLine(input.title)}`, 200), body: clip(body, 300), href: notePageHref(input.customerId, input.pageId) };
+}
+
+// Service platform (23.11.2026) ---------------------------------------------------------------------------------------
+
+/** Where a service notice leads: the request in Nachrichten › Service. */
+export const serviceHref = (requestId: string) => `/dashboard/messages?tab=service&conversation=${requestId}`;
+
+/** The request a service notice belongs to, or null. */
+export function noticeRequest(href: string) {
+  return /^\/dashboard\/messages\?tab=service&conversation=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(href)?.[1] ?? null;
+}
+
+/** The hub's place in the customers' messages on the service platform, and the mark of each one it reported. */
+export const SERVICE_CURSOR = "cursor:service_messages";
+export const serviceMark = (messageId: string) => `service-message:${messageId}`;
+/** Messages are read again from this long before the cursor, so late commits are not missed; marks keep it idempotent. */
+export const SERVICE_OVERLAP_MINUTES = 10;
+
+/**
+ * The admins' line for a customer's message on the service platform, like the chat's: „Neue Anfrage von Nordlicht
+ * Studio: OA-12 Texte freigeben“ (or „Neue Nachricht von …“ in an open request) with "Jana Sommer: Text". A
+ * further message before the line is read updates it („Neue Nachrichten von …“).
+ */
+export function serviceNotice(input: { requestId: string; reference: string; title: string; company: string; author: string; body: string; first: boolean; more?: boolean }): Notice {
+  const company = oneLine(input.company) || "Kunde";
+  const lead = input.more ? "Neue Nachrichten von" : input.first ? "Neue Anfrage von" : "Neue Nachricht von";
+  const who = oneLine(input.author);
+  const body = who ? `${who}: ${oneLine(input.body)}` : oneLine(input.body);
+  return { kind: "service.message", title: clip(`${lead} ${company}: ${input.reference} ${oneLine(input.title)}`, 200), body: clip(body, 300), href: serviceHref(input.requestId) };
+}
 
 /** A file shared with the customer; the link opens it in the files page. */
 export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });

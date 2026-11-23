@@ -51,7 +51,7 @@ const PRESENT_SECONDS = 40;
 
 /**
  * „bearbeitet gerade“: marks the person on a page they may write (every 15 seconds while it is open), removes the mark
- * when they leave, and says who else is on it. Customers and pages one may only read leave no mark.
+ * when they leave, and says who else is on it. Pages one may only read leave no mark.
  */
 export async function presenceAs(ctx: NotesContext, input: { pageId: string; editing: boolean; leave?: boolean }): Promise<NoteResult<{ id: string; name: string }[]>> {
   if (!isUuid(input?.pageId)) return { ok: true, data: [] };
@@ -59,7 +59,8 @@ export async function presenceAs(ctx: NotesContext, input: { pageId: string; edi
     await ctx.session.from("hub_note_presence").delete().eq("page_id", input.pageId).eq("user_id", ctx.userId);
     return { ok: true, data: [] };
   }
-  if (input.editing && ctx.viewer !== "customer") {
+  // Who may edit marks the page (the rules of hub_note_presence decide; customers too where they write along).
+  if (input.editing) {
     await ctx.session.from("hub_note_presence").upsert({ page_id: input.pageId, user_id: ctx.userId, seen_at: new Date().toISOString() }, { onConflict: "page_id,user_id" });
   }
   const since = new Date(Date.now() - PRESENT_SECONDS * 1000).toISOString();

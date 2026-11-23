@@ -324,7 +324,9 @@ type HashStorage = { search: (query: string) => Promise<NoteTaskView[]> };
 const hashStorage = (editor: Editor) => (editor.storage as unknown as Record<string, HashStorage>).noteHash;
 /** The page hands the editor its task search (it changes with the customer). */
 export function setTaskSearch(editor: Editor, search: (query: string) => Promise<NoteTaskView[]>) {
-  hashStorage(editor).search = search;
+  // Customers write without „#“ (they cannot look up tasks), so their editor has no such storage.
+  const storage = hashStorage(editor);
+  if (storage) storage.search = search;
 }
 
 /** „#“ plus number or words: tasks of the customer's projects the person may see; Enter puts a mention in the text. */
