@@ -43,8 +43,8 @@ export const ROTATION_GRACE_SECONDS = 30;
 
 export type HubScope = "hub:read" | "hub:write";
 export const scopeLabels: Record<HubScope, string> = {
-  "hub:read": "Lesen: Kunden, Projekte, Aufgaben, Termine und Notizen",
-  "hub:write": "Schreiben: Termine, Aufgaben, Projekte und Notizen anlegen und ändern, Notizen freigeben und in den Papierkorb legen",
+  "hub:read": "Lesen: Kunden, Projekte, Aufgaben, Termine, Verfügbarkeit und Notizen",
+  "hub:write": "Schreiben: Termine, Verfügbarkeit, Aufgaben, Checklisten, Projekte, Beteiligte und Notizen anlegen und ändern, Notizen freigeben und in den Papierkorb legen",
 };
 /**
  * What the hub offers (step 3: writing too). Claude asks for every offered right, the consent page shows them, and a
@@ -62,7 +62,7 @@ export type ConnectorRole = "admin" | "freelancer";
 export const FREELANCER_SCOPES: readonly HubScope[] = ["hub:read", "hub:write"];
 export const freelancerScopeLabels: Record<HubScope, string> = {
   "hub:read": "Lesen: deine Projekte und Aufgaben, freie Zeiten von oalab, deine Terminanfragen und die für dich freigegebenen Notizen",
-  "hub:write": "Schreiben: Aufgaben anlegen, ändern, verschieben und kommentieren, Termine bei oalab anfragen, eigene Notizseiten schreiben",
+  "hub:write": "Schreiben: Aufgaben anlegen, ändern, verschieben und kommentieren, Checklisten abhaken, Termine bei oalab anfragen, eigene Notizseiten schreiben",
 };
 
 /** The rights a login of this role gets from a request: never more than its role allows, reading always. */

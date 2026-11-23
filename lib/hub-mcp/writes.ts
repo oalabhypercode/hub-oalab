@@ -7,17 +7,21 @@ import { connectorClaims } from "@/lib/platform/auth";
 import { createOwnClaimsClient } from "@/lib/platform/client";
 import { appointmentStatuses, formatDayShort, isAppointmentStatus, timeOf, wallTimeToUtc } from "@/lib/hub-calendar/rules";
 import type { AppointmentInput } from "@/lib/hub-calendar/types";
-import { closeAppointmentAs, writeAppointment, type CalendarClient } from "@/lib/hub-calendar/write";
+import { addAvailabilityExceptionAs, closeAppointmentAs, writeAppointment, type CalendarClient } from "@/lib/hub-calendar/write";
 import { isStatus, STATUS_NAMES } from "@/lib/hub-tasks/rules";
+import { loadProjectFreelancers } from "@/lib/hub-tasks/server";
 import type { TaskResult } from "@/lib/hub-tasks/types";
-import { addCommentAs, createTaskAs, moveTaskAs, saveSubtaskAs, updateTaskAs, type TaskContext } from "@/lib/hub-tasks/write";
-import { createProjectAs, type ProjectTeam } from "@/lib/hub-projects/write";
+import { addCommentAs, createTaskAs, moveTaskAs, saveSubtaskAs, setProjectFreelancerAs, updateTaskAs, type TaskContext } from "@/lib/hub-tasks/write";
+import { isStudioStatus, studioStatuses } from "@/lib/hub-projects/desk";
+import { changedWords, readProjectPatch, type PatchKey, type ProjectPatch } from "@/lib/hub-projects/edit";
+import { createProjectAs, projectVersionAs, saveProjectDetailsAs, setProjectStatusAs, staleDetails, staleStatus, type ProjectTeam } from "@/lib/hub-projects/write";
+import { changeChecklist, checklistText, NO_TASK } from "./board";
 import type { ToolResult } from "./protocol";
 import { logEvent, type Connection } from "./store";
 import { hubLinks } from "./tools";
 import {
-  appointmentClosedText, appointmentSavedText, closingStatus, mergeAppointment, moveOrder, readNewAppointment, readNewProject, readNewTasks,
-  readTaskPatch, readTaskRef,
+  appointmentClosedText, appointmentSavedText, closingStatus, mergeAppointment, moveOrder, readChecklistChange, readExceptionArgs, readNewAppointment, readNewProject,
+  readNewTasks, readProjectUpdate, readTaskPatch, readTaskRef,
 } from "./write-input";
 
 // The connector's writing tools (step 3, scope hub:write). Each one saves through the very code the hub's own window
@@ -59,6 +63,10 @@ export async function runWriteTool(connection: Connection, name: string, args: J
       case "move_task": return await moveTask(writer, args);
       case "add_task_comment": return await addTaskComment(writer, args);
       case "create_project": return await createProject(writer, args);
+      case "update_project": return await updateProject(writer, args);
+      case "update_checklist": return await updateChecklist(writer, args);
+      case "set_project_freelancer": return await setProjectFreelancer(writer, args);
+      case "add_availability_exception": return await addAvailabilityException(writer, args);
       default: return refuse("Dieses Werkzeug gibt es nicht.");
     }
   } catch (error) {
@@ -337,5 +345,121 @@ async function createProject(w: Writer, args: Json): Promise<ToolResult> {
     saved: true,
     message: `Projekt „${result.data.name}“ ist angelegt. ${visible ? "Der Kunde sieht es in seinem Hub." : "Der Kunde sieht es noch nicht."}`,
     project: { project_id: result.data.id, name: result.data.name, link: hubLinks(w.origin).project(result.data.id) },
+  });
+}
+
+/**
+ * update_project: the panel's fields through the project page's core (saveProjectDetailsAs), then the status
+ * (setProjectStatusAs), each on the version Studio has now; a change made in between makes it run once more on the newer
+ * version, with only the fields Claude changes, so nobody else's change is lost.
+ */
+async function updateProject(w: Writer, args: Json): Promise<ToolResult> {
+  const read = readProjectUpdate(args);
+  if (!read.ok) return refuse(read.error);
+  const { projectId } = read.value;
+  if (!uuid.test(projectId)) return refuse("Bitte das Projekt angeben (project_id aus search oder get_customer).");
+  let patch: ProjectPatch = {};
+  if (Object.keys(read.value.patch).length) {
+    const checked = readProjectPatch(read.value.patch);
+    if (!checked.ok) return refuse(checked.error);
+    patch = checked.value;
+  }
+  if (read.value.status !== undefined && !isStudioStatus(read.value.status)) return refuse("Diesen Status gibt es nicht.");
+  const status = read.value.status as Parameters<typeof setProjectStatusAs>[1]["status"] | undefined;
+  const project = await projectOf(w, projectId);
+  if (!project || project.archived) return refuse(noProject);
+
+  const team: ProjectTeam = { userId: w.userId, supabase: w.supabase as unknown as ProjectTeam["supabase"], db: w.db };
+  const versionNow = async () => {
+    const version = await projectVersionAs(team, projectId);
+    return version === undefined ? null : version;
+  };
+  let version = await versionNow();
+  const saved: string[] = [];
+  if (Object.keys(patch).length) {
+    let result = await saveProjectDetailsAs(team, { projectId, expectedVersion: version, patch }, "claude");
+    if (!result.ok && result.error === staleDetails.error) result = await saveProjectDetailsAs(team, { projectId, expectedVersion: await versionNow(), patch }, "claude");
+    if (!result.ok) return refuse(result.error);
+    version = result.data.version;
+    saved.push(changedWords(Object.keys(patch) as PatchKey[]));
+  }
+  if (status) {
+    let result = await setProjectStatusAs(team, { projectId, status, expectedVersion: version }, "claude");
+    if (!result.ok && result.error === staleStatus.error) result = await setProjectStatusAs(team, { projectId, status, expectedVersion: await versionNow() }, "claude");
+    if (!result.ok) return refuse(saved.length ? `${saved.join(" und ")} ist gespeichert, der Status nicht: ${result.error}` : result.error);
+    saved.push(`Status „${studioStatuses[status].label}“`);
+  }
+  const name = patch.name ?? project.name;
+  const seen = patch.clientVisible === undefined ? "" : patch.clientVisible ? " Der Kunde sieht das Projekt jetzt in seinem Hub." : " Der Kunde sieht das Projekt nicht mehr.";
+  return json({
+    saved: true,
+    message: `„${name}“ ist gespeichert: ${saved.join(" und ")}.${seen}`,
+    project: { project_id: projectId, name, link: hubLinks(w.origin).project(projectId) },
+  });
+}
+
+/** update_checklist: ticks, renames and adds points on a card through the task window's own code (lib/hub-mcp/board.ts). */
+async function updateChecklist(w: Writer, args: Json): Promise<ToolResult> {
+  const ref = readTaskRef(args);
+  if (!ref.ok) return refuse(ref.error);
+  const change = readChecklistChange(args);
+  if (!change.ok) return refuse(change.error);
+  const project = await projectOf(w, ref.value.projectId);
+  if (!project || project.archived) return refuse(noProject);
+  const task = await findTask(w, ref.value);
+  if (!task || task.archived) return refuse(NO_TASK);
+  const result = await changeChecklist(taskContext(w), task.id, change.value);
+  if (!result.ok) return refuse(result.error);
+  if (result.changed || result.added) await logEvent(w.userId, "claude.task.checklist", `Checkliste von „${task.title}“ in „${project.name}“ über Claude geändert`, project.customerId);
+  return json({
+    saved: Boolean(result.changed || result.added),
+    message: checklistText(task.title, result),
+    checklist: result.points,
+    task: { task_number: ref.value.number, title: task.title, link: hubLinks(w.origin).task(ref.value.projectId, ref.value.number) },
+  });
+}
+
+/** set_project_freelancer: „Beteiligte“ through the board's own code, only for a freelancer who looks after the customer. */
+async function setProjectFreelancer(w: Writer, args: Json): Promise<ToolResult> {
+  if (typeof args.project_id !== "string" || !uuid.test(args.project_id)) return refuse("Bitte das Projekt angeben (project_id aus search oder get_project).");
+  if (typeof args.freelancer_id !== "string" || !uuid.test(args.freelancer_id)) return refuse("Bitte den Freelancer angeben (freelancer_id aus get_project).");
+  if (typeof args.on !== "boolean") return refuse("on ist true (auf das Projekt) oder false (herunter).");
+  const project = await projectOf(w, args.project_id);
+  if (!project || project.archived) return refuse(noProject);
+  const choices = await loadProjectFreelancers(w.db, args.project_id);
+  if (!choices) return refuse("Die Freelancer des Projekts konnten gerade nicht geladen werden. Bitte versuche es erneut.");
+  const freelancerId = args.freelancer_id.toLowerCase();
+  const freelancer = choices.find((item) => item.id.toLowerCase() === freelancerId);
+  if (!freelancer) return refuse("Dieser Freelancer betreut den Kunden des Projekts nicht, oder er hat keinen aktiven Zugang. Nimm eine ID aus freelancers in get_project.");
+  if (freelancer.onProject === args.on) return json({ saved: false, message: `${freelancer.name} ist ${args.on ? "schon" : "nicht"} auf „${project.name}“.` });
+  const result = await setProjectFreelancerAs(taskContext(w), { projectId: args.project_id, freelancerId: freelancer.id, on: args.on });
+  if (!result.ok) return refuse(result.error);
+  await logEvent(w.userId, args.on ? "claude.project.freelancer_on" : "claude.project.freelancer_off", `${freelancer.name} über Claude ${args.on ? "auf" : "von"} „${project.name}“ ${args.on ? "gesetzt" : "genommen"}`, project.customerId);
+  return json({
+    saved: true,
+    message: args.on
+      ? `${freelancer.name} ist jetzt auf „${project.name}“: sieht das Projekt mit allen Aufgaben außer „Nur Team“ und kann zuständig werden.`
+      : `${freelancer.name} ist nicht mehr auf „${project.name}“ und dort auch nicht mehr zuständig.`,
+    project: { project_id: args.project_id, name: project.name, link: hubLinks(w.origin).project(args.project_id) },
+  });
+}
+
+/** add_availability_exception: an absence or extra time through the panel's own code (lib/hub-calendar/write.ts). */
+async function addAvailabilityException(w: Writer, args: Json): Promise<ToolResult> {
+  const read = readExceptionArgs(args);
+  if (!read.ok) return refuse(read.error);
+  const result = await addAvailabilityExceptionAs(calendarClient(w), read.value, w.today);
+  if (!result.ok) return refuse(result.error);
+  const { days } = result.data;
+  const span = read.value.allDay ? "ganztags" : `${String(read.value.start)}–${String(read.value.end)}`;
+  const when = days.length === 1 ? formatDayShort(days[0]) : `${formatDayShort(days[0])} bis ${formatDayShort(days[days.length - 1])}`;
+  const what = read.value.kind === "off" ? "Nicht verfügbar" : "Zusätzliche Zeit";
+  await logEvent(w.userId, "claude.availability.exception", `${what} ${when} (${span}) über Claude eingetragen`);
+  return json({
+    today: w.today,
+    saved: true,
+    message: `${what}: ${when}, ${span}. ${read.value.kind === "off" ? "Kunden können in dieser Zeit nichts anfragen; bestehende Termine bleiben." : "Kunden können in dieser Zeit zusätzlich anfragen."}`,
+    days,
+    link: `${w.origin}/dashboard/projects/calendar`,
   });
 }

@@ -2,14 +2,14 @@ import "server-only";
 import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { readDeactivatedLogins } from "@/lib/hub-users/deactivated";
+import { readDeactivatedLogins, readEntriesWithoutActiveLogin } from "@/lib/hub-users/deactivated";
 import { hasTaskChange, type TaskChange } from "@/lib/hub-notify/rules";
 import { notifyTaskChange } from "@/lib/hub-notify/server";
 import {
   audienceColumns, cleanDay, cleanLabels, cleanText, cleanTitle, diffTask, isAudience, isPriority, isStatus, MAX_TITLE, ORDER_LIMIT, SNAPSHOT_COLUMNS, TASK_COLUMNS, toBoardTask,
   type StudioTaskRow, type TaskSnapshot,
 } from "./rules";
-import type { BoardTask, TaskComment, TaskPatch, TaskResult, TaskSubtask } from "./types";
+import type { BoardTask, TaskComment, TaskDetail, TaskPatch, TaskResult, TaskSubtask } from "./types";
 
 // What the task board writes once the caller has passed its checks, shared by the board's actions
 // (lib/hub-tasks/actions.ts, the person's own session) and the Claude connector (lib/hub-mcp/writes.ts, a key with the
@@ -263,4 +263,61 @@ export async function saveSubtaskAs(ctx: TaskContext, input: { taskId: string; s
   if (!data) return fail("Dieser Punkt wurde inzwischen geändert.", true);
   tellOthers(ctx, taskId, { checklist: { state: "done" in columns ? (data.done ? "done" : "open") : "renamed", title: data.title } });
   return { ok: true, data: { id: data.id, title: data.title, done: data.done, order: Number(data.board_order), version: Number(data.version) } };
+}
+
+/**
+ * „Beteiligte“ (admins): puts a freelancer who looks after the project's customer on the project, or takes them off,
+ * for the board's window and the Claude connector. On it they see the project and every task except „Nur Team“; off it
+ * they lose it at once and drop out as assignees there (the database's trigger). Saved with `supabase` (RLS: hub admin
+ * with aal2). A freelancer whose every login is deactivated is put on no project; one already on it stays there unseen
+ * (lib/hub-users/deactivated.ts). Returns the freelancers on the project afterwards.
+ */
+export async function setProjectFreelancerAs(ctx: TaskContext, input: { projectId: string; freelancerId: string; on: boolean }): Promise<TaskResult<string[]>> {
+  const projectId = idOf(input?.projectId);
+  const freelancerId = idOf(input?.freelancerId);
+  if (!projectId || !freelancerId || typeof input?.on !== "boolean") return fail("Diese Änderung ist ungültig.");
+  const project = await ctx.db.from("customer_projects").select("organization_id, status").eq("id", projectId).maybeSingle<{ organization_id: string; status: string }>();
+  if (!project.data || project.data.status === "archived") return fail("Das Projekt gibt es nicht mehr oder es ist archiviert.");
+  if (input.on) {
+    const inactive = await readEntriesWithoutActiveLogin(ctx.db, [freelancerId]);
+    if (!inactive) return fail("Das hat nicht geklappt. Bitte versuche es erneut.");
+    if (inactive.size) return fail("Dieser Freelancer hat keinen aktiven Zugang mehr. Im User Management lässt sich ein Zugang wieder aktivieren.");
+  }
+  const { error } = input.on
+    ? await ctx.supabase.from("studio_project_freelancers").insert({ project_id: projectId, organization_id: project.data.organization_id, freelancer_id: freelancerId })
+    : await ctx.supabase.from("studio_project_freelancers").delete().eq("project_id", projectId).eq("freelancer_id", freelancerId);
+  // Already on it (a second tab, a double click): that is the state asked for.
+  if (error && error.code !== "23505") return fail(writeError(error, false));
+  const now = await ctx.db.from("studio_project_freelancers").select("freelancer_id").eq("project_id", projectId).returns<{ freelancer_id: string }[]>();
+  const ids = (now.data ?? []).map((row) => row.freelancer_id);
+  const unseen = await readEntriesWithoutActiveLogin(ctx.db, ids);
+  return { ok: true, data: ids.filter((freelancer) => !unseen?.has(freelancer)) };
+}
+
+/**
+ * Everything of a card that is not on the board: description, checklist, comments, images and history, read with
+ * `read` (the server key for admins, the person's own session for freelancers), for the task window and the Claude
+ * connector's get_task.
+ */
+export async function readTaskDetailAs(read: SupabaseClient, taskId: string): Promise<TaskResult<TaskDetail>> {
+  const [task, subtasks, comments, files, events] = await Promise.all([
+    read.from("studio_tasks").select("description, archived").eq("id", taskId).maybeSingle<{ description: string; archived: boolean }>(),
+    read.from("studio_subtasks").select("id, title, done, board_order, version").eq("task_id", taskId).order("board_order").returns<{ id: string; title: string; done: boolean; board_order: number; version: number }[]>(),
+    read.from("studio_comments").select("id, author_user_id, body, created_at").eq("task_id", taskId).order("created_at").returns<{ id: string; author_user_id: string; body: string; created_at: string }[]>(),
+    read.from("studio_files").select("id, original_filename, byte_size, mime_type, created_by, created_at").eq("task_id", taskId).eq("state", "ready").order("created_at").returns<{ id: string; original_filename: string; byte_size: number; mime_type: string; created_by: string; created_at: string }[]>(),
+    read.from("studio_activity").select("id, actor_user_id, event_type, created_at").eq("task_id", taskId).in("event_type", ["task.insert", "task.update"]).order("created_at", { ascending: false }).limit(40).returns<{ id: string; actor_user_id: string | null; event_type: string; created_at: string }[]>(),
+  ]);
+  if (!task.data || task.data.archived) return fail("Diese Aufgabe gibt es nicht mehr.", true);
+  if (subtasks.error || comments.error || files.error || events.error) return fail("Die Einzelheiten konnten nicht geladen werden.");
+  return {
+    ok: true,
+    data: {
+      taskId,
+      description: task.data.description,
+      subtasks: (subtasks.data ?? []).map((row) => ({ id: row.id, title: row.title, done: row.done, order: Number(row.board_order), version: Number(row.version) })),
+      comments: (comments.data ?? []).map((row) => ({ id: row.id, authorId: row.author_user_id, body: row.body, createdAt: row.created_at })),
+      files: (files.data ?? []).map((row) => ({ id: row.id, name: row.original_filename, size: Number(row.byte_size), mimeType: row.mime_type, createdBy: row.created_by, createdAt: row.created_at })),
+      events: (events.data ?? []).map((row) => ({ id: row.id, actorId: row.actor_user_id, kind: row.event_type, createdAt: row.created_at })).reverse(),
+    },
+  };
 }

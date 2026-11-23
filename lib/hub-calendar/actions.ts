@@ -4,9 +4,9 @@ import { headers } from "next/headers";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { siteOrigin } from "@/lib/site-origin";
-import { cleanRules, cleanWeek, dayOf, readException, type ExceptionInput } from "./rules";
+import { cleanRules, cleanWeek, dayOf, type ExceptionInput } from "./rules";
 import type { AppointmentInput, CalendarActionResult, CalendarFeedState, RequestInput } from "./types";
-import { closeAppointmentAs, requestAppointmentAs, unknownAppointment, withdrawRequestAs, writeAppointment } from "./write";
+import { addAvailabilityExceptionAs, closeAppointmentAs, requestAppointmentAs, unknownAppointment, withdrawRequestAs, writeAppointment } from "./write";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { feedOptionsFor, feedRoleOf, feedUrl, type FeedRole } from "./feed";
 import { activeFeed, createFeed, endFeedsOf, feedReady, logFeedEvent, saveFeedOptions, type FeedView } from "./feed-store";
@@ -108,16 +108,10 @@ export async function saveAvailabilityRules(rules: unknown): Promise<CalendarAct
 export async function addAvailabilityException(input: ExceptionInput): Promise<CalendarActionResult<{ count: number }>> {
   const supabase = await adminClient();
   if (!supabase) return denied;
-  const read = readException(input, dayOf(Date.now()));
-  if (!read.ok) return read;
-  if (!read.rows.length) return { ok: false, error: "Diese Tage liegen in der Vergangenheit." };
-  const { data, error } = await supabase.from("hub_calendar_exceptions")
-    .insert(read.rows.map((row) => ({ day: row.day, kind: row.kind, from_minute: row.from, to_minute: row.to, note: row.note })))
-    .select("id");
-  if (missingTable(error)) return notReady;
-  if (error || !data) return { ok: false, error: "Die Ausnahme konnte nicht gespeichert werden." };
+  const result = await addAvailabilityExceptionAs(supabase, input, dayOf(Date.now()));
+  if (!result.ok) return result;
   refreshWorkspace();
-  return { ok: true, data: { count: data.length } };
+  return { ok: true, data: { count: result.data.count } };
 }
 
 /** Admin: removes an absence or extra time again. */

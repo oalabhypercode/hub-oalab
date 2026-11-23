@@ -183,3 +183,55 @@ export function readNewProject(args: Json): Read<{ customerId: string; status?: 
     },
   };
 }
+
+/**
+ * update_project: the fields of the project panel Claude names, in the panel's form (lib/hub-projects/edit.ts
+ * readProjectPatch checks them on save), and the status apart, as the page sets it apart. Empty addresses clear them.
+ */
+export function readProjectUpdate(args: Json): Read<{ projectId: string; patch: Json; status?: unknown }> {
+  if (typeof args.project_id !== "string") return { ok: false, error: "Bitte das Projekt angeben (project_id aus search oder get_customer)." };
+  for (const key of ["name", "description", "live_url", "test_url"]) if (given(args, key) && typeof args[key] !== "string") return notText(key);
+  if (given(args, "visible") && typeof args.visible !== "boolean") return { ok: false, error: "visible ist true oder false." };
+  const patch: Json = {};
+  if (given(args, "name")) patch.name = args.name;
+  if (given(args, "description")) patch.description = args.description;
+  if (given(args, "start_date")) patch.startDate = args.start_date;
+  if (given(args, "due_date")) patch.dueDate = args.due_date;
+  if (given(args, "milestones")) patch.milestones = args.milestones;
+  if (given(args, "live_url")) patch.liveUrl = args.live_url;
+  if (given(args, "test_url")) patch.testUrl = args.test_url;
+  if (given(args, "visible")) patch.clientVisible = args.visible;
+  if (!Object.keys(patch).length && !given(args, "status")) return { ok: false, error: "Es gibt nichts zu ändern." };
+  return { ok: true, value: { projectId: args.project_id, patch, ...(given(args, "status") ? { status: args.status } : {}) } };
+}
+
+export type ChecklistChange = { points: { id: string; done?: boolean; title?: string }[]; add: string[] };
+
+/** update_checklist: points to tick, untick or rename (by point_id from get_task) and new points at the end. */
+export function readChecklistChange(args: Json): Read<ChecklistChange> {
+  const points = args.points === undefined ? [] : args.points;
+  const add = args.add === undefined ? [] : args.add;
+  if (!Array.isArray(points) || points.length > MAX_CHECKLIST) return { ok: false, error: `points ist eine Liste mit höchstens ${MAX_CHECKLIST} Punkten.` };
+  if (!Array.isArray(add) || add.length > MAX_CHECKLIST || add.some((title) => typeof title !== "string" || !title.trim())) return { ok: false, error: `add ist eine Liste mit höchstens ${MAX_CHECKLIST} Punkten, keiner leer.` };
+  const read: ChecklistChange["points"] = [];
+  for (const [index, point] of points.entries()) {
+    const item = point && typeof point === "object" && !Array.isArray(point) ? point as Json : null;
+    if (!item || typeof item.point_id !== "string") return { ok: false, error: `Punkt ${index + 1}: point_id aus get_task fehlt.` };
+    if (item.done !== undefined && typeof item.done !== "boolean") return { ok: false, error: `Punkt ${index + 1}: done ist true oder false.` };
+    if (item.title !== undefined && (typeof item.title !== "string" || !item.title.trim())) return { ok: false, error: `Punkt ${index + 1}: Der Titel ist leer.` };
+    if (item.done === undefined && item.title === undefined) return { ok: false, error: `Punkt ${index + 1}: Es gibt nichts zu ändern.` };
+    if (read.some((other) => other.id.toLowerCase() === (item.point_id as string).toLowerCase())) return { ok: false, error: `Punkt ${index + 1} steht doppelt in der Liste.` };
+    read.push({ id: item.point_id, ...(item.done !== undefined ? { done: item.done as boolean } : {}), ...(item.title !== undefined ? { title: item.title as string } : {}) });
+  }
+  if (!read.length && !add.length) return { ok: false, error: "Es gibt nichts zu ändern." };
+  return { ok: true, value: { points: read, add: add as string[] } };
+}
+
+/** add_availability_exception: the fields of „Ausnahme“ under Verfügbarkeit (lib/hub-calendar/rules.ts readException checks them). */
+export function readExceptionArgs(args: Json): Read<{ kind?: unknown; from?: unknown; until?: unknown; allDay?: unknown; start?: unknown; end?: unknown; note?: unknown }> {
+  if (args.kind !== "off" && args.kind !== "extra") return { ok: false, error: "kind ist off (nicht verfügbar) oder extra (zusätzliche Zeit)." };
+  if (args.kind === "extra" && (given(args, "until") || args.all_day === true)) return { ok: false, error: "Zusätzliche Zeit gilt für einen Tag und von–bis: ohne until und all_day." };
+  if (args.all_day === true && (given(args, "start") || given(args, "end"))) return { ok: false, error: "Ganztags hat keine Uhrzeiten: lass start und end weg." };
+  if (given(args, "note") && typeof args.note !== "string") return notText("note");
+  return { ok: true, value: { kind: args.kind, from: args.from, until: args.until, allDay: args.all_day === true, start: args.start, end: args.end, note: args.note ?? "" } };
+}
