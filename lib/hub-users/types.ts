@@ -1,5 +1,6 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { PackageId } from "@/lib/service-packages";
+import type { TeamEntry, TeamRoleState } from "@/lib/hub-team/rules";
 import type { AccountStatus, CustomerKind, DisplayStatus, HubRole } from "./rules";
 
 /** A login as the user management lists it: Supabase Auth data merged with its profile and customers. */
@@ -25,6 +26,8 @@ export type ManagedUser = {
   secondFactor: "off" | "email" | "totp";
   /** Freelancers: an admin switched Claude on for this login (the Claude connector with the freelancer's rights). */
   claude: boolean;
+  /** Admins: the team role in Studio that lets them write projects and tasks (lib/hub-team/rules.ts). */
+  teamRole: TeamRoleState;
   customerIds: string[];
   source: "registration" | "admin" | "existing";
   createdAt: string;
@@ -74,6 +77,9 @@ export type ManagedCustomer = {
   archivedLoginIds: string[];
 };
 
+/** oalab's own entry (kind "team"): the group „oalab“ under „Zugänge“ with its logo; null before its migration. */
+export type ManagedTeam = TeamEntry & { logo?: CustomerLogo | null };
+
 export type ManagedEvent = {
   id: number;
   at: string;
@@ -86,7 +92,9 @@ export type ManagedEvent = {
 
 export type UserManagementState = {
   users: ManagedUser[];
+  /** Customers and freelancers; oalab's own entry stands apart in `team`. */
   customers: ManagedCustomer[];
+  team: ManagedTeam | null;
   /** Admin actions and sent mails, newest first. */
   events: ManagedEvent[];
   nextCustomerNumber: string;

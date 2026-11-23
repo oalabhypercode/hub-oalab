@@ -103,7 +103,8 @@ test("notifications: a card marks read, × hides it in this browser, the preview
 test("the admins' facts load on the overview only, after the admin check, without freelancers and archived ones", async () => {
   const server = await source("lib/hub-overview/server.ts");
   assert.match(server, /if \(role !== "oalab_admin"\) return null;\n\s+const admin = await verifyHubAdmin\(\);\n\s+const db = admin \? createAdminClient\(\) : null;/);
-  assert.match(server, /row\.kind !== "freelancer" && !archive\.customerIds\.has\(row\.id\)/);
+  // Customers only: neither freelancers nor oalab's own entry (kind team).
+  assert.match(server, /\(row\.kind \?\? "customer"\) === "customer" && !archive\.customerIds\.has\(row\.id\)/);
   assert.match(server, /heldPackages\(packagesOf\(packages\.byCustomer, id\)\)\.some\(isServicePackageId\)/);
   assert.ok((await source("app/dashboard/page.tsx")).includes("loadOverviewFacts(role)"));
   assert.match(await source("app/dashboard/[section]/page.tsx"), /validSection === "overview" \? loadOverviewFacts\(identity\.account\?\.role \?\? null\) : undefined/);

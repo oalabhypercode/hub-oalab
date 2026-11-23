@@ -74,6 +74,19 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 31,
+    date: "2026-11-24",
+    title: "oalab als eigenes Unternehmen mit internen Projekten und Aufgaben",
+    summary: "oalab ist jetzt ein eigenes Unternehmen im Hub: ganz oben in „Projekte“ mit internen Projekten und ihren Aufgaben im Board, die kein Kunde sieht, und unter „Zugänge“ mit Logo und Nummer. Neue Admins bekommen mit „Darf Projekte und Aufgaben bearbeiten“ gleich die Team-Rolle im Studio, die unter „Sicherheit“ an- und abschaltbar ist, und Claude legt interne Projekte und Aufgaben ebenfalls an.",
+    changes: [
+      { kind: "new", area: "projects", place: "Projekte › oalab", title: "Interne Projekte für oalab", text: "oalab steht in „Projekte“ jetzt ganz oben als eigenes Unternehmen mit dem Zeichen „Intern“. Dort legst du Projekte für oalab selbst an, mit Status, Terminen und Meilensteinen wie bei Kunden; kein Kunde sieht sie, und Pakete, Domains und Service fehlen dort." },
+      { kind: "new", area: "projects", place: "Projekte › Aufgaben", title: "Interne Aufgaben im Board", text: "Aufgaben interner Projekte stehen im Board unter „oalab · Intern“ und lassen sich wie gewohnt anlegen, zuweisen, verschieben und kommentieren. Die Wahl „+ Kunde“ fehlt dort, weil es keinen Kunden gibt, der sie sehen könnte." },
+      { kind: "new", area: "hub", place: "User Management › Zugänge", title: "oalab als Unternehmen unter Zugänge", text: "Die Gruppe „oalab“ unter „Zugänge“ ist jetzt ein echtes Unternehmen mit Logo und Nummer, zu dem alle Admins gehören. Das Zahnrad ändert das Logo; Name und Nummer kommen von der Serviceplattform." },
+      { kind: "new", area: "hub", place: "User Management › Sicherheit", also: ["projects"], title: "Projekte und Aufgaben für neue Admins", text: "Beim Anlegen eines Admins gibt das Häkchen „Darf Projekte und Aufgaben bearbeiten“ gleich die nötige Team-Rolle im Studio, damit neue Kollegen Projekte und Aufgaben anlegen und übernehmen. Unter „Sicherheit“ lässt sich das je Admin an- und abschalten; solange ein Zugang deaktiviert ist, ruht die Rolle." },
+      { kind: "improved", area: "hub", place: "Claude › Projekte", also: ["projects"], title: "Claude kennt oalab", text: "Claude findet oalab jetzt als internes Unternehmen und legt dort Projekte und Aufgaben an, die nur das Team sieht. Vertrag, Kontaktdaten und Chat gibt es für oalab nicht; Claude lehnt sie dort ab." },
+    ],
+  },
+  {
     number: 30,
     date: "2026-11-23",
     title: "Kalender abonnieren, in Notizen mitschreiben und eine aufgeräumte Glocke",

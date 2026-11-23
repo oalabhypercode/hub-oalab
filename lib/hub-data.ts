@@ -75,6 +75,11 @@ export type Project = {
   customerId?: string;
   /** Studio projects: the customer's website from the user management, as a full https URL. */
   website?: string;
+  /**
+   * Studio projects of oalab itself (plan „oalab als Unternehmen“): on the oalab organization, whose hub entry is of the
+   * kind team. No customer ever sees them; the hub tags them „Intern“.
+   */
+  internal?: boolean;
   /** Studio projects: where the finished site runs (branch main) and where every change is previewed first (branch test). */
   liveUrl?: string;
   testUrl?: string;

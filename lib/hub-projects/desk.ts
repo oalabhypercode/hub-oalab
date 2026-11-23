@@ -7,6 +7,7 @@
 import type { Project, StudioProjectStatus } from "../hub-data";
 import type { CustomerPackage } from "../service-packages";
 import type { ProjectDomain } from "./map";
+import type { CustomerLogo } from "../hub-logos/rules";
 
 export type StatusTone = "info" | "ok" | "bad" | "todo" | "off";
 
@@ -96,6 +97,13 @@ export type DeskRequest = {
 /** A hub customer (kind customer) with everything the project page shows next to the projects. */
 export type DeskCustomer = {
   id: string;
+  /**
+   * oalab's own entry (kind team, plan „oalab als Unternehmen“): first in the list, with internal projects only; no
+   * packages, quota, requests, domains or visibility for a customer.
+   */
+  team?: boolean;
+  /** The team entry's logo (customers take theirs from the asset management). */
+  logo?: CustomerLogo | null;
   company: string;
   customerNumber: string;
   /** The website from the customer data, as its start page. */

@@ -9,6 +9,7 @@ import { loadArchive } from "@/lib/hub-archive/server";
 import { fileInSight, noArchive } from "@/lib/hub-archive/rules";
 import { isFileCategory } from "./catalog";
 import { isFileAudience, type HubFileCustomer, type HubFilesState, type HubFolder, type HubStoredFile } from "./types";
+import { isTeamKind } from "@/lib/hub-team/rules";
 
 type CustomerRow = { id: string; customer_number: string; company: string; kind?: string };
 type FileRow = {
@@ -86,7 +87,8 @@ export async function loadHubFiles(): Promise<HubFilesState> {
   const error = files.error ?? folders.error;
   if (error) return { source: "supabase", files: [], customers: [], folders: [], canManage, error: describeStorageError(error) };
   const { logos, theirs } = shown;
-  const customerRows = withFreelancerCustomers(customers.data ?? [], theirs);
+  // oalab's own entry (kind team) has no files yet: they follow in stage 2 of the plan „oalab als Unternehmen“.
+  const customerRows = withFreelancerCustomers((customers.data ?? []).filter((row) => !isTeamKind(row.kind)), theirs);
   // The embedded customer is empty where the session may not read the row (a freelancer's customers): named from the list.
   const named = new Map(customerRows.map((row) => [row.id, row]));
   const fileRows = (files.data ?? []).map((row): FileRow => ({

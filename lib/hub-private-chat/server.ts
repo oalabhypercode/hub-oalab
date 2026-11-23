@@ -93,7 +93,8 @@ function summarize(customer: CustomerRow, newest: readonly MessageRow[], viewer:
 
 async function readCustomers(supabase: SupabaseClient, viewer: ChatViewer) {
   if (viewer.side === "customer" && !viewer.customerIds.length) return { data: [] as CustomerRow[], error: null };
-  const query = supabase.from("hub_customers").select("id, company, customer_number");
+  // oalab's own entry (kind team) has no chat with itself (plan „oalab als Unternehmen“, decision 9).
+  const query = supabase.from("hub_customers").select("id, company, customer_number").neq("kind", "team");
   return (viewer.side === "oalab" ? query : query.in("id", [...viewer.customerIds])).order("company").returns<CustomerRow[]>();
 }
 
@@ -149,7 +150,7 @@ export async function countUnreadPrivateChats(): Promise<number | undefined> {
 export async function loadPrivateThread(viewer: ChatViewer, customerId: string): Promise<PrivateChatResult<PrivateChatThread>> {
   if (viewer.side === "customer" && !viewer.customerIds.includes(customerId)) return { ok: false, error: NOT_FOUND };
   const supabase = await createClient();
-  const customer = await supabase.from("hub_customers").select("id, company, customer_number").eq("id", customerId).maybeSingle<CustomerRow>();
+  const customer = await supabase.from("hub_customers").select("id, company, customer_number").eq("id", customerId).neq("kind", "team").maybeSingle<CustomerRow>();
   if (customer.error || !customer.data) return { ok: false, error: NOT_FOUND };
   const admin = viewer.side === "oalab";
   const [messages, reads, members, logos] = await Promise.all([

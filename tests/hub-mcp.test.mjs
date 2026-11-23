@@ -473,7 +473,8 @@ test("writing goes through the hub's own save code, with the admin's claims, log
     const firstWrite = body.search(/\b(createTaskAs|updateTaskAs|moveTaskAs|addCommentAs|onCurrentTask)\(/);
     assert.ok(firstWrite > 0 && body.indexOf("project.archived") < firstWrite, `${name}: checked before writing`);
   }
-  assert.match(writes.slice(writes.indexOf("async function createProject(")), /if \(!\(await customerOf\(w, read\.value\.customerId\)\)\) return refuse\(noCustomer\);/);
+  // A customer, or oalab's own entry for an internal project (plan „oalab als Unternehmen“).
+  assert.match(writes.slice(writes.indexOf("async function createProject(")), /if \(!internal && !\(await customerOf\(w, read\.value\.customerId\)\)\) return refuse\(noCustomer\);/);
   assert.match(await source("lib/hub-tasks/server.ts"), /archive\.organizationIds\.has\(project\.data\.organization_id\)\) return null;/, "no assignees for an archived customer's project");
 
   // The hub's windows save through the same cores; the cores are no Server Actions.

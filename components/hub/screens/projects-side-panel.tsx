@@ -8,6 +8,7 @@ import type { Project, ProjectTask, StudioProjectStatus } from "@/lib/hub-data";
 import { customerSees, isWaiting, statusOf, studioStatuses } from "@/lib/hub-projects/desk";
 import { changesOf, draftOf, mergeDraft, readProjectDraft, sameDraft, type ProjectDraft, type ProjectFields, type ProjectPatch } from "@/lib/hub-projects/edit";
 import { saveProjectDetails } from "@/lib/hub-projects/actions";
+import { INTERNAL_TAG } from "@/lib/hub-team/rules";
 import { formatDeadline } from "@/lib/hub-data";
 import { AssetPanel } from "./asset-panel";
 import { DomainFields, FieldError, focusInvalid, MilestoneEditor, PanelError, ProjectFieldsSection, StatusPicks, VisibleRow, type DraftError } from "./projects-edit-parts";
@@ -136,20 +137,23 @@ export function ProjectSidePanel({ project, asOf, busy, confirmHref, boardHref, 
   return (
     <AssetPanel className="um-panel pj-panel" label={`Projekt ${project.name}`} title={project.name} onClose={onClose} footer={footer}
       icon={<span className={`pj-glyph is-lg tone-${studioStatuses[status].tone}`}><StudioGlyph status={status} size={18} /></span>}
-      subtitle={`${project.company ?? "Ohne Kunde"} · ${studioStatuses[status].label}${visible ? "" : " · intern"}`}
+      subtitle={`${project.company ?? "Ohne Kunde"} · ${studioStatuses[status].label}${project.internal ? ` · ${INTERNAL_TAG}` : visible ? "" : " · intern"}`}
       actions={onAsk && <button type="button" className="chat-icon-button is-muted" onClick={onAsk} aria-label="Assistent zu diesem Projekt fragen" data-tip="Assistent zu diesem Projekt fragen"><Sparkles size={18} aria-hidden="true" /></button>}>
       <form ref={body} className="um-form" noValidate onSubmit={(event) => { event.preventDefault(); if (dirty && !saving && !busy && !locked) void save(); }}>
         <PanelError error={error} />
         <PanelSection title="Status" meta={locked ? "ändern nach „Mit Code bestätigen“" : "wirkt sofort, auch im Studio"}>
           <StatusPicks value={status} disabled={busy || saving || locked} onPick={onStatus} />
-          <p className="pj-pick-hint">{busy ? <MiniLoader size={14} /> : <Eye size={14} aria-hidden="true" />}<span>Der Kunde sieht: <b>{visible ? customerSees(status, waiting) : "nichts, das Projekt ist intern"}</b>{visible && waiting && status !== "complete" ? " (eine Aufgabe liegt bei ihm)" : ""}</span></p>
-          <VisibleRow visible={visible} busy={busy} disabled={busy || saving || locked} onChange={onVisible} />
+          {/* An internal project of oalab (plan „oalab als Unternehmen“) has no customer to release it to. */}
+          {project.internal ? <p className="pj-pick-hint">{busy ? <MiniLoader size={14} /> : <Eye size={14} aria-hidden="true" />}<span>Internes Projekt: <b>nur das oalab-Team sieht es</b></span></p> : <>
+            <p className="pj-pick-hint">{busy ? <MiniLoader size={14} /> : <Eye size={14} aria-hidden="true" />}<span>Der Kunde sieht: <b>{visible ? customerSees(status, waiting) : "nichts, das Projekt ist intern"}</b>{visible && waiting && status !== "complete" ? " (eine Aufgabe liegt bei ihm)" : ""}</span></p>
+            <VisibleRow visible={visible} busy={busy} disabled={busy || saving || locked} onChange={onVisible} />
+          </>}
         </PanelSection>
         <PanelSection title="Domains & Links" meta="ein Klick öffnet die Seite">
           <DomainFields draft={draft} stored={{ live: project.liveUrl, test: project.testUrl }} disabled={disabled} error={error} onChange={change} />
           <FieldError error={error} fields={["liveUrl", "testUrl"]} />
         </PanelSection>
-        <ProjectFieldsSection draft={draft} meta={visible ? "Name und Beschreibung sieht der Kunde" : "sieht der Kunde, sobald du es freigibst"} disabled={disabled} error={error} onChange={change} />
+        <ProjectFieldsSection draft={draft} meta={project.internal ? "sieht nur das oalab-Team" : visible ? "Name und Beschreibung sieht der Kunde" : "sieht der Kunde, sobald du es freigibst"} disabled={disabled} error={error} onChange={change} />
         <PanelSection title="Meilensteine" meta={draft.milestones.length ? `${draft.milestones.length}` : undefined}>
           <MilestoneEditor rows={draft.milestones} asOf={asOf} disabled={disabled} error={error} onChange={(milestones) => change({ milestones })} />
           <FieldError error={error} fields={["milestones"]} />

@@ -8,6 +8,7 @@ import { mailSettings } from "@/lib/hub-mail/send";
 import { readArchive } from "@/lib/hub-archive/server";
 import type { AssistantData } from "./tools";
 import type { CustomerContext } from "./customers";
+import { isTeamKind } from "@/lib/hub-team/rules";
 
 type CustomerRow = {
   id: string;
@@ -17,6 +18,7 @@ type CustomerRow = {
   city: string | null;
   website: string | null;
   contact_email: string | null;
+  kind?: string | null;
 };
 
 /**
@@ -42,7 +44,7 @@ async function assistantData(projectsOf: typeof loadLiveProjects): Promise<Assis
   if (!db) return null;
   const [projects, customers, packageRows, archive] = await Promise.all([
     projectsOf(),
-    db.from("hub_customers").select("id, organization_id, company, customer_number, city, website, contact_email").order("company").returns<CustomerRow[]>(),
+    db.from("hub_customers").select("id, organization_id, company, customer_number, city, website, contact_email, kind").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
     // Archived customers stay out of the assistant and the Claude connector, as everywhere outside the user management.
     readArchive(db),
@@ -59,6 +61,8 @@ async function assistantData(projectsOf: typeof loadLiveProjects): Promise<Assis
       city: row.city ?? "",
       website: row.website ?? "",
       contactEmail: row.contact_email ?? "",
+      // oalab's own entry (plan „oalab als Unternehmen“): internal projects, no packages, contract or chat.
+      ...(isTeamKind(row.kind) ? { internal: true } : {}),
     })),
   };
 }

@@ -5,6 +5,7 @@ import type { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/hub-domains/rules";
 import { isStudioStatus, studioStatuses } from "./desk";
 import { changedWords, projectKeyFrom, readProjectDraft, type PatchKey, type ProjectPatch } from "./edit";
+import { isTeamKind } from "@/lib/hub-team/rules";
 
 // What the project page writes once the caller has passed the team's checks: „Neues Projekt“, the status and the
 // panel's fields. Shared by the project page (lib/hub-projects/actions.ts, the admin's own session) and the Claude
@@ -49,12 +50,15 @@ export async function createProjectAs(
   const customer = await ctx.db.from("hub_customers").select("id, organization_id, kind").eq("id", input.customerId)
     .maybeSingle<{ id: string; organization_id: string | null; kind: string | null }>();
   if (customer.error) return failed;
-  if (!customer.data || (customer.data.kind ?? "customer") !== "customer") return { ok: false, error: "Diesen Kunden gibt es nicht mehr." };
+  // A customer's project, or an internal one on oalab's own entry (kind team, plan „oalab als Unternehmen“): its
+  // organization is the oalab one of the service platform, and no customer ever sees the project.
+  const internal = isTeamKind(customer.data?.kind);
+  if (!customer.data || (!internal && (customer.data.kind ?? "customer") !== "customer")) return { ok: false, error: "Diesen Kunden gibt es nicht mehr." };
   const organizationId = customer.data.organization_id;
   if (!organizationId) return { ok: false, error: "Dieser Kunde ist noch nicht auf der Serviceplattform. Ohne Organisation dort gibt es kein Projekt." };
   const organization = await ctx.db.from("organizations").select("status").eq("id", organizationId).maybeSingle<{ status: string }>();
   if (organization.error) return failed;
-  if (organization.data?.status !== "active") return { ok: false, error: "Die Organisation des Kunden ist auf der Serviceplattform nicht aktiv. Dort kann gerade kein Projekt entstehen." };
+  if (organization.data?.status !== "active") return { ok: false, error: internal ? "Die oalab-Organisation ist auf der Serviceplattform nicht aktiv. Dort kann gerade kein Projekt entstehen." : "Die Organisation des Kunden ist auf der Serviceplattform nicht aktiv. Dort kann gerade kein Projekt entstehen." };
 
   let projectId: string | null = null;
   // A key taken a moment ago by someone else (23505): once more with a fresh list.
@@ -79,7 +83,7 @@ export async function createProjectAs(
     start_date: fields.startDate,
     due_date: fields.dueDate,
     milestones: fields.milestones,
-    client_visible: input.visible === true,
+    client_visible: !internal && input.visible === true,
   }).select("version");
   if (details.error || !details.data?.length) {
     const back = await ctx.db.from("customer_projects").delete().eq("id", projectId);
@@ -90,7 +94,7 @@ export async function createProjectAs(
   await ctx.db.from("hub_admin_events").insert({
     actor_id: ctx.userId,
     action: via === "claude" ? "claude.project.created" : "project.created",
-    summary: `Projekt „${fields.name}“ ${via === "claude" ? "über Claude " : ""}angelegt`.slice(0, 300),
+    summary: `${internal ? "Internes Projekt" : "Projekt"} „${fields.name}“ ${via === "claude" ? "über Claude " : ""}angelegt`.slice(0, 300),
     target_customer_id: customer.data.id,
   });
   return { ok: true, data: { id: projectId, name: fields.name, customerId: customer.data.id } };
@@ -181,6 +185,12 @@ export async function saveProjectDetailsAs(
     .maybeSingle<{ organization_id: string; display_name: string }>();
   if (project.error) return failed;
   if (!project.data) return gone;
+  // An internal project (oalab's own organization) is never released to a customer: there is none to see it.
+  if (patch.clientVisible === true) {
+    const organization = await ctx.db.from("organizations").select("kind").eq("id", project.data.organization_id).maybeSingle<{ kind: string }>();
+    if (organization.error) return failed;
+    if (organization.data?.kind === "oalab") return { ok: false, error: "Das ist ein internes Projekt von oalab. Es gibt keinen Kunden, der es sehen könnte." };
+  }
 
   const studio = detailColumns(patch);
   let version = expected;

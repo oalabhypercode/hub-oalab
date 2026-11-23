@@ -20,7 +20,8 @@ import { PanelSection, useDirtyReport } from "./users-panel";
  * platform and the hub know it at once, and opens it.
  */
 export function NewProjectPanel({ customer, asOf, onClose, onCreated, onDirty }: {
-  customer: { id: string; company: string; customerNumber: string };
+  /** `team`: oalab's own entry, so the project is internal (plan „oalab als Unternehmen“). */
+  customer: { id: string; company: string; customerNumber: string; team?: boolean };
   asOf: string;
   onClose: () => void;
   onCreated: (project: { id: string; name: string }) => void;
@@ -40,6 +41,8 @@ export function NewProjectPanel({ customer, asOf, onClose, onCreated, onDirty }:
     ],
     ask: "Was passiert beim Anlegen eines Projekts?",
   });
+  // An internal project of oalab (plan „oalab als Unternehmen“) has no customer: nothing to release.
+  const team = Boolean(customer.team);
   const dirty = !sameDraft(draft, blankDraft(asOf)) || status !== "planning" || visible;
   useDirtyReport(dirty, onDirty);
   // The name comes first. The panel takes the focus when it opens; this runs right after it, as its parent.
@@ -60,7 +63,7 @@ export function NewProjectPanel({ customer, asOf, onClose, onCreated, onDirty }:
     setSaving(true);
     setError(null);
     try {
-      const result = await createProject({ customerId: customer.id, status, visible, draft });
+      const result = await createProject({ customerId: customer.id, status, visible: !team && visible, draft });
       if (!result.ok) { setError({ field: null, text: result.error }); return; }
       onCreated(result.data);
     } catch {
@@ -71,23 +74,25 @@ export function NewProjectPanel({ customer, asOf, onClose, onCreated, onDirty }:
   }
 
   const footer = <>
-    <span className="um-foot-state">{saving ? "Wird angelegt …" : visible ? "Der Kunde sieht es gleich nach dem Anlegen." : "Erst intern; freigeben kannst du es jederzeit."}</span>
+    <span className="um-foot-state">{saving ? "Wird angelegt …" : team ? "Internes Projekt: Das oalab-Team sieht es, kein Kunde." : visible ? "Der Kunde sieht es gleich nach dem Anlegen." : "Erst intern; freigeben kannst du es jederzeit."}</span>
     <button type="button" className="sheet-action is-quiet" onClick={onClose} disabled={saving}>Abbrechen</button>
     <button type="button" className="sheet-action is-primary" onClick={() => void create()} disabled={saving}>{saving ? <MiniLoader size={15} /> : <FolderPlus size={15} aria-hidden="true" />}Projekt anlegen</button>
   </>;
 
   return (
-    <AssetPanel className="um-panel pj-panel" label={`Neues Projekt für ${customer.company}`} title={draft.name.trim() || "Neues Projekt"} onClose={onClose} closeDisabled={saving} footer={footer} actions={info.button}
+    <AssetPanel className="um-panel pj-panel" label={team ? `Neues internes Projekt für ${customer.company}` : `Neues Projekt für ${customer.company}`} title={draft.name.trim() || "Neues Projekt"} onClose={onClose} closeDisabled={saving} footer={footer} actions={info.button}
       icon={<span className={`pj-glyph is-lg tone-${studioStatuses[status].tone}`}><StudioGlyph status={status} size={18} /></span>}
       subtitle={`${customer.company} · ${customer.customerNumber}`}>
       <form ref={body} className="um-form" noValidate onSubmit={(event) => { event.preventDefault(); if (!saving) void create(); }}>
         {info.box}
         <PanelError error={error} />
-        <ProjectFieldsSection draft={draft} meta={visible ? "Name und Beschreibung sieht der Kunde" : "sieht der Kunde, sobald du es freigibst"} disabled={saving} error={error} onChange={change} />
+        <ProjectFieldsSection draft={draft} meta={team ? "sieht nur das oalab-Team" : visible ? "Name und Beschreibung sieht der Kunde" : "sieht der Kunde, sobald du es freigibst"} disabled={saving} error={error} onChange={change} />
         <PanelSection title="Status" meta="wie im Studio, später jederzeit änderbar">
           <StatusPicks value={status} disabled={saving} onPick={(next) => { setStatus(next); setError(null); }} />
-          <p className="pj-pick-hint"><Eye size={14} aria-hidden="true" /><span>Der Kunde sieht: <b>{visible ? customerSees(status, false) : "nichts, das Projekt ist intern"}</b></span></p>
-          <VisibleRow visible={visible} busy={false} disabled={saving} onChange={(next) => { setVisible(next); setError(null); }} />
+          {!team && <>
+            <p className="pj-pick-hint"><Eye size={14} aria-hidden="true" /><span>Der Kunde sieht: <b>{visible ? customerSees(status, false) : "nichts, das Projekt ist intern"}</b></span></p>
+            <VisibleRow visible={visible} busy={false} disabled={saving} onChange={(next) => { setVisible(next); setError(null); }} />
+          </>}
         </PanelSection>
         <PanelSection title="Domains & Links" meta="geht auch später">
           <DomainFields draft={draft} disabled={saving} error={error} onChange={change} />
