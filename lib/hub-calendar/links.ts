@@ -60,8 +60,8 @@ export function calendarLinks(origin: string, appointmentId: string, secret: str
   return { ics: `${base}/${ICS_FILE}${query}`, google: `${base}/google${query}`, outlook: `${base}/outlook${query}` };
 }
 
-const utc = (value: string) => new Date(value).toISOString().replace(/\.\d{3}Z$/, "Z");
-const clip = (value: string, length: number) => value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value;
+export const utc = (value: string) => new Date(value).toISOString().replace(/\.\d{3}Z$/, "Z");
+export const clip = (value: string, length: number) => value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value;
 /** Notes stay short enough for the address of the Google and Outlook links; the whole text is in the hub. */
 const NOTE_LENGTH = 1000;
 
@@ -90,7 +90,7 @@ export function calendarEvent(appointment: CalendarAppointment, origin: string, 
 }
 
 /** 2026-11-06T10:00:00Z → 20261106T100000Z */
-const compact = (value: string) => value.replace(/[-:]/g, "");
+export const compact = (value: string) => value.replace(/[-:]/g, "");
 
 export function googleCalendarUrl(event: CalendarEvent) {
   const query = [
@@ -111,10 +111,10 @@ export function outlookCalendarUrl(event: CalendarEvent) {
 }
 
 /** Text values of an .ics file: backslash, semicolon, comma and line breaks are escaped. */
-const icsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+export const icsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
 /** Lines longer than 75 bytes continue on the next line after a space (RFC 5545), never inside a character. */
-function fold(line: string) {
+export function fold(line: string) {
   const parts: string[] = [];
   let current = "";
   let size = 0;

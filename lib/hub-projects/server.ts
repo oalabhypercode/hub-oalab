@@ -187,6 +187,17 @@ export const loadLiveProjects = cache(async (): Promise<LiveProjectsState> => {
 });
 
 /**
+ * The projects of one login without its browser session: for the calendar subscription (lib/hub-calendar/feed-server.ts),
+ * which reads with a client carrying the person's own claims. The same assembly as in the hub: for customers their
+ * rules pick the released projects and tasks, the server key only adds the names; admins read everything with it.
+ */
+export async function loadLiveProjectsAs(viewer: SupabaseClient, admin: boolean): Promise<LiveProjectsState> {
+  const db = createAdminClient();
+  if (!db) return unavailable("Projekte sind noch nicht eingerichtet: Es fehlt der Server-Schlüssel (SUPABASE_SECRET_KEY).");
+  return assemble(viewer, db, admin);
+}
+
+/**
  * Every project as an admin sees it, without a browser session: for the Claude connector, whose key the caller has
  * already checked (lib/hub-mcp/store.ts, still an active admin). Admins read everything with the server key anyway.
  */

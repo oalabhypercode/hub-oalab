@@ -230,6 +230,50 @@ test("appointment mails carry the calendar links: a block in a mail of its own, 
   assert.doesNotMatch(unsafe.text, /In deinen Kalender eintragen/);
 });
 
+test("calendar subscribers get one sentence instead of the four buttons; everyone else the way to subscribe", async () => {
+  const calendar = {
+    ics: "https://hub.oalab.de/api/calendar/x/oalab-termin.ics?sig=abc",
+    google: "https://hub.oalab.de/api/calendar/x/google?sig=abc",
+    outlook: "https://hub.oalab.de/api/calendar/x/outlook?sig=abc",
+    subscribe: "https://hub.oalab.de/dashboard/projects/calendar?abo=1",
+  };
+  const created = { kind: "appointment.created", title: "Neuer Termin: Kickoff", body: "Di., 10. November um 14:00 Uhr", url: "https://hub.oalab.de/dashboard/calendar?appointment=x", calendar };
+
+  // Without a subscription: the buttons as before, and below them the way to a calendar that stays current.
+  const plain = noticeDigestMail({ items: [created], more: 0, ...HUB });
+  assert.match(plain.html, />In deinen Kalender eintragen<\/div>/);
+  assert.match(plain.html, /Immer aktuell statt einer Kopie: <a class="link" href="https:\/\/hub\.oalab\.de\/dashboard\/projects\/calendar\?abo=1"[^>]*>Kalender abonnieren<\/a>/);
+  assert.match(plain.text, /Immer aktuell statt einer Kopie, Kalender abonnieren: https:\/\/hub\.oalab\.de\/dashboard\/projects\/calendar\?abo=1/);
+
+  // With one: the sentence, no button and no link to a copy, on its own, in a list and in the text.
+  const subscribed = { ...created, calendar: { ...calendar, subscribed: true } };
+  const one = noticeDigestMail({ items: [subscribed], more: 0, ...HUB });
+  assert.match(one.html, /Steht automatisch in deinem Kalender „oalab“<\/div>/);
+  assert.match(one.html, /Verschiebt oder sagt oalab den Termin ab, ändert sich der Eintrag von selbst\. Du musst nichts tun\./);
+  assert.doesNotMatch(one.html, /In deinen Kalender eintragen|api\/calendar\/x\/|Kalender abonnieren/);
+  assert.ok(one.images.includes("glyph-badge-check"));
+  assert.ok(!one.images.includes("brand-apple"));
+  assert.match(one.text, /Steht automatisch in deinem Kalender „oalab“\. Verschiebt oder sagt oalab den Termin ab/);
+  assert.doesNotMatch(one.text, /In deinen Kalender eintragen|api\/calendar\/x\//);
+  const list = noticeDigestMail({ items: [subscribed, { kind: "file.shared", title: "Neue Datei: Vertrag", body: "Im Bereich Dateien" }], more: 0, ...HUB });
+  assert.match(list.html, /Steht automatisch in deinem Kalender „oalab“<\/div>/);
+  assert.doesNotMatch(list.html, /In deinen Kalender eintragen|api\/calendar\/x\//);
+  // A moved appointment: no request to remove the old entry, the new time comes by itself.
+  const moved = noticeDigestMail({ items: [{ ...subscribed, kind: "appointment.changed", title: "Termin verschoben: Kickoff", calendar: { ...calendar, subscribed: true, moved: true } }], more: 0, ...HUB });
+  assert.match(moved.html, /Die neue Zeit kommt beim nächsten Abruf von selbst/);
+  assert.doesNotMatch(moved.html, /alten Eintrag/);
+  // A subscriber's sentence needs no signed links: without the token it stands all the same.
+  const unsigned = noticeDigestMail({ items: [{ ...created, calendar: { ics: "", google: "", outlook: "", subscribed: true } }], more: 0, ...HUB });
+  assert.match(unsigned.html, /Steht automatisch in deinem Kalender „oalab“/);
+  // In dark mode the green box stays readable.
+  assert.match(one.html, /\.okbox\{background:#16301D !important\}/);
+  assert.match(one.html, /\.okink\{color:#9EE2AE !important\}/);
+
+  const server = await source("lib/hub-notify/server.ts");
+  assert.match(server, /await loginsWithFeed\(\[\.\.\.new Set\(digests\.map\(\(digest\) => digest\.userId\)\)\]\)\.catch\(\(\) => new Set<string>\(\)\)/);
+  assert.match(server, /subscribed, subscribe: `\$\{origin\}\$\{CALENDAR_PATH\}\?abo=1`/);
+});
+
 test("the schedule needs its token, rows are written by the server and read only by their owner", async () => {
   const route = await source("app/api/notifications/sweep/route.ts");
   assert.match(route, /const token = process\.env\.HUB_NOTIFY_TOKEN\?\.trim\(\);\n  if \(!token\) return new Response\([^)]*\{ status: 503 \}\);\n  if \(!authorized\(request\.headers\.get\("authorization"\), token\)\) return new Response\("Unauthorized", \{ status: 401 \}\);/);
