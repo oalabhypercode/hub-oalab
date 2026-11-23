@@ -63,6 +63,6 @@
 :root[data-reduce-motion="true"] :is(.pressable, .glass-button, .service-cta, .sidebar-account-gear, .button-secondary, .button-primary:not(:disabled)):active,
 :root[data-reduce-motion="true"] .sidebar-account-gear:is(:hover, [aria-expanded="true"]) svg { transform: none; }
 /* A preview that is still loading keeps a quiet ground instead of shimmering (Asset Management, glass.css). */
-:root[data-reduce-motion="true"] .am-preview.is-loading::before { animation: none; opacity: 0.5; }
+:root[data-reduce-motion="true"] :is(.am-preview, .at-thumb).is-loading::before { animation: none; opacity: 0.5; }
 /* The loading logo rests instead of turning (app/loader.css). */
 :root[data-reduce-motion="true"] { --loader: url("/brand/oalab-loader-still.png"); --loader-greeting: url("/brand/oalab-loader-still.png"); --loader-mini-bordeaux: url("/brand/oalab-loader-mini-bordeaux.png"); --loader-mini-white: url("/brand/oalab-loader-mini-white.png"); }

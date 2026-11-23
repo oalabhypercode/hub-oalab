@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutList, List, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutGrid, LayoutList, List, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import type { ListView } from "@/lib/appearance";
 import { deleteFiles, setFileAudience } from "@/lib/hub-files/actions";
@@ -25,6 +25,7 @@ import type { AssignSource } from "@/lib/hub-files/assign";
 import { AssignPanel, type AssignRequest } from "./asset-assign";
 import { useFileDrag, type FileDropTarget } from "./asset-drag";
 import { FinderList } from "./asset-list";
+import { AssetTiles, TileSizeSwitch, type TileGroup } from "./asset-tiles";
 import { FilePanel } from "./asset-details";
 import { namesByPlace, RenamePanel, storedEntries } from "./asset-naming";
 import { isFileDrag, UploadPanel, useUploadQueue, type UploadTarget } from "./asset-upload";
@@ -58,6 +59,7 @@ function DensitySwitch({ view, onChange }: { view: ListView; onChange: (view: Li
     <div className="segmented-control am-density" role="group" aria-label="Ansicht der Liste">
       <button type="button" className="segment" aria-pressed={view === "minimal"} data-tip="Minimalistische Sicht" onClick={() => onChange("minimal")}><LayoutList size={14} aria-hidden="true" />Minimal</button>
       <button type="button" className="segment" aria-pressed={view === "list"} data-tip="Listensicht wie im Finder" onClick={() => onChange("list")}><List size={14} aria-hidden="true" />Liste</button>
+      <button type="button" className="segment" aria-pressed={view === "tiles"} data-tip="Kacheln mit Vorschaubildern" onClick={() => onChange("tiles")}><LayoutGrid size={14} aria-hidden="true" />Kacheln</button>
       <button type="button" className="segment" aria-pressed={view === "detail"} data-tip="Detailsicht" onClick={() => onChange("detail")}><Table2 size={14} aria-hidden="true" />Detail</button>
     </div>
   );
@@ -84,7 +86,9 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const minimal = listView === "minimal";
   // „Liste“ (the Finder's list view) shares the compact customer list and head with Minimal, and the footer with Detail.
   const finder = listView === "list";
-  const compact = minimal || finder;
+  // „Kacheln“ (23.11.2026): cards with a preview picture; the compact customer list and head like Minimal and Liste.
+  const tiles = listView === "tiles";
+  const compact = minimal || finder || tiles;
   const canUpload = canManage && source === "supabase" && !fileState.error;
 
   const rows = useMemo<CustomerRow[]>(() => customers.map((customer) => {
@@ -498,7 +502,25 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       canDropFolders={canDrop || canDragRows} asOf={asOf} />
   );
 
-  const customerBody = finder ? finderList(narrowed ? folderGroups.filter((group) => !group.folder || group.files.length) : folderGroups, `Dateien von ${current?.company ?? ""}`, false) : minimal ? (
+  // „Kacheln“: cards with a preview picture (asset-tiles.tsx); a click opens the details, a tick selects, like Minimal.
+  const tileList = (list: TileGroup[], label: string, showCustomer: boolean) => (
+    <AssetTiles label={label} groups={list} size={appearance.tileSize} selected={selected} onSelect={(ids) => { closeDetails(); setSelected(ids); }}
+      onOpen={(file) => open(file)} openId={panel?.kind === "file" ? panel.id : null} fresh={fresh} dragIds={rowDrag?.ids ?? []}
+      live={source === "supabase"} asOf={asOf} isCollapsed={groups.isCollapsed} onToggleGroup={groups.toggle} isDrop={folderLit}
+      dropKeyOf={(group) => group.folder && (canDrop || canDragRows) ? group.key : undefined}
+      folderActions={(tile) => { const group = folderGroups.find((item) => item.key === tile.key); return group ? folderActions(group) : null; }}
+      customerOf={showCustomer ? (file) => who(file, true) : undefined} tagOf={tagOf}
+      sharedWith={(file) => current && !freelancerView ? others(file).map((item) => item.company) : []}
+      actionsOf={(file) => <>
+        {view.kind === "inbox" && canAssign && <button type="button" className="am-icon-btn is-accent" onClick={() => openAssign([file.id], null)} aria-label={`${file.title} zuordnen`} data-tip="Zuordnen"><UserPlus size={16} aria-hidden="true" /></button>}
+        <DownloadButton file={file} onError={setError} compact />
+      </>}
+      dragAttrs={dragAttrs} onAddFolder={current && canOrganize ? () => setDialog({ kind: "create" }) : undefined}
+      emptyFolder={narrowed ? "Keine Dateien für diese Auswahl in diesem Ordner." : canOrganize ? "Noch leer. Dateien hierher ziehen oder auswählen und verschieben." : "Noch leer."} />
+  );
+  const asTiles = (list: Group[]): TileGroup[] => list.map((group) => ({ key: group.key, label: group.label, folder: true, files: group.files }));
+
+  const customerBody = tiles ? tileList(asTiles(narrowed ? folderGroups.filter((group) => !group.folder || group.files.length) : folderGroups), `Dateien von ${current?.company ?? ""}`, false) : finder ? finderList(narrowed ? folderGroups.filter((group) => !group.folder || group.files.length) : folderGroups, `Dateien von ${current?.company ?? ""}`, false) : minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label={`Dateien von ${current?.company ?? ""}`}>
       {folderGroups.map((group) => (
         <div key={group.key} className="am-min-group" role="presentation" data-drop-folder={canDrop || canDragRows ? group.key : undefined}>
@@ -540,7 +562,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     return list;
   }, []);
 
-  const allBody = finder ? finderList(null, "Alle Dateien", true) : minimal ? (
+  const allBody = tiles ? tileList(dayGroups.map((group) => ({ key: `day-${group.label}`, label: group.label, folder: false, files: group.files })), "Alle Dateien", true) : finder ? finderList(null, "Alle Dateien", true) : minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label="Alle Dateien">
       {dayGroups.map((group) => (
         <div key={group.label} className="am-min-group" role="presentation">
@@ -562,7 +584,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     </div>
   );
 
-  const inboxBody = finder ? finderList(null, "Dateien ohne Kunden", false) : minimal ? (
+  const inboxBody = tiles ? tileList([{ key: "inbox", label: "", folder: false, files: shown }], "Dateien ohne Kunden", false) : finder ? finderList(null, "Dateien ohne Kunden", false) : minimal ? (
     <div className={`am-min${selection.length ? " is-selecting" : ""}`} role="list" aria-label="Dateien ohne Kunden">
       {shown.map((file) => minimalRow(file, assignButton(file)))}
     </div>
@@ -579,7 +601,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const empty = !shown.length && !(current && folderGroups.length && !narrowed);
   // „Alle auswählen“ over the list (user 13.11.2026): in Minimal, and in Detail on phones, where the table drops its head.
   const selectAll = !empty && shown.length > 0 && (
-    <label className={`am-select-all${minimal ? "" : " is-detail"}`}>
+    <label className={`am-select-all${minimal || tiles ? "" : " is-detail"}`}>
       <span className="am-select-all-box"><GroupCheck {...ticksOf(shown)} onChange={toggleAll} /></span>
       <span>{narrowed ? `Alle ${shown.length} Treffer auswählen` : "Alle auswählen"}</span>
     </label>
@@ -716,7 +738,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
-        <div ref={sheet} className={`sheet section-first am${compact ? " is-minimal" : ""}${finder ? " is-list" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
+        <div ref={sheet} className={`sheet section-first am${compact ? " is-minimal" : ""}${finder ? " is-list" : ""}${tiles ? " is-tiles" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
           <div className="am-grid">
             {customerList}
             <section className={`am-pane${panel && (panel.kind !== "rename" || renaming) ? " has-panel" : ""}`} aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
@@ -725,7 +747,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                   under the mouse between two clicks (user 23.11.2026; on phones it stays below and sticks, glass.css). */}
               <div className="am-bars">
                 <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!compact}
-                  trailing={<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} />}>
+                  trailing={<>{tiles && <TileSizeSwitch size={appearance.tileSize} onChange={(tileSize) => update({ tileSize })} place="top" />}<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} /></>}>
                   {compact ? <ToolbarMenu icon={SlidersHorizontal} label="Filter" badge={filterCount}>{filters}</ToolbarMenu> : <>
                     <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>{filters}</ToolbarMenu>
                     <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={fileSorts[sort.key].label}><SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} /></ToolbarMenu>
@@ -755,7 +777,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
                 )}
               </div>
               <div className="am-scroll">{selectAll}{body}</div>
-              {!minimal && <SheetFooter hint={shown.length > 1 ? (finder ? `Mit ⇧ oder ⌘/Strg mehrere wählen${canAssign ? ", dann links auf einen Kunden ziehen" : ""}` : canAssign ? "Mehrere ankreuzen und links auf einen Kunden ziehen" : "Mehrere ankreuzen: als ZIP laden oder verschieben") : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
+              {!minimal && <SheetFooter trailing={tiles ? <TileSizeSwitch size={appearance.tileSize} onChange={(tileSize) => update({ tileSize })} place="bottom" /> : undefined}
+                hint={shown.length > 1 ? (tiles ? "Klick öffnet die Details, Häkchen wählt mehrere" : finder ? `Mit ⇧ oder ⌘/Strg mehrere wählen${canAssign ? ", dann links auf einen Kunden ziehen" : ""}` : canAssign ? "Mehrere ankreuzen und links auf einen Kunden ziehen" : "Mehrere ankreuzen: als ZIP laden oder verschieben") : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
               {drag && <>
                 <div className="am-drop" aria-hidden="true" />
                 <div className="am-drop-pill" aria-hidden="true">

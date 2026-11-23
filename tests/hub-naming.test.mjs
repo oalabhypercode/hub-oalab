@@ -127,7 +127,8 @@ test("renaming is for admins, keeps the extension and the stored file, and sends
 
 test("the Asset Management selects all files, a folder's files, and renames the ticked ones", async () => {
   const screen = await source("components/hub/screens/asset-management.tsx");
-  assert.match(screen, /<label className=\{`am-select-all\$\{minimal \? "" : " is-detail"\}`\}>/);
+  // „Kacheln“ (23.11.2026) show it like Minimal: neither has a table head with a tick.
+  assert.match(screen, /<label className=\{`am-select-all\$\{minimal \|\| tiles \? "" : " is-detail"\}`\}>/);
   assert.match(screen, /<span className="am-min-section-check">\{group\.files\.length > 0 && <GroupCheck \{\.\.\.groupCheck\(group\.files, group\.label\)\} \/>\}<\/span>/);
   assert.match(screen, /actions=\{folderActions\(group\)\} select=\{groupCheck\(group\.files, group\.label\)\}/);
   assert.match(screen, /\{canRename && <button type="button" className="sheet-action" aria-pressed=\{renaming\}/);

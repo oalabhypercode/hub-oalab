@@ -121,7 +121,8 @@ export function useFileDrag({ root, enabled, idsFor, canDrop, describe, hint, on
       card.className = "am-ghost-card";
       const lead = document.createElement("span");
       lead.className = `am-min-lead am-cat-${state.row.dataset.dragCat ?? "other"}`;
-      const symbol = state.row.querySelector("svg");
+      // A card („Kacheln“) names its symbol; a row's first symbol is its own.
+      const symbol = state.row.querySelector("[data-drag-icon] svg") ?? state.row.querySelector("svg");
       if (symbol) lead.appendChild(symbol.cloneNode(true));
       const title = document.createElement("span");
       title.className = "am-ghost-title";
