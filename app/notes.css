@@ -106,7 +106,13 @@
 .nz-row-icon img { width: 16px; height: 16px; }
 .nz-row.is-on .nz-row-icon { color: var(--accent); }
 .nz-row-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nz-row-aud { display: inline-flex; color: var(--sheet-icon); }
+.nz-row-aud { display: inline-flex; color: var(--sheet-icon); flex: 0 0 auto; }
+/* Who reads and writes a page (23.11.2026): the lock stays quiet, the eye blue, the pen green. */
+.nz-row-aud.is-team { color: var(--sheet-muted); opacity: 0.7; }
+.nz-row-aud.is-read { color: var(--tone-info); }
+.nz-row-aud.is-edit { color: var(--tone-ok); }
+/* News from outside the team since the last look. */
+.nz-row-news { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
 /* „+“ at a page adds a subpage: in sight while hovering, on the open page and on touch screens. */
 .nz-row-add { width: 24px; height: 24px; margin-right: 3px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-muted); flex: 0 0 auto; opacity: 0; transition: opacity 150ms ease; }
 .nz-row:hover .nz-row-add, .nz-row:focus-within .nz-row-add, .nz-row.is-on .nz-row-add { opacity: 1; }
@@ -137,7 +143,17 @@
 .nz-meta { display: inline-flex; align-items: center; gap: 5px; margin-right: 6px; font-size: 12.5px; color: var(--sheet-muted); white-space: nowrap; }
 .nz-meta.is-error { color: var(--tone-bad); font-weight: 600; }
 button.nz-meta.is-error:hover { text-decoration: underline; }
-.nz-shared { margin-right: 4px; padding: 3px 9px; border-radius: 999px; background: var(--tone-info-bg); color: var(--tone-info); font-size: 12px; font-weight: 600; white-space: nowrap; }
+/* „Zugriff“ on top of every page: a capsule that says who reads and who writes it and opens the gear. */
+.nz-access { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin-right: 4px; padding: 0 11px 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; max-width: 300px; flex: 0 0 auto; transition: filter 150ms ease, transform 200ms linear(0, 0.7 30%, 1.08 60%, 0.98 80%, 1); }
+.nz-access svg { flex: 0 0 auto; }
+.nz-access-text { overflow: hidden; text-overflow: ellipsis; }
+.nz-access-short { display: none; }
+.nz-access.is-team { background: var(--fill-tertiary); color: var(--label-secondary); }
+.nz-access.is-read { background: var(--tone-info-bg); color: var(--tone-info); }
+.nz-access.is-edit { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.nz-access:hover { filter: brightness(0.96); }
+.nz-access:active { transform: scale(0.97); }
+:root[data-theme="dark"] .nz-access:hover { filter: brightness(1.12); }
 .nz-scroll { position: relative; flex: 1; min-height: 0; overflow: auto; }
 .nz-empty-page { padding: 120px 24px; text-align: center; font-size: 14px; color: var(--sheet-muted); }
 .nz-editor-loading { min-height: 240px; }
@@ -347,6 +363,22 @@ button.nz-pop-row:hover { background: var(--nz-hover); }
 .nz-seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--fill-tertiary); }
 .nz-seg-btn { height: 26px; padding: 0 10px; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--label-secondary); }
 .nz-seg-btn.is-on { background: var(--sheet); color: var(--accent-text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.nz-seg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* „Zugriff“ in the gear: one row per side with „Kein Zugriff · Lesen · Bearbeiten“ and who opened the page when. */
+.nz-access-row + .nz-access-row { margin-top: 14px; }
+.nz-access-name { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: 13.5px; font-weight: 600; color: var(--label-body); }
+.nz-access-name svg { color: var(--label-secondary); flex: 0 0 auto; }
+.nz-access-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nz-access-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; border-radius: 999px; }
+.nz-access-seg.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nz-access-seg .nz-seg-btn { border-radius: 999px; padding: 0 6px; white-space: nowrap; }
+.nz-access-readers { margin: 6px 0 0; padding: 0; list-style: none; }
+.nz-access-readers li { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 12.5px; color: var(--label-body); }
+.nz-access-readers li span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nz-access-readers li span:last-child { margin-left: auto; color: var(--label-secondary); white-space: nowrap; }
+.nz-access-readers li span.is-new { color: var(--tone-todo); }
+.nz-access-seen { margin-top: 6px; font-size: 12.5px; color: var(--label-secondary); }
+.nz-pop-link { margin: 4px -16px -4px; color: var(--accent-text); font-weight: 600; }
 .nz-field { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 8px; font-size: 12px; font-weight: 600; color: var(--label-secondary); }
 .nz-field input { height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--fill-tertiary); font-size: 14px; font-weight: 500; color: var(--label-body); outline: 0; }
 .nz-field input:focus { box-shadow: inset 0 0 0 1.5px var(--accent-text); }
@@ -467,6 +499,11 @@ button.nz-pop-row:hover { background: var(--nz-hover); }
   .nz-page-emoji img { width: 50px; height: 50px; }
   .nz-headzone.with-cover { margin-top: -34px; }
   .nz-head-actions { opacity: 1; }
+  .nz-access { padding: 0 9px; }
+  /* On phones the save state gives way first, so the bar never runs wider than the screen. */
+  .nz-meta { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .nz-access-text { display: none; }
+  .nz-access-short { display: inline; overflow: hidden; text-overflow: ellipsis; }
   .nz-gear-pop, .nz-text-pop, .nz-area-pop, .nz-cover-pop, .nz-bin-pop { position: fixed; top: auto; left: 8px; right: 8px; bottom: calc(96px + env(safe-area-inset-bottom)); width: auto; max-width: none; max-height: 70dvh; overflow: auto; }
   .nz-cust-pop { width: calc(100vw - 48px); }
   .nz-toast { bottom: calc(100px + env(safe-area-inset-bottom)); }
@@ -566,6 +603,15 @@ button.nz-mention:hover { background: var(--sheet-hover); }
 .nz-peek-mention { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 0 8px; border-radius: 9px; font-size: 14px; color: var(--label-body); text-align: left; }
 .nz-peek-mention:hover { background: var(--nz-hover); }
 .nz-templates { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: -10px 0 14px -8px; }
+/* A new page only the team sees: „Mit Kunde teilen“ right under its title. */
+.nz-share-hint { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 16px; padding: 5px 6px 5px 12px; border-radius: 999px; background: var(--fill-tertiary); color: var(--label-secondary); font-size: 13px; max-width: 100%; }
+.nz-share-text { min-width: 0; }
+.nz-share-btn { height: 26px; padding: 0 12px; border-radius: 999px; background: var(--sheet); color: var(--accent-text); font-size: 12.5px; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.nz-share-btn:hover { box-shadow: 0 0 0 1.5px var(--accent-text); }
+/* Customers who only read find the chat below the page. */
+.nz-readonly-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--separator); font-size: 13px; line-height: 19px; color: var(--sheet-muted); }
+.nz-readonly-note svg { margin-top: 2px; flex: 0 0 auto; }
+.nz-readonly-note a { color: var(--accent-text); font-weight: 600; }
 .nz-templates-label { padding: 0 8px; font-size: 13px; color: var(--sheet-muted); }
 .nz-cv-tabs { display: flex; gap: 2px; margin: 2px 14px 6px; padding: 2px; border-radius: 10px; background: var(--fill-tertiary); }
 .nz-cv-tab { flex: 1; height: 30px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--label-secondary); text-align: center; }

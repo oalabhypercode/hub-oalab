@@ -26,13 +26,16 @@ const POLL_MS = 15_000;
 export type ChatTab = "private" | "service";
 
 /** Admins: the private chats of all customers and, to follow along, the service platform's conversations. */
-export function ChatTabs({ tab, unread, onChange }: { tab: ChatTab; unread: number; onChange: (tab: ChatTab) => void }) {
+export function ChatTabs({ tab, unread, serviceUnread = 0, onChange }: { tab: ChatTab; unread: number; serviceUnread?: number; onChange: (tab: ChatTab) => void }) {
   return (
     <div className="chat-tabs" role="group" aria-label="Art der Gespräche">
       <button type="button" aria-pressed={tab === "private"} onClick={() => onChange("private")}>
         <Lock size={14} aria-hidden="true" />Privat{unread > 0 && <span className="chat-tab-count"><span className="visually-hidden">, ungelesen: </span>{unread}</span>}
       </button>
-      <button type="button" aria-pressed={tab === "service"} onClick={() => onChange("service")}><Wrench size={14} aria-hidden="true" />Service</button>
+      {/* Customers' messages on the service platform nobody of the team has opened yet (23.11.2026). */}
+      <button type="button" aria-pressed={tab === "service"} onClick={() => onChange("service")}>
+        <Wrench size={14} aria-hidden="true" />Service{serviceUnread > 0 && <span className="chat-tab-count"><span className="visually-hidden">, ungelesen: </span>{serviceUnread}</span>}
+      </button>
     </div>
   );
 }

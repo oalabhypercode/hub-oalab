@@ -35,12 +35,14 @@ function areaOf(kind: string) {
   if (kind === "file.shared") return "Dateien";
   if (kind === "share.granted") return "Kunden";
   if (kind.startsWith("note.")) return "Notizen";
-  if (kind.startsWith("chat.")) return "Nachrichten";
+  if (kind.startsWith("chat.") || kind.startsWith("service.")) return "Nachrichten";
   if (kind.startsWith("appointment.")) return "Kalender";
   return "Hub";
 }
 
 const CHAT_LEADS = ["Neue Nachrichten von ", "Neue Nachricht von "];
+const SERVICE_LEADS = ["Neue Nachrichten von ", "Neue Nachricht von ", "Neue Anfrage von "];
+const FREELANCER_MARK = " (Freelancer)";
 const SHARE_LEAD = "Neu freigegeben bei ";
 
 export function noticeColumns(notice: { kind: string; title: string; body: string }, viewer: NoticeViewer): NoticeColumns {
@@ -103,6 +105,30 @@ export function noticeColumns(notice: { kind: string; title: string; body: strin
 
   // „Neue Notiz: Kickoff“ or „Notiz geändert: Kickoff“, from the team.
   if (kind === "note.shared" || kind === "note.changed") return { where: fallback, path: "Projekte › Notizen", title: event, body: subject, ...OALAB };
+
+  // To the team (23.11.2026): „Notiz bearbeitet: Feedback“ with "Jana Sommer · Nordlicht Studio".
+  if (kind === "note.edited") {
+    const cut = body.lastIndexOf(SEP);
+    const who = cut < 0 ? body : body.slice(0, cut);
+    const freelancer = who.endsWith(FREELANCER_MARK);
+    return { where: cut < 0 ? fallback : body.slice(cut + SEP.length), path: "Projekte › Notizen", title: event, body: subject, from: freelancer ? who.slice(0, -FREELANCER_MARK.length) : who, fromDetail: freelancer ? "Freelancer" : "Kunde" };
+  }
+
+  // To the team (23.11.2026): „Neue Anfrage von Nordlicht Studio: OA-12 Texte freigeben“ with "Jana: Text".
+  if (kind === "service.message") {
+    const lead = SERVICE_LEADS.find((prefix) => event.startsWith(prefix));
+    const company = lead ? event.slice(lead.length) : "";
+    const colon = body.indexOf(": ");
+    const author = colon > 0 && colon <= 60 ? body.slice(0, colon) : "";
+    return {
+      where: company || fallback,
+      path: subject ? `Serviceplattform › ${subject}` : "Serviceplattform",
+      title: lead ? lead.slice(0, -" von ".length) : event,
+      body: author ? body.slice(colon + 2) : body,
+      from: author || company,
+      fromDetail: "Kunde",
+    };
+  }
 
   // „Neue Nachricht von Müller Holzbau“ with "Jonas Müller: Text"; the customer's line comes „von oalab“.
   if (kind === "chat.message" || kind === "chat.reply") {

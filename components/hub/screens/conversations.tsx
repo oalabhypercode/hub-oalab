@@ -36,14 +36,16 @@ export function ConversationsScreen({ admin, freelancer, firstName, company, asO
   // The tab "Privat" counts what waits there, also while "Service" is open.
   const privateUnread = useMemo(() => (privateChats ?? demoPrivateChats({ firstName, company: company ?? null, admin }).state).chats.filter((chat) => chat.unread).length, [privateChats, firstName, company, admin]);
   const switchTab = (next: ChatTab) => { if (next !== tab) router.push(next === "service" ? `${pathname}?tab=service` : pathname, { scroll: false }); };
-  const tabs = admin ? (unread: number) => <ChatTabs tab={tab} unread={unread} onChange={switchTab} /> : undefined;
+  // „Service“ counts the requests with a customer's message nobody of the team has opened yet (23.11.2026).
+  const serviceUnread = conversations?.unread?.length ?? 0;
+  const tabs = admin ? (unread: number, service: number) => <ChatTabs tab={tab} unread={unread} serviceUnread={service} onChange={switchTab} /> : undefined;
 
   return (
     <>
       <LargeTitleHeader title="Nachrichten" icon={<CategoryTitle category="messages" />} actions={<HeaderActions />} />
       {tab === "service"
-        ? <ServiceConversations key="service" now={now} state={conversations} tabs={tabs?.(privateUnread)} />
-        : <PrivateChats key="private" admin={admin} freelancer={freelancer} firstName={firstName} company={company} now={now} state={privateChats} tabs={tabs} />}
+        ? <ServiceConversations key="service" now={now} state={conversations} tabs={tabs ? (service) => tabs(privateUnread, service) : undefined} />
+        : <PrivateChats key="private" admin={admin} freelancer={freelancer} firstName={firstName} company={company} now={now} state={privateChats} tabs={tabs ? (unread) => tabs(unread, serviceUnread) : undefined} />}
     </>
   );
 }
@@ -64,11 +66,13 @@ function lastLine(conversation: ConversationSummary) {
  * The service platform's conversations for admins, to follow what is going on there: every customer's requests with
  * their logo, read only. Answers and internal notes from oalab come from NoteTree Business.
  */
-function ServiceConversations({ now, state, tabs }: { now: Date; state?: ConversationsState; tabs?: ReactNode }) {
+function ServiceConversations({ now, state, tabs }: { now: Date; state?: ConversationsState; tabs?: (unread: number) => ReactNode }) {
   const fixtures = useMemo(() => state ? null : demoConversations(), [state]);
   const initial = state ?? fixtures!.state;
   const live = initial.source === "service";
   const [list, setList] = useState<readonly ConversationSummary[]>(initial.conversations);
+  // Requests with a customer's message nobody of the team has opened yet; opening one counts for the team.
+  const [unread, setUnread] = useState<ReadonlySet<string>>(() => new Set(initial.unread ?? []));
   const [loadError, setLoadError] = useState(initial.error);
   // The logos come signed with the first page; the look for news and opening a conversation keep them, so they do not load again.
   const [logos] = useState(() => new Map(initial.conversations.map((item) => [item.id, item.logo])));
@@ -105,13 +109,18 @@ function ServiceConversations({ now, state, tabs }: { now: Date; state?: Convers
         if (!result.ok) return;
         setLoadError(null);
         setList(result.data.conversations);
+        setUnread(new Set(result.data.unread ?? []));
       }).catch(() => { /* the next look tries again */ });
       if (openId) openConversation({ id: openId }).then((result) => { if (result.ok) setLiveThread(result.data); }).catch(() => {});
     }, POLL_MS);
     return () => window.clearInterval(timer);
   }, [live, openId]);
 
-  const open = (id: string) => router.push(`${pathname}?tab=service&conversation=${encodeURIComponent(id)}`, { scroll: false });
+  const open = (id: string) => {
+    setUnread((current) => { const next = new Set(current); next.delete(id); return next; });
+    router.push(`${pathname}?tab=service&conversation=${encodeURIComponent(id)}`, { scroll: false });
+  };
+  const isNew = (item: ConversationSummary) => unread.has(item.id) && item.id !== openId;
   const close = () => router.push(`${pathname}?tab=service`, { scroll: false });
 
   const term = query.trim().toLowerCase();
@@ -123,7 +132,7 @@ function ServiceConversations({ now, state, tabs }: { now: Date; state?: Convers
       <div className="chat-grid">
         <section className="chat-list" aria-label="Service-Gespräche">
           <div className="chat-list-head"><h2>Gespräche</h2></div>
-          {tabs}
+          {tabs?.(list.filter(isNew).length)}
           <label className="chat-search"><Search size={16} aria-hidden="true" /><span className="visually-hidden">Service-Gespräche durchsuchen</span>
             <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kunde, Thema oder Text" /></label>
           <p className="chat-tab-note">Die Anfragen der Serviceplattform, nur zum Mitlesen.</p>
@@ -135,11 +144,12 @@ function ServiceConversations({ now, state, tabs }: { now: Date; state?: Convers
                   <button type="button" className="chat-conv" aria-current={item.id === openId ? "true" : undefined} onClick={() => open(item.id)}>
                     <ServiceAvatar conversation={withLogo(item)} />
                     <span className="chat-conv-main">
-                      <span className="chat-conv-top"><strong>{item.title}</strong><time dateTime={item.lastAt}>{listTime(item.lastAt, now)}</time></span>
+                      <span className="chat-conv-top"><strong>{item.title}</strong><time dateTime={item.lastAt} className={isNew(item) ? "is-new" : undefined}>{listTime(item.lastAt, now)}</time></span>
                       {item.company && <span className="chat-conv-company">{item.company}</span>}
                       <span className="chat-conv-sub">
                         <span className="chat-conv-last">{lastLine(item)}</span>
-                        {item.group !== "active" && <span className={`chat-pill tone-${item.tone}`}>{item.stateLabel}</span>}
+                        {isNew(item) ? <span className="chat-badge"><span className="visually-hidden">Neu</span></span>
+                          : item.group !== "active" && <span className={`chat-pill tone-${item.tone}`}>{item.stateLabel}</span>}
                       </span>
                     </span>
                   </button>

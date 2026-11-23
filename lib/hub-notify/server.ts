@@ -9,10 +9,11 @@ import { CALENDAR_PATH } from "@/lib/hub-calendar/paths";
 import { feedReady, loginsWithFeed } from "@/lib/hub-calendar/feed-store";
 import { listAllUsers, roleOf } from "@/lib/hub-users/server";
 import { sendTelegram } from "@/lib/hub-telegram/server";
-import { telegramChatMessage } from "@/lib/hub-telegram/rules";
+import { telegramChatMessage, telegramServiceMessage } from "@/lib/hub-telegram/rules";
+import { requestReference } from "@/lib/hub-conversations/rules";
 import {
   CURSOR, INBOX_LATEST, INBOX_UNREAD, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, fileNotice, fileNoticeLine, hasTaskChange, mailsWanted, mergeFileNotice,
-  mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor,
+  mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice,
   noticeAppointment, projectHref, readFrom, shareNotice, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
@@ -332,6 +333,145 @@ export async function notifyChat(input: { side: "customer" | "oalab"; customerId
   }
 }
 
+/** Edits from outside the team reach the bell once per page and writer in this long, not with every autosave. */
+const EDIT_NOTICE_PAUSE_MS = 2 * 60_000;
+const lastEditNotice = new Map<string, number>();
+
+/**
+ * A customer or a freelancer wrote on a note page (23.11.2026): every admin gets „Notiz bearbeitet: …“ in the bell, one
+ * line per page that moves up with the next edit while nobody of the team has opened the page; the bundled mail
+ * follows a quarter of an hour later unless the line was read in the hub.
+ */
+export async function notifyNoteEdit(input: { pageId: string; customerId: string; title: string; authorId: string; side: "customer" | "freelancer" }) {
+  const key = `${input.pageId}:${input.authorId}`;
+  const now = Date.now();
+  if ((lastEditNotice.get(key) ?? 0) + EDIT_NOTICE_PAUSE_MS > now) return;
+  lastEditNotice.set(key, now);
+  if (lastEditNotice.size > 1000) for (const [entry, at] of lastEditNotice) if (at + EDIT_NOTICE_PAUSE_MS <= now) lastEditNotice.delete(entry);
+  const db = createAdminClient();
+  if (!db) return;
+  try {
+    const [author, customer, recipients] = await Promise.all([
+      db.from("hub_profiles").select("first_name, last_name").eq("user_id", input.authorId).maybeSingle<{ first_name: string | null; last_name: string | null }>(),
+      db.from("hub_customers").select("company").eq("id", input.customerId).maybeSingle<{ company: string }>(),
+      activeAdminLogins(db),
+    ]);
+    const to = recipients.filter((id) => id !== input.authorId);
+    if (!to.length) return;
+    const name = author.data ? `${author.data.first_name ?? ""} ${author.data.last_name ?? ""}`.trim() : "";
+    const notice = noteEditNotice({ title: input.title, customerId: input.customerId, pageId: input.pageId, company: customer.data?.company ?? "", author: name, side: input.side });
+    const open = await db.from("hub_inbox").select("id, user_id").eq("kind", "note.edited").eq("href", notice.href)
+      .in("user_id", to).is("read_at", null).eq("mail_state", "pending").returns<{ id: number; user_id: string }[]>();
+    const waiting = new Map((open.data ?? []).map((row) => [row.user_id, row.id]));
+    if (waiting.size) await db.from("hub_inbox").update({ title: notice.title, body: notice.body, created_at: new Date(now).toISOString() }).in("id", [...waiting.values()]);
+    await insertNotices(db, to.filter((id) => !waiting.has(id)), notice);
+  } catch (error) {
+    // The page is saved; only its notice is lost.
+    logFailure("notice note.edited", error);
+  }
+}
+
+/**
+ * An admin opened a request in Nachrichten › Service: it counts as seen by the team, so every admin's line about it
+ * leaves the bell (and the mail that would still come), as with the private chat. True when something was unread.
+ */
+export async function markServiceRead(requestId: string): Promise<boolean> {
+  const db = createAdminClient();
+  if (!db) return false;
+  const { data, error } = await db.from("hub_inbox").update({ read_at: new Date().toISOString() }).eq("kind", "service.message").eq("href", serviceHref(requestId)).is("read_at", null).select("id").returns<{ id: number }[]>();
+  return !error && Boolean(data?.length);
+}
+
+type ServiceMessageRow = { id: string; request_id: string; sender_user_id: string | null; body: string; created_at: string };
+type ServiceRequestRow = { id: string; request_number: number; title: string; organization_id: string; created_at: string };
+
+/**
+ * Customers' messages on the service platform (23.11.2026): new requests and new messages in requests reach every
+ * admin in the bell („Neue Anfrage von …“, one line per request while unread), by mail a few minutes later unless read
+ * in the hub, and in the admins' Telegram group. Messages of the team (also entered for a customer) and archived
+ * customers stay out. Read from a cursor with marks, like Studio's activity, so a run never reports twice.
+ */
+async function collectServiceNotices(db: SupabaseClient, origin: string) {
+  const cursorRow = await db.from("hub_notice_marks").select("state").eq("subject", SERVICE_CURSOR).maybeSingle<{ state: string }>();
+  if (cursorRow.error) return { error: "marks" };
+  if (!cursorRow.data) {
+    // The first run starts now: earlier messages were read on the service platform already.
+    await db.from("hub_notice_marks").upsert({ subject: SERVICE_CURSOR, state: new Date().toISOString(), updated_at: new Date().toISOString() });
+    return { created: 0 };
+  }
+  const cursor = Date.parse(cursorRow.data.state);
+  if (Number.isNaN(cursor)) return { error: "cursor" };
+  const from = new Date(cursor - SERVICE_OVERLAP_MINUTES * 60_000).toISOString();
+  const read = await db.from("request_messages").select("id, request_id, sender_user_id, body, created_at")
+    .eq("sender_type", "client").eq("visibility", "client").gte("created_at", from).order("created_at").limit(200).returns<ServiceMessageRow[]>();
+  if (read.error) return { error: "messages" };
+  const rows = read.data ?? [];
+  if (!rows.length) return { created: 0 };
+  const marks = await db.from("hub_notice_marks").select("subject").in("subject", rows.map((row) => serviceMark(row.id))).returns<{ subject: string }[]>();
+  if (marks.error) return { error: "marks" };
+  const done = new Set((marks.data ?? []).map((row) => row.subject));
+  const fresh = rows.filter((row) => !done.has(serviceMark(row.id)));
+  const newest = new Date(rows.reduce((latest, row) => Math.max(latest, Date.parse(row.created_at) || 0), cursor)).toISOString();
+  const at = new Date().toISOString();
+  if (!fresh.length) {
+    await db.from("hub_notice_marks").upsert({ subject: SERVICE_CURSOR, state: newest, updated_at: at });
+    return { created: 0 };
+  }
+
+  const requestIds = [...new Set(fresh.map((row) => row.request_id))];
+  const [requests, admins] = await Promise.all([
+    db.from("service_requests").select("id, request_number, title, organization_id, created_at").in("id", requestIds).is("trashed_at", null).returns<ServiceRequestRow[]>(),
+    activeAdminLogins(db),
+  ]);
+  if (requests.error) return { error: "requests" };
+  const byId = new Map((requests.data ?? []).map((row) => [row.id, row]));
+  const organizationIds = [...new Set((requests.data ?? []).map((row) => row.organization_id))];
+  const [customers, earlier, people] = await Promise.all([
+    organizationIds.length ? db.from("hub_customers").select("id, company, organization_id, archived_at").in("organization_id", organizationIds).returns<{ id: string; company: string; organization_id: string; archived_at: string | null }[]>() : null,
+    // A request's first message from the customer makes it a new request.
+    db.from("request_messages").select("id, request_id, created_at").in("request_id", requestIds).eq("sender_type", "client").eq("visibility", "client").order("created_at").limit(1000).returns<{ id: string; request_id: string; created_at: string }[]>(),
+    db.from("hub_profiles").select("user_id, first_name, last_name").in("user_id", [...new Set(fresh.flatMap((row) => row.sender_user_id ? [row.sender_user_id] : []))]).returns<{ user_id: string; first_name: string | null; last_name: string | null }[]>(),
+  ]);
+  const company = new Map((customers?.data ?? []).map((row) => [row.organization_id, row]));
+  const firstOf = new Map<string, string>();
+  for (const row of earlier.data ?? []) if (!firstOf.has(row.request_id)) firstOf.set(row.request_id, row.id);
+  const names = new Map((people.data ?? []).map((row) => [row.user_id, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim()]));
+  const team = new Set(admins);
+
+  let created = 0;
+  for (const message of fresh) {
+    const request = byId.get(message.request_id);
+    const customer = request ? company.get(request.organization_id) : undefined;
+    // The team's own entries for a customer, trashed requests and archived customers stay quiet.
+    if (!request || (message.sender_user_id && team.has(message.sender_user_id)) || customer?.archived_at) continue;
+    const input = {
+      requestId: request.id, reference: requestReference(request.request_number), title: request.title, company: customer?.company ?? "",
+      author: message.sender_user_id ? names.get(message.sender_user_id) ?? "" : "", body: message.body, first: firstOf.get(request.id) === message.id,
+    };
+    await sendTelegram(telegramServiceMessage({ ...input, url: `${origin}${serviceHref(request.id)}` }));
+    if (!admins.length) continue;
+    const open = await db.from("hub_inbox").select("id, user_id").eq("kind", "service.message").eq("href", serviceHref(request.id))
+      .in("user_id", admins).is("read_at", null).eq("mail_state", "pending").returns<{ id: number; user_id: string }[]>();
+    const waiting = new Map((open.data ?? []).map((row) => [row.user_id, row.id]));
+    if (waiting.size) {
+      const more = serviceNotice({ ...input, more: true });
+      await db.from("hub_inbox").update({ title: more.title, body: more.body }).in("id", [...waiting.values()]);
+    }
+    const written = await insertNotices(db, admins.filter((id) => !waiting.has(id)), serviceNotice(input));
+    if (written < 0) return { error: "inbox" };
+    created += written;
+  }
+  // Marks and cursor only after the notices are in: a failed run is simply repeated next time. Marks older than a day
+  // are no longer needed (the overlap is ten minutes).
+  const saved = await db.from("hub_notice_marks").upsert([
+    ...fresh.map((row) => ({ subject: serviceMark(row.id), state: "notified", updated_at: at })),
+    { subject: SERVICE_CURSOR, state: newest, updated_at: at },
+  ]);
+  if (saved.error) return { error: "marks" };
+  await db.from("hub_notice_marks").delete().like("subject", "service-message:%").lt("updated_at", new Date(Date.now() - 86_400_000).toISOString()).then(() => undefined, () => undefined);
+  return { created };
+}
+
 async function customersOfOrganizations(db: SupabaseClient, organizationIds: string[]) {
   if (!organizationIds.length) return new Map<string, string[]>();
   const { data } = await db.from("hub_customers").select("id, organization_id").in("organization_id", organizationIds).returns<{ id: string; organization_id: string }[]>();
@@ -467,8 +607,10 @@ export async function runNotificationSweep(origin: string, now = new Date()) {
   const db = createAdminClient();
   if (!db) return { ok: false as const, error: "Server-Schlüssel fehlt." };
   const studio = await collectStudioNotices(db);
+  // A failed read of the service platform never stops the rest of the run.
+  const service = await collectServiceNotices(db, origin).catch(() => ({ error: "service" }));
   const mails = await sendDueMails(db, origin, now);
-  return { ok: true as const, studio, mails };
+  return { ok: true as const, studio, service, mails };
 }
 
 type InboxRow = { id: number; kind: string; title: string; body: string; href: string; created_at: string; read_at: string | null };

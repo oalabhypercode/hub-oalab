@@ -151,13 +151,15 @@ const tools: NotesTool[] = [
   {
     name: "set_note_visibility",
     title: "„Sichtbar für“ ändern",
-    description: "„Sichtbar für“ einer Notizseite wie im Zahnrad der Seite: team = Nur Team, both = Kunde und Freelancer, customer = Nur Kunde (ohne Freelancer beim Kunden einfach „Kunde“), freelancer = Nur Freelancer. Eine Unterseite ist höchstens so sichtbar wie die Seite darüber; eine engere Stufe nimmt die Unterseiten mit. Wer die Seite neu sieht, bekommt eine Meldung (Glocke und Mail), außer notify ist false.",
+    description: "Zugriff auf eine Notizseite wie im Zahnrad der Seite: wer sie sieht (audience: team = Nur Team, both = Kunde und Freelancer, customer = Nur Kunde, ohne Freelancer beim Kunden einfach „Kunde“, freelancer = Nur Freelancer) und wer sie bearbeiten darf (customer_can_edit, freelancer_can_edit; „Lesen“ oder „Bearbeiten“). Ohne Angabe behält eine Seite die Rechte, die sie hat; sieht der Kunde sie neu, gilt der Standard der Notizen (meist „Bearbeiten“). Bearbeiten kann nur, wer die Seite sieht. Eine Unterseite ist höchstens so sichtbar wie die Seite darüber; eine engere Stufe nimmt die Unterseiten mit. Wer die Seite neu sieht oder neu bearbeiten darf, bekommt eine Meldung (Glocke und Mail), außer notify ist false.",
     inputSchema: {
       type: "object",
       properties: {
         page_id: id("Die Seite (ID aus list_notes)."),
-        audience: { type: "string", enum: ["team", "both", "customer", "freelancer"], description: "Die neue Stufe." },
-        notify: { type: "boolean", default: true, description: "false: ohne Meldung an die, die die Seite neu sehen." },
+        audience: { type: "string", enum: ["team", "both", "customer", "freelancer"], description: "Wer die Seite sieht." },
+        customer_can_edit: { type: "boolean", description: "true: der Kunde schreibt mit („Bearbeiten“), false: er liest nur." },
+        freelancer_can_edit: { type: "boolean", description: "true: die Freelancer des Kunden schreiben mit, false: sie lesen nur." },
+        notify: { type: "boolean", default: true, description: "false: ohne Meldung an die, die die Seite neu sehen oder neu bearbeiten dürfen." },
       },
       required: ["page_id", "audience"],
       additionalProperties: false,

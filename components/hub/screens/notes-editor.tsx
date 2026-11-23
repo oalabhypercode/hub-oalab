@@ -252,8 +252,10 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
         },
       },
     ];
+    // Customers who write along use the basic blocks; tasks, link cards, appointments and subpages are the team's.
+    const offered = viewer === "customer" ? all.filter((item) => item.group !== hub) : all;
     const term = query.trim().toLowerCase();
-    return term ? all.filter((item) => `${item.label} ${item.keywords ?? ""}`.toLowerCase().includes(term)) : all;
+    return term ? offered.filter((item) => `${item.label} ${item.keywords ?? ""}`.toLowerCase().includes(term)) : offered;
   }, [pickEmoji, viewer]);
   useEffect(() => { openLinkRef.current = openLink; });
 
@@ -300,10 +302,11 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
     NoteProjectNode,
     NoteLinkCard,
     NoteAppointment,
-    createHashExtension(),
+    // „#“ looks up tasks, which customers cannot do.
+    ...(viewer === "customer" ? [] : [createHashExtension()]),
     createSlashExtension(SlashMenu),
     createColonExtension(ColonMenu),
-  ], []);
+  ], [viewer]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -335,7 +338,8 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
           const at = view.coordsAtPos(from);
           return new DOMRect(at.left, at.top, 1, at.bottom - at.top);
         };
-        setPasted({ url: text, from, to: from + text.length, locate });
+        // Customers keep the plain link; a card is made by the team's server.
+        if (viewer !== "customer") setPasted({ url: text, from, to: from + text.length, locate });
         return true;
       },
       handleClick: (view, _pos, event) => {

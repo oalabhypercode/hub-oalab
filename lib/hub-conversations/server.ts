@@ -8,6 +8,7 @@ import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
 import { conversationState, isSender, requestReference, type ConversationSender } from "./rules";
+import { noticeRequest } from "@/lib/hub-notify/rules";
 import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread } from "./types";
 
 // Service conversations are the service platform's requests (service_requests) with their client-visible messages
@@ -107,6 +108,19 @@ export const loadConversations = cache(async (): Promise<ConversationsState> => 
 });
 
 /**
+ * The requests with a customer's message the signed-in admin has not seen yet: their unread lines in the bell
+ * (service.message, 23.11.2026), read with the admin's own session. Empty for everybody else.
+ */
+export const unreadServiceRequests = cache(async (): Promise<string[]> => {
+  if (!(await conversationReader())) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("hub_inbox").select("href").eq("kind", "service.message").is("read_at", null).limit(200).returns<{ href: string }[]>();
+  if (error) return [];
+  return [...new Set((data ?? []).map((row) => noticeRequest(row.href)).filter((id): id is string => Boolean(id)))];
+});
+
+
+/**
  * The list for a caller already checked as an admin: the page above, or the Claude connector after its key check
  * (lib/hub-mcp/areas.ts). Read with the server key; archived customers stay out.
  */
@@ -139,10 +153,15 @@ export async function readConversations(db: SupabaseClient): Promise<Conversatio
   return { source: "service", conversations, error: null };
 }
 
-/** Real conversations for an admin login; customers get none. */
+/** Real conversations for an admin login, with the requests they have not seen yet; customers get none. */
 export async function loadConversationsForIdentity(identity: { account?: { role: string | null } | null }) {
   if (identity.account?.role !== "oalab_admin") return undefined;
-  return loadConversations();
+  return withUnread(await loadConversations());
+}
+
+/** The list with the requests the signed-in admin has not seen yet (the tab „Service“, 23.11.2026). */
+export async function withUnread(state: ConversationsState): Promise<ConversationsState> {
+  return state.error ? state : { ...state, unread: await unreadServiceRequests() };
 }
 
 /** One conversation with its messages, for an admin. */

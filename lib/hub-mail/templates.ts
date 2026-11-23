@@ -912,6 +912,9 @@ const NOTICE_VIEWS: Record<string, NoticeView> = {
   // The private chat (4.11.2026): to the admins when a customer writes, to the customer when oalab answers.
   "chat.message": { area: "messages", label: "Privater Chat", prefix: "", heading: "Ein Kunde hat geschrieben", lead: "Im privaten Chat des Client Hub wartet eine Nachricht auf euch.", cta: "Chat öffnen", link: "Chat öffnen", chip: ["Wartet auf Antwort", "todo"], note: { tone: "team", text: "Antworte direkt im Client Hub unter Nachrichten. Diese E-Mail kommt nur, solange niemand aus dem Team den Chat gelesen hat." } },
   "chat.reply": { area: "messages", label: "Nachricht", prefix: "", heading: "Neue Nachricht von oalab", lead: "Dein oalab-Team hat dir im Client Hub geschrieben.", cta: "Nachricht lesen", link: "Nachricht lesen", note: { tone: "info", text: "Antworte einfach im Client Hub unter Nachrichten." } },
+  // To the admins (23.11.2026): a customer's request or message on the service platform, and a customer writing in a note.
+  "service.message": { area: "messages", label: "Serviceplattform", prefix: "", heading: "Ein Kunde hat auf der Serviceplattform geschrieben", lead: "Auf der Serviceplattform wartet eine Anfrage auf euch.", cta: "Anfrage im Hub öffnen", link: "Anfrage öffnen", chip: ["Wartet auf Antwort", "todo"], note: { tone: "team", text: "Antworten geht in NoteTree Business. Diese E-Mail kommt nur, solange niemand aus dem Team die Anfrage im Hub geöffnet hat." } },
+  "note.edited": { area: "projects", label: "Notiz", prefix: "Notiz bearbeitet: ", heading: "Neues in einer geteilten Notiz", lead: "Auf einer Notizseite hat jemand außerhalb des Teams geschrieben.", cta: "Notiz öffnen", link: "Notiz öffnen", chip: ["Neu", "info"], note: { tone: "team", text: "Diese E-Mail kommt nur, solange niemand aus dem Team die Seite geöffnet hat." } },
   // The task board (17.11.2026): to the project's freelancers and, for released tasks, to the customer.
   "task.created": { area: "projects", label: "Aufgabe", prefix: "Neue Aufgabe: ", heading: "Eine neue Aufgabe", lead: "In einem deiner Projekte ist eine Aufgabe dazugekommen.", cta: "Aufgabe öffnen", link: "Aufgabe öffnen", chip: ["Neu", "info"], note: { tone: "info", text: "Die Einzelheiten findest du im Client Hub. Fragen dazu? Antworte einfach auf diese E-Mail." } },
   "task.changed": { area: "projects", label: "Aufgabe", prefix: "Aufgabe geändert: ", heading: "Eine Aufgabe wurde geändert", lead: "An einer Aufgabe in deinen Projekten hat sich etwas getan.", cta: "Aufgabe öffnen", link: "Aufgabe öffnen", note: { tone: "info", text: "Was sich geändert hat, steht oben. Die Einzelheiten findest du im Client Hub." } },
@@ -951,15 +954,20 @@ export function noticeDigestMail(input: { firstName?: string; items: MailNotice[
 
   const tasks = input.items.filter((item) => item.kind === "task.customer").length;
   const waiting = tasks === 1 ? "Eine Aufgabe wartet auf dich" : `${tasks} Aufgaben warten auf dich`;
-  // Admins get only chat messages: several customers who wait for an answer.
+  // Admins get chat messages and, since 23.11.2026, messages on the service platform: customers who wait for an answer.
   const chats = input.items.filter((item) => item.kind === "chat.message").length;
+  const service = input.items.filter((item) => item.kind === "service.message").length;
   const first = input.items[0]?.title ?? "";
   return render({
     subject: `Neu im Client Hub: ${count} Neuigkeiten`,
     preheader: `${first} – und ${count - 1} weitere`,
     area: "news",
     heading: `${count} Neuigkeiten für dich`,
-    lead: chats
+    lead: service && chats
+      ? `Im Chat und auf der Serviceplattform warten ${chats + service} Nachrichten von Kunden auf eine Antwort.`
+      : service
+      ? `Auf der Serviceplattform ${service === 1 ? "wartet ein Kunde" : `warten ${service} Nachrichten von Kunden`} auf eine Antwort.`
+      : chats
       ? `Im privaten Chat des Client Hub ${chats === 1 ? "wartet ein Kunde" : `warten ${chats} Kunden`} auf eine Antwort.`
       : `Im Client Hub hat sich einiges getan.${tasks ? ` ${waiting}${tasks < count ? ", der Rest ist zur Info." : "."}` : " Alles hier ist zur Info."}`,
     list: input.items.map((item) => {
