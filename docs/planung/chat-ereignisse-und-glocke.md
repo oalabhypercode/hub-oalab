@@ -1,6 +1,6 @@
 # Planung: Änderungen im Chat mitteilen und eine aufgeräumte Glocke
 
-Stand 23. November 2026 · Etappe 1 (Glocke) gebaut auf dem Branch `feat/glocke-nur-ungelesen`, noch nicht live (Abschnitt 9) · Entscheidungen 1 bis 6 und 15 getroffen, 7 bis 14 offen (Abschnitt 7)
+Stand 23. November 2026 · Etappe 1 (Glocke) live seit 23.11.2026, 16:04 Uhr (#160, Abschnitt 9) · alle Entscheidungen getroffen (Abschnitt 7) · als Nächstes die Vorschau für Etappe 2 (Abschnitt 5)
 
 Dieser Plan beschreibt vier Wünsche vom 23. November 2026:
 
@@ -27,10 +27,10 @@ Grundlage ist der Code auf `main` vom 23. November 2026 (nach #157) und die Tabe
 | Glocke | nur ungelesene Meldungen; Anklicken, ein Haken am Ende der Zeile und „Alle als gelesen markieren“ lassen sie verschwinden, „Rückgängig“ holt sie zurück; Gelesenes steht weiter in der Übersicht unter „Früher“ |
 | Zeit | eigene Spalte ganz links vor dem Symbol: oben der Tag („Heute“, „Gestern“, „Mo.“, „22. Nov.“), darunter die Uhrzeit |
 | Fenster | wächst mit: etwa 62 % der Fensterbreite, 760 bis 1280 px breit, und so hoch, wie der Bildschirm Platz hat; nur die Liste scrollt |
-| Chat | jede Änderung, die der Kunde heute in der Glocke erfährt, kann zusätzlich als Karte im Chat stehen: Termine, Dateien, Notizen, Aufgaben, Projekte, neu auch Vertrag & Domain |
-| Abonnieren | je Chat ein Knopf „Abos“ mit einem Schalter je Bereich; gilt für alle in diesem Chat |
+| Chat | jede Änderung, die der Kunde heute in der Glocke erfährt, kann zusätzlich als Karte im Chat stehen: Termine, Dateien, Notizen, Aufgaben, Projekte, neu auch Vertrag & Domain; die Meldung in der Glocke bleibt davon unberührt |
+| Abonnieren | je Chat ein Knopf „Abos“ mit einem Schalter je Bereich; gilt für alle in diesem Chat; vorab an ist alles außer Aufgaben |
 | Terminanfragen | stehen als Karte im Chat; Admins bestätigen dort direkt und hören in Glocke und Telegram davon |
-| Terminvorschlag | Etappe 3: oalab schlägt bis zu drei Zeiten vor, der Kunde nimmt eine im Chat an |
+| Terminvorschlag | Etappe 3: oalab schlägt bis zu drei Zeiten vor, der Kunde nimmt eine im Chat an; für andere bleiben die Zeiten frei |
 | Service | bleibt strikt getrennt: Nichts aus diesem Plan schreibt in die Serviceplattform oder zählt auf ihr Kontingent |
 | Umfang | Etappe 1 klein (ein PR, keine Datenbank); Etappe 2 mittel bis groß (Migration in `service-oalab` und ein PR); Etappe 3 mittel (Migration und ein PR) |
 
@@ -182,14 +182,14 @@ Freelancer-Chats (Entscheidung 11) bekommen dieselben Karten für das, was ein F
 
 - Im Kopf jedes Chats, links neben „Privat“, steht ein runder Glasknopf „Abos“ (Glocke mit Plus). Er öffnet ein kleines Glasfenster „Im Chat mitteilen“ mit je einem Schalter: Termine, Dateien, Notizen, Aufgaben, Projekte, Vertrag & Domain. Darunter: „Gilt für alle in diesem Chat. Die Glocke meldet weiterhin alles.“
 - Ein Abo gilt für den ganzen Chat, weil alle denselben Verlauf sehen. Admins stellen es je Kunde ein, Kunden für ihren Chat (Entscheidung 6). Jede Änderung steht als graue Zeile im Chat („Jana Sommer hat Aufgaben abonniert“), damit beide Seiten wissen, warum Karten kommen oder ausbleiben. Diese Zeilen zählen nicht als neue Nachricht.
-- Voreinstellung für alle Chats, bestehende wie neue (Entscheidung 7): Termine, Dateien, Notizen, Projekte und Vertrag & Domain an, Aufgaben aus, weil sich Aufgaben oft ändern.
+- Voreinstellung für alle Chats, bestehende wie neue (Entscheidung 7, entschieden am 23.11.2026): Termine, Dateien, Notizen, Projekte und Vertrag & Domain an, Aufgaben aus, weil sich Aufgaben oft ändern.
 - Ein Abo gilt ab dem Einschalten; frühere Änderungen erscheinen nicht nachträglich.
 - Später möglich, nicht Teil dieses Plans: einzelne Dinge abonnieren, etwa „Diesem Projekt folgen“. Die Tabelle der Abos ist dafür vorbereitet (Abschnitt 3.7).
 
 ### 3.6 Zusammenspiel mit Glocke, Mail, Telegram und Kalender-Abo
 
 - **Glocke:** Eine Karte erzeugt keine zusätzliche Meldung „Neue Nachricht von oalab“. Der Kunde bekommt für eine Änderung eine Meldung, nicht zwei.
-- **Gesehen ist gelesen** (Entscheidung 8): Öffnet jemand den Chat, gelten die Meldungen zu den Karten darin als gelesen und verschwinden aus seiner Glocke.
+- **Glocke und Chat bleiben unabhängig** (Entscheidung 8): Das Öffnen des Chats markiert die Meldungen zu den Karten nicht als gelesen. Sie bleiben in der Glocke, bis man sie dort öffnet, abhakt oder „Alle als gelesen markieren“ nutzt. Meldungen zu Nachrichten („Neue Nachricht von …“) verschwinden wie heute, sobald man den Chat liest.
 - **Nachrichten-Zahl:** Eine neue Karte von oalab macht den Chat für den Kunden ungelesen, wie eine Antwort. Die Zahl an „Nachrichten“ in Sidebar und Tab-Leiste zeigt das; so sieht der Kunde die Änderung direkt.
 - **Mail:** unverändert. Die gebündelte Mail bleibt die Aufzeichnung jeder Änderung (Entscheidung vom 30. Oktober 2026), mit den Kalender-Knöpfen.
 - **Telegram:** meldet wie bisher jede Nachricht eines Kunden, neu auch Terminanfragen (Entscheidung 9). Der Hinweis im Chat und die Datenschutzerklärung (Abschnitt Nachrichten) nennen das.
@@ -212,7 +212,7 @@ Hub:
 - Angeschlossen in `lib/hub-notify/server.ts`, dort, wo schon entschieden ist, dass der Kunde die Meldung bekommt: `notifyCustomers` (Termine, mit der Person, die geändert hat), `notifyFileShared` und `notifyFilesShared` (nur Dateien, die der Kunde sieht), `notifyNote` (nur bei Freigabe für den Kunden), `notifyTaskChange` (nur der Teil für Kunden) und `collectStudioNotices` („Du bist am Zug“, Projektstatus). So kommt alles, was die Glocke des Kunden erreicht, auch in den Chat, und nichts, was nur das Team sieht.
 - `lib/hub-calendar/write.ts`: `requestAppointmentAs` und `withdrawRequestAs` schreiben die Karte auf der Seite des Kunden, die Meldung an die Admins und die Zeile für Telegram. „Bestätigen“ in der Karte bestätigt die Anfrage so, wie sie gestellt ist (neue Aktion auf Basis von `writeAppointment`); für eine andere Zeit oder eine Absage führt „Im Kalender beantworten“ in den Kalender.
 - `lib/hub-contracts/write.ts` und `lib/hub-domains/write.ts`: Meldung und Karte für Einträge, die der Kunde sieht.
-- Lesen: `lib/hub-private-chat/server.ts` liest `event` mit, `PrivateChatMessage` bekommt das Feld `event`. Für die Schilder an Terminkarten liest der Hub den aktuellen Stand der Termine dieses Chats in einer Abfrage nach. `markPrivateRead` markiert zusätzlich die Meldungen des Lesers, deren Link zu einer Karte im Chat gehört (Entscheidung 8). Die Regel für „ungelesen“ (`chatUnread`) überspringt die grauen Abo-Zeilen.
+- Lesen: `lib/hub-private-chat/server.ts` liest `event` mit, `PrivateChatMessage` bekommt das Feld `event`. Für die Schilder an Terminkarten liest der Hub den aktuellen Stand der Termine dieses Chats in einer Abfrage nach. `markPrivateRead` bleibt, wie es ist: Es markiert nur die Meldungen zu Nachrichten, nicht die zu Karten (Entscheidung 8). Die Regel für „ungelesen“ (`chatUnread`) überspringt die grauen Abo-Zeilen.
 - Oberfläche: `components/hub/screens/private-chat.tsx` mit der Karte, dem Knopf „Abos“ und seinem Fenster; Stile bei den Chat-Stilen in `app/glass.css`.
 - Claude-Verbindung (`lib/hub-mcp/areas.ts`): Karten erscheinen in `read_conversation` als Zeile mit „[Hub]“ davor.
 - Designvorschau: Beispielkarten in `lib/hub-private-chat/fixtures.ts`.
@@ -229,13 +229,13 @@ Einen echten Terminvorschlag gibt es noch nicht. Legt ein Admin einen Termin mit
 
 - Im Fenster „Neuer Termin“ steht neben „Speichern“ ein zweiter Knopf „Vorschlagen“, sobald ein Kunde gewählt ist. oalab trägt bis zu drei Zeiten ein (Entscheidung 13).
 - Der Vorschlag kommt immer als Karte „Terminvorschlag“ in den Chat, auch ohne Abo „Termine“, weil er eine Antwort braucht, und in die Glocke. Der Kunde tippt die passende Zeit an („Annehmen“). „Keine passt“ öffnet das bekannte Fenster „Termin anfragen“.
-- Danach zeigt die Karte „Angenommen: Di., 24. Nov., 10:00 · Jana Sommer“. Der Termin ist bestätigt, die anderen Zeiten sind wieder frei. Der Kunde bekommt wie heute die Bestätigung mit den Kalender-Knöpfen, das Team eine Meldung in der Glocke („Terminvorschlag angenommen“) und die Karte im Chat.
-- Vorschläge halten ihre Zeiten für andere Kunden frei, bis der Kunde antwortet, höchstens drei Tage (Entscheidung 14). Danach verfallen sie, und die Karte zeigt „abgelaufen“.
-- Im Kalender stehen Vorschläge gestrichelt als „Vorgeschlagen“, beim Kunden mit denselben Knöpfen wie in der Karte. Ins Kalender-Abo kommen sie erst, wenn sie angenommen sind.
+- Danach zeigt die Karte „Angenommen: Di., 24. Nov., 10:00 · Jana Sommer“. Der Termin ist bestätigt, die anderen Zeiten des Vorschlags fallen weg. Der Kunde bekommt wie heute die Bestätigung mit den Kalender-Knöpfen, das Team eine Meldung in der Glocke („Terminvorschlag angenommen“) und die Karte im Chat.
+- Vorschläge blockieren ihre Zeiten nicht (Entscheidung 14): Andere Kunden können dieselben Zeiten weiter anfragen, und das Team kann sie anders vergeben. Ist eine vorgeschlagene Zeit inzwischen belegt, zeigt die Karte sie als „nicht mehr frei“, und sie lässt sich nicht mehr annehmen. Sind alle Zeiten vorbei oder belegt, zeigt die Karte „abgelaufen“; „Keine passt“ bleibt.
+- Im Kalender stehen Vorschläge gestrichelt als „Vorgeschlagen“, beim Kunden mit denselben Knöpfen wie in der Karte; für andere Kunden gelten diese Zeiten als frei. Ins Kalender-Abo kommen sie erst, wenn sie angenommen sind.
 
 ### 4.3 Technik
 
-- Migration in `service-oalab`: Stand „Vorgeschlagen“ für `hub_appointments`, eine Spalte, die die Zeiten eines Vorschlags verbindet, eine Datenbankfunktion zum Annehmen (prüft Kunde, Stand und Ablauf, bestätigt die gewählte Zeit und gibt die anderen frei), die Belegt-Abfrage `hub_calendar_busy` zählt offene Vorschläge mit, neue Meldungsarten `appointment.proposed` und `appointment.accepted`.
+- Migration in `service-oalab`: Stand „Vorgeschlagen“ für `hub_appointments`, eine Spalte, die die Zeiten eines Vorschlags verbindet, eine Datenbankfunktion zum Annehmen (prüft Kunde, Stand, Ablauf und ob die gewählte Zeit noch frei ist, bestätigt sie und schließt den Vorschlag), die Belegt-Abfrage `hub_calendar_busy` zählt offene Vorschläge nicht mit (Entscheidung 14), neue Meldungsarten `appointment.proposed` und `appointment.accepted`.
 - Hub: Fenster „Neuer Termin“, Kalenderansichten und Stand, Karte mit Auswahl, Ablauf in der regelmäßigen Runde (`runNotificationSweep`), Kalender-Abo (nur angenommene), Claude-Werkzeug `create_appointment` mit Vorschlag, Wissen, Hilfe, Patch Notes.
 
 ## 5. Etappen und Reihenfolge
@@ -263,7 +263,7 @@ Einen echten Terminvorschlag gibt es noch nicht. Legt ein Admin einen Termin mit
 
 ## 7. Entscheidungen
 
-Am 23. November 2026 entschieden: 1 bis 5 mit dem Auftrag „Etappe 1 bauen“, umgesetzt ist jeweils die Empfehlung; 6 und 15 wie in der Tabelle. Offen sind 7 bis 14; sie betreffen Etappe 2 und 3.
+Alle Entscheidungen fielen am 23. November 2026: 1 bis 5 mit dem Auftrag „Etappe 1 bauen“ (umgesetzt ist jeweils die Empfehlung), 6 und 15 einzeln, 7 bis 14 für Etappe 2 und 3 nach dem Livegang von Etappe 1. Bei 8 und 14 gilt nicht die Empfehlung, sondern die Entscheidung in der Tabelle.
 
 | # | Frage | Empfehlung |
 |---|---|---|
@@ -273,14 +273,14 @@ Am 23. November 2026 entschieden: 1 bis 5 mit dem Auftrag „Etappe 1 bauen“, 
 | 4 | Zeit links in zwei Zeilen (Tag, Uhrzeit) oder in einer Zeile wie in der Übersicht („vor 12 Min.“)? | Zwei Zeilen: auf einen Blick klar, immer gleich breit, ändert sich nicht beim Hinsehen |
 | 5 | Fenster: etwa 62 % der Breite, 760 bis 1280 px, Höhe bis 32 px an den Rand? | Ja |
 | 6 | Wer stellt die Abos eines Chats ein: nur Admins oder beide Seiten? | Entschieden am 23.11.2026: beide Seiten, jede Änderung als graue Zeile im Chat |
-| 7 | Welche Schalter unter „Abos“ sind in jedem Chat an, bevor jemand sie anfasst, in bestehenden wie in neuen Chats? | Termine, Dateien, Notizen, Projekte und Vertrag & Domain an; Aufgaben aus, weil sie sich oft ändern |
-| 8 | Markiert das Öffnen des Chats die Meldungen zu den Karten darin als gelesen? | Ja; die Mail bleibt unverändert |
-| 9 | Terminanfragen: Karte im Chat, Meldung in der Glocke der Admins und Telegram? | Ja, alle drei |
-| 10 | Bekommt Vertrag & Domain Meldungen und Karten (Verlauf, Domains, E-Mail-Adressen, Pakete)? | Ja, in Etappe 2 |
-| 11 | Bekommen Freelancer-Chats ebenfalls Karten? | Ja, als kleiner eigener Schritt nach Etappe 2 |
-| 12 | Etappe 3 (echter Terminvorschlag) bauen? | Ja, nach Etappe 2 |
-| 13 | Ein Vorschlag mit einer Zeit oder mit bis zu drei Zeiten zur Wahl? | Bis zu drei |
-| 14 | Halten Vorschläge ihre Zeiten für andere Kunden frei, und wie lange? | Ja, bis zur Antwort, höchstens drei Tage |
+| 7 | Welche Schalter unter „Abos“ sind in jedem Chat an, bevor jemand sie anfasst, in bestehenden wie in neuen Chats? | Entschieden am 23.11.2026 wie empfohlen: Termine, Dateien, Notizen, Projekte und Vertrag & Domain an; Aufgaben aus, weil sie sich oft ändern |
+| 8 | Markiert das Öffnen des Chats die Meldungen zu den Karten darin als gelesen? | Entschieden am 23.11.2026: Nein (empfohlen war Ja). Glocke und Chat bleiben unabhängig; die Meldungen bleiben in der Glocke, bis man sie dort liest. Die Mail bleibt unverändert |
+| 9 | Terminanfragen: Karte im Chat, Meldung in der Glocke der Admins und Telegram? | Entschieden am 23.11.2026 wie empfohlen: alle drei |
+| 10 | Bekommt Vertrag & Domain Meldungen und Karten (Verlauf, Domains, E-Mail-Adressen, Pakete)? | Entschieden am 23.11.2026 wie empfohlen: ja, in Etappe 2 |
+| 11 | Bekommen Freelancer-Chats ebenfalls Karten? | Entschieden am 23.11.2026 wie empfohlen: ja, als kleiner eigener Schritt nach Etappe 2 |
+| 12 | Etappe 3 (echter Terminvorschlag) bauen? | Entschieden am 23.11.2026 wie empfohlen: ja, nach Etappe 2 |
+| 13 | Ein Vorschlag mit einer Zeit oder mit bis zu drei Zeiten zur Wahl? | Entschieden am 23.11.2026 wie empfohlen: bis zu drei |
+| 14 | Halten Vorschläge ihre Zeiten für andere Kunden frei, und wie lange? | Entschieden am 23.11.2026: Nein (empfohlen war bis zur Antwort, höchstens drei Tage). Vorgeschlagene Zeiten bleiben für andere anfragbar; ist eine vergeben, lässt sie sich nicht mehr annehmen |
 | 15 | Reiter „Service“ unter „Nachrichten“ (Admins lesen dort die Anfragen der Serviceplattform mit): bleibt er dort, oder zieht er in einen eigenen Bereich? | Entschieden am 23.11.2026: Er bleibt für Admins unter „Nachrichten“, getrennt vom Chat, ohne Karten und Abos |
 
 ## 8. Abnahme
@@ -308,19 +308,19 @@ Etappe 2:
 - Datei nur für Freelancer, Aufgabe „Nur Team“, nicht freigegebene Notiz: keine Karte.
 - Zehn Dateien auf einmal: eine Karte.
 - Terminanfrage eines Kunden: Karte auf seiner Seite, Meldung in der Glocke der Admins, Zeile in Telegram. „Bestätigen“ in der Karte bestätigt sie; der Kunde bekommt Karte, Meldung und Mail.
-- Öffnet der Kunde den Chat, verschwinden die Meldungen zu den Karten aus seiner Glocke.
+- Öffnet der Kunde den Chat, bleiben die Meldungen zu den Karten in seiner Glocke; Meldungen zu Nachrichten verschwinden wie heute.
 - Läuft die regelmäßige Runde zweimal über dieselbe Änderung, gibt es keine doppelte Karte.
 - Die Liste der Chats und Claude (`read_conversation`) zeigen Karten als Textzeile.
 
 Etappe 3:
 
-- Vorschlag mit drei Zeiten: Die Karte zeigt drei Zeiten; „Annehmen“ bestätigt eine, die anderen sind wieder frei; das Team bekommt Meldung und Karte.
-- Ein anderer Kunde kann eine vorgeschlagene Zeit nicht anfragen, solange der Vorschlag offen ist.
-- Nach drei Tagen ohne Antwort zeigt die Karte „abgelaufen“, und die Zeiten sind frei.
+- Vorschlag mit drei Zeiten: Die Karte zeigt drei Zeiten; „Annehmen“ bestätigt eine, die anderen fallen weg; das Team bekommt Meldung und Karte.
+- Ein anderer Kunde kann eine vorgeschlagene Zeit weiter anfragen. Wird sie vergeben, zeigt die Karte sie als „nicht mehr frei“, und annehmen lässt sie sich nicht mehr, auch nicht gleichzeitig aus zwei Fenstern.
+- Sind alle Zeiten vorbei oder vergeben, zeigt die Karte „abgelaufen“.
 
 ## 9. Umsetzung Etappe 1 (23. November 2026)
 
-Gebaut auf dem Branch `feat/glocke-nur-ungelesen` mit den Empfehlungen 1 bis 5, ohne Datenbank und ohne `service-oalab`:
+Gebaut auf dem Branch `feat/glocke-nur-ungelesen` mit den Empfehlungen 1 bis 5, ohne Datenbank und ohne `service-oalab`; live seit 23.11.2026, 16:04 Uhr (#160). Vor dem Merge kam `main` mit #158 und #159 dazu; dabei bekam die Glocke für die neuen Meldungen der Admins zu Service-Anfragen und zu Notizen, in denen Kunden oder Freelancer mitschreiben, das Symbol der Übersicht statt des Kalenders.
 
 - `loadInbox()` lädt alle ungelesenen Meldungen (bis 100) zusätzlich zu den 30 neuesten (`mergeInboxRows`, `INBOX_UNREAD`, `INBOX_LATEST` in `lib/hub-notify/rules.ts`); die Live-Prüfung bleibt unverändert.
 - `components/hub/notifications-panel.tsx`: nur ungelesene Zeilen, Zeitspalte links (`bellTime` in `lib/hub-notify/columns.ts`), runder Haken je Zeile, Ausgleiten, „Rückgängig“ sechs Sekunden lang (`markNoticesUnread` in `lib/hub-notify/actions.ts`), „und N weitere ungelesene“, im leeren Zustand der Link „Frühere Benachrichtigungen in der Übersicht“.
