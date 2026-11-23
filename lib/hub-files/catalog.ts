@@ -75,6 +75,25 @@ export function fileFormat(fileName: string) {
   return fileExtension(fileName).toUpperCase() || "Datei";
 }
 
+const typesByExtension: Record<string, string> = {
+  svg: "image/svg+xml", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", jfif: "image/jpeg", gif: "image/gif", webp: "image/webp",
+  avif: "image/avif", heic: "image/heic", heif: "image/heif", tif: "image/tiff", tiff: "image/tiff", pdf: "application/pdf",
+  zip: "application/zip", txt: "text/plain", csv: "text/csv", mp4: "video/mp4", mov: "video/quicktime", mp3: "audio/mpeg",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
+
+/**
+ * The type of an upload: the browser's, or the one of the file name where the browser gives none (some systems leave
+ * SVG or WebP empty; before 23.11.2026 such files were stored as "application/octet-stream" and showed no preview).
+ */
+export function uploadType(fileName: string, browserType: string) {
+  const given = browserType.trim().toLowerCase();
+  if (given && given !== "application/octet-stream") return given;
+  return typesByExtension[fileExtension(fileName)] ?? "application/octet-stream";
+}
+
 export type UploadCheck = { ok: true } | { ok: false; error: string };
 
 export function checkUpload(fileName: string, sizeBytes: number): UploadCheck {

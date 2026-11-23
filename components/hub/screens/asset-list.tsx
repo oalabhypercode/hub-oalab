@@ -55,6 +55,8 @@ export function FinderList({ label, groups, files, showCustomer, selected, onSel
   const anchor = useRef<string | null>(null);
   const pending = useRef<string | null>(null);
   const pointer = useRef("mouse");
+  // The line a double click began on: the second click acts on it, even if the lines moved in between.
+  const firstClick = useRef<Line | null>(null);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   // The ring around the current line shows while the keyboard walks the list, not after a click (like the Finder).
   const [keys, setKeys] = useState(false);
@@ -135,6 +137,15 @@ export function FinderList({ label, groups, files, showCustomer, selected, onSel
   }
   function click(event: React.MouseEvent, line: Line) {
     if (interactive(event.target)) return;
+    // A double click opens the file (or folder) its first click hit (user 23.11.2026). Before, the selection bar the first
+    // click showed pushed the list down, and the browser's double click landed on the line above.
+    if (event.detail >= 2 && pointer.current === "mouse") {
+      const first = firstClick.current ?? line;
+      firstClick.current = null;
+      if (event.detail === 2) { if (first.kind === "folder") onToggle(first.group.key); else onOpen(first.file); }
+      return;
+    }
+    firstClick.current = line;
     if (line.kind === "folder") { if (pointer.current !== "mouse") onToggle(line.group.key); return; }
     if (pointer.current !== "mouse") { setActiveKey(line.key); toggle(line.file.id); return; }
     if (pending.current === line.file.id && !event.shiftKey && !event.metaKey && !event.ctrlKey) only(line.file.id);
@@ -175,7 +186,7 @@ export function FinderList({ label, groups, files, showCustomer, selected, onSel
             const newest = group.files.reduce((last, file) => (file.createdAt > last ? file.createdAt : last), "");
             return (
               <div key={line.key} id={lineId(line.key)} role="row" aria-level={1} aria-expanded={open} className={`fl-row is-folder${alt}${current}${isDrop(group.key) ? " is-drop" : ""}`}
-                data-drop-folder={canDropFolders ? group.key : undefined} onPointerDown={(event) => press(event, line)} onClick={(event) => click(event, line)} onDoubleClick={() => onToggle(group.key)}>
+                data-drop-folder={canDropFolders ? group.key : undefined} onPointerDown={(event) => press(event, line)} onClick={(event) => click(event, line)}>
                 <span role="gridcell" className="fl-cell fl-name">
                   <button type="button" className="fl-twist" tabIndex={-1} onClick={() => onToggle(group.key)} aria-label={`${group.label} ${open ? "zuklappen" : "aufklappen"}`}><ChevronRight size={13} aria-hidden="true" /></button>
                   <span className="fl-icon is-folder"><Folder size={16} strokeWidth={1.8} aria-hidden="true" /></span>
@@ -195,7 +206,7 @@ export function FinderList({ label, groups, files, showCustomer, selected, onSel
             <div key={line.key} id={lineId(line.key)} role="row" aria-level={line.parent ? 2 : 1} aria-selected={isSelected}
               className={`fl-row${alt}${current}${isSelected ? " is-selected" : ""}${fresh.includes(file.id) ? " is-fresh" : ""}${dragIds.includes(file.id) ? " is-dragged" : ""}`}
               data-drop-folder={groups && canDropFolders ? line.parent ?? "none" : undefined} {...dragAttrs(file)}
-              onPointerDown={(event) => press(event, line)} onClick={(event) => click(event, line)} onDoubleClick={(event) => { if (!interactive(event.target)) onOpen(file); }}>
+              onPointerDown={(event) => press(event, line)} onClick={(event) => click(event, line)}>
               <span role="gridcell" className={`fl-cell fl-name${line.parent ? " is-inner" : ""}`}>
                 <span className="fl-twist is-none" aria-hidden="true" />
                 <span className={`fl-icon am-cat-${file.category}`}><FileIcon file={file} size={16} color="currentColor" /></span>

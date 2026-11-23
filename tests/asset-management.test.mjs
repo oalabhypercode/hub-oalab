@@ -57,7 +57,11 @@ test("„Liste“ is the third view: a Finder-like tree of folders and files tha
   assert.match(list, /aria-level=\{1\} aria-expanded=\{open\}/);
   assert.match(list, /if \(event\.shiftKey\) \{ event\.preventDefault\(\); range\(id\); \}\n {4}else if \(event\.metaKey \|\| event\.ctrlKey\) toggle\(id\);/);
   assert.match(list, /key\.toLowerCase\(\) === "a" && \(event\.metaKey \|\| event\.ctrlKey\)/);
-  assert.match(list, /onDoubleClick=\{\(event\) => \{ if \(!interactive\(event\.target\)\) onOpen\(file\); \}\}/);
+  // A double click opens the line its first click hit, even if the lines moved in between (23.11.2026: the browser's
+  // own double click landed on the line above after the selection bar had pushed the list down).
+  assert.match(list, /if \(event\.detail >= 2 && pointer\.current === "mouse"\) \{\n {6}const first = firstClick\.current \?\? line;/);
+  assert.match(list, /if \(event\.detail === 2\) \{ if \(first\.kind === "folder"\) onToggle\(first\.group\.key\); else onOpen\(first\.file\); \}/);
+  assert.doesNotMatch(list, /onDoubleClick/);
   assert.match(list, /\{head\("title", "Name", "fl-name"\)\}/);
   assert.match(list, /\{head\("format", "Art", "fl-kind"\)\}/);
   const css = await source("app/glass.css");
@@ -149,8 +153,12 @@ test("the details change folder and customers in place, and an image of the open
   assert.match(details, /await setFileAssignments\(file\.id, selected\);/);
   assert.match(details, /await onMove\(customer\.id, folderId \|\| null\);/);
   assert.match(details, /\/dashboard\/files\?file=\$\{encodeURIComponent\(file\.id\)\}/);
-  // Images preview through the same short-lived links as downloads.
-  assert.match(details, /createDownloadUrls\(\[file\.id\]\)/);
+  // Every image shows itself through a preview the server makes, whatever its size or reported type (23.11.2026); a
+  // see-through image stands on the ground that fits it, an iPhone photo says why it has none.
+  assert.match(details, /const source = kind !== "image" \? null : file\.sampleHref \?\? \(live \? previewUrl\(file, "l"\) : null\);/);
+  assert.match(details, /if \(clear\) detectLogoGround\(src\)\.then/);
+  assert.match(details, /iPhone-Fotos im HEIC-Format kann der Browser nicht zeigen\./);
+  assert.doesNotMatch(details, /PREVIEW_MAX_BYTES|createDownloadUrls/);
   const screen = await source("components/hub/screens/asset-management.tsx");
   assert.match(screen, /onMove=\{\(customerId, folderId\) => store\.move\(\[openFile\.id\], customerId, folderId\)\}/);
 });
@@ -271,4 +279,17 @@ test("files are dragged onto a customer (it asks first) or a folder (it moves at
   const css = await source("app/glass.css");
   assert.match(css, /\.chat-conv\.is-drop-target \{/);
   assert.match(css, /\.am-ghost-count \{/);
+});
+
+test("the selection bar lies over the search line, so the files never move between two clicks (23.11.2026)", async () => {
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  assert.match(screen, /<div className="am-bars">\n {16}<SheetToolbar /);
+  const css = await source("app/glass.css");
+  // One cell for both: it keeps the larger height; the search line hides behind the bar while files are selected.
+  assert.match(css, /\.am-bars \{ display: grid; min-width: 0; \}\n\.am-bars > \* \{ grid-area: 1 \/ 1; min-width: 0; \}/);
+  assert.match(css, /\.am-bars:has\(> \.am-selection\) > \.sheet-toolbar \{ visibility: hidden; \}/);
+  // Phones keep the bar below the search, where it sticks under the title while the list scrolls.
+  assert.match(css, /@media \(max-width: 767px\) \{[\s\S]*?\.am-bars \{ display: contents; \}/);
+  // The count shortens before the actions run into it (at 1440 px „1 Datei ausgewählt“ was cut).
+  assert.match(css, /@container sheet \(max-width: 1179px\) \{\n {2}\.am \.am-sel-long \{ display: none; \}/);
 });
