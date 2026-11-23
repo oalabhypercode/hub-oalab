@@ -13,6 +13,7 @@ import {
 } from "./freelancer-tools";
 import { runFreelancerWrite } from "./freelancer-writes";
 import { runNotesTool } from "./notes";
+import { freelancerTask } from "./board";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -89,6 +90,8 @@ export async function callFreelancerTool(connection: Connection, name: string, a
 
   // Writing: the board's and the request window's own save code, with the same claims (lib/hub-mcp/freelancer-writes.ts).
   if (tool.needs === "write") return runFreelancerWrite(connection, name, args, context, client);
+  // One card of their own projects, read with their claims („Nur Team“ stays out), as the board reads (lib/hub-mcp/board.ts).
+  if (tool.needs === "task") return freelancerTask(connection.userId, client, args, origin);
   if (tool.needs === "calendar") {
     const range = freelancerCalendarRange(name, args, context.today);
     if (!range.ok) return refusal(range.error);

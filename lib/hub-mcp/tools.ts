@@ -36,9 +36,14 @@ export type CalendarAppointment = {
 export type CalendarData = { appointments: CalendarAppointment[]; availability: Availability; availabilityReady: boolean };
 /** Someone who may hold a task of a project (get_project with the right to write): the active team and its freelancers. */
 export type ProjectPerson = { id: string; name: string; kind: "team" | "freelancer" | "other"; company?: string };
-/** What a tool needs from the server: the assistant's data, the calendar, a writing core, or the notes (lib/hub-mcp/notes.ts). */
-export type ToolNeeds = "assistant" | "calendar" | "write" | "notes";
-export type ToolContext = { origin: string; today: string; now: number; assistant?: AssistantData; calendar?: CalendarData; people?: ProjectPerson[] };
+/**
+ * What a tool needs from the server: the assistant's data, the calendar, one card of the board (lib/hub-mcp/board.ts),
+ * a writing core, or the notes (lib/hub-mcp/notes.ts).
+ */
+export type ToolNeeds = "assistant" | "calendar" | "task" | "write" | "notes";
+/** A freelancer who looks after a project's customer (get_project with the right to write), for set_project_freelancer. */
+export type ProjectFreelancer = { id: string; name: string; number: string; onProject: boolean };
+export type ToolContext = { origin: string; today: string; now: number; assistant?: AssistantData; calendar?: CalendarData; people?: ProjectPerson[]; freelancers?: ProjectFreelancer[] };
 
 type HubTool = ToolDefinition & { scope: HubScope; needs: ToolNeeds };
 
@@ -48,6 +53,8 @@ const WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: fals
 const uuidPattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
 const DAY = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 const TIME = { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" };
+/** An end of a span may be midnight at the end of the day. */
+const TIME_END = { type: "string", pattern: "^(([01]\\d|2[0-3]):[0-5]\\d|24:00)$" };
 const id = (description: string) => ({ type: "string", pattern: uuidPattern, description });
 const MINUTES = { type: "integer", enum: [...APPOINTMENT_DURATIONS], default: 60, description: "Dauer in Minuten, wie im Terminfenster des Hubs." };
 const OPTIONAL_DAY = (description: string) => ({ type: ["string", "null"], pattern: DAY.pattern, description });
@@ -76,6 +83,8 @@ export const TASK_STATUS = { type: "string", enum: [...TASK_STATUSES], descripti
 export const MAX_LIST_DAYS = 62;
 export const MAX_FREE_DAYS = 14;
 const MAX_APPOINTMENTS = 200;
+/** get_availability without days: today and the next 27 (four weeks). */
+const AVAILABILITY_SPAN = 27;
 
 const tools: HubTool[] = [
   {
@@ -107,7 +116,7 @@ const tools: HubTool[] = [
   {
     name: "get_project",
     title: "Projekt ansehen",
-    description: "Ein Projekt mit Kunde, Status, Fortschritt, Start, Zieltermin, Beschreibung, Meilensteinen und allen Aufgaben (Nummer, Stand, Fälligkeit, ob oalab oder der Kunde dran ist, ob für den Kunden freigegeben). Mit Schreibrecht steht unter people, wer Aufgaben des Projekts übernehmen kann (IDs für assignee_ids).",
+    description: "Ein Projekt mit Kunde, Status, Fortschritt, Start, Zieltermin, Beschreibung, Meilensteinen und allen Aufgaben (Nummer, Stand, Fälligkeit, ob oalab oder der Kunde dran ist, ob für den Kunden freigegeben). Mit Schreibrecht steht unter people, wer Aufgaben des Projekts übernehmen kann (IDs für assignee_ids), und unter freelancers, welche Freelancer den Kunden betreuen und ob sie auf dem Projekt sind (für set_project_freelancer). Alle Einzelheiten einer Aufgabe liefert get_task.",
     inputSchema: { type: "object", properties: { project_id: id("ID aus search oder get_customer.") }, required: ["project_id"], additionalProperties: false },
     annotations: { title: "Projekt ansehen", ...READ },
     scope: "hub:read",
@@ -182,6 +191,28 @@ const tools: HubTool[] = [
       additionalProperties: false,
     },
     annotations: { title: "Terminzeit prüfen", ...READ },
+    scope: "hub:read",
+    needs: "calendar",
+  },
+  {
+    name: "get_task",
+    title: "Aufgabe ansehen",
+    description: "Eine Aufgabe mit allem, was ihr Fenster im Hub zeigt: Spalte, Priorität, Fälligkeit, Labels, Zuständige, Sichtbarkeit, Beschreibung, Checkliste (mit point_id zum Abhaken über update_checklist), Kommentare, Dateien, wer sie angelegt und zuletzt geändert hat.",
+    inputSchema: { type: "object", properties: { ...TASK_REF }, required: ["project_id", "task_number"], additionalProperties: false },
+    annotations: { title: "Aufgabe ansehen", ...READ },
+    scope: "hub:read",
+    needs: "task",
+  },
+  {
+    name: "get_availability",
+    title: "Verfügbarkeit ansehen",
+    description: "Die Verfügbarkeit des Teams wie unter Kalender › Verfügbarkeit: der Wochenplan (wann Kunden Termine anfragen können), die Regeln (Vorlauf, Puffer, wie weit im Voraus, wählbare Dauern) und die Ausnahmen im Zeitraum (nicht verfügbar oder zusätzliche Zeit, mit Notiz). Zeitraum höchstens 62 Tage; ohne Angabe heute und die nächsten 27 Tage.",
+    inputSchema: {
+      type: "object",
+      properties: { from: { ...DAY, description: "Erster Tag, JJJJ-MM-TT." }, to: { ...DAY, description: "Letzter Tag, JJJJ-MM-TT." } },
+      additionalProperties: false,
+    },
+    annotations: { title: "Verfügbarkeit ansehen", ...READ },
     scope: "hub:read",
     needs: "calendar",
   },
@@ -362,6 +393,113 @@ const tools: HubTool[] = [
     scope: "hub:write",
     needs: "write",
   },
+  {
+    name: "update_project",
+    title: "Projekt ändern",
+    description: "Ändert ein Projekt wie die Projektleiste im Hub: Name, Status, Beschreibung, Start, Zieltermin, Meilensteine (ersetzen die bisherigen), Test- und Live-Domain und ob der Kunde das Projekt sieht; was du weglässt, bleibt. Gespeichert wird im Studio mit Versionsprüfung: Was inzwischen jemand anders geändert hat, bleibt erhalten.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: id("Das Projekt (ID aus search, get_customer oder get_project)."),
+        name: { type: "string", minLength: 1, maxLength: MAX_NAME, description: "Neuer Name." },
+        status: { type: "string", enum: [...studioStatusOrder], description: `Status: ${studioStatusOrder.map((key) => `${key} = ${studioStatuses[key].label}`).join(", ")}.` },
+        description: { type: "string", maxLength: MAX_DESCRIPTION, description: "Neue Beschreibung; leer nimmt sie weg." },
+        start_date: OPTIONAL_DAY("Start, JJJJ-MM-TT; null nimmt ihn weg."),
+        due_date: OPTIONAL_DAY("Zieltermin, JJJJ-MM-TT; nicht vor dem Start; null nimmt ihn weg."),
+        milestones: {
+          type: "array",
+          maxItems: MAX_MILESTONES,
+          description: "Alle Meilensteine mit Namen und Tag; ersetzen die bisherigen, [] nimmt alle weg.",
+          items: {
+            type: "object",
+            properties: { name: { type: "string", minLength: 1, maxLength: MAX_NAME }, date: { ...DAY, description: "JJJJ-MM-TT." } },
+            required: ["name", "date"],
+            additionalProperties: false,
+          },
+        },
+        live_url: { type: "string", maxLength: 2000, description: "Live-Domain, mit https:// oder als Domain; leer nimmt sie weg." },
+        test_url: { type: "string", maxLength: 2000, description: "Testdomain, mit https:// oder als Domain; leer nimmt sie weg." },
+        visible: { type: "boolean", description: "true: der Kunde sieht das Projekt in seinem Hub; false: nicht mehr." },
+      },
+      required: ["project_id"],
+      additionalProperties: false,
+    },
+    annotations: { title: "Projekt ändern", ...WRITE },
+    scope: "hub:write",
+    needs: "write",
+  },
+  {
+    name: "update_checklist",
+    title: "Checkliste ändern",
+    description: "Hakt Punkte der Checkliste einer Aufgabe ab oder wieder auf, benennt sie um oder hängt neue an, wie im Aufgabenfenster; point_id kommt aus get_task. Wer die Karte sieht, bekommt die übliche Meldung. Punkte entfernen geht nur im Hub.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...TASK_REF,
+        points: {
+          type: "array",
+          maxItems: 30,
+          description: "Bestehende Punkte: done true hakt ab, false wieder auf; title benennt um.",
+          items: {
+            type: "object",
+            properties: {
+              point_id: id("Der Punkt (point_id aus get_task)."),
+              done: { type: "boolean", description: "Erledigt oder nicht." },
+              title: { type: "string", minLength: 1, maxLength: MAX_TITLE, description: "Neuer Text des Punkts." },
+            },
+            required: ["point_id"],
+            additionalProperties: false,
+          },
+        },
+        add: { type: "array", maxItems: 30, items: { type: "string", minLength: 1, maxLength: MAX_TITLE }, description: "Neue Punkte, unten angehängt, in dieser Reihenfolge." },
+      },
+      required: ["project_id", "task_number"],
+      additionalProperties: false,
+    },
+    annotations: { title: "Checkliste ändern", ...WRITE },
+    scope: "hub:write",
+    needs: "write",
+  },
+  {
+    name: "set_project_freelancer",
+    title: "Freelancer am Projekt",
+    description: "Setzt einen Freelancer auf ein Projekt oder nimmt ihn herunter, wie „Beteiligte“ im Aufgaben-Board. Auf dem Projekt sieht er es mit allen Aufgaben außer „Nur Team“ und kann zuständig werden; heruntergenommen verliert er es sofort und ist dort nicht mehr zuständig. Infrage kommen die Freelancer, die den Kunden betreuen (freelancers in get_project).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: id("Das Projekt (ID aus search oder get_project)."),
+        freelancer_id: id("Der Freelancer (freelancer_id aus freelancers in get_project)."),
+        on: { type: "boolean", description: "true: auf das Projekt setzen; false: herunternehmen." },
+      },
+      required: ["project_id", "freelancer_id", "on"],
+      additionalProperties: false,
+    },
+    annotations: { title: "Freelancer am Projekt", ...WRITE },
+    scope: "hub:write",
+    needs: "write",
+  },
+  {
+    name: "add_availability_exception",
+    title: "Abwesenheit oder Zusatzzeit eintragen",
+    description: "Trägt unter Kalender › Verfügbarkeit eine Ausnahme ein, wie im Hub: off = nicht verfügbar (ein Tag oder bis until, ganztags mit all_day oder von start bis end), extra = zusätzliche Zeit an einem Tag (von start bis end). Kunden können dann in dieser Zeit nichts bzw. zusätzlich anfragen; bestehende Termine bleiben. Zeiten im Viertelstundenraster, die Notiz sieht nur das Team. Prüfe vorher mit get_availability; entfernen geht nur im Hub.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["off", "extra"], description: "off = nicht verfügbar, extra = zusätzliche Zeit." },
+        from: { ...DAY, description: "Tag, JJJJ-MM-TT (bei off der erste Tag)." },
+        until: { ...DAY, description: "Nur bei off: letzter Tag, höchstens 62 Tage." },
+        all_day: { type: "boolean", description: "Nur bei off: ganztags." },
+        start: { ...TIME, description: "Beginn, HH:MM im Viertelstundenraster." },
+        end: { ...TIME_END, description: "Ende, HH:MM im Viertelstundenraster (24:00 = Tagesende)." },
+        note: { type: "string", maxLength: 80, description: "Notiz fürs Team, z. B. „Urlaub“." },
+      },
+      required: ["kind", "from"],
+      additionalProperties: false,
+    },
+    annotations: { title: "Abwesenheit oder Zusatzzeit eintragen", ...WRITE },
+    scope: "hub:write",
+    needs: "write",
+  },
 
   // ---------- Notes (since 23.11.2026): reading with hub:read, writing with hub:write (lib/hub-mcp/notes.ts) ----------
   ...notesTools("admin").map((tool): HubTool => ({ ...tool, needs: "notes" })),
@@ -378,7 +516,7 @@ export const toolOf = (name: string) => tools.find((tool) => tool.name === name)
 /** What Claude is told once per connection (initialize). */
 export const SERVER_INSTRUCTIONS = [
   "Verbunden mit dem oalab Client Hub, mit den Rechten des Admins, der die Verbindung erlaubt hat.",
-  "Die Werkzeuge lesen Kunden, Projekte, Aufgaben, den Kalender und die Notizen (Seiten je Kunde, als Markdown). Hat der Admin auch das Schreiben erlaubt, legen sie Termine, Aufgaben (mit Checkliste und Kommentaren), neue Projekte und Notizseiten an und ändern sie; Notizseiten können sie für Kunde oder Freelancer freigeben und in den Papierkorb legen (30 Tage wiederherstellbar). Endgültig löschen oder archivieren können sie nichts.",
+  "Die Werkzeuge lesen Kunden, Projekte, Aufgaben mit allen Einzelheiten, den Kalender mit der Verfügbarkeit und die Notizen (Seiten je Kunde, als Markdown). Hat der Admin auch das Schreiben erlaubt, legen sie Termine, Aufgaben (mit Checkliste und Kommentaren), Projekte und Notizseiten an und ändern sie, haken Checklisten ab, setzen Freelancer auf Projekte und tragen Abwesenheiten oder zusätzliche Zeiten ein; Notizseiten können sie für Kunde oder Freelancer freigeben und in den Papierkorb legen (30 Tage wiederherstellbar). Endgültig löschen oder archivieren können sie nichts.",
   "Jede Änderung gilt sofort im Hub, so als hätte der Admin sie dort gespeichert, und steht im Admin-Protokoll; Termine mit Kunde und freigegebene Notizen schicken eine Meldung. Sag vor dem Schreiben kurz, was du eintragen willst.",
   "Lies eine Notizseite mit read_note, bevor du ihren Inhalt ersetzt, und behalte die oalab:-Zeilen darin bei; zum Ergänzen hänge mit content_mode append an.",
   "Prüfe eine Terminzeit vor dem Eintragen oder Verschieben mit check_appointment_time und nenne Überschneidungen oder eine Zeit außerhalb der Verfügbarkeit.",
@@ -411,7 +549,7 @@ const personJson = (person: ProjectPerson) => ({
 });
 
 /** The assistant's answer with links into the hub, and without contact data; get_project names who can take tasks. */
-function withLinks(name: string, answer: Json, origin: string, people?: ProjectPerson[]): Json {
+function withLinks(name: string, answer: Json, origin: string, people?: ProjectPerson[], freelancers?: ProjectFreelancer[]): Json {
   const to = links(origin);
   const project = (item: Json) => ({ ...item, link: to.project(String(item.project_id)) });
   const task = (item: Json, projectId?: unknown) => {
@@ -436,6 +574,8 @@ function withLinks(name: string, answer: Json, origin: string, people?: ProjectP
       link: to.project(String(answer.project_id)),
       tasks: records(answer.tasks).map((item) => task(item, answer.project_id)),
       ...(people ? { people: people.map(personJson) } : {}),
+      // „Beteiligte“: who may be put on the project (set_project_freelancer) and who is on it.
+      ...(freelancers ? { freelancers: freelancers.map((item) => ({ freelancer_id: item.id, name: item.name, number: item.number, on_project: item.onProject })) } : {}),
     };
   }
   if (name === "list_tasks") return { ...answer, tasks: records(answer.tasks).map((item) => task(item)) };
@@ -449,12 +589,12 @@ function assistantInput(name: string, args: Json): Json {
   return args;
 }
 
-/** A day range of the calendar tools: given days, or today and the next six; never longer than `max` days. */
-export function readRange(from: unknown, to: unknown, today: string, max: number): { ok: true; from: string; to: string } | { ok: false; error: string } {
+/** A day range of the calendar tools: given days, or today and the next `span` (six); never longer than `max` days. */
+export function readRange(from: unknown, to: unknown, today: string, max: number, span = 6): { ok: true; from: string; to: string } | { ok: false; error: string } {
   if (from !== undefined && !isDay(from)) return { ok: false, error: "from muss ein Tag als JJJJ-MM-TT sein." };
   if (to !== undefined && !isDay(to)) return { ok: false, error: "to muss ein Tag als JJJJ-MM-TT sein." };
   const first = (from as string | undefined) ?? today;
-  const last = (to as string | undefined) ?? addDays(first, 6);
+  const last = (to as string | undefined) ?? addDays(first, span);
   if (last < first) return { ok: false, error: "to liegt vor from." };
   if (addDays(first, max - 1) < last) return { ok: false, error: `Bitte höchstens ${max} Tage auf einmal abfragen.` };
   return { ok: true, from: first, to: last };
@@ -463,6 +603,7 @@ export function readRange(from: unknown, to: unknown, today: string, max: number
 /** The days a calendar tool needs loaded, from its arguments; the server loads exactly these. */
 export function calendarRange(name: string, args: Json, today: string) {
   if (name === "check_appointment_time") return isDay(args.day) ? { ok: true as const, from: args.day, to: args.day } : { ok: false as const, error: "Bitte den Tag als JJJJ-MM-TT angeben." };
+  if (name === "get_availability") return readRange(args.from, args.to, today, MAX_LIST_DAYS, AVAILABILITY_SPAN);
   return readRange(args.from, args.to, today, name === "find_free_slots" ? MAX_FREE_DAYS : MAX_LIST_DAYS);
 }
 
@@ -497,10 +638,43 @@ const activeStatuses: Record<string, readonly AppointmentStatus[]> = {
   all: ["confirmed", "requested", "declined", "cancelled"],
 };
 
+const clock = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+const spanText = ([from, to]: readonly [number, number]) => `${clock(from)}–${clock(to)}`;
+
+/** The availability as the panel „Verfügbarkeit“ shows it: the week, the rules and the exceptions of the range. */
+function availabilityJson(calendar: CalendarData, from: string, to: string) {
+  const { week, rules, exceptions } = calendar.availability;
+  return {
+    week: WEEKDAY_LONG.map((day, index) => ({ weekday: day, times: (week[index] ?? []).map(spanText) })),
+    rules: {
+      notice: rules.notice ? (rules.notice % 1440 === 0 ? `${rules.notice / 1440} Tag(e) vorher` : `${rules.notice / 60} Stunden vorher`) : "keiner",
+      buffer_minutes: rules.buffer,
+      horizon: `${rules.horizon} Wochen im Voraus`,
+      durations_minutes: rules.durations,
+    },
+    exceptions: exceptions
+      .filter((item) => item.day >= from && item.day <= to)
+      .sort((a, b) => a.day.localeCompare(b.day) || (a.from ?? 0) - (b.from ?? 0))
+      .map((item) => ({
+        day: item.day,
+        weekday: weekday(item.day),
+        kind: item.kind === "off" ? "nicht verfügbar" : "zusätzliche Zeit",
+        time: item.from === null || item.to === null ? "ganztags" : spanText([item.from, item.to]),
+        note: item.note || null,
+      })),
+  };
+}
+
 function runCalendarTool(name: string, args: Json, context: ToolContext, calendar: CalendarData): ToolResult {
   const { today, now, origin } = context;
   const base = { today, today_weekday: weekday(today), time_zone: "Europe/Berlin" };
   const hours = calendar.availabilityReady ? null : "Die Verfügbarkeit ist noch nicht eingerichtet; es gelten montags bis freitags 9 bis 17 Uhr.";
+
+  if (name === "get_availability") {
+    const range = readRange(args.from, args.to, today, MAX_LIST_DAYS, AVAILABILITY_SPAN);
+    if (!range.ok) return refuse(range.error);
+    return json({ ...base, from: range.from, to: range.to, ...availabilityJson(calendar, range.from, range.to), note: hours ?? undefined });
+  }
 
   if (name === "list_appointments") {
     const range = readRange(args.from, args.to, today, MAX_LIST_DAYS);
@@ -580,6 +754,7 @@ export function runHubTool(name: string, args: Json, context: ToolContext): Tool
   if (!tool) return null;
   if (tool.needs === "write") return refuse("Dieses Werkzeug schreibt und läuft nur auf dem Server des Hubs.");
   if (tool.needs === "notes") return refuse("Die Notizen laufen nur auf dem Server des Hubs.");
+  if (tool.needs === "task") return refuse("Aufgaben liest nur der Server des Hubs.");
   if (tool.needs === "calendar") {
     if (!context.calendar) return refuse("Der Kalender konnte gerade nicht geladen werden. Bitte versuche es erneut.");
     return runCalendarTool(name, args, context, context.calendar);
@@ -587,5 +762,5 @@ export function runHubTool(name: string, args: Json, context: ToolContext): Tool
   if (!context.assistant) return refuse("Die Daten des Hubs konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   const outcome = runAssistantTool(name, assistantInput(name, args), context.assistant);
   if (!outcome.ok) return refuse(outcome.error);
-  return json(withLinks(name, JSON.parse(outcome.content) as Json, context.origin, context.people));
+  return json(withLinks(name, JSON.parse(outcome.content) as Json, context.origin, context.people, context.freelancers));
 }

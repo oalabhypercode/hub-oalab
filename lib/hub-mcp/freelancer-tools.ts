@@ -40,7 +40,7 @@ export type FreelancerAppointment = {
 export type FreelancerBoard = { viewerId: string; projects: BoardProject[]; tasks: BoardTask[]; people: BoardPerson[]; freelancers: BoardFreelancer[] };
 /** What the freelancer's calendar knows: oalab's availability, the booked times without details, their own requests. */
 export type FreelancerCalendar = { availability: Availability; availabilityReady: boolean; busy: Interval[]; own: FreelancerAppointment[] };
-export type FreelancerNeeds = "board" | "calendar" | "write" | "notes";
+export type FreelancerNeeds = "board" | "calendar" | "task" | "write" | "notes";
 export type FreelancerContext = {
   origin: string;
   today: string;
@@ -181,6 +181,15 @@ const tools: FreelancerTool[] = [
     scope: "hub:read",
     needs: "calendar",
   },
+  {
+    name: "get_task",
+    title: "Aufgabe ansehen",
+    description: "Eine Aufgabe aus deinen Projekten mit allem, was ihr Fenster im Board zeigt: Spalte, Priorität, Fälligkeit, Labels, Zuständige, Beschreibung, Checkliste (mit point_id zum Abhaken über update_checklist), Kommentare, Dateien und wer sie angelegt und zuletzt geändert hat. Aufgaben mit „Nur Team“ siehst du nicht.",
+    inputSchema: { type: "object", properties: { ...TASK_REF }, required: ["project_id", "task_number"], additionalProperties: false },
+    annotations: { title: "Aufgabe ansehen", ...READ },
+    scope: "hub:read",
+    needs: "task",
+  },
 
   // ---------- Writing (scope hub:write): the board's and the request window's own save code (freelancer-writes.ts) ----------
   {
@@ -290,6 +299,38 @@ const tools: FreelancerTool[] = [
     scope: "hub:write",
     needs: "write",
   },
+  {
+    name: "update_checklist",
+    title: "Checkliste ändern",
+    description: "Hakt Punkte der Checkliste einer Aufgabe aus deinen Projekten ab oder wieder auf, benennt sie um oder hängt neue an, wie im Aufgabenfenster des Boards; point_id kommt aus get_task. Wer die Karte sieht, bekommt die übliche Meldung. Punkte entfernen geht nur im Hub.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...TASK_REF,
+        points: {
+          type: "array",
+          maxItems: 30,
+          description: "Bestehende Punkte: done true hakt ab, false wieder auf; title benennt um.",
+          items: {
+            type: "object",
+            properties: {
+              point_id: id("Der Punkt (point_id aus get_task)."),
+              done: { type: "boolean", description: "Erledigt oder nicht." },
+              title: { type: "string", minLength: 1, maxLength: MAX_TITLE, description: "Neuer Text des Punkts." },
+            },
+            required: ["point_id"],
+            additionalProperties: false,
+          },
+        },
+        add: { type: "array", maxItems: 30, items: { type: "string", minLength: 1, maxLength: MAX_TITLE }, description: "Neue Punkte, unten angehängt, in dieser Reihenfolge." },
+      },
+      required: ["project_id", "task_number"],
+      additionalProperties: false,
+    },
+    annotations: { title: "Checkliste ändern", ...WRITE },
+    scope: "hub:write",
+    needs: "write",
+  },
 
   // ---------- Notes (since 23.11.2026): released pages to read, own „Nur Freelancer“ pages to write (lib/hub-mcp/notes.ts) ----------
   ...notesTools("freelancer").map((tool): FreelancerTool => ({ ...tool, needs: "notes" })),
@@ -309,7 +350,7 @@ export function freelancerInstructions(scopes: readonly string[]) {
   return [
     "Verbunden mit dem oalab Client Hub, mit den Rechten des Freelancers, der die Verbindung erlaubt hat: nur die Projekte, auf die ihn das oalab-Team gesetzt hat, die Kunden, die er betreut, und seine eigenen Terminanfragen.",
     writes
-      ? "Die Werkzeuge lesen diese Projekte mit ihren Aufgaben (ohne „Nur Team“), die Kunden ohne Kontaktdaten, die freien Zeiten von oalab, die eigenen Anfragen und die Notizseiten der Kunden, die oalab für Freelancer freigegeben hat (als Markdown). Sie legen in diesen Projekten Aufgaben (mit Checkliste) an, ändern, verschieben und kommentieren sie, fragen Termine bei oalab an und schreiben eigene Notizseiten („Nur Freelancer“: das oalab-Team sieht sie, der Kunde nicht); löschen, archivieren oder für den Kunden freigeben können sie nichts."
+      ? "Die Werkzeuge lesen diese Projekte mit ihren Aufgaben (ohne „Nur Team“), die Kunden ohne Kontaktdaten, die freien Zeiten von oalab, die eigenen Anfragen und die Notizseiten der Kunden, die oalab für Freelancer freigegeben hat (als Markdown). Sie legen in diesen Projekten Aufgaben (mit Checkliste) an, ändern, verschieben und kommentieren sie, haken Checklisten ab, fragen Termine bei oalab an und schreiben eigene Notizseiten („Nur Freelancer“: das oalab-Team sieht sie, der Kunde nicht); löschen, archivieren oder für den Kunden freigeben können sie nichts."
       : "Die Werkzeuge lesen diese Projekte mit ihren Aufgaben (ohne „Nur Team“), die Kunden ohne Kontaktdaten, die freien Zeiten von oalab, die eigenen Anfragen und die für Freelancer freigegebenen Notizseiten. Schreiben, löschen oder archivieren können sie nichts.",
     ...(writes ? ["Jede Änderung gilt sofort im Hub, so als hätte der Freelancer sie dort gespeichert, und das oalab-Team sieht sie. Sag vor dem Schreiben kurz, was du eintragen willst."] : []),
     writes
@@ -584,6 +625,7 @@ export function runFreelancerTool(name: string, args: Json, context: FreelancerC
   if (!tool) return null;
   if (tool.needs === "write") return refuse("Dieses Werkzeug schreibt und läuft nur auf dem Server des Hubs.");
   if (tool.needs === "notes") return refuse("Die Notizen laufen nur auf dem Server des Hubs.");
+  if (tool.needs === "task") return refuse("Aufgaben liest nur der Server des Hubs.");
   if (tool.needs === "calendar") {
     if (!context.calendar) return refuse("Der Kalender konnte gerade nicht geladen werden. Bitte versuche es erneut.");
     return runCalendarTool(name, args, context, context.calendar);

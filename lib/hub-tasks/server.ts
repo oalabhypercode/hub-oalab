@@ -192,6 +192,27 @@ export async function loadAssignees(db: Db, projectId: string): Promise<BoardPer
   return peopleFor(db, [...new Set([...shown.team, ...freelancerOf.keys()])], shown.team, freelancerOf, "admin");
 }
 
+/**
+ * „Beteiligte“ of a project as the board's window offers them (Claude's get_project): the freelancers who look after
+ * its customer (not archived, at least one active login) and whether each is on the project. Null when the project is
+ * gone, archived or belongs to an archived customer, or a read failed.
+ */
+export async function loadProjectFreelancers(db: Db, projectId: string): Promise<{ id: string; name: string; number: string; onProject: boolean }[] | null> {
+  const [project, archive] = await Promise.all([
+    db.from("customer_projects").select("organization_id").eq("id", projectId).neq("status", "archived").maybeSingle<{ organization_id: string }>(),
+    readArchive(db),
+  ]);
+  if (project.error || !project.data || archive.organizationIds.has(project.data.organization_id)) return null;
+  const [links, freelancers, deactivated] = await Promise.all([
+    db.from("studio_project_freelancers").select("freelancer_id").eq("project_id", projectId).returns<{ freelancer_id: string }[]>(),
+    loadFreelancers(db, [project.data.organization_id]),
+    readDeactivatedLogins(db),
+  ]);
+  if (links.error || !freelancers || !deactivated) return null;
+  const onProject = new Set((links.data ?? []).map((row) => row.freelancer_id));
+  return withoutDeactivated(new Set(), freelancers, deactivated).freelancers.map((freelancer) => ({ id: freelancer.id, name: freelancer.name, number: freelancer.number, onProject: onProject.has(freelancer.id) }));
+}
+
 /** The oalab team's board: every running project of every customer that is not archived (lib/hub-archive). */
 async function adminBoard(viewerId: string, db: Db): Promise<TaskBoardState> {
   const [projects, archive] = await Promise.all([

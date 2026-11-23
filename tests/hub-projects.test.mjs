@@ -174,14 +174,18 @@ test("Projekte V2: the status is written with the admin's own session, only with
   // An admin without the code (second factor off, password alone) hears how to get it.
   assert.match(actor, /claims\?\.claims\?\.aal !== "aal2"\) return \{ refused: needsCode \};/);
   assert.match(actions, /const needsCode = "Bitte bestätige deine Anmeldung zuerst einmal mit einem Code aus der Mail/);
-  const write = actions.slice(actions.indexOf("export async function setProjectStatus"), actions.indexOf("const staleDetails"));
+  const write = actions.slice(actions.indexOf("export async function setProjectStatus"), actions.indexOf("export async function saveProjectDetails"));
   assert.match(write, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
   assert.match(write, /isStudioStatus\(input\.status\)/);
-  assert.match(write, /ctx\.supabase\.from\("studio_project_details"\)\.update\(\{ status \}\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
-  assert.match(write, /ctx\.supabase\.from\("studio_project_details"\)\.insert\(/);
-  assert.doesNotMatch(write, /db\.from\("studio_project_details"\)/, "never with the service role: Studio's RLS and triggers check and log the change");
-  assert.match(write, /action: "project\.status_set"/);
+  assert.match(write, /const result = await setProjectStatusAs\(ctx, \{ projectId: input\.projectId, status: input\.status, expectedVersion: expected \}\);/);
   assert.match(write, /refreshWorkspace\(\)/);
+  // The page and the Claude connector set the status through the same core (lib/hub-projects/write.ts, 23.11.2026).
+  const shared = await source("lib/hub-projects/write.ts");
+  const status = shared.slice(shared.indexOf("export async function setProjectStatusAs"), shared.indexOf("/** Studio's columns of a change"));
+  assert.match(status, /ctx\.supabase\.from\("studio_project_details"\)\.update\(\{ status \}\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
+  assert.match(status, /ctx\.supabase\.from\("studio_project_details"\)\.insert\(/);
+  assert.doesNotMatch(status, /db\.from\("studio_project_details"\)/, "never with the service role: Studio's RLS and triggers check and log the change");
+  assert.match(status, /action: via === "claude" \? "claude\.project\.status_set" : "project\.status_set"/);
 });
 
 test("Projekte V2 step 2: what the panel takes, checked like Studio checks it", () => {
@@ -252,11 +256,15 @@ test("Projekte V2 step 2: saving and creating go through Studio's checks with th
   const save = actions.slice(actions.indexOf("export async function saveProjectDetails"), actions.indexOf("export async function createProject"));
   assert.match(save, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
   assert.match(save, /readProjectPatch\(input\.patch\)/);
-  assert.match(save, /ctx\.supabase\.from\("studio_project_details"\)\.update\(studio\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
-  assert.doesNotMatch(save, /db\.from\("studio_project_details"\)/, "Studio's part never with the service role");
-  assert.match(save, /ctx\.db\.from\("customer_projects"\)\.update\(own\)/, "name and addresses on the project row");
-  assert.match(save, /action: "project\.saved"/);
+  assert.match(save, /const result = await saveProjectDetailsAs\(ctx, \{ projectId: input\.projectId, expectedVersion: expected, patch: read\.value \}\);/);
   assert.match(save, /refreshWorkspace\(\)/);
+  // The panel and the Claude connector save through the same core (lib/hub-projects/write.ts, 23.11.2026).
+  const shared = await source("lib/hub-projects/write.ts");
+  const details = shared.slice(shared.indexOf("export async function saveProjectDetailsAs"));
+  assert.match(details, /ctx\.supabase\.from\("studio_project_details"\)\.update\(studio\)\.eq\("project_id", projectId\)\.eq\("version", expected\)/);
+  assert.doesNotMatch(details, /db\.from\("studio_project_details"\)/, "Studio's part never with the service role");
+  assert.match(details, /ctx\.db\.from\("customer_projects"\)\.update\(own\)/, "name and addresses on the project row");
+  assert.match(details, /action: via === "claude" \? "claude\.project\.saved" : "project\.saved"/);
   const action = actions.slice(actions.indexOf("export async function createProject"));
   assert.match(action, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
   // The page and the Claude connector create through the same code (lib/hub-projects/write.ts), no Server Action.
@@ -265,7 +273,7 @@ test("Projekte V2 step 2: saving and creating go through Studio's checks with th
   const core = await source("lib/hub-projects/write.ts");
   assert.match(core, /^import "server-only";/);
   assert.doesNotMatch(core, /"use server"/);
-  const create = core.slice(core.indexOf("export async function createProjectAs"));
+  const create = core.slice(core.indexOf("export async function createProjectAs"), core.indexOf("const gone = "));
   assert.match(create, /readProjectDraft\(input\.draft\)/);
   assert.match(create, /\(customer\.data\.kind \?\? "customer"\) !== "customer"/, "never for freelancers");
   assert.match(create, /organization\.data\?\.status !== "active"/);
@@ -307,7 +315,7 @@ test("Projekte without the code: read-only, with „Mit Code bestätigen“ abov
   assert.match(server, /const deskFailed = [^\n]*confirmed: false/);
   // Every change on the page waits for the code, the addresses in the list as well.
   const actions = await source("lib/hub-projects/actions.ts");
-  const urls = actions.slice(actions.indexOf("export async function saveProjectUrls"), actions.indexOf("const staleStatus"));
+  const urls = actions.slice(actions.indexOf("export async function saveProjectUrls"), actions.indexOf("export async function setProjectStatus"));
   assert.match(urls, /const ctx = await teamActor\(\);\s+if \("refused" in ctx\) return \{ ok: false, error: ctx\.refused \};/);
   assert.equal((actions.match(/await teamActor\(\)/g) ?? []).length, 4, "addresses, status, saving and creating");
 

@@ -6,9 +6,11 @@ import { loadAssistantDataForCheckedAdmin } from "@/lib/hub-assistant/data";
 import { loadAvailability } from "@/lib/hub-calendar/server";
 import { readArchive } from "@/lib/hub-archive/server";
 import { addDays, isAppointmentStatus, wallTimeToUtc } from "@/lib/hub-calendar/rules";
-import { loadAssignees } from "@/lib/hub-tasks/server";
+import { loadAssignees, loadProjectFreelancers } from "@/lib/hub-tasks/server";
+import { taskAnswer } from "./board";
+import { readTaskRef } from "./write-input";
 import { hasScope, checkClientDocument, type ClientDocument } from "./oauth";
-import { calendarRange, runHubTool, toolOf, type CalendarAppointment, type CalendarData, type ToolContext } from "./tools";
+import { calendarRange, hubLinks, runHubTool, toolOf, type CalendarAppointment, type CalendarData, type ToolContext } from "./tools";
 import { runWriteTool } from "./writes";
 import { callFreelancerTool } from "./freelancer";
 import { runNotesTool } from "./notes";
@@ -94,6 +96,26 @@ async function loadCalendar(from: string, to: string): Promise<CalendarData | nu
 }
 
 const refusal = (message: string): ToolResult => ({ content: [{ type: "text", text: message }], isError: true });
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * get_task for an admin: the card read with the server key after the key check, as the board reads for admins; a
+ * project archived itself or belonging to an archived customer is out of sight, as in the hub.
+ */
+async function readTaskForAdmin(args: Record<string, unknown>, origin: string): Promise<ToolResult> {
+  const db = createAdminClient();
+  if (!db) return refusal("Der Hub kann gerade nicht lesen. Bitte versuche es gleich noch einmal.");
+  const ref = readTaskRef(args);
+  if (!ref.ok) return refusal(ref.error);
+  if (!uuid.test(ref.value.projectId)) return refusal("Bitte das Projekt angeben (project_id aus search oder get_project).");
+  const [project, archive] = await Promise.all([
+    db.from("customer_projects").select("id, display_name, organization_id, status").eq("id", ref.value.projectId).maybeSingle<{ id: string; display_name: string; organization_id: string; status: string }>(),
+    readArchive(db),
+  ]);
+  if (!project.data || project.data.status === "archived" || archive.organizationIds.has(project.data.organization_id)) return refusal("Das Projekt gibt es nicht mehr oder es ist archiviert. Nimm die ID aus search.");
+  const links = hubLinks(origin);
+  return taskAnswer({ read: db, db, project: { id: project.data.id, name: project.data.display_name }, number: ref.value.number, link: links.task(project.data.id, ref.value.number), projectLink: links.project(project.data.id) });
+}
 
 /**
  * One tool call of a checked connection: loads exactly what a reading tool needs and lets lib/hub-mcp/tools.ts answer;
@@ -109,11 +131,19 @@ export async function callHubTool(connection: Connection, name: string, args: Re
   if (tool.needs === "write") return runWriteTool(connection, name, args, context);
   // Notes read and write with the admin's own claims, through the notes' own code (lib/hub-mcp/notes.ts).
   if (tool.needs === "notes") return runNotesTool(connection, name, args, origin);
+  if (tool.needs === "task") return readTaskForAdmin(args, origin);
   if (tool.needs === "assistant") {
     context.assistant = (await loadAssistantDataForCheckedAdmin()) ?? undefined;
-    // Who can take a task, for assignee_ids: only where Claude may write.
+    // Who can take a task (assignee_ids) and which freelancers may be put on the project: only where Claude may write.
     const db = name === "get_project" && hasScope(connection.scopes, "hub:write") && typeof args.project_id === "string" ? createAdminClient() : null;
-    if (db) context.people = (await loadAssignees(db, args.project_id as string).catch(() => null)) ?? undefined;
+    if (db) {
+      const [people, freelancers] = await Promise.all([
+        loadAssignees(db, args.project_id as string).catch(() => null),
+        loadProjectFreelancers(db, args.project_id as string).catch(() => null),
+      ]);
+      context.people = people ?? undefined;
+      context.freelancers = freelancers ?? undefined;
+    }
   } else {
     const range = calendarRange(name, args, context.today);
     if (!range.ok) return refusal(range.error);

@@ -11,7 +11,8 @@ import { addCommentAs, createTaskAs, moveTaskAs, saveSubtaskAs, updateTaskAs, ty
 import { freelancerLinks } from "./freelancer-tools";
 import type { ToolResult } from "./protocol";
 import { logEvent, type Connection } from "./store";
-import { moveOrder, readNewTasks, readTaskPatch, readTaskRef } from "./write-input";
+import { moveOrder, readChecklistChange, readNewTasks, readTaskPatch, readTaskRef } from "./write-input";
+import { changeChecklist, checklistText } from "./board";
 
 // A freelancer's writing tools (stage 2, 19.11.2026): tasks in their own projects and requests to oalab, through the
 // very code the board and the request window save with (lib/hub-tasks/write.ts with `freelancer: true`,
@@ -54,6 +55,7 @@ export async function runFreelancerWrite(connection: Connection, name: string, a
       case "add_task_comment": return await addTaskComment(writer, args);
       case "request_appointment": return await requestAppointment(writer, args);
       case "withdraw_request": return await withdrawRequest(writer, args);
+      case "update_checklist": return await updateChecklist(writer, args);
       default: return refuse("Dieses Werkzeug gibt es nicht.");
     }
   } catch (error) {
@@ -261,5 +263,26 @@ async function withdrawRequest(w: Writer, args: Json): Promise<ToolResult> {
     saved: true,
     message: `Deine Anfrage „${data.title}“ ist zurückgezogen.`,
     appointment: { appointment_id: data.id, title: data.title, link: freelancerLinks(w.origin).appointment(data.id) },
+  });
+}
+
+/** update_checklist on a card of their own projects, through the task window's own code with their claims (lib/hub-mcp/board.ts). */
+async function updateChecklist(w: Writer, args: Json): Promise<ToolResult> {
+  const ref = readTaskRef(args);
+  if (!ref.ok) return refuse(ref.error);
+  const change = readChecklistChange(args);
+  if (!change.ok) return refuse(change.error);
+  const project = await ownProject(w, ref.value.projectId);
+  if (!project) return refuse(noProject);
+  const task = await findTask(w, { projectId: project.id, number: ref.value.number });
+  if (!task || task.archived) return refuse(noTask);
+  const result = await changeChecklist(taskContext(w), task.id, change.value);
+  if (!result.ok) return refuse(result.error);
+  if (result.changed || result.added) await logFor(w, project, "claude.task.checklist", `Checkliste von „${task.title}“ in „${project.name}“ über Claude geändert (Freelancer)`);
+  return json({
+    saved: Boolean(result.changed || result.added),
+    message: checklistText(task.title, result),
+    checklist: result.points,
+    task: { task_number: ref.value.number, title: task.title, link: freelancerLinks(w.origin).task(project.id, ref.value.number) },
   });
 }
