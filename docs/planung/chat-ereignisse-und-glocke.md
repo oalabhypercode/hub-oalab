@@ -1,6 +1,6 @@
 # Planung: Änderungen im Chat mitteilen und eine aufgeräumte Glocke
 
-Stand 23. November 2026 · Plan, noch nichts gebaut · Entscheidungen offen (Abschnitt 7)
+Stand 23. November 2026 · Etappe 1 (Glocke) gebaut auf dem Branch `feat/glocke-nur-ungelesen`, noch nicht live (Abschnitt 9) · Entscheidungen 1 bis 6 und 15 getroffen, 7 bis 14 offen (Abschnitt 7)
 
 Dieser Plan beschreibt vier Wünsche vom 23. November 2026:
 
@@ -17,7 +17,7 @@ Grundlage ist der Code auf `main` vom 23. November 2026 (nach #157) und die Tabe
 
 - Die Nachrichten im Hub (der private Chat unter „Nachrichten“, Reiter „Privat“) sind reine Kommunikation mit oalab: unbegrenzt und ohne Berechnung. Die Serviceplattform rechnet je Anfrage ab und hängt an Abrechnung und KI. Beides bleibt bei jeder Änderung strikt getrennt (Vorgabe vom 23. November 2026, gilt für alle künftigen Änderungen).
 - Für diesen Plan heißt das: Karten, Abos, Meldungen und die Glocke betreffen nur den Hub. Nichts davon schreibt in Anfragen oder Gespräche der Serviceplattform, legt dort eine Anfrage an, zählt auf das Service-Kontingent oder stößt deren KI an. Umgekehrt kommt nichts aus der Serviceplattform als Nachricht oder Karte in den Chat des Hubs.
-- Heute liest der Hub die Anfragen der Serviceplattform nur: Admins sehen sie unter „Nachrichten“ im Reiter „Service“, Claude mit `list_conversations` und `read_conversation` (Art `service`). Geschrieben wird aus dem Hub nur in den privaten Chat. Ob der Reiter „Service“ aus „Nachrichten“ herauszieht, ist Entscheidung 15.
+- Heute liest der Hub die Anfragen der Serviceplattform nur: Admins sehen sie unter „Nachrichten“ im Reiter „Service“, Claude mit `list_conversations` und `read_conversation` (Art `service`). Geschrieben wird aus dem Hub nur in den privaten Chat. Der Reiter „Service“ bleibt für Admins unter „Nachrichten“ (Entscheidung 15) und bekommt aus diesem Plan nichts dazu.
 
 ## Auf einen Blick
 
@@ -263,6 +263,8 @@ Einen echten Terminvorschlag gibt es noch nicht. Legt ein Admin einen Termin mit
 
 ## 7. Entscheidungen
 
+Am 23. November 2026 entschieden: 1 bis 5 mit dem Auftrag „Etappe 1 bauen“, umgesetzt ist jeweils die Empfehlung; 6 und 15 wie in der Tabelle. Offen sind 7 bis 14; sie betreffen Etappe 2 und 3.
+
 | # | Frage | Empfehlung |
 |---|---|---|
 | 1 | Zeigt die Glocke nur Ungelesenes, und steht Gelesenes nur noch in der Übersicht unter „Früher“? | Ja |
@@ -270,8 +272,8 @@ Einen echten Terminvorschlag gibt es noch nicht. Legt ein Admin einen Termin mit
 | 3 | „Rückgängig“ nach dem Markieren? | Ja, etwa sechs Sekunden, auch nach „Alle als gelesen markieren“ |
 | 4 | Zeit links in zwei Zeilen (Tag, Uhrzeit) oder in einer Zeile wie in der Übersicht („vor 12 Min.“)? | Zwei Zeilen: auf einen Blick klar, immer gleich breit, ändert sich nicht beim Hinsehen |
 | 5 | Fenster: etwa 62 % der Breite, 760 bis 1280 px, Höhe bis 32 px an den Rand? | Ja |
-| 6 | Wer stellt die Abos eines Chats ein: nur Admins oder beide Seiten? | Beide Seiten, jede Änderung als graue Zeile im Chat |
-| 7 | Voreinstellung der Abos | Termine, Dateien, Notizen, Projekte und Vertrag & Domain an; Aufgaben aus |
+| 6 | Wer stellt die Abos eines Chats ein: nur Admins oder beide Seiten? | Entschieden am 23.11.2026: beide Seiten, jede Änderung als graue Zeile im Chat |
+| 7 | Welche Schalter unter „Abos“ sind in jedem Chat an, bevor jemand sie anfasst, in bestehenden wie in neuen Chats? | Termine, Dateien, Notizen, Projekte und Vertrag & Domain an; Aufgaben aus, weil sie sich oft ändern |
 | 8 | Markiert das Öffnen des Chats die Meldungen zu den Karten darin als gelesen? | Ja; die Mail bleibt unverändert |
 | 9 | Terminanfragen: Karte im Chat, Meldung in der Glocke der Admins und Telegram? | Ja, alle drei |
 | 10 | Bekommt Vertrag & Domain Meldungen und Karten (Verlauf, Domains, E-Mail-Adressen, Pakete)? | Ja, in Etappe 2 |
@@ -279,7 +281,7 @@ Einen echten Terminvorschlag gibt es noch nicht. Legt ein Admin einen Termin mit
 | 12 | Etappe 3 (echter Terminvorschlag) bauen? | Ja, nach Etappe 2 |
 | 13 | Ein Vorschlag mit einer Zeit oder mit bis zu drei Zeiten zur Wahl? | Bis zu drei |
 | 14 | Halten Vorschläge ihre Zeiten für andere Kunden frei, und wie lange? | Ja, bis zur Antwort, höchstens drei Tage |
-| 15 | Reiter „Service“ unter „Nachrichten“ (Admins lesen dort die Anfragen der Serviceplattform mit): bleibt er dort, oder zieht er in einen eigenen Bereich, damit „Nachrichten“ nur die Kommunikation im Hub zeigt? | Eigener Bereich „Service“ für Admins, außerhalb von „Nachrichten“; Claude bekommt dafür getrennte Werkzeuge für Chat und Service |
+| 15 | Reiter „Service“ unter „Nachrichten“ (Admins lesen dort die Anfragen der Serviceplattform mit): bleibt er dort, oder zieht er in einen eigenen Bereich? | Entschieden am 23.11.2026: Er bleibt für Admins unter „Nachrichten“, getrennt vom Chat, ohne Karten und Abos |
 
 ## 8. Abnahme
 
@@ -315,3 +317,20 @@ Etappe 3:
 - Vorschlag mit drei Zeiten: Die Karte zeigt drei Zeiten; „Annehmen“ bestätigt eine, die anderen sind wieder frei; das Team bekommt Meldung und Karte.
 - Ein anderer Kunde kann eine vorgeschlagene Zeit nicht anfragen, solange der Vorschlag offen ist.
 - Nach drei Tagen ohne Antwort zeigt die Karte „abgelaufen“, und die Zeiten sind frei.
+
+## 9. Umsetzung Etappe 1 (23. November 2026)
+
+Gebaut auf dem Branch `feat/glocke-nur-ungelesen` mit den Empfehlungen 1 bis 5, ohne Datenbank und ohne `service-oalab`:
+
+- `loadInbox()` lädt alle ungelesenen Meldungen (bis 100) zusätzlich zu den 30 neuesten (`mergeInboxRows`, `INBOX_UNREAD`, `INBOX_LATEST` in `lib/hub-notify/rules.ts`); die Live-Prüfung bleibt unverändert.
+- `components/hub/notifications-panel.tsx`: nur ungelesene Zeilen, Zeitspalte links (`bellTime` in `lib/hub-notify/columns.ts`), runder Haken je Zeile, Ausgleiten, „Rückgängig“ sechs Sekunden lang (`markNoticesUnread` in `lib/hub-notify/actions.ts`), „und N weitere ungelesene“, im leeren Zustand der Link „Frühere Benachrichtigungen in der Übersicht“.
+- `app/glass.css`: Fenster `min(100 % − 32 px, clamp(760 px, 62vw, 1280 px))`, höchstens Bildschirmhöhe minus 64 px (am Handy minus 32 px), nur die Liste scrollt; Raster mit Zeitspalte, am Handy zwei Spalten.
+- Übersicht, Wissen des Assistenten und Patch Notes (Paket 30) angepasst; Tests für Zeitspalte, Laden, Live-Version und Verhalten der Glocke.
+
+Abweichungen vom Plan:
+
+- Das Fenster selbst scrollt nie (`overflow: clip`). Beim Test mit vielen Meldungen hätte sonst die Tastatur beim Durchgehen der Liste die Überschrift aus dem Fenster schieben können.
+- „Bewegung reduzieren“ richtet sich wie überall im Hub nur nach der Einstellung im Hub, nicht nach der des Geräts.
+- Die Designvorschau rechnet die Zeiten von einem festen „Jetzt“ aus, damit sie immer „Heute“, „Gestern“, einen Wochentag und ein Datum zeigt; dafür hat sie zwei Beispiel-Meldungen mehr. Die Zahl an der Glocke bleibt dort stehen, weil die Vorschau nichts speichert; bei echten Logins folgt sie, sobald die Markierung gespeichert ist.
+
+Geprüft in der Designvorschau: 1024 × 768 (760 px breit), 1512 × 900 (937 px), 1920 × 1080 (1190 px), 2560 × 1440 und 3840 × 2160 (je 1280 px, keine waagrechte Scrollleiste), Handy mit 390 px; mit 36 Meldungen scrollt nur die Liste, Überschrift und Knopf bleiben stehen, und eine fokussierte Zeile ganz unten bleibt sichtbar; hell und dunkel; Haken, „Rückgängig“ und „Alle als gelesen markieren“. Nicht geprüft: echte Logins (die Vorschau speichert nichts) und Safari.

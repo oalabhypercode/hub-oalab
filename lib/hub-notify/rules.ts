@@ -465,6 +465,25 @@ export function liveVersion(input: { unread: number; items: { id: number; create
   return [input.unread, input.pending, ...lines].join("|");
 }
 
+// What the layout loads for the bell (23.11.2026) ---------------------------------------------------------------------
+
+/** The newest lines, read or not: „Früher“ in the overview and the live check read them. */
+export const INBOX_LATEST = 30;
+/** Unread lines the bell lists at most; above it says how many more there are. */
+export const INBOX_UNREAD = 100;
+
+/**
+ * The rows behind the bell: the INBOX_LATEST newest ones and every unread one up to INBOX_UNREAD, each once, newest
+ * first. The bell shows only the unread ones (plan docs/planung/chat-ereignisse-und-glocke.md 2.1), so an older unread
+ * notice must not drop out behind newer read ones while the number on the bell still counts it. The LIVE_LINES
+ * newest of these rows are always the newest of all, so the page and app/api/live keep building the same version.
+ */
+export function mergeInboxRows<T extends { id: number; created_at: string }>(latest: readonly T[], unread: readonly T[]): T[] {
+  const rows = new Map<number, T>();
+  for (const row of [...latest, ...unread]) if (!rows.has(row.id)) rows.set(row.id, row);
+  return [...rows.values()].sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id - a.id);
+}
+
 /** Only these notices offer "In deinen Kalender eintragen"; cancelled and declined ones do not. */
 const CALENDAR_KINDS = new Set<string>(["appointment.created", "appointment.confirmed", "appointment.changed"]);
 

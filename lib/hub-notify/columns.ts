@@ -122,3 +122,34 @@ export function noticeColumns(notice: { kind: string; title: string; body: strin
 
   return { where: fallback, path: "", title, body, from: "", fromDetail: "" };
 }
+
+// The time column left of the symbol (plan docs/planung/chat-ereignisse-und-glocke.md 2.2, 23.11.2026) -----------------
+
+const BERLIN = "Europe/Berlin";
+const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: BERLIN, year: "numeric", month: "2-digit", day: "2-digit" });
+const clockOf = new Intl.DateTimeFormat("de-DE", { timeZone: BERLIN, hour: "2-digit", minute: "2-digit" });
+const weekdayOf = new Intl.DateTimeFormat("de-DE", { timeZone: BERLIN, weekday: "short" });
+const dayMonthOf = new Intl.DateTimeFormat("de-DE", { timeZone: BERLIN, day: "numeric", month: "short" });
+const shortDateOf = new Intl.DateTimeFormat("de-DE", { timeZone: BERLIN, day: "2-digit", month: "2-digit", year: "2-digit" });
+const fullOf = new Intl.DateTimeFormat("de-DE", { timeZone: BERLIN, weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** A day of the German calendar as a whole number, so two instants count their days apart in German time. */
+const dayNumber = (time: number) => Date.parse(`${dayKey.format(time)}T00:00:00Z`) / 86_400_000;
+
+export type BellTime = { day: string; clock: string; full: string };
+
+/**
+ * When a notice came, in German time, for the column left of its symbol: above „Heute“, „Gestern“, the weekday within
+ * a week („Mo.“), the day in this year („22. Nov.“), else the date („22.11.25“); below the clock („09:40“). `full` is
+ * the whole date for the hint. Without the current time (`now` 0) the day is the date.
+ */
+export function bellTime(iso: string, now: number): BellTime {
+  const time = Date.parse(iso);
+  if (Number.isNaN(time)) return { day: "", clock: "", full: "" };
+  const days = now > 0 ? dayNumber(now) - dayNumber(time) : Number.NaN;
+  const sameYear = now > 0 && dayKey.format(time).slice(0, 4) === dayKey.format(now).slice(0, 4);
+  // „Mo.“ everywhere: some engines write the short weekday without the point.
+  const day = days <= 0 ? "Heute" : days === 1 ? "Gestern" : days < 7 ? `${weekdayOf.format(time).replace(/\.$/, "")}.`
+    : sameYear ? dayMonthOf.format(time) : shortDateOf.format(time);
+  return { day, clock: clockOf.format(time), full: fullOf.format(time) };
+}
