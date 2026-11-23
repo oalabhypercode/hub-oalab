@@ -25,7 +25,7 @@
   --nz-h3-fs: 19.5px; --nz-h3-lh: 28px; --nz-h3-mt: 30px;
   --nz-callout-fs: 15.5px; --nz-callout-lh: 27px; --nz-callout-pad: 16px 18px;
   --nz-td-fs: 14.5px; --nz-td-lh: 23px; --nz-th-fs: 12.5px; --nz-cell-pad: 11px 14px;
-  --nz-width: 720px; --nz-wide: 980px;
+  --nz-width: 720px;
 }
 :root[data-notes-text="small"] .nz-doc {
   --nz-fs: 15px; --nz-lh: 28px; --nz-p-pad: 5px; --nz-li-pad: 3.5px; --nz-box: 5px;
@@ -35,7 +35,7 @@
   --nz-h3-fs: 17.5px; --nz-h3-lh: 25px; --nz-h3-mt: 27px;
   --nz-callout-fs: 14px; --nz-callout-lh: 25px; --nz-callout-pad: 14px 16px;
   --nz-td-fs: 13.5px; --nz-td-lh: 21px; --nz-th-fs: 12px; --nz-cell-pad: 10px 13px;
-  --nz-width: 656px; --nz-wide: 892px;
+  --nz-width: 656px;
 }
 :root[data-notes-text="large"] .nz-doc {
   --nz-fs: 18.5px; --nz-lh: 35px; --nz-p-pad: 7px; --nz-li-pad: 4.5px; --nz-box: 8.5px;
@@ -45,7 +45,7 @@
   --nz-h3-fs: 22px; --nz-h3-lh: 31px; --nz-h3-mt: 34px;
   --nz-callout-fs: 17.5px; --nz-callout-lh: 30px; --nz-callout-pad: 18px 20px;
   --nz-td-fs: 16px; --nz-td-lh: 26px; --nz-th-fs: 14px; --nz-cell-pad: 12px 16px;
-  --nz-width: 808px; --nz-wide: 1100px;
+  --nz-width: 808px;
 }
 
 /* ---- The sheet: list left, writing area right ---------------------------------------------------------------- */
@@ -83,6 +83,9 @@
 .nz-ibtn { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-muted); flex: 0 0 auto; }
 .nz-ibtn:hover, .nz-ibtn.is-on { background: var(--nz-hover); color: var(--label-body); }
 .nz-ibtn.is-sm { width: 24px; height: 24px; }
+/* The trash at the top right of a page: red, so it is found without the gear. */
+.nz-ibtn.is-danger { color: var(--tone-bad); }
+.nz-ibtn.is-danger:hover, .nz-ibtn.is-danger.is-on { background: var(--tone-bad-bg); color: var(--tone-bad); }
 .nz-new { display: flex; align-items: center; gap: 8px; width: calc(100% - 16px); height: 32px; margin: 2px 8px; padding: 0 8px; border-radius: 8px; font-size: 14px; color: var(--sheet-muted); }
 .nz-new:hover { background: var(--nz-hover); color: var(--label-body); }
 .nz-tsearch { display: flex; align-items: center; gap: 6px; height: 32px; margin: 2px 10px 4px; padding: 0 8px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
@@ -104,6 +107,21 @@
 .nz-row.is-on .nz-row-icon { color: var(--accent); }
 .nz-row-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nz-row-aud { display: inline-flex; color: var(--sheet-icon); }
+/* „+“ at a page adds a subpage: in sight while hovering, on the open page and on touch screens. */
+.nz-row-add { width: 24px; height: 24px; margin-right: 3px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-muted); flex: 0 0 auto; opacity: 0; transition: opacity 150ms ease; }
+.nz-row:hover .nz-row-add, .nz-row:focus-within .nz-row-add, .nz-row.is-on .nz-row-add { opacity: 1; }
+.nz-row-add:hover { background: var(--nz-hover); color: var(--label-body); }
+.nz-row.is-on .nz-row-add { color: var(--accent-text); }
+@media (hover: none) { .nz-row-add { opacity: 1; } }
+/* With a mouse it takes no room until it shows, so the titles keep their full width. */
+@media (hover: hover) {
+  .nz-row { position: relative; }
+  .nz-row-add { position: absolute; top: 50%; right: 3px; margin: -12px 0 0; }
+  .nz-row:hover .nz-row-main, .nz-row:focus-within .nz-row-main, .nz-row.is-on .nz-row-main { padding-right: 32px; }
+}
+.nz-row-new { width: 100%; font-size: 13.5px; color: var(--sheet-muted); text-align: left; }
+.nz-row-new .nz-row-icon { margin-right: 7px; color: inherit; }
+.nz-row-new:hover .nz-row-icon { color: var(--accent-text); }
 .nz-tree-empty { padding: 30px 16px; text-align: center; font-size: 13.5px; line-height: 19px; color: var(--sheet-muted); }
 
 /* ---- The page -------------------------------------------------------------------------------------------------- */
@@ -127,7 +145,9 @@ button.nz-meta.is-error:hover { text-decoration: underline; }
 .nz-stale-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 
 .nz-doc { max-width: var(--nz-width); margin: 0 auto; padding: 36px 48px 240px; }
-.nz-doc.is-wide { max-width: var(--nz-wide); }
+/* „Breit“ fills the whole writing area beside the list (23.11.2026; before, at most --nz-wide). */
+.nz-doc.is-wide { max-width: none; }
+@media (min-width: 768px) { .nz-doc.is-wide { padding-left: clamp(48px, 4.5%, 72px); padding-right: clamp(48px, 4.5%, 72px); } }
 .nz-doc.has-cover { padding-top: 0; }
 .nz-title { display: block; width: 100%; margin: 0 0 var(--nz-title-mb); padding: 0; border: 0; outline: 0; resize: none; overflow: hidden; background: transparent; font: inherit; font-size: var(--nz-title-fs); line-height: var(--nz-title-lh); font-weight: 700; letter-spacing: -0.02em; color: var(--label); }
 .nz-title::placeholder { color: var(--sheet-icon); }
@@ -311,6 +331,10 @@ button.nz-pop-row:hover { background: var(--nz-hover); }
 .nz-pop-foot { padding: 6px 16px 14px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .nz-gear-pop { top: 50px; right: 12px; width: 368px; max-width: calc(100% - 24px); max-height: calc(100% - 62px); overflow: auto; }
 .nz-text-pop { top: 50px; right: 12px; width: 344px; max-width: calc(100% - 24px); }
+.nz-bin-pop { top: 50px; right: 12px; width: 340px; max-width: calc(100% - 24px); }
+.nz-actions.is-end { justify-content: flex-end; padding: 4px 12px 12px; }
+.nz-btn.is-danger-fill { background: color-mix(in srgb, var(--tone-bad-bg) 70%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-bad) 28%, transparent); color: var(--tone-bad); }
+.nz-btn.is-danger-fill:hover:not(:disabled) { background: var(--tone-bad-bg); }
 .nz-area-pop { top: 50px; left: 10px; width: 344px; max-width: calc(100% - 20px); }
 .nz-cover-pop { right: 24px; width: 432px; max-width: calc(100% - 48px); max-height: 520px; overflow: auto; padding-bottom: 6px; }
 .nz-cover-pop.at-cover { top: 168px; }
@@ -443,7 +467,7 @@ button.nz-pop-row:hover { background: var(--nz-hover); }
   .nz-page-emoji img { width: 50px; height: 50px; }
   .nz-headzone.with-cover { margin-top: -34px; }
   .nz-head-actions { opacity: 1; }
-  .nz-gear-pop, .nz-text-pop, .nz-area-pop, .nz-cover-pop { position: fixed; top: auto; left: 8px; right: 8px; bottom: calc(96px + env(safe-area-inset-bottom)); width: auto; max-width: none; max-height: 70dvh; overflow: auto; }
+  .nz-gear-pop, .nz-text-pop, .nz-area-pop, .nz-cover-pop, .nz-bin-pop { position: fixed; top: auto; left: 8px; right: 8px; bottom: calc(96px + env(safe-area-inset-bottom)); width: auto; max-width: none; max-height: 70dvh; overflow: auto; }
   .nz-cust-pop { width: calc(100vw - 48px); }
   .nz-toast { bottom: calc(100px + env(safe-area-inset-bottom)); }
   .nz-prose table { min-width: 520px; }

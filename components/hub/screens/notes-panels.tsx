@@ -4,12 +4,31 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Circle, ExternalLink, FileText, History, Lock, RotateCcw, Trash2, X } from "lucide-react";
 import { editedAgo } from "@/lib/hub-notes/rules";
 import { TEMPLATE_CHOICES } from "@/lib/hub-notes/templates";
-import type { NoteRevision, NoteTaskView, NoteTemplateId, NoteTrashItem, NoteViewer } from "@/lib/hub-notes/types";
+import type { NotePageMeta, NoteRevision, NoteTaskView, NoteTemplateId, NoteTrashItem, NoteViewer } from "@/lib/hub-notes/types";
 import { EmojiGlyph } from "./notes-blocks";
 import { useDismiss } from "./notes-settings";
 
 // The notes' side windows (plan 1.3 and 4): the trash of a customer, a task's window with „Erwähnt in“, and the
 // templates an empty new page offers.
+
+/** The red trash at the top right (and „In den Papierkorb“ in the gear) asks once, naming the subpages that go along. */
+export function TrashAsk({ page, subpages, onConfirm, onClose }: { page: NotePageMeta; subpages: number; onConfirm: () => void; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  useDismiss(box, onClose, "[data-bin-button]");
+  const text = subpages
+    ? `„${page.title}“ und ${subpages} ${subpages === 1 ? "Unterseite" : "Unterseiten"} liegen dann 30 Tage im Papierkorb unten in der Seitenliste und lassen sich bis dahin wiederherstellen.`
+    : `„${page.title}“ liegt dann 30 Tage im Papierkorb unten in der Seitenliste und lässt sich bis dahin wiederherstellen.`;
+  return (
+    <div ref={box} className="nz-pop nz-bin-pop nz-glass" role="dialog" aria-label="In den Papierkorb legen?">
+      <div className="nz-pop-head"><strong>In den Papierkorb legen?</strong><button type="button" className="nz-ibtn" aria-label="Schließen" onClick={onClose}><X size={16} aria-hidden="true" /></button></div>
+      <p className="nz-pop-note is-pad">{text}</p>
+      <div className="nz-actions is-end">
+        <button type="button" className="nz-btn" onClick={onClose}>Abbrechen</button>
+        <button type="button" className="nz-btn is-danger-fill" onClick={onConfirm}><Trash2 size={15} aria-hidden="true" />In den Papierkorb</button>
+      </div>
+    </div>
+  );
+}
 
 /** The trash (team only): pages stay 30 days; restoring brings their subpages back, deleting for good removes them. */
 export function TrashPanel({ items, loading, onRestore, onPurge, onClose }: { items: NoteTrashItem[]; loading: boolean; onRestore: (id: string) => void; onPurge: (id: string) => void; onClose: () => void }) {
