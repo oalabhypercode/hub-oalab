@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Activity, Archive, ArrowUpDown, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Megaphone, Rows3, Send, Settings, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, Archive, ArrowUpDown, BellRing, Building2, Check, Copy, Handshake, KeyRound, ListFilter, MailX, Megaphone, Rows3, Send, Settings, ShieldCheck, Upload, UserPlus, Users } from "lucide-react";
 import { displayStatusLabels, roleLabels, type DisplayStatus, type HubRole } from "@/lib/hub-users/rules";
 import { entryOfLogin, groupLoginsByCompany, type CompanyGroup } from "@/lib/hub-users/company-groups";
 import { customerLoginState, isFirstInvitation, isInvitable, loginStateLabels, type LoginState } from "@/lib/hub-invitations/rules";
@@ -22,7 +22,7 @@ import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } 
 import { CustomerPanel, FreelancerPanel, fullName, ReviewPanel, statusGlyph, UserPanel } from "./users-dialogs";
 import { CustomerImportDialog } from "./users-import";
 import { CustomerLogoDialog } from "../customer-logo-dialog";
-import { AnnouncementsDialog, CustomerLoginsDialog, InvitationsDialog } from "./users-logins";
+import { AnnouncementsDialog, CustomerLoginsDialog, InvitationsDialog, LaunchRemindersDialog } from "./users-logins";
 import { useInfo } from "../info-box";
 
 const ALL = "all";
@@ -30,7 +30,7 @@ const ALL = "all";
  * What is open: a panel at the right edge (a registration, a login, a customer, a freelancer; new without an id, a new
  * login from a customer with its entry and role chosen) or one of the bulk windows.
  */
-type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string; customerId?: string; role?: HubRole; entryCreated?: boolean } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" } | { kind: "announce" } | { kind: "teamLogo" };
+type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string; customerId?: string; role?: HubRole; entryCreated?: boolean } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" } | { kind: "announce" } | { kind: "remind" } | { kind: "teamLogo" };
 const dialogFor = (user: ManagedUser): Dialog => user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id };
 /** A new login for a customer or a freelancer: that entry chosen, with its role. */
 const loginFor = (entry: Pick<ManagedCustomer, "id" | "kind">, entryCreated = false): Dialog => ({ kind: "user", customerId: entry.id, role: entry.kind === "freelancer" ? "oalab_freelancer" : "oalab_customer", ...(entryCreated ? { entryCreated } : {}) });
@@ -141,7 +141,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   };
   const openUser = (user: ManagedUser) => open(dialogFor(user));
   const openId = openIdOf(dialog);
-  const panelOpen = dialog !== null && dialog.kind !== "import" && dialog.kind !== "logins" && dialog.kind !== "invite" && dialog.kind !== "announce";
+  const panelOpen = dialog !== null && dialog.kind !== "import" && dialog.kind !== "logins" && dialog.kind !== "invite" && dialog.kind !== "announce" && dialog.kind !== "remind";
   const showTab = (next: Tab) => {
     if (panelOpen && !leave()) return;
     if (panelOpen) { dirty.current = false; setDialog(null); }
@@ -238,7 +238,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
   // A login chooses among the entries in use; one that already belongs to an archived entry keeps it in the choice.
   const choiceEntries = entries.filter((entry) => !entry.archivedAt || Boolean(editUser?.customerIds.includes(entry.id)));
   const switcher = <span className="users-switch"><TabSwitch tab={tab} onTab={showTab} users={users.length} customers={customers.length} freelancers={state.freelancers ? freelancers.length : null} />{tabsInfo.button}{tabsInfo.box}</span>;
-  const manage = <ManageButtons tab={tab} withoutLogin={withoutLogin} invitable={invitable.filter(isFirstInvitation).length} onCustomer={() => open({ kind: "customer" })} onImport={() => open({ kind: "import" })} onLogins={() => open({ kind: "logins" })} onInvite={() => open({ kind: "invite" })} onAnnounce={() => open({ kind: "announce" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} onAdmin={() => open(adminLogin)} />;
+  const manage = <ManageButtons tab={tab} withoutLogin={withoutLogin} invitable={invitable.filter(isFirstInvitation).length} onCustomer={() => open({ kind: "customer" })} onImport={() => open({ kind: "import" })} onLogins={() => open({ kind: "logins" })} onInvite={() => open({ kind: "invite" })} onAnnounce={() => open({ kind: "announce" })} onRemind={() => open({ kind: "remind" })} onFreelancer={() => open({ kind: "freelancer" })} onUser={() => open({ kind: "user" })} onAdmin={() => open(adminLogin)} />;
   const title = <TitleIcon icon={sectionIcons.users!} />;
 
   if (state.error) {
@@ -512,6 +512,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       {dialog?.kind === "logins" && <CustomerLoginsDialog customers={customers} users={users} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "invite" && <InvitationsDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "announce" && <AnnouncementsDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
+      {dialog?.kind === "remind" && <LaunchRemindersDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "teamLogo" && team && <CustomerLogoDialog customer={team} onClose={() => setDialog(null)} onSaved={(message) => { setDialog(null); setNotice(message); }} />}
       {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerPanel key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onOpenUser={openFromEntry} onNewUser={newLoginFor} onCreated={afterCreate("freelancer")} {...panelProps} />}
     </>
@@ -556,9 +557,9 @@ function TabSwitch({ tab, onTab, users, customers, freelancers }: { tab: Tab; on
  * login; logins with „Zugang anlegen“, „Admin anlegen“ (user 21.11.2026) and the invitations. The counts tell how
  * many are waiting.
  */
-function ManageButtons({ tab, withoutLogin, invitable, onCustomer, onImport, onLogins, onInvite, onAnnounce, onFreelancer, onUser, onAdmin }: {
+function ManageButtons({ tab, withoutLogin, invitable, onCustomer, onImport, onLogins, onInvite, onAnnounce, onRemind, onFreelancer, onUser, onAdmin }: {
   tab: Tab; withoutLogin: number; invitable: number;
-  onCustomer: () => void; onImport: () => void; onLogins: () => void; onInvite: () => void; onAnnounce: () => void; onFreelancer: () => void; onUser: () => void; onAdmin: () => void;
+  onCustomer: () => void; onImport: () => void; onLogins: () => void; onInvite: () => void; onAnnounce: () => void; onRemind: () => void; onFreelancer: () => void; onUser: () => void; onAdmin: () => void;
 }) {
   const actions: SheetAction[] = tab === "customers" ? [
     { icon: Building2, label: "Kunde anlegen", hint: "Mit der nächsten freien Kundennummer", onSelect: onCustomer },
@@ -571,6 +572,7 @@ function ManageButtons({ tab, withoutLogin, invitable, onCustomer, onImport, onL
     { icon: UserPlus, label: "Zugang anlegen", hint: "Mit Aktivierungslink per E-Mail", onSelect: onUser },
     { icon: ShieldCheck, label: "Admin anlegen", hint: "Für das oalab-Team, ohne Kunde", onSelect: onAdmin },
     { icon: Megaphone, label: "Ankündigung senden", hint: "Vorab-Mail mit Anleitung an Kunden ohne Anmeldung", onSelect: onAnnounce },
+    { icon: BellRing, label: "Erinnerung senden", hint: "Mail zum Start an alle Kunden-Zugänge", onSelect: onRemind },
     { icon: Send, label: "Einladungen senden", hint: "An alle, die sich noch nie angemeldet haben", badge: invitable, onSelect: onInvite },
   ];
   return <SheetActionMenu label={tab === "customers" ? "Kunden verwalten" : tab === "freelancers" ? "Freelancer verwalten" : "Zugänge verwalten"} actions={actions} />;
