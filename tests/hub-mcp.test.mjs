@@ -194,11 +194,13 @@ const WRITE_TOOLS = [
 // The notes (since 23.11.2026): reading with hub:read, writing with hub:write, after the tools before them.
 const NOTES_READ = ["list_notes", "read_note", "search_notes", "get_note_history", "list_note_trash"];
 const NOTES_WRITE = ["create_note", "update_note", "set_note_visibility", "notify_note_change", "create_meeting_note", "trash_note", "restore_note", "restore_note_version"];
+// Stage 3 (23.11.2026): the rest of the hub, reading only.
+const AREA_READ = ["get_customer_contacts", "list_files", "get_contract", "list_conversations", "read_conversation", "get_admin_log", "get_insights"];
 
-test("tools: fourteen reading, twenty writing, strict and fully described; none without the right", () => {
-  assert.deepEqual(tools.listTools(["hub:read"]).map((tool) => tool.name), [...READ_TOOLS, ...NOTES_READ], "a read-only connection sees no writing tool");
+test("tools: twenty-one reading, twenty writing, strict and fully described; none without the right", () => {
+  assert.deepEqual(tools.listTools(["hub:read"]).map((tool) => tool.name), [...READ_TOOLS, ...NOTES_READ, ...AREA_READ], "a read-only connection sees no writing tool");
   const listed = tools.listTools(["hub:read", "hub:write"]);
-  assert.deepEqual(listed.map((tool) => tool.name), [...READ_TOOLS, ...WRITE_TOOLS, ...NOTES_READ, ...NOTES_WRITE]);
+  assert.deepEqual(listed.map((tool) => tool.name), [...READ_TOOLS, ...WRITE_TOOLS, ...NOTES_READ, ...NOTES_WRITE, ...AREA_READ]);
   // Strict schemas all the way down (the tasks of create_tasks, the milestones of create_project).
   const strict = (schema, path) => {
     if (schema.type === "object") {
@@ -937,4 +939,49 @@ test("stage 2: through the project page's, the board's and the calendar's own co
   const flWrites = await source("lib/hub-mcp/freelancer-writes.ts");
   const checklist = flWrites.slice(flWrites.indexOf("async function updateChecklist("));
   assert.ok(checklist.indexOf("ownProject(") < checklist.indexOf("changeChecklist("), "their own project first");
+});
+
+/* ---------- Stage 3 (23.11.2026): reading the rest of the hub, never passwords, codes or download links ---------- */
+
+const areaTools = await import("../lib/hub-mcp/area-tools.ts");
+
+test("stage 3: the rest of the hub to read, for admins only, strict and described", () => {
+  assert.deepEqual(areaTools.AREA_TOOL_NAMES, AREA_READ);
+  for (const tool of areaTools.areaTools) {
+    assert.equal(tool.scope, "hub:read", tool.name);
+    assert.equal(tool.annotations.readOnlyHint, true, tool.name);
+    assert.equal(tool.annotations.destructiveHint, false, tool.name);
+    assert.ok(tool.description.length > 80, tool.name);
+  }
+  for (const name of AREA_READ) assert.equal(freelancerTools.freelancerToolOf(name), null, `${name}: not for freelancers`);
+  assert.equal(tools.runHubTool("get_contract", { customer_id: ids.abc }, { origin, today: "2026-11-23", now: 0 }).isError, true, "the pure runner reads nothing");
+  const describe = (name) => areaTools.areaTools.find((tool) => tool.name === name).description;
+  assert.match(describe("get_customer_contacts"), /Passwörter, Codes und den zweiten Faktor gibt der Connector nie heraus/);
+  assert.match(describe("get_contract"), /Passwörter und Zugangsdaten bleiben im Schlüsselbund/);
+  assert.match(describe("list_files"), /Herunterladen geht über den Link in den Hub/);
+  assert.match(describe("read_conversation"), /bleibt alles so ungelesen, wie es war/);
+  assert.match(tools.SERVER_INSTRUCTIONS, /Passwörter, Codes und den zweiten Faktor nie/);
+  assert.match(config.scopeLabels["hub:read"], /Vertrag & Domain, Gespräche, Protokolle und Insights \(nie Passwörter\)/);
+});
+
+test("stage 3: read with the server key after the key check, nothing written, the Schlüsselbund closed", async () => {
+  const areas = await source("lib/hub-mcp/areas.ts");
+  assert.match(areas, /^import "server-only";/);
+  // Reading only: no write of any kind, no read mark, no signed link, no vault, no provider logins.
+  assert.doesNotMatch(areas, /\.(insert|update|upsert|delete)\(|markPrivateRead|createSignedUrl|hub_vault_secrets|hub_customer_logins|revealSecret|\.logins\b/);
+  assert.match(areas, /const LOCKED = \{ status: "locked", attemptsLeft: 0, recoveryLeft: 0 \} as const;/);
+  assert.match(areas, /loadDomainMailForAdmin\(db, LOCKED, null\)/);
+  // Archived customers stay out of sight, as in the hub.
+  assert.match(areas, /if \(!data \|\| isArchivedCustomer\(archive, data\.id\) \|\| isArchivedOrganization\(archive, data\.organization_id\)\) return null;/);
+  assert.match(areas, /fileInSight\(archive, /);
+  const server = await source("lib/hub-mcp/server.ts");
+  assert.ok(server.indexOf("hasScope(connection.scopes, tool.scope)") < server.indexOf("runAreaTool("), "the right first");
+  assert.ok(server.indexOf('if (connection.role !== "admin") return callFreelancerTool(') < server.indexOf("runAreaTool("), "never for a freelancer's connection");
+
+  // The hub's own pages keep their admin check; the connector reads through the same code after its key check.
+  const conversations = await source("lib/hub-conversations/server.ts");
+  assert.match(conversations, /if \(!\(await conversationReader\(\)\)\) return failed\(unavailable\);\s+return readConversations\(db\);/);
+  const log = await source("lib/hub-assistant/log.ts");
+  assert.match(log, /if \(!await verifyHubAdmin\(\)\) return \{ rows: \[\], error: "Das KI-Protokoll sehen nur Admins\." \};/);
+  assert.match(log, /return readAssistantLog\(db\);/);
 });

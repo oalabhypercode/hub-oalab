@@ -20,6 +20,7 @@ import { studioStatusOrder, studioStatuses } from "../hub-projects/desk";
 import { MAX_DESCRIPTION, MAX_MILESTONES, MAX_NAME } from "../hub-projects/edit";
 import { MAX_LABEL, MAX_LABELS, MAX_TEXT, MAX_TITLE, PRIORITY_NAMES, STATUS_NAMES, TASK_PRIORITIES, TASK_STATUSES } from "../hub-tasks/rules";
 import type { HubScope } from "./config";
+import { areaTools } from "./area-tools";
 import { notesTools } from "./notes-tools";
 import type { ToolDefinition, ToolResult } from "./protocol";
 
@@ -38,9 +39,9 @@ export type CalendarData = { appointments: CalendarAppointment[]; availability: 
 export type ProjectPerson = { id: string; name: string; kind: "team" | "freelancer" | "other"; company?: string };
 /**
  * What a tool needs from the server: the assistant's data, the calendar, one card of the board (lib/hub-mcp/board.ts),
- * a writing core, or the notes (lib/hub-mcp/notes.ts).
+ * a writing core, the notes (lib/hub-mcp/notes.ts) or one of the other areas read in stage 3 (lib/hub-mcp/areas.ts).
  */
-export type ToolNeeds = "assistant" | "calendar" | "task" | "write" | "notes";
+export type ToolNeeds = "assistant" | "calendar" | "task" | "write" | "notes" | "areas";
 /** A freelancer who looks after a project's customer (get_project with the right to write), for set_project_freelancer. */
 export type ProjectFreelancer = { id: string; name: string; number: string; onProject: boolean };
 export type ToolContext = { origin: string; today: string; now: number; assistant?: AssistantData; calendar?: CalendarData; people?: ProjectPerson[]; freelancers?: ProjectFreelancer[] };
@@ -107,7 +108,7 @@ const tools: HubTool[] = [
   {
     name: "get_customer",
     title: "Kunde ansehen",
-    description: "Stammdaten eines Kunden (Unternehmen, Kundennummer, Pakete, Ort, Website) und seine Projekte mit Status, Fortschritt und Zieltermin. Kontaktdaten gibt der Connector nicht heraus.",
+    description: "Stammdaten eines Kunden (Unternehmen, Kundennummer, Pakete, Ort, Website) und seine Projekte mit Status, Fortschritt und Zieltermin. Kontaktdaten und Zugänge zeigt get_customer_contacts, Vertrag & Domain get_contract.",
     inputSchema: { type: "object", properties: { customer_id: id("ID aus search.") }, required: ["customer_id"], additionalProperties: false },
     annotations: { title: "Kunde ansehen", ...READ },
     scope: "hub:read",
@@ -503,6 +504,9 @@ const tools: HubTool[] = [
 
   // ---------- Notes (since 23.11.2026): reading with hub:read, writing with hub:write (lib/hub-mcp/notes.ts) ----------
   ...notesTools("admin").map((tool): HubTool => ({ ...tool, needs: "notes" })),
+
+  // ---------- Stage 3 (23.11.2026): reading the rest of the hub, never passwords (lib/hub-mcp/areas.ts) ----------
+  ...areaTools.map((tool): HubTool => ({ ...tool, needs: "areas" })),
 ];
 
 /** The tools a connection with these rights sees, as tools/list sends them. */
@@ -516,7 +520,7 @@ export const toolOf = (name: string) => tools.find((tool) => tool.name === name)
 /** What Claude is told once per connection (initialize). */
 export const SERVER_INSTRUCTIONS = [
   "Verbunden mit dem oalab Client Hub, mit den Rechten des Admins, der die Verbindung erlaubt hat.",
-  "Die Werkzeuge lesen Kunden, Projekte, Aufgaben mit allen Einzelheiten, den Kalender mit der Verfügbarkeit und die Notizen (Seiten je Kunde, als Markdown). Hat der Admin auch das Schreiben erlaubt, legen sie Termine, Aufgaben (mit Checkliste und Kommentaren), Projekte und Notizseiten an und ändern sie, haken Checklisten ab, setzen Freelancer auf Projekte und tragen Abwesenheiten oder zusätzliche Zeiten ein; Notizseiten können sie für Kunde oder Freelancer freigeben und in den Papierkorb legen (30 Tage wiederherstellbar). Endgültig löschen oder archivieren können sie nichts.",
+  "Die Werkzeuge lesen Kunden mit Kontaktdaten, Projekte, Aufgaben mit allen Einzelheiten, den Kalender mit der Verfügbarkeit, die Notizen (Seiten je Kunde, als Markdown), Dateien, Vertrag & Domain, die Gespräche, das Admin- und das KI-Protokoll und Insights; Passwörter, Codes und den zweiten Faktor nie. Hat der Admin auch das Schreiben erlaubt, legen sie Termine, Aufgaben (mit Checkliste und Kommentaren), Projekte und Notizseiten an und ändern sie, haken Checklisten ab, setzen Freelancer auf Projekte und tragen Abwesenheiten oder zusätzliche Zeiten ein; Notizseiten können sie für Kunde oder Freelancer freigeben und in den Papierkorb legen (30 Tage wiederherstellbar). Endgültig löschen oder archivieren können sie nichts.",
   "Jede Änderung gilt sofort im Hub, so als hätte der Admin sie dort gespeichert, und steht im Admin-Protokoll; Termine mit Kunde und freigegebene Notizen schicken eine Meldung. Sag vor dem Schreiben kurz, was du eintragen willst.",
   "Lies eine Notizseite mit read_note, bevor du ihren Inhalt ersetzt, und behalte die oalab:-Zeilen darin bei; zum Ergänzen hänge mit content_mode append an.",
   "Prüfe eine Terminzeit vor dem Eintragen oder Verschieben mit check_appointment_time und nenne Überschneidungen oder eine Zeit außerhalb der Verfügbarkeit.",
@@ -755,6 +759,7 @@ export function runHubTool(name: string, args: Json, context: ToolContext): Tool
   if (tool.needs === "write") return refuse("Dieses Werkzeug schreibt und läuft nur auf dem Server des Hubs.");
   if (tool.needs === "notes") return refuse("Die Notizen laufen nur auf dem Server des Hubs.");
   if (tool.needs === "task") return refuse("Aufgaben liest nur der Server des Hubs.");
+  if (tool.needs === "areas") return refuse("Diese Bereiche liest nur der Server des Hubs.");
   if (tool.needs === "calendar") {
     if (!context.calendar) return refuse("Der Kalender konnte gerade nicht geladen werden. Bitte versuche es erneut.");
     return runCalendarTool(name, args, context, context.calendar);
