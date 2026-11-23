@@ -11,9 +11,13 @@ export type ColorScheme = "system" | "light" | "dark";
 
 /**
  * Listen: one quiet line per entry (symbol, title, date), low striped lines with columns and folders that open in place
- * like the Finder's list view (since 19.11.2026), or every column.
+ * like the Finder's list view (since 19.11.2026), cards with a preview picture („Kacheln“, since 23.11.2026; lists
+ * without pictures show Minimal instead), or every column.
  */
-export type ListView = "minimal" | "list" | "detail";
+export type ListView = "minimal" | "list" | "tiles" | "detail";
+
+/** The size of „Kacheln“ (23.11.2026), set at the bottom right of the list; per device like the view itself. */
+export type TileSize = "small" | "medium" | "large";
 
 /**
  * Breite: Standard uses the whole width beside the sidebar and grows with the screen (since 22.11.2026; before, the
@@ -46,6 +50,7 @@ export type Appearance = {
   reduceMotion: boolean;
   sidebar: SidebarState;
   listView: ListView;
+  tileSize: TileSize;
   pageWidth: PageWidth;
   notesTextSize: NotesTextSize;
 };
@@ -75,6 +80,7 @@ export const defaultAppearance: Appearance = {
   reduceMotion: false,
   sidebar: "expanded",
   listView: "minimal",
+  tileSize: "medium",
   pageWidth: "standard",
   notesTextSize: "medium",
 };
@@ -151,7 +157,8 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     reduceTransparency: typeof input.reduceTransparency === "boolean" ? input.reduceTransparency : systemReducedTransparency,
     reduceMotion: typeof input.reduceMotion === "boolean" ? input.reduceMotion : defaultAppearance.reduceMotion,
     sidebar: input.sidebar === "collapsed" ? "collapsed" : "expanded",
-    listView: input.listView === "detail" || input.listView === "list" ? input.listView : "minimal",
+    listView: input.listView === "detail" || input.listView === "list" || input.listView === "tiles" ? input.listView : "minimal",
+    tileSize: input.tileSize === "small" || input.tileSize === "large" ? input.tileSize : "medium",
     pageWidth: input.pageWidth === "xl" ? "xl" : "standard",
     notesTextSize: input.notesTextSize === "small" || input.notesTextSize === "large" ? input.notesTextSize : "medium",
   };

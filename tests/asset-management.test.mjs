@@ -30,6 +30,11 @@ test("the list view is a setting of its own: minimal unless someone chose the li
   assert.equal(normalizeAppearance({ listView: "detail" }).listView, "detail");
   assert.equal(normalizeAppearance({ listView: "list" }).listView, "list");
   assert.equal(normalizeAppearance({ listView: "table" }).listView, "minimal");
+  // „Kacheln“ (23.11.2026) and their size, medium unless someone chose another.
+  assert.equal(normalizeAppearance({ listView: "tiles" }).listView, "tiles");
+  assert.equal(normalizeAppearance(null).tileSize, "medium");
+  assert.equal(normalizeAppearance({ tileSize: "large" }).tileSize, "large");
+  assert.equal(normalizeAppearance({ tileSize: "huge" }).tileSize, "medium");
 });
 
 test("„Liste“ writes dates and kinds as the Finder does, in Berlin time", () => {
@@ -47,9 +52,9 @@ test("„Liste“ writes dates and kinds as the Finder does, in Berlin time", ()
 test("„Liste“ is the third view: a Finder-like tree of folders and files that shares ticks, sorting and dragging", async () => {
   const screen = await source("components/hub/screens/asset-management.tsx");
   assert.match(screen, /data-tip="Listensicht wie im Finder" onClick=\{\(\) => onChange\("list"\)\}><List size=\{14\} aria-hidden="true" \/>Liste<\/button>/);
-  assert.match(screen, /const customerBody = finder \? finderList\(/);
-  assert.match(screen, /const allBody = finder \? finderList\(null, "Alle Dateien", true\)/);
-  assert.match(screen, /const inboxBody = finder \? finderList\(null, "Dateien ohne Kunden", false\)/);
+  assert.match(screen, /const customerBody = tiles \? tileList\([^\n]*\) : finder \? finderList\(/);
+  assert.match(screen, /const allBody = tiles \? tileList\([^\n]*\) : finder \? finderList\(null, "Alle Dateien", true\)/);
+  assert.match(screen, /const inboxBody = tiles \? tileList\([^\n]*\) : finder \? finderList\(null, "Dateien ohne Kunden", false\)/);
   assert.match(screen, /onSelect=\{\(ids\) => \{ closeDetails\(\); setSelected\(ids\); \}\}/);
   const list = await source("components/hub/screens/asset-list.tsx");
   // A tree grid: rows with levels, folders open in place, a selection of several, the keyboard of the Finder.
@@ -81,7 +86,7 @@ test("admins get the Asset Management with customers first; customers keep their
   assert.match(files, /return props\.admin \|\| props\.freelancer \? <AssetManagement \{\.\.\.props\} \/> : <CustomerFiles \{\.\.\.props\} \/>;/);
   const screen = await source("components/hub/screens/asset-management.tsx");
   // The switch and the setting under Darstellung are one value.
-  assert.match(screen, /trailing=\{<DensitySwitch view=\{listView\} onChange=\{\(next\) => update\(\{ listView: next \}\)\} \/>\}/);
+  assert.match(screen, /<DensitySwitch view=\{listView\} onChange=\{\(next\) => update\(\{ listView: next \}\)\} \/><\/>\}>/);
   assert.match(screen, /data-tip="Minimalistische Sicht"/);
   assert.match(screen, /data-tip="Detailsicht"/);
   // The shared views stay on top of the customers; a notice's link still opens its file.
@@ -292,4 +297,39 @@ test("the selection bar lies over the search line, so the files never move betwe
   assert.match(css, /@media \(max-width: 767px\) \{[\s\S]*?\.am-bars \{ display: contents; \}/);
   // The count shortens before the actions run into it (at 1440 px „1 Datei ausgewählt“ was cut).
   assert.match(css, /@container sheet \(max-width: 1179px\) \{\n {2}\.am \.am-sel-long \{ display: none; \}/);
+});
+test("„Kacheln“ is the fourth view: cards with a preview picture, opened with a click, ticked in the corner (23.11.2026)", async () => {
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  assert.match(screen, /data-tip="Kacheln mit Vorschaubildern" onClick=\{\(\) => onChange\("tiles"\)\}><LayoutGrid size=\{14\} aria-hidden="true" \/>Kacheln<\/button>/);
+  assert.match(screen, /const compact = minimal \|\| finder \|\| tiles;/);
+  // The open customer's folders, the days of „Alle Dateien“, the Ablage without a heading.
+  assert.match(screen, /const customerBody = tiles \? tileList\(asTiles\(/);
+  assert.match(screen, /const allBody = tiles \? tileList\(dayGroups\.map/);
+  assert.match(screen, /const inboxBody = tiles \? tileList\(\[\{ key: "inbox", label: "", folder: false, files: shown \}\]/);
+  // Ticks and details exclude each other as in the other views; a click opens the details.
+  assert.match(screen, /<AssetTiles label=\{label\} groups=\{list\} size=\{appearance\.tileSize\} selected=\{selected\} onSelect=\{\(ids\) => \{ closeDetails\(\); setSelected\(ids\); \}\}/);
+  assert.match(screen, /onOpen=\{\(file\) => open\(file\)\}/);
+  // The size: at the bottom right in the footer, and next to the view switch where the footer may be out of sight.
+  assert.match(screen, /<SheetFooter trailing=\{tiles \? <TileSizeSwitch size=\{appearance\.tileSize\} onChange=\{\(tileSize\) => update\(\{ tileSize \}\)\} place="bottom" \/> : undefined\}/);
+  assert.match(screen, /trailing=\{<>\{tiles && <TileSizeSwitch size=\{appearance\.tileSize\} onChange=\{\(tileSize\) => update\(\{ tileSize \}\)\} place="top" \/>\}/);
+  const tiles = await source("components/hub/screens/asset-tiles.tsx");
+  // Images through the server's preview, small; only when they scroll into view; the ground fits the image.
+  assert.match(tiles, /const source = kind !== "image" \? null : file\.sampleHref \?\? \(live \? previewUrl\(file, "s"\) : null\);/);
+  assert.match(tiles, /loading="lazy"/);
+  assert.match(tiles, /if \(clear\) detectLogoGround\(shown\)\.then\(setGround\);/);
+  // ⇧ adds a range, Strg or ⌘ one more, a plain click opens.
+  assert.match(tiles, /if \(event\.shiftKey\) \{ event\.preventDefault\(\); range\(file\.id\); return; \}\n {4}if \(event\.metaKey \|\| event\.ctrlKey\) \{ toggle\(file\.id\); return; \}/);
+  // Cards drag like rows and carry their symbol.
+  assert.match(tiles, /\{\.\.\.dragAttrs\(file\)\}/);
+  assert.match(await source("components/hub/screens/asset-drag.ts"), /state\.row\.querySelector\("\[data-drag-icon\] svg"\) \?\? state\.row\.querySelector\("svg"\)/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.at-grid \{ display: grid; grid-template-columns: repeat\(auto-fill, minmax\(min\(var\(--at-min\), 100%\), 1fr\)\);/);
+  // Bottom right only while the footer stays in sight; else up next to the view switch.
+  assert.match(css, /@media \(min-width: 1024px\) and \(min-height: 560px\) \{ \.at-size-wrap\.is-top \{ display: none; \} \}/);
+  assert.match(css, /@media \(max-width: 1023px\), \(max-height: 559px\) \{ \.at-size-wrap\.is-bottom \{ display: none; \} \}/);
+  // A light logo keeps a dark ground, a dark one a light ground, in both themes.
+  assert.match(css, /:root\[data-theme="dark"\] \.at-thumb\.is-clear \{ background: repeating-conic-gradient\(#d6d0d3/);
+  // Profil › Darstellung offers it as well; lists without pictures (the keychain) show Minimal.
+  assert.match(await source("components/hub/screens/appearance.tsx"), /\{ id: "tiles", label: "Kacheln" \}/);
+  assert.match(await source("components/hub/sheet.tsx"), /export function SheetFooter\(\{ children, hint, trailing \}/);
 });

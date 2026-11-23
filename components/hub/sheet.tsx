@@ -268,8 +268,10 @@ export function StatusGlyph({ kind }: { kind: GlyphKind }) {
 }
 
 /** Line under a sheet: counts on the left, a hint on the right. */
-export function SheetFooter({ children, hint }: { children: React.ReactNode; hint?: React.ReactNode }) {
-  return <div className="sheet-footer"><span>{children}</span>{hint && <span>{hint}</span>}</div>;
+/** The sheet's last line: counts on the left, a hint on the right; `trailing` (a small switch, say) after the hint. */
+export function SheetFooter({ children, hint, trailing }: { children: React.ReactNode; hint?: React.ReactNode; trailing?: React.ReactNode }) {
+  if (!trailing) return <div className="sheet-footer"><span>{children}</span>{hint && <span>{hint}</span>}</div>;
+  return <div className="sheet-footer"><span>{children}</span><span className="sheet-footer-end">{hint && <span className="sheet-footer-hint">{hint}</span>}{trailing}</span></div>;
 }
 
 /** No rows for the current search or filters, inside the sheet, with the way back. */
