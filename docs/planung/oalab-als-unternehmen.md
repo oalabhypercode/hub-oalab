@@ -1,6 +1,6 @@
 # Planung: oalab als eigenes Unternehmen im Hub
 
-Stand 23. November 2026 · nur Plan, nichts gebaut · Entscheidungen 1 bis 10 offen (Abschnitt 9)
+Stand 23. November 2026 · Etappe 1 gebaut auf `feat/oalab-unternehmen` (Hub) und `feat/hub-team-entry` (service-oalab), noch nicht live (Abschnitt 11) · Entscheidungen 1 bis 10 am 23. November 2026 wie empfohlen getroffen (Abschnitt 9)
 
 Dieser Plan beschreibt den Wunsch vom 23. November 2026: Als Admin gehörst du zu keinem Unternehmen und kannst deshalb für oalab selbst keine Projekte, keine Aufgaben und keine Notizen anlegen. oalab soll ein eigenes Unternehmen im Hub werden, in dem das Team untereinander mit denselben Werkzeugen arbeitet wie mit Kunden und Freelancern: Projekte und Aufgaben anlegen, Notizen schreiben und freigeben.
 
@@ -53,7 +53,7 @@ Was schon da ist:
 
 ## 2. Die Idee: oalab wird ein Eintrag der Art „Team“
 
-**Ein fester Eintrag.** Neben „Kunde“ und „Freelancer“ bekommt `hub_customers` eine dritte Art: „Team“. Davon gibt es genau einen, und er gehört zur vorhandenen oalab-Organisation der Serviceplattform. Name und Nummer kommen von dort und bleiben im Gleichschritt, wie bei Kunden. Logo und Stammdaten pflegst du im Hub. Archivieren und Löschen gehen nicht.
+**Ein fester Eintrag.** Neben „Kunde“ und „Freelancer“ bekommt `hub_customers` eine dritte Art: „Team“. Davon gibt es genau einen, und er gehört zur vorhandenen oalab-Organisation der Serviceplattform. Name und Nummer kommen von dort und bleiben im Gleichschritt, wie bei Kunden. Das Logo pflegst du im Hub. Archivieren und Löschen gehen nicht.
 
 **Mitglieder.** Alle aktiven Admins gehören automatisch dazu. Es gibt keine eigene Mitgliederliste: Wer Admin ist, ist im oalab-Team, wer es nicht mehr ist, ist raus. Kunden- und Freelancer-Zugänge können nie Mitglied werden; die Datenbank lehnt das ab. Das schützt alles Interne vor Kunden.
 
@@ -68,7 +68,7 @@ Was schon da ist:
 
 | Bereich | So sieht es aus |
 |---|---|
-| Zugänge | Die Gruppe „oalab“ wird der echte Eintrag: mit Logo und Nummer, Zahnrad zu den Stammdaten, darunter alle Admins, „Admin anlegen“ wie heute |
+| Zugänge | Die Gruppe „oalab“ wird der echte Eintrag: mit Logo und Nummer, Zahnrad für das Logo, darunter alle Admins, „Admin anlegen“ wie heute |
 | Projekte | „oalab“ steht ganz oben in der Liste links, mit dem Zeichen „Intern“; „Neues Projekt“ geht dort wie bei Kunden. Ohne Domains, Pakete und Service, ohne „Für den Kunden sichtbar“ |
 | Aufgaben | Interne Projekte stehen mit „oalab · Intern“ im Board und lassen sich danach filtern; Zuständige sind das Team (und in Etappe 3 Freelancer) |
 | Notizen | „oalab“ ganz oben in der Liste (Etappe 2), mit „Sichtbar für“ nur „Nur Team“ oder „Team und Freelancer“ |
@@ -83,7 +83,7 @@ Was schon da ist:
 ### 3.1 Zugänge
 
 - Die Gruppe „oalab“ zeigt das Logo des Eintrags (sonst „OA“ wie heute), seine Nummer und „Team“ statt „Admin“ als Art.
-- Das Zahnrad öffnet die Stammdaten wie bei Kunden, hier nur mit Logo und Website. Name und Nummer stehen grau darin, weil sie von der Serviceplattform kommen.
+- Das Zahnrad öffnet das Logo-Fenster wie bei Kunden. Name und Nummer kommen von der Serviceplattform und lassen sich im Hub nicht ändern; Kontaktdaten wie bei Kunden hat der Eintrag nicht.
 - „Admin anlegen“ bleibt, wo es ist. Neu ist das Häkchen „Darf Projekte und Aufgaben bearbeiten“ (Abschnitt 3.5).
 
 ### 3.2 Projekte
@@ -112,16 +112,17 @@ Der Hub liest Unternehmen an gut 30 Stellen. Etappe 1 geht sie alle durch und en
 
 ### 3.6 Technik
 
-Migration in `service-oalab` (Nummer erst beim Bau vergeben, nach Prüfung aller Branches; Lehre vom 23. November 2026):
+Migration `202611230003_hub_team_entry.sql` in `service-oalab` (Nummer nach Prüfung aller Branches vergeben; Lehre vom 23. November 2026). Sie ändert keine bestehende Funktion, sondern ergänzt Regeln und Wächter:
 
-- `hub_customers.kind` erlaubt zusätzlich `team`; ein eindeutiger Teilindex lässt höchstens einen Eintrag dieser Art zu. Die Art bleibt nach dem Anlegen fest (vorhandener Wächter).
-- Die Regel „Freelancer nie mit Organisation“ wird zu: Freelancer ohne Organisation, Team mit Organisation. Ein Wächter prüft, dass die Organisation des Team-Eintrags die aktive oalab-Organisation ist und die eines Kunden nie.
-- `hub_customer_members` lehnt jede Zeile für den Team-Eintrag ab. Admins gehören über ihre Rolle dazu, nicht über Mitgliedschaften; so kann nie ein Kunden- oder Freelancer-Zugang hineinrutschen.
-- Der Abgleich mit der Serviceplattform (`hub_sync_service_organization`) hält Name und Nummer des Team-Eintrags aktuell und fasst seine Mitglieder nicht an (heute würde er bei einer Organisation, die kein Kunde ist, die Mitglieder löschen).
-- `hub_archive_customer`, `hub_restore_customer` und `hub_delete_customer` lehnen den Team-Eintrag ab.
+- `hub_customers.kind` erlaubt zusätzlich `team`; der eindeutige Teilindex `hub_customers_one_team` lässt höchstens einen Eintrag dieser Art zu. Die Art bleibt nach dem Anlegen fest (vorhandener Wächter).
+- Die Regel „Freelancer nie mit Organisation“ wird zu `hub_customers_organization_by_kind`: Freelancer ohne Organisation, Team mit Organisation.
+- Der Wächter `hub_customers_team_guard` prüft, dass der Team-Eintrag auf der oalab-Organisation liegt und ein Kunde nie, und lehnt Archivieren, Löschen und Umhängen des Team-Eintrags ab. Damit scheitern auch `hub_archive_customer` und `hub_delete_customer` an ihm, bevor sie die oalab-Organisation archivieren könnten; `hub_restore_customer` ändert nichts.
+- `hub_customer_members_never_team` lehnt jede Mitgliedschaft im Team-Eintrag ab. Admins gehören über ihre Rolle dazu; so kann nie ein Kunden- oder Freelancer-Zugang hineinrutschen.
+- Der Trigger `hub_customer_contact_to_service` bekommt `when (new.kind <> 'team')`: Kontaktdaten des Team-Eintrags gehen nicht an die Serviceplattform. Der Abgleich `hub_sync_service_organization` bleibt unverändert; er fasst Mitglieder einer Organisation, die kein Kunde ist, ohnehin nur zum Entfernen an, und der Team-Eintrag hat keine.
+- `hub_team_entry_follows_organization` hält Name und Nummer des Team-Eintrags aktuell, wenn die oalab-Organisation umbenannt wird.
 - Die Migration legt den Eintrag aus der oalab-Organisation an. Gibt es nicht genau eine aktive, bricht sie mit einer klaren Meldung ab, und nichts ist geändert.
-- Am Studio ändert sich nichts. Weil die oalab-Organisation keine Kundenrollen zulässt, sieht kein Kunde ein internes Projekt; der Hub blendet den Schalter trotzdem aus.
-- Rückweg in `supabase/rollbacks/`, geprüft auf PGlite mit echten Rollen: zweiter Team-Eintrag, Mitglied im Team, Archivieren, Löschen, Paket, Domain und Notizseite (vor Etappe 2) für oalab werden abgelehnt; ein internes Projekt lässt sich anlegen und ist für Kunden unsichtbar.
+- Am Studio ändert sich nichts. Weil die oalab-Organisation keine Kundenrollen zulässt, sieht kein Kunde ein internes Projekt; der Hub blendet den Schalter trotzdem aus und lehnt Freigeben ab.
+- Rückweg in `supabase/rollbacks/`, Textprüfung `scripts/hub-team-entry.test.mjs`. Auf PGlite geprüft (50 Prüfungen, mit den echten Funktionen für Abgleich, Archivieren, Wiederherstellen und Löschen): ohne oder mit zwei aktiven oalab-Organisationen bricht die Migration ab; zweiter Team-Eintrag, Kunde auf der oalab-Organisation, Freelancer mit Organisation, Mitglieder im Team-Eintrag, Archivieren, Löschen, Umhängen und ein Paket für oalab werden abgelehnt, und die oalab-Organisation bleibt aktiv; Kontaktdaten des Team-Eintrags bleiben im Hub, die eines Kunden kommen wie bisher an; Umbenennen folgt; eine Team-Rolle für einen Kollegen ändert keine Mitgliedschaften; Kunden lassen sich weiter archivieren, wiederherstellen und löschen; der Rückweg stellt alles wieder her.
 
 Im Hub:
 
@@ -129,7 +130,7 @@ Im Hub:
 - `createProjectAs` nimmt den Team-Eintrag an (Organisation der Art „oalab“), `loadProjectDesk` stellt ihn als erste Zeile ohne Pakete, Kontingent, Anfragen und Domains dazu; Panel und „Neues Projekt“ blenden „Für den Kunden sichtbar“ aus.
 - Board: Kennzeichen „Intern“ und Filter.
 - Zugänge: Gruppe „oalab“ aus dem Eintrag, Stammdaten mit Logo.
-- Team-Rolle (Abschnitt 3.5): Mitgliedschaft der Rolle „Operator“ in der oalab-Organisation, geschrieben mit dem Server-Schlüssel nach der Admin-Prüfung mit Code; Protokoll `admin.team_role_on`/`admin.team_role_off`.
+- Team-Rolle (Abschnitt 3.5): Mitgliedschaft der Rolle „Operator“ in der oalab-Organisation, geschrieben mit dem Server-Schlüssel nach der Admin-Prüfung (`lib/hub-team/server.ts` `changeTeamRole`); Protokoll `user.team_role_grant`, `_revoke`, `_pause` und `_resume`.
 - Durchsicht aller Stellen aus Abschnitt 3.4, Wissen des Assistenten (`lib/hub-assistant/knowledge.ts`), `PROJECT_CONTEXT.md`, Patch Notes (nur für Admins, „Intern“), Tests mit Beispieldaten.
 
 ## 4. Etappe 2: Notizen und Dateien für oalab
@@ -195,6 +196,8 @@ Im Hub:
 
 ## 9. Entscheidungen
 
+Am 23. November 2026 entschieden: alle zehn wie empfohlen („Ja, Etappe 1 bauen“ auf die Frage, ob Etappe 1 mit den Empfehlungen gebaut werden soll).
+
 | # | Frage | Empfehlung |
 |---|---|---|
 | 1 | Wird oalab ein eigener Eintrag der Art „Team“, verbunden mit der vorhandenen oalab-Organisation der Serviceplattform, statt eines „normalen Kunden“? | Ja: keine neue Organisation, keine Pakete, kein Chat, und die Datenbank hält Kundendinge von selbst fern |
@@ -238,3 +241,18 @@ Etappe 3:
 - Ein Freelancer, der oalab betreut, lässt sich auf ein internes Projekt setzen und sieht dort alle Aufgaben außer „Nur Team“.
 - Er sieht interne Seiten und Dateien mit „Team und Freelancer“, keine mit „Nur Team“, und oalab steht bei ihm unter „Deine Kunden“ als „oalab · Intern“.
 - Ein Freelancer ohne Zuordnung sieht von oalab nichts, auch nicht über den Connector.
+
+## 11. Umsetzung Etappe 1 (23. November 2026)
+
+Gebaut am 23. November 2026 nach „Ja, Etappe 1 bauen“, noch nicht live:
+
+- `service-oalab`, Branch `feat/hub-team-entry`: Migration `202611230003_hub_team_entry.sql`, Rückweg und Textprüfung (Abschnitt 3.6). Alle 140 Skript-Tests grün.
+- Hub, Branch `feat/oalab-unternehmen` auf dem Plan:
+  - `lib/hub-team/rules.ts` (Art „team“, Zeichen „Intern“, Zustände der Team-Rolle) und `lib/hub-team/server.ts` (`loadTeamEntry`, `loadTeamRoles`, `changeTeamRole`).
+  - Projekte: `createProjectAs` nimmt den Team-Eintrag an und legt nie für Kunden sichtbar an, `saveProjectDetailsAs` lehnt Freigeben bei internen Projekten ab; `Project.internal`, `DeskCustomer.team` mit Logo; die Projektseite zeigt oalab ganz oben unter „Intern“, ohne Service, Pakete, Domain-Eintrag und Sprünge zu Chat und Vertrag, und „Neues Projekt“ sowie die Projektleiste ohne „Für den Kunden sichtbar“.
+  - Board: `BoardProject.internal` über die Art der Organisation, interne Projekte zuerst, „oalab · Intern“ in Auswahl und Kopf, kein „+ Kunde“ bei „Sichtbar für“.
+  - Zugänge: Gruppe „oalab“ aus dem Eintrag (Logo, Nummer, „Team“), Zahnrad öffnet das Logo-Fenster; der Eintrag steht nicht unter „Kunden“. „Admin anlegen“ mit „Darf Projekte und Aufgaben bearbeiten“, „Sicherheit“ mit „Projekte und Aufgaben“ (`components/hub/screens/users-team.tsx`).
+  - Ausgeblendet: Chat, Kundenwahl im Kalender, Asset Management, Kundenzahl der Übersicht; Vertrag & Domain, Schlüsselbund, Kontingent und Domains lehnten andere Arten schon ab. `writeCustomerAs` lehnt den Team-Eintrag ab (sonst würde er die oalab-Organisation umbenennen); Archivieren, Wiederherstellen und Löschen finden ihn nicht.
+  - Claude und Ali: `internal: true` in `search` und `get_customer`, `create_project` für oalab, `entryOf` ohne oalab.
+  - Patch Notes im Paket 30 (nur Admins; bei späterem Livegang in ein neues Paket verschieben), Wissen des Assistenten, `PROJECT_CONTEXT.md`, Test `tests/hub-team.test.mjs`. `tsc`, `lint` und alle 582 Tests grün.
+- Livegang: erst den Hub-PR mergen (ohne Migration sieht der Hub aus wie vorher), dann die Migration über den Coolify-Import einspielen, danach live prüfen: oalab unter „Zugänge“ und „Projekte“, ein internes Testprojekt mit einer Aufgabe, und dass ein Kundenzugang davon nichts sieht.

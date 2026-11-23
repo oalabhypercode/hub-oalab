@@ -302,7 +302,8 @@ test("Projekte V2 step 2: the page asks before unsaved changes are lost and offe
   const created = await source("components/hub/screens/projects-new-panel.tsx");
   assert.match(created, /useState<StudioProjectStatus>\("planning"\)/);
   assert.match(created, /useState\(false\)/);
-  assert.match(created, /createProject\(\{ customerId: customer\.id, status, visible, draft \}\)/);
+  // oalab's own entry creates internal projects: nothing to release (plan „oalab als Unternehmen“).
+  assert.match(created, /createProject\(\{ customerId: customer\.id, status, visible: !team && visible, draft \}\)/);
 });
 
 test("Projekte without the code: read-only, with „Mit Code bestätigen“ above the page and in the project's panel", async () => {

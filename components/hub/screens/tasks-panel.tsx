@@ -10,7 +10,7 @@ import { MiniLoader } from "@/components/brand-loader";
 import { useInfo } from "../info-box";
 import { Select, SuggestInput } from "../select";
 import { AssetPanel } from "./asset-panel";
-import { Avatar, CompanyMark, LabelPill, PriorityIcon, RoleTag, TaskGlyph } from "./tasks-parts";
+import { Avatar, CompanyMark, LabelPill, PriorityIcon, projectGroup, RoleTag, TaskGlyph } from "./tasks-parts";
 import { NoteMentions } from "./notes-links";
 
 const moment = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -35,19 +35,20 @@ type Fields = { status: TaskStatus; title: string; description: string; priority
  * „Sichtbar für“: the team chooses one of three (`choose`, user 16.11.2026 as in the design); freelancers read who sees
  * the card (`text`), because what they see is decided by the team and the database.
  */
-export type AudienceView = { mode: "choose"; hasFreelancers: boolean } | { mode: "text"; text: string };
+export type AudienceView = { mode: "choose"; hasFreelancers: boolean; internal?: boolean } | { mode: "text"; text: string };
 
-const audienceOptions = (hasFreelancers: boolean) => [
+/** `internal`: a project of oalab itself (plan „oalab als Unternehmen“) has no customer to show a task to. */
+const audienceOptions = (hasFreelancers: boolean, internal = false) => [
   { id: "team" as const, label: "Nur Team", icon: Lock, tip: "Nur das oalab-Team" },
   // Without freelancers on the project the middle choice is the team, and whoever joins later.
   { id: "shared" as const, label: hasFreelancers ? "+ Freelancer" : "Team", icon: Users, tip: hasFreelancers ? "Team und Freelancer des Projekts" : "Team und künftige Freelancer des Projekts" },
-  { id: "customer" as const, label: "+ Kunde", icon: Eye, tip: "Zusätzlich der Kunde im Projektfenster" },
+  ...(internal ? [] : [{ id: "customer" as const, label: "+ Kunde", icon: Eye, tip: "Zusätzlich der Kunde im Projektfenster" }]),
 ];
 
-function AudienceChoice({ value, hasFreelancers, disabled, onChange }: { value: TaskAudience; hasFreelancers: boolean; disabled: boolean; onChange: (value: TaskAudience) => void }) {
+function AudienceChoice({ value, hasFreelancers, internal, disabled, onChange }: { value: TaskAudience; hasFreelancers: boolean; internal?: boolean; disabled: boolean; onChange: (value: TaskAudience) => void }) {
   return (
     <span className="kb-seg3" role="group" aria-label="Sichtbar für">
-      {audienceOptions(hasFreelancers).map(({ id, label, icon: Icon, tip }) => (
+      {audienceOptions(hasFreelancers, internal).map(({ id, label, icon: Icon, tip }) => (
         <button key={id} type="button" aria-pressed={value === id} disabled={disabled} data-tip={tip} onClick={() => value !== id && onChange(id)}>
           <Icon size={13} strokeWidth={2.2} aria-hidden="true" />{label}
         </button>
@@ -135,7 +136,7 @@ function Properties({ fields, assignees, people, knownLabels, today, canEdit, au
       <dt><Eye size={15} aria-hidden="true" />Sichtbar für</dt>
       <dd className="kb-visible">
         {audience.mode === "choose" ? <>
-          <AudienceChoice value={fields.audience} hasFreelancers={audience.hasFreelancers} disabled={!canEdit} onChange={(value) => onChange({ audience: value })} />
+          <AudienceChoice value={fields.audience} hasFreelancers={audience.hasFreelancers} internal={audience.internal} disabled={!canEdit} onChange={(value) => onChange({ audience: value })} />
           {info.button}
           {info.box}
         </> : <span className="kb-readonly-note">{fields.audience === "customer" ? <Eye size={14} aria-hidden="true" /> : <Users size={14} aria-hidden="true" />}{audience.text}</span>}
@@ -465,7 +466,7 @@ export function NewTaskPanel({ projects, initialProjectId, assigneesFor, audienc
         <div className="kb-project-field">
           <span className="am-label">Projekt</span>
           <Select label="Projekt" placeholder="Projekt wählen" value={projectId} onChange={chooseProject} search
-            options={projects.map((item) => ({ value: item.id, label: item.name, group: item.company || "Ohne Kunde", lead: <CompanyMark company={item.company} size="s" /> }))} />
+            options={projects.map((item) => ({ value: item.id, label: item.name, group: projectGroup(item), lead: <CompanyMark company={item.company} size="s" /> }))} />
         </div>
       )}
       <textarea ref={titleRef} className="kb-title-input" rows={1} value={fields.title} placeholder="Titel der Aufgabe" aria-label="Titel" maxLength={MAX_TITLE}

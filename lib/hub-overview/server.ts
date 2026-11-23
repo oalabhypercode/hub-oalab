@@ -27,7 +27,8 @@ export async function loadOverviewFacts(role: HubRole | null): Promise<OverviewF
     loadArchive(),
   ]);
   if (customers.error || !packages.ready) return null;
-  const ids = (customers.data ?? []).filter((row) => row.kind !== "freelancer" && !archive.customerIds.has(row.id)).map((row) => row.id);
+  // Customers only: neither freelancers nor oalab's own entry (kind team) count as customers.
+  const ids = (customers.data ?? []).filter((row) => (row.kind ?? "customer") === "customer" && !archive.customerIds.has(row.id)).map((row) => row.id);
   return { customers: ids.length, withService: ids.filter((id) => heldPackages(packagesOf(packages.byCustomer, id)).some(isServicePackageId)).length };
 }
 

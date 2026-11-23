@@ -8,6 +8,7 @@ import { feedRoleOf } from "./feed-rules";
 import { activeFeed, feedReady } from "./feed-store";
 import type { HubFileCustomer } from "../hub-files/types";
 import type { HubAppointment, HubCalendarState } from "./types";
+import { isTeamKind } from "@/lib/hub-team/rules";
 
 type CustomerRow = { id: string; customer_number: string; company: string; kind?: string };
 type AppointmentRow = {
@@ -101,7 +102,8 @@ export async function loadHubCalendar(today: string): Promise<HubCalendarState> 
     ...(feed ? { feed } : {}),
     availability: open.availability,
     availabilityReady: open.ready,
-    customers: withFreelancerCustomers(customers.data ?? [], theirs).filter((row) => !archive.customerIds.has(row.id)).map(toCustomer),
+    // oalab's own entry (kind team) is no customer to meet: an internal appointment simply has none.
+    customers: withFreelancerCustomers((customers.data ?? []).filter((row) => !isTeamKind(row.kind)), theirs).filter((row) => !archive.customerIds.has(row.id)).map(toCustomer),
     busy: ((busy.data ?? []) as BusyRow[]).map((row) => ({ start: Date.parse(row.starts_at), end: Date.parse(row.ends_at) })),
     appointments: (appointments.data ?? []).filter((row) => !row.customer || !archive.customerIds.has(row.customer.id)).map(toAppointment),
   };

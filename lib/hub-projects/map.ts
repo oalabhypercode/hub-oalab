@@ -154,7 +154,7 @@ export function restatesSite(description: string | undefined, urls: (string | nu
 const targetDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "long", year: "numeric" });
 
 /** One hub project from its Studio rows; `tasks` are the tasks the viewer may see. */
-export function toHubProject(input: { project: StudioProjectRow; details: StudioDetailsRow | null; tasks: ProjectTask[]; requests: RequestCounts; company: string | undefined; customer?: { id: string; website: string | null } }): Project {
+export function toHubProject(input: { project: StudioProjectRow; details: StudioDetailsRow | null; tasks: ProjectTask[]; requests: RequestCounts; company: string | undefined; customer?: { id: string; website: string | null; internal?: boolean } }): Project {
   const { project, details, tasks, requests } = input;
   // Without Studio details a project counts as running (Studio shows "paused" ones as on hold, the hub has no such status).
   const complete = details?.status === "complete";
@@ -175,6 +175,7 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     company: input.company,
     organizationId: project.organization_id,
     ...(input.customer ? { customerId: input.customer.id } : {}),
+    ...(input.customer?.internal ? { internal: true } : {}),
     ...(website ? { website } : {}),
     // Test and live address of the project itself (customer_projects, one source for customer, Studio and Business).
     ...(projectUrl(project.live_url) ? { liveUrl: projectUrl(project.live_url)! } : {}),

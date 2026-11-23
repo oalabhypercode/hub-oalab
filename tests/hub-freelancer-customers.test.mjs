@@ -148,12 +148,13 @@ test("freelancers read their customers' names and logos through their list, neve
   // names from it, because the embedded customer row stays empty for them.
   const files = await source("lib/hub-files/server.ts");
   assert.match(files, /const theirs = await loadFreelancerCustomerList\(supabase\);/);
-  assert.match(files, /const customerRows = withFreelancerCustomers\(customers\.data \?\? \[\], theirs\);/);
+  // oalab's own entry (kind team) stays out of the files in stage 1 of the plan „oalab als Unternehmen“.
+  assert.match(files, /const customerRows = withFreelancerCustomers\(\(customers\.data \?\? \[\]\)\.filter\(\(row\) => !isTeamKind\(row\.kind\)\), theirs\);/);
   assert.match(files, /assignment\.customer \|\| !assignment\.customer_id \? assignment : \{ \.\.\.assignment, customer: named\.get\(assignment\.customer_id\) \?\? null \}/);
   assert.match(files, /readFiles\("customer_id, folder_id, audience"\)/);
   assert.match(files, /customers: customerRows\.filter\(\(row\) => !archive\.customerIds\.has\(row\.id\)\)/);
   assert.match(files, /files: fileRows\.filter\(\(row\) => fileInSight\(archive, /);
   const calendar = await source("lib/hub-calendar/server.ts");
   assert.match(calendar, /role === "oalab_freelancer" \? loadFreelancerCustomerList\(supabase\) : null,/);
-  assert.match(calendar, /customers: withFreelancerCustomers\(customers\.data \?\? \[\], theirs\)\.filter\(\(row\) => !archive\.customerIds\.has\(row\.id\)\)/);
+  assert.match(calendar, /customers: withFreelancerCustomers\(\(customers\.data \?\? \[\]\)\.filter\(\(row\) => !isTeamKind\(row\.kind\)\), theirs\)\.filter\(\(row\) => !archive\.customerIds\.has\(row\.id\)\)/);
 });

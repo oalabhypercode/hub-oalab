@@ -96,7 +96,8 @@ test("new customers start in Service, and Service customers keep company and num
   // Customers the assistant creates name their author too.
   assert.match(await source("lib/hub-assistant/actions.ts"), /update\(\{ \.\.\.contactColumns\(proposal\.contact\), updated_by: ctx\.userId \}\)/);
   // The suggested number follows the rule of 29.10.2026 and avoids numbers taken in Service.
-  assert.match(await source("lib/hub-users/server.ts"), /newCustomerNumber\(new Set\(\[\.\.\.customerRows, \.\.\.\(organizations\.data \?\? \[\]\)\]\.map\(\(row\) => row\.customer_number\)\)\)/);
+  // Every number counts as taken, oalab's own entry's too (it stands apart from the customers since 23.11.2026).
+  assert.match(await source("lib/hub-users/server.ts"), /newCustomerNumber\(new Set\(\[\.\.\.allRows, \.\.\.\(organizations\.data \?\? \[\]\)\]\.map\(\(row\) => row\.customer_number\)\)\)/);
 });
 
 test("a registration is matched to its customer by number first, then by company name", () => {
@@ -387,7 +388,8 @@ test("„Zugänge“ stand under their company, the admins under oalab (user 21.
   assert.match(page, /\{byCompany && <td className="cell-entry-number" \/>\}/);
   assert.match(page, /<TableGroup key=\{group\.key\} colSpan=\{7\}[\s\S]*?cells=\{<>\n\s+<td className="cell-entry-number">\{head\.number\}<\/td>\n\s+<td className="cell-role">\{head\.kind\}<\/td>/);
   assert.match(page, /<span className="role-tag">\{entry\.kind === "freelancer" \? "Freelancer" : "Kunde"\}<\/span>/);
-  assert.match(page, /kind: <span className="role-tag">Admin<\/span>/);
+  // oalab: its own entry (kind team) with logo and number once it exists, the admins below (23.11.2026).
+  assert.match(page, /kind: <span className="role-tag">\{team \? "Team" : "Admin"\}<\/span>/);
   assert.match(page, /const state = customerLoginState\(group\.rows\);/);
   const sheet = await source("components/hub/sheet.tsx");
   assert.match(sheet, /if \(cells\) \{/);

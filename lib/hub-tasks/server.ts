@@ -136,8 +136,10 @@ function countsOf(comments: { task_id: string }[], subtasks: { task_id: string; 
 }
 
 /** The board's projects, sorted by customer and name, with dates and status from Studio and their freelancers. */
-function boardProjectsOf(rows: ProjectRow[], details: DetailsRow[], organizations: { id: string; name: string }[], links: LinkRow[]): BoardProject[] {
+function boardProjectsOf(rows: ProjectRow[], details: DetailsRow[], organizations: { id: string; name: string; kind?: string | null }[], links: LinkRow[]): BoardProject[] {
   const names = new Map(organizations.map((row) => [row.id, row.name]));
+  // Projects on the oalab organization are oalab's own (plan „oalab als Unternehmen“).
+  const internal = new Set(organizations.filter((row) => row.kind === "oalab").map((row) => row.id));
   const detailsById = new Map(details.map((row) => [row.project_id, row]));
   return rows
     .map((row) => {
@@ -151,9 +153,11 @@ function boardProjectsOf(rows: ProjectRow[], details: DetailsRow[], organization
         dueOn: detail?.due_date ?? null,
         status: detail?.status ?? (row.status === "paused" ? "hold" : "active"),
         freelancerIds: [...new Set(links.filter((link) => link.project_id === row.id).map((link) => link.freelancer_id))],
+        ...(internal.has(row.organization_id) ? { internal: true } : {}),
       };
     })
-    .sort((a, b) => a.company.localeCompare(b.company, "de") || a.name.localeCompare(b.name, "de"));
+    // oalab's own projects first, then the customers'.
+    .sort((a, b) => Number(Boolean(b.internal)) - Number(Boolean(a.internal)) || a.company.localeCompare(b.company, "de") || a.name.localeCompare(b.name, "de"));
 }
 
 /**
@@ -227,7 +231,7 @@ async function adminBoard(viewerId: string, db: Db): Promise<TaskBoardState> {
   const [details, tasks, organizations, comments, subtasks, files, links, team, freelancers, deactivated] = await Promise.all([
     projectIds.length ? db.from("studio_project_details").select("project_id, status, start_date, due_date").in("project_id", projectIds).returns<DetailsRow[]>() : empty,
     projectIds.length ? db.from("studio_tasks").select(TASK_COLUMNS).in("project_id", projectIds).eq("archived", false).returns<StudioTaskRow[]>() : empty,
-    organizationIds.length ? db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>() : empty,
+    organizationIds.length ? db.from("organizations").select("id, name, kind").in("id", organizationIds).returns<{ id: string; name: string; kind: string }[]>() : empty,
     organizationIds.length ? db.from("studio_comments").select("task_id").in("organization_id", organizationIds).returns<{ task_id: string }[]>() : empty,
     organizationIds.length ? db.from("studio_subtasks").select("task_id, done").in("organization_id", organizationIds).returns<{ task_id: string; done: boolean }[]>() : empty,
     projectIds.length ? db.from("studio_files").select("task_id").in("project_id", projectIds).eq("state", "ready").not("task_id", "is", null).returns<{ task_id: string }[]>() : empty,
@@ -283,7 +287,7 @@ async function freelancerBoard(viewerId: string, session: SupabaseClient, db: Db
     db.from("studio_project_details").select("project_id, status, start_date, due_date").in("project_id", projectIds).returns<DetailsRow[]>(),
     // Cards, checklists, comments and images with the freelancer's session: no „Nur Team“, nothing archived (RLS).
     session.from("studio_tasks").select(TASK_COLUMNS).in("project_id", projectIds).eq("archived", false).returns<StudioTaskRow[]>(),
-    db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>(),
+    db.from("organizations").select("id, name, kind").in("id", organizationIds).returns<{ id: string; name: string; kind: string }[]>(),
     session.from("studio_comments").select("task_id").in("organization_id", organizationIds).returns<{ task_id: string }[]>(),
     session.from("studio_subtasks").select("task_id, done").in("organization_id", organizationIds).returns<{ task_id: string; done: boolean }[]>(),
     session.from("studio_files").select("task_id").in("project_id", projectIds).eq("state", "ready").not("task_id", "is", null).returns<{ task_id: string }[]>(),

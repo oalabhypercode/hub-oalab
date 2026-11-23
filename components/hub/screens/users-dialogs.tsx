@@ -21,6 +21,7 @@ import { AssetPanel } from "./asset-panel";
 import { EntryChips, EntryNav, Field, FieldGrid, HistoryList, PanelSection, PanelTabs, ReadonlyField, Row, RowIcon, RowList, SaveStatus, Segmented, useDirtyReport } from "./users-panel";
 import { useEntryRemoval } from "./users-removal";
 import { ClaudeLoginRow } from "./users-claude";
+import { TeamRoleRow } from "./users-team";
 
 /*
  * The User Management's panels: a login, a registration, a customer and a freelancer, each new or existing. They open at
@@ -471,6 +472,8 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   const [tab, setTab] = useState<UserTab>("profile");
   // New logins get their activation link by mail unless the admin unticks it (or mail is not set up).
   const [mailLink, setMailLink] = useState(mailConfigured);
+  // A new admin works on projects and tasks unless unticked (plan „oalab als Unternehmen“, decision 4).
+  const [teamRole, setTeamRole] = useState(true);
   const [link, setLink] = useState<{ link: string | null; activation: boolean; mail: MailStatus | null } | null>(null);
   const [confirming, setConfirming] = useState<"deactivate" | "delete" | null>(null);
   const [confirmEmail, setConfirmEmail] = useState("");
@@ -505,7 +508,10 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
 
   const save = () => user
     ? run("save", () => updateHubUser({ userId: user.id, firstName: person.firstName, lastName: person.lastName, phone: person.phone, position: person.position, role, customer: choicePayload(role, choices, who) }), () => { setSaved(true); setBase(JSON.stringify(draft)); onNotice(`Änderungen an ${fullName({ ...user, ...person })} gespeichert.`); })
-    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choices, who), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Zugang für ${name} angelegt.`); });
+    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choices, who), mailLink: mailConfigured && mailLink, teamRole: role === "oalab_admin" && teamRole }), (data) => {
+      setLink({ link: data.link, activation: true, mail: data.mail });
+      onNotice(data.teamRole ? `Zugang für ${name} angelegt. ${data.teamRole} Unter „Sicherheit“ lässt sich „Projekte und Aufgaben“ später einschalten.` : `Zugang für ${name} angelegt.`);
+    });
 
   if (created && link?.link) {
     return (
@@ -587,6 +593,12 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
       <PanelSection title={roleSection(role)}>
         <RoleAndCustomer role={role} onRole={(next) => change({ role: next })} choices={choices} onChoices={(next) => change({ choices: next })} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} freelancers={freelancers} person={who} />
       </PanelSection>
+      {!user && role === "oalab_admin" && (
+        <PanelSection title="Team">
+          <label className="um-check"><input type="checkbox" checked={teamRole} onChange={(event) => setTeamRole(event.target.checked)} disabled={disabled} />Darf Projekte und Aufgaben bearbeiten</label>
+          <p className="am-help">Gibt die Team-Rolle „Operator“ im Studio. Damit legt die Person Projekte und Aufgaben an und übernimmt sie, auch für oalab selbst, und arbeitet auf der Serviceplattform an Anfragen der Kunden mit. Ohne Häkchen schreibt sie Notizen und alles andere, aber keine Projekte und Aufgaben.</p>
+        </PanelSection>
+      )}
       {!user && (
         <PanelSection title="Aktivierung">
           <label className="um-check"><input type="checkbox" checked={mailConfigured && mailLink} onChange={(event) => setMailLink(event.target.checked)} disabled={disabled || !mailConfigured} />Aktivierungslink per E-Mail an die Person senden</label>
@@ -621,6 +633,8 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
         </Row>
         {/* Claude with the freelancer's own rights (since 19.11.2026): the admin's switch per login. */}
         {freelancerLogin && user.status !== "rejected" && <ClaudeLoginRow user={user} name={fullName(user)} onNotice={onNotice} />}
+        {/* Studio's team role of an admin: projects and tasks, also oalab's own (plan „oalab als Unternehmen“). */}
+        {user.role === "oalab_admin" && user.status !== "rejected" && <TeamRoleRow user={user} name={fullName(user)} onNotice={onNotice} />}
         {user.status === "active" && (
           <Row lead={<RowIcon icon={KeyRound} />} title={user.lastSignInAt ? "Passwort-Link" : "Aktivierungslink"} text="Gilt einmal und läuft ab."
             below={linkOutcome}>

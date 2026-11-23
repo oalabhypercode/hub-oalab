@@ -12,6 +12,8 @@ import { displayStatus, isAccountStatus, isCustomerKind, isHubRole, randomFreeNu
 import type { HubAccountData, ManagedCustomer, ManagedEvent, ManagedUser, UserManagementState } from "./types";
 import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { CLAUDE_SWITCH } from "@/lib/hub-mcp/config";
+import { isTeamKind } from "@/lib/hub-team/rules";
+import { loadTeamEntry, loadTeamRoles } from "@/lib/hub-team/server";
 
 type ProfileRow = {
   user_id: string;
@@ -117,7 +119,7 @@ export async function listAllUsers(db: SupabaseClient) {
   }
 }
 
-const emptyState: UserManagementState = { users: [], customers: [], events: [], nextCustomerNumber: "", nextFreelancerNumber: "", freelancers: false, mailConfigured: false };
+const emptyState: UserManagementState = { users: [], customers: [], team: null, events: [], nextCustomerNumber: "", nextFreelancerNumber: "", freelancers: false, mailConfigured: false };
 
 type LinkRow = { freelancer_id: string; customer_id: string };
 
@@ -132,9 +134,12 @@ export async function loadFreelancerLinks(db: SupabaseClient) {
   ]);
   const ready = !kinds.error && !links.error;
   const kindById = new Map<string, CustomerKind>(ready ? (kinds.data ?? []).map((row) => [row.id, isCustomerKind(row.kind) ? row.kind : "customer"]) : []);
+  // oalab's own entry (kind "team", migration 202611230003) is neither: the user management shows it apart.
+  const team = new Set(kinds.error ? [] : (kinds.data ?? []).filter((row) => isTeamKind(row.kind)).map((row) => row.id));
   const rows = ready ? links.data ?? [] : [];
   return {
     ready,
+    isTeam: (id: string) => team.has(id),
     kindOf: (id: string): CustomerKind => kindById.get(id) ?? "customer",
     /** Customers: their freelancers; freelancers: their customers. */
     linkedIds: (id: string) => kindById.get(id) === "freelancer" ? rows.filter((row) => row.freelancer_id === id).map((row) => row.customer_id) : rows.filter((row) => row.customer_id === id).map((row) => row.freelancer_id),
@@ -162,7 +167,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
   if (!db) return { ...emptyState, error: "Auf dem Server fehlt der Supabase Secret Key (SUPABASE_SECRET_KEY). Ohne ihn können keine Zugänge verwaltet werden." };
 
   try {
-    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, activations, announcements, packageRows, archived] = await Promise.all([
+    const [authUsers, profiles, customers, members, events, notifications, organizations, logos, freelancerLinks, activations, announcements, packageRows, archived, teamEntry, teamRoles] = await Promise.all([
       listAllUsers(db),
       db.from("hub_profiles").select("user_id, first_name, last_name, phone, position, company_name, website, customer_number_hint, message, status, source, privacy_noted_at, decided_at, decision_note").returns<ProfileRow[]>(),
       db.from("hub_customers").select(CUSTOMER_COLUMNS).order("customer_number").returns<CustomerRow[]>(),
@@ -184,6 +189,9 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       readCustomerPackages(db),
       // The archive (migration 202611170001 in service-oalab); before it, only Service's archive counts.
       db.from("hub_customers").select("id, archived_at, archived_by, archived_logins").not("archived_at", "is", null).returns<ArchivedRow[]>(),
+      // oalab's own entry and who holds a team role in Studio (projects and tasks); both empty before their migrations.
+      loadTeamEntry(db).catch(() => null),
+      loadTeamRoles(db).catch(() => new Map<string, never>()),
     ]);
     const invitedAt = new Map<string, string>();
     for (const row of activations.data ?? []) if (row.user_id && !invitedAt.has(row.user_id)) invitedAt.set(row.user_id, row.created_at);
@@ -222,6 +230,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         self: user.id === admin.userId,
         secondFactor: secondFactorMethod(user.app_metadata, withApp.has(user.id)) ?? "off",
         claude: roleOf(user) === "oalab_freelancer" && (user.app_metadata as Record<string, unknown> | undefined)?.[CLAUDE_SWITCH] === true,
+        teamRole: teamRoles.get(user.id) ?? "none",
         customerIds: memberships.filter((row) => row.user_id === user.id).map((row) => row.customer_id),
         source: profile?.source === "admin" || profile?.source === "existing" ? profile.source : "registration",
         createdAt: user.created_at,
@@ -233,7 +242,9 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         privacyNotedAt: profile?.privacy_noted_at ?? null,
       };
     });
-    const customerRows = customers.data ?? [];
+    const allRows = customers.data ?? [];
+    // Customers and freelancers only; oalab's own entry is the group „oalab“ (`team`), never a customer to choose.
+    const customerRows = allRows.filter((row) => !freelancerLinks.isTeam(row.id) && row.id !== teamEntry?.id);
     const nameOf = (id: string | null) => {
       const user = users.find((item) => item.id === id);
       return user ? `${user.firstName} ${user.lastName}`.trim() || user.email : "Gelöschter Zugang";
@@ -242,6 +253,7 @@ export async function loadUserManagement(): Promise<UserManagementState> {
     const organizationOf = new Map((organizations.data ?? []).map((row) => [row.id, row]));
     return {
       users,
+      team: teamEntry && { ...teamEntry, logo: logos.get(teamEntry.id) ?? null },
       customers: customerRows.map((row): ManagedCustomer => {
         const archive = archiveOf.get(row.id);
         const organization = row.organization_id ? organizationOf.get(row.organization_id) : undefined;
@@ -281,8 +293,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         })),
       ].sort((a, b) => b.at.localeCompare(a.at)),
       // The rule of 29.10.2026: "OA-" and a random free number, so customers cannot tell how many there are.
-      nextCustomerNumber: newCustomerNumber(new Set([...customerRows, ...(organizations.data ?? [])].map((row) => row.customer_number))) ?? "",
-      nextFreelancerNumber: randomFreeNumber("FL", new Set(customerRows.map((row) => row.customer_number))) ?? "",
+      nextCustomerNumber: newCustomerNumber(new Set([...allRows, ...(organizations.data ?? [])].map((row) => row.customer_number))) ?? "",
+      nextFreelancerNumber: randomFreeNumber("FL", new Set(allRows.map((row) => row.customer_number))) ?? "",
       freelancers: freelancerLinks.ready,
       mailConfigured: mailSettings().configured,
     };

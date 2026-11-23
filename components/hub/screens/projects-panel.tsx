@@ -12,6 +12,7 @@ import { formatDeadline, hubHref, type Project, type StudioProjectStatus } from 
 import { packageCatalog, serviceRequestLimit } from "@/lib/service-packages";
 import { byUrgency, customerState, isRunning, isWaiting, mainLinks, nextMilestone, statusOf, studioStatuses, withStudio, type DeskCustomer, type ProjectDesk, type StudioSaved } from "@/lib/hub-projects/desk";
 import { readProjectUrl } from "@/lib/hub-projects/edit";
+import { INTERNAL_TAG } from "@/lib/hub-team/rules";
 import { shortUrl } from "@/lib/hub-projects/map";
 import { saveProjectDetails, saveProjectUrls, setProjectStatus } from "@/lib/hub-projects/actions";
 import { useInfo } from "../info-box";
@@ -109,10 +110,15 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
       entry.projects.push(project);
       byKey.set(key, entry);
     }
-    return [...byKey.values()].sort((a, b) => a.company.localeCompare(b.company, "de"));
+    // oalab's own entry (plan „oalab als Unternehmen“) first, then the customers A–Z.
+    return [...byKey.values()].sort((a, b) => Number(Boolean(b.customer?.team)) - Number(Boolean(a.customer?.team)) || a.company.localeCompare(b.company, "de"));
   }, [desk.customers, view]);
   const states = useMemo(() => new Map(entries.map((item) => [item.key, customerState(item.projects)])), [entries]);
-  const logos = useMemo(() => new Map(fileState.customers.flatMap((customer) => customer.logo ? [[customer.id, customer.logo] as const] : [])), [fileState.customers]);
+  const logos = useMemo(() => new Map([
+    ...fileState.customers.flatMap((customer) => customer.logo ? [[customer.id, customer.logo] as const] : []),
+    // The team entry is no customer of the asset management; its logo comes with the desk.
+    ...desk.customers.flatMap((customer) => customer.team && customer.logo ? [[customer.id, customer.logo] as const] : []),
+  ]), [fileState.customers, desk.customers]);
 
   // The choice lives in the address: a customer, and the project whose panel is open (a project alone opens its customer).
   const linked = view.find((project) => project.id === params.get("project")) ?? null;
@@ -253,17 +259,23 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
             </button>
           </li>
         )}
-        <li className="am-list-label">{show === "running" ? "Mit laufendem Projekt" : show === "idle" ? "Ohne laufendes Projekt" : "Kunden von A bis Z"}</li>
-        {listed.map((item) => {
+        {listed.map((item, index) => {
           const state = states.get(item.key)!;
           const cancelled = item.customer?.packages.find((pkg) => pkg.group === "service" && pkg.packageId && pkg.until);
+          const team = Boolean(item.customer?.team);
+          // oalab stands on its own above the customers; the customers keep their label.
+          const label = team ? INTERNAL_TAG : index === 0 || listed[index - 1].customer?.team
+            ? show === "running" ? "Mit laufendem Projekt" : show === "idle" ? "Ohne laufendes Projekt" : "Kunden von A bis Z" : null;
           return (
-            <li key={item.key}>
+            <Fragment key={item.key}>
+            {label && <li className="am-list-label">{label}</li>}
+            <li>
               <button type="button" className="chat-conv" aria-current={entry?.key === item.key ? "true" : undefined} onClick={() => chooseCustomer(item.key)}>
                 <CustomerSign customer={{ id: item.key, company: item.company }} logo={logos.get(item.key) ?? null} />
                 <span className="chat-conv-main">
                   <span className="chat-conv-top"><strong>{item.company}</strong>
-                    {state.pill === "risk" ? <span className="chat-pill tone-bad">Gefährdet</span>
+                    {team ? <span className="chat-pill tone-info" data-tip="Projekte des oalab-Teams, für keinen Kunden sichtbar">{INTERNAL_TAG}</span>
+                      : state.pill === "risk" ? <span className="chat-pill tone-bad">Gefährdet</span>
                       : state.pill === "feedback" ? <span className="chat-pill tone-todo" data-tip="Eine Aufgabe liegt beim Kunden">Feedback</span>
                       : cancelled?.until ? <span className="chat-pill tone-todo" data-tip={`Service gekündigt zum ${formatDay(cancelled.until)}`}>Gekündigt</span>
                       : null}
@@ -272,6 +284,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                 </span>
               </button>
             </li>
+            </Fragment>
           );
         })}
         {!listed.length && <li className="chat-empty">{term ? `Kein Kunde passt zu „${query.trim()}“.` : "Keine Kunden in dieser Auswahl."}</li>}
@@ -340,13 +353,15 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
 
   /* ---------- One customer ---------- */
   const customer = entry.customer;
+  // oalab's own entry: internal projects only, without the customer's packages, Service, domains and shortcuts.
+  const team = Boolean(customer?.team);
   // Why „Neues Projekt“ waits: no organization on the service platform yet, or a session without the code.
   const createBlock = !customer?.organizationId ? "Erst braucht der Kunde ein Konto auf der Serviceplattform" : locked ? codeFirst : null;
   const running = byUrgency(entry.projects.filter((project) => statusOf(project) !== "complete"));
   const finished = byUrgency(entry.projects.filter((project) => statusOf(project) === "complete"));
   const links = mainLinks(entry.projects);
   const held = customer?.packages.flatMap((pkg) => pkg.packageId ? [packageCatalog[pkg.packageId].short] : []) ?? [];
-  const jumps = customer ? quickLinks({ customerId: customer.id, company: customer.company, dueOn: null }, preview, true).filter((link) => link.id !== "date") : [];
+  const jumps = customer && !team ? quickLinks({ customerId: customer.id, company: customer.company, dueOn: null }, preview, true).filter((link) => link.id !== "date") : [];
   const projectName = (id: string | null) => entry.projects.find((project) => project.id === id)?.name ?? null;
   const addresses = [...running, ...finished].flatMap((project) => (["live", "test"] as const).flatMap((kind) => {
     const url = kind === "live" ? project.liveUrl : project.testUrl;
@@ -368,7 +383,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
               <span className="pj-name">
                 <button type="button" className="pj-open" onClick={(event) => { event.stopPropagation(); openProject(project); }} aria-label={`${project.name}: alle Angaben öffnen`}><strong>{project.name}</strong></button>
                 {isWaiting(project) && isRunning(status) && <span className="chat-pill tone-todo" data-tip="Eine Aufgabe liegt beim Kunden">Kunde am Zug</span>}
-                {project.studio?.visible !== true && <span className="pj-hidden" data-tip="Der Kunde sieht dieses Projekt noch nicht"><EyeOff size={13} aria-hidden="true" />intern</span>}
+                {project.studio?.visible !== true && !project.internal && <span className="pj-hidden" data-tip="Der Kunde sieht dieses Projekt noch nicht"><EyeOff size={13} aria-hidden="true" />intern</span>}
               </span>
               <small>{sub}</small>
             </span>
@@ -458,7 +473,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
             <header className="am-pane-head">
               {back}
               <CustomerSign customer={{ id: entry.key, company: entry.company }} logo={logos.get(entry.key) ?? null} size="lg" />
-              <div className="am-pane-title"><strong>{entry.company}</strong><span>{[customer?.customerNumber, held.join(" · ") || (customer ? "noch keine Pakete" : "kein Kunde im Hub zugeordnet")].filter(Boolean).join(" · ")}</span></div>
+              <div className="am-pane-title"><strong>{entry.company}</strong><span>{[customer?.customerNumber, team ? "Interne Projekte des oalab-Teams" : held.join(" · ") || (customer ? "noch keine Pakete" : "kein Kunde im Hub zugeordnet")].filter(Boolean).join(" · ")}</span></div>
               {(links.live || links.test) && (
                 <div className="pj-head-links">
                   {links.live && <a className="pj-chip is-live" href={links.live} target="_blank" rel="noopener noreferrer" aria-label={`Live-Domain ${shortUrl(links.live)} öffnen (neuer Tab)`} data-tip="Live-Domain öffnen" data-tip-sub="neuer Tab"><Globe size={15} aria-hidden="true" /><span className="pj-chip-text">{shortUrl(links.live)}</span><ArrowUpRight size={14} className="pj-chip-arrow" aria-hidden="true" /></a>}
@@ -479,7 +494,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                 <TableGroup colSpan={6} label="Projekte" count={running.length} glyph={<FolderOpen size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("projects")} onToggle={() => groups.toggle("projects")}
                   actions={statusInfo.button}>
                   {running.map(projectRow)}
-                  {!running.length && <tr className="table-empty-row"><td colSpan={6}>{entry.projects.length ? "Gerade läuft kein Projekt." : customer?.organizationId || !customer ? "Für diesen Kunden gibt es noch kein Projekt." : "Noch kein Projekt: Dieser Kunde ist noch nicht auf der Serviceplattform."}</td></tr>}
+                  {!running.length && <tr className="table-empty-row"><td colSpan={6}>{entry.projects.length ? "Gerade läuft kein Projekt." : team ? "Noch kein internes Projekt. Lege das erste mit „Projekt anlegen“ an." : customer?.organizationId || !customer ? "Für diesen Kunden gibt es noch kein Projekt." : "Noch kein Projekt: Dieser Kunde ist noch nicht auf der Serviceplattform."}</td></tr>}
                   {customer && (
                     <tr className="table-add-row">
                       <td colSpan={6}>
@@ -492,7 +507,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
               <table className="file-table pj-table">
                 <caption className="visually-hidden">Domains und Links von {entry.company}</caption>
                 <TableGroup colSpan={2} label="Domains & Links" count={addresses.length + (customer?.domains.length ?? 0)} glyph={<Globe size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("links")} onToggle={() => groups.toggle("links")}
-                  actions={<>{customer && <button type="button" className="table-group-action" onClick={() => setDomainFor(customer)} data-tip="Domain eintragen" data-tip-sub="unter Vertrag & Domain" aria-label="Domain unter Vertrag & Domain eintragen"><Plus size={15} aria-hidden="true" /></button>}{linksInfo.button}</>}>
+                  actions={<>{customer && !team && <button type="button" className="table-group-action" onClick={() => setDomainFor(customer)} data-tip="Domain eintragen" data-tip-sub="unter Vertrag & Domain" aria-label="Domain unter Vertrag & Domain eintragen"><Plus size={15} aria-hidden="true" /></button>}{linksInfo.button}</>}>
                   {addresses.map(({ project, kind, url }) => editing(project, kind) && edit ? <Fragment key={`${project.id}-${kind}`}>{linkForm(edit)}</Fragment> : (
                     <tr key={`${project.id}-${kind}`} className="file-row pj-link-row">
                       <td>
@@ -529,13 +544,13 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                   {edit?.mode === "add" ? linkForm(edit) : (
                     <tr className="table-add-row">
                       <td colSpan={2}>
-                        <button type="button" className="table-add" onClick={startAdd} disabled={!entry.projects.length || locked} data-tip={locked ? codeFirst : entry.projects.length ? undefined : "Erst braucht der Kunde ein Projekt"}><Plus size={16} aria-hidden="true" />Live-Domain oder Testdomain hinterlegen</button>
+                        <button type="button" className="table-add" onClick={startAdd} disabled={!entry.projects.length || locked} data-tip={locked ? codeFirst : entry.projects.length ? undefined : team ? "Erst braucht es ein Projekt" : "Erst braucht der Kunde ein Projekt"}><Plus size={16} aria-hidden="true" />Live-Domain oder Testdomain hinterlegen</button>
                       </td>
                     </tr>
                   )}
                 </TableGroup>
               </table>
-              <table className="file-table pj-table">
+              {!team && <table className="file-table pj-table">
                 <caption className="visually-hidden">Service von {entry.company}</caption>
                 <TableGroup colSpan={3} label="Service" count={requests.length} glyph={<LifeBuoy size={16} aria-hidden="true" />} collapsed={groups.isCollapsed("service")} onToggle={() => groups.toggle("service")} actions={serviceInfo.button}>
                   {service?.packageId
@@ -574,7 +589,7 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
                     customer?.done.last ? <time dateTime={customer.done.last.at}>{shortDay(customer.done.last.at)}</time> : null, null, "is-off") : null}
                   {desk.partial && <tr className="table-empty-row"><td colSpan={3}>{desk.partial}</td></tr>}
                 </TableGroup>
-              </table>
+              </table>}
               {finished.length > 0 && (
                 <table className="file-table pj-table">
                   <caption className="visually-hidden">Abgeschlossene Projekte von {entry.company}</caption>

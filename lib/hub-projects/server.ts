@@ -14,6 +14,8 @@ import { readArchive } from "@/lib/hub-archive/server";
 import { noArchive } from "@/lib/hub-archive/rules";
 import { closedRequestStates, countRequests, doneRequestStates, toHubProject, toProjectTask, websiteUrl, type LiveProjectsState, type StudioDetailsRow, type StudioProjectRow, type StudioTaskRow } from "./map";
 import type { DeskCustomer, DeskRequest, ProjectDesk } from "./desk";
+import { isTeamKind } from "@/lib/hub-team/rules";
+import { loadCustomerLogos } from "@/lib/hub-logos/server";
 
 // Real projects come from OALab Studio in the shared database. Service grants browsers no direct read of projects,
 // organizations or requests, so the hub decides *which* projects a viewer sees first and reads their names afterwards:
@@ -55,14 +57,15 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
     ? await Promise.all([
       db.from("organizations").select("id, name").in("id", organizationIds).returns<{ id: string; name: string }[]>(),
       // The hub customer of each organization: the project dialog jumps from there to its chat, files and contract.
-      db.from("hub_customers").select("id, website, organization_id").in("organization_id", organizationIds).returns<CustomerRow[]>(),
+      // oalab's own entry (kind team) marks the internal projects.
+      db.from("hub_customers").select("id, website, organization_id, kind").in("organization_id", organizationIds).returns<CustomerRow[]>(),
     ])
     : [{ data: [], error: null }, { data: [], error: null }];
   if (organizations.error) return unavailable("Die Projekte konnten gerade nicht geladen werden. Bitte versuche es erneut.");
 
   const names = new Map((organizations.data ?? []).map((row) => [row.id, row.name]));
   // Without the customer row the dialog only leaves out its shortcuts; the projects themselves still show.
-  const customerByOrganization = new Map((customers.error ? [] : customers.data ?? []).map((row) => [row.organization_id, { id: row.id, website: row.website }]));
+  const customerByOrganization = new Map((customers.error ? [] : customers.data ?? []).map((row) => [row.organization_id, { id: row.id, website: row.website, internal: isTeamKind(row.kind) }]));
   const detailsById = new Map((details.data ?? []).map((row) => [row.project_id, row]));
   return {
     error: null,
@@ -79,7 +82,7 @@ async function assemble(viewer: SupabaseClient, db: SupabaseClient, admin: boole
   };
 }
 
-type CustomerRow = { id: string; website: string | null; organization_id: string };
+type CustomerRow = { id: string; website: string | null; organization_id: string; kind?: string | null };
 type DeskCustomerRow = { id: string; company: string; customer_number: string; website: string | null; organization_id: string | null; kind: string | null };
 type DomainRow = { id: string; customer_id: string; domain: string; status: string | null; renews_on: string | null };
 type RequestRow = { id: string; request_number: number; title: string; state: string; organization_id: string; project_id: string | null; updated_at: string; released_at: string | null; resolved_at: string | null };
@@ -132,6 +135,9 @@ export const loadProjectDesk = cache(async (): Promise<ProjectDesk | undefined> 
   if (customers.error) return deskFailed("Die Kunden konnten gerade nicht geladen werden. Bitte versuche es erneut.");
   // Freelancers hold no projects and no packages: only entries of the kind customer, and no archived ones.
   const rows = (customers.data ?? []).filter((row) => (row.kind ?? "customer") === "customer" && !archive.customerIds.has(row.id));
+  // oalab's own entry (kind team, migration 202611230003) comes first, with its internal projects only.
+  const teamRow = (customers.data ?? []).find((row) => isTeamKind(row.kind) && row.organization_id) ?? null;
+  const teamLogo = teamRow ? (await loadCustomerLogos(db, [teamRow.id]).catch(() => new Map<string, never>())).get(teamRow.id) ?? null : null;
   const ids = rows.map((row) => row.id);
   const organizationIds = [...new Set(rows.flatMap((row) => row.organization_id ? [row.organization_id] : []))];
   // The month as the quota counts it (German time); without the quota there is no month to count finished ones in.
@@ -159,7 +165,20 @@ export const loadProjectDesk = cache(async (): Promise<ProjectDesk | undefined> 
     partial,
     confirmed,
     month: quota.ready && quota.window ? quotaMonth(quota.window).month : null,
-    customers: rows.map((row): DeskCustomer => {
+    customers: [...(teamRow ? [{
+      id: teamRow.id,
+      team: true,
+      logo: teamLogo,
+      company: teamRow.company,
+      customerNumber: teamRow.customer_number,
+      website: websiteUrl(teamRow.website),
+      organizationId: teamRow.organization_id,
+      domains: [],
+      packages: [],
+      quota: null,
+      requests: [],
+      done: { count: 0, last: null },
+    } satisfies DeskCustomer] : []), ...rows.map((row): DeskCustomer => {
       const counted = quotaByCustomer.get(row.id);
       const done = finishedList.filter((request) => request.organization_id === row.organization_id).sort((a, b) => Date.parse(finishedAt(b)) - Date.parse(finishedAt(a)));
       return {
@@ -174,7 +193,7 @@ export const loadProjectDesk = cache(async (): Promise<ProjectDesk | undefined> 
         requests: row.organization_id ? openList.filter((request) => request.organization_id === row.organization_id).map(toRequest) : [],
         done: { count: done.length, last: done[0] ? { reference: requestReference(done[0].request_number), title: done[0].title, at: finishedAt(done[0]) } : null },
       };
-    }),
+    })],
   };
 });
 

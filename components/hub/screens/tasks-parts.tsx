@@ -2,7 +2,8 @@
 
 import type { CSSProperties } from "react";
 import { PRIORITY_NAMES } from "@/lib/hub-tasks/rules";
-import type { BoardPerson, TaskPriority, TaskStatus } from "@/lib/hub-tasks/types";
+import type { BoardPerson, BoardProject, TaskPriority, TaskStatus } from "@/lib/hub-tasks/types";
+import { INTERNAL_TAG } from "@/lib/hub-team/rules";
 
 /** The column symbols in Studio's manner: dashed (backlog), ring (open), half (in progress), three quarters (review), tick. */
 const tones: Record<TaskStatus, string> = { backlog: "off", todo: "off", progress: "ok", review: "info", done: "off" };
@@ -85,6 +86,9 @@ export function LabelPill({ label, onRemove }: { label: string; onRemove?: () =>
 }
 
 /** A customer's mark: its initials on a colour from its name. */
+/** A project's group in lists: its customer, or oalab with „Intern“ for its own projects (plan „oalab als Unternehmen“). */
+export const projectGroup = (project: Pick<BoardProject, "company" | "internal">) => project.internal ? `${project.company || "oalab"} · ${INTERNAL_TAG}` : project.company || "Ohne Kunde";
+
 export function CompanyMark({ company, size = "l" }: { company: string; size?: "s" | "m" | "l" }) {
   const words = company.replace(/[^\p{L}\p{N}\s&]/gu, " ").split(/\s+/).filter((word) => word && word !== "&");
   const letters = (words.length > 1 ? `${words[0][0]}${words[1][0]}` : (words[0] ?? "?").slice(0, 2)).toUpperCase();

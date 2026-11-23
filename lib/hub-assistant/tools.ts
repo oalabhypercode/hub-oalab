@@ -28,6 +28,8 @@ export type AssistantCustomer = {
   city: string;
   website: string;
   contactEmail: string;
+  /** oalab's own entry (kind team, plan „oalab als Unternehmen“): internal projects only, never seen by a customer. */
+  internal?: boolean;
 };
 
 /** What the tools read from: the admin's view of customers and Studio projects. */
@@ -158,7 +160,7 @@ export function runAssistantTool(name: string, input: unknown, data: AssistantDa
     const customers = kind === "project" ? [] : data.customers
       .filter((customer) => matchesSearch(query, [customer.company, customer.customerNumber, customer.city]))
       .slice(0, limit)
-      .map((customer) => ({ customer_id: customer.id, company: customer.company, customer_number: customer.customerNumber, projects: projectsOf(data, customer).length }));
+      .map((customer) => ({ customer_id: customer.id, company: customer.company, customer_number: customer.customerNumber, projects: projectsOf(data, customer).length, ...(customer.internal ? { internal: true } : {}) }));
     const projects = kind === "customer" ? [] : data.projects
       .filter((project) => matchesSearch(query, [project.name, project.company]))
       .slice(0, limit)
@@ -178,7 +180,9 @@ export function runAssistantTool(name: string, input: unknown, data: AssistantDa
       website: customer.website || null,
       contact_email: customer.contactEmail || null,
       projects: projectsOf(data, customer).map(projectSummary),
-      note: customer.organizationId ? undefined : "Reiner Hub-Kunde ohne Service-Organisation: Er kann keine Studio-Projekte haben.",
+      ...(customer.internal ? { internal: true } : {}),
+      note: customer.internal ? "Das ist oalab selbst (intern): Projekte und Aufgaben hier sieht nur das oalab-Team, nie ein Kunde. Pakete, Vertrag, Kontaktdaten und Chat gibt es hier nicht."
+        : customer.organizationId ? undefined : "Reiner Hub-Kunde ohne Service-Organisation: Er kann keine Studio-Projekte haben.",
     });
   }
 

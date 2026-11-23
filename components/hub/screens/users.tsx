@@ -21,6 +21,7 @@ import { MenuChoices, SheetActionMenu, SheetEmpty, SheetFooter, SheetToolbar, St
 import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { CustomerPanel, FreelancerPanel, fullName, ReviewPanel, statusGlyph, UserPanel } from "./users-dialogs";
 import { CustomerImportDialog } from "./users-import";
+import { CustomerLogoDialog } from "../customer-logo-dialog";
 import { AnnouncementsDialog, CustomerLoginsDialog, InvitationsDialog } from "./users-logins";
 import { useInfo } from "../info-box";
 
@@ -29,7 +30,7 @@ const ALL = "all";
  * What is open: a panel at the right edge (a registration, a login, a customer, a freelancer; new without an id, a new
  * login from a customer with its entry and role chosen) or one of the bulk windows.
  */
-type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string; customerId?: string; role?: HubRole; entryCreated?: boolean } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" } | { kind: "announce" };
+type Dialog = { kind: "review"; userId: string } | { kind: "user"; userId?: string; customerId?: string; role?: HubRole; entryCreated?: boolean } | { kind: "customer"; customerId?: string } | { kind: "freelancer"; customerId?: string } | { kind: "import" } | { kind: "logins" } | { kind: "invite" } | { kind: "announce" } | { kind: "teamLogo" };
 const dialogFor = (user: ManagedUser): Dialog => user.status === "pending" ? { kind: "review", userId: user.id } : { kind: "user", userId: user.id };
 /** A new login for a customer or a freelancer: that entry chosen, with its role. */
 const loginFor = (entry: Pick<ManagedCustomer, "id" | "kind">, entryCreated = false): Dialog => ({ kind: "user", customerId: entry.id, role: entry.kind === "freelancer" ? "oalab_freelancer" : "oalab_customer", ...(entryCreated ? { entryCreated } : {}) });
@@ -102,7 +103,7 @@ const namesOf = (ids: string[], entries: ManagedCustomer[]) => {
  * each with search, filters and sorting.
  */
 export function UserManagementScreen({ state }: { state: UserManagementState }) {
-  const { users, events } = state;
+  const { users, events, team } = state;
   // Every entry (customers and freelancers) for the logins; the tabs list each kind on its own. Archived entries
   // (17.11.2026) stay out of the lists and choices and wait in the folded group „Archiviert“ at the end of their tab.
   const entries = state.customers;
@@ -362,13 +363,17 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
         <button type="button" className="table-group-action" onClick={() => open(entryDialog(entry.kind, entry.id))} aria-label={`${entry.company} öffnen`} data-tip="Stammdaten öffnen"><Settings size={15} aria-hidden="true" /></button>
       </>,
     } : group.kind === "oalab" ? {
-      label: "oalab",
-      glyph: <span className="company-mark" aria-hidden="true">OA</span>,
-      number: <span className="cell-none">–</span>,
-      kind: <span className="role-tag">Admin</span>,
+      // oalab's own entry (kind "team", plan „oalab als Unternehmen“): its name, logo and number; the admins belong to it.
+      label: team?.company ?? "oalab",
+      glyph: team ? <LogoMark logo={team.logo} initials="OA" className="company-mark" /> : <span className="company-mark" aria-hidden="true">OA</span>,
+      number: team ? <NumberChip value={team.customerNumber} /> : <span className="cell-none">–</span>,
+      kind: <span className="role-tag">{team ? "Team" : "Admin"}</span>,
       logins: loginsCell,
       lastSignInAt: state.lastSignInAt,
-      actions: <button type="button" className="table-group-add" onClick={() => open(adminLogin)} aria-label="Admin anlegen" data-tip="Weiteren Admin für das oalab-Team anlegen"><UserPlus size={14} aria-hidden="true" />Admin</button>,
+      actions: <>
+        <button type="button" className="table-group-add" onClick={() => open(adminLogin)} aria-label="Admin anlegen" data-tip="Weiteren Admin für das oalab-Team anlegen"><UserPlus size={14} aria-hidden="true" />Admin</button>
+        {team && <button type="button" className="table-group-action" onClick={() => open({ kind: "teamLogo" })} aria-label={`Logo von ${team.company} ändern`} data-tip="Logo ändern; Name und Nummer kommen von der Serviceplattform"><Settings size={15} aria-hidden="true" /></button>}
+      </>,
     } : group.kind === "pending" ? { label: "Wartet auf Freigabe", glyph: <StatusGlyph kind={statusGlyph.pending} />, logins: <span className="status-cell"><StatusGlyph kind={statusGlyph.pending} />{`${group.rows.length} offen`}</span> }
       : group.kind === "rejected" ? { label: displayStatusLabels.rejected, glyph: <StatusGlyph kind={statusGlyph.rejected} />, logins: <span className="status-cell">{loginCount(group.rows.length)}</span> }
       : { label: "Ohne Unternehmen", glyph: <Building2 size={16} aria-hidden="true" />, logins: <span className="status-cell">{loginCount(group.rows.length)}</span> };
@@ -507,6 +512,7 @@ export function UserManagementScreen({ state }: { state: UserManagementState }) 
       {dialog?.kind === "logins" && <CustomerLoginsDialog customers={customers} users={users} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "invite" && <InvitationsDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
       {dialog?.kind === "announce" && <AnnouncementsDialog users={users} customers={entries} mailConfigured={state.mailConfigured} onClose={() => setDialog(null)} onNotice={setNotice} />}
+      {dialog?.kind === "teamLogo" && team && <CustomerLogoDialog customer={team} onClose={() => setDialog(null)} onSaved={(message) => { setDialog(null); setNotice(message); }} />}
       {dialog?.kind === "freelancer" && (!dialog.customerId || editFreelancer) && <FreelancerPanel key={dialog.customerId ?? "new"} freelancer={editFreelancer} customers={customers} users={users} nextNumber={state.nextFreelancerNumber} events={events.filter((event) => editFreelancer && event.targetCustomerId === editFreelancer.id)} onOpenUser={openFromEntry} onNewUser={newLoginFor} onCreated={afterCreate("freelancer")} {...panelProps} />}
     </>
   );
