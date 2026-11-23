@@ -4,6 +4,7 @@ import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { HUB_FILES_BUCKET } from "./catalog";
 import { PREVIEW_EDGE, PREVIEW_MAX_PIXELS, previewKind, type PreviewSize } from "./preview";
 import { renderPreview, type RenderedPreview } from "./preview-render";
+import { createTurns } from "./turns";
 
 /**
  * The preview of one stored file for the signed-in person (app/api/files/[id]/preview). Row Level Security decides as
@@ -39,21 +40,13 @@ function recall(key: string) {
   return hit;
 }
 
-/** Two images at a time at most: the server has two cores, and a large photo takes a moment and some memory. */
-const MAX_RUNNING = 2;
-let running = 0;
-const waiting: (() => void)[] = [];
-
-async function inTurn<T>(work: () => Promise<T>): Promise<T> {
-  if (running >= MAX_RUNNING) await new Promise<void>((resolve) => waiting.push(resolve));
-  running++;
-  try {
-    return await work();
-  } finally {
-    running--;
-    waiting.shift()?.();
-  }
-}
+/**
+ * One image at a time, from loading the original to the finished preview: the hub may use 512 MB in all. On 23.11.2026
+ * the tiles of a customer with 40 large photos asked for 36 previews at once; each loaded its original (up to 9 MB,
+ * several copies) before waiting for its turn, and the system stopped the hub twice for lack of memory. Now a request
+ * waits before it loads anything (36 previews take a few seconds), and gives up after 40 s; the browser asks once more.
+ */
+const inTurn = createTurns(1, 40_000);
 
 export async function filePreview(fileId: string, size: PreviewSize): Promise<PreviewResult> {
   if (!uuid.test(fileId)) return { status: 404 };
@@ -70,11 +63,16 @@ export async function filePreview(fileId: string, size: PreviewSize): Promise<Pr
   const key = `${fileId.toLowerCase()}:${size}`;
   const known = recall(key);
   if (known) return { status: 200, ...known };
-  const stored = await supabase.storage.from(HUB_FILES_BUCKET).download(file.storage_path);
-  if (stored.error || !stored.data) return { status: 503 };
-  const bytes = new Uint8Array(await stored.data.arrayBuffer());
-  const preview = await inTurn(() => renderPreview(bytes, { edge: PREVIEW_EDGE[size], quality: size === "s" ? 76 : 82, maxPixels: PREVIEW_MAX_PIXELS }));
-  if (!preview) return { status: 415 };
-  remember(key, preview);
-  return { status: 200, ...preview };
+  const result = await inTurn(async (): Promise<PreviewResult> => {
+    // Another request for the same picture may have finished while this one waited.
+    const done = recall(key);
+    if (done) return { status: 200, ...done };
+    const stored = await supabase.storage.from(HUB_FILES_BUCKET).download(file.storage_path);
+    if (stored.error || !stored.data) return { status: 503 };
+    const preview = await renderPreview(new Uint8Array(await stored.data.arrayBuffer()), { edge: PREVIEW_EDGE[size], quality: size === "s" ? 76 : 82, maxPixels: PREVIEW_MAX_PIXELS });
+    if (!preview) return { status: 415 };
+    remember(key, preview);
+    return { status: 200, ...preview };
+  });
+  return result === "busy" ? { status: 503 } : result;
 }

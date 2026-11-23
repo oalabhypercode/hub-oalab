@@ -323,6 +323,7 @@ function FilePreview({ file, live, onSize }: { file: HubStoredFile; live: boolea
     if (!source) return;
     let active = true;
     let objectUrl = "";
+    let retryTimer = 0;
     const show = (src: string, width: number, height: number) => {
       if (!active) return;
       setShown({ src, ratio: previewRatio(width, height) });
@@ -335,8 +336,10 @@ function FilePreview({ file, live, onSize }: { file: HubStoredFile; live: boolea
       image.onerror = () => { if (active) setFailed(true); };
       image.src = source;
     } else {
-      fetch(source)
+      // A server busy with many previews at once answers 503; the panel asks once more a moment later.
+      const load = (attempt: number) => fetch(attempt ? `${source}&retry=1` : source)
         .then(async (response) => {
+          if (response.status === 503 && attempt === 0) { retryTimer = window.setTimeout(() => { if (active) load(1); }, 2000); return; }
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const size = parseImageSize(response.headers.get("x-image-size"));
           objectUrl = URL.createObjectURL(await response.blob());
@@ -344,9 +347,11 @@ function FilePreview({ file, live, onSize }: { file: HubStoredFile; live: boolea
           show(objectUrl, size?.width ?? 4, size?.height ?? 3);
         })
         .catch(() => { if (active) setFailed(true); });
+      load(0);
     }
     return () => {
       active = false;
+      window.clearTimeout(retryTimer);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [source, clear, file.sampleHref, onSize]);
