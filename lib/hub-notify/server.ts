@@ -12,8 +12,8 @@ import { sendTelegram } from "@/lib/hub-telegram/server";
 import { telegramChatMessage, telegramServiceMessage } from "@/lib/hub-telegram/rules";
 import { requestReference } from "@/lib/hub-conversations/rules";
 import {
-  CURSOR, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, fileNotice, fileNoticeLine, hasTaskChange, mailsWanted, mergeFileNotice,
-  mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice,
+  CURSOR, INBOX_LATEST, INBOX_UNREAD, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, fileNotice, fileNoticeLine, hasTaskChange, mailsWanted, mergeFileNotice,
+  mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice,
   noticeAppointment, projectHref, readFrom, shareNotice, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
@@ -613,17 +613,25 @@ export async function runNotificationSweep(origin: string, now = new Date()) {
   return { ok: true as const, studio, service, mails };
 }
 
-/** The bell of the signed-in login: the latest notices and how many are unread. Null when the table is missing. */
+type InboxRow = { id: number; kind: string; title: string; body: string; href: string; created_at: string; read_at: string | null };
+const INBOX_COLUMNS = "id, kind, title, body, href, created_at, read_at";
+
+/**
+ * The bell of the signed-in login and how many notices are unread. Null when the table is missing. The newest lines
+ * (read or not) feed „Früher“ in the overview and the live check; every unread one (up to INBOX_UNREAD) comes along,
+ * because the bell lists only those (lib/hub-notify/rules.ts mergeInboxRows).
+ */
 export async function loadInbox(): Promise<InboxState | null> {
   const supabase = await createClient();
-  const [list, unread] = await Promise.all([
-    supabase.from("hub_inbox").select("id, kind, title, body, href, created_at, read_at").order("created_at", { ascending: false }).limit(30)
-      .returns<{ id: number; kind: string; title: string; body: string; href: string; created_at: string; read_at: string | null }[]>(),
+  const [latest, open, unread] = await Promise.all([
+    supabase.from("hub_inbox").select(INBOX_COLUMNS).order("created_at", { ascending: false }).limit(INBOX_LATEST).returns<InboxRow[]>(),
+    supabase.from("hub_inbox").select(INBOX_COLUMNS).is("read_at", null).order("created_at", { ascending: false }).limit(INBOX_UNREAD).returns<InboxRow[]>(),
     supabase.from("hub_inbox").select("id", { count: "exact", head: true }).is("read_at", null),
   ]);
-  if (list.error || unread.error) return null;
+  if (latest.error || open.error || unread.error) return null;
   return {
-    items: (list.data ?? []).map((row) => ({ id: row.id, kind: row.kind, title: row.title, body: row.body, href: row.href, createdAt: row.created_at, read: Boolean(row.read_at) })),
+    items: mergeInboxRows(latest.data ?? [], open.data ?? [])
+      .map((row) => ({ id: row.id, kind: row.kind, title: row.title, body: row.body, href: row.href, createdAt: row.created_at, read: Boolean(row.read_at) })),
     unread: unread.count ?? 0,
   };
 }

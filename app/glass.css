@@ -300,11 +300,24 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .hub-modal .search-results a > svg:last-child { color: var(--label-tertiary); }
 .hub-modal .search-results p { padding: 16px 4px; }
 .notification-symbol { display: inline-flex; padding: 10px; border-radius: 50%; background: rgba(0, 122, 255, 0.14); }
-.notice-list { list-style: none; margin: 0 0 16px; padding: 0; max-height: min(60vh, 520px); overflow-y: auto; }
-/* The bell in three columns without headings (design „Glocke V3“, 22.11.2026): where, the message, from whom. The
-   window keeps its glass and type and is wider for them; on phones the columns stack under the symbol. */
-.hub-modal.notifications-modal { width: min(760px, calc(100% - 32px)); }
-.notice-row { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, 120px); column-gap: 14px; align-items: start; padding: 12px 4px; border-bottom: 1px solid var(--separator); color: var(--label-body); }
+.notice-list { list-style: none; margin: 0 0 16px; padding: 0; overflow-y: auto; }
+/* The bell (design „Glocke V3“, 22.11.2026; stage 1 of the plan chat-ereignisse-und-glocke, 23.11.2026): only unread
+   lines, in columns without headings: the time left of the symbol, where, the message, from whom, and a round tick
+   that marks a line read. The window keeps its glass and type and grows with the screen, about 62 % of the width
+   between 760 and 1280 px and as tall as the screen allows; only the list scrolls, title and button stay in place.
+   On phones the columns stack right of the time. */
+.hub-modal.notifications-modal { width: min(calc(100% - 32px), clamp(760px, 62vw, 1280px)); max-height: calc(100dvh - 64px); }
+/* clip, not hidden: the window itself never scrolls, so focus deep in a long list cannot push the title away */
+.hub-modal.notifications-modal[open] { display: flex; flex-direction: column; overflow: clip; }
+.notifications-modal > * { flex: none; }
+.notifications-modal > .notice-list { flex: 1 1 auto; min-height: 0; margin-bottom: 12px; overscroll-behavior: contain; }
+.notice-item { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--separator); transition: opacity 220ms ease, transform 220ms ease; }
+.notice-list > .notice-item:last-child { border-bottom: 0; }
+.notice-item.is-leaving { opacity: 0; transform: translateX(24px); pointer-events: none; }
+:root[data-reduce-motion="true"] .notice-item { transition: none; }
+.notice-row { flex: 1; min-width: 0; display: grid; grid-template-columns: 60px minmax(0, clamp(190px, 24%, 300px)) minmax(0, 1fr) minmax(0, clamp(110px, 14%, 180px)); column-gap: 14px; align-items: start; padding: 12px 4px; color: var(--label-body); }
+.notice-time { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding-top: 2px; text-align: right; white-space: nowrap; font-size: 13px; line-height: 17px; font-variant-numeric: tabular-nums; color: var(--label-secondary); }
+.notice-day { font-weight: 600; }
 .notice-where { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .notice-where .notification-symbol { flex: 0 0 auto; }
 .notice-place, .notice-from { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-top: 1px; }
@@ -312,18 +325,31 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .notice-place strong { font-weight: 600; }
 .notice-from strong { font-weight: 500; }
 .notice-place span, .notice-from > span { font-size: 13px; line-height: 18px; color: var(--label-secondary); overflow-wrap: anywhere; }
-@media (max-width: 640px) {
-  .notice-row { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
-  .notice-row > .notice-text, .notice-row > .notice-from { padding-left: 51px; }
-  .notice-from { flex-direction: row; flex-wrap: wrap; gap: 0 6px; }
-}
-.notice-list li:last-child .notice-row { border-bottom: 0; }
 .notice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .notice-text strong { font-size: 16px; line-height: 21px; font-weight: 500; color: var(--label); overflow-wrap: anywhere; }
 .notice-row.is-unread .notice-text strong { font-weight: 700; }
 .notice-text > span { font-size: 14px; line-height: 19px; color: var(--label-secondary); overflow-wrap: anywhere; }
-.notice-text time { font-size: 13px; color: var(--label-tertiary); }
-.notice-row.is-unread .notice-text time { color: var(--accent-text); }
+/* The tick shows on hover and with the keyboard, like × in the overview; on touch screens always. */
+.notice-check { flex: none; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--label-secondary); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.notice-item:hover > .notice-check, .notice-item:focus-within > .notice-check { opacity: 1; }
+.notice-check:hover { color: var(--accent-text); }
+@media (hover: none) { .notice-check { opacity: 1; } }
+.notice-more { margin: -4px 0 12px; font-size: 14px; line-height: 20px; text-align: center; color: var(--label-secondary); }
+.notice-undo { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; line-height: 20px; color: var(--label-body); }
+.notice-undo:not(:empty) { min-height: 44px; margin-bottom: 12px; padding: 0 6px 0 16px; border-radius: 999px; background: var(--fill-tertiary); }
+.notice-undo button { min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--accent-text); }
+.notice-undo button:hover { background: var(--fill-tertiary); }
+.modal-empty .notice-earlier { margin-top: 6px; font-size: 15px; }
+@media (max-width: 640px) {
+  .hub-modal.notifications-modal { max-height: calc(100dvh - 32px); }
+  .notice-item { position: relative; }
+  .notice-row { grid-template-columns: 50px minmax(0, 1fr); column-gap: 10px; row-gap: 6px; }
+  .notice-row > .notice-time { grid-row: span 3; }
+  .notice-row > :is(.notice-where, .notice-text, .notice-from) { grid-column: 2; }
+  .notice-row > .notice-where { padding-right: 40px; }
+  .notice-from { flex-direction: row; flex-wrap: wrap; gap: 0 6px; }
+  .notice-check { position: absolute; top: 14px; right: 0; }
+}
 .text-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: 17px; font-weight: 500; color: var(--accent-text); }
 .sheet-button { width: 100%; min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; background: var(--fill-tertiary); color: var(--accent-text); font-size: 17px; font-weight: 600; }
 .sheet-button-primary { background: var(--accent-gradient); color: #ffffff; box-shadow: var(--accent-shadow); }

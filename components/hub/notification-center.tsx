@@ -17,8 +17,9 @@ const subscribeMinute = (change: () => void) => {
 const currentMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 const noMinute = () => 0;
 
-// What × hid stays hidden in this browser (per login); the bell keeps every notice, read. The admins' derived lines
-// (what waits for them, negative ids) have no row on the server: read ones are kept here too.
+// What × hid stays hidden in this browser (per login); × also marks it read, so it leaves the bell, which shows only
+// unread notices since 23.11.2026. The admins' derived lines (what waits for them, negative ids) have no row on the
+// server: read ones are kept here too.
 const HIDDEN_EVENT = "oalab-hub-notices-hidden";
 const hiddenKey = (userKey: string) => `oalab-hub-notices-hidden:${userKey}`;
 const readKey = (userKey: string) => `oalab-hub-notices-read:${userKey}`;
@@ -156,7 +157,7 @@ export function NotificationCenter({ items: notices, derived = [], preview, quie
           <Link href={quiet.href} className="glass nt-pill"><QuietIcon size={14} aria-hidden="true" />{quiet.label}</Link>
         </div>}
       {earlier.length > 0 && <><p className="nt-label">Früher</p><ol className="nt-list">{stackByArea(earlier, areaOf).map((group) => stack(group, true))}</ol></>}
-      {(fresh.length > 0 || earlier.length > 0) && <p className="nt-none">{more ? "Ältere Benachrichtigungen findest du in der Glocke oben rechts." : "Keine älteren Benachrichtigungen"}</p>}
+      {(fresh.length > 0 || earlier.length > 0) && <p className="nt-none">{more ? "Ältere gelesene Benachrichtigungen zeigt der Hub nicht mehr an." : "Keine älteren Benachrichtigungen"}</p>}
     </section>
   );
 }
