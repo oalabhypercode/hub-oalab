@@ -10,7 +10,8 @@ import { audienceIcons, useDismiss } from "./notes-settings";
 
 // The quiet page list on the left (plan 1.2): the customer with its logo (a click switches, for admins and freelancers),
 // search, the gear for all notes (team only) and folding it away; below it „Neue Seite“ and the pages, grouped by the
-// customer's projects and „Allgemein“, subpages opening with an arrow. A small symbol shows who else sees a page.
+// customer's projects and „Allgemein“, subpages opening with an arrow. A small symbol shows who else sees a page; „+“ at
+// a page adds a subpage, and below the open page „Neue Unterseite“ stays in sight (23.11.2026).
 
 type TreeProps = {
   viewer: NoteViewer;
@@ -25,6 +26,9 @@ type TreeProps = {
   onToggle: (id: string, open: boolean) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  /** „+“ at every page and „Neue Unterseite“ below the open one, where the viewer may add pages under it. */
+  canAddUnder: (page: NotePageMeta) => boolean;
+  onCreateUnder: (page: NotePageMeta) => void;
   onCustomer: (id: string) => void;
   onArea: () => void;
   areaOpen: boolean;
@@ -34,7 +38,7 @@ type TreeProps = {
   footer?: React.ReactNode;
 };
 
-export function NotesTree({ viewer, customers, customer, projects, pages, openId, groupByProject, canCreate, open, onToggle, onOpen, onCreate, onCustomer, onArea, areaOpen, onCollapse, phone, footer }: TreeProps) {
+export function NotesTree({ viewer, customers, customer, projects, pages, openId, groupByProject, canCreate, open, onToggle, onOpen, onCreate, canAddUnder, onCreateUnder, onCustomer, onArea, areaOpen, onCollapse, phone, footer }: TreeProps) {
   const [search, setSearch] = useState(false);
   const [query, setQuery] = useState("");
   const [switching, setSwitching] = useState(false);
@@ -64,6 +68,7 @@ export function NotesTree({ viewer, customers, customer, projects, pages, openId
         const expanded = Boolean(open[page.id]) || Boolean(term);
         const on = page.id === openId;
         const matches = !term || page.title.toLowerCase().includes(term);
+        const addable = canCreate && canAddUnder(page);
         if (matches) {
           const Mark = audienceIcons[page.audience];
           out.push(
@@ -76,10 +81,21 @@ export function NotesTree({ viewer, customers, customer, projects, pages, openId
                 <span className="nz-row-title">{page.title}</span>
                 {viewer !== "customer" && page.audience !== "team" && <span className="nz-row-aud" data-tip={`Sichtbar für: ${audienceLabel(page.audience, customer.hasFreelancer)}`}><Mark size={14} aria-hidden={true} /></span>}
               </button>
+              {addable && <button type="button" className="nz-row-add" aria-label={`Unterseite in „${page.title}“ anlegen`} data-tip="Unterseite anlegen" onClick={() => onCreateUnder(page)}><Plus size={15} aria-hidden="true" /></button>}
             </div>,
           );
         }
         if (kids && (expanded || term)) walk(page.id, depth + 1);
+        // Below the open page, after its subpages: „Neue Unterseite“, always in sight while one works on that page.
+        if (on && addable && !term) {
+          out.push(
+            <button key={`${page.id}-new`} type="button" className="nz-row nz-row-new" style={{ paddingLeft: 4 + (depth + 1) * 16 }} onClick={() => onCreateUnder(page)}>
+              <span className="nz-disc-gap" />
+              <span className="nz-row-icon"><Plus size={15} aria-hidden="true" /></span>
+              <span className="nz-row-title">Neue Unterseite</span>
+            </button>,
+          );
+        }
       }
     };
     walk(null, 0);

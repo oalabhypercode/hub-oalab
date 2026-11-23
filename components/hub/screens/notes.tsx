@@ -14,7 +14,7 @@ import {
   setNoteAudience, setNoteTaskDone, taskMentions, trashNotePage,
 } from "@/lib/hub-notes/actions";
 import { notesFixtures, previewAppointmentOptions, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
-import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads } from "@/lib/hub-notes/rules";
+import { audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, gains, isEmptyDoc, narrowedBelow, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, viewerEdits, newPageAudience, viewerReads, within } from "@/lib/hub-notes/rules";
 import { coverWithLink, keepCoverLink } from "@/lib/hub-notes/covers";
 import { noteTemplate } from "@/lib/hub-notes/templates";
 import { wallTimeToUtc } from "@/lib/hub-calendar/rules";
@@ -23,7 +23,7 @@ import { todayIso } from "@/lib/hub-routes";
 import { NO_REFS, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCover, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteRefs, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
 import type { NoteRefsUi } from "./notes-refs";
 import type { TaskDraft, TaskOptions } from "./notes-tasks-ui";
-import { HistoryPanel, TaskPeek, TemplateChips, TrashPanel } from "./notes-panels";
+import { HistoryPanel, TaskPeek, TemplateChips, TrashAsk, TrashPanel } from "./notes-panels";
 import type { AppointmentDraft, NoteCalendarUi } from "./notes-calendar-ui";
 import { useAppearance } from "../appearance-provider";
 import { HeaderActions } from "../app-shell";
@@ -47,7 +47,7 @@ const TREE_KEY = "oalab-notes-tree";
 const previewPresencePage = "0b0e0000-0000-4000-8000-000000000002";
 const NOTES_CUSTOMER_COOKIE = "oalab-notes-customer";
 type SaveStatus = "saved" | "saving" | "error" | "stale";
-type Pop = null | "gear" | "area" | "size" | "cover" | "trash" | "history";
+type Pop = null | "gear" | "area" | "size" | "cover" | "trash" | "bin" | "history";
 type Stale = { message: string; current: NotePage; mine: NoteDoc; reloaded: boolean };
 
 const unavailable: NotesArea = { viewer: "customer", viewerId: "", customers: [], customerId: null, projects: [], pages: [], page: null, settings: { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" }, people: {}, taskWriter: false, ready: true, error: "Die Notizen konnten gerade nicht geladen werden." };
@@ -297,17 +297,21 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     return meta;
   }, [customer, flush, page, pages, preview, settings, viewer, initial.viewerId, say]);
 
-  const newTopPage = useCallback(async () => {
-    const meta = await createPage(null);
+  /** „Neue Seite“ in the list, or „+“ / „Neue Unterseite“ at a page: the new page opens with its title selected. */
+  const newPage = useCallback(async (parent: NotePageMeta | null) => {
+    const meta = await createPage(parent);
     if (!meta) return;
     const full: NotePage = { ...meta, content: emptyNoteDoc() };
     showPage(full);
     setFresh(meta.id);
     setMobileView("page");
     remember(customerId, meta.id);
-    say(`Neue Seite angelegt. Sichtbar für: ${audienceLabel(meta.audience, customer?.hasFreelancer ?? true)}.`);
+    const seen = `Sichtbar für: ${audienceLabel(meta.audience, customer?.hasFreelancer ?? true)}.`;
+    say(parent ? `Neue Unterseite in „${parent.title}“ angelegt. ${seen}` : `Neue Seite angelegt. ${seen}`);
     window.setTimeout(() => { titleField.current?.focus(); titleField.current?.select(); }, 60);
   }, [createPage, showPage, remember, customerId, say, customer?.hasFreelancer]);
+  // Freelancers add pages only below pages the freelancers see (the server checks the same).
+  const canAddUnder = useCallback((parent: NotePageMeta) => viewer === "admin" || (viewer === "freelancer" && within("freelancer", parent.audience)), [viewer]);
 
   const createSubpage = useCallback(async () => pageMeta ? createPage(pageMeta) : null, [createPage, pageMeta]);
 
@@ -715,7 +719,9 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
             open={openNodes}
             onToggle={(id, open) => setOpenNodes((current) => ({ ...current, [id]: open }))}
             onOpen={(id) => void openPage(id)}
-            onCreate={() => void newTopPage()}
+            onCreate={() => void newPage(null)}
+            canAddUnder={canAddUnder}
+            onCreateUnder={(target) => void newPage(target)}
             onCustomer={(id) => void switchCustomer(id)}
             onArea={() => setPop((value) => value === "area" ? null : "area")}
             areaOpen={pop === "area"}
@@ -752,6 +758,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
               {pageMeta && !phone && <button type="button" className={`nz-ibtn${focus ? " is-on" : ""}`} aria-pressed={focus} aria-label={focus ? "Fokus beenden" : "Fokus: nur die Seite"} data-tip={focus ? "Fokus beenden (Esc)" : "Fokus: nur die Seite"} onClick={() => setFocus((value) => !value)}>{focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}</button>}
               <button type="button" className={`nz-ibtn${pop === "size" ? " is-on" : ""}`} data-size-button aria-label="Schriftgröße" data-tip="Schriftgröße" aria-expanded={pop === "size"} onClick={() => setPop((value) => value === "size" ? null : "size")}><Type size={16} aria-hidden="true" /></button>
               {pageMeta && <button type="button" className={`nz-ibtn${pop === "gear" ? " is-on" : ""}`} data-gear-button aria-label="Einstellungen dieser Seite" data-tip="Einstellungen dieser Seite" aria-expanded={pop === "gear"} onClick={() => { setOpenItems(editor.current?.openItemCount() ?? 0); setPop((value) => value === "gear" ? null : "gear"); }}><Settings size={17} aria-hidden="true" /></button>}
+              {pageMeta && viewer === "admin" && <button type="button" className={`nz-ibtn is-danger${pop === "bin" ? " is-on" : ""}`} data-bin-button aria-label="In den Papierkorb legen" data-tip="In den Papierkorb legen" aria-expanded={pop === "bin"} onClick={() => setPop((value) => value === "bin" ? null : "bin")}><Trash2 size={16} aria-hidden="true" /></button>}
             </div>
 
             {stale && (
@@ -868,13 +875,14 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                 onCopyLink={copyLink}
                 onClose={() => setPop(null)}
                 onNotify={viewer === "admin" ? () => void notifyChange() : undefined}
-                onTrash={viewer === "admin" ? () => void trashPage() : undefined}
+                onTrash={viewer === "admin" ? () => setPop("bin") : undefined}
                 openItems={initial.taskWriter && canEdit ? openItems : 0}
                 onOpenItems={() => { setPop(null); editor.current?.convertOpenItems(); }}
                 onHistory={viewer === "admin" ? () => void openHistory() : undefined}
                 appointmentHref={pageMeta.appointmentId && viewer !== "freelancer" ? calendarHref(pageMeta.appointmentId) : null}
               />
             )}
+            {pop === "bin" && pageMeta && viewer === "admin" && <TrashAsk page={pageMeta} subpages={descendantsOf(pages, pageMeta.id).length} onConfirm={() => void trashPage()} onClose={() => setPop(null)} />}
             {pop === "history" && viewer === "admin" && <HistoryPanel items={history.items} error={history.error} onRestore={restoreRevision} onClose={() => setPop(null)} />}
             {pop === "size" && <TextSizePop value={textSize} onChange={(notesTextSize) => update({ notesTextSize })} onClose={() => setPop(null)} />}
           </div>
