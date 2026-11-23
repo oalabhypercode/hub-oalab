@@ -103,6 +103,14 @@ export const loadConversations = cache(async (): Promise<ConversationsState> => 
   const db = createAdminClient();
   if (!db) return failed("Gespräche sind noch nicht eingerichtet: Es fehlt der Server-Schlüssel (SUPABASE_SECRET_KEY).");
   if (!(await conversationReader())) return failed(unavailable);
+  return readConversations(db);
+});
+
+/**
+ * The list for a caller already checked as an admin: the page above, or the Claude connector after its key check
+ * (lib/hub-mcp/areas.ts). Read with the server key; archived customers stay out.
+ */
+export async function readConversations(db: SupabaseClient): Promise<ConversationsState> {
   const archive = await readArchive(db);
   const query = db.from("service_requests").select(REQUESTS).is("trashed_at", null);
   const requests = await (archive.organizationIds.size ? query.not("organization_id", "in", `(${[...archive.organizationIds].join(",")})`) : query)
@@ -129,7 +137,7 @@ export const loadConversations = cache(async (): Promise<ConversationsState> => 
     .map((request) => summarize(request, byRequest.get(request.id) ?? [], people, company.get(request.organization_id)))
     .sort((a, b) => b.lastAt.localeCompare(a.lastAt));
   return { source: "service", conversations, error: null };
-});
+}
 
 /** Real conversations for an admin login; customers get none. */
 export async function loadConversationsForIdentity(identity: { account?: { role: string | null } | null }) {

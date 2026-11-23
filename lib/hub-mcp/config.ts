@@ -43,7 +43,7 @@ export const ROTATION_GRACE_SECONDS = 30;
 
 export type HubScope = "hub:read" | "hub:write";
 export const scopeLabels: Record<HubScope, string> = {
-  "hub:read": "Lesen: Kunden, Projekte, Aufgaben, Termine, Verfügbarkeit und Notizen",
+  "hub:read": "Lesen: Kunden mit Kontaktdaten, Projekte, Aufgaben, Termine, Verfügbarkeit, Notizen, Dateien, Vertrag & Domain, Gespräche, Protokolle und Insights (nie Passwörter)",
   "hub:write": "Schreiben: Termine, Verfügbarkeit, Aufgaben, Checklisten, Projekte, Beteiligte und Notizen anlegen und ändern, Notizen freigeben und in den Papierkorb legen",
 };
 /**
