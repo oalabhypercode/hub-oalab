@@ -1,6 +1,6 @@
 # Planung: Änderungen im Chat mitteilen und eine aufgeräumte Glocke
 
-Stand 23. November 2026 · Etappe 1 (Glocke) live seit 23.11.2026, 16:04 Uhr (#160, Abschnitt 9) · alle Entscheidungen getroffen (Abschnitt 7) · als Nächstes die Vorschau für Etappe 2 (Abschnitt 5)
+Stand 23. November 2026 · Etappe 1 (Glocke) live seit 23.11.2026, 16:04 Uhr (#160, Abschnitt 9) · alle Entscheidungen getroffen (Abschnitt 7) · Vorschau für Etappe 2 steht, Rückmeldung offen (Abschnitt 5)
 
 Dieser Plan beschreibt vier Wünsche vom 23. November 2026:
 
@@ -173,7 +173,8 @@ Freelancer-Chats (Entscheidung 11) bekommen dieselben Karten für das, was ein F
 
 - Eine Karte steht im Verlauf wie eine Nachricht von oalab: beim Kunden links, mit dem Vornamen der Person, die die Änderung gemacht hat („Lena von oalab“), bei Admins rechts. Was das Studio von selbst meldet (Projektstatus, „Du bist am Zug“), kommt von „oalab“. Eine Terminanfrage steht auf der Seite des Kunden, mit seinem Namen.
 - Aufbau: Symbol in der Farbe des Bereichs wie in der Glocke, eine kurze Überschrift, darunter das Wichtigste in zwei, drei Zeilen, unten ein oder zwei runde Knöpfe. Uhrzeit und Lesehäkchen wie bei Nachrichten. Glas und Farben folgen dem Chat, hell wie dunkel.
-- Der Stand bleibt aktuell: Ist ein Termin inzwischen bestätigt, verschoben oder abgesagt, trägt seine ältere Karte ein kleines Schild („bestätigt“, „verschoben“, „abgesagt“); die Änderung selbst steht als neue Karte darunter.
+- Der Stand bleibt aktuell: Ist ein Termin inzwischen bestätigt, verschoben oder abgesagt, trägt seine ältere Karte ein kleines Schild („bestätigt“, „verschoben“, „abgesagt“); die Änderung selbst steht als neue Karte darunter. Eine Terminanfrage trägt „offen“, bis jemand aus dem Team sie beantwortet.
+- Karten sprechen jede Seite passend an: beim Kunden „Du bist am Zug“ und „Status: Dein Feedback“, bei Admins „Nordlicht Studio ist am Zug“ und „Status: Feedback des Kunden“.
 - Auf eine Karte antwortet man wie auf jede Nachricht.
 - In der Liste der Chats steht eine Karte als eine Zeile Text, etwa „Neuer Termin: Abstimmung Texte, Di., 24. Nov., 10:00“.
 - Mehrere Dateien auf einmal oder mehrere Änderungen an derselben Aufgabe werden zu einer Karte, solange sie die letzte im Chat ist und die andere Seite sie noch nicht gesehen hat, so wie die Glocke heute Zeilen zusammenfasst.
@@ -249,7 +250,7 @@ Einen echten Terminvorschlag gibt es noch nicht. Legt ein Admin einen Termin mit
 - Etappe 1 kann sofort und unabhängig live gehen.
 - Etappe 2 kommt vor Etappe 3, weil der Vorschlag die Karten braucht. Freelancer-Chats folgen als kleiner eigener Schritt nach Etappe 2.
 - Bei Etappe 2 und 3 geht zuerst die Migration live (Import in Coolify), dann der PR des Hubs, wie beim Kalender-Abo.
-- Vor dem Bau von Etappe 2 zeigt eine Vorschau die Karten und das Abo-Fenster, auf derselben Vorschau-Fläche wie „Glocke V3“, hell und dunkel, am Rechner und am Handy.
+- Vor dem Bau von Etappe 2 zeigt eine Vorschau die Karten und das Abo-Fenster, auf derselben Vorschau-Fläche wie „Glocke V3“, hell und dunkel, am Rechner und am Handy. Sie steht seit dem 23. November 2026 als Seite „Karten im Chat“ der Vorschau-Fläche „Mitteilungen & Patch Notes“: Kunde dunkel und hell, Admin mit Terminanfrage und „Bestätigen“, das Fenster „Im Chat mitteilen“, Handy mit Karten und Handy mit Abos (hell). Rückmeldung offen.
 
 ## 6. Datenschutz, Sicherheit und Trennung von Service
 
