@@ -94,6 +94,44 @@ export function cleanEmail(value: unknown): Check<string> {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? { ok: true, value: email } : { ok: false, error: "Bitte eine gültige E-Mail-Adresse angeben." };
 }
 
+/**
+ * A new e-mail address for an existing login (User Management › Zugang › Profil, since 23.11.2026), checked before
+ * anything changes: a valid address other than the current one, never for the admin's own login (another admin changes
+ * it, as with the role) nor for a registration that still waits (approve it first). `needsMailbox`: the login receives
+ * sign-in codes by e-mail (admins, freelancers and every login with the code by e-mail), so the address must reach a
+ * real mailbox (`mailbox`, lib/hub-auth/mail-code.ts), or the login would be locked out. Whether another login has the
+ * address already, the login table decides.
+ */
+export function readNewLoginEmail(input: { next: unknown; current: string; self: boolean; status: string | null; needsMailbox: boolean; mailbox: (email: string) => boolean }): Check<string> {
+  if (input.self) return { ok: false, error: "Deine eigene Adresse ändert ein anderer Admin für dich." };
+  if (input.status === "pending") return { ok: false, error: "Offene Registrierungen bitte über „Prüfen“ freigeben." };
+  const email = cleanEmail(input.next);
+  if (!email.ok) return email;
+  if (email.value === input.current.trim().toLowerCase()) return { ok: false, error: "Das ist schon die Adresse dieses Zugangs." };
+  if (input.needsMailbox && !input.mailbox(email.value)) return { ok: false, error: "Dieser Zugang bekommt Anmelde-Codes per E-Mail, und an diese Adresse kann keiner zugestellt werden (Testadresse ohne Postfach)." };
+  return email;
+}
+
+/** How an info mail about a changed address ended: as lib/hub-mail/smtp.ts says it, or null when none was due. */
+export type InfoMailOutcome = "sent" | "skipped" | "failed" | null;
+
+/**
+ * What became of the two info mails after an address change, as one clause for the notice and the admin log, without
+ * the addresses: "" when none was due.
+ */
+export function emailChangeMailNote(mail: { toNew: InfoMailOutcome; toOld: InfoMailOutcome }) {
+  const outcomes = [mail.toNew, mail.toOld];
+  if (outcomes.every((outcome) => outcome === null)) return "";
+  if (outcomes.includes("skipped")) return "Info-Mail nicht verschickt (Mailversand nicht eingerichtet)";
+  const addresses = (outcome: InfoMailOutcome) => {
+    const words = [mail.toNew === outcome ? "neue" : "", mail.toOld === outcome ? "alte" : ""].filter(Boolean);
+    return words.length === 2 ? "die neue und die alte Adresse" : words.length ? `die ${words[0]} Adresse` : "";
+  };
+  const sent = addresses("sent");
+  const failed = addresses("failed");
+  return [sent && `Info-Mail an ${sent} verschickt`, failed && `Info-Mail an ${failed} ging nicht raus`].filter(Boolean).join(", ");
+}
+
 /** Phone numbers as people write them: digits with +, spaces, slashes, dashes and brackets; 6 to 20 digits. */
 export function cleanPhone(value: unknown, required: boolean): Check<string> {
   const phone = cleanLine(value, 40);

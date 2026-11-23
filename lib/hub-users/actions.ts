@@ -6,7 +6,8 @@ import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
-import { mailAnnouncement, mailApproval, mailLaunchReminder, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import { mailAnnouncement, mailApproval, mailLaunchReminder, mailLoginEmailChanged, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import { hasConfirmedApp, secondFactorMethod } from "@/lib/hub-auth/second-factor";
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
@@ -18,7 +19,7 @@ import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { LOGO_BUCKET } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
 import { customerDetails, customerRow, writeCustomerAs } from "./customer-write";
-import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
+import { cleanEmail, cleanText, emailChangeMailNote, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readNewLoginEmail, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type InfoMailOutcome, type PersonInput } from "./rules";
 import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
 import { CLAUDE_SWITCH, FREELANCER_CONNECTION_DAYS } from "@/lib/hub-mcp/config";
 import { connectorReady, disconnect, disconnectAll, listConnections, type ConnectionView } from "@/lib/hub-mcp/store";
@@ -651,6 +652,39 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
   if (roleChanged) await endCalendarFeed(ctx, user.id, "Rolle geändert");
   refreshWorkspace();
   return { ok: true, data: null };
+}
+
+/**
+ * A new e-mail address for an existing login (User Management › Zugang › Profil, since 23.11.2026), e.g. when a customer
+ * answers the launch reminder with another one. The login stays the same, with its id and everything on it: customer,
+ * chats, notifications, calendar subscription, second factor and password. It signs in with the new address only, in
+ * the hub and on the service platform, which reads the same login table. In one step the own platform changes the
+ * address, ends every session of the login and drops the one-time links sent before (lib/platform/auth.ts): they went
+ * to the old address, and a password link counts as the e-mail code too. With `notify` an active login gets an info mail
+ * at both addresses. The log names neither address.
+ */
+export async function changeHubUserEmail(input: { userId: string; email: string; notify?: boolean }): Promise<ActionResult<{ email: string; activated: boolean; mail: { toNew: InfoMailOutcome; toOld: InfoMailOutcome } }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  // Supabase Auth would keep sessions and links of the old address, so only the own platform changes it.
+  if (!usesOwnPlatform()) return failed("Die E-Mail-Adresse lässt sich nur auf der eigenen Plattform ändern.");
+  const user = await loadUser(ctx, input?.userId);
+  if (!user?.email) return failed("Diesen Zugang gibt es nicht mehr.");
+  const status = await profileStatus(ctx, user.id);
+  const role = roleOf(user);
+  const method = secondFactorMethod(user.app_metadata, hasConfirmedApp(user.factors));
+  const email = readNewLoginEmail({ next: input?.email, current: user.email, self: user.id === ctx.actorId, status, needsMailbox: role !== "oalab_customer" || method === "email", mailbox: hasMailbox });
+  if (!email.ok) return email;
+  const { error } = await ctx.db.auth.admin.updateUserById(user.id, { email: email.value });
+  if (error) return failed(error.code === "email_exists" ? "Für diese E-Mail-Adresse besteht bereits ein Zugang." : "Die E-Mail-Adresse konnte nicht geändert werden. Bitte versuche es erneut.");
+  const activated = Boolean(user.last_sign_in_at);
+  // Deactivated and rejected logins cannot sign in, so a mail on how to sign in now would mislead.
+  const mail = input?.notify === true && status === "active"
+    ? await mailLoginEmailChanged({ firstName: await firstNameOf(ctx, user.id), email: email.value, previous: user.email, activated, serviceToo: role !== "oalab_freelancer", hubUrl: (await requestOrigin()) ?? "" })
+    : { toNew: null, toOld: null };
+  await log(ctx, "user.email_changed", `E-Mail-Adresse geändert; überall abgemeldet, ältere Passwort- und Aktivierungslinks ungültig; ${emailChangeMailNote(mail) || "ohne Info-Mail"}`, { userId: user.id });
+  refreshWorkspace();
+  return { ok: true, data: { email: email.value, activated, mail } };
 }
 
 /** Deactivates (blocks the login and all data at once) or reactivates a login. */

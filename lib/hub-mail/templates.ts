@@ -906,6 +906,57 @@ export function passwordLinkMail(input: { firstName: string; link: string; activ
   });
 }
 
+/**
+ * An admin gave a login another e-mail address (User Management › Zugang › Profil, since 23.11.2026), e.g. after the
+ * launch reminder asked customers whether their login runs on the right one. The same login keeps its data and its
+ * password and signs in with the new address only; the change ended its sessions and the links sent before. One mail
+ * to each address, in its own words: `to: "new"` says how to sign in now (before the first sign-in: how to set the
+ * password), `to: "old"` says, as a security notice, that this address no longer signs in, so a change nobody asked for
+ * gets noticed. `email` is the new address as this recipient sees it: the old one gets it shortened ("an***@…", made by
+ * the caller). `previous` is the old address, `activated` whether anybody signed in with the login, `serviceToo` whether
+ * it reaches the service platform as well (not for freelancers), `hubUrl` where the hub lives.
+ */
+export function loginEmailChangedMail(input: { to: "new" | "old"; firstName: string; email: string; previous: string; activated: boolean; serviceToo: boolean; hubUrl: string }, legal?: MailLegal): MailContent {
+  const first = firstNameOf(input.firstName);
+  const hello = first ? `Hallo ${first}, dein` : "Dein";
+  if (input.to === "old") {
+    return render({
+      subject: "Dein oalab-Zugang hat eine neue E-Mail-Adresse",
+      preheader: "Mit dieser Adresse meldest du dich ab sofort nicht mehr an.",
+      area: "security",
+      heading: "Neue Adresse für deinen Zugang",
+      lead: `${hello} oalab-Team hat deinen Zugang auf eine andere E-Mail-Adresse umgestellt. Mit dieser Adresse meldest du dich ab sofort nicht mehr an${input.serviceToo ? ", weder im Client Hub noch auf der Serviceplattform" : ""}.`,
+      details: [{ label: "Bisher", value: input.previous }, { label: "Jetzt", value: input.email }],
+      note: { tone: "security", text: "Du hast das nicht veranlasst? Dann antworte bitte sofort auf diese E-Mail. Dein Zugang wurde überall abgemeldet, und ältere Links zum Passwort gelten nicht mehr." },
+      reason: "Du bekommst diese E-Mail, weil dein Zugang zum oalab Client Hub bisher über diese Adresse lief.",
+      legal,
+    });
+  }
+  const hub = safeUrl(input.hubUrl);
+  const page = (path: string) => (hub ? safeUrl(new URL(path, hub).toString()) : "");
+  return render({
+    subject: "Dein oalab-Zugang läuft jetzt über diese Adresse",
+    preheader: `Ab sofort meldest du dich mit ${input.email} an${input.activated ? ", dein Passwort bleibt" : ""}.`,
+    area: "account",
+    heading: "Deine neue Anmeldeadresse",
+    lead: `${hello} oalab-Team hat deinen Zugang auf diese E-Mail-Adresse umgestellt. Ab sofort meldest du dich nur noch mit ihr an, ${input.serviceToo ? "im Client Hub und auf der Serviceplattform" : "im Client Hub"}.`,
+    details: [
+      { label: "Anmeldung mit", value: input.email },
+      { label: "Bisher", value: input.previous },
+      input.activated ? { label: "Passwort", value: "bleibt gleich" } : { label: "Status", value: "Noch nicht aktiviert", tone: "todo" },
+    ],
+    note: input.activated
+      ? { tone: "todo", text: "Wir haben dich dabei überall abgemeldet. Melde dich einfach mit der neuen Adresse und deinem bisherigen Passwort wieder an." }
+      : { tone: "todo", text: "Lege jetzt dein Passwort fest: Tippe auf den Button und gib unter „Passwort vergessen?“ diese Adresse ein, dann kommt der Link. Ältere Aktivierungslinks gelten nicht mehr." },
+    // Before the first sign-in „Passwort vergessen?“ is the way in: it mails a fresh link to every active login, also
+    // one that never had a password (requestPasswordResetAction).
+    cta: input.activated ? { label: "Zum Client Hub", url: page("/auth/login") } : { label: "Zugang aktivieren", url: page("/auth/forgot-password") },
+    small: "Du hast keinen Zugang bei oalab? Dann antworte bitte kurz auf diese E-Mail.",
+    reason: ACCOUNT_REASON,
+    legal,
+  });
+}
+
 const codeClock = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
 
 /**

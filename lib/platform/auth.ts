@@ -175,6 +175,36 @@ async function userByEmail(email: string) {
 }
 
 /**
+ * A login's new address (User Management › Zugang › Profil, since 23.11.2026; only `admin.updateUserById` calls it, the
+ * login itself cannot, see `updateUser`). One statement, so all of it happens or none: the address changes, every
+ * session of the login ends, on hub. and service.oalab.de alike, and what went to the old address stops working: the
+ * one-time links of `admin.generateLink` (a password link signs in and counts as the e-mail code), Service OALab's own
+ * password links (`reset-password:…`, an hour) and a sign-in there that waits for its code (`2fa-…`); all three keep
+ * only the login's id. Password, second factor, calendar subscription and everything else the login owns stay with its
+ * id. False when another login has the address, also when one takes it in the same moment (unique `users_email_key`).
+ */
+async function moveLogin(userId: string, email: string) {
+  const taken = await userByEmail(email);
+  if (taken && taken.id !== userId) return false;
+  try {
+    await sql(
+      `with moved as (update auth.users set email = $2, updated_at = now() where id = $1 returning id),
+       links as (
+         delete from auth.verifications where exists (select 1 from moved)
+           and ((identifier like 'hub-link:%' and value = $3) or ((identifier like 'reset-password:%' or identifier like '2fa-%') and value = $4))
+       ),
+       sessions as (delete from auth.sessions where user_id = $1 and exists (select 1 from moved))
+       select count(*)::int as moved from moved`,
+      [userId, email, JSON.stringify({ userId }), userId],
+    );
+    return true;
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code === "23505") return false;
+    throw error;
+  }
+}
+
+/**
  * A one-time link of `admin.generateLink`, looked at without using it: the address of its login while the link still
  * counts, null once it is unknown, used, expired or its login blocked. The page behind a password link asks on every
  * visit, mail scanners included, so this only reads; `verifyOtp` alone redeems.
@@ -428,6 +458,7 @@ export class OwnSessionAuth {
   async updateUser(attributes: { password?: string; data?: Record<string, unknown>; email?: string }) {
     const current = await this.#current();
     if (!current) return { data: { user: null }, error: sessionMissing() };
+    // A login never changes its own address: an admin does, in the User Management (admin.updateUserById, moveLogin).
     if (attributes.email !== undefined) return { data: { user: null }, error: authError("email_change_not_supported", "Changing the e-mail address is not supported.", 422) };
     const factors = await factorsOf(current.user.id);
     if (attributes.password !== undefined) {
@@ -580,11 +611,16 @@ export const ownAdminAuth = {
       return user ? { data: { user: supabaseUser(user) }, error: null } : { data: { user: null }, error: authError("user_not_found", "User not found", 404) };
     },
 
-    async updateUserById(id: string, attributes: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown>; ban_duration?: string; password?: string; email_confirm?: boolean }) {
+    async updateUserById(id: string, attributes: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown>; ban_duration?: string; password?: string; email_confirm?: boolean; email?: string }) {
       const user = await userById(String(id ?? ""));
       if (!user) return { data: { user: null }, error: authError("user_not_found", "User not found", 404) };
       const until = attributes.ban_duration === undefined ? undefined : banUntil(String(attributes.ban_duration));
       if (attributes.ban_duration !== undefined && until === undefined) return { data: { user: null }, error: authError("validation_failed", "Invalid ban duration", 400) };
+      if (attributes.email !== undefined) {
+        const email = String(attributes.email ?? "").trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+$/u.test(email)) return { data: { user: null }, error: authError("validation_failed", "Unable to validate email address: invalid format", 400) };
+        if (email !== user.email && !(await moveLogin(user.id, email))) return { data: { user: null }, error: authError("email_exists", "A user with this email address has already been registered", 422) };
+      }
       const appMetadata = attributes.app_metadata === undefined ? user.raw_app_meta_data : mergeMetadata(user.raw_app_meta_data, attributes.app_metadata);
       const userMetadata = attributes.user_metadata === undefined ? user.raw_user_meta_data : mergeMetadata(user.raw_user_meta_data, attributes.user_metadata);
       const updated = (await sql<UserRow>(
