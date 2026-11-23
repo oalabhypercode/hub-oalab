@@ -136,10 +136,44 @@ export function announceDays(now: Date) {
  * that is no real date within announceDays.
  */
 export function readAnnounceDay(value: unknown, now: Date): Date | null {
+  return readDayWithin(value, announceDays(now));
+}
+
+/** A YYYY-MM-DD within [min, max] as noon of that day (in German time still the same date), else null. */
+function readDayWithin(value: unknown, range: { min: string; max: string }): Date | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const { min, max } = announceDays(now);
-  if (value < min || value > max) return null;
+  if (value < range.min || value > range.max) return null;
   const [year, month, day] = value.split("-").map(Number);
   const noon = new Date(Date.UTC(year, month - 1, day, 12));
   return noon.toISOString().slice(0, 10) === value ? noon : null;
+}
+
+// The reminder before the start of hub and service platform (23.11.2026) ------------------------------------------------
+
+/** The day client hub and service platform start officially; the reminder suggests it while it lies ahead. */
+export const LAUNCH_DAY = "2026-11-25";
+
+export type RemindableLogin = InvitableLogin & { role: string | null; remindedAt: string | null };
+
+/** Logins the reminder goes to: every customer login that is active, signed in already or still waiting for that. */
+export const isRemindable = (login: RemindableLogin) => login.role === "oalab_customer" && (login.displayStatus === "active" || login.displayStatus === "invited");
+
+/** Ticked at the start: the ones without a reminder yet. */
+export const isFirstReminder = (login: RemindableLogin) => isRemindable(login) && !login.remindedAt;
+
+/**
+ * The days the start may be named for: from tomorrow (the mail says „am Mittwoch“ and asks for answers before it) up to
+ * ANNOUNCE_DAYS_AHEAD days ahead, so the mail can name it by its weekday. Suggested is LAUNCH_DAY while it lies in that
+ * window, else tomorrow.
+ */
+export function launchDays(now: Date) {
+  const [year, month, day] = berlinDayKey(now).split("-").map(Number);
+  const ahead = (days: number) => new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
+  const [min, max] = [ahead(1), ahead(ANNOUNCE_DAYS_AHEAD)];
+  return { min, max, suggested: LAUNCH_DAY >= min && LAUNCH_DAY <= max ? LAUNCH_DAY : min };
+}
+
+/** The chosen day of the start as noon of that day, or null for anything that is no real date within launchDays. */
+export function readLaunchDay(value: unknown, now: Date): Date | null {
+  return readDayWithin(value, launchDays(now));
 }

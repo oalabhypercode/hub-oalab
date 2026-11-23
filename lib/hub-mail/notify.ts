@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
-import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
+import { SERVICE_PLATFORM_URL } from "@/lib/service-packages";
+import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, launchReminderMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
 
 // Every mail the hub sends on its own. Each attempt lands in hub_notifications (kind and outcome only);
 // the registration mails go out once per login. Nothing here throws: a mail problem never breaks an action.
@@ -114,6 +115,19 @@ export async function mailAnnouncement(to: string, input: { day: Date; days: num
   const settings = mailSettings();
   const content = accessAnnouncementMail({ day: input.day, sender: senderAddress(settings.from), days: input.days, hubUrl: input.hubUrl }, settings.legal);
   const result = await sendMail(mailOf([to], input.test ? { ...content, subject: `[Test] ${content.subject}` } : content, { kind: "user.announcement" }));
+  return result.status;
+}
+
+/**
+ * The reminder before the start of hub and service platform (User Management → „Erinnerung senden“), to one login:
+ * `active` when somebody has signed in with it, else the version with the way in. Like the announcement it is recorded
+ * in the admin log. `test` names the version in the subject, as the admin gets both.
+ */
+export async function mailLaunchReminder(to: string, input: { day: Date; active: boolean; hubUrl: string; test?: boolean }): Promise<MailStatus> {
+  const settings = mailSettings();
+  const content = launchReminderMail({ day: input.day, email: to, active: input.active, sender: senderAddress(settings.from), hubUrl: input.hubUrl, serviceUrl: SERVICE_PLATFORM_URL }, settings.legal);
+  const subject = input.test ? `[Test: ${input.active ? "aktiv" : "noch nicht aktiviert"}] ${content.subject}` : content.subject;
+  const result = await sendMail(mailOf([to], { ...content, subject }, { kind: "user.launch_reminder" }));
   return result.status;
 }
 
