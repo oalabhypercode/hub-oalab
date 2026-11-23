@@ -622,8 +622,8 @@ test("a release for a freelancer rings the bell once per customer, never by mail
   assert.match(server, /export async function notifyFreelancerShare\(/);
   assert.match(server, /await insertNotices\(db, userIds\.filter\(\(id\) => !latest\.has\(id\)\), fresh, "skipped"\);/);
   assert.match(server, /\.eq\("kind", "share\.granted"\)\.eq\("href", fresh\.href\)\s+\.is\("read_at", null\)/);
-  const actions = await source("lib/hub-freelancer-customers/actions.ts");
-  assert.match(actions, /if \(on\) after\(\(\) => notifyFreelancerShare\(\{ freelancerId, customerId, company: names\.customer, area: shareAreas\[area\]\.label \}\)\);/);
+  const shares = await source("lib/hub-freelancer-customers/write.ts");
+  assert.match(shares, /if \(on\) after\(\(\) => notifyFreelancerShare\(\{ freelancerId, customerId, company: names\.customer, area: shareAreas\[area\]\.label \}\)\);/);
   assert.match(await source("components/hub/notifications-panel.tsx"), /if \(kind === "share\.granted"\) return \{ icon: Building2/);
 });
 

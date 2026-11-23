@@ -26,6 +26,7 @@ import type { Connection } from "./store";
 // the hub keeps out of sight stays out: archived customers, their files, conversations and contracts (lib/hub-archive).
 // Never part of an answer: passwords, provider logins (they belong to the Schlüsselbund, which stays closed without a
 // session), codes, the second factor and signed download links. Reading never marks a chat as read for the team.
+// The answers carry the IDs that the writing tools of stage 4 take (lib/hub-mcp/area-writes.ts); reading stays here.
 
 type Json = Record<string, unknown>;
 type Db = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -62,7 +63,7 @@ export async function runAreaTool(connection: Connection, name: string, args: Js
 type CustomerRow = { id: string; company: string; customer_number: string; kind: string | null; organization_id: string | null };
 
 /** A customer or freelancer entry the hub shows (not archived); `customers` = only entries of the kind customer. */
-async function entryOf(db: Db, customerId: unknown, kinds: "any" | "customers" = "any"): Promise<CustomerRow | null> {
+export async function entryOf(db: Db, customerId: unknown, kinds: "any" | "customers" = "any"): Promise<CustomerRow | null> {
   if (typeof customerId !== "string" || !uuid.test(customerId)) return null;
   const [{ data }, archive] = await Promise.all([
     db.from("hub_customers").select("id, company, customer_number, kind, organization_id").eq("id", lower(customerId)).maybeSingle<CustomerRow>(),
@@ -155,13 +156,14 @@ async function listFiles(db: Db, args: Json, origin: string): Promise<ToolResult
     .filter((row) => fileInSight(archive, (row.hub_file_assignments ?? []).map((item) => item.customer_id)))
     .filter((row) => !words.length || words.every((word) => `${row.title} ${row.file_name}`.toLowerCase().includes(word)));
   return json({
-    ...(entry ? { customer: { customer_id: entry.id, company: entry.company }, folders: (folders.data ?? []).map((row) => row.name) } : {}),
+    ...(entry ? { customer: { customer_id: entry.id, company: entry.company }, folders: (folders.data ?? []).map((row) => ({ folder_id: row.id, name: row.name })) } : {}),
     total: rows.length,
     shown: Math.min(rows.length, MAX_FILES),
     files: rows.slice(0, MAX_FILES).map((row) => {
       const assignments = (row.hub_file_assignments ?? []).filter((item) => !isArchivedCustomer(archive, item.customer_id));
       const own = entry ? assignments.find((item) => item.customer_id === entry.id) : undefined;
       return {
+        file_id: row.id,
         title: row.title,
         file_name: row.file_name,
         category: (fileCategories as Record<string, string>)[row.category] ?? row.category,
@@ -170,8 +172,8 @@ async function listFiles(db: Db, args: Json, origin: string): Promise<ToolResult
         uploaded_at: row.created_at,
         description: row.description || null,
         ...(own
-          ? { folder: own.folder_id ? folderName.get(own.folder_id) ?? null : null, visibility: AUDIENCE_WORDS[own.audience ?? "both"] ?? "Kunde und Freelancer" }
-          : { customers: assignments.map((item) => company.get(item.customer_id) ?? "Kunde"), in_inbox: !assignments.length }),
+          ? { folder: own.folder_id ? folderName.get(own.folder_id) ?? null : null, folder_id: own.folder_id, visibility: AUDIENCE_WORDS[own.audience ?? "both"] ?? "Kunde und Freelancer" }
+          : { customers: assignments.map((item) => ({ customer_id: item.customer_id, company: company.get(item.customer_id) ?? "Kunde" })), in_inbox: !assignments.length }),
       };
     }),
     note: rows.length ? "Herunterladen geht im Asset Management über den Link." : entry ? "Diesem Kunden ist noch keine Datei zugeordnet." : "Keine passende Datei.",
@@ -209,6 +211,7 @@ async function contract(db: Db, args: Json, origin: string): Promise<ToolResult>
       }))
       : null,
     timeline: timeline.error ? null : (timeline.data ?? []).map((row) => ({
+      entry_id: row.id,
       day: row.occurred_on,
       kind: (timelineKinds as Record<string, { label: string }>)[row.kind]?.label ?? row.kind,
       title: row.title,
@@ -219,6 +222,7 @@ async function contract(db: Db, args: Json, origin: string): Promise<ToolResult>
       by: row.source === "package" ? "automatisch (Paket)" : row.created_by ? authors.get(row.created_by) ?? "oalab-Team" : "oalab-Team",
     })),
     domains: domainMail ? own(domainMail.domains).map((domain) => ({
+      domain_id: domain.id,
       domain: domain.display,
       registrar: domain.details?.registrar || null,
       dns: domain.details?.dnsProvider || null,
@@ -235,9 +239,10 @@ async function contract(db: Db, args: Json, origin: string): Promise<ToolResult>
       webmail: server.webmailUrl || null,
       provider: server.provider || null,
     }))[0] ?? null : null,
-    mailboxes: domainMail ? own(domainMail.mailboxes).map((box) => ({ address: box.display, person: box.person || null, kind: mailboxKinds[box.kind].label, target: box.targetDisplay || null })) : null,
+    mailboxes: domainMail ? own(domainMail.mailboxes).map((box) => ({ mailbox_id: box.id, address: box.display, person: box.person || null, kind: mailboxKinds[box.kind].label, target: box.targetDisplay || null })) : null,
     service_quota: quotaRow ? { usage: usageLine(quotaRow), state: quotaStatus(quotaRow), exempted: quotaRow.exempted, enforced: quota?.enforced ?? false } : null,
     freelancers: shares ? shares.assignments.filter((item) => item.customerId === entry.id).map((item) => ({
+      freelancer_id: item.freelancerId,
       freelancer: item.freelancerName,
       number: item.freelancerNumber,
       sees: (Object.keys(item.shares) as ShareArea[]).filter((area) => item.shares[area]).map((area) => shareAreas[area].label),

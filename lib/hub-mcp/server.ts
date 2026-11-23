@@ -15,6 +15,7 @@ import { runWriteTool } from "./writes";
 import { callFreelancerTool } from "./freelancer";
 import { runNotesTool } from "./notes";
 import { runAreaTool } from "./areas";
+import { runAreaWriteTool } from "./area-writes";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -135,6 +136,8 @@ export async function callHubTool(connection: Connection, name: string, args: Re
   if (tool.needs === "task") return readTaskForAdmin(args, origin);
   // The rest of the hub (stage 3), read with the server key after the key check; never passwords or codes.
   if (tool.needs === "areas") return runAreaTool(connection, name, args, origin);
+  // Writing there (stage 4): chat answers, contact data, files, Vertrag & Domain, shares; through the hub's own code.
+  if (tool.needs === "area-write") return runAreaWriteTool(connection, name, args, origin);
   if (tool.needs === "assistant") {
     context.assistant = (await loadAssistantDataForCheckedAdmin()) ?? undefined;
     // Who can take a task (assignee_ids) and which freelancers may be put on the project: only where Claude may write.

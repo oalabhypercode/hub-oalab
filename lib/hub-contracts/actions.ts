@@ -5,8 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { readPackageChoices } from "@/lib/service-packages";
-import { isUuid, readTimelineEntry } from "./rules";
+import { isUuid } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
+import { saveTimelineEntryAs } from "./write";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database considers
 // them an active admin (with a confirmed second factor) before the service role touches anything. Inputs are checked
@@ -75,32 +76,9 @@ export async function saveCustomerPackages(input: { customerId?: unknown; packag
 export async function saveTimelineEntry(input: { id?: unknown; customerId?: unknown } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
   const ctx = await context();
   if (!ctx) return denied;
-  if (!await customerExists(ctx, input?.customerId)) return failed("Diesen Kunden gibt es nicht mehr.");
-  const customerId = input.customerId as string;
-  const entry = readTimelineEntry(input ?? {});
-  if (!entry.ok) return entry;
-  if (entry.value.fileId) {
-    const file = await ctx.db.from("hub_file_assignments").select("file_id").eq("file_id", entry.value.fileId).eq("customer_id", customerId).maybeSingle();
-    if (file.error || !file.data) return failed("Diese Datei liegt nicht bei diesem Kunden.");
-  }
-  const row = {
-    occurred_on: entry.value.occurredOn, kind: entry.value.kind, title: entry.value.title, amount_cents: entry.value.amountCents,
-    file_id: entry.value.fileId, note: entry.value.note, customer_visible: entry.value.customerVisible, updated_by: ctx.actorId,
-  };
-  if (input.id !== undefined && input.id !== null && input.id !== "") {
-    if (!isUuid(input.id)) return failed("Diesen Eintrag gibt es nicht mehr.");
-    const { data, error } = await ctx.db.from("hub_customer_timeline").update(row).eq("id", input.id).eq("customer_id", customerId).select("id").maybeSingle<{ id: string }>();
-    if (error) return failed(writeError(error));
-    if (!data) return failed("Diesen Eintrag gibt es nicht mehr.");
-    await log(ctx, "customer.timeline_updated", "Zeitpunkt geändert", customerId);
-    refreshWorkspace();
-    return { ok: true, data: { id: data.id } };
-  }
-  const { data, error } = await ctx.db.from("hub_customer_timeline").insert({ ...row, customer_id: customerId, created_by: ctx.actorId }).select("id").single<{ id: string }>();
-  if (error || !data) return failed(error ? writeError(error) : "Das hat gerade nicht geklappt. Bitte versuche es erneut.");
-  await log(ctx, "customer.timeline_created", "Zeitpunkt eingetragen", customerId);
-  refreshWorkspace();
-  return { ok: true, data: { id: data.id } };
+  const result = await saveTimelineEntryAs(ctx, input);
+  if (result.ok) refreshWorkspace();
+  return result;
 }
 
 /** Shows an entry to the customer or hides it again. */
