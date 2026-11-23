@@ -243,8 +243,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
         )}
         {panel === "notifications" && (
           <Modal title="Benachrichtigungen" className="notifications-modal" onClose={() => setPanel(null)}>
-            {preview ? <NotificationsPanel items={previewNotices} role={bellRole} preview onClose={() => setPanel(null)} />
-              : inbox ? <NotificationsPanel items={inbox.items} role={bellRole} onClose={() => setPanel(null)} />
+            {preview ? <NotificationsPanel items={previewNotices} unreadCount={unreadCount} role={bellRole} preview onClose={() => setPanel(null)} />
+              : inbox ? <NotificationsPanel items={inbox.items} unreadCount={inbox.unread} role={bellRole} onClose={() => setPanel(null)} />
               : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
           </Modal>
         )}

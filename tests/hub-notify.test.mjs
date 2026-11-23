@@ -5,10 +5,10 @@ import {
   CHAT_MAIL_WAIT_MINUTES, MAIL_WAIT_MINUTES, appointmentNotice, calendarRows, chatHref, chatNotice, describeProjectChange, detectStudioNotices, dueDigests, fileNotice,
   mailsWanted, mergeTaskNotice, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
   TASK_NOTICE_KINDS, hasTaskChange, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, LIVE_LINES, liveVersion,
-  mergeShareNotice, shareNotice, sharedAreasOf, fileNoticeCount, fileNoticeLine, filesNotice, mergeFileNotice,
+  mergeShareNotice, shareNotice, sharedAreasOf, fileNoticeCount, fileNoticeLine, filesNotice, mergeFileNotice, INBOX_LATEST, INBOX_UNREAD, mergeInboxRows,
   isReadInHub, mailWaitMinutes, noteEditNotice, noteNotice, noticeRequest, serviceHref, serviceMark, serviceNotice, SERVICE_CURSOR,
 } from "../lib/hub-notify/rules.ts";
-import { noticeColumns } from "../lib/hub-notify/columns.ts";
+import { bellTime, noticeColumns } from "../lib/hub-notify/columns.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
 import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramServiceMessage, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
 
@@ -666,16 +666,18 @@ test("every kind of notice finds its three columns", () => {
   assert.deepEqual(noticeColumns({ kind: "something.else", title: "Hinweis", body: "Text" }, "admin"), { where: "Hub", path: "", title: "Hinweis", body: "Text", from: "", fromDetail: "" });
 });
 
-test("the bell shows its lines in the three columns, in a wider window", async () => {
+test("the bell shows its lines in columns, the time left of the symbol, in a window that grows with the screen", async () => {
   const panel = await source("components/hub/notifications-panel.tsx");
   assert.match(panel, /const columns = noticeColumns\(item, role\);/);
-  assert.match(panel, /<span className="notice-where">[\s\S]*<span className="notice-text">[\s\S]*<span className="notice-from">/);
+  assert.match(panel, /<time className="notice-time"[\s\S]*<span className="notice-where">[\s\S]*<span className="notice-text">[\s\S]*<span className="notice-from">/);
   assert.match(await source("components/hub/app-shell.tsx"), /<Modal title="Benachrichtigungen" className="notifications-modal"/);
-  assert.match(await source("app/glass.css"), /\.hub-modal\.notifications-modal \{ width: min\(760px, calc\(100% - 32px\)\); \}/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.hub-modal\.notifications-modal \{ width: min\(calc\(100% - 32px\), clamp\(760px, 62vw, 1280px\)\); max-height: calc\(100dvh - 64px\); \}/);
+  assert.match(css, /\.notifications-modal > \.notice-list \{ flex: 1 1 auto; min-height: 0;/);
+  assert.doesNotMatch(css, /max-height: min\(60vh, 520px\)/, "the list no longer stops at 520 px");
   const server = await source("lib/hub-notify/server.ts");
   assert.match(server, /prefix: taskNoticePrefix\(project\.data!\.display_name, number, viewer === "team" \? company : ""\)/);
 });
-
 
 // ---------------------------------------------------------------- 23.11.2026: notes written from outside, service platform
 
@@ -731,4 +733,71 @@ test("the schedule reads the customers' service messages from a cursor, skips th
   assert.match(actions, /if \(await markServiceRead\(input\.id\)\) refreshWorkspace\(\);/);
   const layout = await source("app/dashboard/layout.tsx");
   assert.match(layout, /identity\.account\?\.role === "oalab_admin" \? unreadServiceRequests\(\) : \[\]/);
+});
+
+// The bell shows only what is new (plan docs/planung/chat-ereignisse-und-glocke.md, stage 1, 23.11.2026) -------------
+
+test("the time left of the symbol: Heute, Gestern, a weekday, the day or the date above the clock, in German time", () => {
+  const now = Date.parse("2026-11-23T10:00:00Z"); // a Monday, 11:00 in Berlin
+  const today = bellTime("2026-11-23T08:40:00Z", now);
+  assert.deepEqual([today.day, today.clock], ["Heute", "09:40"]);
+  assert.match(today.full, /^Montag, 23\. November 2026\D+09:40$/);
+  assert.equal(bellTime("2026-11-22T23:01:00Z", now).day, "Heute", "after midnight in Berlin, though still the 22nd in UTC");
+  const yesterday = bellTime("2026-11-22T22:59:00Z", now);
+  assert.deepEqual([yesterday.day, yesterday.clock], ["Gestern", "23:59"]);
+  assert.equal(bellTime("2026-11-20T09:00:00Z", now).day, "Fr.");
+  assert.equal(bellTime("2026-11-16T09:00:00Z", now).day, "16. Nov.");
+  assert.equal(bellTime("2025-11-22T09:00:00Z", now).day, "22.11.25");
+  // Summer time ended on 25 October 2026: 00:30 that night was already Sunday in Berlin.
+  const night = bellTime("2026-10-24T22:30:00Z", Date.parse("2026-10-26T10:00:00Z"));
+  assert.deepEqual([night.day, night.clock], ["Gestern", "00:30"]);
+  // Over New Year: within a week the weekday, an older day of last year as a date.
+  assert.equal(bellTime("2026-12-31T10:00:00Z", Date.parse("2027-01-02T10:00:00Z")).day, "Do.");
+  assert.equal(bellTime("2026-12-20T10:00:00Z", Date.parse("2027-01-02T10:00:00Z")).day, "20.12.26");
+  // Without the current time the day is the date; a broken time stays empty.
+  assert.equal(bellTime("2026-11-23T08:40:00Z", 0).day, "23.11.26");
+  assert.deepEqual(bellTime("kaputt", now), { day: "", clock: "", full: "" });
+});
+
+test("the bell loads every unread line besides the newest ones, and the live version stays the same", async () => {
+  const row = (id, minute, read = false) => ({ id, created_at: `2026-11-23T10:${String(minute).padStart(2, "0")}:00+00:00`, read_at: read ? "2026-11-23T11:00:00Z" : null });
+  // Thirty newer lines, all read, and an older one still unread behind them: before, it fell out of the list.
+  const latest = Array.from({ length: INBOX_LATEST }, (_, index) => row(100 + index, 20 + index, true));
+  const rows = mergeInboxRows(latest, [row(7, 1)]);
+  assert.equal(rows.length, INBOX_LATEST + 1);
+  assert.deepEqual(rows.slice(0, 2).map((item) => item.id), [129, 128], "newest first");
+  assert.equal(rows.at(-1).id, 7, "the older unread line is there");
+  // A line in both lists comes once.
+  assert.deepEqual(mergeInboxRows([row(1, 1), row(2, 2)], [row(2, 2), row(3, 3)]).map((item) => item.id), [3, 2, 1]);
+  // The page builds the live version from all these rows, the server from the newest LIVE_LINES of all: the same.
+  const items = (list) => list.map((item) => ({ id: item.id, createdAt: item.created_at, read: Boolean(item.read_at), title: "Neue Datei: a.pdf", body: "Im Bereich Dateien" }));
+  assert.equal(liveVersion({ unread: 1, items: items(rows), pending: 0 }), liveVersion({ unread: 1, items: items(latest.slice(-LIVE_LINES)), pending: 0 }));
+  const server = await source("lib/hub-notify/server.ts");
+  assert.match(server, /\.is\("read_at", null\)\.order\("created_at", \{ ascending: false \}\)\.limit\(INBOX_UNREAD\)/);
+  assert.match(server, /items: mergeInboxRows\(latest\.data \?\? \[\], open\.data \?\? \[\]\)/);
+  assert.equal(INBOX_UNREAD, 100);
+});
+
+test("the bell lists only unread lines; a tick, opening or „Alle als gelesen markieren“ marks them read, „Rückgängig“ brings them back", async () => {
+  const panel = await source("components/hub/notifications-panel.tsx");
+  assert.ok(panel.includes("const lines = items.filter((item) => leaving.has(item.id) || restored.has(item.id) || (!item.read && !marked.has(item.id)));"), "only unread lines and what this window just changed");
+  assert.match(panel, /className="glass notice-check" onClick=\{\(\) => void markRead\(\[item\.id\]\)\}/);
+  assert.match(panel, /const result = await \(all \? markNoticesRead\(\) : markNoticesRead\(ids\)\);/);
+  assert.match(panel, /const result = await markNoticesUnread\(ids\);/);
+  assert.match(panel, /<div className="notice-undo" role="status" aria-live="polite">/);
+  assert.match(panel, /Frühere Benachrichtigungen in der Übersicht/);
+  assert.match(panel, /\{more > 0 && <p className="notice-more">und \{more\} weitere ungelesene<\/p>\}/);
+  // The preview stores nothing, and its bell counts from its own „now“.
+  assert.match(panel, /if \(preview\) return;\n    setBusy\(true\);/);
+  assert.match(panel, /const now = preview \? PREVIEW_NOW : clock;/);
+  // Newer kinds (the team's lines about service requests and edited notes) wear the overview's symbol, never the calendar.
+  assert.match(panel, /import \{ noticeSymbol \} from "\.\/notice-symbols";/);
+  assert.match(panel, /if \(kind\.startsWith\("appointment\."\)\) return \{ icon: CalendarDays, color: categories\.calendar\.fill \};\n  \/\/ [^\n]*\n  return noticeSymbol\(kind\);\n\}/);
+  const actions = await source("lib/hub-notify/actions.ts");
+  assert.match(actions, /export async function markNoticesUnread\(ids: number\[\]\)/);
+  assert.match(actions, /update\(\{ read_at: null \}\)\.eq\("user_id", session\.userId\)\.in\("id", list\)/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.notice-item\.is-leaving \{ opacity: 0;/);
+  assert.match(css, /:root\[data-reduce-motion="true"\] \.notice-item \{ transition: none; \}/);
+  assert.match(css, /@media \(hover: none\) \{ \.notice-check \{ opacity: 1; \} \}/);
 });

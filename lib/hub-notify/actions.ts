@@ -16,15 +16,33 @@ async function signedIn() {
   return error || !data?.claims ? null : { supabase, userId: data.claims.sub };
 }
 
+/** Notice ids from the browser: whole positive numbers, at most a hundred (the bell lists no more unread lines). */
+const noticeIds = (ids: unknown) => Array.isArray(ids) ? ids.filter((id): id is number => Number.isSafeInteger(id) && id > 0).slice(0, 100) : null;
+
 /** Marks notices as read: the given ones, or all unread ones without a list. */
 export async function markNoticesRead(ids?: number[]): Promise<Result<null>> {
   const session = await signedIn();
   if (!session) return notSignedIn;
-  const list = Array.isArray(ids) ? ids.filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 100) : null;
+  const list = noticeIds(ids);
   if (list && !list.length) return { ok: true, data: null };
   let update = session.supabase.from("hub_inbox").update({ read_at: new Date().toISOString() }).eq("user_id", session.userId).is("read_at", null);
   if (list) update = update.in("id", list);
   const { error } = await update;
+  if (error) return { ok: false, error: "Das hat gerade nicht geklappt. Bitte versuche es erneut." };
+  refreshWorkspace();
+  return { ok: true, data: null };
+}
+
+/**
+ * „Rückgängig“ in the bell (23.11.2026): the given notices are unread again, so they come back into the bell. Only the
+ * login's own rows; RLS allows a login to change read_at of its own notices and nothing else.
+ */
+export async function markNoticesUnread(ids: number[]): Promise<Result<null>> {
+  const session = await signedIn();
+  if (!session) return notSignedIn;
+  const list = noticeIds(ids);
+  if (!list?.length) return { ok: true, data: null };
+  const { error } = await session.supabase.from("hub_inbox").update({ read_at: null }).eq("user_id", session.userId).in("id", list).not("read_at", "is", null);
   if (error) return { ok: false, error: "Das hat gerade nicht geklappt. Bitte versuche es erneut." };
   refreshWorkspace();
   return { ok: true, data: null };
