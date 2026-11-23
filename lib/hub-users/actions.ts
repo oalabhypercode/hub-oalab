@@ -17,6 +17,7 @@ import { ACTIVATION_LINK_HOURS, LINK_HOURS, usesOwnPlatform } from "@/lib/platfo
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { LOGO_BUCKET } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
+import { customerDetails, customerRow, writeCustomerAs } from "./customer-write";
 import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
 import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
 import { CLAUDE_SWITCH, FREELANCER_CONNECTION_DAYS } from "@/lib/hub-mcp/config";
@@ -119,19 +120,6 @@ function readChoice(value: unknown): CustomerChoice | null {
   if (choice?.mode === "none") return { mode: "none" };
   return null;
 }
-
-const customerRow = (input: CustomerInput) => ({ company: input.company, customer_number: input.customerNumber, ...customerDetails(input) });
-
-/** What the Hub keeps itself; company and number of a customer in Service belong to its organization. */
-const customerDetails = (input: CustomerInput) => ({
-  contact_email: input.contactEmail,
-  phone: input.phone,
-  website: input.website,
-  street: input.street,
-  postal_code: input.postalCode,
-  city: input.city,
-  country: input.country,
-});
 
 type ResolvedCustomer = { customerId: string | null; customerNumber: string | null; company: string | null; organizationId: string | null; created: boolean };
 
@@ -286,16 +274,7 @@ async function noteServiceCustomer(ctx: Context, customer: { organizationId: str
  * number go through its organization (Service's sync passes them on) and the contact data through the Hub's own row.
  */
 async function writeCustomer(ctx: Context, id: string, organizationId: string | null, value: CustomerInput): Promise<ActionResult<{ id: string }>> {
-  if (organizationId) {
-    const refused = serviceCustomerRefusal(value);
-    if (refused) return failed(refused);
-    const organization = await ctx.db.from("organizations").update({ name: value.company, customer_number: value.customerNumber }).eq("id", organizationId);
-    if (organization.error) return failed(organization.error.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
-  }
-  const row = organizationId ? customerDetails(value) : customerRow(value);
-  const { data, error } = await ctx.db.from("hub_customers").update({ ...row, updated_by: ctx.actorId }).eq("id", id).select("id").single<{ id: string }>();
-  if (error || !data) return failed(error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
-  return { ok: true, data };
+  return writeCustomerAs(ctx.db, ctx.actorId, id, organizationId, value);
 }
 
 async function firstNameOf(ctx: Context, userId: string) {

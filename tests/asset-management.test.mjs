@@ -238,8 +238,10 @@ test("„Zuordnen“ says where the files come from, what the button does and wh
 
 test("„Zuordnen“ is the admins' own action: one call for all files, with the folder, „Sichtbar für“ and one notice", async () => {
   const actions = await source("lib/hub-files/actions.ts");
-  const assign = actions.split("export async function assignFiles(")[1].split("\nexport ")[0];
-  assert.match(assign, /> \{\n {2}const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;/);
+  const action = actions.split("export async function assignFiles(")[1].split("\nexport ")[0];
+  assert.match(action, /> \{\n {2}const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;\n {2}const result = await assignFilesAs\(supabase, input\);/);
+  // The work itself is the shared core (lib/hub-files/write.ts), which the Claude connector uses as well (23.11.2026).
+  const assign = (await source("lib/hub-files/write.ts")).split("export async function assignFilesAs(")[1].split("\nexport ")[0];
   assert.match(assign, /\.from\("hub_file_assignments"\)\.insert\(added\.map\(\(fileId\) => \(\{ file_id: fileId, customer_id: customerId, folder_id: folderId \}\)\)\)/);
   // From another customer the visibility moves along, written by the server like setFileAudience does.
   assert.match(assign, /const db = createAdminClient\(\);/);

@@ -90,8 +90,13 @@ test("admins release per freelancer: every action checks the admin first, logs, 
     assert.match(body, /^export async function \w+\([^)]*\)[^\n]*\{\r?\n {2}const ctx = await context\(\);\r?\n {2}if \(!ctx\) return denied;/, name);
   }
   assert.match(actions, /const admin = await verifyHubAdmin\(\);/);
-  assert.match(actions, /from\("hub_admin_events"\)\.insert/);
+  for (const name of ["setFreelancerShare", "saveFreelancerNote"]) assert.match(actions, new RegExp(`const result = await ${name}As\\(ctx, input\\);`), name);
   assert.doesNotMatch(actions, /hub_vault|password/i);
+  // The writes, the admin log and the notice are the shared core, which the Claude connector uses too (23.11.2026).
+  const core = await source("lib/hub-freelancer-customers/write.ts");
+  assert.match(core, /^import "server-only";/);
+  assert.match(core, /from\("hub_admin_events"\)\.insert/);
+  assert.doesNotMatch(core, /hub_vault|password/i);
   const contracts = await source("lib/hub-contracts/server.ts");
   assert.match(contracts, /loadFreelancerSharesForAdmin\(db\)/);
   assert.match(contracts, /!archive\.customerIds\.has\(item\.customerId\) && !archive\.customerIds\.has\(item\.freelancerId\)/);

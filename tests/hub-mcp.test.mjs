@@ -196,11 +196,13 @@ const NOTES_READ = ["list_notes", "read_note", "search_notes", "get_note_history
 const NOTES_WRITE = ["create_note", "update_note", "set_note_visibility", "notify_note_change", "create_meeting_note", "trash_note", "restore_note", "restore_note_version"];
 // Stage 3 (23.11.2026): the rest of the hub, reading only.
 const AREA_READ = ["get_customer_contacts", "list_files", "get_contract", "list_conversations", "read_conversation", "get_admin_log", "get_insights"];
+// Stage 4 (23.11.2026): writing there, never logins, passwords, packages or deleting.
+const AREA_WRITE = ["send_chat_message", "update_customer_contact", "assign_files", "set_file_visibility", "rename_files", "create_folder", "save_timeline_entry", "save_domain", "save_mailbox", "set_freelancer_access"];
 
-test("tools: twenty-one reading, twenty writing, strict and fully described; none without the right", () => {
+test("tools: twenty-one reading, thirty writing, strict and fully described; none without the right", () => {
   assert.deepEqual(tools.listTools(["hub:read"]).map((tool) => tool.name), [...READ_TOOLS, ...NOTES_READ, ...AREA_READ], "a read-only connection sees no writing tool");
   const listed = tools.listTools(["hub:read", "hub:write"]);
-  assert.deepEqual(listed.map((tool) => tool.name), [...READ_TOOLS, ...WRITE_TOOLS, ...NOTES_READ, ...NOTES_WRITE, ...AREA_READ]);
+  assert.deepEqual(listed.map((tool) => tool.name), [...READ_TOOLS, ...WRITE_TOOLS, ...NOTES_READ, ...NOTES_WRITE, ...AREA_READ, ...AREA_WRITE]);
   // Strict schemas all the way down (the tasks of create_tasks, the milestones of create_project).
   const strict = (schema, path) => {
     if (schema.type === "object") {
@@ -211,7 +213,7 @@ test("tools: twenty-one reading, twenty writing, strict and fully described; non
     if (schema.items) strict(schema.items, `${path}[]`);
   };
   for (const tool of listed) {
-    const writes = WRITE_TOOLS.includes(tool.name) || NOTES_WRITE.includes(tool.name);
+    const writes = WRITE_TOOLS.includes(tool.name) || NOTES_WRITE.includes(tool.name) || AREA_WRITE.includes(tool.name);
     assert.equal(tool.annotations.readOnlyHint, !writes, tool.name);
     assert.equal(tool.annotations.destructiveHint, writes, `${tool.name}: Claude asks before every change`);
     strict(tool.inputSchema, tool.name);
@@ -228,6 +230,8 @@ test("tools: twenty-one reading, twenty writing, strict and fully described; non
   assert.match(tools.SERVER_INSTRUCTIONS, /in den Papierkorb legen \(30 Tage wiederherstellbar\)/);
   assert.match(tools.SERVER_INSTRUCTIONS, /read_note, bevor du ihren Inhalt ersetzt/);
   assert.match(tools.SERVER_INSTRUCTIONS, /check_appointment_time/);
+  assert.match(tools.SERVER_INSTRUCTIONS, /Zugänge, Einladungen, Pakete, den Schlüsselbund und Passwörter ändert ein Admin nur im Hub/);
+  assert.match(tools.SERVER_INSTRUCTIONS, /den Text einer Chat-Antwort zeig vorher wörtlich/);
   // The pure runner never writes: writing tools run only on the server (lib/hub-mcp/writes.ts).
   assert.equal(tools.runHubTool("create_appointment", { title: "x" }, { origin, today: "2026-11-16", now: 0 }).isError, true);
 });
@@ -984,4 +988,79 @@ test("stage 3: read with the server key after the key check, nothing written, th
   const log = await source("lib/hub-assistant/log.ts");
   assert.match(log, /if \(!await verifyHubAdmin\(\)\) return \{ rows: \[\], error: "Das KI-Protokoll sehen nur Admins\." \};/);
   assert.match(log, /return readAssistantLog\(db\);/);
+});
+
+/* ---------- Stage 4 (23.11.2026): writing in the rest of the hub, never logins, passwords, packages or deleting ---------- */
+
+test("stage 4: chat, contact data, files, Vertrag & Domain and shares, for admins only, every change asking first", () => {
+  assert.deepEqual(areaTools.AREA_WRITE_TOOL_NAMES, AREA_WRITE);
+  for (const tool of areaTools.areaWriteTools) {
+    assert.equal(tool.scope, "hub:write", tool.name);
+    assert.equal(tool.annotations.readOnlyHint, false, tool.name);
+    assert.equal(tool.annotations.destructiveHint, true, `${tool.name}: Claude asks before every change`);
+    assert.ok(tool.description.length > 120, tool.name);
+    // Nothing to send for a password, a login, an invitation, a package, the quota lock or a role.
+    assert.doesNotMatch(JSON.stringify(tool.inputSchema), /passwor|secret|login|invit|einladung|package_id|quota|kontingent|role|second_factor/i, tool.name);
+  }
+  for (const name of AREA_WRITE) assert.equal(freelancerTools.freelancerToolOf(name), null, `${name}: not for freelancers`);
+  assert.deepEqual(tools.listTools(["hub:read"]).filter((tool) => AREA_WRITE.includes(tool.name)), [], "a reading connection never sees them");
+  assert.ok(!tools.toolNames.some((name) => /keychain|vault|secret|password|login|invit|role|package|quota|factor|totp|delete|archive|purge/.test(name)), "no tool for the taboos");
+  const describe = (name) => areaTools.areaWriteTools.find((tool) => tool.name === name).description;
+  assert.match(describe("send_chat_message"), /zeig dem Nutzer den Text, bevor du ihn schickst/);
+  assert.match(describe("update_customer_contact"), /Firmenname und Kundennummer bleiben, wie sie sind/);
+  assert.match(describe("save_domain"), /Zugangsdaten und Passwörter bleiben im Schlüsselbund/);
+  assert.match(describe("save_mailbox"), /Passwörter von Postfächern bleiben im Schlüsselbund/);
+  assert.match(describe("set_freelancer_access"), /Wer welchen Kunden betreut, legt ein Admin im Hub fest/);
+  assert.match(config.scopeLabels["hub:write"], /im privaten Chat antworten, Kontaktdaten, Dateien, Vertrag & Domain und Freigaben für Freelancer ändern \(nie Zugänge oder Passwörter\)/);
+  assert.equal(tools.runHubTool("send_chat_message", { customer_id: ids.abc, text: "Hallo" }, { origin, today: "2026-11-23", now: 0 }).isError, true, "the pure runner writes nothing");
+});
+
+test("stage 4: through the hub's own cores, with the admin's claims where the hub uses the session, logged, never deleting", async () => {
+  const lf = async (path) => (await source(path)).replace(/\r\n/g, "\n");
+  const writes = await lf("lib/hub-mcp/area-writes.ts");
+  assert.match(writes, /^import "server-only";/);
+  // Nothing deletes or reaches the Schlüsselbund, logins, invitations, packages or the quota.
+  assert.doesNotMatch(writes, /\.delete\(|auth\.admin|hub_vault|hub_customer_logins|revealSecret/);
+  const imports = writes.match(/^import .*$/gm).join("\n");
+  assert.doesNotMatch(imports, /hub-vault|hub-keychain|hub-invitations|hub-service-quota|hub-auth|packages|actions"/);
+  // Each tool saves through the very code its window in the hub saves with.
+  for (const call of [
+    "assignFilesAs(fileClient(w), ", "setFileAudienceAs(w.db, fileId, entry.id, args.visibility)", "renameFilesAs(fileClient(w), ",
+    "writeCustomerAs(w.db, w.userId, entry.id, row.organization_id, customer.value)",
+    'saveTimelineEntryAs({ db: w.db, actorId: w.userId, via: "claude" }, input)', 'saveDomainAs({ db: w.db, actorId: w.userId, via: "claude" }, input)',
+    'saveMailboxAs({ db: w.db, actorId: w.userId, via: "claude" }, input)', "setFreelancerShareAs(ctx, ", "saveFreelancerNoteAs(ctx, ",
+  ]) assert.ok(writes.includes(call), call);
+  // The chat as „Senden“ under Nachrichten: the admin's claims (the database checks the side), the read mark, the notice.
+  assert.match(writes, /await w\.own\.from\("hub_private_messages"\)\.insert\(\{ customer_id: entry\.id, side: "oalab", body: message\.value, client_id: crypto\.randomUUID\(\) \}\);/);
+  assert.match(writes, /await markPrivateRead\(\{ userId: w\.userId, side: "oalab", customerIds: \[\] \}, entry\.id\);\n {2}after\(\(\) => notifyChat\(\{ side: "oalab", customerId: entry\.id/);
+  // Folders like „Neuer Ordner“, also with the admin's claims.
+  assert.match(writes, /await w\.own\.from\("hub_folders"\)\.insert\(\{ customer_id: entry\.id, name: clean\.name \}\)/);
+  // Every change is logged; the chat's line never carries the message.
+  for (const action of ["claude.chat.sent", "claude.customer.updated", "claude.files.assigned", "claude.file.visibility", "claude.files.renamed", "claude.folder.created"]) assert.ok(writes.includes(`"${action}"`), action);
+  const chatLog = writes.slice(writes.indexOf('"claude.chat.sent"'), writes.indexOf("\n", writes.indexOf('"claude.chat.sent"')));
+  assert.doesNotMatch(chatLog, /message|body|text/);
+  for (const core of ["lib/hub-domains/write.ts", "lib/hub-contracts/write.ts", "lib/hub-freelancer-customers/write.ts"]) {
+    const text = await lf(core);
+    assert.match(text, /^import "server-only";/, core);
+    assert.match(text, /action: claude \? `claude\.\$\{action\}` : action/, core);
+  }
+  // Only areas that change are switched, so a freelancer never hears of the same release twice.
+  assert.match(writes, /if \(now\[area\] === on\) continue;/);
+  // Archived customers and their files stay out of reach.
+  assert.equal((writes.match(/await entryOf\(w\.db, args\.customer_id/g) ?? []).length, 9, "every tool but renaming checks its customer");
+  assert.match(writes, /fileInSight\(archive, /);
+  // The answers of stage 3 carry the IDs these tools take.
+  const areas = await lf("lib/hub-mcp/areas.ts");
+  for (const key of ["file_id: row.id", "folder_id: row.id", "entry_id: row.id", "domain_id: domain.id", "mailbox_id: box.id", "freelancer_id: item.freelancerId"]) assert.ok(areas.includes(key), key);
+  // The server checks the right first and never runs them for a freelancer's connection.
+  const server = await lf("lib/hub-mcp/server.ts");
+  assert.ok(server.indexOf("hasScope(connection.scopes, tool.scope)") < server.indexOf("runAreaWriteTool("), "the right first");
+  assert.ok(server.indexOf('if (connection.role !== "admin") return callFreelancerTool(') < server.indexOf("runAreaWriteTool("), "never for a freelancer");
+  // The hub's own actions keep their admin checks and call the same cores.
+  for (const [file, pattern] of [
+    ["lib/hub-files/actions.ts", /const db = await verifyHubAdmin\(\) \? createAdminClient\(\) : null;\n {2}if \(!db\) return denied;\n {2}const result = await setFileAudienceAs\(db, fileId, customerId, audience\);/],
+    ["lib/hub-domains/actions.ts", /const ctx = await context\(\);\n {2}if \(!ctx\) return denied;\n {2}const result = await saveDomainAs\(ctx, input\);/],
+    ["lib/hub-domains/actions.ts", /const ctx = await context\(\);\n {2}if \(!ctx\) return denied;\n {2}const result = await saveMailboxAs\(ctx, input\);/],
+    ["lib/hub-contracts/actions.ts", /const ctx = await context\(\);\n {2}if \(!ctx\) return denied;\n {2}const result = await saveTimelineEntryAs\(ctx, input\);/],
+  ]) assert.match(await lf(file), pattern, file);
 });

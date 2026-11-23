@@ -113,8 +113,12 @@ test("missing values drop out with a hint instead of leaving gaps", () => {
 
 test("renaming is for admins, keeps the extension and the stored file, and sends no notice", async () => {
   const actions = await source("lib/hub-files/actions.ts");
-  const rename = actions.slice(actions.indexOf("export async function renameFiles"), actions.indexOf("export async function deleteFiles"));
-  assert.match(rename, /const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;/);
+  const action = actions.slice(actions.indexOf("export async function renameFiles"), actions.indexOf("export async function deleteFiles"));
+  assert.match(action, /const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;\n {2}const result = await renameFilesAs\(supabase, input\);/);
+  assert.doesNotMatch(action, /notifyFileShared|storage/);
+  // The shared core (lib/hub-files/write.ts) renames for the hub and the Claude connector alike (23.11.2026).
+  const core = await source("lib/hub-files/write.ts");
+  const rename = core.slice(core.indexOf("export async function renameFilesAs"));
   assert.match(rename, /nameExtension\(row\.file_name\) !== nameExtension\(wanted\.get\(row\.id\)\?\.fileName \?\? ""\)/);
   assert.match(rename, /\.update\(\{ title: change\.title, file_name: change\.fileName \}\)/);
   assert.doesNotMatch(rename, /notifyFileShared|storage/);

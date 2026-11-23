@@ -44,7 +44,7 @@ export const ROTATION_GRACE_SECONDS = 30;
 export type HubScope = "hub:read" | "hub:write";
 export const scopeLabels: Record<HubScope, string> = {
   "hub:read": "Lesen: Kunden mit Kontaktdaten, Projekte, Aufgaben, Termine, Verfügbarkeit, Notizen, Dateien, Vertrag & Domain, Gespräche, Protokolle und Insights (nie Passwörter)",
-  "hub:write": "Schreiben: Termine, Verfügbarkeit, Aufgaben, Checklisten, Projekte, Beteiligte und Notizen anlegen und ändern, Notizen freigeben und in den Papierkorb legen",
+  "hub:write": "Schreiben: Termine, Verfügbarkeit, Aufgaben, Checklisten, Projekte, Beteiligte und Notizen anlegen und ändern, Notizen freigeben und in den Papierkorb legen, im privaten Chat antworten, Kontaktdaten, Dateien, Vertrag & Domain und Freigaben für Freelancer ändern (nie Zugänge oder Passwörter)",
 };
 /**
  * What the hub offers (step 3: writing too). Claude asks for every offered right, the consent page shows them, and a

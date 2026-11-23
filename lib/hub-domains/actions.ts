@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
-import { isUuid, readDomain, readMailbox, readMailServer } from "./rules";
+import { isUuid, readMailServer } from "./rules";
+import { saveDomainAs, saveMailboxAs } from "./write";
 
 // Domains, mail server and mailboxes of „Vertrag & Domain“ (tab „Domain & Mail“). Every action is a public POST endpoint:
 // each one checks with the caller's own session that the database considers them an active admin (with a confirmed
@@ -53,31 +54,9 @@ function writeError(error: { code?: string; message?: string }, duplicate: strin
 export async function saveDomain(input: { id?: unknown; customerId?: unknown } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
   const ctx = await context();
   if (!ctx) return denied;
-  if (!await customerExists(ctx, input?.customerId)) return failed("Diesen Kunden gibt es nicht mehr.");
-  const customerId = input.customerId as string;
-  const domain = readDomain(input ?? {});
-  if (!domain.ok) return domain;
-  const { checks, ...fields } = domain.value;
-  const row = {
-    domain: fields.domain, registrar: fields.registrar, dns_provider: fields.dnsProvider, website_host: fields.websiteHost, owner: fields.owner,
-    renews_on: fields.renewsOn, status: fields.status, note: fields.note, updated_by: ctx.actorId,
-    website_ok: checks.website, ssl_ok: checks.ssl, mx_ok: checks.mx, spf_ok: checks.spf, dkim_ok: checks.dkim, dmarc_ok: checks.dmarc,
-  };
-  const duplicate = `${fields.domain} ist schon bei einem Kunden eingetragen.`;
-  if (input.id !== undefined && input.id !== null && input.id !== "") {
-    if (!isUuid(input.id)) return failed(gone);
-    const { data, error } = await ctx.db.from("hub_customer_domains").update(row).eq("id", input.id).eq("customer_id", customerId).select("id").maybeSingle<{ id: string }>();
-    if (error) return failed(writeError(error, duplicate));
-    if (!data) return failed(gone);
-    await log(ctx, "customer.domain_updated", `Domain geändert: ${fields.domain}`, customerId);
-    refreshWorkspace();
-    return { ok: true, data: { id: data.id } };
-  }
-  const { data, error } = await ctx.db.from("hub_customer_domains").insert({ ...row, customer_id: customerId, created_by: ctx.actorId }).select("id").single<{ id: string }>();
-  if (error || !data) return failed(error ? writeError(error, duplicate) : tryAgain);
-  await log(ctx, "customer.domain_created", `Domain eingetragen: ${fields.domain}`, customerId);
-  refreshWorkspace();
-  return { ok: true, data: { id: data.id } };
+  const result = await saveDomainAs(ctx, input);
+  if (result.ok) refreshWorkspace();
+  return result;
 }
 
 export async function deleteDomain(input: { id?: unknown }): Promise<ActionResult<null>> {
@@ -137,26 +116,9 @@ export async function deleteMailServer(input: { customerId?: unknown }): Promise
 export async function saveMailbox(input: { id?: unknown; customerId?: unknown } & Record<string, unknown>): Promise<ActionResult<{ id: string }>> {
   const ctx = await context();
   if (!ctx) return denied;
-  if (!await customerExists(ctx, input?.customerId)) return failed("Diesen Kunden gibt es nicht mehr.");
-  const customerId = input.customerId as string;
-  const mailbox = readMailbox(input ?? {});
-  if (!mailbox.ok) return mailbox;
-  const row = { address: mailbox.value.address, person: mailbox.value.person, kind: mailbox.value.kind, target: mailbox.value.target, updated_by: ctx.actorId };
-  const duplicate = `${mailbox.value.address} ist schon eingetragen.`;
-  if (input.id !== undefined && input.id !== null && input.id !== "") {
-    if (!isUuid(input.id)) return failed(gone);
-    const { data, error } = await ctx.db.from("hub_customer_mailboxes").update(row).eq("id", input.id).eq("customer_id", customerId).select("id").maybeSingle<{ id: string }>();
-    if (error) return failed(writeError(error, duplicate));
-    if (!data) return failed(gone);
-    await log(ctx, "customer.mailbox_updated", `E-Mail-Adresse geändert: ${mailbox.value.address}`, customerId);
-    refreshWorkspace();
-    return { ok: true, data: { id: data.id } };
-  }
-  const { data, error } = await ctx.db.from("hub_customer_mailboxes").insert({ ...row, customer_id: customerId, created_by: ctx.actorId }).select("id").single<{ id: string }>();
-  if (error || !data) return failed(error ? writeError(error, duplicate) : tryAgain);
-  await log(ctx, "customer.mailbox_created", `E-Mail-Adresse eingetragen: ${mailbox.value.address}`, customerId);
-  refreshWorkspace();
-  return { ok: true, data: { id: data.id } };
+  const result = await saveMailboxAs(ctx, input);
+  if (result.ok) refreshWorkspace();
+  return result;
 }
 
 /** Deletes a mailbox, forward or alias; a stored password goes with it (the log says so). */

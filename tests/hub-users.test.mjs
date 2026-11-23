@@ -80,10 +80,13 @@ test("new customers start in Service, and Service customers keep company and num
   // and the import from the accounting write through the same function.
   const save = actions.slice(actions.indexOf("export async function saveCustomer"));
   assert.match(save, /const written = await writeCustomer\(ctx, id, current\.data\.organization_id, customer\.value\);/);
-  const write = actions.slice(actions.indexOf("async function writeCustomer"));
+  // The writing itself is shared with the Claude connector (lib/hub-users/customer-write.ts, 23.11.2026).
+  assert.match(actions, /async function writeCustomer\(ctx: Context, id: string, organizationId: string \| null, value: CustomerInput\): Promise<ActionResult<\{ id: string \}>> \{\n {2}return writeCustomerAs\(ctx\.db, ctx\.actorId, id, organizationId, value\);/);
+  const write = await source("lib/hub-users/customer-write.ts");
+  assert.match(write, /^import "server-only";/);
   assert.match(write, /from\("organizations"\)\.update\(\{ name: value\.company, customer_number: value\.customerNumber \}\)\.eq\("id", organizationId\)/);
   assert.match(write, /const row = organizationId \? customerDetails\(value\) : customerRow\(value\);/);
-  assert.match(write, /\.update\(\{ \.\.\.row, updated_by: ctx\.actorId \}\)/);
+  assert.match(write, /\.update\(\{ \.\.\.row, updated_by: actorId \}\)/);
   // Service's audit trail hears about a new customer only once the whole step worked.
   for (const flow of ["export async function approveRegistration", "export async function createHubUser"]) {
     const chunk = actions.slice(actions.indexOf(flow));
