@@ -243,7 +243,8 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
 
   const list = (
     <div className="chat-list">
-      <div className="chat-list-head"><h2>Kunden<span>{entries.length}</span></h2></div>
+      {/* Customers only: oalab stands above them under „Intern“. */}
+      <div className="chat-list-head"><h2>Kunden<span>{entries.filter((item) => !item.customer?.team).length}</span></h2></div>
       <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kunde, Projekt oder Domain" aria-label="Kunden nach Name, Projekt oder Domain durchsuchen" /></label>
       <div className="chat-filter" role="group" aria-label="Kunden zeigen">
         <button type="button" aria-pressed={show === "all"} onClick={() => setShow("all")}>Alle</button>
