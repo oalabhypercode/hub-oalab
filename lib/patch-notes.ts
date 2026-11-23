@@ -74,6 +74,17 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 30,
+    date: "2026-11-23",
+    title: "Claude kennt die Notizen",
+    summary: "Der Claude-Connector kennt jetzt die Notizen unter Projekte: Claude liest den Seitenbaum eines Kunden und jede Seite als Text mit dem aktuellen Stand der Aufgaben, Projekte und Termine darin, sucht in allen Notizen und legt Seiten und Unterseiten an, mit Inhalt oder aus einer Vorlage. Bestehende Seiten ergänzt Claude oben oder unten oder überarbeitet sie mit Versionsprüfung, sodass nichts überschrieben wird, was inzwischen jemand anders geschrieben hat; Aufgabenboxen, Termine, Unterseiten und Linkkarten bleiben dabei erhalten. Für das Team gibt Claude Seiten frei, teilt Änderungen mit, legt Besprechungsnotizen an Terminen an, liest den Verlauf, holt frühere Fassungen zurück und legt Seiten in den Papierkorb (30 Tage wiederherstellbar); endgültig löschen bleibt im Hub. Freelancer mit Claude lesen die für sie freigegebenen Seiten und schreiben ihre „Nur Freelancer“-Seiten. Jede Änderung fragt vorher nach und steht als claude.note.* im Admin-Protokoll; bestehende Verbindungen bekommen das ohne neues Verbinden, in Claude reicht ein neuer Chat.",
+    changes: [
+      { kind: "new", area: "hub", place: "Claude › Notizen", also: ["projects"], title: "Claude liest und schreibt Notizen", text: "Über den Claude-Connector liest Claude jetzt die Notizen eines Kunden, sucht darin und legt Seiten und Unterseiten an, mit Text, Checklisten, Tabellen und Aufgaben aus dem Board oder aus einer Vorlage. Bestehende Seiten ergänzt oder überarbeitet Claude, ohne zu überschreiben, was inzwischen jemand anders geschrieben hat. Vor jeder Änderung fragt Claude nach, und jede steht im Admin-Protokoll." },
+      { kind: "new", area: "hub", place: "Claude › Notizen", also: ["projects", "messages"], title: "Freigeben, Besprechungsnotizen, Verlauf und Papierkorb", text: "Claude gibt Notizseiten auch für Kunde oder Freelancer frei, und wer sie neu sieht, bekommt wie gewohnt eine Meldung. Claude teilt Änderungen mit, legt die Besprechungsnotiz zu einem Termin an und holt frühere Fassungen aus dem Verlauf zurück. Seiten legt Claude höchstens in den Papierkorb, wo sie 30 Tage wiederherstellbar bleiben; endgültig löschen kann nur das Team im Hub." },
+      { kind: "new", area: "hub", place: "Claude › Notizen", also: ["projects"], title: "Notizen mit Claude", text: "Hast du Claude verbunden, liest Claude jetzt auch die Notizseiten deiner Kunden, die oalab für dich freigegeben hat, und schreibt deine eigenen „Nur Freelancer“-Seiten: anlegen, ergänzen und überarbeiten, mit Rückfrage vor jeder Änderung. Andere Seiten liest Claude nur.", freelancers: true },
+    ],
+  },
+  {
     number: 29,
     date: "2026-11-22",
     title: "Notizen unter Projekte, Benachrichtigungen in Spalten, Patch Notes als Tabelle und eine Sidebar zum Einklappen",

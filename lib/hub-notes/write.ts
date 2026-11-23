@@ -44,10 +44,15 @@ export function noteError(error: { code?: string; message?: string } | null, fal
   return fallback;
 }
 
-/** Writes an entry of the admin log with the server key; a failed entry never fails the change itself. */
+/**
+ * Writes an entry of the admin log with the server key; a failed entry never fails the change itself. Changes through
+ * the Claude connector are logged as `claude.note.*`, „über Claude“ (and „(Freelancer)“ for a freelancer's Claude).
+ */
 export async function logNoteEvent(ctx: NotesContext, action: string, summary: string, customerId: string) {
   if (!ctx.db) return;
-  await ctx.db.from("hub_admin_events").insert({ actor_id: ctx.userId, action, summary: summary.slice(0, 300), target_customer_id: customerId }).then(() => undefined, () => undefined);
+  const claude = ctx.via === "claude";
+  const line = claude ? `${summary} · über Claude${ctx.viewer === "freelancer" ? " (Freelancer)" : ""}` : summary;
+  await ctx.db.from("hub_admin_events").insert({ actor_id: ctx.userId, action: claude ? `claude.${action}` : action, summary: line.slice(0, 300), target_customer_id: customerId }).then(() => undefined, () => undefined);
 }
 
 const canWrite = (ctx: NotesContext) => ctx.viewer === "admin" || ctx.viewer === "freelancer";
@@ -133,7 +138,8 @@ async function removeStored(ctx: NotesContext, paths: string[]) {
   if (own.length && ctx.db) await ctx.db.storage.from(HUB_FILES_BUCKET).remove(own).then(() => undefined, () => undefined);
 }
 
-export type CreateInput = { customerId: string; projectId?: string | null; parentId?: string | null; title?: string; icon?: string; content?: NoteDoc };
+/** `datedOn` puts the page into the calendar right away (the Claude connector's create_note). */
+export type CreateInput = { customerId: string; projectId?: string | null; parentId?: string | null; title?: string; icon?: string; content?: NoteDoc; datedOn?: string | null };
 
 /**
  * A new page: a subpage takes its parent's level and project, a freelancer's page is always „Nur Freelancer“, the
@@ -161,12 +167,13 @@ export async function createPageAs(ctx: NotesContext, input: CreateInput): Promi
   if (icon === null) return fail("Als Symbol geht ein Emoji.");
   const checked = validateNoteDoc(input.content ?? emptyNoteDoc());
   if (!checked.ok) return fail(checked.error);
+  if (input.datedOn !== undefined && input.datedOn !== null && !isIsoDate(input.datedOn)) return fail("Das Datum ist ungültig.");
   const projectId = parent ? parent.projectId : input.projectId && isUuid(input.projectId) ? input.projectId : null;
   const metas = (siblings.data ?? []).map(toMeta);
   const position = positionAfter(childrenOf(metas, parent?.id ?? null));
   const { data, error } = await ctx.session.from("hub_note_pages").insert({
     customer_id: customer.id, project_id: projectId, parent_id: parent?.id ?? null, title, icon, audience, width: settings.defaultWidth,
-    content: checked.doc, content_text: checked.text, position,
+    content: checked.doc, content_text: checked.text, position, ...(input.datedOn ? { dated_on: input.datedOn } : {}),
   }).select(`${PAGE_COLUMNS}, content`).single<PageRow>();
   if (error || !data) return fail(noteError(error, "Die Seite konnte gerade nicht angelegt werden. Bitte versuche es erneut."));
   await logNoteEvent(ctx, "note.created", `Notiz angelegt · Sichtbar für: ${AUDIENCE_LABELS[audience]}`, customer.id);

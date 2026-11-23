@@ -12,6 +12,7 @@ import {
   customersFromCards, freelancerCalendarRange, freelancerToolOf, runFreelancerTool, type FreelancerAppointment, type FreelancerCalendar, type FreelancerContext,
 } from "./freelancer-tools";
 import { runFreelancerWrite } from "./freelancer-writes";
+import { runNotesTool } from "./notes";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -80,6 +81,8 @@ export async function callFreelancerTool(connection: Connection, name: string, a
   const tool = freelancerToolOf(name);
   if (!tool) return null;
   if (!hasScope(connection.scopes, tool.scope)) return refusal("Dafür fehlt dieser Verbindung die Erlaubnis. Trenne Claude im Hub unter „Verbundene Apps“ und verbinde neu; dann fragt der Hub danach.");
+  // Notes with the freelancer's own claims, through the notes' own code: released pages, writing only „Nur Freelancer“.
+  if (tool.needs === "notes") return runNotesTool(connection, name, args, origin);
   const client = await freelancerClient(connection.userId);
   if (!client) return refusal("Der Hub kann gerade nicht lesen. Bitte versuche es gleich noch einmal.");
   const context: FreelancerContext = { origin, today: todayIso(), now: Date.now(), canWrite: hasScope(connection.scopes, "hub:write") };
