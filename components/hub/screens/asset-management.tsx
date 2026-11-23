@@ -721,35 +721,39 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
             {customerList}
             <section className={`am-pane${panel && (panel.kind !== "rename" || renaming) ? " has-panel" : ""}`} aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
               {head}
-              <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!compact}
-                trailing={<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} />}>
-                {compact ? <ToolbarMenu icon={SlidersHorizontal} label="Filter" badge={filterCount}>{filters}</ToolbarMenu> : <>
-                  <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>{filters}</ToolbarMenu>
-                  <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={fileSorts[sort.key].label}><SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} /></ToolbarMenu>
-                  {current && <ToolbarMenu icon={Rows3} label="Gruppe" value={grouping === "folder" ? "Ordner" : "Keine"}><MenuChoices label="Gruppieren nach" value={grouping} onChange={setGrouping} options={[{ id: "folder", label: "Ordner" }, { id: "none", label: "Keine Gruppen" }]} /></ToolbarMenu>}
-                </>}
-              </SheetToolbar>
-              {/* The count on the left, every action on the right, × at the end (user 13.11.2026). Narrower panes shorten
-                  it in steps, phones show symbols only, and with a panel open only the count and × stay (glass.css). */}
-              {selection.length > 0 && (
-                <div className="sheet-selection am-selection" role="region" aria-label="Auswahl">
-                  <strong className="numeric">{selection.length} <span className="am-sel-long">{selection.length === 1 ? "Datei" : "Dateien"} </span>ausgewählt</strong>
-                  <span className="am-sel-acts">
-                    <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}<span className="am-btn-text">{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</span></button>
-                    {canAssign && <button type="button" className="sheet-action" aria-pressed={panel?.kind === "assign"} onClick={() => openAssign(selection.map((file) => file.id), null)} disabled={busy !== null} data-tip-compact="Zuordnen"><UserPlus size={15} aria-hidden="true" /><span className="am-btn-text" data-tip-label>Zuordnen</span></button>}
-                    {canRename && <button type="button" className="sheet-action" aria-pressed={renaming} onClick={() => setPanel(renaming ? null : { kind: "rename" })} disabled={busy !== null}><PenLine size={15} aria-hidden="true" /><span className="am-btn-text">Umbenennen</span></button>}
-                    {current && canOrganize && (
-                      <span className="sheet-move">
-                        <FolderInput className="sheet-move-icon" size={15} aria-hidden="true" />
-                        <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben" value="" onChange={move} disabled={busy !== null}
-                          options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
-                      </span>
-                    )}
-                    {canUpload && <button type="button" className="sheet-action is-danger" onClick={() => setDeleting(selection)} disabled={busy !== null} data-tip-compact="Löschen"><Trash2 size={15} aria-hidden="true" /><span className="am-btn-text" data-tip-label>Löschen</span></button>}
-                  </span>
-                  <button type="button" className="am-icon-btn am-selection-clear" onClick={() => setSelected([])} aria-label="Auswahl aufheben" data-tip="Auswahl aufheben"><X size={17} aria-hidden="true" /></button>
-                </div>
-              )}
+              {/* The selection bar takes the place of the search line instead of pushing the files down, so nothing moves
+                  under the mouse between two clicks (user 23.11.2026; on phones it stays below and sticks, glass.css). */}
+              <div className="am-bars">
+                <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!compact}
+                  trailing={<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} />}>
+                  {compact ? <ToolbarMenu icon={SlidersHorizontal} label="Filter" badge={filterCount}>{filters}</ToolbarMenu> : <>
+                    <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>{filters}</ToolbarMenu>
+                    <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={fileSorts[sort.key].label}><SortControl options={Object.values(fileSorts)} sort={sort} onChange={setSort} /></ToolbarMenu>
+                    {current && <ToolbarMenu icon={Rows3} label="Gruppe" value={grouping === "folder" ? "Ordner" : "Keine"}><MenuChoices label="Gruppieren nach" value={grouping} onChange={setGrouping} options={[{ id: "folder", label: "Ordner" }, { id: "none", label: "Keine Gruppen" }]} /></ToolbarMenu>}
+                  </>}
+                </SheetToolbar>
+                {/* The count on the left, every action on the right, × at the end (user 13.11.2026). Narrower panes shorten
+                    it in steps, phones show symbols only, and with a panel open only the count and × stay (glass.css). */}
+                {selection.length > 0 && (
+                  <div className="sheet-selection am-selection" role="region" aria-label="Auswahl">
+                    <strong className="numeric">{selection.length} <span className="am-sel-long">{selection.length === 1 ? "Datei" : "Dateien"} </span>ausgewählt</strong>
+                    <span className="am-sel-acts">
+                      <button type="button" className="sheet-action is-primary" onClick={download} disabled={busy !== null}>{busy === "download" ? <MiniLoader size={16} /> : <Download size={15} aria-hidden="true" />}<span className="am-btn-text">{selection.length > 1 ? "ZIP herunterladen" : "Herunterladen"}</span></button>
+                      {canAssign && <button type="button" className="sheet-action" aria-pressed={panel?.kind === "assign"} onClick={() => openAssign(selection.map((file) => file.id), null)} disabled={busy !== null} data-tip-compact="Zuordnen"><UserPlus size={15} aria-hidden="true" /><span className="am-btn-text" data-tip-label>Zuordnen</span></button>}
+                      {canRename && <button type="button" className="sheet-action" aria-pressed={renaming} onClick={() => setPanel(renaming ? null : { kind: "rename" })} disabled={busy !== null}><PenLine size={15} aria-hidden="true" /><span className="am-btn-text">Umbenennen</span></button>}
+                      {current && canOrganize && (
+                        <span className="sheet-move">
+                          <FolderInput className="sheet-move-icon" size={15} aria-hidden="true" />
+                          <Select variant="bare" chevron label="Ausgewählte Dateien verschieben nach" placeholder="Verschieben" value="" onChange={move} disabled={busy !== null}
+                            options={[...scopeFolders.map((item) => ({ value: item.id, label: item.name, lead: <Folder size={15} aria-hidden="true" /> })), { value: NO_FOLDER, label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }]} />
+                        </span>
+                      )}
+                      {canUpload && <button type="button" className="sheet-action is-danger" onClick={() => setDeleting(selection)} disabled={busy !== null} data-tip-compact="Löschen"><Trash2 size={15} aria-hidden="true" /><span className="am-btn-text" data-tip-label>Löschen</span></button>}
+                    </span>
+                    <button type="button" className="am-icon-btn am-selection-clear" onClick={() => setSelected([])} aria-label="Auswahl aufheben" data-tip="Auswahl aufheben"><X size={17} aria-hidden="true" /></button>
+                  </div>
+                )}
+              </div>
               <div className="am-scroll">{selectAll}{body}</div>
               {!minimal && <SheetFooter hint={shown.length > 1 ? (finder ? `Mit ⇧ oder ⌘/Strg mehrere wählen${canAssign ? ", dann links auf einen Kunden ziehen" : ""}` : canAssign ? "Mehrere ankreuzen und links auf einen Kunden ziehen" : "Mehrere ankreuzen: als ZIP laden oder verschieben") : undefined}>{plural(shown.length, "Datei", "Dateien")}{shown.length ? ` · ${totalSize(shown)}` : ""}</SheetFooter>}
               {drag && <>

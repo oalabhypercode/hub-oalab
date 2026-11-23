@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
-import { checkUpload, cleanFolderName, fileCategoryIds, fileFormat, formatBytes, MAX_FILE_BYTES, MAX_FOLDER_NAME, storageSafeName, zipEntryNames } from "../lib/hub-files/catalog.ts";
+import { checkUpload, cleanFolderName, fileCategoryIds, fileFormat, formatBytes, MAX_FILE_BYTES, MAX_FOLDER_NAME, storageSafeName, uploadType, zipEntryNames } from "../lib/hub-files/catalog.ts";
+import { mayBeClear, parseImageSize, PREVIEW_EDGE, PREVIEW_MAX_PIXELS, previewKind, previewRatio, previewUrl } from "../lib/hub-files/preview.ts";
+import { renderPreview } from "../lib/hub-files/preview-render.ts";
 import { sampleCustomers, sampleFiles } from "../scripts/lib/sample-files.mjs";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -79,4 +81,69 @@ test("folders belong to one customer, are guarded by RLS and customers may only 
   assert.match(sql, /revoke all on public\.hub_folders from anon/);
   const hubData = await source("lib/hub-data.ts");
   assert.match(hubData, /sampleFolders/);
+});
+
+test("every image gets a preview, decided by its name, whatever type the browser reported (23.11.2026)", () => {
+  // Logos uploaded without a type, big photos and TIFFs get one; iPhone photos say why not; documents keep their symbol.
+  assert.equal(previewKind("Bildmarke Morgenrot.svg", "application/octet-stream"), "image");
+  assert.equal(previewKind("Terrasse Abend.JPG", "image/jpeg"), "image");
+  assert.equal(previewKind("Scan.tiff", ""), "image");
+  assert.equal(previewKind("IMG_4821.HEIC", "image/heic"), "heic");
+  assert.equal(previewKind("Foto", "image/heif"), "heic");
+  assert.equal(previewKind("Speisekarte.pdf", "application/pdf"), null);
+  assert.equal(previewKind("Logo Original.ai", "application/postscript"), null);
+  assert.equal(previewKind("Bild", "image/png"), "image");
+  assert.equal(mayBeClear("Logo weiß.PNG"), true);
+  assert.equal(mayBeClear("Terrasse.jpg"), false);
+  // The address changes with the bytes, so the browser may keep a preview for a day.
+  assert.equal(previewUrl({ id: "a1", sha256: "0123456789abcdef", createdAt: "2026-11-21T10:12:00Z" }, "l"), "/api/files/a1/preview?size=l&v=0123456789ab");
+  assert.match(previewUrl({ id: "a1", sha256: null, createdAt: "2026-11-21T10:12:00Z" }, "s"), /^\/api\/files\/a1\/preview\?size=s&v=\d+$/);
+  assert.equal(previewRatio(1600, 1067).toFixed(2), "1.50");
+  assert.equal(previewRatio(800, 4000), 0.75);
+  assert.equal(previewRatio(4000, 100), 2.4);
+  assert.deepEqual(parseImageSize("1600x1067"), { width: 1600, height: 1067 });
+  assert.equal(parseImageSize("big"), null);
+});
+
+test("an upload without a type from the browser takes the one of its name", () => {
+  assert.equal(uploadType("Bildmarke.svg", ""), "image/svg+xml");
+  assert.equal(uploadType("Bildmarke.svg", "application/octet-stream"), "image/svg+xml");
+  assert.equal(uploadType("Foto.WEBP", ""), "image/webp");
+  assert.equal(uploadType("Foto.jpg", "image/jpeg"), "image/jpeg");
+  assert.equal(uploadType("Rohdaten.xyz", ""), "application/octet-stream");
+});
+
+test("the server turns images of any size into small WebP previews and refuses what it cannot read", async () => {
+  const sharp = (await import("sharp")).default;
+  // A photo larger than the old limit of 8 MB in pixels: 6000 × 4000, turned by its EXIF orientation.
+  const photo = await sharp({ create: { width: 6000, height: 4000, channels: 3, background: "#c8553d" } }).jpeg({ quality: 60 }).withMetadata({ orientation: 6 }).toBuffer();
+  const small = await renderPreview(photo, { edge: PREVIEW_EDGE.s, quality: 76, maxPixels: PREVIEW_MAX_PIXELS });
+  assert.ok(small);
+  assert.deepEqual({ width: small.width, height: small.height }, { width: 4000, height: 6000 }, "the original, upright");
+  const meta = await sharp(small.data).metadata();
+  assert.equal(meta.format, "webp");
+  assert.equal(Math.max(meta.width, meta.height), PREVIEW_EDGE.s);
+  assert.ok(meta.height > meta.width, "turned upright");
+  // A tiny SVG logo is drawn large enough to stay sharp in the details.
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40" viewBox="0 0 120 40"><rect width="120" height="40" fill="#3b2418"/></svg>');
+  const logo = await renderPreview(svg, { edge: PREVIEW_EDGE.l, quality: 82, maxPixels: PREVIEW_MAX_PIXELS });
+  assert.ok(logo);
+  assert.equal((await sharp(logo.data).metadata()).width, PREVIEW_EDGE.l);
+  // Not an image, or too many pixels: no preview.
+  assert.equal(await renderPreview(Buffer.from("%PDF-1.7 not an image"), { edge: 480, quality: 76, maxPixels: PREVIEW_MAX_PIXELS }), null);
+  assert.equal(await renderPreview(photo, { edge: 480, quality: 76, maxPixels: 1_000_000 }), null);
+});
+
+test("the preview route answers only for files the session may read, privately, and the details use it", async () => {
+  const route = await source("app/api/files/[id]/preview/route.ts");
+  assert.match(route, /"Cache-Control": "private, max-age=86400"/);
+  assert.match(route, /"X-Content-Type-Options": "nosniff"/);
+  const server = await source("lib/hub-files/preview-server.ts");
+  assert.match(server, /^import "server-only";/);
+  // Signed in, the second factor confirmed, the record readable under RLS, the bytes through the catalog's checks.
+  assert.match(server, /if \(await secondFactorMissing\(supabase, claims\.claims\.aal\)\) return \{ status: 401 \};/);
+  assert.match(server, /supabase\.from\("hub_files"\)\.select\("storage_path, file_name, mime_type"\)\.eq\("id", fileId\)/);
+  assert.match(server, /supabase\.storage\.from\(HUB_FILES_BUCKET\)\.download\(file\.storage_path\)/);
+  // The memory answers only after that check.
+  assert.ok(server.indexOf("recall(key)") > server.indexOf("if (!file) return { status: 404 };"));
 });

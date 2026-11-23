@@ -2309,7 +2309,13 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .table-group th:has(> .table-group-in.has-select) { padding-left: 20px; }
 .table-group-in.has-select { gap: 10px; }
 
-/* The selection bar: the count on the left, every action on the right, × at the end. */
+/* The selection bar: the count on the left, every action on the right, × at the end. It lies over the search line in
+   the same cell, which keeps the larger of the two heights, so the files below never move (23.11.2026: the first click
+   of a double click used to push the list down). Phones keep it below the search, sticking under the title. */
+.am-bars { display: grid; min-width: 0; }
+.am-bars > * { grid-area: 1 / 1; min-width: 0; }
+.am-bars > .am-selection { z-index: 6; background: linear-gradient(var(--sheet-select), var(--sheet-select)), var(--sheet); }
+.am-bars:has(> .am-selection) > .sheet-toolbar { visibility: hidden; }
 .am-selection { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .am-selection > strong { margin-right: 0; white-space: nowrap; }
 .am-sel-acts { justify-self: end; display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -2320,8 +2326,9 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am .sheet-move .hub-select-trigger { height: 32px; gap: 6px; }
 .sheet-move-icon { display: none; }
 /* Narrower panes of the Asset Management (its bar holds the most): first a shorter count and the bin as a symbol, then
-   two rows (count and × on top, actions below). The customers' „Dateien“ have room for one row. */
-@container sheet (max-width: 1079px) {
+   two rows (count and × on top, actions below). The customers' „Dateien“ have room for one row. The sheet includes the
+   customer list, so the bar is about 320 px narrower than the query says (at 1440 px „1 Datei ausgewählt“ was cut). */
+@container sheet (max-width: 1179px) {
   .am .am-sel-long { display: none; }
   .am .am-selection .sheet-action.is-danger { width: 32px; padding: 0; justify-content: center; }
   .am .am-selection .sheet-action.is-danger .am-btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -2349,6 +2356,8 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 @media (max-width: 767px) {
   /* Phones: every selection action as a symbol (the words stay for screen readers), one row. The bar stays under the
      title while the list scrolls, so a folder ticked far down still has its actions in view. */
+  .am-bars { display: contents; }
+  .am-bars:has(> .am-selection) > .sheet-toolbar { visibility: visible; }
   .am-selection { position: sticky; z-index: 6; top: calc(64px + env(safe-area-inset-top)); background: linear-gradient(var(--sheet-select), var(--sheet-select)), var(--sheet); }
   .am-sel-long { display: none; }
   .am-sel-acts { gap: 6px; }
@@ -2719,13 +2728,24 @@ html.am-dragging .hub-tip { display: none !important; }
 }
 
 /* Details: a quiet preview, download and link, the one-click logo, who has the file and in which folder, the facts. */
-.am-preview { display: grid; place-items: center; height: 156px; overflow: hidden; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.am-preview.is-image { background: repeating-conic-gradient(#e6e0e3 0% 25%, #f7f4f5 0% 50%) 50% / 14px 14px; }
-:root[data-theme="dark"] .am-preview.is-image { background: repeating-conic-gradient(#3a3237 0% 25%, #2a2428 0% 50%) 50% / 14px 14px; }
-.am-preview img { display: block; max-width: calc(100% - 24px); max-height: calc(100% - 24px); object-fit: contain; }
-.am-preview-doc { display: grid; justify-items: center; gap: 8px; color: #5856d6; }
+.am-preview { position: relative; display: grid; place-items: center; min-height: 156px; padding: 14px; overflow: hidden; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+/* An image (23.11.2026): the box takes its shape, between 4:3 upright and 12:5 wide and at most 300 px high. The ground
+   follows the image, not the theme: see-through formats on a light chequer (dimmed in the dark theme), a light logo on a
+   dark one, photos on the plain sheet. */
+.am-preview.is-image { display: block; min-height: 0; padding: 0; }
+.am-preview-frame { display: grid; place-items: center; width: 100%; aspect-ratio: var(--ar, 4 / 3); max-height: 300px; padding: 10px; }
+.am-preview.is-photo .am-preview-frame { padding: 0; }
+.am-preview-frame img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.am-preview.is-clear { background: repeating-conic-gradient(#e6e0e3 0% 25%, #f7f4f5 0% 50%) 50% / 14px 14px; }
+:root[data-theme="dark"] .am-preview.is-clear { background: repeating-conic-gradient(#d6d0d3 0% 25%, #e8e3e6 0% 50%) 50% / 14px 14px; }
+.am-preview.is-dark { background: repeating-conic-gradient(#2b2428 0% 25%, #211b1e 0% 50%) 50% / 14px 14px; }
+/* While the preview loads, the box shimmers in its place (motion.css keeps it still for „Bewegung reduzieren“). */
+.am-preview.is-loading::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--sheet) 70%, transparent) 50%, transparent 80%) 0 0 / 200% 100%; animation: am-preview-shimmer 1.1s linear infinite; }
+@keyframes am-preview-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.am-preview-doc { display: grid; justify-items: center; gap: 8px; color: #5856d6; text-align: center; }
 :root[data-theme="dark"] .am-preview-doc { color: #a9a7ff; }
 .am-preview-doc b { padding: 2px 8px; border-radius: 6px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 11.5px; letter-spacing: 0.04em; color: var(--sheet-muted); }
+.am-preview-doc small { max-width: 32ch; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
 .am-panel-actions { display: flex; gap: 8px; }
 .am-panel-actions .sheet-action { flex: 1; justify-content: center; height: 36px; }
 .am-panel-actions .sheet-action svg { width: 15px; height: 15px; }

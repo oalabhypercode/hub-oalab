@@ -3,7 +3,7 @@
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName } from "./catalog";
+import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName, uploadType } from "./catalog";
 import { cleanName, MAX_FILE_NAME, MAX_NAME, nameBase, nameExtension } from "./naming";
 import { isFileAudience, type FileAudience } from "./types";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
@@ -78,7 +78,8 @@ export async function finalizeUpload(input: FinalizeInput): Promise<ActionResult
   const description = String(input?.description ?? "").trim().slice(0, 2000);
   // The download name may be a new one ("Namen nach Muster"); its extension stays the one of the stored file.
   const fileName = cleanName(input?.fileName, MAX_FILE_NAME);
-  const mimeType = /^[\w.+-]+\/[\w.+-]+$/.test(String(input?.mimeType ?? "")) ? String(input.mimeType) : "application/octet-stream";
+  // The browser's type, else the one of the stored file's name (the same rule as the upload in the browser).
+  const mimeType = uploadType(path, /^[\w.+-]+\/[\w.+-]+$/.test(String(input?.mimeType ?? "")) ? String(input.mimeType) : "");
   const sha256 = typeof input?.sha256 === "string" && /^[0-9a-f]{64}$/.test(input.sha256) ? input.sha256 : null;
   if (!uploadPath.test(path) || !title || !nameBase(fileName) || !isFileCategory(input?.category)) return { ok: false, error: "Bitte Titel, Kategorie und Datei angeben." };
   if (nameExtension(fileName) !== nameExtension(path)) {

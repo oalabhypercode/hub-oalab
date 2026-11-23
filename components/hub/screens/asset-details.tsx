@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check, ChevronDown, ChevronRight, Ellipsis, Eye, Folder, Inbox, Link2, Pencil, Trash2, UserPlus } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { createDownloadUrls, setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
+import { setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
 import { fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileCategory } from "@/lib/hub-files/catalog";
+import { mayBeClear, parseImageSize, previewKind, previewRatio, previewUrl } from "@/lib/hub-files/preview";
 import { fileAudiences, isFileAudience, type FileAudience, type HubFileCustomer, type HubFolder, type HubStoredFile } from "@/lib/hub-files/types";
 import { audienceLabels } from "./asset-freelancers";
 import { saveCustomerLogo } from "@/lib/hub-logos/actions";
-import { canBeLogo } from "@/lib/hub-logos/rules";
+import { detectLogoGround } from "@/lib/hub-logos/ground";
+import { canBeLogo, type LogoBackground } from "@/lib/hub-logos/rules";
 import { useInfo } from "../info-box";
 import { Select } from "../select";
 import { categoryOptions } from "../select-options";
@@ -16,11 +18,6 @@ import { AssetPanel } from "./asset-panel";
 import { CustomerSign } from "./customer-sign";
 import { DownloadButton } from "./files-dialogs";
 import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
-
-// Images up to this size show themselves in the details; bigger ones keep their symbol.
-const PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
-const previewFormats = ["PNG", "JPG", "JPEG", "GIF", "WEBP", "AVIF", "SVG"];
-const previewable = (file: HubStoredFile) => file.mimeType.startsWith("image/") && previewFormats.includes(fileFormat(file.fileName)) && file.sizeBytes <= PREVIEW_MAX_BYTES;
 
 type DetailProps = {
   file: HubStoredFile;
@@ -73,6 +70,8 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
   const [busy, setBusy] = useState<"assign" | "move" | "logo" | "audience" | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  // The original's width and height, as the preview reports them.
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const signOf = (customer: HubFileCustomer) => customers.find((item) => item.id === customer.id) ?? customer;
   // An image of the customer whose files are open can become that customer's logo in one click.
   const logoFor = here && canAssign && canBeLogo(file) && file.customers.some((customer) => customer.id === here.id) ? here : null;
@@ -139,7 +138,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
   }
 
   return <>
-    <FilePreview file={file} live={live} />
+    <FilePreview file={file} live={live} onSize={setImageSize} />
     <div className="am-panel-actions">
       <DownloadButton file={file} onError={setError} label className="sheet-action is-primary" />
       {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" data-tip={copied ? "Link kopiert" : freelancerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
@@ -223,6 +222,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
       <dt>Bereitgestellt</dt><dd>{formatFileDateTime(file.createdAt)}</dd>
       <dt>Originaldatei</dt><dd>{file.fileName}</dd>
       <dt>Format</dt><dd>{fileFormat(file.fileName)} ({file.mimeType})</dd>
+      {imageSize && <><dt>Abmessungen</dt><dd>{new Intl.NumberFormat("de-DE").format(imageSize.width)} × {new Intl.NumberFormat("de-DE").format(imageSize.height)} px</dd></>}
       <dt>Größe</dt><dd>{formatBytes(file.sizeBytes)} ({new Intl.NumberFormat("de-DE").format(file.sizeBytes)} Bytes)</dd>
       {file.sha256 && <><dt>Prüfsumme</dt><dd className="am-hash">SHA-256 · {file.sha256}</dd></>}
     </dl>
@@ -305,26 +305,68 @@ function MoreMenu({ onDelete, disabled }: { onDelete: () => void; disabled: bool
   );
 }
 
-/** Images show themselves through a 60-second link, every other file its symbol and format. */
-function FilePreview({ file, live }: { file: HubStoredFile; live: boolean }) {
-  const image = previewable(file);
-  const [url, setUrl] = useState<string | null>(image && file.sampleHref ? file.sampleHref : null);
+/**
+ * Every image shows itself (user 23.11.2026): a preview the server makes (lib/hub-files/preview.ts), whatever the
+ * image's size and whatever type the browser reported at the upload, in the image's own shape. See-through formats
+ * stand on a chequered ground, a light logo on a dark one, in both themes. While it loads the box shimmers; an iPhone
+ * photo (HEIC) or an image the server cannot read says why there is none. Every other file shows its symbol.
+ */
+function FilePreview({ file, live, onSize }: { file: HubStoredFile; live: boolean; onSize: (size: { width: number; height: number } | null) => void }) {
+  const kind = previewKind(file.fileName, file.mimeType);
+  const source = kind !== "image" ? null : file.sampleHref ?? (live ? previewUrl(file, "l") : null);
+  const clear = mayBeClear(file.fileName);
+  const [shown, setShown] = useState<{ src: string; ratio: number } | null>(null);
+  const [ground, setGround] = useState<LogoBackground | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!image || !live || file.sampleHref) return;
+    if (!source) return;
     let active = true;
-    createDownloadUrls([file.id])
-      .then((result) => { if (active && result.ok) setUrl(result.data[0]?.url ?? null); })
-      .catch(() => { /* the symbol stays */ });
-    return () => { active = false; };
-  }, [file.id, file.sampleHref, image, live]);
+    let objectUrl = "";
+    const show = (src: string, width: number, height: number) => {
+      if (!active) return;
+      setShown({ src, ratio: previewRatio(width, height) });
+      if (clear) detectLogoGround(src).then((value) => { if (active) setGround(value); });
+    };
+    if (file.sampleHref) {
+      // The preview's example files are small and lie next to the page.
+      const image = new Image();
+      image.onload = () => show(source, image.naturalWidth, image.naturalHeight);
+      image.onerror = () => { if (active) setFailed(true); };
+      image.src = source;
+    } else {
+      fetch(source)
+        .then(async (response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const size = parseImageSize(response.headers.get("x-image-size"));
+          objectUrl = URL.createObjectURL(await response.blob());
+          if (active) onSize(size);
+          show(objectUrl, size?.width ?? 4, size?.height ?? 3);
+        })
+        .catch(() => { if (active) setFailed(true); });
+    }
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [source, clear, file.sampleHref, onSize]);
 
-  const shown = url !== null && !failed;
+  if (source && !failed) {
+    const groundClass = clear ? (ground === "dark" ? " is-dark" : " is-clear") : " is-photo";
+    return (
+      <div className={`am-preview is-image${groundClass}${shown ? "" : " is-loading"}`} aria-busy={shown ? undefined : true}>
+        <div className="am-preview-frame" style={{ "--ar": (shown?.ratio ?? 4 / 3).toFixed(3) } as CSSProperties}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a preview the hub made itself, nothing to optimise */}
+          {shown && <img src={shown.src} alt={`Vorschau von ${file.title}`} />}
+        </div>
+      </div>
+    );
+  }
+  const note = kind === "heic" ? "iPhone-Fotos im HEIC-Format kann der Browser nicht zeigen. Herunterladen öffnet das Original."
+    : kind === "image" && failed ? "Für dieses Bild gibt es gerade keine Vorschau. Herunterladen öffnet das Original." : "";
   return (
-    <div className={`am-preview${shown ? " is-image" : ""}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- a 60-second preview link, nothing to optimise */}
-      {shown ? <img src={url} alt="" onError={() => setFailed(true)} /> : <span className="am-preview-doc"><FileIcon file={file} size={44} color="currentColor" /><b>{fileFormat(file.fileName)}</b></span>}
+    <div className="am-preview">
+      <span className="am-preview-doc"><FileIcon file={file} size={44} color="currentColor" /><b>{fileFormat(file.fileName)}</b>{note && <small>{note}</small>}</span>
     </div>
   );
 }
