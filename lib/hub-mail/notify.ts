@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
-import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
+import { hasMailbox, maskEmail } from "@/lib/hub-auth/mail-code";
+import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, loginCodeMail, loginEmailChangedMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
 
 // Every mail the hub sends on its own. Each attempt lands in hub_notifications (kind and outcome only);
 // the registration mails go out once per login. Nothing here throws: a mail problem never breaks an action.
@@ -100,6 +101,23 @@ export async function mailKeychainCode(to: string, input: { firstName: string; c
   const settings = mailSettings();
   const result = await sendMail(mailOf([to], keychainCodeMail(input, settings.legal), { kind: "keychain.setup_code" }));
   return result.status;
+}
+
+/**
+ * After an admin changed a login's address (lib/hub-users/actions.ts, changeHubUserEmail): one mail to the new address,
+ * one to the old (loginEmailChangedMail), the old one sees the new address only shortened. An address without a mailbox
+ * (test domains) gets none (null). Not in the mail log, whose kinds are fixed by migration: the action writes both
+ * outcomes into the admin log instead.
+ */
+export async function mailLoginEmailChanged(input: { firstName: string; email: string; previous: string; activated: boolean; serviceToo: boolean; hubUrl: string }) {
+  const settings = mailSettings();
+  const common = { firstName: input.firstName, previous: input.previous, activated: input.activated, serviceToo: input.serviceToo, hubUrl: input.hubUrl };
+  const send = async (to: string, content: MailContent, kind: string): Promise<MailStatus | null> => hasMailbox(to) ? (await sendMail(mailOf([to], content, { kind }))).status : null;
+  const [toNew, toOld] = await Promise.all([
+    send(input.email, loginEmailChangedMail({ ...common, to: "new", email: input.email }, settings.legal), "user.email_changed"),
+    send(input.previous, loginEmailChangedMail({ ...common, to: "old", email: maskEmail(input.email) }, settings.legal), "user.email_changed_notice"),
+  ]);
+  return { toNew, toOld };
 }
 
 /** The plain address of a sender like „oalab Client Hub <hub@oalab.de>“. */
