@@ -6,10 +6,11 @@ import {
   mailsWanted, mergeTaskNotice, nextCursor, noticeAppointment, noticeChat, projectState, readFrom, skipsMail, taskState,
   TASK_NOTICE_KINDS, hasTaskChange, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, LIVE_LINES, liveVersion,
   mergeShareNotice, shareNotice, sharedAreasOf, fileNoticeCount, fileNoticeLine, filesNotice, mergeFileNotice,
+  isReadInHub, mailWaitMinutes, noteEditNotice, noteNotice, noticeRequest, serviceHref, serviceMark, serviceNotice, SERVICE_CURSOR,
 } from "../lib/hub-notify/rules.ts";
 import { noticeColumns } from "../lib/hub-notify/columns.ts";
 import { noticeDigestMail } from "../lib/hub-mail/templates.ts";
-import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
+import { TELEGRAM_TEXT_LIMIT, telegramChatMessage, telegramConfig, telegramServiceMessage, telegramTestMessage } from "../lib/hub-telegram/rules.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -673,4 +674,61 @@ test("the bell shows its lines in the three columns, in a wider window", async (
   assert.match(await source("app/glass.css"), /\.hub-modal\.notifications-modal \{ width: min\(760px, calc\(100% - 32px\)\); \}/);
   const server = await source("lib/hub-notify/server.ts");
   assert.match(server, /prefix: taskNoticePrefix\(project\.data!\.display_name, number, viewer === "team" \? company : ""\)/);
+});
+
+
+// ---------------------------------------------------------------- 23.11.2026: notes written from outside, service platform
+
+test("a customer writing on a note reaches the team as one line per page, read in the hub it needs no mail", () => {
+  const notice = noteEditNotice({ title: "Feedback  Startseite", customerId: "c1", pageId: "p1", company: "Nordlicht Studio", author: "Jana Sommer", side: "customer" });
+  assert.deepEqual(notice, { kind: "note.edited", title: "Notiz bearbeitet: Feedback Startseite", body: "Jana Sommer · Nordlicht Studio", href: "/dashboard/projects/notes?customer=c1&page=p1" });
+  assert.equal(noteEditNotice({ title: "Plan", customerId: "c1", pageId: "p1", company: "Form & Feld", author: "Mia Berger", side: "freelancer" }).body, "Mia Berger (Freelancer) · Form & Feld");
+  assert.deepEqual(noticeColumns(notice, "admin"), { where: "Nordlicht Studio", path: "Projekte › Notizen", title: "Notiz bearbeitet", body: "Feedback Startseite", from: "Jana Sommer", fromDetail: "Kunde" });
+  assert.equal(noticeColumns(noteEditNotice({ title: "Plan", customerId: "c1", pageId: "p1", company: "Form & Feld", author: "Mia Berger", side: "freelancer" }), "admin").fromDetail, "Freelancer");
+  assert.ok(isReadInHub("note.edited") && isReadInHub("service.message") && isReadInHub("chat.message") && !isReadInHub("note.shared"));
+  assert.equal(skipsMail({ kind: "note.edited", read_at: "2026-11-23T12:00:00Z" }), true);
+  assert.equal(skipsMail({ kind: "note.shared", read_at: "2026-11-23T12:00:00Z" }), false, "releases stay in the mail, read or not");
+  assert.equal(mailWaitMinutes("note.edited"), MAIL_WAIT_MINUTES);
+  // A release to write along says so.
+  assert.equal(noteNotice("note.shared", "Feedback", "c1", "p1", "with").title, "Neue Notiz zum Mitschreiben: Feedback");
+  assert.equal(noteNotice("note.shared", "Feedback", "c1", "p1", "only").title, "Du kannst mitschreiben: Feedback");
+  assert.equal(noteNotice("note.shared", "Feedback", "c1", "p1").title, "Neue Notiz: Feedback");
+});
+
+test("a customer's message on the service platform reaches the team like a chat message", () => {
+  const input = { requestId: "c0ffee00-0000-4000-8000-0000000b0012", reference: "OA-12", title: "Texte freigeben", company: "Nordlicht Studio", author: "Jana Sommer", body: "Bitte die Texte\nfreigeben.", first: true };
+  const first = serviceNotice(input);
+  assert.deepEqual(first, { kind: "service.message", title: "Neue Anfrage von Nordlicht Studio: OA-12 Texte freigeben", body: "Jana Sommer: Bitte die Texte freigeben.", href: "/dashboard/messages?tab=service&conversation=c0ffee00-0000-4000-8000-0000000b0012" });
+  assert.equal(serviceNotice({ ...input, first: false }).title, "Neue Nachricht von Nordlicht Studio: OA-12 Texte freigeben");
+  assert.equal(serviceNotice({ ...input, more: true }).title, "Neue Nachrichten von Nordlicht Studio: OA-12 Texte freigeben");
+  assert.equal(noticeRequest(serviceHref(input.requestId)), input.requestId);
+  assert.equal(noticeRequest("/dashboard/messages?chat=c0ffee00-0000-4000-8000-0000000b0012"), null);
+  assert.deepEqual(noticeColumns(first, "admin"), { where: "Nordlicht Studio", path: "Serviceplattform › OA-12 Texte freigeben", title: "Neue Anfrage", body: "Bitte die Texte freigeben.", from: "Jana Sommer", fromDetail: "Kunde" });
+  assert.equal(mailWaitMinutes("service.message"), CHAT_MAIL_WAIT_MINUTES, "a customer waits: the mail comes after a few minutes");
+  assert.equal(serviceMark("m1"), "service-message:m1");
+  assert.equal(SERVICE_CURSOR, "cursor:service_messages");
+  const telegram = telegramServiceMessage({ ...input, url: "https://hub.oalab.de/dashboard/messages?tab=service&conversation=x" });
+  assert.match(telegram.text, /^Neue Anfrage OA-12 · Nordlicht Studio · Jana Sommer\nTexte freigeben\nBitte die Texte\nfreigeben\.$/);
+  assert.deepEqual(telegram.reply_markup, { inline_keyboard: [[{ text: "Im Hub öffnen", url: "https://hub.oalab.de/dashboard/messages?tab=service&conversation=x" }]] });
+  const mail = noticeDigestMail({ items: [{ kind: "service.message", title: first.title, body: first.body, url: "https://hub.oalab.de/x" }, { kind: "chat.message", title: "Neue Nachricht von Form & Feld", body: "Jana: Hallo" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.match(mail.html, /Im Chat und auf der Serviceplattform warten 2 Nachrichten von Kunden auf eine Antwort\./);
+  const single = noticeDigestMail({ items: [{ kind: "service.message", title: first.title, body: first.body, url: "https://hub.oalab.de/x" }], more: 0, hubUrl: "https://hub.oalab.de/dashboard" });
+  assert.equal(single.subject, first.title);
+  assert.match(single.html, /Antworten geht in NoteTree Business/);
+});
+
+test("the schedule reads the customers' service messages from a cursor, skips the team's own, and marks what it told", async () => {
+  const server = await source("lib/hub-notify/server.ts");
+  assert.match(server, /\.from\("request_messages"\)\.select\("id, request_id, sender_user_id, body, created_at"\)\s+\.eq\("sender_type", "client"\)\.eq\("visibility", "client"\)/);
+  assert.match(server, /if \(!request \|\| \(message\.sender_user_id && team\.has\(message\.sender_user_id\)\) \|\| customer\?\.archived_at\) continue;/);
+  assert.match(server, /await sendTelegram\(telegramServiceMessage\(/);
+  assert.match(server, /const service = await collectServiceNotices\(db, origin\)\.catch\(\(\) => \(\{ error: "service" \}\)\);/);
+  // Opening a request in the hub counts for the whole team, like the private chat.
+  assert.match(server, /update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)\.eq\("kind", "service\.message"\)\.eq\("href", serviceHref\(requestId\)\)\.is\("read_at", null\)/);
+  // Edits from outside reach the bell once per page and writer in two minutes, never every autosave.
+  assert.match(server, /const EDIT_NOTICE_PAUSE_MS = 2 \* 60_000;/);
+  const actions = await source("lib/hub-conversations/actions.ts");
+  assert.match(actions, /if \(await markServiceRead\(input\.id\)\) refreshWorkspace\(\);/);
+  const layout = await source("app/dashboard/layout.tsx");
+  assert.match(layout, /identity\.account\?\.role === "oalab_admin" \? unreadServiceRequests\(\) : \[\]/);
 });

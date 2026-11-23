@@ -2,16 +2,16 @@ import "server-only";
 import { after } from "next/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { noteNotice } from "@/lib/hub-notify/rules";
-import { notifyNote } from "@/lib/hub-notify/server";
+import { notifyNote, notifyNoteEdit } from "@/lib/hub-notify/server";
 import { fetchLinkPreview } from "./link-preview";
 import { isGalleryCover, cleanCoverPosition } from "./covers";
 import {
-  AUDIENCE_LABELS, childrenOf, cleanIcon, cleanNoteTitle, emptyNoteDoc, gains, isIsoDate, isNoteAudience, isNoteWidth, isUuid, narrowedBelow,
-  newPageAudience, positionAfter, validateNoteDoc, within,
+  accessLabel, accessOf, childrenOf, cleanIcon, cleanNoteTitle, emptyNoteDoc, fitRights, gains, gainsRights, isIsoDate, isNoteAudience, isNoteWidth, isUuid,
+  narrowedBelow, newPageRights, positionAfter, validateNoteDoc, within,
 } from "./rules";
-import { namesOf, notesCustomers, PAGE_COLUMNS, readPage, readPages, SETTINGS_COLUMNS, toDoc, toMeta, toSettings, type NotesContext, type PageRow } from "./server";
+import { listPages, namesOf, notesCustomers, PAGE_COLUMNS, readPage, readPages, SETTINGS_COLUMNS, toDoc, toMeta, toSettings, type NotesContext, type PageRow } from "./server";
 import { sweepNoteImages } from "./sweep";
-import type { NoteAudience, NoteCover, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteResult, NoteSaved, NoteSettings, NoteTrashItem } from "./types";
+import type { NoteAudience, NoteCover, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteResult, NoteRights, NoteSaved, NoteSettings, NoteTrashItem } from "./types";
 
 // The core of writing notes, for the hub's actions now and the assistant or the Claude connector later: every write
 // goes through the person's own session, so the rules and the guard of hub_note_pages decide (migration 202611221001).
@@ -56,6 +56,8 @@ export async function logNoteEvent(ctx: NotesContext, action: string, summary: s
 }
 
 const canWrite = (ctx: NotesContext) => ctx.viewer === "admin" || ctx.viewer === "freelancer";
+/** What customers change on a page they may edit: title, symbol and text; the rest is the team's (the guard agrees). */
+const CUSTOMER_FIELDS = new Set(["title", "content", "content_text", "icon"]);
 
 /** The fields of a save, checked one by one; a string is the reason for refusing. */
 function rowOf(patch: NotePatch): Record<string, unknown> | string {
@@ -100,12 +102,15 @@ function rowOf(patch: NotePatch): Record<string, unknown> | string {
   return Object.keys(row).length ? row : "Es gibt nichts zu speichern.";
 }
 
-/** Saves a page while the version the browser started from still holds. */
+/**
+ * Saves a page while the version the browser started from still holds. Customers and freelancers write where the team
+ * lets them (the rules of hub_note_pages decide); then the team hears of it in the bell.
+ */
 export async function savePageAs(ctx: NotesContext, input: { id: string; version: number; patch: NotePatch }): Promise<NoteResult<NoteSaved>> {
-  if (!canWrite(ctx)) return fail("Notizen lesen kannst du; ändern kann sie das oalab-Team.");
   if (!isUuid(input?.id) || !Number.isInteger(input?.version)) return fail("Diese Seite ist unbekannt.");
   const row = rowOf(input.patch ?? {});
   if (typeof row === "string") return fail(row);
+  if (ctx.viewer === "customer" && Object.keys(row).some((key) => !CUSTOMER_FIELDS.has(key))) return fail("Das ändert nur das oalab-Team.");
   // The cover before, to tidy away an upload that is replaced, and to keep an upload's place when only its position moves.
   const before = input.patch?.cover !== undefined ? await ctx.session.from("hub_note_pages").select("customer_id, cover_kind, cover_value").eq("id", input.id).maybeSingle<{ customer_id: string; cover_kind: string | null; cover_value: string | null }>() : null;
   if (input.patch?.cover?.kind === "upload" && before?.data?.cover_kind !== "upload") return fail("Dieses Titelbild geht nicht.");
@@ -114,7 +119,7 @@ export async function savePageAs(ctx: NotesContext, input: { id: string; version
     if (!seen.data?.length || !String(seen.data[0].hub_files?.mime_type ?? "").startsWith("image/")) return fail("Als Titelbild geht nur ein Bild aus den Dateien dieses Kunden.");
   }
   const { data, error } = await ctx.session.from("hub_note_pages").update(row).eq("id", input.id).eq("version", input.version).is("deleted_at", null)
-    .select("id, version, updated_at, updated_by").maybeSingle<{ id: string; version: number; updated_at: string; updated_by: string | null }>();
+    .select("id, customer_id, title, version, updated_at, updated_by").maybeSingle<{ id: string; customer_id: string; title: string; version: number; updated_at: string; updated_by: string | null }>();
   if (error) return fail(noteError(error));
   if (!data) {
     const current = await readPage(ctx, input.id);
@@ -126,6 +131,11 @@ export async function savePageAs(ctx: NotesContext, input: { id: string; version
     return fail("Diese Seite gibt es nicht mehr, oder du darfst sie nicht ändern.");
   }
   if (before?.data?.cover_kind === "upload" && before.data.cover_value && (row.cover_kind !== undefined && (row.cover_kind !== "upload" || row.cover_value !== before.data.cover_value))) await removeStored(ctx, [before.data.cover_value]);
+  // Writing from outside the team reaches the team's bell.
+  if (ctx.viewer !== "admin") {
+    const side = ctx.viewer;
+    after(() => notifyNoteEdit({ pageId: data.id, customerId: data.customer_id, title: data.title, authorId: ctx.userId, side }));
+  }
   return { ok: true, data: { id: data.id, version: data.version, updatedAt: data.updated_at, updatedBy: data.updated_by } };
 }
 
@@ -158,7 +168,8 @@ export async function createPageAs(ctx: NotesContext, input: CreateInput): Promi
     readPages(ctx, customer.id),
   ]);
   const settings = toSettings(settingsRow.data as Parameters<typeof toSettings>[0]);
-  const audience = newPageAudience(ctx.viewer, parent, settings, customer.hasFreelancer);
+  const rights = newPageRights(ctx.viewer, parent, settings, customer.hasFreelancer);
+  const audience = rights.audience;
   // A freelancer adds pages only below pages they may write next to: never under „Nur Kunde“ or „Nur Team“.
   if (parent && !within(audience, parent.audience)) return fail("Unter dieser Seite kannst du keine Seite anlegen.");
   const title = input.title === undefined ? "Neue Seite" : cleanNoteTitle(input.title);
@@ -172,44 +183,70 @@ export async function createPageAs(ctx: NotesContext, input: CreateInput): Promi
   const metas = (siblings.data ?? []).map(toMeta);
   const position = positionAfter(childrenOf(metas, parent?.id ?? null));
   const { data, error } = await ctx.session.from("hub_note_pages").insert({
-    customer_id: customer.id, project_id: projectId, parent_id: parent?.id ?? null, title, icon, audience, width: settings.defaultWidth,
+    customer_id: customer.id, project_id: projectId, parent_id: parent?.id ?? null, title, icon, audience, customer_edits: rights.customerEdits, freelancer_edits: rights.freelancerEdits, width: settings.defaultWidth,
     content: checked.doc, content_text: checked.text, position, ...(input.datedOn ? { dated_on: input.datedOn } : {}),
   }).select(`${PAGE_COLUMNS}, content`).single<PageRow>();
   if (error || !data) return fail(noteError(error, "Die Seite konnte gerade nicht angelegt werden. Bitte versuche es erneut."));
-  await logNoteEvent(ctx, "note.created", `Notiz angelegt · Sichtbar für: ${AUDIENCE_LABELS[audience]}`, customer.id);
-  return { ok: true, data: { ...toMeta(data), content: toDoc(data.content) } };
+  await logNoteEvent(ctx, "note.created", `Notiz angelegt · ${accessLabel(rights, customer.hasFreelancer)}`, customer.id);
+  return { ok: true, data: { ...toMeta(data), seenAt: new Date().toISOString(), content: toDoc(data.content) } };
 }
 
 /**
- * „Sichtbar für“ of a page (only the team): never wider than the page above it; a narrower level takes the subpages
- * along (the database does that itself). Returns the customer's pages afterwards, so the list shows every change.
+ * Who reads and who edits a page (only the team, 23.11.2026): never wider than the page above it; a narrower level takes
+ * the subpages along, and rights fall away with sight (the database does both itself). Who newly sees the page, or may
+ * newly write on it, hears of it once in the bell and the bundled mail. Returns the customer's pages afterwards.
  */
-export async function setAudienceAs(ctx: NotesContext, input: { id: string; audience: NoteAudience; notify?: boolean }): Promise<NoteResult<{ pages: NotePageMeta[]; narrowed: number }>> {
-  if (ctx.viewer !== "admin") return fail("„Sichtbar für“ ändert nur das oalab-Team.");
-  if (!isUuid(input?.id) || !isNoteAudience(input?.audience)) return fail("Diese Stufe gibt es nicht.");
+export async function setRightsAs(ctx: NotesContext, input: { id: string; rights: NoteRights; notify?: boolean }): Promise<NoteResult<{ pages: NotePageMeta[]; narrowed: number }>> {
+  if (ctx.viewer !== "admin") return fail("Wer eine Seite sieht und bearbeitet, legt das oalab-Team fest.");
+  if (!isUuid(input?.id) || !isNoteAudience(input?.rights?.audience)) return fail("Diese Stufe gibt es nicht.");
+  const target = fitRights({ audience: input.rights.audience, customerEdits: input.rights.customerEdits === true, freelancerEdits: input.rights.freelancerEdits === true });
   const page = await readPage(ctx, input.id, false);
   if (!page) return fail("Diese Seite gibt es nicht mehr.");
   const customers = await notesCustomers(ctx);
   const customer = customers?.find((item) => item.id === page.customerId);
   if (!customer) return fail("Diese Seite gibt es nicht mehr.");
-  if (!customer.hasFreelancer && (input.audience === "both" || input.audience === "freelancer")) return fail("Diesen Kunden betreut kein Freelancer.");
+  if (!customer.hasFreelancer && accessOf(target).freelancer !== "none") return fail("Diesen Kunden betreut kein Freelancer.");
   const before = await readPages(ctx, customer.id);
   const metas = (before.data ?? []).map(toMeta);
   const parent = page.parentId ? metas.find((item) => item.id === page.parentId) : undefined;
-  if (parent && !within(input.audience, parent.audience)) return fail(`Höchstens so sichtbar wie „${parent.title}“.`);
-  if (page.audience === input.audience) return { ok: true, data: { pages: metas, narrowed: 0 } };
-  const narrowed = narrowedBelow(metas, page.id, input.audience).length;
-  const { error } = await ctx.session.from("hub_note_pages").update({ audience: input.audience }).eq("id", page.id).is("deleted_at", null);
-  if (error) return fail(noteError(error, "„Sichtbar für“ konnte gerade nicht geändert werden."));
-  const fresh = await readPages(ctx, customer.id);
-  await logNoteEvent(ctx, "note.audience", `Notiz: ${AUDIENCE_LABELS[page.audience]} → ${AUDIENCE_LABELS[input.audience]}${narrowed ? ` (${narrowed} Unterseite${narrowed === 1 ? "" : "n"} mit eingeschränkt)` : ""}`, customer.id);
-  // Who newly sees the page hears of it once (bell and the bundled mail); later changes only with „Änderung mitteilen“.
-  const gained = gains(page.audience, input.audience);
-  if (input.notify !== false && (gained.customer || gained.freelancer)) {
-    const notice = noteNotice("note.shared", page.title, customer.id, page.id);
-    after(() => notifyNote(customer.id, notice, gained));
+  if (parent && !within(target.audience, parent.audience)) return fail(`Höchstens so sichtbar wie „${parent.title}“.`);
+  const same = page.audience === target.audience && page.customerEdits === target.customerEdits && page.freelancerEdits === target.freelancerEdits;
+  if (same) return { ok: true, data: { pages: (await listPages(ctx, customer.id)) ?? metas, narrowed: 0 } };
+  const narrowed = page.audience === target.audience ? 0 : narrowedBelow(metas, page.id, target.audience).length;
+  const { error } = await ctx.session.from("hub_note_pages").update({ audience: target.audience, customer_edits: target.customerEdits, freelancer_edits: target.freelancerEdits }).eq("id", page.id).is("deleted_at", null);
+  if (error) return fail(noteError(error, "Der Zugriff konnte gerade nicht geändert werden."));
+  const fresh = await listPages(ctx, customer.id);
+  await logNoteEvent(ctx, "note.audience", `Notiz: ${accessLabel(page, customer.hasFreelancer)} → ${accessLabel(target, customer.hasFreelancer)}${narrowed ? ` (${narrowed} Unterseite${narrowed === 1 ? "" : "n"} mit eingeschränkt)` : ""}`, customer.id);
+  // Who newly sees the page, or may newly write on it, hears of it once; later changes only with „Änderung mitteilen“.
+  const gained = gainsRights(page, target);
+  if (input.notify !== false) {
+    const sides = [
+      { side: "customer" as const, sight: gained.customer, edit: gained.customerEdit },
+      { side: "freelancer" as const, sight: gained.freelancer, edit: gained.freelancerEdit },
+    ];
+    for (const { side, sight, edit } of sides) {
+      if (!sight && !edit) continue;
+      const notice = noteNotice("note.shared", page.title, customer.id, page.id, edit ? (sight ? "with" : "only") : undefined);
+      after(() => notifyNote(customer.id, notice, { customer: side === "customer", freelancer: side === "freelancer" }));
+    }
   }
-  return { ok: true, data: { pages: (fresh.data ?? []).map(toMeta), narrowed } };
+  return { ok: true, data: { pages: fresh ?? metas, narrowed } };
+}
+
+/**
+ * „Sichtbar für“ of a page as one level (the Claude connector's set_note_visibility): sides that keep their sight keep
+ * their right to edit, the customer gaining sight gets the default of all notes.
+ */
+export async function setAudienceAs(ctx: NotesContext, input: { id: string; audience: NoteAudience; notify?: boolean; customerEdits?: boolean; freelancerEdits?: boolean }): Promise<NoteResult<{ pages: NotePageMeta[]; narrowed: number }>> {
+  if (ctx.viewer !== "admin") return fail("„Sichtbar für“ ändert nur das oalab-Team.");
+  if (!isUuid(input?.id) || !isNoteAudience(input?.audience)) return fail("Diese Stufe gibt es nicht.");
+  const page = await readPage(ctx, input.id, false);
+  if (!page) return fail("Diese Seite gibt es nicht mehr.");
+  const settings = toSettings((await ctx.session.from("hub_note_settings").select(SETTINGS_COLUMNS).maybeSingle()).data as Parameters<typeof toSettings>[0]);
+  const before = accessOf(page);
+  const customerEdits = input.customerEdits ?? (before.customer === "none" ? settings.customerAccess === "edit" : page.customerEdits);
+  const freelancerEdits = input.freelancerEdits ?? page.freelancerEdits;
+  return setRightsAs(ctx, { id: page.id, rights: { audience: input.audience, customerEdits, freelancerEdits }, notify: input.notify });
 }
 
 /** The defaults for all notes (only the team), checked field by field. */
@@ -221,6 +258,7 @@ export async function saveSettingsAs(ctx: NotesContext, patch: Partial<NoteSetti
   if (patch.groupByProject !== undefined) row.group_by_project = patch.groupByProject === true;
   if (patch.defaultWidth !== undefined) { if (!isNoteWidth(patch.defaultWidth)) return fail("Die Breite ist Normal oder Breit."); row.default_width = patch.defaultWidth; }
   if (patch.meetingTemplate !== undefined) { if (!["meeting", "briefing", "acceptance", "blank"].includes(patch.meetingTemplate)) return fail("Diese Vorlage gibt es nicht."); row.meeting_template = patch.meetingTemplate; }
+  if (patch.customerAccess !== undefined) { if (patch.customerAccess !== "read" && patch.customerAccess !== "edit") return fail("Kunden lesen oder bearbeiten."); row.customer_access = patch.customerAccess; }
   if (!Object.keys(row).length) return fail("Es gibt nichts zu speichern.");
   const { data, error } = await ctx.session.from("hub_note_settings").update(row).eq("id", true).select(SETTINGS_COLUMNS).maybeSingle();
   if (error || !data) return fail("Die Standardwerte konnten gerade nicht gespeichert werden.");
@@ -251,8 +289,7 @@ export async function trashPageAs(ctx: NotesContext, input: { id: string }): Pro
   const { error } = await ctx.session.from("hub_note_pages").update({ deleted_at: new Date().toISOString() }).eq("id", page.id).is("deleted_at", null);
   if (error) return fail(noteError(error, "Die Seite konnte gerade nicht gelöscht werden."));
   await logNoteEvent(ctx, "note.trashed", "Notiz in den Papierkorb gelegt", page.customerId);
-  const fresh = await readPages(ctx, page.customerId);
-  return { ok: true, data: { pages: (fresh.data ?? []).map(toMeta) } };
+  return { ok: true, data: { pages: (await listPages(ctx, page.customerId)) ?? [] } };
 }
 
 type TrashRow = { id: string; title: string; icon: string; deleted_at: string; deleted_by: string | null; parent_id: string | null; customer_id: string; cover_kind: string | null; cover_value: string | null };
@@ -291,8 +328,7 @@ export async function restorePageAs(ctx: NotesContext, input: { id: string }): P
   const { error } = await ctx.session.from("hub_note_pages").update(patch).eq("id", row.id);
   if (error) return fail(noteError(error, "Die Seite konnte gerade nicht wiederhergestellt werden."));
   await logNoteEvent(ctx, "note.restored", "Notiz wiederhergestellt", row.customer_id);
-  const fresh = await readPages(ctx, row.customer_id);
-  return { ok: true, data: { pages: (fresh.data ?? []).map(toMeta) } };
+  return { ok: true, data: { pages: (await listPages(ctx, row.customer_id)) ?? [] } };
 }
 
 /**

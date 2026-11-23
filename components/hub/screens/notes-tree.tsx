@@ -2,11 +2,11 @@
 
 import { useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, FileText, PanelLeftClose, Plus, Search, Settings } from "lucide-react";
-import { audienceLabel, childrenOf } from "@/lib/hub-notes/rules";
+import { childrenOf, hasOutsideNews } from "@/lib/hub-notes/rules";
 import type { NoteCustomer, NotePageMeta, NoteProject, NoteViewer } from "@/lib/hub-notes/types";
 import { companyInitials, LogoMark } from "../logo-mark";
 import { EmojiGlyph } from "./notes-blocks";
-import { audienceIcons, useDismiss } from "./notes-settings";
+import { accessMark, useDismiss } from "./notes-settings";
 
 // The quiet page list on the left (plan 1.2): the customer with its logo (a click switches, for admins and freelancers),
 // search, the gear for all notes (team only) and folding it away; below it „Neue Seite“ and the pages, grouped by the
@@ -70,7 +70,9 @@ export function NotesTree({ viewer, customers, customer, projects, pages, openId
         const matches = !term || page.title.toLowerCase().includes(term);
         const addable = canCreate && canAddUnder(page);
         if (matches) {
-          const Mark = audienceIcons[page.audience];
+          // Every page says who reads and writes it; a dot marks news from outside the team since the last look.
+          const mark = accessMark(page, viewer, customer.hasFreelancer);
+          const news = viewer === "admin" && hasOutsideNews(page);
           out.push(
             <div key={page.id} className={`nz-row${on ? " is-on" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
               {kids && !term
@@ -79,7 +81,8 @@ export function NotesTree({ viewer, customers, customer, projects, pages, openId
               <button type="button" className="nz-row-main" aria-current={on ? "page" : undefined} onClick={() => onOpen(page.id)}>
                 <span className="nz-row-icon">{page.icon ? <EmojiGlyph char={page.icon} size={16} /> : <FileText size={16} aria-hidden="true" />}</span>
                 <span className="nz-row-title">{page.title}</span>
-                {viewer !== "customer" && page.audience !== "team" && <span className="nz-row-aud" data-tip={`Sichtbar für: ${audienceLabel(page.audience, customer.hasFreelancer)}`}><Mark size={14} aria-hidden={true} /></span>}
+                {news && <span className="nz-row-news" data-tip="Neu von außerhalb des Teams"><span className="visually-hidden">Neu bearbeitet</span></span>}
+                {(viewer === "admin" || mark.tone === "edit") && <span className={`nz-row-aud is-${mark.tone}`} data-tip={mark.label}><mark.Icon size={14} aria-hidden={true} /><span className="visually-hidden">{mark.label}</span></span>}
               </button>
               {addable && <button type="button" className="nz-row-add" aria-label={`Unterseite in „${page.title}“ anlegen`} data-tip="Unterseite anlegen" onClick={() => onCreateUnder(page)}><Plus size={15} aria-hidden="true" /></button>}
             </div>,

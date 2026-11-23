@@ -1,12 +1,12 @@
 "use server";
 
 import { isUuid } from "./rules";
-import { customerView, namesOf, notesContext, notesCustomers, readPage } from "./server";
-import { coverFilesAs, createPageAs, fail, linkPreviewAs, listTrashAs, notifyChangeAs, projectNotesAs, purgePageAs, restorePageAs, saveSettingsAs, savePageAs, setAudienceAs, taskMentionsAs, trashPageAs, type CreateInput } from "./write";
+import { customerView, markSeen, namesOf, noteReadersAs, notesContext, notesCustomers, readPage } from "./server";
+import { coverFilesAs, createPageAs, fail, linkPreviewAs, listTrashAs, notifyChangeAs, projectNotesAs, purgePageAs, restorePageAs, saveSettingsAs, savePageAs, setRightsAs, taskMentionsAs, trashPageAs, type CreateInput } from "./write";
 import { createNoteTaskAs, noteTaskOptionsAs, searchNoteTasksAs, setNoteTaskDoneAs, type NoteTaskInput } from "./tasks";
 import { createMeetingNoteAs, createNoteAppointmentAs, noteAppointmentOptionsAs, noteRequestSlotsAs, requestNoteAppointmentAs, type NoteAppointmentInput } from "./calendar";
 import { noteHistoryAs, presenceAs, restoreRevisionAs, searchNotesAs } from "./history";
-import type { NoteAppointmentView, NoteAudience, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteProject, NoteRequestSlots, NoteResult, NoteRevision, NoteSaved, NoteSearchHit, NoteSettings, NotesCustomerView, NoteTaskView, NoteTrashItem } from "./types";
+import type { NoteAppointmentView, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteProject, NoteReaders, NoteRequestSlots, NoteResult, NoteRevision, NoteRights, NoteSaved, NoteSearchHit, NoteSettings, NotesCustomerView, NoteTaskView, NoteTrashItem } from "./types";
 
 // Every action is a public POST endpoint: it checks who asks (lib/hub-notes/server.ts notesContext) and reads and
 // writes with that person's own session, so the database's rules decide. None of them re-renders the page: the notes
@@ -30,6 +30,8 @@ export async function openNotePage(pageId: string): Promise<NoteResult<{ page: N
   if (!ctx) return fail(noAccess);
   const page = await readPage(ctx, pageId);
   if (!page) return fail("Diese Seite gibt es nicht mehr, oder sie ist nicht für dich freigegeben.");
+  // „Zuletzt geöffnet“, and for the team the bell's lines about edits on this page.
+  await markSeen(ctx, page);
   return { ok: true, data: { page, people: await namesOf(ctx, [page.updatedBy]) } };
 }
 
@@ -43,9 +45,16 @@ export async function saveNotePage(input: { id: string; version: number; patch: 
   return ctx ? savePageAs(ctx, input) : fail(noAccess);
 }
 
-export async function setNoteAudience(input: { id: string; audience: NoteAudience; notify?: boolean }): Promise<NoteResult<{ pages: NotePageMeta[]; narrowed: number }>> {
+/** Who reads and who edits a page (team only). */
+export async function setNoteAccess(input: { id: string; rights: NoteRights; notify?: boolean }): Promise<NoteResult<{ pages: NotePageMeta[]; narrowed: number }>> {
   const ctx = await notesContext();
-  return ctx ? setAudienceAs(ctx, input) : fail(noAccess);
+  return ctx ? setRightsAs(ctx, input) : fail(noAccess);
+}
+
+/** The customer's and the freelancers' logins that may open a page, with when they last did (team only). */
+export async function noteReaders(input: { pageId: string }): Promise<NoteResult<NoteReaders>> {
+  const ctx = await notesContext();
+  return ctx ? noteReadersAs(ctx, input) : fail(noAccess);
 }
 
 export async function saveNoteSettings(patch: Partial<NoteSettings>): Promise<NoteResult<NoteSettings>> {

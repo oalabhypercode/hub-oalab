@@ -39,6 +39,8 @@ export interface ConversationsState {
   readonly source: "service" | "fixtures";
   readonly conversations: readonly ConversationSummary[];
   readonly error: string | null;
+  /** Requests with a customer's message the signed-in admin has not seen yet (23.11.2026). */
+  readonly unread?: readonly string[];
 }
 
 export type ConversationResult<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly error: string };

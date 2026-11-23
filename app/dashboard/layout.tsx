@@ -8,13 +8,14 @@ import { countPendingRegistrations } from "@/lib/hub-users/server";
 import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { loadInbox } from "@/lib/hub-notify/server";
 import { countUnreadPrivateChats } from "@/lib/hub-private-chat/server";
+import { unreadServiceRequests } from "@/lib/hub-conversations/server";
 import { countHubFiles } from "@/lib/hub-files/server";
 import { loadAccountLogo } from "@/lib/hub-logos/server";
 
 async function AuthenticatedWorkspace({ children }: { children: React.ReactNode }) {
   const identity = await getWorkspaceIdentity();
   // Admins see how many registrations wait; RLS lets only active admins count them.
-  const [pendingRegistrations, liveProjects, inbox, unreadConversations, fileCount, accountLogo] = await Promise.all([
+  const [pendingRegistrations, liveProjects, inbox, unreadChats, unreadRequests, fileCount, accountLogo] = await Promise.all([
     identity.account?.role === "oalab_admin" ? countPendingRegistrations() : 0,
     // Shared with the page through the request cache; feeds the sidebar count and the search.
     loadLiveProjects(),
@@ -23,11 +24,14 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
     // Unread private chats for the counts in the sidebar and the tab bar (customers: from oalab, admins: from customers);
     // shared with the Nachrichten page.
     countUnreadPrivateChats(),
+    // Admins: requests on the service platform with a customer's message nobody of the team has opened yet.
+    identity.account?.role === "oalab_admin" ? unreadServiceRequests() : [],
     // The sidebar count of Asset Management / Dateien.
     countHubFiles(),
     // A customer login sees its company's logo instead of the initials; admins get null.
     loadAccountLogo(identity),
   ]);
+  const unreadConversations = unreadChats === undefined ? undefined : unreadChats + unreadRequests.length;
   return <AppShell key={identity.userId} userId={identity.userId} email={identity.email} hubAccount={identity.account} pendingRegistrations={pendingRegistrations} liveProjects={liveProjects?.projects} inbox={inbox} unreadConversations={unreadConversations} fileCount={fileCount} accountLogo={accountLogo}>{children}</AppShell>;
 }
 

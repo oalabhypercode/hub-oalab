@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,10 +12,11 @@ import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { loadFreelancerCustomerList } from "@/lib/hub-freelancer-customers/list";
 import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
+import { notePageHref } from "@/lib/hub-notify/rules";
 import { cleanCoverPosition, isGalleryCover } from "./covers";
 import { resolveRefs } from "./refs";
-import { childrenOf, emptyNoteDoc, isNoteAudience, isNoteWidth, isUuid } from "./rules";
-import { NO_REFS, type NoteCover, type NoteCustomer, type NoteDoc, type NotePage, type NotePageMeta, type NoteProject, type NotesArea, type NoteSettings, type NotesCustomerView, type NoteTemplateId, type NoteViewer } from "./types";
+import { childrenOf, emptyNoteDoc, fitRights, isNoteAudience, isNoteWidth, isUuid } from "./rules";
+import { NO_REFS, type NoteCover, type NoteCustomer, type NoteDoc, type NotePage, type NotePageMeta, type NoteProject, type NoteReaders, type NotesArea, type NoteSettings, type NotesCustomerView, type NoteTemplateId, type NoteViewer } from "./types";
 
 // Notes (plan docs/planung/notizen.md) are read with the person's *own* session: the rules of hub_note_pages decide
 // (migration 202611221001 in service-oalab). Admins pass the user management's check (hub role, second factor,
@@ -24,7 +26,7 @@ import { NO_REFS, type NoteCover, type NoteCustomer, type NoteDoc, type NotePage
 // that notes are not set up yet instead of failing.
 
 export const NOTES_CUSTOMER_COOKIE = "oalab-notes-customer";
-export const PAGE_COLUMNS = "id, customer_id, project_id, parent_id, appointment_id, title, icon, cover_kind, cover_value, cover_position, width, audience, dated_on, position, version, updated_by, updated_at, created_at";
+export const PAGE_COLUMNS = "id, customer_id, project_id, parent_id, appointment_id, title, icon, cover_kind, cover_value, cover_position, width, audience, customer_edits, freelancer_edits, outside_edited_at, dated_on, position, version, updated_by, updated_at, created_at";
 
 export type PageRow = {
   id: string;
@@ -39,6 +41,9 @@ export type PageRow = {
   cover_position: number;
   width: string;
   audience: string;
+  customer_edits?: boolean | null;
+  freelancer_edits?: boolean | null;
+  outside_edited_at?: string | null;
   dated_on: string | null;
   position: number;
   version: number;
@@ -62,11 +67,11 @@ export const notesMissing = (error: { code?: string; message?: string } | null |
 export const NOT_READY = "Notizen sind noch nicht eingerichtet: Die Datenbank kennt sie noch nicht.";
 const LOAD_ERROR = "Die Notizen konnten gerade nicht geladen werden. Bitte versuche es erneut.";
 
-export const DEFAULT_SETTINGS: NoteSettings = { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal" };
+export const DEFAULT_SETTINGS: NoteSettings = { defaultAudience: "team", notifyOnShare: true, groupByProject: true, meetingTemplate: "meeting", defaultWidth: "normal", customerAccess: "edit" };
 const templates: readonly NoteTemplateId[] = ["meeting", "briefing", "acceptance", "blank"];
 
-type SettingsRow = { default_audience: string; notify_on_share: boolean; group_by_project: boolean; meeting_template: string; default_width: string };
-export const SETTINGS_COLUMNS = "default_audience, notify_on_share, group_by_project, meeting_template, default_width";
+type SettingsRow = { default_audience: string; notify_on_share: boolean; group_by_project: boolean; meeting_template: string; default_width: string; customer_access?: string | null };
+export const SETTINGS_COLUMNS = "default_audience, notify_on_share, group_by_project, meeting_template, default_width, customer_access";
 
 export function toSettings(row: SettingsRow | null | undefined): NoteSettings {
   if (!row) return DEFAULT_SETTINGS;
@@ -76,6 +81,7 @@ export function toSettings(row: SettingsRow | null | undefined): NoteSettings {
     groupByProject: row.group_by_project !== false,
     meetingTemplate: templates.includes(row.meeting_template as NoteTemplateId) ? row.meeting_template as NoteTemplateId : "meeting",
     defaultWidth: isNoteWidth(row.default_width) ? row.default_width : "normal",
+    customerAccess: row.customer_access === "read" ? "read" : "edit",
   };
 }
 
@@ -88,6 +94,7 @@ function toCover(row: PageRow): NoteCover | null {
 }
 
 export function toMeta(row: PageRow): NotePageMeta {
+  const rights = fitRights({ audience: isNoteAudience(row.audience) ? row.audience : "team", customerEdits: row.customer_edits === true, freelancerEdits: row.freelancer_edits === true });
   return {
     id: row.id,
     customerId: row.customer_id,
@@ -98,7 +105,8 @@ export function toMeta(row: PageRow): NotePageMeta {
     icon: row.icon ?? "",
     cover: toCover(row),
     width: isNoteWidth(row.width) ? row.width : "normal",
-    audience: isNoteAudience(row.audience) ? row.audience : "team",
+    ...rights,
+    outsideEditedAt: row.outside_edited_at ?? null,
     datedOn: row.dated_on,
     position: Number(row.position) || 0,
     version: row.version,
@@ -194,12 +202,82 @@ export async function readPages(ctx: NotesContext, customerId: string) {
   return ctx.session.from("hub_note_pages").select(PAGE_COLUMNS).eq("customer_id", customerId).is("deleted_at", null).order("position").returns<PageRow[]>();
 }
 
+/**
+ * A page as the viewer may know it: customers do not learn who looks after them, so „Kunde und Freelancer“ reads as
+ * „Nur Kunde“ for them and the freelancers' rights stay out; the time of outside edits is the team's.
+ */
+export function shownTo<T extends NotePageMeta>(viewer: NoteViewer, page: T): T {
+  if (viewer !== "customer") return page;
+  return { ...page, audience: page.audience === "both" ? "customer" : page.audience, freelancerEdits: false, outsideEditedAt: null };
+}
+
+/** When the viewer last opened each page, for the team's mark on pages with news from outside. */
+async function seenAtOf(ctx: NotesContext, pageIds: string[]): Promise<Map<string, string>> {
+  if (ctx.viewer !== "admin" || !pageIds.length) return new Map();
+  const { data } = await ctx.session.from("hub_note_views").select("page_id, seen_at").eq("user_id", ctx.userId).in("page_id", pageIds).returns<{ page_id: string; seen_at: string }[]>();
+  return new Map((data ?? []).map((row) => [row.page_id, row.seen_at]));
+}
+
+/** The customer's pages as the list shows them to the viewer; null when they cannot be read. */
+export async function listPages(ctx: NotesContext, customerId: string): Promise<NotePageMeta[] | null> {
+  const pages = await readPages(ctx, customerId);
+  if (pages.error) return null;
+  const metas = (pages.data ?? []).map(toMeta);
+  if (ctx.viewer !== "admin") return metas.map((meta) => shownTo(ctx.viewer, meta));
+  const seen = await seenAtOf(ctx, metas.map((meta) => meta.id));
+  return metas.map((meta) => ({ ...meta, seenAt: seen.get(meta.id) ?? null }));
+}
+
+/**
+ * The viewer opened a page: when (hub_note_views, written with the server key after the person's own session read the
+ * page) and, for the team, the bell's lines about edits from outside on it, for every admin, as the team has seen them.
+ * Never fails what the person does.
+ */
+export async function markSeen(ctx: NotesContext, page: Pick<NotePageMeta, "id" | "customerId">): Promise<void> {
+  if (!ctx.db || ctx.via) return;
+  const at = new Date().toISOString();
+  try {
+    await ctx.db.from("hub_note_views").upsert({ page_id: page.id, user_id: ctx.userId, seen_at: at }, { onConflict: "page_id,user_id" });
+    if (ctx.viewer === "admin") await ctx.db.from("hub_inbox").update({ read_at: at }).eq("kind", "note.edited").eq("href", notePageHref(page.customerId, page.id)).is("read_at", null);
+  } catch {
+    // „Zuletzt geöffnet“ is a convenience; opening the page succeeded.
+  }
+}
+
+/**
+ * Who of the customer and of the customer's freelancers may open the page, and when they last did (team only): the
+ * active logins, as the sight of the page reaches them.
+ */
+export async function noteReadersAs(ctx: NotesContext, input: { pageId: string }): Promise<{ ok: true; data: NoteReaders } | { ok: false; error: string }> {
+  if (ctx.viewer !== "admin") return { ok: false, error: "Das sieht das oalab-Team." };
+  const page = await readPage(ctx, input?.pageId, false);
+  if (!page) return { ok: false, error: "Diese Seite gibt es nicht mehr." };
+  const db = ctx.db;
+  if (!db) return { ok: true, data: { customer: [], freelancer: [] } };
+  const links = await db.from("hub_freelancer_customers").select("freelancer_id").eq("customer_id", page.customerId).returns<{ freelancer_id: string }[]>();
+  const freelancers = [...new Set((links.data ?? []).map((row) => row.freelancer_id))];
+  const members = await db.from("hub_customer_members").select("customer_id, user_id").in("customer_id", [page.customerId, ...freelancers]).returns<{ customer_id: string; user_id: string }[]>();
+  const ids = [...new Set((members.data ?? []).map((row) => row.user_id))];
+  if (!ids.length) return { ok: true, data: { customer: [], freelancer: [] } };
+  const [profiles, views] = await Promise.all([
+    db.from("hub_profiles").select("user_id, first_name, last_name, status").in("user_id", ids).returns<{ user_id: string; first_name: string | null; last_name: string | null; status: string }[]>(),
+    db.from("hub_note_views").select("user_id, seen_at").eq("page_id", page.id).in("user_id", ids).returns<{ user_id: string; seen_at: string }[]>(),
+  ]);
+  const active = new Map((profiles.data ?? []).filter((row) => row.status === "active").map((row) => [row.user_id, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || "Zugang"]));
+  const seen = new Map((views.data ?? []).map((row) => [row.user_id, row.seen_at]));
+  const of = (customerIds: string[]) => [...new Set((members.data ?? []).filter((row) => customerIds.includes(row.customer_id)).map((row) => row.user_id))]
+    .filter((id) => active.has(id))
+    .map((id) => ({ id, name: active.get(id)!, seenAt: seen.get(id) ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+  return { ok: true, data: { customer: of([page.customerId]), freelancer: of(freelancers) } };
+}
+
 /** One page with its document, as the viewer may see it; null when it is gone or not visible. */
 export async function readPage(ctx: NotesContext, id: string, withRefs = true): Promise<NotePage | null> {
   if (!isUuid(id)) return null;
   const { data, error } = await ctx.session.from("hub_note_pages").select(`${PAGE_COLUMNS}, content`).eq("id", id).is("deleted_at", null).maybeSingle<PageRow>();
   if (error || !data) return null;
-  const meta = toMeta(data);
+  const meta = shownTo(ctx.viewer, toMeta(data));
   const content = toDoc(data.content);
   if (!withRefs) return { ...meta, content };
   const [refs, cover] = await Promise.all([resolveRefs(ctx, content, meta.customerId).catch(() => NO_REFS), signCover(ctx, meta.cover)]);
@@ -229,9 +307,8 @@ export async function signCover(ctx: NotesContext, cover: NoteCover | null): Pro
 export async function customerView(ctx: NotesContext, customers: Listed[], customerId: string): Promise<NotesCustomerView | null> {
   const customer = customers.find((item) => item.id === customerId);
   if (!customer) return null;
-  const [pages, projects] = await Promise.all([readPages(ctx, customer.id), notesProjects(ctx, customer)]);
-  if (pages.error) return null;
-  const metas = (pages.data ?? []).map(toMeta);
+  const [metas, projects] = await Promise.all([listPages(ctx, customer.id), notesProjects(ctx, customer)]);
+  if (!metas) return null;
   return { customerId: customer.id, projects, pages: metas, people: await namesOf(ctx, metas.map((page) => page.updatedBy)) };
 }
 
@@ -273,5 +350,9 @@ export const loadNotes = cache(async (customer?: string, page?: string): Promise
   const shown = opened && opened.customerId === customerId ? opened : null;
   const fallback = shown ? null : firstPage(view.pages);
   const openPage = shown ?? (fallback ? await readPage(ctx, fallback.id) : null);
-  return { ...base, customers: list, ...view, page: openPage };
+  if (!openPage) return { ...base, customers: list, ...view, page: null };
+  // The open page counts as seen: its mark in the list goes, and so do the team's bell lines about it.
+  after(() => markSeen(ctx, openPage));
+  const now = new Date().toISOString();
+  return { ...base, customers: list, ...view, pages: view.pages.map((item) => item.id === openPage.id && ctx.viewer === "admin" ? { ...item, seenAt: now } : item), page: openPage };
 });

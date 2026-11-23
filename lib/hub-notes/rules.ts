@@ -4,7 +4,7 @@
  * contain (JSON only, a fixed list of blocks and marks, links only https: and mailto:, at most 1 MB) and the plain text
  * and references the server reads from it.
  */
-import type { NoteAudience, NoteDoc, NoteMark, NoteNode, NotePageMeta, NoteSettings, NoteViewer, NoteWidth } from "./types";
+import type { NoteAccess, NoteAudience, NoteDoc, NoteMark, NoteNode, NotePageMeta, NoteRights, NoteSettings, NoteViewer, NoteWidth } from "./types";
 
 // ---- Sichtbar für -----------------------------------------------------------------------------------------------
 
@@ -51,9 +51,52 @@ export function fitAudience(audience: NoteAudience, hasFreelancer: boolean): Not
   return audience === "both" ? "customer" : audience === "freelancer" ? "team" : audience;
 }
 
-/** What the database lets each viewer read and write (RLS of hub_note_pages). */
+/** What the database lets each viewer read (RLS of hub_note_pages). */
 export const viewerReads = (viewer: NoteViewer, audience: NoteAudience) => viewer === "admin" || (viewer === "customer" ? reach(audience).customer : reach(audience).freelancer);
-export const viewerEdits = (viewer: NoteViewer, audience: NoteAudience) => viewer === "admin" || (viewer === "freelancer" && audience === "freelancer");
+
+// ---- Zugriff: Kein Zugriff · Lesen · Bearbeiten (23.11.2026) ---------------------------------------------------------
+
+export const NOTE_ACCESS: readonly NoteAccess[] = ["none", "read", "edit"];
+export const isNoteAccess = (value: unknown): value is NoteAccess => value === "none" || value === "read" || value === "edit";
+export const ACCESS_LABELS: Record<NoteAccess, string> = { none: "Kein Zugriff", read: "Lesen", edit: "Bearbeiten" };
+
+/** Rights as the database keeps them: nobody edits a page they do not see (the guard of migration 202611230001). */
+export function fitRights(rights: NoteRights): NoteRights {
+  const sight = reach(rights.audience);
+  return { audience: rights.audience, customerEdits: sight.customer && rights.customerEdits, freelancerEdits: sight.freelancer && rights.freelancerEdits };
+}
+
+/** What the customer and the customer's freelancers may do on a page. */
+export function accessOf(page: NoteRights): { customer: NoteAccess; freelancer: NoteAccess } {
+  const sight = reach(page.audience);
+  return {
+    customer: !sight.customer ? "none" : page.customerEdits ? "edit" : "read",
+    freelancer: !sight.freelancer ? "none" : page.freelancerEdits ? "edit" : "read",
+  };
+}
+
+/** Level and rights for a choice per side. */
+export const rightsFrom = (customer: NoteAccess, freelancer: NoteAccess): NoteRights =>
+  ({ audience: audienceFrom(customer !== "none", freelancer !== "none"), customerEdits: customer === "edit", freelancerEdits: freelancer === "edit" });
+
+/** Whether the viewer may change the page's text (the rules of hub_note_pages decide the same). */
+export const viewerEdits = (viewer: NoteViewer, page: NoteRights) => {
+  if (viewer === "admin") return true;
+  const access = accessOf(page);
+  return (viewer === "customer" ? access.customer : access.freelancer) === "edit";
+};
+
+/** Who gains sight or the right to edit by going from one setting to another (a release, which the team confirms). */
+export function gainsRights(from: NoteRights, to: NoteRights) {
+  const before = accessOf(from);
+  const after = accessOf(to);
+  return {
+    customer: after.customer !== "none" && before.customer === "none",
+    freelancer: after.freelancer !== "none" && before.freelancer === "none",
+    customerEdit: after.customer === "edit" && before.customer !== "edit",
+    freelancerEdit: after.freelancer === "edit" && before.freelancer !== "edit",
+  };
+}
 
 /**
  * The level of a new page: a subpage takes its parent's, a freelancer's page is always „Nur Freelancer“, the team's
@@ -63,6 +106,44 @@ export function newPageAudience(viewer: NoteViewer, parent: Pick<NotePageMeta, "
   if (viewer === "freelancer") return "freelancer";
   if (parent) return parent.audience;
   return fitAudience(settings.defaultAudience, hasFreelancer);
+}
+
+/**
+ * Level and rights of a new page: a subpage takes its parent's, a freelancer writes the pages they add, and a page the
+ * team shares with the customer right away lets the customer edit as the default for all notes says.
+ */
+export function newPageRights(viewer: NoteViewer, parent: NoteRights | null, settings: Pick<NoteSettings, "defaultAudience" | "customerAccess">, hasFreelancer: boolean): NoteRights {
+  if (viewer === "freelancer") return { audience: "freelancer", customerEdits: false, freelancerEdits: true };
+  if (parent) return fitRights({ audience: parent.audience, customerEdits: parent.customerEdits, freelancerEdits: parent.freelancerEdits });
+  return fitRights({ audience: fitAudience(settings.defaultAudience, hasFreelancer), customerEdits: settings.customerAccess === "edit", freelancerEdits: false });
+}
+
+/** Somebody outside the team wrote on the page since the viewer last opened it (the team's dot in the list). */
+export function hasOutsideNews(page: Pick<NotePageMeta, "outsideEditedAt" | "seenAt">) {
+  if (!page.outsideEditedAt || page.seenAt === undefined) return false;
+  return page.seenAt === null || Date.parse(page.outsideEditedAt) > Date.parse(page.seenAt);
+}
+
+const accessWord = (access: NoteAccess) => access === "edit" ? "Bearbeiten" : "Lesen";
+
+/** The label on top of a page for the team: „Nur Team“, „Kunde: Bearbeiten“, „Kunde und Freelancer: Lesen“, … */
+export function accessLabel(page: NoteRights, hasFreelancer = true): string {
+  const access = accessOf(page);
+  const freelancer = hasFreelancer ? access.freelancer : "none";
+  if (access.customer === "none" && freelancer === "none") return "Nur Team";
+  if (freelancer === "none") return `Kunde: ${accessWord(access.customer)}`;
+  if (access.customer === "none") return `Freelancer: ${accessWord(freelancer)}`;
+  if (access.customer === freelancer) return `Kunde und Freelancer: ${accessWord(access.customer)}`;
+  return `Kunde: ${accessWord(access.customer)} · Freelancer: ${accessWord(freelancer)}`;
+}
+
+/** The sentence under a side's choice in „Zugriff“. */
+export function accessSentence(side: "customer" | "freelancer", access: NoteAccess, customer: string): string {
+  const who = side === "customer" ? customer : "Die Freelancer des Kunden";
+  const plural = side === "freelancer";
+  if (access === "none") return `${who} ${plural ? "sehen" : "sieht"} diese Seite nicht.`;
+  if (access === "read") return `${who} ${plural ? "lesen" : "liest"} diese Seite, ohne sie zu ändern.`;
+  return `${who} ${plural ? "schreiben" : "schreibt"} auf dieser Seite mit; Neues meldet die Glocke dem Team.`;
 }
 
 type TreePage = Pick<NotePageMeta, "id" | "parentId" | "audience" | "title" | "position">;
