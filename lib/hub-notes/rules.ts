@@ -60,7 +60,7 @@ export const NOTE_ACCESS: readonly NoteAccess[] = ["none", "read", "edit"];
 export const isNoteAccess = (value: unknown): value is NoteAccess => value === "none" || value === "read" || value === "edit";
 export const ACCESS_LABELS: Record<NoteAccess, string> = { none: "Kein Zugriff", read: "Lesen", edit: "Bearbeiten" };
 
-/** Rights as the database keeps them: nobody edits a page they do not see (the guard of migration 202611230001). */
+/** Rights as the database keeps them: nobody edits a page they do not see (the guard of migration 202611230002). */
 export function fitRights(rights: NoteRights): NoteRights {
   const sight = reach(rights.audience);
   return { audience: rights.audience, customerEdits: sight.customer && rights.customerEdits, freelancerEdits: sight.freelancer && rights.freelancerEdits };

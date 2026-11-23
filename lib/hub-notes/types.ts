@@ -18,7 +18,7 @@ export type NoteWidth = "normal" | "wide";
 export type NoteViewer = "admin" | "customer" | "freelancer";
 /** What the customer, or the customer's freelancers, may do on a page: nothing, read it, or edit it too (23.11.2026). */
 export type NoteAccess = "none" | "read" | "edit";
-/** „Sichtbar für“ with the rights to edit, as hub_note_pages keeps them (migration 202611230001 in service-oalab). */
+/** „Sichtbar für“ with the rights to edit, as hub_note_pages keeps them (migration 202611230002 in service-oalab). */
 export type NoteRights = { audience: NoteAudience; customerEdits: boolean; freelancerEdits: boolean };
 /** Text size of the writing area, per device (Darstellung, stored in this browser only). */
 export type NotesTextSize = "small" | "medium" | "large";
