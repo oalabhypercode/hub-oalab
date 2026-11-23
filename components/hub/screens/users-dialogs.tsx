@@ -18,9 +18,10 @@ import { Select } from "../select";
 import { customerOption } from "../select-options";
 import { StatusGlyph, type GlyphKind } from "../sheet";
 import { AssetPanel } from "./asset-panel";
-import { EntryChips, EntryNav, Field, FieldGrid, HistoryList, PanelSection, PanelTabs, ReadonlyField, Row, RowIcon, RowList, SaveStatus, Segmented, useDirtyReport } from "./users-panel";
+import { EntryChips, EntryNav, Field, FieldGrid, HistoryList, PanelSection, PanelTabs, Row, RowIcon, RowList, SaveStatus, Segmented, useDirtyReport } from "./users-panel";
 import { useEntryRemoval } from "./users-removal";
 import { ClaudeLoginRow } from "./users-claude";
+import { LoginEmailField } from "./users-email";
 
 /*
  * The User Management's panels: a login, a registration, a customer and a freelancer, each new or existing. They open at
@@ -578,7 +579,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
         <FieldGrid>
           <Field label="Vorname"><input className="am-input" value={person.firstName} onChange={set("firstName")} maxLength={80} required disabled={disabled} autoComplete="off" /></Field>
           <Field label="Nachname"><input className="am-input" value={person.lastName} onChange={set("lastName")} maxLength={80} required disabled={disabled} autoComplete="off" /></Field>
-          {user ? <ReadonlyField label="E-Mail-Adresse" note="der Login" value={user.email} copyLabel={`E-Mail-Adresse von ${fullName(user)} kopieren`} />
+          {user ? <LoginEmailField user={user} name={fullName(user)} mailConfigured={mailConfigured} locked={user.self} disabled={disabled} onNotice={onNotice} />
             : <Field label="E-Mail-Adresse" wide><input className="am-input" type="email" value={person.email} onChange={set("email")} maxLength={254} required disabled={disabled} autoComplete="off" /></Field>}
           <Field label="Telefon"><input className="am-input" type="tel" value={person.phone} onChange={set("phone")} maxLength={40} disabled={disabled} autoComplete="off" placeholder="+49 …" /></Field>
           <Field label="Position"><input className="am-input" value={person.position} onChange={set("position")} maxLength={80} disabled={disabled} autoComplete="off" placeholder="z. B. Geschäftsführung" /></Field>

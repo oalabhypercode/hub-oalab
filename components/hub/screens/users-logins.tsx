@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Check, FileSpreadsheet, MailCheck, MailX, Megaphone, Send, Upload, UserPlus } from "lucide-react";
+import { AlertTriangle, BellRing, Check, FileSpreadsheet, MailCheck, MailX, Megaphone, Send, Upload, UserPlus } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { createCustomerLogins, sendAnnouncements, sendAnnouncementTest, sendInvitations, type InvitationResult, type LoginCreationResult } from "@/lib/hub-users/actions";
-import { cleanEmail, normalizeCompany, readPerson } from "@/lib/hub-users/rules";
+import { createCustomerLogins, sendAnnouncements, sendAnnouncementTest, sendInvitations, sendLaunchReminders, sendLaunchReminderTest, type InvitationResult, type LoginCreationResult } from "@/lib/hub-users/actions";
+import { cleanEmail, displayStatusLabels, normalizeCompany, readPerson } from "@/lib/hub-users/rules";
 import type { ManagedCustomer, ManagedUser } from "@/lib/hub-users/types";
 import { formatFileDate, formatFileDateTime } from "@/lib/hub-files/catalog";
 import { decodeImportFile, guessMapping, MAX_IMPORT_BYTES, parseCsv, readContacts, type ImportContact } from "@/lib/hub-customer-import/rules";
-import { ANNOUNCE_DAYS_AHEAD, announceDays, checkLogins, INVITE_BATCH, isAnnounceable, isFirstAnnouncement, isFirstInvitation, isInvitable, LOGIN_BATCH, loginDrafts, type LoginCustomer } from "@/lib/hub-invitations/rules";
+import { ANNOUNCE_DAYS_AHEAD, announceDays, checkLogins, INVITE_BATCH, isAnnounceable, isFirstAnnouncement, isFirstInvitation, isFirstReminder, isInvitable, isRemindable, launchDays, LOGIN_BATCH, loginDrafts, type LoginCustomer } from "@/lib/hub-invitations/rules";
 import { ACTIVATION_LINK_HOURS } from "@/lib/platform/config";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
@@ -388,6 +388,132 @@ export function AnnouncementsDialog({ users, customers, mailConfigured, onClose,
           </button>
           <button type="button" className="sheet-button sheet-button-primary" disabled={!selected.length || !validDay || running || test.busy || !mailConfigured} onClick={run}>
             {running ? <><MiniLoader size={18} />Sende {progress?.done ?? 0} von {progress?.total ?? selected.length} …</> : <><Megaphone size={18} aria-hidden="true" />{selected.length === 1 ? "1 Ankündigung senden" : `${selected.length} Ankündigungen senden`}</>}
+          </button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * „Erinnerung senden“ (23.11.2026): before the start of hub and service platform, one mail to every customer login that
+ * is active, signed in already or still waiting for that (launchReminderMail): the day of the start, the login's address
+ * with the question whether it should be another one, what hub and service platform offer and, without a first sign-in,
+ * the way in. Those without a reminder start ticked; „Testmail an mich“ sends both versions to the admin first.
+ */
+export function LaunchRemindersDialog({ users, customers, mailConfigured, onClose, onNotice }: { users: ManagedUser[]; customers: ManagedCustomer[]; mailConfigured: boolean; onClose: () => void; onNotice: (message: string) => void }) {
+  const range = useMemo(() => launchDays(new Date()), []);
+  const [day, setDay] = useState(range.suggested);
+  const candidates = useMemo(() => users.filter(isRemindable).map((user) => ({ user, customer: customers.find((customer) => customer.id === user.customerIds[0]) ?? null }))
+    .sort((a, b) => (a.customer?.company ?? "").localeCompare(b.customer?.company ?? "", "de") || a.user.email.localeCompare(b.user.email)), [users, customers]);
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(users.filter(isFirstReminder).map((user) => user.id)));
+  const [progress, setProgress] = useState<Progress<InvitationResult> | null>(null);
+  const [test, setTest] = useState<{ busy: boolean; message: string; error: string }>({ busy: false, message: "", error: "" });
+  const info = useInfo("Erinnerung", {
+    steps: [
+      <><b>Zum Start:</b> an alle Kunden-Zugänge, aktiv oder noch nicht.</>,
+      <><b>Fragt nach der Adresse:</b> Wünsche kommen als Antwort per Mail.</>,
+      <><b>Zuerst die Testmail:</b> beide Fassungen an dich.</>,
+    ],
+    ask: "Was steht in der Erinnerung zum Start?",
+  });
+  const validDay = day >= range.min && day <= range.max;
+  // The subject names the day as the mail does: weekday and date (lib/hub-mail/templates.ts, launchReminderMail).
+  const subjectDay = validDay ? `${weekdayOf.format(new Date(`${day}T12:00:00Z`))}, ${dateOf.format(new Date(`${day}T12:00:00Z`))}` : "";
+  const running = progress !== null && progress.done < progress.total && !progress.error;
+  const finished = progress !== null && !running;
+  const selected = candidates.filter((item) => chosen.has(item.user.id));
+  const reminded = candidates.filter((item) => !isFirstReminder(item.user)).length;
+  const waiting = candidates.filter((item) => item.user.displayStatus === "invited").length;
+  const nameOf = (userId: string) => {
+    const item = candidates.find((candidate) => candidate.user.id === userId);
+    return item ? `${`${item.user.firstName} ${item.user.lastName}`.trim() || item.user.email}${item.customer ? ` (${item.customer.company})` : ""}` : "Zugang";
+  };
+  const toggle = (userId: string) => setChosen((current) => {
+    const next = new Set(current);
+    if (next.has(userId)) next.delete(userId); else next.add(userId);
+    return next;
+  });
+  const allChosen = candidates.length > 0 && selected.length === candidates.length;
+
+  function run() {
+    void inBatches(selected.map((item) => item.user.id), INVITE_BATCH, (batch) => sendLaunchReminders({ userIds: batch, day }), setProgress);
+  }
+
+  async function sendTest() {
+    setTest({ busy: true, message: "", error: "" });
+    try {
+      const result = await sendLaunchReminderTest({ day });
+      setTest(result.ok ? { busy: false, message: `Zwei Testmails an ${result.data.to} verschickt, für aktive und für noch nicht aktivierte Zugänge. Schau sie dir an, bevor du sendest.`, error: "" } : { busy: false, message: "", error: result.error });
+    } catch {
+      setTest({ busy: false, message: "", error: "Die Verbindung ist abgebrochen. Bitte versuche es erneut." });
+    }
+  }
+
+  function close() {
+    if (running || test.busy) return;
+    const sent = progress?.results.filter((result) => result.outcome === "sent").length ?? 0;
+    if (sent) onNotice(`${sent === 1 ? "1 Erinnerung" : `${sent} Erinnerungen`} verschickt.`);
+    onClose();
+  }
+
+  return (
+    <Modal title="Erinnerung senden" onClose={close} className="users-modal import-modal" actions={info.button}>
+      {info.box}
+      {finished && progress ? (
+        <div className="import-preview">
+          <p className="dialog-success" role="status"><Check size={20} aria-hidden="true" />{progress.results.filter((result) => result.outcome === "sent").length} Erinnerungen verschickt{progress.results.some((result) => result.outcome === "skipped") ? `, ${progress.results.filter((result) => result.outcome === "skipped").length} übersprungen` : ""}.</p>
+          {progress.error && <p className="form-error" role="alert">{progress.error}</p>}
+          <Failures items={progress.results.filter((result) => result.outcome !== "sent").map((result) => ({ key: result.userId, label: nameOf(result.userId), error: result.error ?? "" }))} />
+          <p className="field-hint">Wer eine andere Adresse möchte, antwortet auf die Mail. Die Antworten kommen bei euch im Postfach an.</p>
+          <button type="button" className="sheet-button sheet-button-primary" onClick={close}><Check size={18} aria-hidden="true" />Fertig</button>
+        </div>
+      ) : !candidates.length ? (
+        <p className="field-hint">Kein Kunden-Zugang ist aktiv oder wartet auf seine erste Anmeldung. Neue Zugänge legst du unter „Kunden“ mit „Zugänge anlegen“ an.</p>
+      ) : (
+        <div className="import-preview">
+          {!mailConfigured && <p className="field-warning" role="alert"><MailX size={18} aria-hidden="true" />Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Erinnerung raus.</p>}
+          <label className="upload-field"><span>Client Hub und Serviceplattform starten am</span><input type="date" value={day} min={range.min} max={range.max} onChange={(event) => setDay(event.target.value)} required disabled={running} /></label>
+          <p className="field-hint">{validDay ? <>Betreff: „Start am {subjectDay}: Client Hub und Serviceplattform“. Ohne Namen: Jede Mail nennt die Adresse ihres Zugangs und fragt, ob es eine andere sein soll. Wer sich noch nie angemeldet hat, bekommt dazu den Weg über „Passwort vergessen?“.</> : `Bitte einen Tag von morgen bis in ${ANNOUNCE_DAYS_AHEAD} Tagen wählen.`}</p>
+          <div className="import-summary">
+            <span className="import-count is-new">{candidates.length - reminded} noch ohne Erinnerung</span>
+            {reminded > 0 && <span className="import-count is-update">{reminded} schon erinnert</span>}
+            {waiting > 0 && <span className="import-count">{waiting} noch nicht aktiviert</span>}
+            <button type="button" className="sheet-action import-show" onClick={() => setChosen(allChosen ? new Set() : new Set(candidates.map((item) => item.user.id)))} disabled={running}>{allChosen ? "Keine auswählen" : "Alle auswählen"}</button>
+          </div>
+          <div className="import-table-wrap">
+            <table className="data-table import-table invite-table">
+              <caption className="visually-hidden">Kunden-Zugänge mit Name, E-Mail-Adresse, Kunde, Stand des Zugangs und letzter Erinnerung</caption>
+              <thead>
+                <tr>
+                  <th scope="col"><span className="visually-hidden">Erinnern</span></th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Kunde</th>
+                  <th scope="col">Zugang</th>
+                  <th scope="col">Erinnert</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.map(({ user, customer }) => (
+                  <tr key={user.id} className={`data-row${chosen.has(user.id) ? "" : " is-muted"}`}>
+                    <td className="cell-check"><input type="checkbox" checked={chosen.has(user.id)} disabled={running} onChange={() => toggle(user.id)} aria-label={`${user.email} die Erinnerung schicken`} /></td>
+                    <td className="import-company"><strong>{`${user.firstName} ${user.lastName}`.trim() || user.email}</strong><small>{user.email}</small></td>
+                    <td className="import-city">{customer ? <>{customer.company} <small className="numeric">{customer.customerNumber}</small></> : <span className="cell-none">–</span>}</td>
+                    <td className="import-line"><span className={`import-status ${user.displayStatus === "active" ? "is-new" : "is-skip"}`}>{displayStatusLabels[user.displayStatus]}</span></td>
+                    <td className="import-what">{user.remindedAt ? <time dateTime={user.remindedAt} data-tip={formatFileDateTime(user.remindedAt)}>{formatFileDate(user.remindedAt)}</time> : <span className="cell-none">noch nie</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="field-hint">Die E-Mails gehen sofort von der Adresse des Hubs raus. Wer eine andere Adresse möchte, antwortet darauf; die Antworten kommen bei euch im Postfach an.</p>
+          {test.message && <p className="dialog-success" role="status"><Check size={18} aria-hidden="true" />{test.message}</p>}
+          {(test.error || progress?.error) && <p className="form-error" role="alert">{test.error || progress?.error}</p>}
+          <button type="button" className="sheet-button" disabled={!validDay || running || test.busy || !mailConfigured} onClick={() => { void sendTest(); }}>
+            {test.busy ? <><MiniLoader size={18} />Sende die Testmails …</> : <><MailCheck size={18} aria-hidden="true" />Testmail an mich</>}
+          </button>
+          <button type="button" className="sheet-button sheet-button-primary" disabled={!selected.length || !validDay || running || test.busy || !mailConfigured} onClick={run}>
+            {running ? <><MiniLoader size={18} />Sende {progress?.done ?? 0} von {progress?.total ?? selected.length} …</> : <><BellRing size={18} aria-hidden="true" />{selected.length === 1 ? "1 Erinnerung senden" : `${selected.length} Erinnerungen senden`}</>}
           </button>
         </div>
       )}

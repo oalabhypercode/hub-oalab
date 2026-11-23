@@ -5,7 +5,7 @@ import { safeAuthRedirect } from "../lib/auth-redirect.ts";
 import { MAIL_IMAGES } from "../lib/hub-mail/images.ts";
 import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport } from "../lib/hub-mail/smtp.ts";
 import {
-  accessAnnouncementMail, accessApprovedMail, cleanSubject, escapeHtml, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
+  accessAnnouncementMail, accessApprovedMail, cleanSubject, escapeHtml, launchReminderMail, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
 } from "../lib/hub-mail/templates.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -165,6 +165,45 @@ test("the announcement names the day by its weekday, guides through the first si
   assert.match(short.text, /Der Link ist einen Tag gültig\./);
   assert.match(short.text, /Später meldest du dich mit deiner E-Mail-Adresse und deinem Passwort an\./);
   assert.doesNotMatch(short.html, /javascript:/);
+});
+
+test("the launch reminder names the start, asks whether the login's address fits and guides only logins nobody has used yet", () => {
+  const input = { day: new Date("2026-11-25T12:00:00Z"), email: "info@musterfirma.de", sender: "hub@oalab.de", hubUrl: "https://hub.oalab.de", serviceUrl: "https://service.oalab.de" };
+  const active = launchReminderMail({ ...input, active: true }, legal);
+  const waiting = launchReminderMail({ ...input, active: false }, legal);
+  for (const mail of [active, waiting]) {
+    assert.equal(mail.subject, "Start am Mittwoch, 25. November: Client Hub und Serviceplattform");
+    assert.match(mail.html, />Am Mittwoch geht’s los<\/h1>/);
+    assert.match(mail.html, /<div style="display:none[^>]*>Was dich erwartet und eine kurze Bitte: Prüf, ob dein Zugang auf die richtige E-Mail-Adresse läuft\./);
+    // The address the login uses, for both platforms, and the question whether it should be another one (by reply).
+    assert.match(mail.text, /\nAnmeldung mit: info@musterfirma\.de\nGilt für: Client Hub und Serviceplattform\n/);
+    assert.match(mail.text, /\nPasst diese E-Mail-Adresse\?\nSoll dein Zugang über eine andere Adresse laufen, etwa deine persönliche statt einer Sammeladresse\? Dann antworte einfach auf diese E-Mail und nenn uns die neue Adresse, am besten noch vor Mittwoch\./);
+    // Hub messages are no service requests (they never mix), and the service platform has its own link.
+    assert.match(mail.text, /Das zählt nicht als Service-Anfrage\./);
+    assert.match(mail.html, /<a class="link" href="https:\/\/service\.oalab\.de\/"[^>]*>Zur Serviceplattform&nbsp;&rarr;<\/a>/);
+    assert.match(mail.html, /Hallo, lieber <span style="white-space:nowrap;">oalab-Kunde!<\/span>/);
+    for (const id of ["host-ali", "host-omed", "area-news", "area-contracts", "logo"]) assert.ok(mail.images.includes(id), id);
+    for (const id of mail.images) assert.ok(Object.hasOwn(MAIL_IMAGES, id), id);
+    assert.ok(mail.html.length < 100_000, String(mail.html.length));
+  }
+  // Signed in already: no guide, the button leads to the hub.
+  assert.match(active.text, /\nStatus: Aktiv\n/);
+  assert.match(active.text, /Wir stellen deinen Zugang dann um\./);
+  assert.doesNotMatch(active.html, /Dein Zugang wartet auf dich|Link anfordern/);
+  assert.match(active.text, /\nZum Client Hub: https:\/\/hub\.oalab\.de\/\n/);
+  assert.ok(!active.images.includes("mail-tile"));
+  // Nobody signed in yet: after the question the way in through „Passwort vergessen?“, which works without a password.
+  assert.match(waiting.text, /\nStatus: Noch nicht aktiviert\n/);
+  assert.match(waiting.text, /\n1\. Link anfordern\nAuf der Anmeldeseite unter „Passwort vergessen\?“ gibst du info@musterfirma\.de ein\. Das klappt auch, wenn du noch nie ein Passwort hattest\. Kurz darauf kommt eine E-Mail von hub@oalab\.de\.\nhttps:\/\/hub\.oalab\.de\/auth\/forgot-password\n/);
+  assert.match(waiting.text, /\n2\. Passwort festlegen\nTippe in der E-Mail auf „Neues Passwort festlegen“/);
+  assert.match(waiting.text, /\nZugang aktivieren: https:\/\/hub\.oalab\.de\/auth\/forgot-password\n/);
+  assert.ok(waiting.html.indexOf("Passt diese E-Mail-Adresse?") < waiting.html.indexOf("Dein Zugang wartet auf dich"));
+  assert.ok(waiting.images.includes("mail-tile"));
+  // The address is escaped, and unusable links leave out links and button instead of passing them on.
+  const odd = launchReminderMail({ ...input, email: "o'neil<b>@example.com", hubUrl: "javascript:alert(1)", serviceUrl: "data:text/html,hi", active: false });
+  assert.match(odd.html, /o&#39;neil&lt;b&gt;@example\.com/);
+  assert.doesNotMatch(odd.html, /javascript:|data:text|<b>@|Zugang aktivieren/);
+  assert.match(odd.text, /\nAuf der Serviceplattform beschreibst du, was wir/);
 });
 
 test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {
