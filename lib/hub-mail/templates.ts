@@ -506,10 +506,11 @@ function render(mail: Mail): MailContent {
   if (mail.code) rows.push(section(codePanel(mail.code.value, mail.code.note)));
   if (mail.card) rows.push(section(contactCard(mail.card)));
   if (mail.hosts?.length) rows.push(section(hostStage(mail.hosts), 26));
-  if (mail.guide) rows.push(section(guidePanel(mail.guide), 16));
   if (mail.details?.length) rows.push(section(details(mail.details)));
   if (mail.notice) rows.push(section(noticeCard(mail.notice)));
   if (calendar) rows.push(section(calendarBlock(calendar), 16));
+  // The guide comes after the facts: close under the hosts (announcement), with room under a panel (launch reminder).
+  if (mail.guide) rows.push(section(guidePanel(mail.guide), mail.details?.length || mail.notice || calendar ? 28 : 16));
   if (list?.length && mail.listTitle) rows.push(section(`<div class="muted" style="${caps(C.muted)}">${esc(mail.listTitle)}</div>`, 34));
   if (list?.length) rows.push(section(noticeList(list), mail.listTitle ? 2 : 16));
   if (mail.more) rows.push(section(`<p class="muted" style="margin:0;${t(14, 21, 400, C.muted)}">${esc(mail.more)}</p>`, 4));
@@ -582,13 +583,13 @@ ${footer}
     lines.push("");
   }
   for (const host of mail.hosts ?? []) lines.push(`${host.name}: ${host.hello} ${host.line}`, "");
+  if (mail.details?.length) lines.push(...mail.details.map((row) => `${row.label}: ${row.value}`), "");
+  if (mail.notice) lines.push(mail.notice.title, ...(mail.notice.body ? [mail.notice.body] : []), "");
   if (mail.guide) {
     lines.push(mail.guide.date, mail.guide.line);
     mail.guide.steps.forEach((step, index) => lines.push("", `${index + 1}. ${step.title}`, step.text, ...(step.link && safeUrl(step.link.url) ? [safeUrl(step.link.url)] : [])));
     lines.push("");
   }
-  if (mail.details?.length) lines.push(...mail.details.map((row) => `${row.label}: ${row.value}`), "");
-  if (mail.notice) lines.push(mail.notice.title, ...(mail.notice.body ? [mail.notice.body] : []), "");
   if (list?.length && mail.listTitle) lines.push(`${mail.listTitle}:`, "");
   if (calendar) lines.push(...calendarText(calendar), "");
   for (const item of list ?? []) {
@@ -660,6 +661,76 @@ export function accessAnnouncementMail(input: { day: Date; sender: string; days:
     note: { tone: "todo", text: `Damit die Einladung sicher ankommt: Speichere ${input.sender} am besten gleich in deinen Kontakten.` },
     signoff: { text: "Wir freuen uns auf dich im Client Hub!", from: "Dein oalab-Team" },
     reason: "Du bekommst diese E-Mail, weil du bei oalab einen Zugang zum Client Hub bekommst.",
+    legal,
+  });
+}
+
+/**
+ * Before the official start of hub and service platform (25.11.2026), to every customer login, signed in already or
+ * not yet: the day of the start, Ali and Omed again, the address the login uses with the question whether it should be
+ * another one (answered by reply, as the hub cannot change a login's address itself), what hub and service platform
+ * offer and, for logins nobody has signed in with, the way in through „Passwort vergessen?“, which works without a
+ * password ever set. The same text for everyone, without names; only the address and that way in differ. `day` is the
+ * day of the start (named by its weekday, like the announcement), `email` the login's address, `active` whether anybody
+ * has signed in with it, `sender` the hub's address, `hubUrl` and `serviceUrl` where hub and service platform live.
+ */
+export function launchReminderMail(input: { day: Date; email: string; active: boolean; sender: string; hubUrl: string; serviceUrl: string }, legal?: MailLegal): MailContent {
+  const weekday = weekdayName.format(input.day);
+  const date = dayOfMonth.format(input.day);
+  const hub = safeUrl(input.hubUrl);
+  const service = safeUrl(input.serviceUrl);
+  const forgot = hub ? safeUrl(new URL("/auth/forgot-password", hub).toString()) : "";
+  const start = `Am ${date} starten der oalab Client Hub und unsere Serviceplattform offiziell.`;
+  return render({
+    subject: `Start am ${weekday}, ${date}: Client Hub und Serviceplattform`,
+    preheader: "Was dich erwartet und eine kurze Bitte: Prüf, ob dein Zugang auf die richtige E-Mail-Adresse läuft.",
+    area: "news",
+    heading: `Am ${weekday} geht’s los`,
+    lead: input.active
+      ? `${start} Schön, dass du schon dabei bist! Hier noch einmal das Wichtigste.`
+      : `${start} Dein Zugang ist schon eingerichtet, es fehlt nur noch dein Passwort. Hier noch einmal das Wichtigste.`,
+    hosts: [
+      { image: "host-ali", side: "left", name: "Ali von oalab · Client Hub", hello: "Hallo, lieber oalab-Kunde!", line: `Am ${weekday} starten wir offiziell. Im Client Hub findest du alles rund um unsere Zusammenarbeit.` },
+      { image: "host-omed", side: "right", name: "Omed von oalab · Serviceplattform", hello: "Was sollen wir verbessern?", line: "Auf unserer eigens entwickelten KI-Plattform beauftragst du Anpassungen an deinen Projekten direkt bei uns." },
+    ],
+    details: [
+      { label: "Anmeldung mit", value: input.email },
+      { label: "Gilt für", value: "Client Hub und Serviceplattform" },
+      input.active ? { label: "Status", value: "Aktiv", tone: "ok" } : { label: "Status", value: "Noch nicht aktiviert", tone: "todo" },
+    ],
+    notice: {
+      area: "account",
+      label: "Dein Zugang",
+      title: "Passt diese E-Mail-Adresse?",
+      chip: ["Bitte prüfen", "todo"],
+      body: `Soll dein Zugang über eine andere Adresse laufen, etwa deine persönliche statt einer Sammeladresse? Dann antworte einfach auf diese E-Mail und nenn uns die neue Adresse, am besten noch vor ${weekday}. ${input.active ? "Wir stellen deinen Zugang dann um." : "Passt sie, aktivierst du deinen Zugang wie unten beschrieben."}`,
+    },
+    // Logins without a first sign-in: „Passwort vergessen?“ mails a fresh link to every login that is neither
+    // deactivated nor rejected (requestPasswordResetAction), so it works when the invitation has run out; the link mail
+    // is passwordLinkMail without activation (button „Neues Passwort festlegen“), the page saves with „Passwort speichern“.
+    guide: input.active ? undefined : {
+      tile: "mail-tile",
+      date: "Dein Zugang wartet auf dich",
+      line: "So aktivierst du ihn in drei Schritten:",
+      steps: [
+        { title: "Link anfordern", text: `Auf der Anmeldeseite unter „Passwort vergessen?“ gibst du ${input.email} ein. Das klappt auch, wenn du noch nie ein Passwort hattest. Kurz darauf kommt eine E-Mail von ${input.sender}.`, ...(forgot ? { link: { label: "Link anfordern", url: forgot } } : {}) },
+        { title: "Passwort festlegen", text: "Tippe in der E-Mail auf „Neues Passwort festlegen“, gib dein Passwort zweimal ein (mindestens acht Zeichen) und tippe auf „Passwort speichern“. Keine E-Mail da? Dann schau bitte im Spam-Ordner nach." },
+        { title: "Loslegen", text: "Danach bist du angemeldet, im Client Hub und mit demselben Zugang auch auf der Serviceplattform." },
+      ],
+    },
+    listTitle: "Das erwartet dich",
+    list: [
+      { area: "projects", label: "Serviceplattform", title: "Anpassungen direkt beauftragen", body: `${service ? `Auf ${new URL(service).host}` : "Auf der Serviceplattform"} beschreibst du, was wir an deiner Website oder deinen Projekten ändern sollen, und siehst jederzeit, wie weit es ist. Mit demselben Zugang und im Rahmen deines Servicepakets.`, ...(service ? { link: { label: "Zur Serviceplattform", url: service } } : {}) },
+      { area: "messages", label: "Nachrichten", title: "Direkter Draht zu uns", body: "Fragen und Absprachen schreibst du uns unter „Nachrichten“, so oft du willst. Das zählt nicht als Service-Anfrage." },
+      { area: "projects", label: "Projekte & Notizen", title: "Immer auf dem aktuellen Stand", body: "Status, Fortschritt und Zieltermine deiner Projekte, die Aufgaben, bei denen du am Zug bist, und unsere gemeinsamen Notizen." },
+      { area: "files", label: "Dateien", title: "Alles zum Herunterladen", body: "Alles, was wir für dich erstellt haben, jederzeit zum Herunterladen." },
+      { area: "calendar", label: "Termine", title: "Termin anfragen", body: "Im Kalender siehst du, wann wir Zeit haben, und fragst einen Termin an. Mit dem Kalender-Abo stehen deine Termine auch in deinem eigenen Kalender." },
+      { area: "contracts", label: "Vertrag & Domain", title: "Pakete, Domain und Postfächer", body: "Hier siehst du deine Pakete, den Stand deiner Domain und deine E-Mail-Postfächer." },
+    ],
+    cta: input.active ? { label: "Zum Client Hub", url: hub } : { label: "Zugang aktivieren", url: forgot },
+    small: input.active ? "Passwort nicht mehr zur Hand? Auf der Anmeldeseite schickt dir „Passwort vergessen?“ jederzeit einen neuen Link." : undefined,
+    signoff: { text: "Wir freuen uns auf den Start mit dir!", from: "Dein oalab-Team" },
+    reason: "Du bekommst diese E-Mail, weil du einen Zugang zum oalab Client Hub hast.",
     legal,
   });
 }

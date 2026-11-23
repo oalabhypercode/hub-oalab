@@ -6,13 +6,13 @@ import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
-import { mailAnnouncement, mailApproval, mailLoginEmailChanged, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import { mailAnnouncement, mailApproval, mailLaunchReminder, mailLoginEmailChanged, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
 import { hasConfirmedApp, secondFactorMethod } from "@/lib/hub-auth/second-factor";
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
 import { fillsFor, IMPORT_BATCH } from "@/lib/hub-customer-import/rules";
-import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, LOGIN_BATCH, readAnnounceDay } from "@/lib/hub-invitations/rules";
+import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, LOGIN_BATCH, readAnnounceDay, readLaunchDay } from "@/lib/hub-invitations/rules";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { ACTIVATION_LINK_HOURS, LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
@@ -546,6 +546,58 @@ export async function sendAnnouncementTest(input: { day?: unknown }): Promise<Ac
   if (!admin?.email) return failed("Dein Zugang hat keine E-Mail-Adresse.");
   const mail = await mailAnnouncement(admin.email, { ...announcement, test: true });
   return mail === "sent" ? { ok: true, data: { to: admin.email } } : failed(mailStatusMessage(mail));
+}
+
+/** What the reminder needs besides the login: the day of the start and where to sign in. */
+async function reminderInput(day: unknown) {
+  const date = readLaunchDay(day, new Date());
+  return date ? { day: date, hubUrl: (await requestOrigin()) ?? "" } : null;
+}
+
+const launchDayRefusal = `Bitte einen Tag von morgen bis in ${ANNOUNCE_DAYS_AHEAD} Tagen wählen.`;
+
+/**
+ * „Erinnerung senden“ (23.11.2026): before the start of hub and service platform, a mail to every customer login that is
+ * active, signed in already or not yet (launchReminderMail): the day of the start, the login's address with the question
+ * whether it should be another one, what both offer and, without a first sign-in, the way in. At most INVITE_BATCH per
+ * call. Each mail lands in the admin log (user.launch_reminder), which shows who has it already.
+ */
+export async function sendLaunchReminders(input: { userIds?: unknown; day?: unknown }): Promise<ActionResult<InvitationResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Erinnerung raus.");
+  const reminder = await reminderInput(input?.day);
+  if (!reminder) return failed(launchDayRefusal);
+  const ids = Array.isArray(input?.userIds) ? [...new Set(input.userIds.filter((id): id is string => typeof id === "string" && uuid.test(id)))] : [];
+  if (!ids.length || ids.length > INVITE_BATCH) return failed(`Bitte 1 bis ${INVITE_BATCH} Erinnerungen auf einmal senden.`);
+  const results: InvitationResult[] = [];
+  for (const userId of ids) {
+    const user = await loadUser(ctx, userId);
+    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Diesen Zugang gibt es nicht mehr." }); continue; }
+    if (roleOf(user) !== "oalab_customer") { results.push({ userId, outcome: "skipped", error: "Die Erinnerung ist nur für Kunden-Zugänge." }); continue; }
+    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "skipped", error: "Der Zugang ist nicht aktiv." }); continue; }
+    const mail = await mailLaunchReminder(user.email, { ...reminder, active: Boolean(user.last_sign_in_at) });
+    await log(ctx, mail === "sent" ? "user.launch_reminder" : "user.launch_reminder_failed", mail === "sent" ? "Erinnerung zum Start per E-Mail verschickt" : "Erinnerung zum Start ging nicht raus", { userId: user.id });
+    results.push(mail === "sent" ? { userId, outcome: "sent" } : { userId, outcome: "failed", error: mailStatusMessage(mail) });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
+}
+
+/** The reminder to the admin's own address in both versions, the version in the subject, to check them in a real inbox. */
+export async function sendLaunchReminderTest(input: { day?: unknown }): Promise<ActionResult<{ to: string }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet.");
+  const reminder = await reminderInput(input?.day);
+  if (!reminder) return failed(launchDayRefusal);
+  const admin = await loadUser(ctx, ctx.actorId);
+  if (!admin?.email) return failed("Dein Zugang hat keine E-Mail-Adresse.");
+  for (const active of [true, false]) {
+    const mail = await mailLaunchReminder(admin.email, { ...reminder, active, test: true });
+    if (mail !== "sent") return failed(mailStatusMessage(mail));
+  }
+  return { ok: true, data: { to: admin.email } };
 }
 
 /**
