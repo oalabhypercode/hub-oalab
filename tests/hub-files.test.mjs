@@ -4,6 +4,7 @@ import test from "node:test";
 import { checkUpload, cleanFolderName, fileCategoryIds, fileFormat, formatBytes, MAX_FILE_BYTES, MAX_FOLDER_NAME, storageSafeName, uploadType, zipEntryNames } from "../lib/hub-files/catalog.ts";
 import { mayBeClear, parseImageSize, PREVIEW_EDGE, PREVIEW_MAX_PIXELS, previewKind, previewRatio, previewUrl } from "../lib/hub-files/preview.ts";
 import { renderPreview } from "../lib/hub-files/preview-render.ts";
+import { createTurns } from "../lib/hub-files/turns.ts";
 import { sampleCustomers, sampleFiles } from "../scripts/lib/sample-files.mjs";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -132,6 +133,9 @@ test("the server turns images of any size into small WebP previews and refuses w
   // Not an image, or too many pixels: no preview.
   assert.equal(await renderPreview(Buffer.from("%PDF-1.7 not an image"), { edge: 480, quality: 76, maxPixels: PREVIEW_MAX_PIXELS }), null);
   assert.equal(await renderPreview(photo, { edge: 480, quality: 76, maxPixels: 1_000_000 }), null);
+  // A PNG is read in full: above 24 megapixels it gets none, so one image never fills the hub's memory.
+  const hugePng = await sharp({ create: { width: 5000, height: 5000, channels: 3, background: "#3b2418" } }).png().toBuffer();
+  assert.equal(await renderPreview(hugePng, { edge: 480, quality: 76, maxPixels: PREVIEW_MAX_PIXELS }), null);
 });
 
 test("the preview route answers only for files the session may read, privately, and the details use it", async () => {
@@ -146,4 +150,28 @@ test("the preview route answers only for files the session may read, privately, 
   assert.match(server, /supabase\.storage\.from\(HUB_FILES_BUCKET\)\.download\(file\.storage_path\)/);
   // The memory answers only after that check.
   assert.ok(server.indexOf("recall(key)") > server.indexOf("if (!file) return { status: 404 };"));
+});
+
+test("previews are made two at a time; the others wait without loading anything (live 23.11.2026)", async () => {
+  // 40 tiles asked for 36 previews at once and each loaded its original before waiting: the hub ran out of memory.
+  const inTurn = createTurns(2, 1000);
+  let now = 0;
+  let most = 0;
+  const job = () => inTurn(async () => { now++; most = Math.max(most, now); await new Promise((resolve) => setTimeout(resolve, 15)); now--; return "ok"; });
+  const results = await Promise.all(Array.from({ length: 12 }, job));
+  assert.equal(most, 2);
+  assert.ok(results.every((result) => result === "ok"));
+  // Who waits too long gets "busy" and never runs; the browser asks once more later.
+  const slow = createTurns(1, 30);
+  let ran = false;
+  const first = slow(() => new Promise((resolve) => setTimeout(() => resolve("done"), 120)));
+  assert.equal(await slow(async () => { ran = true; return "never"; }), "busy");
+  assert.equal(ran, false);
+  assert.equal(await first, "done");
+  // The original is loaded inside the turn, never before it.
+  const server = await source("lib/hub-files/preview-server.ts");
+  // One at a time on the server: the hub may use 512 MB in all.
+  assert.match(server, /const inTurn = createTurns\(1, 40_000\);/);
+  assert.ok(server.indexOf(".download(file.storage_path)") > server.indexOf("const result = await inTurn(async"));
+  assert.match(await source("lib/hub-files/preview-render.ts"), /sharp\.cache\(false\);\r?\n {4}sharp\.concurrency\(1\);/);
 });
