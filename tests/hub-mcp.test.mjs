@@ -185,13 +185,17 @@ test("protocol: initialize, ping, tools/list, tools/call and the errors of JSON-
   assert.equal(protocol.acceptedVersionHeader("1999-01-01"), false);
 });
 
-const READ_TOOLS = ["search", "get_customer", "get_project", "list_tasks", "list_appointments", "find_free_slots", "check_appointment_time"];
-const WRITE_TOOLS = ["create_appointment", "update_appointment", "cancel_appointment", "create_tasks", "update_task", "move_task", "add_task_comment", "create_project"];
+const READ_TOOLS = ["search", "get_customer", "get_project", "list_tasks", "list_appointments", "find_free_slots", "check_appointment_time", "get_task", "get_availability"];
+const WRITE_TOOLS = [
+  "create_appointment", "update_appointment", "cancel_appointment", "create_tasks", "update_task", "move_task", "add_task_comment", "create_project",
+  // Stage 2 (23.11.2026): projects, checklists, „Beteiligte“ and the availability.
+  "update_project", "update_checklist", "set_project_freelancer", "add_availability_exception",
+];
 // The notes (since 23.11.2026): reading with hub:read, writing with hub:write, after the tools before them.
 const NOTES_READ = ["list_notes", "read_note", "search_notes", "get_note_history", "list_note_trash"];
 const NOTES_WRITE = ["create_note", "update_note", "set_note_visibility", "notify_note_change", "create_meeting_note", "trash_note", "restore_note", "restore_note_version"];
 
-test("tools: twelve reading, sixteen writing, strict and fully described; none without the right", () => {
+test("tools: fourteen reading, twenty writing, strict and fully described; none without the right", () => {
   assert.deepEqual(tools.listTools(["hub:read"]).map((tool) => tool.name), [...READ_TOOLS, ...NOTES_READ], "a read-only connection sees no writing tool");
   const listed = tools.listTools(["hub:read", "hub:write"]);
   assert.deepEqual(listed.map((tool) => tool.name), [...READ_TOOLS, ...WRITE_TOOLS, ...NOTES_READ, ...NOTES_WRITE]);
@@ -497,7 +501,7 @@ test("writing goes through the hub's own save code, with the admin's claims, log
 
 /* ---------- Freelancers (since 19.11.2026): their own tools, their own rights, an admin's switch per login ---------- */
 
-const FREELANCER_READ = ["search", "get_customer", "get_project", "list_tasks", "list_appointments", "find_free_slots", "check_request_time"];
+const FREELANCER_READ = ["search", "get_customer", "get_project", "list_tasks", "list_appointments", "find_free_slots", "check_request_time", "get_task"];
 const fl = {
   viewer: "99999999-9999-4999-8999-999999999999",
   team: "88888888-8888-4888-8888-888888888888",
@@ -534,7 +538,7 @@ const flCall = (name, args, extra = {}) => {
   return result && { ...result, value: result.isError ? result.content[0].text : JSON.parse(result.content[0].text) };
 };
 
-const FREELANCER_WRITE = ["create_tasks", "update_task", "move_task", "add_task_comment", "request_appointment", "withdraw_request"];
+const FREELANCER_WRITE = ["create_tasks", "update_task", "move_task", "add_task_comment", "request_appointment", "withdraw_request", "update_checklist"];
 
 const FREELANCER_NOTES_READ = ["list_notes", "read_note", "search_notes"];
 const FREELANCER_NOTES_WRITE = ["create_note", "update_note"];
@@ -742,8 +746,8 @@ test("freelancers: writing goes through the board's and the request window's own
   // Requests: only their own entries; a confirmed appointment is cancelled by the team only.
   assert.match(writes, /\.from\("hub_appointments"\)\.select\("id, title, status"\)\.eq\("id", id\)\.in\("customer_id", entries\)/);
   assert.match(writes, /if \(data\.status === "confirmed"\) return refuse\(/);
-  for (const action of ["claude.tasks.created", "claude.task.updated", "claude.task.moved", "claude.task.commented", "claude.appointment.requested", "claude.appointment.withdrawn"]) assert.ok(writes.includes(`"${action}"`), action);
-  assert.equal((writes.match(/\(Freelancer\)`/g) ?? []).length, 6, "the admin log says a freelancer did it");
+  for (const action of ["claude.tasks.created", "claude.task.updated", "claude.task.moved", "claude.task.commented", "claude.appointment.requested", "claude.appointment.withdrawn", "claude.task.checklist"]) assert.ok(writes.includes(`"${action}"`), action);
+  assert.equal((writes.match(/\(Freelancer\)`/g) ?? []).length, 7, "the admin log says a freelancer did it");
 
   // The request window and Claude share one core; the Server Actions only add the session and the refresh.
   const calendar = await source("lib/hub-calendar/actions.ts");
@@ -829,4 +833,108 @@ test("notes: through the notes' own code with the person's claims, logged as cla
   const freelancer = await source("lib/hub-mcp/freelancer.ts");
   assert.ok(freelancer.indexOf("hasScope(connection.scopes, tool.scope)") < freelancer.indexOf("runNotesTool("));
   assert.ok(freelancer.indexOf("runNotesTool(") < freelancer.indexOf("freelancerClient(connection.userId)"), "no board or calendar is loaded for notes");
+});
+
+/* ---------- Stage 2 (23.11.2026): projects, task details, checklists, „Beteiligte“ and the availability ---------- */
+
+test("stage 2: Claude's arguments become what the project panel, the checklist and „Verfügbarkeit“ send", () => {
+  const project = input.readProjectUpdate({ project_id: ids.web, name: "Relaunch", start_date: null, due_date: "2026-12-20", milestones: [{ name: "Live", date: "2026-12-18" }], live_url: "", visible: true, status: "active" });
+  assert.deepEqual(project, { ok: true, value: { projectId: ids.web, patch: { name: "Relaunch", startDate: null, dueDate: "2026-12-20", milestones: [{ name: "Live", date: "2026-12-18" }], liveUrl: "", clientVisible: true }, status: "active" } });
+  // The panel's own checks run on it (lib/hub-projects/edit.ts readProjectPatch): an empty address clears it.
+  const checked = projectEdit.readProjectPatch(project.value.patch);
+  assert.equal(checked.ok, true);
+  assert.equal(checked.value.liveUrl, null);
+  assert.equal(input.readProjectUpdate({ project_id: ids.web }).ok, false, "nothing to change");
+  assert.equal(input.readProjectUpdate({ project_id: ids.web, visible: "ja" }).ok, false);
+  assert.equal(input.readProjectUpdate({ project_id: ids.web, status: "complete" }).ok, true, "the status alone is a change");
+
+  const checklist = input.readChecklistChange({ points: [{ point_id: ids.abc, done: true }, { point_id: ids.mueller, title: "Neu" }], add: ["Dritter Punkt"] });
+  assert.deepEqual(checklist, { ok: true, value: { points: [{ id: ids.abc, done: true }, { id: ids.mueller, title: "Neu" }], add: ["Dritter Punkt"] } });
+  for (const bad of [{}, { points: [{ point_id: ids.abc }] }, { points: [{ done: true }] }, { add: [""] }, { points: [{ point_id: ids.abc, done: true }, { point_id: ids.abc, done: false }] }]) {
+    assert.equal(input.readChecklistChange(bad).ok, false, JSON.stringify(bad));
+  }
+
+  assert.deepEqual(input.readExceptionArgs({ kind: "off", from: "2026-12-24", until: "2026-12-31", all_day: true, note: "Urlaub" }).value,
+    { kind: "off", from: "2026-12-24", until: "2026-12-31", allDay: true, start: undefined, end: undefined, note: "Urlaub" });
+  assert.equal(input.readExceptionArgs({ kind: "extra", from: "2026-12-05", until: "2026-12-06", start: "10:00", end: "12:00" }).ok, false, "extra time is one day");
+  assert.equal(input.readExceptionArgs({ kind: "off", from: "2026-12-05", all_day: true, start: "10:00" }).ok, false);
+  assert.equal(input.readExceptionArgs({ kind: "pause", from: "2026-12-05" }).ok, false);
+  // The panel's own rules decide what is stored (lib/hub-calendar/rules.ts readException).
+  const rows = rules.readException(input.readExceptionArgs({ kind: "off", from: "2026-12-24", until: "2026-12-26", all_day: true }).value, "2026-11-23");
+  assert.deepEqual(rows.ok && rows.rows.map((row) => [row.day, row.from, row.to]), [["2026-12-24", null, null], ["2026-12-25", null, null], ["2026-12-26", null, null]]);
+});
+
+test("stage 2: the availability as the panel shows it, and who may be put on a project", () => {
+  const week = rules.DEFAULT_AVAILABILITY.week;
+  const calendar = {
+    appointments: [],
+    availabilityReady: true,
+    availability: { ...rules.DEFAULT_AVAILABILITY, week, exceptions: [
+      { id: "x1", day: "2026-11-27", kind: "off", from: null, to: null, note: "Messe" },
+      { id: "x2", day: "2026-11-25", kind: "extra", from: 1080, to: 1200, note: "" },
+      { id: "x3", day: "2027-03-01", kind: "off", from: null, to: null, note: "später" },
+    ] },
+  };
+  const result = tools.runHubTool("get_availability", {}, { origin, today: "2026-11-23", now: Date.parse("2026-11-23T08:00:00Z"), calendar });
+  const value = JSON.parse(result.content[0].text);
+  assert.equal(value.from, "2026-11-23");
+  assert.equal(value.to, "2026-12-20", "four weeks without days");
+  assert.deepEqual(value.week[0], { weekday: "Montag", times: ["09:00–17:00"] });
+  assert.deepEqual(value.week[6], { weekday: "Sonntag", times: [] });
+  assert.deepEqual(value.exceptions, [
+    { day: "2026-11-25", weekday: "Mittwoch", kind: "zusätzliche Zeit", time: "18:00–20:00", note: null },
+    { day: "2026-11-27", weekday: "Freitag", kind: "nicht verfügbar", time: "ganztags", note: "Messe" },
+  ]);
+  assert.equal(value.rules.horizon, "8 Wochen im Voraus");
+  assert.equal(tools.runHubTool("get_availability", { from: "2026-11-01", to: "2027-02-01" }, { origin, today: "2026-11-23", now: 0, calendar }).isError, true, "at most 62 days");
+
+  const freelancers = [{ id: "77777777-7777-4777-8777-777777777777", name: "Beispiel GbR", number: "FL-1", onProject: false }];
+  const project = call("get_project", { project_id: ids.web }, { freelancers }).value;
+  assert.deepEqual(project.freelancers, [{ freelancer_id: freelancers[0].id, name: "Beispiel GbR", number: "FL-1", on_project: false }]);
+  assert.equal("freelancers" in call("get_project", { project_id: ids.web }).value, false, "only where Claude may write");
+  assert.equal(tools.runHubTool("get_task", { project_id: ids.web, task_number: 7 }, { origin, today: "2026-11-23", now: 0 }).isError, true, "the pure runner reads no card");
+});
+
+test("stage 2: through the project page's, the board's and the calendar's own cores, logged, never deleting", async () => {
+  const writes = await source("lib/hub-mcp/writes.ts");
+  const update = writes.slice(writes.indexOf("async function updateProject("), writes.indexOf("async function updateChecklist("));
+  assert.match(update, /if \(!project \|\| project\.archived\) return refuse\(noProject\);/);
+  assert.ok(update.indexOf("project.archived") < update.indexOf("saveProjectDetailsAs("), "checked before writing");
+  assert.match(update, /saveProjectDetailsAs\(team, \{ projectId, expectedVersion: version, patch \}, "claude"\)/);
+  assert.match(update, /setProjectStatusAs\(team, \{ projectId, status, expectedVersion: version \}, "claude"\)/);
+  // A change made in between: once more on the version Studio has now, never more than once.
+  assert.match(update, /result\.error === staleDetails\.error\) result = await saveProjectDetailsAs\(/);
+  assert.match(update, /result\.error === staleStatus\.error\) result = await setProjectStatusAs\(/);
+  const freelancer = writes.slice(writes.indexOf("async function setProjectFreelancer("), writes.indexOf("async function addAvailabilityException("));
+  assert.match(freelancer, /const choices = await loadProjectFreelancers\(w\.db, args\.project_id\);/, "only freelancers who look after the customer");
+  assert.match(freelancer, /setProjectFreelancerAs\(taskContext\(w\), /);
+  assert.match(writes, /addAvailabilityExceptionAs\(calendarClient\(w\), read\.value, w\.today\)/);
+  for (const action of ["claude.task.checklist", "claude.project.freelancer_on", "claude.project.freelancer_off", "claude.availability.exception"]) assert.ok(writes.includes(action), action);
+  assert.doesNotMatch(writes, /\.delete\(|archived: true|refreshWorkspace|revalidate/, "still no deleting, no archiving, no Server Action helpers");
+
+  // The cores are shared with the hub's windows, which only add who may call and the refresh.
+  const projects = await source("lib/hub-projects/write.ts");
+  assert.match(projects, /action: via === "claude" \? "claude\.project\.saved" : "project\.saved"/);
+  assert.match(projects, /action: via === "claude" \? "claude\.project\.status_set" : "project\.status_set"/);
+  const tasks = await source("lib/hub-tasks/write.ts");
+  for (const core of ["export async function setProjectFreelancerAs(", "export async function readTaskDetailAs("]) assert.ok(tasks.includes(core), core);
+  const calendar = await source("lib/hub-calendar/write.ts");
+  assert.match(calendar, /export async function addAvailabilityExceptionAs\(supabase: CalendarClient, input: ExceptionInput, today: string\)/);
+  assert.match(await source("lib/hub-calendar/actions.ts"), /const result = await addAvailabilityExceptionAs\(supabase, input, dayOf\(Date\.now\(\)\)\);/);
+
+  // One card for get_task: admins with the server key after their checks, freelancers with their own claims and only
+  // in the projects of their own board; the checklist through the window's own code, removing stays in the hub.
+  const board = await source("lib/hub-mcp/board.ts");
+  assert.match(board, /^import "server-only";/);
+  assert.match(board, /const detail = await readTaskDetailAs\(input\.read, row\.id\);/);
+  assert.match(board, /const \[board, db\] = \[await loadFreelancerBoardAs\(userId, client\), createAdminClient\(\)\];/);
+  assert.match(board, /return taskAnswer\(\{ read: client, db, project:/);
+  assert.match(board, /saveSubtaskAs\(ctx, \{ taskId, subtaskId: stored\.id,/);
+  assert.doesNotMatch(board, /\.delete\(|deleteSubtask/);
+  const server = await source("lib/hub-mcp/server.ts");
+  assert.match(server, /if \(tool\.needs === "task"\) return readTaskForAdmin\(args, origin\);/);
+  assert.match(server, /archive\.organizationIds\.has\(project\.data\.organization_id\)\) return refusal\(/, "no card of an archived customer");
+  const flWrites = await source("lib/hub-mcp/freelancer-writes.ts");
+  const checklist = flWrites.slice(flWrites.indexOf("async function updateChecklist("));
+  assert.ok(checklist.indexOf("ownProject(") < checklist.indexOf("changeChecklist("), "their own project first");
 });

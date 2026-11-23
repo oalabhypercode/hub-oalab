@@ -216,7 +216,9 @@ test("the board, the calendar, the connector and „Betreut von“ all leave dea
   assert.equal(write.match(/data: await shownTask\(ctx, data\)/g)?.length, 3);
   assert.doesNotMatch(write, /data: toBoardTask\(data\)/);
   const actions = await source("lib/hub-tasks/actions.ts");
-  assert.match(actions, /if \(input\.on\) \{\n    const inactive = await readEntriesWithoutActiveLogin\(ctx\.db, \[freelancerId\]\);/);
+  // „Beteiligte“: the board's window and the Claude connector share the core (lib/hub-tasks/write.ts, 23.11.2026).
+  assert.match(write, /if \(input\.on\) \{\n    const inactive = await readEntriesWithoutActiveLogin\(ctx\.db, \[freelancerId\]\);/);
+  assert.match(actions, /if \(ctx\.freelancer\) return denied;\n  return refreshed\(await setProjectFreelancerAs\(ctx, input\)\);/);
   const files = await source("lib/hub-files/server.ts");
   assert.match(files, /if \(inactive\?\.has\(row\.id\)\) customer\.inactive = true;/);
   const assets = await source("components/hub/screens/asset-management.tsx");

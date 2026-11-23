@@ -2,7 +2,7 @@ import "server-only";
 import type { createClient } from "@/lib/supabase/server";
 import { appointmentNotice } from "@/lib/hub-notify/rules";
 import { notifyCustomers } from "@/lib/hub-notify/server";
-import { cleanNote, dayOf, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readAvailabilityRequest, wallMinuteToUtc } from "./rules";
+import { cleanNote, dayOf, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readAvailabilityRequest, readException, wallMinuteToUtc, type ExceptionInput } from "./rules";
 import { loadAvailability } from "./server";
 import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
 
@@ -99,4 +99,25 @@ export async function closeAppointmentAs(supabase: CalendarClient, id: string, s
   const notice = data.customer_id ? appointmentNotice({ id: data.id, title: data.title, startsAt: data.starts_at, before: null, status, note: cleanNote(note) }) : null;
   if (data.customer_id && notice) await notifyCustomers([data.customer_id], notice);
   return { ok: true, data: null };
+}
+
+/** The availability's tables are not there yet (migration not applied). */
+export const availabilityMissing = (error: { code?: string } | null) => error?.code === "42P01" || error?.code === "PGRST205" || error?.code === "PGRST202";
+export const availabilityNotReady = "Die Verfügbarkeit ist in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus.";
+
+/**
+ * A new absence or extra time, from the panel „Verfügbarkeit“ and through Claude: one row per day (an absence may cover
+ * several days), the past left out, checked like the panel (lib/hub-calendar/rules.ts readException). RLS lets only
+ * admins write. Returns the days it now stands on.
+ */
+export async function addAvailabilityExceptionAs(supabase: CalendarClient, input: ExceptionInput, today: string): Promise<CalendarActionResult<{ count: number; days: string[] }>> {
+  const read = readException(input, today);
+  if (!read.ok) return read;
+  if (!read.rows.length) return { ok: false, error: "Diese Tage liegen in der Vergangenheit." };
+  const { data, error } = await supabase.from("hub_calendar_exceptions")
+    .insert(read.rows.map((row) => ({ day: row.day, kind: row.kind, from_minute: row.from, to_minute: row.to, note: row.note })))
+    .select("id");
+  if (availabilityMissing(error)) return { ok: false, error: availabilityNotReady };
+  if (error || !data) return { ok: false, error: "Die Ausnahme konnte nicht gespeichert werden." };
+  return { ok: true, data: { count: data.length, days: read.rows.map((row) => row.day) } };
 }
