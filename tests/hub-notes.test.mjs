@@ -452,3 +452,173 @@ test("what names an image: pages of its customer also in the trash, with covers 
   assert.match(write, /await removeStored\(ctx, \[before\.data\.cover_value\]\)/);
   assert.match(write, /if \(previous\) await removeStored\(ctx, \[previous\]\);/);
 });
+
+/* ---------- Markdown for the Claude connector (lib/hub-notes/markdown.ts, since 23.11.2026) ---------- */
+
+// markdown.ts imports its neighbours without extension, as the bundler resolves them; Node needs the ".ts".
+const { registerHooks } = await import("node:module");
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (/^\.{1,2}\//.test(specifier) && !/\.[cm]?[jt]sx?$/.test(specifier) && context.parentURL?.includes("/lib/")) return nextResolve(`${specifier}.ts`, context);
+    return nextResolve(specifier, context);
+  },
+});
+const md = await import("../lib/hub-notes/markdown.ts");
+
+const ID = { task: "11111111-1111-4111-8111-111111111111", project: "22222222-2222-4222-8222-222222222222", appointment: "33333333-3333-4333-8333-333333333333", page: "44444444-4444-4444-8444-444444444444", other: "55555555-5555-4555-8555-555555555555" };
+const t = (text, marks) => (marks ? { type: "text", text, marks } : { type: "text", text });
+const para = (...content) => (content.length ? { type: "paragraph", content } : { type: "paragraph" });
+const linkTo = (href) => ({ type: "link", attrs: { href, target: "_blank", rel: "noopener noreferrer nofollow" } });
+const richPage = () => ({
+  type: "doc",
+  content: [
+    { type: "heading", attrs: { level: 1 }, content: [t("Kickoff ABC")] },
+    para(t("Wir haben "), t("fett", [{ type: "bold" }]), t(" und "), t("kursiv", [{ type: "italic" }]), t(", "), t("beides", [{ type: "bold" }, { type: "italic" }]), t(" und "), t("Code*", [{ type: "code" }]), t(" sowie "), t("Link", [linkTo("https://oalab.de/x_(y)")]), t(" und *Sterne* _unter_ snake_case 5 * 3 ~~nicht~~.")),
+    para(t("Zeile 1"), { type: "hardBreak" }, t("Zeile 2 mit "), { type: "noteTaskMention", attrs: { refKind: "task", refId: ID.task, number: 12 } }, t(".")),
+    para({ type: "noteTaskMention", attrs: { refKind: "task", refId: ID.task, number: 12 } }),
+    { type: "bulletList", content: [
+      { type: "listItem", content: [para(t("Punkt A")), { type: "bulletList", content: [{ type: "listItem", content: [para(t("Unterpunkt"))] }] }] },
+      { type: "listItem", content: [para(t("- kein Unterpunkt"))] },
+      { type: "listItem", content: [para()] },
+    ] },
+    { type: "orderedList", attrs: { start: 3 }, content: [{ type: "listItem", content: [para(t("drei")), para(t("zweiter Absatz"))] }, { type: "listItem", content: [para(t("vier"))] }] },
+    { type: "taskList", content: [{ type: "taskItem", attrs: { checked: true }, content: [para(t("erledigt"))] }, { type: "taskItem", attrs: { checked: false }, content: [para()] }] },
+    { type: "codeBlock", attrs: { language: "js" }, content: [t("const a = `x`;\n```\nok")] },
+    { type: "horizontalRule" },
+    { type: "table", content: [
+      { type: "tableRow", content: [{ type: "tableHeader", attrs: { colType: "status", colwidth: [120] }, content: [para(t("Status"))] }, { type: "tableHeader", content: [para(t("Wer | was"))] }] },
+      { type: "tableRow", content: [{ type: "tableCell", content: [para(t("Fertig"))] }, { type: "tableCell", content: [para(t("A")), para(t("B <br> C"))] }] },
+    ] },
+    { type: "details", attrs: { open: true }, content: [{ type: "detailsSummary", content: [t("Mehr *Details*")] }, { type: "detailsContent", content: [para(t("Innen"))] }] },
+    { type: "noteCallout", attrs: { emoji: "📌" }, content: [para(t("Hinweis")), para(t("> zweiter"))] },
+    { type: "noteSubpage", attrs: { refKind: "page", refId: ID.page } },
+    { type: "noteTaskGroup", content: [{ type: "noteTaskItem", attrs: { refKind: "task", refId: ID.task, number: 12 } }, { type: "noteTaskItem", attrs: { refKind: "task", refId: ID.other, number: 13 } }] },
+    { type: "noteTaskList", attrs: { refKind: "project", refId: ID.project, filter: "due", dueBy: "2026-12-01" } },
+    { type: "noteProject", attrs: { refKind: "project", refId: ID.project } },
+    { type: "noteAppointment", attrs: { refKind: "appointment", refId: ID.appointment } },
+    { type: "noteLinkCard", attrs: { href: "https://example.com/a", title: "Example", description: "Was die Seite sagt", site: "example.com", image: null } },
+    para(t("# kein Titel")),
+    para(t("1. keine Liste")),
+  ],
+});
+const labels = {
+  pages: { [ID.page]: "Protokoll" },
+  tasks: { [ID.task]: { number: 12, title: "Logo liefern", status: "Offen" } },
+  projects: { [ID.project]: { name: "Website", status: "In Umsetzung" } },
+  appointments: { [ID.appointment]: { title: "Kickoff", when: "Mo., 24. Nov., 10:00–11:00", status: "Bestätigt" } },
+};
+const clean = (doc) => JSON.stringify(validateNoteDoc(doc).doc);
+
+test("Markdown: a page reads as Markdown and comes back as the very same page", () => {
+  const page = richPage();
+  const text = md.noteToMarkdown(page, labels);
+  // The blocks of the hub, with their state for Claude to read.
+  assert.match(text, /^\[#12 Logo liefern · Offen\]\(oalab:task\/11111111-1111-4111-8111-111111111111\)$/m);
+  assert.match(text, /^\[Aufgabe #13 \(nicht sichtbar\)\]\(oalab:task\/55555555/m);
+  assert.match(text, /^\[Unterseite: Protokoll\]\(oalab:page\/44444444/m);
+  assert.match(text, /^\[Aufgabenliste: Website · Fällig bis 2026-12-01\]\(oalab:tasklist\/22222222-2222-4222-8222-222222222222\?filter=due&due=2026-12-01\)$/m);
+  assert.match(text, /^\[Termin: Kickoff · Mo\., 24\. Nov\., 10:00–11:00 · Bestätigt\]\(oalab:appointment\//m);
+  assert.match(text, /^\[Example\]\(https:\/\/example\.com\/a "Linkkarte"\)$/m);
+  // A mention alone on its line says so, or it would come back as a task box.
+  assert.match(text, /^\[#12 Logo liefern\]\(oalab:task\/11111111-1111-4111-8111-111111111111\?mention\)$/m);
+  // Text that only looks like Markdown stays text.
+  assert.ok(text.includes("\\*Sterne\\* \\_unter\\_ snake_case 5 \\* 3 \\~\\~nicht\\~\\~"));
+  assert.match(text, /^\\# kein Titel$/m);
+  assert.match(text, /^1\\\. keine Liste$/m);
+  assert.ok(text.includes("> 📌 Hinweis\n>\n> \\> zweiter"));
+  assert.ok(text.includes("| Fertig | A<br>B \\<br> C |"));
+
+  const back = md.markdownToNote(text, { before: page });
+  assert.equal(back.ok, true);
+  assert.equal(clean(back.doc), clean(page), "every block, mark and attribute comes back");
+  assert.equal(md.noteToMarkdown(back.doc, labels), text, "and reads the same again");
+});
+
+test("Markdown: what Claude writes becomes blocks the editor knows, tasks by project and number", () => {
+  const written = [
+    "# Protokoll",
+    "",
+    "**Teilnehmer:** Ali, Omed",
+    "*Ort:* Teams",
+    "",
+    "1. Relaunch bis 15.12.",
+    "2. Logo kommt vom Kunden",
+    "   - als SVG",
+    "",
+    "- [ ] Logo anfordern",
+    "- [x] Termin bestätigen",
+    "",
+    "> 💡 Freigabe bis Freitag.",
+    "",
+    "| Punkt | Wer |",
+    "|---|:---:|",
+    "| Texte | Kunde |",
+    "",
+    `[Logo liefern](oalab:task/${ID.project}/12)`,
+    `[Briefing](oalab:task/${ID.project}/7)`,
+    `Siehe [#7](oalab:task/${ID.project}/7), [die Seite](oalab:page/${ID.page}) und https://oalab.de.`,
+    "[böse](javascript:alert(1)) [alt](http://example.com)",
+    "<details>",
+    "<summary>Mehr</summary>",
+    "",
+    "Innen",
+    "</details>",
+  ].join("\n");
+  const tasks = { [`${ID.project}/12`]: { id: ID.task, number: 12 }, [`${ID.project}/7`]: { id: ID.other, number: 7 } };
+  assert.deepEqual(md.taskNumbersIn(written), [{ projectId: ID.project, number: 12 }, { projectId: ID.project, number: 7 }]);
+  const parsed = md.markdownToNote(written, { origin: "https://hub.oalab.de", task: (project, number) => tasks[`${project}/${number}`] ?? null });
+  assert.equal(parsed.ok, true);
+  const checked = validateNoteDoc(parsed.doc);
+  assert.equal(checked.ok, true);
+  assert.deepEqual(parsed.doc.content.map((node) => node.type), ["heading", "paragraph", "orderedList", "taskList", "noteCallout", "table", "noteTaskGroup", "paragraph", "details"]);
+  assert.deepEqual(parsed.doc.content[1].content.map((node) => node.type), ["text", "text", "hardBreak", "text", "text"], "a new line is a line break");
+  assert.equal(parsed.doc.content[4].attrs.emoji, "💡");
+  assert.deepEqual(parsed.doc.content[6].content.map((node) => [node.attrs.refId, node.attrs.number]), [[ID.task, 12], [ID.other, 7]], "two task lines are one box");
+  const sentence = parsed.doc.content[7].content;
+  assert.deepEqual(sentence.find((node) => node.type === "noteTaskMention").attrs, { refKind: "task", refId: ID.other, number: 7 });
+  assert.equal(sentence.find((node) => node.text === "die Seite").marks[0].attrs.href, `https://hub.oalab.de/dashboard/projects/notes?page=${ID.page}`, "a page inside a sentence links into the hub");
+  assert.equal(sentence.find((node) => node.text === "https://oalab.de").marks[0].attrs.href, "https://oalab.de");
+  assert.deepEqual(sentence.slice(-2), [{ type: "hardBreak" }, { type: "text", text: "böse alt" }], "links the hub does not allow keep their text only");
+  assert.deepEqual(checked.refs.map((ref) => `${ref.kind}:${ref.id}`).sort(), [`task:${ID.task}`, `task:${ID.other}`]);
+
+  // A task that is not there is refused with the way to find the right one.
+  const missing = md.markdownToNote(`[x](oalab:task/${ID.project}/99)`, { task: () => null });
+  assert.equal(missing.ok, false);
+  assert.match(missing.error, /Aufgabe #99 gibt es im Projekt .* nicht.*get_project oder list_tasks/);
+  assert.equal(md.markdownToNote("x".repeat(md.MAX_MARKDOWN + 1)).ok, false);
+});
+
+test("Markdown: what Markdown cannot say comes back from the page as it was, and adding keeps the page", () => {
+  const before = { type: "doc", content: [
+    { type: "table", content: [
+      { type: "tableRow", content: [{ type: "tableHeader", attrs: { colType: "person", colwidth: [180] }, content: [para(t("Wer"))] }, { type: "tableHeader", attrs: { colType: "check" }, content: [para(t("Fertig"))] }] },
+      { type: "tableRow", content: [{ type: "tableCell", content: [para(t("Ali"))] }, { type: "tableCell", content: [para(t("ja"))] }] },
+    ] },
+    { type: "noteLinkCard", attrs: { href: "https://example.com/a", title: "Example", description: "Beschreibung", site: "example.com", image: `notes/${ID.page}/links/${ID.other}.webp` } },
+    para(t("Hover", [{ type: "link", attrs: { href: "https://oalab.de", title: "OALAB", description: "Agentur" } }])),
+  ] };
+  const edited = "| Wer | Fertig |\n| --- | --- |\n| Omed | nein |\n\n[Neuer Titel](https://example.com/a \"Linkkarte\")\n\n[Hover](https://oalab.de) bleibt.";
+  const parsed = md.markdownToNote(edited, { before });
+  assert.equal(parsed.ok, true);
+  const [table, card, text] = parsed.doc.content;
+  assert.equal(table.content[0].content[0].attrs.colType, "person");
+  assert.deepEqual(table.content[0].content[0].attrs.colwidth, [180]);
+  assert.equal(table.content[0].content[1].attrs.colType, "check");
+  assert.deepEqual(card.attrs, before.content[1].attrs, "the card keeps what the server read from the page");
+  assert.equal(text.content[0].marks[0].attrs.title, "OALAB");
+  // A new card without a page behind it: title and site from the line.
+  const fresh = md.markdownToNote("[Doku](https://docs.example.com/x \"Linkkarte\")");
+  assert.deepEqual(fresh.doc.content[0], { type: "noteLinkCard", attrs: { href: "https://docs.example.com/x", title: "Doku", site: "docs.example.com" } });
+
+  const page = noteTemplate("meeting", { title: "Kickoff", date: "2026-11-24" }).doc;
+  const added = md.addToNote(page, md.markdownToNote("## Ergebnis\nAlles klar.").doc, "end");
+  assert.deepEqual(added.content.slice(0, -2), page.content.slice(0, -1), "the page stays, its empty last line goes");
+  assert.deepEqual(added.content.slice(-2).map((node) => node.type), ["heading", "paragraph"]);
+  assert.equal(md.addToNote(page, md.markdownToNote("Oben").doc, "start").content[0].content[0].text, "Oben");
+  // Templates read and come back unchanged (their empty lines aside).
+  for (const id of ["meeting", "acceptance", "blank"]) {
+    const doc = noteTemplate(id, { title: "X", date: "2026-11-24" }).doc;
+    const filled = (value) => ({ ...value, content: value.content.filter((node) => node.type !== "paragraph" || node.content) });
+    assert.equal(clean(filled(md.markdownToNote(md.noteToMarkdown(doc)).doc)), clean(filled(doc)), id);
+  }
+});

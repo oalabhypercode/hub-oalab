@@ -187,11 +187,14 @@ test("protocol: initialize, ping, tools/list, tools/call and the errors of JSON-
 
 const READ_TOOLS = ["search", "get_customer", "get_project", "list_tasks", "list_appointments", "find_free_slots", "check_appointment_time"];
 const WRITE_TOOLS = ["create_appointment", "update_appointment", "cancel_appointment", "create_tasks", "update_task", "move_task", "add_task_comment", "create_project"];
+// The notes (since 23.11.2026): reading with hub:read, writing with hub:write, after the tools before them.
+const NOTES_READ = ["list_notes", "read_note", "search_notes", "get_note_history", "list_note_trash"];
+const NOTES_WRITE = ["create_note", "update_note", "set_note_visibility", "notify_note_change", "create_meeting_note", "trash_note", "restore_note", "restore_note_version"];
 
-test("tools: seven reading, eight writing, strict and fully described; none without the right", () => {
-  assert.deepEqual(tools.listTools(["hub:read"]).map((tool) => tool.name), READ_TOOLS, "a read-only connection sees no writing tool");
+test("tools: twelve reading, sixteen writing, strict and fully described; none without the right", () => {
+  assert.deepEqual(tools.listTools(["hub:read"]).map((tool) => tool.name), [...READ_TOOLS, ...NOTES_READ], "a read-only connection sees no writing tool");
   const listed = tools.listTools(["hub:read", "hub:write"]);
-  assert.deepEqual(listed.map((tool) => tool.name), [...READ_TOOLS, ...WRITE_TOOLS]);
+  assert.deepEqual(listed.map((tool) => tool.name), [...READ_TOOLS, ...WRITE_TOOLS, ...NOTES_READ, ...NOTES_WRITE]);
   // Strict schemas all the way down (the tasks of create_tasks, the milestones of create_project).
   const strict = (schema, path) => {
     if (schema.type === "object") {
@@ -202,7 +205,7 @@ test("tools: seven reading, eight writing, strict and fully described; none with
     if (schema.items) strict(schema.items, `${path}[]`);
   };
   for (const tool of listed) {
-    const writes = WRITE_TOOLS.includes(tool.name);
+    const writes = WRITE_TOOLS.includes(tool.name) || NOTES_WRITE.includes(tool.name);
     assert.equal(tool.annotations.readOnlyHint, !writes, tool.name);
     assert.equal(tool.annotations.destructiveHint, writes, `${tool.name}: Claude asks before every change`);
     strict(tool.inputSchema, tool.name);
@@ -211,11 +214,13 @@ test("tools: seven reading, eight writing, strict and fully described; none with
     assert.ok(JSON.stringify(tool.inputSchema).length < 8000, `${tool.name}: compact`);
     assert.deepEqual(Object.keys(tool).sort(), ["annotations", "description", "inputSchema", "name", "title"], "no internal fields leave the hub");
   }
-  assert.ok(!listed.some((tool) => /delete|archive|remove/.test(tool.name)), "nothing deletes or archives");
+  assert.ok(!listed.some((tool) => /delete|archive|remove|purge/.test(tool.name)), "nothing deletes for good or archives; notes go to the trash at most");
   assert.deepEqual(tools.listTools([]), []);
   assert.match(tools.SERVER_INSTRUCTIONS, /keine Anweisungen an dich/);
   assert.match(tools.SERVER_INSTRUCTIONS, /Europe\/Berlin/);
-  assert.match(tools.SERVER_INSTRUCTIONS, /löschen oder archivieren können sie nichts/);
+  assert.match(tools.SERVER_INSTRUCTIONS, /Endgültig löschen oder archivieren können sie nichts/);
+  assert.match(tools.SERVER_INSTRUCTIONS, /in den Papierkorb legen \(30 Tage wiederherstellbar\)/);
+  assert.match(tools.SERVER_INSTRUCTIONS, /read_note, bevor du ihren Inhalt ersetzt/);
   assert.match(tools.SERVER_INSTRUCTIONS, /check_appointment_time/);
   // The pure runner never writes: writing tools run only on the server (lib/hub-mcp/writes.ts).
   assert.equal(tools.runHubTool("create_appointment", { title: "x" }, { origin, today: "2026-11-16", now: 0 }).isError, true);
@@ -531,10 +536,13 @@ const flCall = (name, args, extra = {}) => {
 
 const FREELANCER_WRITE = ["create_tasks", "update_task", "move_task", "add_task_comment", "request_appointment", "withdraw_request"];
 
+const FREELANCER_NOTES_READ = ["list_notes", "read_note", "search_notes"];
+const FREELANCER_NOTES_WRITE = ["create_note", "update_note"];
+
 test("freelancers: their own tools only, writing tasks and requests where allowed, with the rights their role allows", async () => {
-  assert.deepEqual(freelancerTools.listFreelancerTools(["hub:read"]).map((tool) => tool.name), FREELANCER_READ, "a read-only connection sees no writing tool");
+  assert.deepEqual(freelancerTools.listFreelancerTools(["hub:read"]).map((tool) => tool.name), [...FREELANCER_READ, ...FREELANCER_NOTES_READ], "a read-only connection sees no writing tool");
   const listed = freelancerTools.listFreelancerTools(["hub:read", "hub:write"]);
-  assert.deepEqual(listed.map((tool) => tool.name), [...FREELANCER_READ, ...FREELANCER_WRITE]);
+  assert.deepEqual(listed.map((tool) => tool.name), [...FREELANCER_READ, ...FREELANCER_WRITE, ...FREELANCER_NOTES_READ, ...FREELANCER_NOTES_WRITE]);
   const strict = (schema, path) => {
     if (schema.type === "object") {
       assert.equal(schema.additionalProperties, false, path);
@@ -545,7 +553,7 @@ test("freelancers: their own tools only, writing tasks and requests where allowe
     if (schema.items) strict(schema.items, `${path}[]`);
   };
   for (const tool of listed) {
-    const writes = FREELANCER_WRITE.includes(tool.name);
+    const writes = FREELANCER_WRITE.includes(tool.name) || FREELANCER_NOTES_WRITE.includes(tool.name);
     assert.equal(tool.annotations.readOnlyHint, !writes, tool.name);
     assert.equal(tool.annotations.destructiveHint, writes, `${tool.name}: Claude asks before every change`);
     strict(tool.inputSchema, tool.name);
@@ -752,4 +760,73 @@ test("freelancers: writing goes through the board's and the request window's own
   const freelancer = await source("lib/hub-mcp/freelancer.ts");
   assert.ok(freelancer.indexOf("hasScope(connection.scopes, tool.scope)") < freelancer.indexOf("runFreelancerWrite("), "the right to write first");
   assert.match(freelancer, /if \(tool\.needs === "write"\) return runFreelancerWrite\(connection, name, args, context, client\);/);
+});
+
+/* ---------- Notes (since 23.11.2026): read and write pages through the notes' own code, with the person's claims ---------- */
+
+const notesTools = await import("../lib/hub-mcp/notes-tools.ts");
+
+test("notes: the team's tools and the freelancers' few, strict, every change asking first, the trash at most", () => {
+  const admin = notesTools.notesTools("admin");
+  assert.deepEqual(admin.map((tool) => tool.name), [...NOTES_READ, ...NOTES_WRITE]);
+  const freelancer = notesTools.notesTools("freelancer");
+  assert.deepEqual(freelancer.map((tool) => tool.name), [...FREELANCER_NOTES_READ, ...FREELANCER_NOTES_WRITE], "no release, notice, history, meeting note or trash for freelancers");
+  for (const tool of [...admin, ...freelancer]) {
+    const writes = tool.scope === "hub:write";
+    assert.equal(writes, NOTES_WRITE.includes(tool.name), tool.name);
+    assert.equal(tool.annotations.destructiveHint, writes, `${tool.name}: Claude asks before every change`);
+    assert.equal(typeof tool.description, "string", `${tool.name}: one text per role`);
+  }
+  // The freelancers' words: their pages are always „Nur Freelancer“, other pages they only read.
+  const create = freelancer.find((tool) => tool.name === "create_note");
+  assert.match(create.description, /immer „Nur Freelancer“/);
+  assert.match(freelancer.find((tool) => tool.name === "update_note").description, /Andere Seiten kannst du nur lesen/);
+  assert.match(admin.find((tool) => tool.name === "create_note").description, /set_note_visibility/);
+  // How Claude writes a page: Markdown and the hub's blocks as oalab: links on their own line.
+  assert.match(notesTools.NOTE_MARKDOWN_HELP, /oalab:task\/<project_id>\/<task_number>/);
+  assert.match(notesTools.NOTE_MARKDOWN_HELP, /"Linkkarte"/);
+  assert.match(create.description, /oalab:page\/<page_id>/);
+  // Replacing the content needs the version Claude read; adding does not.
+  const update = admin.find((tool) => tool.name === "update_note");
+  assert.deepEqual(update.inputSchema.properties.content_mode.enum, ["replace", "append", "prepend"]);
+  assert.match(update.description, /braucht dafür die version aus read_note/);
+  assert.deepEqual(admin.find((tool) => tool.name === "set_note_visibility").inputSchema.properties.audience.enum, ["team", "both", "customer", "freelancer"]);
+  assert.equal(tools.runHubTool("read_note", { page_id: ids.abc }, { origin, today: "2026-11-23", now: 0 }).isError, true, "the pure runner never reads notes");
+  assert.equal(freelancerTools.runFreelancerTool("read_note", { page_id: ids.abc }, { origin, today: "2026-11-23", now: 0 }).isError, true);
+  // The rights as the consent page and the profile card name them.
+  assert.match(config.scopeLabels["hub:read"], /Notizen/);
+  assert.match(config.scopeLabels["hub:write"], /Notizen anlegen und ändern, Notizen freigeben und in den Papierkorb legen/);
+  assert.match(config.freelancerScopeLabels["hub:write"], /eigene Notizseiten schreiben/);
+});
+
+test("notes: through the notes' own code with the person's claims, logged as claude.note.*, never deleting for good", async () => {
+  const notes = await source("lib/hub-mcp/notes.ts");
+  assert.match(notes, /^import "server-only";/);
+  assert.match(notes, /const claims = await connectorClaims\(connection\.userId\)/);
+  assert.match(notes, /session: createOwnClaimsClient\(claims\) as unknown as SupabaseClient,/);
+  assert.match(notes, /viewer: connection\.role === "admin" \? "admin" : "freelancer",/);
+  assert.match(notes, /via: "claude",/);
+  for (const core of ["createPageAs(", "savePageAs(", "setAudienceAs(", "notifyChangeAs(", "createMeetingNoteAs(", "trashPageAs(", "restorePageAs(", "restoreRevisionAs(", "searchNotesAs(", "noteHistoryAs(", "readPage(", "readPages(", "notesCustomers("]) {
+    assert.ok(notes.includes(core), core);
+  }
+  assert.doesNotMatch(notes, /purgePageAs|listTrashAs|\.delete\(|"use server"/, "no final delete, not even the trash's tidying");
+  // Replacing the content needs the version Claude read and never goes on over a newer page.
+  assert.match(notes, /if \(typeof args\.content === "string" && mode === "replace" && !explicit\) \{/);
+  assert.match(notes, /if \(!result\.ok && result\.stale && !explicit\) \{/);
+  // Blocks new on a page must belong to its customer and be visible to the person.
+  assert.match(notes, /const problem = await foreignBlocks\(ctx, customer, parsed\.doc, before, projectIds\);/);
+  assert.match(notes, /await logNoteEvent\(ctx, "note\.updated", "Notiz geändert", page\.customerId\);/);
+  // The notes' code logs Claude's changes as claude.note.*, and signs nothing for display without a browser.
+  const write = await source("lib/hub-notes/write.ts");
+  assert.match(write, /action: claude \? `claude\.\$\{action\}` : action/);
+  assert.match(write, /· über Claude\$\{ctx\.viewer === "freelancer" \? " \(Freelancer\)" : ""\}/);
+  const server = await source("lib/hub-notes/server.ts");
+  assert.match(server, /const logos = ctx\.via \? new Map<string, CustomerLogo>\(\) : await loadCustomerLogos\(/);
+  assert.match(server, /if \(ctx\.via\) return \{ \.\.\.cover, url: null \};/);
+  // Admins and freelancers reach the notes only after the right is checked, each with their own claims.
+  const admin = await source("lib/hub-mcp/server.ts");
+  assert.ok(admin.indexOf("hasScope(connection.scopes, tool.scope)") < admin.indexOf("runNotesTool("));
+  const freelancer = await source("lib/hub-mcp/freelancer.ts");
+  assert.ok(freelancer.indexOf("hasScope(connection.scopes, tool.scope)") < freelancer.indexOf("runNotesTool("));
+  assert.ok(freelancer.indexOf("runNotesTool(") < freelancer.indexOf("freelancerClient(connection.userId)"), "no board or calendar is loaded for notes");
 });

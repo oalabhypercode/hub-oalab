@@ -18,6 +18,7 @@ import { MAX_TITLE, PRIORITY_NAMES, STATUS_NAMES } from "../hub-tasks/rules";
 import type { BoardFreelancer, BoardPerson, BoardProject, BoardTask } from "../hub-tasks/types";
 import { matchesSearch } from "../table-tools";
 import type { HubScope } from "./config";
+import { notesTools } from "./notes-tools";
 import type { ToolDefinition, ToolResult } from "./protocol";
 import { MAX_FREE_DAYS, MAX_LIST_DAYS, readRange, TASK_FIELDS, TASK_REF, TASK_STATUS } from "./tools";
 
@@ -39,7 +40,7 @@ export type FreelancerAppointment = {
 export type FreelancerBoard = { viewerId: string; projects: BoardProject[]; tasks: BoardTask[]; people: BoardPerson[]; freelancers: BoardFreelancer[] };
 /** What the freelancer's calendar knows: oalab's availability, the booked times without details, their own requests. */
 export type FreelancerCalendar = { availability: Availability; availabilityReady: boolean; busy: Interval[]; own: FreelancerAppointment[] };
-export type FreelancerNeeds = "board" | "calendar" | "write";
+export type FreelancerNeeds = "board" | "calendar" | "write" | "notes";
 export type FreelancerContext = {
   origin: string;
   today: string;
@@ -289,6 +290,9 @@ const tools: FreelancerTool[] = [
     scope: "hub:write",
     needs: "write",
   },
+
+  // ---------- Notes (since 23.11.2026): released pages to read, own „Nur Freelancer“ pages to write (lib/hub-mcp/notes.ts) ----------
+  ...notesTools("freelancer").map((tool): FreelancerTool => ({ ...tool, needs: "notes" })),
 ];
 
 /** The tools a freelancer's connection with these rights sees, as tools/list sends them. */
@@ -305,8 +309,8 @@ export function freelancerInstructions(scopes: readonly string[]) {
   return [
     "Verbunden mit dem oalab Client Hub, mit den Rechten des Freelancers, der die Verbindung erlaubt hat: nur die Projekte, auf die ihn das oalab-Team gesetzt hat, die Kunden, die er betreut, und seine eigenen Terminanfragen.",
     writes
-      ? "Die Werkzeuge lesen diese Projekte mit ihren Aufgaben (ohne „Nur Team“), die Kunden ohne Kontaktdaten, die freien Zeiten von oalab und die eigenen Anfragen. Sie legen in diesen Projekten Aufgaben (mit Checkliste) an, ändern, verschieben und kommentieren sie und fragen Termine bei oalab an; löschen, archivieren oder für den Kunden freigeben können sie nichts."
-      : "Die Werkzeuge lesen diese Projekte mit ihren Aufgaben (ohne „Nur Team“), die Kunden ohne Kontaktdaten, die freien Zeiten von oalab und die eigenen Anfragen. Schreiben, löschen oder archivieren können sie nichts.",
+      ? "Die Werkzeuge lesen diese Projekte mit ihren Aufgaben (ohne „Nur Team“), die Kunden ohne Kontaktdaten, die freien Zeiten von oalab, die eigenen Anfragen und die Notizseiten der Kunden, die oalab für Freelancer freigegeben hat (als Markdown). Sie legen in diesen Projekten Aufgaben (mit Checkliste) an, ändern, verschieben und kommentieren sie, fragen Termine bei oalab an und schreiben eigene Notizseiten („Nur Freelancer“: das oalab-Team sieht sie, der Kunde nicht); löschen, archivieren oder für den Kunden freigeben können sie nichts."
+      : "Die Werkzeuge lesen diese Projekte mit ihren Aufgaben (ohne „Nur Team“), die Kunden ohne Kontaktdaten, die freien Zeiten von oalab, die eigenen Anfragen und die für Freelancer freigegebenen Notizseiten. Schreiben, löschen oder archivieren können sie nichts.",
     ...(writes ? ["Jede Änderung gilt sofort im Hub, so als hätte der Freelancer sie dort gespeichert, und das oalab-Team sieht sie. Sag vor dem Schreiben kurz, was du eintragen willst."] : []),
     writes
       ? "Termine trägt nur das oalab-Team ein: request_appointment schickt eine Anfrage, die das Team bestätigt oder ablehnt. Prüfe eine Zeit vorher mit find_free_slots oder check_request_time."
@@ -579,6 +583,7 @@ export function runFreelancerTool(name: string, args: Json, context: FreelancerC
   const tool = freelancerToolOf(name);
   if (!tool) return null;
   if (tool.needs === "write") return refuse("Dieses Werkzeug schreibt und läuft nur auf dem Server des Hubs.");
+  if (tool.needs === "notes") return refuse("Die Notizen laufen nur auf dem Server des Hubs.");
   if (tool.needs === "calendar") {
     if (!context.calendar) return refuse("Der Kalender konnte gerade nicht geladen werden. Bitte versuche es erneut.");
     return runCalendarTool(name, args, context, context.calendar);

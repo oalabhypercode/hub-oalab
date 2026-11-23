@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyHubAdmin, verifyHubFreelancer } from "@/lib/hub-users/server";
 import { loadArchive } from "@/lib/hub-archive/server";
 import { loadCustomerLogos, signCustomerLogos } from "@/lib/hub-logos/server";
+import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { loadFreelancerCustomerList } from "@/lib/hub-freelancer-customers/list";
 import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
@@ -47,7 +48,12 @@ export type PageRow = {
   content?: unknown;
 };
 
-export type NotesContext = { viewer: NoteViewer; userId: string; session: SupabaseClient; db: SupabaseClient | null };
+/**
+ * Who works on notes, with which session. `via: "claude"` is the Claude connector (lib/hub-mcp/notes.ts): its session
+ * carries the person's claims without a browser, so nothing is signed for display (logos, covers), and the admin log
+ * says that the change came through Claude.
+ */
+export type NotesContext = { viewer: NoteViewer; userId: string; session: SupabaseClient; db: SupabaseClient | null; via?: "claude" };
 
 /** The table or a column of the notes migration is missing. */
 export const notesMissing = (error: { code?: string; message?: string } | null | undefined) =>
@@ -132,14 +138,14 @@ export async function notesCustomers(ctx: NotesContext): Promise<Listed[] | null
     ]);
     if (rows.error) return null;
     const shown = (rows.data ?? []).filter((row) => !archive.customerIds.has(row.id));
-    const logos = await loadCustomerLogos(ctx.session, shown.map((row) => row.id));
+    const logos = ctx.via ? new Map<string, CustomerLogo>() : await loadCustomerLogos(ctx.session, shown.map((row) => row.id));
     const served = new Set((links.error ? [] : links.data ?? []).filter((link) => !archive.customerIds.has(link.freelancer_id)).map((link) => link.customer_id));
     return shown.map((row) => ({ id: row.id, name: row.company, number: row.customer_number, organizationId: row.organization_id ?? null, hasFreelancer: served.has(row.id), ...(logos.get(row.id) ? { logo: logos.get(row.id) } : {}) }));
   }
   if (ctx.viewer === "freelancer") {
     const listed = await loadFreelancerCustomerList(ctx.session);
     const rows: CustomerRow[] = listed ?? (await ctx.session.from("hub_customers").select("id, company, customer_number, organization_id, kind").eq("kind", "customer").returns<CustomerRow[]>()).data ?? [];
-    const logos = await signCustomerLogos(ctx.session, rows.map((row) => ({ id: row.id, logo_path: row.logo_path ?? null, logo_background: row.logo_background ?? null, logo_color: row.logo_color ?? null })));
+    const logos = ctx.via ? new Map<string, CustomerLogo>() : await signCustomerLogos(ctx.session, rows.map((row) => ({ id: row.id, logo_path: row.logo_path ?? null, logo_background: row.logo_background ?? null, logo_color: row.logo_color ?? null })));
     return rows
       .map((row) => ({ id: row.id, name: row.company, number: row.customer_number, organizationId: row.organization_id ?? null, hasFreelancer: true, ...(logos.get(row.id) ? { logo: logos.get(row.id) } : {}) }))
       .sort((a, b) => a.name.localeCompare(b.name, "de"));
@@ -207,6 +213,8 @@ export async function readPage(ctx: NotesContext, id: string, withRefs = true): 
  */
 export async function signCover(ctx: NotesContext, cover: NoteCover | null): Promise<NoteCover | null> {
   if (!cover || cover.kind === "gallery") return cover;
+  // Claude reads no pictures: no link is signed for it.
+  if (ctx.via) return { ...cover, url: null };
   if (cover.kind === "upload") {
     const signed = ctx.db ? await ctx.db.storage.from(HUB_FILES_BUCKET).createSignedUrl(cover.value, 60 * 60) : null;
     return { ...cover, url: signed?.data?.signedUrl ?? null };
