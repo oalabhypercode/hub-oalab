@@ -9,6 +9,7 @@ import { appointmentNotice, chatNotice, fileNotice, noteNotice, taskNotice, task
 import type { InboxItem } from "@/lib/hub-notify/server";
 import { categories } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
+import { noticeSymbol } from "./notice-symbols";
 
 function symbolOf(kind: string): { icon: LucideIcon; color: string } {
   if (kind === "task.customer" || kind === "task.created" || kind === "task.changed") return { icon: ListTodo, color: categories.projects.fill };
@@ -18,12 +19,14 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
   if (kind === "share.granted") return { icon: Building2, color: "var(--accent-text)" };
   if (kind === "note.shared" || kind === "note.changed") return { icon: NotebookPen, color: categories.projects.fill };
   if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill };
-  return { icon: CalendarDays, color: categories.calendar.fill };
+  if (kind.startsWith("appointment.")) return { icon: CalendarDays, color: categories.calendar.fill };
+  // Newer kinds, as the team's lines about service requests and edited notes (23.11.2026), wear the overview's symbol.
+  return noticeSymbol(kind);
 }
 
 /** What the empty bell promises, per role. */
 const EMPTY_TEXT = {
-  admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt oder ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert.",
+  admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt oder auf der Serviceplattform eine Anfrage stellt, ein Kunde oder Freelancer in einer Notiz mitschreibt oder ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert.",
   freelancer: "Hier erscheint, wenn jemand eine Aufgabe in deinen Projekten anlegt, ändert oder kommentiert, eine Datei für dich dazukommt oder oalab dir bei einem Kunden etwas freigibt.",
   customer: "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe für dich dazukommt, sich ändert oder bei dir liegt, sich ein Projekt ändert oder eine Datei oder ein Termin für dich dazukommt.",
 };

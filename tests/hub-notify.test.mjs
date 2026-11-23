@@ -790,6 +790,9 @@ test("the bell lists only unread lines; a tick, opening or „Alle als gelesen m
   // The preview stores nothing, and its bell counts from its own „now“.
   assert.match(panel, /if \(preview\) return;\n    setBusy\(true\);/);
   assert.match(panel, /const now = preview \? PREVIEW_NOW : clock;/);
+  // Newer kinds (the team's lines about service requests and edited notes) wear the overview's symbol, never the calendar.
+  assert.match(panel, /import \{ noticeSymbol \} from "\.\/notice-symbols";/);
+  assert.match(panel, /if \(kind\.startsWith\("appointment\."\)\) return \{ icon: CalendarDays, color: categories\.calendar\.fill \};\n  \/\/ [^\n]*\n  return noticeSymbol\(kind\);\n\}/);
   const actions = await source("lib/hub-notify/actions.ts");
   assert.match(actions, /export async function markNoticesUnread\(ids: number\[\]\)/);
   assert.match(actions, /update\(\{ read_at: null \}\)\.eq\("user_id", session\.userId\)\.in\("id", list\)/);
