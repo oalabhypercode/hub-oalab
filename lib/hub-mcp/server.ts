@@ -14,6 +14,7 @@ import { calendarRange, hubLinks, runHubTool, toolOf, type CalendarAppointment, 
 import { runWriteTool } from "./writes";
 import { callFreelancerTool } from "./freelancer";
 import { runNotesTool } from "./notes";
+import { runAreaTool } from "./areas";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -132,6 +133,8 @@ export async function callHubTool(connection: Connection, name: string, args: Re
   // Notes read and write with the admin's own claims, through the notes' own code (lib/hub-mcp/notes.ts).
   if (tool.needs === "notes") return runNotesTool(connection, name, args, origin);
   if (tool.needs === "task") return readTaskForAdmin(args, origin);
+  // The rest of the hub (stage 3), read with the server key after the key check; never passwords or codes.
+  if (tool.needs === "areas") return runAreaTool(connection, name, args, origin);
   if (tool.needs === "assistant") {
     context.assistant = (await loadAssistantDataForCheckedAdmin()) ?? undefined;
     // Who can take a task (assignee_ids) and which freelancers may be put on the project: only where Claude may write.

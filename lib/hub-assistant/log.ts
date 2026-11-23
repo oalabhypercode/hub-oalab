@@ -30,9 +30,14 @@ export async function loadAssistantLog(): Promise<AssistantLogState> {
   if (!await verifyHubAdmin()) return { rows: [], error: "Das KI-Protokoll sehen nur Admins." };
   const db = createAdminClient();
   if (!db) return { rows: [], error: "Das KI-Protokoll ist noch nicht eingerichtet: Es fehlt der Server-Schlüssel (SUPABASE_SECRET_KEY)." };
+  return readAssistantLog(db);
+}
+
+/** The latest proposals for a caller already checked as an admin (the page above, the Claude connector), newest first. */
+export async function readAssistantLog(db: NonNullable<ReturnType<typeof createAdminClient>>, limit = 500): Promise<AssistantLogState> {
   const { data, error } = await db.from("hub_assistant_actions")
     .select("id, actor_id, kind, status, project_id, payload, result, error_code, created_at, decided_at, expires_at")
-    .order("created_at", { ascending: false }).limit(500).returns<ActionRow[]>();
+    .order("created_at", { ascending: false }).limit(limit).returns<ActionRow[]>();
   if (error) return { rows: [], error: "Das KI-Protokoll konnte gerade nicht geladen werden. Bitte versuche es erneut." };
   const rows = data ?? [];
   const actorIds = [...new Set(rows.map((row) => row.actor_id))];
