@@ -138,17 +138,20 @@ function TilePicture({ file, live }: { file: HubStoredFile; live: boolean }) {
   const clear = mayBeClear(file.fileName);
   const [state, setState] = useState<"loading" | "shown" | "failed">("loading");
   const [ground, setGround] = useState<LogoBackground | null>(null);
+  // A preview the server could not make right then (busy with many at once) is asked for once more a moment later.
+  const [retry, setRetry] = useState(false);
   if (source && state !== "failed") {
+    const src = retry && !file.sampleHref ? `${source}&retry=1` : source;
     return (
       <span className={`at-thumb is-image${clear ? (ground === "dark" ? " is-dark" : " is-clear") : " is-photo"}${state === "loading" ? " is-loading" : ""}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- a preview the hub made itself, nothing to optimise */}
-        <img src={source} alt="" loading="lazy" decoding="async" draggable={false}
+        <img src={src} alt="" loading="lazy" decoding="async" draggable={false}
           onLoad={(event) => {
             setState("shown");
-            const shown = event.currentTarget.currentSrc || source;
+            const shown = event.currentTarget.currentSrc || src;
             if (clear) detectLogoGround(shown).then(setGround);
           }}
-          onError={() => setState("failed")} />
+          onError={() => { if (retry || file.sampleHref) setState("failed"); else window.setTimeout(() => setRetry(true), 2500); }} />
         <span className="at-format">{fileFormat(file.fileName)}</span>
       </span>
     );
