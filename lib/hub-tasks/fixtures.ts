@@ -47,6 +47,10 @@ const seeds: Seed[] = [
   [1062, "Reels: Schnitt für Woche 1", "progress", "brand", ["Design"], "high", 3, ["p-lea"]],
   [1063, "Posting-Texte KW 48", "review", "brand", ["Text"], "medium", 2, ["p-sam"], { visible: true }],
   [1065, "Kampagnen-Idee präsentiert", "done", "brand", ["Konzept"], "none", null, ["p-jonas"]],
+  // oalab's own project (plan „oalab als Unternehmen“): internal, no customer sees it.
+  [1071, "Leistungsseite der eigenen Website überarbeiten", "todo", "intern", ["Text"], "medium", 6, ["p-lea"]],
+  [1072, "Vorlagen für Angebote vereinheitlichen", "progress", "intern", ["Konzept"], "low", 9, ["p-jonas"], { comments: 1 }],
+  [1073, "Einarbeitung neuer Kollegen aufschreiben", "backlog", "intern", ["Text"], "none", null, []],
 ];
 
 /**
@@ -57,6 +61,7 @@ export function taskFixtures(asOf: string, viewer: TaskBoardState["viewer"] = "a
   const projects: BoardProject[] = [
     { id: "web", name: "Ein neuer digitaler Auftritt.", organizationId: "org-preview", company: "Sommer Studio", startedOn: addDays(asOf, -40), dueOn: addDays(asOf, 15), status: "active", freelancerIds: ["fl-pixelwerk"] },
     { id: "brand", name: "Eine Marke. Ein Gefühl.", organizationId: "org-preview", company: "Sommer Studio", startedOn: addDays(asOf, -30), dueOn: addDays(asOf, 8), status: "active", freelancerIds: [] },
+    { id: "intern", name: "Abläufe im Team", organizationId: "org-oalab", company: "oalab", startedOn: addDays(asOf, -10), dueOn: addDays(asOf, 20), status: "active", freelancerIds: [], internal: true },
   ];
   const order = new Map<string, number>();
   const tasks: BoardTask[] = seeds.map(([number, title, status, projectId, labels, priority, due, assigneeIds, extra = {}]) => {

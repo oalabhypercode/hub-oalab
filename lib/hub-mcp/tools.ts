@@ -362,7 +362,7 @@ const tools: HubTool[] = [
   {
     name: "create_project",
     title: "Projekt anlegen",
-    description: "Legt für einen Kunden ein neues Projekt an, wie „Neues Projekt“ auf der Projektseite: Name, dazu nach Wunsch Status (ohne Angabe „Planung“), Beschreibung, Start, Zieltermin, Meilensteine, Test- und Live-Domain und ob der Kunde das Projekt sieht (ohne Angabe nicht). Geht nur für Kunden mit aktiver Organisation auf der Serviceplattform.",
+    description: "Legt für einen Kunden ein neues Projekt an, wie „Neues Projekt“ auf der Projektseite: Name, dazu nach Wunsch Status (ohne Angabe „Planung“), Beschreibung, Start, Zieltermin, Meilensteine, Test- und Live-Domain und ob der Kunde das Projekt sieht (ohne Angabe nicht). Geht nur für Kunden mit aktiver Organisation auf der Serviceplattform. Für oalab selbst (in search mit internal: true) entsteht ein internes Projekt, das nur das oalab-Team sieht; visible gilt dort nicht.",
     inputSchema: {
       type: "object",
       properties: {

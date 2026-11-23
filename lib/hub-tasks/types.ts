@@ -44,6 +44,8 @@ export type BoardProject = {
   status: string;
   /** Freelancers working on the project (studio_project_freelancers): they see it and every task except „Nur Team“. */
   freelancerIds: string[];
+  /** A project of oalab itself (its organization is the oalab one, plan „oalab als Unternehmen“): no customer sees it. */
+  internal?: boolean;
 };
 
 export type BoardTask = {

@@ -70,6 +70,8 @@ export async function entryOf(db: Db, customerId: unknown, kinds: "any" | "custo
     readArchive(db),
   ]);
   if (!data || isArchivedCustomer(archive, data.id) || isArchivedOrganization(archive, data.organization_id)) return null;
+  // oalab's own entry (kind team) has no contract, contacts, files or chat in stage 1 of the plan „oalab als Unternehmen“.
+  if (data.kind === "team") return null;
   return kinds === "customers" && (data.kind ?? "customer") !== "customer" ? null : data;
 }
 

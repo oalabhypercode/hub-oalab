@@ -25,6 +25,8 @@ import { CLAUDE_SWITCH, FREELANCER_CONNECTION_DAYS } from "@/lib/hub-mcp/config"
 import { connectorReady, disconnect, disconnectAll, listConnections, type ConnectionView } from "@/lib/hub-mcp/store";
 import { readEntriesWithoutActiveLogin } from "./deactivated";
 import { endFeedsOf, feedReady } from "@/lib/hub-calendar/feed-store";
+import { isTeamKind } from "@/lib/hub-team/rules";
+import { changeTeamRole, type TeamRoleChange } from "@/lib/hub-team/server";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
 // considers them an active admin before the service role touches anything. Inputs are validated here again,
@@ -124,11 +126,30 @@ function readChoice(value: unknown): CustomerChoice | null {
 
 type ResolvedCustomer = { customerId: string | null; customerNumber: string | null; company: string | null; organizationId: string | null; created: boolean };
 
-/** The kind of an entry; "customer" while the freelancer migration is missing (the column is not there yet). */
+/**
+ * The kind of an entry; "customer" while the freelancer migration is missing (the column is not there yet). Null for
+ * oalab's own entry (kind "team"): it is neither, so no action for customers or freelancers applies to it.
+ */
 async function kindOf(ctx: Context, customerId: string): Promise<CustomerKind | null> {
   const { data, error } = await ctx.db.from("hub_customers").select("kind").eq("id", customerId).maybeSingle<{ kind: string }>();
   if (error) return error.code === "42703" ? "customer" : null;
-  return data ? (isCustomerKind(data.kind) ? data.kind : "customer") : null;
+  if (!data || isTeamKind(data.kind)) return null;
+  return isCustomerKind(data.kind) ? data.kind : "customer";
+}
+
+/**
+ * The team role in Studio („Darf Projekte und Aufgaben bearbeiten“, plan „oalab als Unternehmen“, decision 4): given,
+ * taken, paused and resumed with the login (lib/hub-team/server.ts) and logged. Higher roles stay the service platform's.
+ * Returns the error text of a failed change, null otherwise.
+ */
+async function teamRole(ctx: Context, userId: string, change: TeamRoleChange): Promise<string | null> {
+  const result = await changeTeamRole(ctx.db, userId, change, ctx.actorId).catch(() => ({ ok: false as const, error: "Die Team-Rolle konnte gerade nicht geändert werden." }));
+  if (!result.ok) return result.error;
+  if (result.changed) {
+    const summary = { grant: "Team-Rolle im Studio vergeben (Projekte und Aufgaben)", revoke: "Team-Rolle im Studio entzogen", pause: "Team-Rolle im Studio ruht", resume: "Team-Rolle im Studio gilt wieder" }[change];
+    await log(ctx, `user.team_role_${change}`, summary, { userId });
+  }
+  return null;
 }
 
 const pickMessage = (kind: CustomerKind) => kind === "freelancer" ? "Bitte einen Freelancer auswählen oder neu anlegen." : "Bitte einen Kunden auswählen oder neu anlegen.";
@@ -368,7 +389,7 @@ export async function rejectRegistration(input: { userId: string; note: string }
 // Logins -------------------------------------------------------------------------------------------------------------
 
 /** Creates a login with role and customer; returns the activation link and, if asked for, mails it to the login. */
-export async function createHubUser(input: { email: string; firstName: string; lastName: string; phone: string; position: string; role: string; customer: unknown; mailLink?: boolean }): Promise<ActionResult<{ userId: string; link: string; mail: MailStatus | null }>> {
+export async function createHubUser(input: { email: string; firstName: string; lastName: string; phone: string; position: string; role: string; customer: unknown; mailLink?: boolean; teamRole?: boolean }): Promise<ActionResult<{ userId: string; link: string; mail: MailStatus | null; teamRole: string | null }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const email = cleanEmail(input?.email);
@@ -385,9 +406,11 @@ export async function createHubUser(input: { email: string; firstName: string; l
   const { user, link, customerId } = added.data;
   if (!link) return failed("Der Zugang konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
   await log(ctx, "user.created", `Zugang angelegt als ${roleLabels[role]}`, { userId: user.id, customerId });
+  // A new admin who may work on projects and tasks gets Studio's team role right away; a failure leaves the login as it is.
+  const teamRoleError = role === "oalab_admin" && input.teamRole === true ? await teamRole(ctx, user.id, "grant") : null;
   const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true, validUntil: activationUntil() }) : null;
   refreshWorkspace();
-  return { ok: true, data: { userId: user.id, link, mail } };
+  return { ok: true, data: { userId: user.id, link, mail, teamRole: teamRoleError } };
 }
 
 /**
@@ -650,6 +673,8 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
   if (!done) return failed("Die Änderungen konnten nicht vollständig gespeichert werden. Bitte prüfe den Zugang.");
   await log(ctx, "user.updated", roleChanged ? `Zugang bearbeitet, Rolle jetzt ${roleLabels[role]}` : "Zugang bearbeitet", { userId: user.id, customerId: customer.data.customerId });
   if (roleChanged) await endCalendarFeed(ctx, user.id, "Rolle geändert");
+  // No longer an admin: the team role the hub gave goes too (a role from the service platform stays there).
+  if (roleChanged && role !== "oalab_admin") await teamRole(ctx, user.id, "revoke");
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -707,6 +732,8 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
   if (!banned) return failed(active ? "Der Zugang konnte nicht aktiviert werden." : "Der Zugang konnte nicht vollständig deaktiviert werden. Bitte erneut versuchen.");
   await log(ctx, active ? "user.reactivated" : "user.deactivated", active ? "Zugang wieder aktiviert" : "Zugang deaktiviert", { userId: user.id });
   if (!active) await endCalendarFeed(ctx, user.id, "Zugang deaktiviert");
+  // The team role the hub gave rests with the login and comes back with it.
+  await teamRole(ctx, user.id, active ? "resume" : "pause");
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -736,6 +763,27 @@ export async function setHubUserSecondFactor(input: { userId: string; choice: "o
   const summary = choice === "email" ? "Zwei-Faktor-Schutz: Code per E-Mail" : "Zwei-Faktor-Schutz ausgeschaltet";
   await log(ctx, choice === "email" ? "user.second_factor_email" : "user.second_factor_off", apps.length ? `${summary}, Authenticator-App entfernt` : summary, { userId: user.id });
   await endCalendarFeed(ctx, user.id, "zweiter Faktor zurückgesetzt");
+  refreshWorkspace();
+  return { ok: true, data: null };
+}
+
+/**
+ * „Projekte und Aufgaben“ at an admin's login (plan „oalab als Unternehmen“, decision 4): on gives Studio's smallest team
+ * role, Operator, in the oalab organization, so the admin writes projects and tasks; with it they also work on requests
+ * on the service platform. Off takes it. Roles given on the service platform are changed there only. An admin cannot
+ * take their own, so nobody locks themself out of the board.
+ */
+export async function setHubUserTeamRole(input: { userId: string; on: boolean }): Promise<ActionResult<null>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (roleOf(user) !== "oalab_admin") return failed("Projekte und Aufgaben bearbeitet das oalab-Team: Das gibt es nur für Admins.");
+  if (typeof input?.on !== "boolean") return failed("Bitte an oder aus wählen.");
+  if (!input.on && user.id === ctx.actorId) return failed("Deine eigene Team-Rolle kannst du nicht abschalten.");
+  if (input.on && await profileStatus(ctx, user.id) !== "active") return failed("Erst den Zugang wieder aktivieren; dann gilt die Team-Rolle.");
+  const error = await teamRole(ctx, user.id, input.on ? "grant" : "revoke");
+  if (error) return failed(error);
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -843,7 +891,9 @@ export async function saveCustomer(input: { id?: string; freelancerIds?: unknown
 
   const current = await ctx.db.from("hub_customers").select("organization_id").eq("id", id).maybeSingle<{ organization_id: string | null }>();
   if (current.error || !current.data) return failed("Diesen Kunden gibt es nicht mehr.");
-  if (await kindOf(ctx, id) === "freelancer") return failed("Das ist ein Freelancer. Bitte über „Freelancer“ bearbeiten.");
+  const kind = await kindOf(ctx, id);
+  if (!kind) return failed("Diesen Kunden gibt es nicht mehr.");
+  if (kind === "freelancer") return failed("Das ist ein Freelancer. Bitte über „Freelancer“ bearbeiten.");
   const written = await writeCustomer(ctx, id, current.data.organization_id, customer.value);
   if (!written.ok) return written;
   const data = written.data;
@@ -975,8 +1025,10 @@ type Entry = { id: string; kind: CustomerKind; customerNumber: string; organizat
 async function loadEntry(ctx: Context, customerId: unknown): Promise<Entry | null> {
   if (typeof customerId !== "string" || !uuid.test(customerId)) return null;
   const { data } = await ctx.db.from("hub_customers").select("id, customer_number, organization_id").eq("id", customerId).maybeSingle<{ id: string; customer_number: string; organization_id: string | null }>();
-  if (!data) return null;
-  return { id: data.id, kind: await kindOf(ctx, data.id) ?? "customer", customerNumber: data.customer_number, organizationId: data.organization_id };
+  // oalab's own entry is never archived or deleted (the database refuses it too: it would archive the oalab organization).
+  const kind = data ? await kindOf(ctx, data.id) : null;
+  if (!data || !kind) return null;
+  return { id: data.id, kind, customerNumber: data.customer_number, organizationId: data.organization_id };
 }
 
 const entryWord = (entry: Entry) => entry.kind === "freelancer" ? "Freelancer" : "Kunde";

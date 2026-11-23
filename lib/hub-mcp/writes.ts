@@ -89,6 +89,13 @@ async function customerOf(w: Writer, customerId: string | null) {
   return data && (data.kind ?? "customer") === "customer" && !isArchivedCustomer(archive, data.id) ? data : null;
 }
 
+/** Whether the id is oalab's own entry (kind team): internal projects go there. */
+async function teamEntryOf(w: Writer, customerId: string | null) {
+  if (!customerId || !uuid.test(customerId)) return false;
+  const { data } = await w.db.from("hub_customers").select("kind").eq("id", customerId).maybeSingle<{ kind: string | null }>();
+  return data?.kind === "team";
+}
+
 type StoredRow = { id: string; title: string; description: string; starts_at: string; ends_at: string; status: string; teams_url: string | null; customer_id: string | null };
 
 /** An appointment as stored; one of an archived customer counts as gone, as in the hub's calendar. */
@@ -335,15 +342,17 @@ async function addTaskComment(w: Writer, args: Json): Promise<ToolResult> {
 async function createProject(w: Writer, args: Json): Promise<ToolResult> {
   const read = readNewProject(args);
   if (!read.ok) return refuse(read.error);
-  if (!(await customerOf(w, read.value.customerId))) return refuse(noCustomer);
+  // A customer, or oalab's own entry for an internal project (plan „oalab als Unternehmen“).
+  const internal = await teamEntryOf(w, read.value.customerId);
+  if (!internal && !(await customerOf(w, read.value.customerId))) return refuse(noCustomer);
   const team: ProjectTeam = { userId: w.userId, supabase: w.supabase as unknown as ProjectTeam["supabase"], db: w.db };
   // createProjectAs writes the admin log line itself (claude.project.created).
   const result = await createProjectAs(team, { customerId: read.value.customerId, status: read.value.status, visible: read.value.visible, draft: read.value.draft }, "claude");
   if (!result.ok) return refuse(result.error);
-  const visible = read.value.visible === true;
+  const visible = !internal && read.value.visible === true;
   return json({
     saved: true,
-    message: `Projekt „${result.data.name}“ ist angelegt. ${visible ? "Der Kunde sieht es in seinem Hub." : "Der Kunde sieht es noch nicht."}`,
+    message: internal ? `Internes Projekt „${result.data.name}“ ist angelegt. Nur das oalab-Team sieht es.` : `Projekt „${result.data.name}“ ist angelegt. ${visible ? "Der Kunde sieht es in seinem Hub." : "Der Kunde sieht es noch nicht."}`,
     project: { project_id: result.data.id, name: result.data.name, link: hubLinks(w.origin).project(result.data.id) },
   });
 }

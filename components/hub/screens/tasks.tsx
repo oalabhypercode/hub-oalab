@@ -21,7 +21,7 @@ import { SheetActionMenu, SheetFooter, ToolbarMenu, SheetToolbar } from "../shee
 import { FilterSelect } from "../table-tools";
 import { useTaskDrag, type DragOver } from "./tasks-drag";
 import { NewTaskPanel, TaskPanel, type AudienceView } from "./tasks-panel";
-import { CompanyMark } from "./tasks-parts";
+import { CompanyMark, projectGroup } from "./tasks-parts";
 import { ProjectPeople } from "./tasks-people";
 import { TaskBoard, TaskList, type TaskViewProps } from "./tasks-views";
 
@@ -95,7 +95,7 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   const othersOn = useCallback((id: string) => projectFreelancerLogins(projects.get(id), source.freelancers).filter((login) => login !== source.viewerId).map((login) => people.get(login)?.name.split(" ")[0] ?? "").filter(Boolean), [projects, source.freelancers, source.viewerId, people]);
   const audienceFor = useCallback((id: string, audience: TaskAudience): AudienceView => freelancerView
     ? { mode: "text", text: audienceText(audience, othersOn(id)) }
-    : { mode: "choose", hasFreelancers: Boolean(projects.get(id)?.freelancerIds.length) }, [freelancerView, othersOn, projects]);
+    : { mode: "choose", hasFreelancers: Boolean(projects.get(id)?.freelancerIds.length), internal: Boolean(projects.get(id)?.internal) }, [freelancerView, othersOn, projects]);
 
   // Project from the address (shareable), else the last one in this browser, else the first running project.
   const [lastProject, setLastProject] = useStoredValue(PROJECT_KEY, "");
@@ -331,7 +331,7 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
   const assigned = [...new Set(projectTasks.flatMap((task) => task.assigneeIds))];
   const projectOptions = [
     { value: ALL, label: "Alle Projekte", lead: <span className="kb-mark is-m is-all"><LayoutGrid size={13} aria-hidden="true" /></span>, meta: `${tasks.filter((task) => task.status !== "done").length} offen` },
-    ...projectList.map((item) => ({ value: item.id, label: item.name, group: item.company || "Ohne Kunde", lead: <CompanyMark company={item.company} size="m" />, meta: item.status === "complete" ? "abgeschlossen" : `${tasks.filter((task) => task.projectId === item.id && task.status !== "done").length} offen` })),
+    ...projectList.map((item) => ({ value: item.id, label: item.name, group: projectGroup(item), lead: <CompanyMark company={item.company} size="m" />, meta: item.status === "complete" ? "abgeschlossen" : `${tasks.filter((task) => task.projectId === item.id && task.status !== "done").length} offen` })),
   ];
   const assigneeOptions: { value: AssigneeFilter; label: string }[] = [{ value: "all", label: "Alle" }, { value: "me", label: "Mir zugewiesen" }, { value: "team", label: "Mit Zuständigen" }, { value: "none", label: "Niemand zugewiesen" }];
   const dueOptions: { value: DueFilter; label: string }[] = [{ value: "all", label: "Alle Termine" }, { value: "overdue", label: "Überfällig" }, { value: "week", label: "Diese Woche fällig" }, { value: "none", label: "Ohne Datum" }];
@@ -387,7 +387,7 @@ export function TasksScreen({ board, preview, asOf }: { board: TaskBoardState | 
               {project ? <CompanyMark company={project.company} /> : <span className="kb-mark is-all" aria-hidden="true"><LayoutGrid size={18} /></span>}
               <span className="kb-project-text">
                 <Select variant="bare" chevron label="Projekt" value={projectId} onChange={chooseProject} options={projectOptions} search className="kb-project-select" searchPlaceholder="Projekt oder Kunde" />
-                <span className="kb-project-sub">{project ? `${project.company} · ${projectTasks.length} ${projectTasks.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${projectList.length} ${projectList.length === 1 ? "Projekt" : "Projekte"} · ${projectTasks.length} Aufgaben`}</span>
+                <span className="kb-project-sub">{project ? `${projectGroup(project)} · ${projectTasks.length} ${projectTasks.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${projectList.length} ${projectList.length === 1 ? "Projekt" : "Projekte"} · ${projectTasks.length} Aufgaben`}</span>
               </span>
             </div>
             <div className="kb-project-stats">
