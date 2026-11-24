@@ -704,6 +704,66 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .chat-pick button > span:not(.chat-avatar) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .chat-pick strong { font-size: 16px; font-weight: 600; color: var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-pick small { font-size: 13px; color: var(--label-secondary); }
+/* Cards in the chat (24.11.2026, plan „Änderungen im Chat mitteilen“ 3.4): a change as a card, neutral on both sides
+   like an incoming message, with the symbol and colour its area has in the bell; grey lines for subscriptions. */
+.chat-msg.is-card { max-width: min(78%, 440px); }
+.chat-bubble.is-card, .chat-msg.is-out .chat-bubble.is-card { padding: 12px 14px 9px; background: var(--sheet); color: var(--label-body); box-shadow: 0 0 0 1px var(--sheet-line), 0 1px 2px rgba(30, 25, 28, 0.06); }
+.chat-msg.is-out .chat-bubble.is-card .chat-meta { color: var(--sheet-muted); }
+.chat-card { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: start; }
+.chat-card-symbol { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
+.chat-card-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; }
+.chat-card-head strong { font-size: 14.5px; line-height: 20px; font-weight: 700; color: var(--label); }
+.chat-card-subject { margin: 0; font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
+.chat-card-line { margin: 0; font-size: 13px; line-height: 18px; color: var(--sheet-muted); overflow-wrap: anywhere; }
+.chat-card-actions, .chat-card-calendar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chat-card-action { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 13px; border-radius: 999px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font-size: 13px; font-weight: 600; text-decoration: none; transition: transform var(--duration) var(--ease-spring), background 150ms ease; }
+.chat-card-action:hover { background: var(--sheet-hover); }
+.chat-card-action:active { transform: scale(0.96); }
+.chat-card-action.is-primary { background: var(--accent-text); box-shadow: none; color: var(--on-accent); }
+.chat-card-action.is-primary:hover { background: var(--accent-text); filter: brightness(1.08); }
+.chat-card-action:disabled { opacity: 0.55; cursor: default; }
+.chat-card-action[aria-expanded="true"] { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); color: var(--accent-text); }
+.chat-system.is-event { gap: 8px; color: var(--sheet-muted); }
+.chat-system.is-event time { font-variant-numeric: tabular-nums; }
+.chat-system.is-event time::before { content: "· "; }
+/* „Abos“ (24.11.2026, plan 3.5): a round button left of „Privat“ and its window „Im Chat mitteilen“ in glass, like the
+   bell's; on phones a sheet from the bottom. */
+.chat-pane-head { position: relative; }
+.chat-abo-button { width: 36px; height: 36px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); transition: transform var(--duration) var(--ease-spring), background 150ms ease; }
+.chat-abo-button:hover { background: var(--sheet-hover); transform: scale(1.06); }
+.chat-abo-button:active { transform: scale(0.94); }
+.chat-abo-button[aria-expanded="true"] { background: rgb(var(--accent-rgb) / calc(0.12 * var(--tint-k))); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.25); color: var(--accent-text); }
+.chat-abos { width: min(396px, calc(100vw - 16px)); padding: 14px 16px 12px; border-radius: 26px; font-size: 14px; text-align: left; }
+.chat-abos[popover] { position: fixed; inset: auto; margin: 0; overflow: visible; }
+.chat-abos[popover]:popover-open { animation: chat-abos-in 0.5s var(--ease-spring); transform-origin: var(--abos-origin, 90%) -8px; }
+@keyframes chat-abos-in { from { opacity: 0; transform: translateY(-6px) scale(0.94); } }
+.chat-abos.is-inline { position: absolute; z-index: 40; top: calc(100% + 8px); right: 12px; }
+.chat-abos-grab { display: none; }
+.chat-abos-head { display: flex; align-items: center; gap: 8px; }
+.chat-abos-head strong { flex: 1; font-size: 16px; line-height: 21px; font-weight: 700; color: var(--label); }
+.chat-abos-close { width: 30px; height: 30px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--label-secondary); }
+.chat-abos-close:hover { background: var(--fill-tertiary); color: var(--label); }
+.chat-abos-intro { margin: 2px 0 6px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.chat-abos-list { margin: 0; padding: 0; list-style: none; }
+.chat-abos-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; }
+.chat-abos-row + .chat-abos-row { border-top: 1px solid var(--separator); }
+.chat-abos-text { min-width: 0; display: flex; flex-direction: column; }
+.chat-abos-text strong { font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); }
+.chat-abos-text small { font-size: 12.5px; line-height: 17px; color: var(--label-secondary); }
+.chat-abos-error { margin: 6px 0 0; }
+.chat-abos-foot { margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--separator); font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+@keyframes chat-abos-sheet { from { opacity: 0; transform: translateY(24px); } }
+:root[data-reduce-motion="true"] .chat-abos[popover]:popover-open { animation: none; }
+:root[data-reduce-motion="true"] :is(.chat-abo-button, .chat-card-action) { transition: none; }
+@media (max-width: 767px) {
+  .chat-msg.is-card { max-width: 92%; }
+  .chat-abos[popover] { top: auto; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); left: 8px; width: auto; padding: 8px 18px 16px; border-radius: 32px; }
+  .chat-abos[popover]:popover-open { animation-name: chat-abos-sheet; transform-origin: 50% 100%; }
+  .chat-abos[popover]::backdrop { background: rgba(0, 0, 0, 0.38); }
+  .chat-abos-grab { display: block; width: 38px; height: 5px; margin: 0 auto 10px; border-radius: 999px; background: rgba(120, 120, 128, 0.32); }
+  .chat-abos-row { padding: 11px 0; }
+}
 /* Narrow sheets (tablets, small windows): list or conversation, with "Zurück" in between. */
 @container sheet (max-width: 720px) {
   .chat-grid { grid-template-columns: minmax(0, 1fr); }

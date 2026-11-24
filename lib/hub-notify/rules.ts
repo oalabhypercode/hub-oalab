@@ -17,7 +17,8 @@ export type NoticeKind =
   | TaskNoticeKind
   | "share.granted"
   | "note.shared" | "note.changed" | "note.edited"
-  | "service.message";
+  | "service.message"
+  | "appointment.requested" | "contract.changed";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -84,6 +85,11 @@ export type StudioInput = {
  * Notices from a batch of Studio activity, per organization, and the marks to store. A task or project seen for the
  * first time only gets a mark, unless it was created in this batch: a new task that lies with the customer notifies.
  */
+/** What the chat's card of a Studio notice needs (lib/hub-chat-events): the task or project and its change. */
+export type StudioCard =
+  | { kind: "task.customer"; projectId: string; number: number; title: string; project: string }
+  | { kind: "project.changed"; projectId: string; name: string; change: string };
+
 export function detectStudioNotices({ activity, tasks, details, projects, marks }: StudioInput) {
   const taskById = new Map(tasks.map((task) => [task.id, task]));
   const detailsById = new Map(details.map((row) => [row.project_id, row]));
@@ -94,8 +100,15 @@ export function detectStudioNotices({ activity, tasks, details, projects, marks 
     return project && project.status !== "archived" && detailsById.get(projectId)?.client_visible ? project : null;
   };
 
-  const notices: { organizationId: string; notice: Notice }[] = [];
+  const notices: { organizationId: string; notice: Notice; card: StudioCard; key: string }[] = [];
   const changed = new Map<string, string>();
+  // The newest event of a task or project in this batch: with its subject, the chat card's key (a repeated run of the
+  // same batch writes no second card).
+  const lastAt = new Map<string, string>();
+  for (const row of activity) {
+    const subject = row.event_type.startsWith("task.") && row.task_id ? `task:${row.task_id}` : `project:${row.project_id}`;
+    if ((lastAt.get(subject) ?? "") < row.created_at) lastAt.set(subject, row.created_at);
+  }
 
   const taskIds = [...new Set(activity.filter((row) => row.event_type.startsWith("task.") && row.task_id).map((row) => row.task_id as string))];
   for (const id of taskIds) {
@@ -110,6 +123,8 @@ export function detectStudioNotices({ activity, tasks, details, projects, marks 
     notices.push({
       organizationId: project.organization_id,
       notice: { kind: "task.customer", title: clip(`Du bist am Zug: ${task.title}`, 200), body: clip(`${project.display_name} · Aufgabe #${task.task_number}`, 300), href: projectHref(project.id) },
+      card: { kind: "task.customer", projectId: project.id, number: Number(task.task_number), title: task.title, project: project.display_name },
+      key: `${subject}:${lastAt.get(subject) ?? ""}`,
     });
   }
 
@@ -128,6 +143,8 @@ export function detectStudioNotices({ activity, tasks, details, projects, marks 
     notices.push({
       organizationId: project.organization_id,
       notice: { kind: "project.changed", title: clip(`Projekt aktualisiert: ${project.display_name}`, 200), body: clip(change, 300), href: projectHref(project.id) },
+      card: { kind: "project.changed", projectId: project.id, name: project.display_name, change },
+      key: `${subject}:${lastAt.get(subject) ?? ""}`,
     });
   }
 
@@ -151,9 +168,10 @@ export type PendingRow = { id: number; user_id: string; created_at: string; read
 export const isChatKind = (kind: string) => kind === "chat.message" || kind === "chat.reply";
 /**
  * Notices about something to read in the hub (23.11.2026): a chat message, a customer's message on the service platform,
- * a page a customer or freelancer wrote on. Seen in the hub, they need no mail.
+ * a page a customer or freelancer wrote on, and (24.11.2026) a customer's request for an appointment. Seen in the hub,
+ * they need no mail.
  */
-export const isReadInHub = (kind: string) => isChatKind(kind) || kind === "service.message" || kind === "note.edited";
+export const isReadInHub = (kind: string) => isChatKind(kind) || kind === "service.message" || kind === "note.edited" || kind === "appointment.requested";
 /** A customer's message, in the chat or on the service platform, reaches the admins' mail sooner. */
 export const mailWaitMinutes = (kind: string) => kind === "chat.message" || kind === "service.message" ? CHAT_MAIL_WAIT_MINUTES : MAIL_WAIT_MINUTES;
 
@@ -238,6 +256,52 @@ export function appointmentNotice(input: {
 }
 
 /**
+ * A customer's (or a freelancer's) request for an appointment, to every admin (24.11.2026, decision 9 of the chat plan):
+ * „Neue Terminanfrage von Nordlicht Studio“ with title, time and who asked. Answering it in the calendar or in the chat
+ * takes the line out of every admin's bell.
+ */
+export function appointmentRequestNotice(input: { id: string; title: string; startsAt: string; company: string; author: string; freelancer?: boolean }): Notice {
+  const who = oneLine(input.author);
+  const from = oneLine(input.company) || (input.freelancer ? "einem Freelancer" : "einem Kunden");
+  return {
+    kind: "appointment.requested",
+    title: clip(`Neue Terminanfrage von ${from}${input.freelancer && input.company ? " (Freelancer)" : ""}`, 200),
+    body: clip([oneLine(input.title), formatMoment(input.startsAt), who].filter(Boolean).join(" · "), 300),
+    href: appointmentHref(input.id),
+  };
+}
+
+/** Where a customer reads Vertrag & Domain. */
+export const CONTRACT_HREF = "/dashboard/contracts";
+const CONTRACT_SINGLE = "Neu unter Vertrag & Domain";
+
+/**
+ * Something new under „Vertrag & Domain“ for the customer (24.11.2026): an entry of the timeline, a domain, an e-mail
+ * address or a package. One line in words („Domain eingetragen: nordlicht.de“), never a password or access data.
+ * While the line is unread and its mail not on its way, further changes join it.
+ */
+export function contractNotice(lines: readonly string[]): Notice {
+  const list = [...new Set(lines.map((line) => oneLine(line)).filter(Boolean))];
+  return {
+    kind: "contract.changed",
+    title: list.length > 1 ? `${list.length} Änderungen unter Vertrag & Domain` : CONTRACT_SINGLE,
+    body: clip(list.join(" · ") || "Unter Vertrag & Domain", 300),
+    href: CONTRACT_HREF,
+  };
+}
+
+/** An unread line about Vertrag & Domain taking in one more change, the newest first. */
+export function mergeContractNotice(previous: { title: string; body: string }, line: string): Notice {
+  const before = previous.body.split(" · ").map((part) => part.trim()).filter((part) => part && part !== "Unter Vertrag & Domain" && !part.endsWith("…"));
+  const count = /^(\d+) Änderungen/.exec(previous.title);
+  const lines = [line, ...before.filter((part) => part !== oneLine(line))];
+  const notice = contractNotice(lines);
+  // Lines cut from the body still count.
+  const total = Math.max(lines.length, (count ? Number(count[1]) : 1) + (before.includes(oneLine(line)) ? 0 : 1));
+  return total > 1 ? { ...notice, title: `${total} Änderungen unter Vertrag & Domain` } : notice;
+}
+
+/**
  * A note page newly visible to a customer or their freelancers („Neue Notiz“, plan docs/planung/notizen.md 2.3), or a
  * change the team tells them about („Änderung mitteilen“). Only the title, never the content; the link opens the page.
  */
@@ -301,6 +365,8 @@ export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind:
 
 const SINGLE_FILE = "Neue Datei: ";
 const nameOf = (notice: Notice) => notice.title.startsWith(SINGLE_FILE) ? notice.title.slice(SINGLE_FILE.length) : notice.title;
+/** The file's name in a single-file notice („Neue Datei: logo.svg“), for the chat's card. */
+export const fileNoticeName = nameOf;
 
 /** How many files a file line stands for: „Neue Datei: …“ one, „4 neue Dateien“ four. */
 export function fileNoticeCount(title: string) {

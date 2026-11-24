@@ -479,7 +479,7 @@ test("writing goes through the hub's own save code, with the admin's claims, log
 
   // The hub's windows save through the same cores; the cores are no Server Actions.
   const calendar = await source("lib/hub-calendar/actions.ts");
-  assert.ok(calendar.includes("writeAppointment(supabase, id, input)") && calendar.includes("closeAppointmentAs(supabase, id, status, note)"));
+  assert.ok(calendar.includes("writeAppointment(session.supabase, id, input, session.userId)") && calendar.includes("closeAppointmentAs(session.supabase, id, status, note, session.userId)"));
   for (const path of ["lib/hub-calendar/write.ts", "lib/hub-tasks/write.ts", "lib/hub-projects/write.ts", "lib/hub-mcp/writes.ts"]) {
     const file = await source(path);
     assert.match(file, /^import "server-only";/, path);
@@ -759,7 +759,7 @@ test("freelancers: writing goes through the board's and the request window's own
   // The request window and Claude share one core; the Server Actions only add the session and the refresh.
   const calendar = await source("lib/hub-calendar/actions.ts");
   assert.match(calendar, /const result = await requestAppointmentAs\(session\.supabase, session\.userId, input\);/);
-  assert.match(calendar, /const result = await withdrawRequestAs\(session\.supabase, id\);/);
+  assert.match(calendar, /const result = await withdrawRequestAs\(session\.supabase, id, session\.userId\);/);
   const core = await source("lib/hub-calendar/write.ts");
   const request = core.slice(core.indexOf("export async function requestAppointmentAs"), core.indexOf("export async function withdrawRequestAs"));
   assert.match(request, /readAvailabilityRequest\(input, availability, intervals\(busy\.data\), intervals\(own\.data\), now, dayOf\(now\)\)/);
@@ -1026,7 +1026,7 @@ test("stage 4: through the hub's own cores, with the admin's claims where the hu
   assert.doesNotMatch(imports, /hub-vault|hub-keychain|hub-invitations|hub-service-quota|hub-auth|packages|actions"/);
   // Each tool saves through the very code its window in the hub saves with.
   for (const call of [
-    "assignFilesAs(fileClient(w), ", "setFileAudienceAs(w.db, fileId, entry.id, args.visibility)", "renameFilesAs(fileClient(w), ",
+    "assignFilesAs(fileClient(w), ", "setFileAudienceAs(w.db, fileId, entry.id, args.visibility, w.userId)", "renameFilesAs(fileClient(w), ",
     "writeCustomerAs(w.db, w.userId, entry.id, row.organization_id, customer.value)",
     'saveTimelineEntryAs({ db: w.db, actorId: w.userId, via: "claude" }, input)', 'saveDomainAs({ db: w.db, actorId: w.userId, via: "claude" }, input)',
     'saveMailboxAs({ db: w.db, actorId: w.userId, via: "claude" }, input)', "setFreelancerShareAs(ctx, ", "saveFreelancerNoteAs(ctx, ",

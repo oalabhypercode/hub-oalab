@@ -226,8 +226,11 @@ export async function setRightsAs(ctx: NotesContext, input: { id: string; rights
     ];
     for (const { side, sight, edit } of sides) {
       if (!sight && !edit) continue;
-      const notice = noteNotice("note.shared", page.title, customer.id, page.id, edit ? (sight ? "with" : "only") : undefined);
-      after(() => notifyNote(customer.id, notice, { customer: side === "customer", freelancer: side === "freelancer" }));
+      const mode = edit ? (sight ? "with" as const : "only" as const) : undefined;
+      const notice = noteNotice("note.shared", page.title, customer.id, page.id, mode);
+      // The customer's chat gets the same as a card (lib/hub-chat-events), never the freelancers' side.
+      const card = { authorId: ctx.userId, event: { v: 1 as const, kind: "note.shared" as const, note: { customerId: customer.id, pageId: page.id, title: page.title, ...(mode ? { edit: mode } : {}) } } };
+      after(() => notifyNote(customer.id, notice, { customer: side === "customer", freelancer: side === "freelancer" }, card));
     }
   }
   return { ok: true, data: { pages: fresh ?? metas, narrowed } };
@@ -274,7 +277,8 @@ export async function notifyChangeAs(ctx: NotesContext, input: { id: string }): 
   if (!page) return fail("Diese Seite gibt es nicht mehr.");
   const to = gains("team", page.audience);
   if (!to.customer && !to.freelancer) return fail("Diese Seite sieht nur das Team.");
-  after(() => notifyNote(page.customerId, noteNotice("note.changed", page.title, page.customerId, page.id), to));
+  const card = { authorId: ctx.userId, event: { v: 1 as const, kind: "note.changed" as const, note: { customerId: page.customerId, pageId: page.id, title: page.title } } };
+  after(() => notifyNote(page.customerId, noteNotice("note.changed", page.title, page.customerId, page.id), to, card));
   await logNoteEvent(ctx, "note.changed", "Notiz-Änderung mitgeteilt", page.customerId);
   return { ok: true, data: null };
 }

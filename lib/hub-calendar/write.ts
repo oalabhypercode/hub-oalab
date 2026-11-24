@@ -1,7 +1,11 @@
 import "server-only";
+import { after } from "next/server";
+import { headers } from "next/headers";
 import type { createClient } from "@/lib/supabase/server";
+import { siteOrigin } from "@/lib/site-origin";
 import { appointmentNotice } from "@/lib/hub-notify/rules";
-import { notifyCustomers } from "@/lib/hub-notify/server";
+import { notifyAppointmentRequest, notifyCustomers, notifyRequestWithdrawn, settleAppointmentRequest } from "@/lib/hub-notify/server";
+import type { AppointmentEventKind, AppointmentFacts } from "@/lib/hub-chat-events/rules";
 import { cleanNote, dayOf, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readAvailabilityRequest, readException, wallMinuteToUtc, type ExceptionInput } from "./rules";
 import { loadAvailability } from "./server";
 import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
@@ -16,8 +20,20 @@ export type CalendarClient = Awaited<ReturnType<typeof createClient>>;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const unknownAppointment = { ok: false as const, error: "Unbekannter Termin." };
 
-/** Creates a confirmed appointment, or saves an existing one (answering a request confirms it). */
-export async function writeAppointment(supabase: CalendarClient, id: string | null, input: AppointmentInput): Promise<CalendarActionResult<{ id: string }>> {
+/** What a chat card keeps of an appointment row (lib/hub-chat-events). */
+const factsOf = (row: { id: string; title: string; starts_at: string; ends_at: string; teams_url: string | null }, extra: Partial<AppointmentFacts> = {}): AppointmentFacts =>
+  ({ id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at, teams: Boolean(row.teams_url), ...extra });
+
+/** The hub's own address for links in Telegram; read while the request is still there. */
+async function originNow() {
+  try { return siteOrigin(await headers()) ?? "https://hub.oalab.de"; } catch { return "https://hub.oalab.de"; }
+}
+
+/**
+ * Creates a confirmed appointment, or saves an existing one (answering a request confirms it). `actorId` is the admin
+ * who saved it: the customer's chat card names them („Lena von oalab“).
+ */
+export async function writeAppointment(supabase: CalendarClient, id: string | null, input: AppointmentInput, actorId: string | null = null): Promise<CalendarActionResult<{ id: string }>> {
   if (id !== null && !uuid.test(String(id))) return unknownAppointment;
   const read = readAppointmentInput(input);
   if (!read.ok) return read;
@@ -35,7 +51,12 @@ export async function writeAppointment(supabase: CalendarClient, id: string | nu
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht gespeichert werden." };
   const sameCustomer = before && before.customer_id === customerId ? { status: before.status, startsAt: before.starts_at } : null;
   const notice = customerId ? appointmentNotice({ id: data.id, title, startsAt: row.starts_at, before: sameCustomer, status: "confirmed" }) : null;
-  if (customerId && notice) await notifyCustomers([customerId], notice);
+  if (customerId && notice) {
+    const facts = factsOf({ id: data.id, title, starts_at: row.starts_at, ends_at: row.ends_at, teams_url: teamsUrl }, notice.kind === "appointment.changed" && sameCustomer ? { before: sameCustomer.startsAt } : {});
+    await notifyCustomers([customerId], notice, { authorId: actorId, event: { v: 1, kind: notice.kind as AppointmentEventKind, appointment: facts } });
+  }
+  // An answered request leaves the admins' bell.
+  if (before?.status === "requested") await settleAppointmentRequest(data.id);
   return { ok: true, data: { id: data.id } };
 }
 
@@ -75,29 +96,46 @@ export async function requestAppointmentAs(supabase: CalendarClient, userId: str
   const { data, error } = await supabase.from("hub_appointments").insert({
     customer_id: customerId, title, description, status: "requested", created_by: userId,
     starts_at: new Date(interval.start).toISOString(), ends_at: new Date(interval.end).toISOString(),
-  }).select("id").single();
+  }).select("id, title, starts_at, ends_at, teams_url").single<{ id: string; title: string; starts_at: string; ends_at: string; teams_url: string | null }>();
   // The database's own check (row rule) refused: the time was taken or changed in the meantime.
   if (error?.code === "42501") return { ok: false, error: "Diese Zeit ist gerade nicht mehr frei. Bitte eine andere grüne Zeit wählen." };
   if (error || !data) return { ok: false, error: "Die Anfrage konnte nicht gesendet werden." };
+  // The team hears of it in the bell and in Telegram, the customer's chat shows it (decision 9 of 23.11.2026).
+  const origin = await originNow();
+  after(() => notifyAppointmentRequest({ appointment: factsOf(data), customerId, authorId: userId, origin }));
   return { ok: true, data: { id: data.id } };
 }
 
-/** Withdraws an own request that oalab has not answered yet (the database function checks both). */
-export async function withdrawRequestAs(supabase: CalendarClient, id: string): Promise<CalendarActionResult> {
+/**
+ * Withdraws an own request that oalab has not answered yet (the database function checks both). With `userId` the
+ * admins' line about it goes and the chat gets a grey line.
+ */
+export async function withdrawRequestAs(supabase: CalendarClient, id: string, userId: string | null = null): Promise<CalendarActionResult> {
   if (!uuid.test(String(id ?? ""))) return { ok: false, error: "Unbekannte Anfrage." };
+  const before = await supabase.from("hub_appointments").select("id, title, starts_at, ends_at, teams_url, customer_id").eq("id", id)
+    .maybeSingle<{ id: string; title: string; starts_at: string; ends_at: string; teams_url: string | null; customer_id: string | null }>();
   const { data, error } = await supabase.rpc("hub_withdraw_appointment_request", { appointment_id: id });
   if (error || data !== true) return { ok: false, error: "Die Anfrage konnte nicht zurückgezogen werden. Vielleicht wurde sie schon beantwortet." };
+  const row = before.data;
+  if (row?.customer_id && userId) {
+    const customerId = row.customer_id;
+    after(() => notifyRequestWithdrawn({ appointment: factsOf(row), customerId, authorId: userId }));
+  }
   return { ok: true, data: null };
 }
 
-/** Declines a request or cancels an appointment; the note is shown to the customer. */
-export async function closeAppointmentAs(supabase: CalendarClient, id: string, status: "declined" | "cancelled", note: string): Promise<CalendarActionResult> {
+/** Declines a request or cancels an appointment; the note is shown to the customer (also on the chat's card). */
+export async function closeAppointmentAs(supabase: CalendarClient, id: string, status: "declined" | "cancelled", note: string, actorId: string | null = null): Promise<CalendarActionResult> {
   if (!uuid.test(String(id ?? "")) || (status !== "declined" && status !== "cancelled")) return unknownAppointment;
   const { data, error } = await supabase.from("hub_appointments").update({ status, response_note: cleanNote(note) }).eq("id", id)
-    .select("id, title, starts_at, customer_id").maybeSingle<{ id: string; title: string; starts_at: string; customer_id: string | null }>();
+    .select("id, title, starts_at, ends_at, teams_url, customer_id").maybeSingle<{ id: string; title: string; starts_at: string; ends_at: string; teams_url: string | null; customer_id: string | null }>();
   if (error || !data) return { ok: false, error: "Der Termin konnte nicht geändert werden." };
   const notice = data.customer_id ? appointmentNotice({ id: data.id, title: data.title, startsAt: data.starts_at, before: null, status, note: cleanNote(note) }) : null;
-  if (data.customer_id && notice) await notifyCustomers([data.customer_id], notice);
+  if (data.customer_id && notice) {
+    const facts = factsOf(data, cleanNote(note) ? { note: cleanNote(note) } : {});
+    await notifyCustomers([data.customer_id], notice, { authorId: actorId, event: { v: 1, kind: status === "declined" ? "appointment.declined" : "appointment.cancelled", appointment: facts } });
+  }
+  await settleAppointmentRequest(data.id);
   return { ok: true, data: null };
 }
 

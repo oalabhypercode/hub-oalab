@@ -7,6 +7,7 @@ import { siteOrigin } from "@/lib/site-origin";
 import { cleanRules, cleanWeek, dayOf, type ExceptionInput } from "./rules";
 import type { AppointmentInput, CalendarActionResult, CalendarFeedState, RequestInput } from "./types";
 import { addAvailabilityExceptionAs, closeAppointmentAs, requestAppointmentAs, unknownAppointment, withdrawRequestAs, writeAppointment } from "./write";
+import { settleAppointmentRequest } from "@/lib/hub-notify/server";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { feedOptionsFor, feedRoleOf, feedUrl, type FeedRole } from "./feed";
 import { activeFeed, createFeed, endFeedsOf, feedReady, logFeedEvent, saveFeedOptions, type FeedView } from "./feed-store";
@@ -35,18 +36,19 @@ async function adminClient() {
 
 /** Admin: create a confirmed appointment, or save an existing one (answering a request confirms it). */
 export async function saveAppointment(id: string | null, input: AppointmentInput): Promise<CalendarActionResult<{ id: string }>> {
-  const supabase = await adminClient();
-  if (!supabase) return denied;
-  const result = await writeAppointment(supabase, id, input);
+  const session = await signedInClient();
+  if (!session?.admin) return denied;
+  // The admin's id names them on the customer's chat card.
+  const result = await writeAppointment(session.supabase, id, input, session.userId);
   if (result.ok) refreshWorkspace();
   return result;
 }
 
 /** Admin: decline a request or cancel an appointment; the note is shown to the customer. */
 export async function closeAppointment(id: string, status: "declined" | "cancelled", note: string): Promise<CalendarActionResult> {
-  const supabase = await adminClient();
-  if (!supabase) return denied;
-  const result = await closeAppointmentAs(supabase, id, status, note);
+  const session = await signedInClient();
+  if (!session?.admin) return denied;
+  const result = await closeAppointmentAs(session.supabase, id, status, note, session.userId);
   if (result.ok) refreshWorkspace();
   return result;
 }
@@ -58,6 +60,8 @@ export async function deleteAppointment(id: string): Promise<CalendarActionResul
   if (!uuid.test(String(id ?? ""))) return unknownAppointment;
   const { error } = await supabase.from("hub_appointments").delete().eq("id", id);
   if (error) return { ok: false, error: "Der Termin konnte nicht gelöscht werden." };
+  // A deleted request leaves the admins' bell as well.
+  await settleAppointmentRequest(id);
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -130,7 +134,7 @@ export async function removeAvailabilityException(id: string): Promise<CalendarA
 export async function withdrawRequest(id: string): Promise<CalendarActionResult> {
   const session = await signedInClient();
   if (!session) return { ok: false, error: "Nur mit echtem Login möglich." };
-  const result = await withdrawRequestAs(session.supabase, id);
+  const result = await withdrawRequestAs(session.supabase, id, session.userId);
   if (result.ok) refreshWorkspace();
   return result;
 }

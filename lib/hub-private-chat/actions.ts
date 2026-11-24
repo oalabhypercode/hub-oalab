@@ -7,6 +7,10 @@ import { siteOrigin } from "@/lib/site-origin";
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { readMessage } from "@/lib/hub-conversations/rules";
 import { notifyChat } from "@/lib/hub-notify/server";
+import { areaSubject, isChatArea } from "@/lib/hub-chat-events/rules";
+import { postSubscriptionLine } from "@/lib/hub-chat-events/server";
+import { writeAppointment } from "@/lib/hub-calendar/write";
+import { dayOf, timeOf } from "@/lib/hub-calendar/rules";
 import { CHAT_NOT_SET_UP, CHAT_UNAVAILABLE, chatViewer, isMissingChat, loadPrivateChats, loadPrivateThread, markPrivateRead } from "./server";
 import type { PrivateChatResult, PrivateChatState, PrivateChatThread } from "./types";
 
@@ -70,4 +74,57 @@ export async function sendPrivateMessage(input: { customerId: string; body: stri
   const fresh = await loadPrivateThread(viewer, input.customerId);
   const thread = fresh.ok ? fresh.data : before.data;
   return { ok: true, data: { ...thread, chat: { ...thread.chat, unread: false } } };
+}
+
+const fresh = async (viewer: NonNullable<Awaited<ReturnType<typeof chatViewer>>>, customerId: string): Promise<PrivateChatResult<PrivateChatThread>> => {
+  const thread = await loadPrivateThread(viewer, customerId);
+  return thread.ok ? { ok: true, data: { ...thread.data, chat: { ...thread.data.chat, unread: false } } } : thread;
+};
+
+/**
+ * „Abos“ (24.11.2026, decision 6): one area of a chat on or off, for everybody in it, by the customer's logins or by
+ * admins. Written with the person's own session, so Row Level Security has the last word; afterwards the chat gets a
+ * grey line naming who switched what. Never anything of the service platform.
+ */
+export async function setChatSubscription(input: { customerId: string; area: string; enabled: boolean }): Promise<PrivateChatResult<PrivateChatThread>> {
+  if (!uuid.test(String(input?.customerId)) || !isChatArea(input?.area) || typeof input?.enabled !== "boolean") return notFound;
+  const viewer = await chatViewer();
+  if (!viewer) return { ok: false, error: CHAT_UNAVAILABLE };
+  const before = await loadPrivateThread(viewer, input.customerId);
+  if (!before.ok) return before;
+  if (!before.data.subscriptions) return { ok: false, error: "Abos gibt es in diesem Chat noch nicht." };
+  if (before.data.subscriptions[input.area] === input.enabled) return fresh(viewer, input.customerId);
+  const supabase = await createClient();
+  const { error } = await supabase.from("hub_chat_subscriptions")
+    .upsert({ customer_id: input.customerId, subject: areaSubject(input.area), enabled: input.enabled }, { onConflict: "customer_id,subject" });
+  if (error) return { ok: false, error: "Das Abo konnte gerade nicht gespeichert werden. Bitte versuche es erneut." };
+  await postSubscriptionLine({ customerId: input.customerId, side: viewer.side, authorId: viewer.userId, area: input.area, on: input.enabled });
+  return fresh(viewer, input.customerId);
+}
+
+type RequestRow = { id: string; title: string; description: string | null; customer_id: string | null; teams_url: string | null; status: string; starts_at: string; ends_at: string };
+
+/**
+ * Admins confirm a customer's request right in its card (decision 9), at the time it was asked for: the same as
+ * answering it in the calendar, so the customer gets the confirmation in the bell, by mail and as a card. Another time
+ * or a decline goes through the calendar („Im Kalender beantworten“).
+ */
+export async function confirmChatRequest(input: { customerId: string; appointmentId: string }): Promise<PrivateChatResult<PrivateChatThread>> {
+  if (!uuid.test(String(input?.customerId)) || !uuid.test(String(input?.appointmentId))) return notFound;
+  const viewer = await chatViewer();
+  if (!viewer) return { ok: false, error: CHAT_UNAVAILABLE };
+  if (viewer.side !== "oalab") return { ok: false, error: "Anfragen bestätigt das oalab-Team." };
+  const supabase = await createClient();
+  const { data } = await supabase.from("hub_appointments").select("id, title, description, customer_id, teams_url, status, starts_at, ends_at").eq("id", input.appointmentId).maybeSingle<RequestRow>();
+  if (!data || data.customer_id !== input.customerId) return { ok: false, error: "Diese Anfrage gibt es nicht mehr." };
+  if (data.status !== "requested") return { ok: false, error: "Diese Anfrage ist schon beantwortet." };
+  const start = Date.parse(data.starts_at);
+  if (!(start > Date.now())) return { ok: false, error: "Diese Anfrage liegt in der Vergangenheit. Bitte im Kalender beantworten." };
+  const saved = await writeAppointment(supabase, data.id, {
+    title: data.title, description: data.description ?? "", customerId: data.customer_id, teamsUrl: data.teams_url ?? "",
+    day: dayOf(start), start: timeOf(start), minutes: Math.round((Date.parse(data.ends_at) - start) / 60_000),
+  }, viewer.userId);
+  if (!saved.ok) return saved;
+  refreshWorkspace();
+  return fresh(viewer, input.customerId);
 }

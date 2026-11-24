@@ -13,7 +13,7 @@ import { loadDomainMailForAdmin } from "@/lib/hub-domains/server";
 import { fileCategories } from "@/lib/hub-files/catalog";
 import { shareAreas, type ShareArea } from "@/lib/hub-freelancer-customers/rules";
 import { loadFreelancerSharesForAdmin } from "@/lib/hub-freelancer-customers/server";
-import { chatUnread, isChatSide } from "@/lib/hub-private-chat/rules";
+import { chatActivity, chatUnread, isCardRow, isChatSide } from "@/lib/hub-private-chat/rules";
 import { todayIso } from "@/lib/hub-routes";
 import { quotaStatus, usageLine } from "@/lib/hub-service-quota/rules";
 import { loadServiceQuotaForAdmin } from "@/lib/hub-service-quota/server";
@@ -257,7 +257,15 @@ async function contract(db: Db, args: Json, origin: string): Promise<ToolResult>
 
 /* ---------- Conversations ---------- */
 
-type ChatRow = { customer_id: string; author_id: string | null; side: string; body: string; created_at: string };
+type ChatRow = { customer_id: string; author_id: string | null; side: string; body: string; created_at: string; event?: unknown };
+const CHAT_COLUMNS = "customer_id, author_id, side, body, created_at, event";
+/** Before the cards' migration (202611240001) the rows have no `event`; read them without it. */
+async function chatRows(run: (columns: string) => PromiseLike<{ data: ChatRow[] | null; error: { code?: string } | null }>) {
+  const first = await run(CHAT_COLUMNS);
+  return first.error?.code === "42703" ? run("customer_id, author_id, side, body, created_at") : first;
+}
+/** A card for a change (24.11.2026) reads as a line marked [Hub]; grey lines say who switched a subscription. */
+const chatText = (row: ChatRow) => (row.event ? `[Hub] ${row.body}` : row.body);
 const SENDER_WORDS: Record<string, string> = { client: "Kunde", oalab: "oalab", assistant: "Assistent", system: "System" };
 const MAX_LISTED = 50;
 
@@ -290,28 +298,27 @@ async function listConversations(db: Db, userId: string, args: Json, origin: str
       readArchive(db),
     ]);
     const shown = (customers.data ?? []).filter((row) => (row.kind ?? "customer") === "customer" && !isArchivedCustomer(archive, row.id) && (!entry || row.id === entry.id));
-    const messages = db.from("hub_private_messages").select("customer_id, author_id, side, body, created_at");
+    const messages = (columns: string) => db.from("hub_private_messages").select(columns);
     const [list, reads] = await Promise.all([
-      (entry ? messages.eq("customer_id", entry.id) : messages).order("created_at", { ascending: false }).limit(1000).returns<ChatRow[]>(),
+      chatRows((columns) => (entry ? messages(columns).eq("customer_id", entry.id) : messages(columns)).order("created_at", { ascending: false }).limit(1000).returns<ChatRow[]>()),
       db.from("hub_private_reads").select("customer_id, read_at").eq("user_id", userId).returns<{ customer_id: string; read_at: string }[]>(),
     ]);
     if (list.error) answer.private_error = "Der private Chat konnte gerade nicht geladen werden.";
     const byCustomer = new Map<string, ChatRow[]>();
     for (const row of list.data ?? []) byCustomer.set(row.customer_id, [...(byCustomer.get(row.customer_id) ?? []), row]);
     const readAt = new Map((reads.data ?? []).map((row) => [row.customer_id, row.read_at]));
-    const people = await namesOf(db, [...byCustomer.values()].map((rows) => rows[0]?.author_id));
+    const people = await namesOf(db, [...byCustomer.values()].map((rows) => chatActivity(rows, "oalab").last?.author_id));
     answer.private = shown
       .flatMap((customer) => {
         const rows = byCustomer.get(customer.id) ?? [];
-        const last = rows.find((row) => isChatSide(row.side));
+        // Grey lines never count, and a card is news but no answer (lib/hub-private-chat/rules.ts).
+        const { last, lastOtherAt: lastCustomer, lastOwnSideAt: lastTeam } = chatActivity(rows, "oalab");
         if (!last) return [];
-        const lastCustomer = rows.find((row) => row.side === "customer")?.created_at ?? null;
-        const lastTeam = rows.find((row) => row.side === "oalab")?.created_at ?? null;
         return [{
           customer_id: customer.id,
           company: customer.company,
           last_at: last.created_at,
-          last_message: { from: last.side === "oalab" ? `oalab${last.author_id && people.get(last.author_id) ? ` (${people.get(last.author_id)})` : ""}` : people.get(last.author_id ?? "") ?? customer.company, text: last.body.slice(0, 300) },
+          last_message: { from: last.side === "oalab" ? `oalab${last.author_id && people.get(last.author_id) ? ` (${people.get(last.author_id)})` : ""}` : people.get(last.author_id ?? "") ?? customer.company, text: chatText(last).slice(0, 300) },
           unread: chatUnread({ lastOtherAt: lastCustomer, lastOwnSideAt: lastTeam, readAt: readAt.get(customer.id) ?? null }),
           link: `${origin}/dashboard/messages?chat=${customer.id}`,
         }];
@@ -341,14 +348,14 @@ async function readConversation(db: Db, args: Json, origin: string): Promise<Too
   if (args.kind === "private") {
     const entry = await entryOf(db, args.customer_id, "customers");
     if (!entry) return refuse(noCustomer);
-    const { data, error } = await db.from("hub_private_messages").select("customer_id, author_id, side, body, created_at").eq("customer_id", entry.id)
-      .order("created_at", { ascending: false }).limit(300).returns<ChatRow[]>();
+    const { data, error } = await chatRows((columns) => db.from("hub_private_messages").select(columns).eq("customer_id", entry.id)
+      .order("created_at", { ascending: false }).limit(300).returns<ChatRow[]>());
     if (error) return refuse("Der private Chat konnte gerade nicht geladen werden.");
     const rows = (data ?? []).filter((row) => isChatSide(row.side)).reverse();
     const people = await namesOf(db, rows.map((row) => row.author_id));
     return json({
       chat: { customer_id: entry.id, company: entry.company },
-      messages: rows.map((row) => ({ from: row.author_id ? people.get(row.author_id) ?? (row.side === "oalab" ? "oalab" : entry.company) : row.side === "oalab" ? "oalab" : entry.company, side: row.side === "oalab" ? "oalab" : "Kunde", at: row.created_at, text: row.body })),
+      messages: rows.map((row) => ({ from: row.author_id ? people.get(row.author_id) ?? (row.side === "oalab" ? "oalab" : entry.company) : row.side === "oalab" ? "oalab" : entry.company, side: row.side === "oalab" ? "oalab" : "Kunde", at: row.created_at, text: chatText(row), ...(isCardRow(row) ? { card: true } : {}) })),
       note: rows.length ? "Für das Team bleibt der Chat so ungelesen, wie er war. Antworten geht im Hub." : "In diesem Chat steht noch nichts.",
       link: `${origin}/dashboard/messages?chat=${entry.id}`,
     });

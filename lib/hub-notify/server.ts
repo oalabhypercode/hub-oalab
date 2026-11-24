@@ -9,13 +9,16 @@ import { CALENDAR_PATH } from "@/lib/hub-calendar/paths";
 import { feedReady, loginsWithFeed } from "@/lib/hub-calendar/feed-store";
 import { listAllUsers, roleOf } from "@/lib/hub-users/server";
 import { sendTelegram } from "@/lib/hub-telegram/server";
-import { telegramChatMessage, telegramServiceMessage } from "@/lib/hub-telegram/rules";
+import { telegramAppointmentRequest, telegramChatMessage, telegramServiceMessage } from "@/lib/hub-telegram/rules";
+import { postChatEvent, postChatEvents, type ChatPost } from "@/lib/hub-chat-events/server";
+import { contractItemLine, eventKey, type AppointmentFacts, type ChatEvent, type ContractItem } from "@/lib/hub-chat-events/rules";
 import { requestReference } from "@/lib/hub-conversations/rules";
 import {
-  CURSOR, INBOX_LATEST, INBOX_UNREAD, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, calendarRows, chatHref, chatNotice, detectStudioNotices, dueDigests, fileNotice, fileNoticeLine, hasTaskChange, mailsWanted, mergeFileNotice,
+  CURSOR, INBOX_LATEST, INBOX_UNREAD, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, appointmentHref, appointmentRequestNotice, calendarRows, chatHref, chatNotice, contractNotice, detectStudioNotices, dueDigests,
+  fileNotice, fileNoticeLine, fileNoticeName, formatMoment, hasTaskChange, mailsWanted, mergeContractNotice, mergeFileNotice,
   mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice,
   noticeAppointment, projectHref, readFrom, shareNotice, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
-  type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type TaskChange, type TaskNoticeDraft, type TaskSight,
+  type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type StudioCard, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
 
 // Notices reach customers in the bell and as one bundled mail. Rows are written only with the service role; the
@@ -50,8 +53,18 @@ async function insertNotices(db: SupabaseClient, userIds: string[], notice: Noti
   return error ? -1 : userIds.length;
 }
 
-/** A notice for every active login of these hub customers (files, appointments). */
-export async function notifyCustomers(customerIds: string[], notice: Notice) {
+/** A card the caller already built (the person who made the change and what changed). */
+export type CardOf = { event: ChatEvent; authorId: string | null };
+
+/**
+ * The same change as a card in these customers' chats (24.11.2026, lib/hub-chat-events), on oalab's side, as each
+ * chat's subscriptions say. `subject` names the thing (an appointment, files) in the card's key.
+ */
+const oalabCards = (customerIds: readonly string[], card: CardOf, subject: string): ChatPost[] =>
+  customerIds.map((customerId) => ({ customerId, side: "oalab", authorId: card.authorId, event: card.event, key: eventKey(card.event.kind, subject, crypto.randomUUID()) }));
+
+/** A notice for every active login of these hub customers (files, appointments), and with `card` its card in the chat. */
+export async function notifyCustomers(customerIds: string[], notice: Notice, card?: CardOf) {
   const db = createAdminClient();
   if (!db) return;
   try {
@@ -60,13 +73,31 @@ export async function notifyCustomers(customerIds: string[], notice: Notice) {
     // The action succeeded; the bell simply misses this one.
     logFailure(`notice ${notice.kind}`, error);
   }
+  if (card) await postChatEvents(oalabCards(customerIds, card, noticeAppointment(notice.href) ?? notice.kind));
 }
+
+/**
+ * Who is acting in this request (the session's login), for a card where the caller does not say it: the file windows
+ * act as the signed-in admin. Null without a session (the Claude connector passes its admin itself).
+ */
+async function requestActor(): Promise<string | null> {
+  try {
+    const { data } = await (await createClient()).auth.getClaims();
+    return data?.claims?.sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The card of files newly at a customer: one card, which further files join while nobody of the customer looked. */
+const fileCards = (customerIds: readonly string[], files: { id: string; name: string }[], actorId: string | null): ChatPost[] =>
+  files.length ? oalabCards(customerIds, { authorId: actorId, event: { v: 1, kind: "file.shared", files: files.slice(0, 20), total: files.length } }, files[0].id) : [];
 
 /**
  * A note page newly visible (or changed, „Änderung mitteilen“): the customer's logins when the customer gained sight,
  * the logins of the freelancers who look after the customer when they did. Bundled into the mail like files.
  */
-export async function notifyNote(customerId: string, notice: Notice, to: { customer: boolean; freelancer: boolean }) {
+export async function notifyNote(customerId: string, notice: Notice, to: { customer: boolean; freelancer: boolean }, card?: CardOf) {
   const db = createAdminClient();
   if (!db || (!to.customer && !to.freelancer)) return;
   try {
@@ -78,6 +109,8 @@ export async function notifyNote(customerId: string, notice: Notice, to: { custo
     // The release itself succeeded; the bell simply misses this one.
     logFailure(`notice ${notice.kind}`, error);
   }
+  // Only what the customer sees comes into the customer's chat.
+  if (card && to.customer) await postChatEvents(oalabCards([customerId], card, notice.href));
 }
 
 /**
@@ -107,9 +140,11 @@ async function deliverFileNotice(db: SupabaseClient, userIds: string[], notices:
  * who look after a customer unless it is only for the customer. `only` narrows it to the side that newly sees the
  * file (a changed "Sichtbar für"). Without the freelancer migration everything goes to the customers, as before.
  */
-export async function notifyFileShared(fileId: string, customerIds: string[], notice: Notice, only: { customer: boolean; freelancer: boolean } = { customer: true, freelancer: true }) {
+export async function notifyFileShared(fileId: string, customerIds: string[], notice: Notice, only: { customer: boolean; freelancer: boolean } = { customer: true, freelancer: true }, actorId?: string | null) {
   const db = createAdminClient();
   if (!db || !customerIds.length) return;
+  const file = [{ id: fileId, name: fileNoticeName(notice) }];
+  const actor = actorId === undefined ? await requestActor() : actorId;
   try {
     const [assignments, links] = await Promise.all([
       db.from("hub_file_assignments").select("customer_id, audience").eq("file_id", fileId).in("customer_id", customerIds).returns<{ customer_id: string; audience: string }[]>(),
@@ -118,7 +153,10 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
     if (assignments.error || links.error) {
       // Without the freelancer columns only the customers hear of it; say so, a freelancer misses this one.
       logFailure("file notice: freelancer read", assignments.error ?? links.error);
-      if (only.customer) await deliverFileNotice(db, await customerLogins(db, customerIds), [notice]);
+      if (only.customer) {
+        await deliverFileNotice(db, await customerLogins(db, customerIds), [notice]);
+        await postChatEvents(fileCards(customerIds, file, actor));
+      }
       return;
     }
     const audienceOf = new Map((assignments.data ?? []).map((row) => [row.customer_id, row.audience]));
@@ -126,6 +164,8 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
     const freelancers = only.freelancer ? [...new Set((links.data ?? []).filter((link) => audienceOf.get(link.customer_id) !== "customer").map((link) => link.freelancer_id))] : [];
     const recipients = new Set([...(await customerLogins(db, forCustomers)), ...(await customerLogins(db, freelancers))]);
     await deliverFileNotice(db, [...recipients], [notice]);
+    // A file only for the freelancers never comes into the customer's chat.
+    await postChatEvents(fileCards(forCustomers, file, actor));
   } catch (error) {
     // The action succeeded; the bell simply misses this one.
     logFailure(`notice ${notice.kind}`, error);
@@ -137,9 +177,10 @@ export async function notifyFileShared(fileId: string, customerIds: string[], no
  * only for the freelancers, the freelancers who look after the customer of those not only for the customer, and each
  * login gets one line for all of them.
  */
-export async function notifyFilesShared(files: { id: string; title: string }[], customerId: string) {
+export async function notifyFilesShared(files: { id: string; title: string }[], customerId: string, actorId?: string | null) {
   const db = createAdminClient();
   if (!db || !files.length) return;
+  const actor = actorId === undefined ? await requestActor() : actorId;
   const noticesOf = (list: { id: string; title: string }[]) => list.map((file) => fileNotice(file.title, file.id));
   try {
     const [assignments, links] = await Promise.all([
@@ -150,13 +191,16 @@ export async function notifyFilesShared(files: { id: string; title: string }[], 
       // Without the freelancer columns only the customer hears of them; say so, a freelancer misses these.
       logFailure("file notice: freelancer read", assignments.error ?? links.error);
       await deliverFileNotice(db, await customerLogins(db, [customerId]), noticesOf(files));
+      await postChatEvents(fileCards([customerId], files.map((file) => ({ id: file.id, name: file.title })), actor));
       return;
     }
     const audienceOf = new Map((assignments.data ?? []).map((row) => [row.file_id, row.audience]));
     const customerSide = await customerLogins(db, [customerId]);
     const freelancerSide = (await customerLogins(db, [...new Set((links.data ?? []).map((link) => link.freelancer_id))])).filter((id) => !customerSide.includes(id));
-    await deliverFileNotice(db, customerSide, noticesOf(files.filter((file) => audienceOf.get(file.id) !== "freelancer")));
+    const forCustomer = files.filter((file) => audienceOf.get(file.id) !== "freelancer");
+    await deliverFileNotice(db, customerSide, noticesOf(forCustomer));
     await deliverFileNotice(db, freelancerSide, noticesOf(files.filter((file) => audienceOf.get(file.id) !== "customer")));
+    await postChatEvents(fileCards([customerId], forCustomer.map((file) => ({ id: file.id, name: file.title })), actor));
   } catch (error) {
     // The action succeeded; the bell simply misses these.
     logFailure("notice file.shared", error);
@@ -280,8 +324,12 @@ export async function notifyTaskChange(input: { taskId: string; actorId: string;
     if (audience.customers) {
       const customers = await db.from("hub_customers").select("id").eq("organization_id", project.data.organization_id).eq("kind", "customer").returns<{ id: string }[]>();
       if (customers.error) logFailure("task notice: customers", customers.error);
-      const logins = others(await customerLogins(db, (customers.data ?? []).map((row) => row.id)));
+      const customerIds = (customers.data ?? []).map((row) => row.id);
+      const logins = others(await customerLogins(db, customerIds));
       await deliverTaskNotice(db, logins, draft(audience.customers, "customer", projectHref(card.project_id)), "pending");
+      // What the customer reads in the bell, as a card (area Aufgaben, off unless the chat subscribed).
+      const event: ChatEvent = { v: 1, kind: audience.customers, task: { projectId: card.project_id, number, title: card.title, project: project.data.display_name, parts: taskChangeParts(input.change, "customer") } };
+      await postChatEvents(oalabCards(customerIds, { event, authorId: input.actorId }, `${card.project_id}:${number}`));
     }
   } catch (error) {
     // The change is saved; only its notice is lost.
@@ -331,6 +379,81 @@ export async function notifyChat(input: { side: "customer" | "oalab"; customerId
     // The message is saved; only its notice is lost.
     logFailure(`notice ${input.side === "customer" ? "chat.message" : "chat.reply"}`, error);
   }
+}
+
+/**
+ * A customer (or a freelancer) asked for an appointment (24.11.2026, decision 9 of the chat plan): every admin gets
+ * „Neue Terminanfrage von …“ in the bell, the admins' Telegram group a line with a button into the calendar, and the
+ * customer's chat the request as a card on the customer's side, where admins confirm it. Freelancers' chats get no cards
+ * yet (decision 11). Never throws.
+ */
+export async function notifyAppointmentRequest(input: { appointment: AppointmentFacts; customerId: string; authorId: string; origin: string }) {
+  const db = createAdminClient();
+  if (!db) return;
+  const facts = input.appointment;
+  try {
+    const [customer, author, admins] = await Promise.all([
+      db.from("hub_customers").select("company, kind").eq("id", input.customerId).maybeSingle<{ company: string; kind: string | null }>(),
+      db.from("hub_profiles").select("first_name, last_name").eq("user_id", input.authorId).maybeSingle<{ first_name: string | null; last_name: string | null }>(),
+      activeAdminLogins(db),
+    ]);
+    const freelancer = (customer.data?.kind ?? "customer") === "freelancer";
+    const company = customer.data?.company ?? "";
+    const name = author.data ? `${author.data.first_name ?? ""} ${author.data.last_name ?? ""}`.trim() : "";
+    // The group hears of every request, also when no admin login would get a notice.
+    await sendTelegram(telegramAppointmentRequest({ company, author: name, title: facts.title, when: formatMoment(facts.startsAt), url: `${input.origin}${appointmentHref(facts.id)}`, freelancer }));
+    await insertNotices(db, admins.filter((id) => id !== input.authorId), appointmentRequestNotice({ id: facts.id, title: facts.title, startsAt: facts.startsAt, company, author: name, freelancer }));
+  } catch (error) {
+    // The request is saved; only its notice is lost.
+    logFailure("notice appointment.requested", error);
+  }
+  await postChatEvent({ customerId: input.customerId, side: "customer", authorId: input.authorId, event: { v: 1, kind: "appointment.requested", appointment: facts }, key: eventKey("appointment.requested", facts.id, "request") });
+}
+
+/** The team answered a request (calendar, chat or Claude), or it was withdrawn: its line leaves every admin's bell. */
+export async function settleAppointmentRequest(appointmentId: string) {
+  const db = createAdminClient();
+  if (!db) return;
+  const { error } = await db.from("hub_inbox").update({ read_at: new Date().toISOString() }).eq("kind", "appointment.requested").eq("href", appointmentHref(appointmentId)).is("read_at", null);
+  if (error) logFailure("settle appointment.requested", error);
+}
+
+/** A customer withdrew a request: the admins' line goes, and the chat gets a grey line where the request card stands. */
+export async function notifyRequestWithdrawn(input: { appointment: AppointmentFacts; customerId: string; authorId: string }) {
+  await settleAppointmentRequest(input.appointment.id);
+  await postChatEvent({ customerId: input.customerId, side: "customer", authorId: input.authorId, event: { v: 1, kind: "appointment.withdrawn", appointment: input.appointment }, key: eventKey("appointment.withdrawn", input.appointment.id, "withdrawn") });
+}
+
+/**
+ * Something new under „Vertrag & Domain“ that the customer sees (24.11.2026, decision 10): a visible timeline entry, a
+ * domain, an e-mail address or a package. The customer's logins get one line that further changes join while it is
+ * unread and its mail not on its way; the chat gets the card. Never a password or access data. Never throws.
+ */
+export async function notifyContractChange(input: { customerId: string; item: ContractItem; actorId: string | null }) {
+  const db = createAdminClient();
+  if (!db) return;
+  const line = contractItemLine(input.item);
+  try {
+    const logins = await customerLogins(db, [input.customerId]);
+    if (logins.length) {
+      const open = await db.from("hub_inbox").select("id, user_id, title, body").in("user_id", logins).eq("kind", "contract.changed").is("read_at", null).eq("mail_state", "pending")
+        .order("created_at", { ascending: false }).returns<{ id: number; user_id: string; title: string; body: string }[]>();
+      if (open.error) logFailure("contract notice: read", open.error);
+      const latest = new Map<string, { id: number; title: string; body: string }>();
+      for (const row of open.data ?? []) if (!latest.has(row.user_id)) latest.set(row.user_id, row);
+      const at = new Date().toISOString();
+      for (const row of latest.values()) {
+        const merged = mergeContractNotice(row, line);
+        const { error } = await db.from("hub_inbox").update({ title: merged.title, body: merged.body, created_at: at }).eq("id", row.id);
+        if (error) logFailure("contract notice: merge", error);
+      }
+      await insertNotices(db, logins.filter((id) => !latest.has(id)), contractNotice([line]));
+    }
+  } catch (error) {
+    // The change is saved; only its notice is lost.
+    logFailure("notice contract.changed", error);
+  }
+  await postChatEvents(oalabCards([input.customerId], { authorId: input.actorId, event: { v: 1, kind: "contract.changed", items: [input.item] } }, input.item.what));
 }
 
 /** Edits from outside the team reach the bell once per page and writer in this long, not with every autosave. */
@@ -480,6 +603,13 @@ async function customersOfOrganizations(db: SupabaseClient, organizationIds: str
   return map;
 }
 
+/** The chat's card of a Studio notice. */
+function studioCardEvent(card: StudioCard): ChatEvent {
+  return card.kind === "task.customer"
+    ? { v: 1, kind: "task.customer", task: { projectId: card.projectId, number: card.number, title: card.title, project: card.project, parts: [] } }
+    : { v: 1, kind: "project.changed", project: { id: card.projectId, name: card.name, change: card.change } };
+}
+
 /** Reads new Studio activity, writes the notices and stores marks and cursor. */
 async function collectStudioNotices(db: SupabaseClient) {
   const cursorRow = await db.from("hub_notice_marks").select("state").eq("subject", CURSOR).maybeSingle<{ state: string }>();
@@ -518,9 +648,14 @@ async function collectStudioNotices(db: SupabaseClient) {
   const customers = await customersOfOrganizations(db, [...new Set(found.notices.map((item) => item.organizationId))]);
   let created = 0;
   for (const item of found.notices) {
-    const written = await insertNotices(db, await customerLogins(db, customers.get(item.organizationId) ?? []), item.notice);
+    const customerIds = customers.get(item.organizationId) ?? [];
+    const written = await insertNotices(db, await customerLogins(db, customerIds), item.notice);
     if (written < 0) return { error: "inbox" };
     created += written;
+    // The studio reports these by itself: the card comes from „oalab“. Its key is the change, so a repeated run of the
+    // same batch (marks not saved) writes no second card.
+    const event = studioCardEvent(item.card);
+    await postChatEvents(customerIds.map((customerId) => ({ customerId, side: "oalab" as const, authorId: null, event, key: eventKey(event.kind, item.key, "studio") })));
   }
   // Marks and cursor only after the notices are in: a failed run is simply repeated next time.
   const at = new Date().toISOString();

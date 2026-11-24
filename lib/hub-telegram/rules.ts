@@ -52,6 +52,16 @@ export function telegramServiceMessage(input: { company: string; author: string;
   return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.title, 200)}\n${input.body}`, url: input.url });
 }
 
+/**
+ * A request for an appointment for the group (24.11.2026, decision 9 of the chat plan): „Neue Terminanfrage · Firma ·
+ * Name“ in bold, then title and time, and a button into the calendar. Answered in the hub, in the calendar or the chat.
+ */
+export function telegramAppointmentRequest(input: { company: string; author: string; title: string; when: string; url: string; freelancer?: boolean }) {
+  const company = oneLine(input.company, 120) || (input.freelancer ? "Freelancer" : "Kunde");
+  const head = ["Neue Terminanfrage", input.freelancer && input.company ? `${company} (Freelancer)` : company, oneLine(input.author, 120)].filter(Boolean).join(" · ");
+  return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.title, 200)}\n${oneLine(input.when, 120)}`, url: input.url });
+}
+
 export const telegramTestMessage = () => ({
   text: "Testmeldung aus dem oalab Client Hub: Telegram ist eingerichtet. Schreibt ein Kunde im privaten Chat, kommt seine Nachricht hier an.",
 });

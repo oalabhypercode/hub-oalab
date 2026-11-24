@@ -5,8 +5,10 @@ import { OPERATOR } from "@/lib/legal-details";
  * Checked on 8.11.2026 against what the hub really uses: its own server at netcup (Coolify on server 2: PostgreSQL,
  * Better Auth login with the session cookie of lib/platform/config.ts, Garage file store; netcup also sends the mail),
  * Cloudflare in front of every public host, Anthropic (assistant), Telegram (since 12.11.2026 every customer message
- * with company, name and text; at the user's wish the text below says only that the team hears of new messages there
- * and makes no claim about their content), freelancers
+ * with company, name and text, since 24.11.2026 also requests for appointments with company, name, title and time; at
+ * the user's wish the text below says only that the team hears of new messages and requests there and makes no claim
+ * about their content), cards for changes in the private chat (24.11.2026, only the hub, nothing of the service
+ * platform), freelancers
  * who see the customers assigned to them, customer master data taken over from the accounting (Sevdesk import). Vercel
  * and Supabase only keep the frozen copy from before the move (8.11.2026) until they are deleted. Only necessary
  * cookies and browser storage, no trackers, fonts served by the hub itself. Change this text whenever one of these
@@ -56,7 +58,7 @@ export function PrivacyPolicy() {
           <li>Der Hub läuft auf unserem eigenen Server bei netcup in der EU. Davor steht Cloudflare, das die Verbindungen weiterleitet und vor Angriffen schützt (Abschnitt 3).</li>
           <li>Es gibt keine Werbung, kein Tracking, keine Analyse-Werkzeuge und keine eingebetteten Inhalte fremder Anbieter; auch die Schrift liefert der Hub selbst aus. Cookies und Browser-Speicher nutzt der Hub nur, soweit er sie zum Funktionieren braucht.</li>
           <li>Wir verkaufen keine Daten. Dienstleister bekommen Daten nur, soweit es für den Hub nötig ist; du findest sie unten mit Namen.</li>
-          <li>Zwei Punkte solltest du kennen: Schreibt dein Unternehmen uns im Chat, meldet der Hub das unserem Team auch über Telegram (Abschnitt 7). Fragen an den KI-Assistenten verarbeitet Anthropic (Abschnitt 8).</li>
+          <li>Zwei Punkte solltest du kennen: Schreibt dein Unternehmen uns im Chat oder fragt einen Termin an, meldet der Hub das unserem Team auch über Telegram (Abschnitt 7). Fragen an den KI-Assistenten verarbeitet Anthropic (Abschnitt 8).</li>
         </ul>
       </LegalSection>
 
@@ -115,9 +117,9 @@ export function PrivacyPolicy() {
 
       <LegalSection id="nachrichten" title={title("nachrichten")}>
         <h3>Privater Chat</h3>
-        <p>Unter „Nachrichten“ schreibst du direkt mit dem oalab-Team. Gespeichert werden Text, Name, Zeitpunkt und wer welche Nachricht gelesen hat. Den Chat sehen alle Logins deines Unternehmens und das oalab-Team. Über neue Nachrichten informiert der Hub in der Glocke und per E-Mail (Abschnitt 9). Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Service-Anfragen stellst du auf der Serviceplattform; deren Gespräche sieht das oalab-Team auch im Hub.</p>
+        <p>Unter „Nachrichten“ schreibst du direkt mit dem oalab-Team. Gespeichert werden Text, Name, Zeitpunkt und wer welche Nachricht gelesen hat. Den Chat sehen alle Logins deines Unternehmens und das oalab-Team. Über neue Nachrichten informiert der Hub in der Glocke und per E-Mail (Abschnitt 9). Was wir für dein Unternehmen ändern, etwa ein neuer Termin oder eine neue Datei, und deine Terminanfragen kann der Hub zusätzlich als Karte in den Chat stellen; welche Bereiche, stellt ihr unter „Abos“ ein, und wer ein Abo ändert, steht mit Namen im Chat. Eine Karte nennt nur, was du auch in der Glocke liest, nie den Inhalt einer Datei oder Notiz und nie Passwörter. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Service-Anfragen stellst du auf der Serviceplattform; deren Gespräche sieht das oalab-Team auch im Hub, sie kommen aber nicht in den Chat.</p>
         <h3>Meldung an Telegram</h3>
-        <p>Damit wir neue Nachrichten schnell sehen, meldet der Hub sie zusätzlich in einer geschlossenen Telegram-Gruppe unseres Teams. Beantwortet wird im Hub.</p>
+        <p>Damit wir neue Nachrichten und Terminanfragen schnell sehen, meldet der Hub sie zusätzlich in einer geschlossenen Telegram-Gruppe unseres Teams. Beantwortet wird im Hub.</p>
         <LegalCard>
           <strong>Telegram Messenger Inc.</strong><br />
           Commerce House, Wickhams Cay 1, PO Box 3140, Road Town, Tortola, VG1110, Britische Jungferninseln<br />
@@ -128,7 +130,7 @@ export function PrivacyPolicy() {
           <li>Meldungen in Gruppen sind nicht Ende-zu-Ende-verschlüsselt. Telegram speichert sie auf seinen Servern, für Konten aus dem Europäischen Wirtschaftsraum nach eigenen Angaben in Rechenzentren in den Niederlanden.</li>
           <li>Telegram hat seinen Sitz außerhalb der EU, auf den Britischen Jungferninseln. Dafür gibt es keinen Angemessenheitsbeschluss der EU-Kommission, und mit Telegram bestehen keine Standardvertragsklauseln.</li>
         </ul>
-        <p>Rechtsgrundlage ist unser berechtigtes Interesse, Kundennachrichten schnell zu sehen (Art. 6 Abs. 1 lit. f DSGVO). Du kannst dem widersprechen (Abschnitt 11).</p>
+        <p>Rechtsgrundlage ist unser berechtigtes Interesse, Kundennachrichten und Terminanfragen schnell zu sehen (Art. 6 Abs. 1 lit. f DSGVO). Du kannst dem widersprechen (Abschnitt 11).</p>
       </LegalSection>
 
       <LegalSection id="assistent" title={title("assistent")}>

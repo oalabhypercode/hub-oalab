@@ -37,6 +37,7 @@ function areaOf(kind: string) {
   if (kind.startsWith("note.")) return "Notizen";
   if (kind.startsWith("chat.") || kind.startsWith("service.")) return "Nachrichten";
   if (kind.startsWith("appointment.")) return "Kalender";
+  if (kind === "contract.changed") return "Vertrag & Domain";
   return "Hub";
 }
 
@@ -143,8 +144,25 @@ export function noticeColumns(notice: { kind: string; title: string; body: strin
       : { where: fallback, path: "Chat mit oalab", title: heading, body: text, from: author || "oalab", fromDetail: author ? "oalab" : "Team" };
   }
 
+  // To the team (24.11.2026): „Neue Terminanfrage von Nordlicht Studio“ with "Abstimmung · Di., 24. November um 10:00 Uhr · Jana Sommer".
+  if (kind === "appointment.requested") {
+    const lead = "Neue Terminanfrage von ";
+    const company = title.startsWith(lead) ? title.slice(lead.length) : "";
+    const freelancer = company.endsWith(FREELANCER_MARK);
+    const parts = body.split(SEP);
+    const who = parts.length > 2 ? parts[parts.length - 1] : "";
+    const name = freelancer ? company.slice(0, -FREELANCER_MARK.length) : company;
+    return {
+      where: name || fallback, path: "Kalender › Anfrage", title: "Neue Terminanfrage", body: (who ? parts.slice(0, -1) : parts).join(SEP),
+      from: who || name, fromDetail: freelancer ? "Freelancer" : "Kunde",
+    };
+  }
+
   // „Termin bestätigt: Abstimmung“ with the time and a note.
   if (kind.startsWith("appointment.")) return { where: fallback, path: subject, title: event, body, ...OALAB };
+
+  // To the customer (24.11.2026): „Neu unter Vertrag & Domain“ with "Domain eingetragen: nordlicht.de".
+  if (kind === "contract.changed") return { where: fallback, path: "", title, body, ...OALAB };
 
   return { where: fallback, path: "", title, body, from: "", fromDetail: "" };
 }

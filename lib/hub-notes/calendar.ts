@@ -122,7 +122,7 @@ export async function createNoteAppointmentAs(ctx: NotesContext, input: NoteAppo
   const written = await writeAppointment(supabase, null, {
     title: String(input.title ?? ""), description: String(input.description ?? ""), customerId: page.customerId,
     day: String(input.day ?? ""), start: String(input.start ?? ""), minutes: Number(input.minutes), teamsUrl: String(input.teamsUrl ?? ""),
-  });
+  }, ctx.userId);
   if (!written.ok) return fail(written.error);
   return readAppointment(ctx, written.data.id);
 }

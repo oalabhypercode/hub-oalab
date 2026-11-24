@@ -31,7 +31,7 @@ function cleanFileIds(value: unknown) {
  * along, so a working file only for freelancers stays hidden from the new customer. Whoever newly sees files gets one
  * line in the bell for all of them.
  */
-export async function assignFilesAs(supabase: FileClient, input: { fileIds: string[]; customerId: string; folderId: string | null; from?: string | null; move?: boolean }): Promise<ActionResult<{ added: number; moved: number }>> {
+export async function assignFilesAs(supabase: FileClient, input: { fileIds: string[]; customerId: string; folderId: string | null; from?: string | null; move?: boolean }, actorId?: string | null): Promise<ActionResult<{ added: number; moved: number }>> {
   const ids = cleanFileIds(input?.fileIds);
   const customerId = String(input?.customerId ?? "");
   const folderId = input?.folderId ? String(input.folderId) : null;
@@ -85,7 +85,7 @@ export async function assignFilesAs(supabase: FileClient, input: { fileIds: stri
     moved = data?.length ?? 0;
   }
   const titles = new Map((files.data ?? []).map((file) => [file.id, file.title]));
-  await notifyFilesShared(added.map((id) => ({ id, title: titles.get(id) ?? "Datei" })), customerId);
+  await notifyFilesShared(added.map((id) => ({ id, title: titles.get(id) ?? "Datei" })), customerId, actorId);
   return { ok: true, data: { added: added.length, moved } };
 }
 
@@ -93,7 +93,7 @@ export async function assignFilesAs(supabase: FileClient, input: { fileIds: stri
  * Who sees a file at one customer: the customer and their freelancers, only the customer or only the freelancers,
  * written with the service role. Whoever newly sees the file gets a notice.
  */
-export async function setFileAudienceAs(db: NonNullable<ReturnType<typeof createAdminClient>>, fileId: string, customerId: string, audience: FileAudience): Promise<ActionResult<null>> {
+export async function setFileAudienceAs(db: NonNullable<ReturnType<typeof createAdminClient>>, fileId: string, customerId: string, audience: FileAudience, actorId?: string | null): Promise<ActionResult<null>> {
   if (!uuid.test(String(fileId ?? "")) || !uuid.test(String(customerId ?? "")) || !isFileAudience(audience)) return { ok: false, error: "Unbekannte Datei oder Auswahl." };
   const current = await db.from("hub_file_assignments").select("audience").eq("file_id", fileId).eq("customer_id", customerId).maybeSingle<{ audience: string }>();
   if (current.error || !current.data) return { ok: false, error: current.error?.code === "42703" ? "„Sichtbar für“ ist in der Datenbank noch nicht eingerichtet." : "Die Datei liegt nicht mehr bei diesem Kunden." };
@@ -103,7 +103,7 @@ export async function setFileAudienceAs(db: NonNullable<ReturnType<typeof create
   const newly = { customer: before === "freelancer" && audience !== "freelancer", freelancer: before === "customer" && audience !== "customer" };
   if (newly.customer || newly.freelancer) {
     const file = await db.from("hub_files").select("title").eq("id", fileId).maybeSingle<{ title: string }>();
-    if (file.data) await notifyFileShared(fileId, [customerId], fileNotice(file.data.title, fileId), newly);
+    if (file.data) await notifyFileShared(fileId, [customerId], fileNotice(file.data.title, fileId), newly, actorId);
   }
   return { ok: true, data: null };
 }
