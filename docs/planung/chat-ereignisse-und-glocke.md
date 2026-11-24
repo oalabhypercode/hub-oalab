@@ -338,7 +338,7 @@ Geprüft in der Designvorschau: 1024 × 768 (760 px breit), 1512 × 900 (937 px)
 
 ## 10. Umsetzung Etappe 2 (24. November 2026)
 
-Gebaut nach „Passt, umsetzen“ auf dem Branch `feat/chat-karten-und-abos` (Hub) und `feat/hub-chat-events` (`service-oalab`), beides gepusht, ohne PR und nicht live. Reihenfolge beim Livegang: zuerst die Migration als Import in Coolify, dann der PR des Hubs. Der Hub liest den Chat auch ohne die Migration weiter (ohne Karten und ohne „Abos“), damit ein früherer Livegang nichts kaputt macht.
+Gebaut nach „Passt, umsetzen“ auf dem Branch `feat/chat-karten-und-abos` (Hub) und `feat/hub-chat-events` (`service-oalab`). PRs vom 24.11.2026: hub-oalab#164 und service-oalab#42, beide mergebar, ohne CI, nicht live. Die Import-Datei für Coolify (`oalab-chat-karten-migration-202611240001.sql`, gebaut aus dem Commit a224749, Prüfsumme der Migration 23f3ec08…) spielt sich einmal ein und bricht ab, wenn sie schon eingespielt ist, 202611230002 fehlt, es Karten oder Abos schon gibt oder die erlaubten Meldungsarten der Glocke abweichen. Reihenfolge beim Livegang: zuerst die Migration als Import in Coolify, dann service-oalab#42, dann der PR des Hubs. Der Hub liest den Chat auch ohne die Migration weiter (ohne Karten und ohne „Abos“), damit ein früherer Livegang nichts kaputt macht.
 
 Datenbank (`service-oalab`, Migration `202611240001_hub_chat_events` mit Rückweg und Test, geprüft auf PGlite mit 38 Prüfungen):
 
