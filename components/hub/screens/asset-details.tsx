@@ -8,6 +8,7 @@ import { fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileC
 import { mayBeClear, parseImageSize, previewKind, previewRatio, previewUrl } from "@/lib/hub-files/preview";
 import { fileAudiences, isFileAudience, type FileAudience, type HubFileCustomer, type HubFolder, type HubStoredFile } from "@/lib/hub-files/types";
 import { audienceLabels } from "./asset-freelancers";
+import { fileAudienceOfTeamSight, TEAM_SIGHT_LABELS, TEAM_SIGHTS, teamSightOfFile } from "@/lib/hub-team/rules";
 import { saveCustomerLogo } from "@/lib/hub-logos/actions";
 import { detectLogoGround } from "@/lib/hub-logos/ground";
 import { canBeLogo, type LogoBackground } from "@/lib/hub-logos/rules";
@@ -79,7 +80,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
     steps: [
       <><b>Zuordnung ändern:</b> Kunden dazunehmen oder entfernen.</>,
       <><b>Den Ordner</b> wählst du je Kunde.</>,
-      <><b>Sichtbar für</b> gilt bei Kunden mit Freelancer.</>,
+      <><b>Sichtbar für</b> gilt bei Kunden mit Freelancer und bei oalab.</>,
     ],
     ask: "Wie funktionieren Freigabe, Ordner und „Sichtbar für“ einer Datei?",
   });
@@ -178,8 +179,10 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
             const own = folders.filter((folder) => folder.customerId === customer.id);
             const folderId = file.folderIds[customer.id] ?? "";
             const audience = file.audiences?.[customer.id] ?? "both";
-            // "Sichtbar für" matters only at customers that freelancers look after.
-            const served = Boolean(onAudience && sign.kind !== "freelancer" && sign.freelancerIds?.length);
+            // "Sichtbar für" matters only at customers that freelancers look after, and at oalab („Nur Team“ or „Team und
+            // Freelancer“, stage 2 of „oalab als Unternehmen“).
+            const team = sign.kind === "team";
+            const served = Boolean(onAudience && sign.kind !== "freelancer" && (team || sign.freelancerIds?.length));
             const folderName = own.find((folder) => folder.id === folderId)?.name ?? "Ohne Ordner";
             return (
               <div key={customer.id} className="am-share-row">
@@ -190,7 +193,8 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
                   {served && (
                     <span className="am-mini am-audience">
                       <Eye size={14} aria-hidden="true" />
-                      <Select variant="bare" label={`Bei ${customer.company} sichtbar für`} value={audience} onChange={(value) => changeAudience(customer, value)} disabled={busy !== null} options={fileAudiences.map((value) => ({ value, label: audienceLabels[value] }))} />
+                      <Select variant="bare" label={`Bei ${customer.company} sichtbar für`} value={team ? fileAudienceOfTeamSight(teamSightOfFile(audience)) : audience} onChange={(value) => changeAudience(customer, value)} disabled={busy !== null}
+                        options={team ? TEAM_SIGHTS.map((sight) => ({ value: fileAudienceOfTeamSight(sight), label: TEAM_SIGHT_LABELS[sight] })) : fileAudiences.map((value) => ({ value, label: audienceLabels[value] }))} />
                       <ChevronDown size={14} aria-hidden="true" />
                     </span>
                   )}

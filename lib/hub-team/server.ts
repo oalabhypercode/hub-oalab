@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HUB_TEAM_ROLE, TEAM_KIND, teamRoleOf, type TeamEntry, type TeamRoleState } from "./rules";
 
@@ -13,6 +14,26 @@ export async function loadTeamEntry(db: SupabaseClient): Promise<TeamEntry | nul
   const { data, error } = await db.from("hub_customers").select("id, company, customer_number, organization_id").eq("kind", TEAM_KIND).maybeSingle<EntryRow>();
   if (error || !data?.organization_id) return null;
   return { id: data.id, company: data.company, customerNumber: data.customer_number, organizationId: data.organization_id };
+}
+
+/**
+ * Whether the database takes notes and meeting notes for the team entry (stage 2, migration 202611240002): it answers
+ * hub_team_notes_ready(). Without the migration the function is missing, and the hub shows oalab neither in „Notizen“
+ * nor in the Asset Management, as before. Asked once per request and client.
+ */
+const teamNotesReady = cache(async (db: SupabaseClient): Promise<boolean> => {
+  try {
+    const { data, error } = await db.rpc("hub_team_notes_ready");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+});
+
+/** The team entry for notes and files: null without the migration of stage 2 or the entry itself. */
+export async function loadTeamNotesEntry(db: SupabaseClient | null | undefined): Promise<TeamEntry | null> {
+  if (!db || !(await teamNotesReady(db))) return null;
+  return loadTeamEntry(db).catch(() => null);
 }
 
 /** The active oalab organizations, where Studio's team roles live (as the board reads them, lib/hub-tasks/server.ts). */

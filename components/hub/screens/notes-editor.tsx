@@ -52,6 +52,8 @@ type Props = {
   projects: NoteProject[];
   viewer: NoteViewer;
   pageAudience: NoteAudience;
+  /** One of oalab's own pages (stage 2): tasks from it are never released to a customer. */
+  internal?: boolean;
   loadTaskOptions: (projectId: string | null) => Promise<TaskOptions | null>;
   createTasks: (drafts: TaskDraft[]) => Promise<NoteTaskView[]>;
   loadPreview: (url: string) => Promise<PreviewResult>;
@@ -163,7 +165,7 @@ function ColonMenu({ items, command, query, handleRef }: MenuProps<EmojiEntry> &
 
 const domainOf = (href: string) => /^https:\/\/([^/?#]+)/i.exec(href)?.[1]?.replace(/^www\./i, "") ?? href.replace(/^mailto:/i, "");
 
-export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef, refsUi, projects, viewer, pageAudience, loadTaskOptions, createTasks, loadPreview, calendarUi }: Props) {
+export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef, refsUi, projects, viewer, pageAudience, internal = false, loadTaskOptions, createTasks, loadPreview, calendarUi }: Props) {
   const [picker2, setPicker2] = useState<{ kind: PickerKind; anchor: DOMRect; at: number } | null>(null);
   const [apptPicker, setApptPicker] = useState<{ anchor: DOMRect; at: number } | null>(null);
   /** „Termin anlegen/anfragen“ for a text; `at` is where the block goes afterwards (null on a page one only reads). */
@@ -520,6 +522,7 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
             titles={convert.titles}
             viewer={viewer}
             pageAudience={pageAudience}
+            internal={internal}
             projectId={page.projectId}
             loadOptions={loadTaskOptions}
             onClose={() => setConvert(null)}

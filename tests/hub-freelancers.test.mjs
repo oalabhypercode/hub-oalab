@@ -84,7 +84,8 @@ test("the asset management: freelancers read, admins set who looks after a custo
   assert.match(am, /\{!term && !freelancerView && pinned\(\{ kind: "inbox" \}/);
   assert.match(am, /canFile=\{\(customerId\) => !freelancerView \|\| customerId === ownId\}/);
   // Upload, logo and "Betreut von" need the admin's upload right; the audience only goes through the server.
-  assert.match(am, /\{canUpload && fileState\.freelancers && current\.kind !== "freelancer" && freelancerEntries\.length > 0 && \(/);
+  // „Betreut von“ for customers; oalab gets freelancers only in stage 3 of „oalab als Unternehmen“.
+  assert.match(am, /\{canUpload && fileState\.freelancers && current\.kind !== "freelancer" && current\.kind !== "team" && freelancerEntries\.length > 0 && \(/);
   const actions = await source("lib/hub-files/actions.ts");
   const audience = actions.slice(actions.indexOf("export async function setFileAudience"));
   assert.match(audience, /const db = await verifyHubAdmin\(\) \? createAdminClient\(\) : null;\n {2}if \(!db\) return denied;/);

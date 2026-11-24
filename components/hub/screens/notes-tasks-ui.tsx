@@ -21,13 +21,15 @@ type ConvertProps = {
   titles: string[];
   viewer: NoteViewer;
   pageAudience: NoteAudience;
+  /** At oalab's own pages there is no customer to release a task to. */
+  internal?: boolean;
   projectId: string | null;
   loadOptions: (projectId: string | null) => Promise<TaskOptions | null>;
   onCreate: (drafts: TaskDraft[]) => Promise<void>;
   onClose: () => void;
 };
 
-export function TaskConvertDialog({ titles, viewer, pageAudience, projectId, loadOptions, onCreate, onClose }: ConvertProps) {
+export function TaskConvertDialog({ titles, viewer, pageAudience, internal = false, projectId, loadOptions, onCreate, onClose }: ConvertProps) {
   const many = titles.length > 1;
   const [title, setTitle] = useState(titles[0] ?? "");
   const [picked, setPicked] = useState<boolean[]>(() => titles.map((_, index) => index < 20));
@@ -86,7 +88,7 @@ export function TaskConvertDialog({ titles, viewer, pageAudience, projectId, loa
       {viewer === "admin" ? (
         <div className="nz-field is-flat"><span>Sichtbar für</span>
           <span className="nz-seg" role="group" aria-label="Sichtbar für">
-            {AUDIENCES.map((item) => <button key={item.id} type="button" className={`nz-seg-btn${audience === item.id ? " is-on" : ""}`} aria-pressed={audience === item.id} onClick={() => setAudience(item.id)}>{item.label}</button>)}
+            {AUDIENCES.filter((item) => !internal || item.id !== "customer").map((item) => <button key={item.id} type="button" className={`nz-seg-btn${audience === item.id ? " is-on" : ""}`} aria-pressed={audience === item.id} onClick={() => setAudience(item.id)}>{item.label}</button>)}
           </span>
         </div>
       ) : <p className="nz-pop-note">Die Aufgabe sehen das Team und die Freelancer des Projekts.</p>}

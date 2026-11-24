@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BriefcaseBusiness, Building2, CalendarClock, CalendarDays, Eye, FolderOpen, History, Image as ImageIcon, Link2, Lock, MessageCircle, PenLine, Rows3, Smile, SquareKanban, Trash2, Users, X, Bell } from "lucide-react";
-import { ACCESS_LABELS, accessLabel, accessOf, accessSentence, audienceChoices, audienceLabel, editedAgo, NOTE_ACCESS, viewerEdits } from "@/lib/hub-notes/rules";
+import { ACCESS_LABELS, accessLabel, accessOf, accessSentence, audienceChoices, audienceLabel, editedAgo, NOTE_ACCESS, teamNoteAudience, viewerEdits } from "@/lib/hub-notes/rules";
+import { TEAM_MESSAGE_MAX, TEAM_SIGHT_LABELS, TEAM_SIGHT_NOTES, TEAM_SIGHTS } from "@/lib/hub-team/rules";
 import { galleryCover } from "@/lib/hub-notes/covers";
 import type { NoteAccess, NoteAudience, NoteCustomer, NotePageMeta, NoteProject, NoteReader, NoteRights, NoteSettings, NotesTextSize, NoteViewer, NoteWidth } from "@/lib/hub-notes/types";
 import { Switch } from "../controls";
@@ -22,8 +23,10 @@ type Mark = { Icon: React.ComponentType<{ size?: number; "aria-hidden"?: boolean
  * page's state: the lock for „Nur Team“, the eye where the customer reads, the pen where somebody outside writes along.
  * Customers and freelancers see whether they may write along.
  */
-export function accessMark(page: NoteRights, viewer: NoteViewer, hasFreelancer = true): Mark {
+export function accessMark(page: NoteRights, viewer: NoteViewer, hasFreelancer = true, team = false): Mark {
   if (viewer !== "admin") return viewerEdits(viewer, page) ? { Icon: PenLine, tone: "edit", label: "Du kannst mitschreiben" } : { Icon: Eye, tone: "read", label: "Nur lesen" };
+  // oalab's own pages (stage 2): „Nur Team“ with the lock, „Team und Freelancer“ with the freelancers' case.
+  if (team) return teamNoteAudience(page.audience) === "team" ? { Icon: Lock, tone: "team", label: TEAM_SIGHT_LABELS.team } : { Icon: BriefcaseBusiness, tone: "read", label: TEAM_SIGHT_LABELS.freelancer };
   const access = accessOf(page);
   const freelancer = hasFreelancer ? access.freelancer : "none";
   const label = accessLabel(page, hasFreelancer);
@@ -118,6 +121,8 @@ type GearProps = {
   onClose: () => void;
   /** Step 2: tell everybody who sees the page about a change, the trash, and open checklist points as tasks. */
   onNotify?: () => void;
+  /** oalab's own pages (stage 2): „Team informieren“ instead of „Änderung mitteilen“. */
+  onTeamNotify?: () => void;
   onTrash?: () => void;
   openItems?: number;
   onOpenItems?: () => void;
@@ -127,7 +132,7 @@ type GearProps = {
 };
 
 /** „Diese Seite“: who sees it, project, date, symbol, cover, width, the link; last edited at the bottom. */
-export function PageGear({ page, viewer, customer, projects, parent, people, canEdit, canArrange, onAccess, readers, chatHref, onProject, onDate, onWidth, onIcon, onCover, onCopyLink, onClose, onNotify, onTrash, openItems = 0, onOpenItems, onHistory, appointmentHref }: GearProps) {
+export function PageGear({ page, viewer, customer, projects, parent, people, canEdit, canArrange, onAccess, readers, chatHref, onProject, onDate, onWidth, onIcon, onCover, onCopyLink, onClose, onNotify, onTeamNotify, onTrash, openItems = 0, onOpenItems, onHistory, appointmentHref }: GearProps) {
   const box = useRef<HTMLDivElement>(null);
   useDismiss(box, onClose, "[data-gear-button]");
   const admin = viewer === "admin";
@@ -142,7 +147,19 @@ export function PageGear({ page, viewer, customer, projects, parent, people, can
   return (
     <div ref={box} className="nz-pop nz-gear-pop nz-glass" role="dialog" aria-label="Einstellungen dieser Seite">
       <div className="nz-pop-head"><strong>Diese Seite</strong><button type="button" className="nz-ibtn" aria-label="Schließen" onClick={onClose}><X size={16} aria-hidden="true" /></button></div>
-      {admin && (
+      {admin && customer.team && (
+        <div className="nz-pop-sec">
+          {/* oalab's own pages: only the team, or the team and freelancers (as „Freelancer: Lesen“ underneath). */}
+          <div className="nz-pop-label">Sichtbar für</div>
+          <AudienceTiles
+            choices={TEAM_SIGHTS.map((id) => ({ id, label: TEAM_SIGHT_LABELS[id], off: id === "freelancer" && parent !== null && teamNoteAudience(parent.audience) === "team", tip: id === "freelancer" && parent ? `Höchstens so sichtbar wie „${parent.title}“` : undefined }))}
+            value={teamNoteAudience(page.audience)}
+            onPick={(value) => onAccess("freelancer", value === "freelancer" ? "read" : "none")}
+          />
+          <p className="nz-pop-note">{TEAM_SIGHT_NOTES[teamNoteAudience(page.audience)]}</p>
+        </div>
+      )}
+      {admin && !customer.team && (
         <div className="nz-pop-sec">
           <div className="nz-pop-label">Zugriff</div>
           <AccessRow
@@ -207,7 +224,8 @@ export function PageGear({ page, viewer, customer, projects, parent, people, can
         <div className="nz-pop-row"><Rows3 size={16} aria-hidden="true" /><span>Breite</span><span className="nz-pop-right"><WidthSwitch value={page.width} onChange={onWidth} /></span></div>
       </>}
       <div className="nz-pop-sep" />
-      {onNotify && page.audience !== "team" && <button type="button" className="nz-pop-row" onClick={onNotify}><Bell size={16} aria-hidden="true" /><span>Änderung mitteilen</span></button>}
+      {onNotify && !customer.team && page.audience !== "team" && <button type="button" className="nz-pop-row" onClick={onNotify}><Bell size={16} aria-hidden="true" /><span>Änderung mitteilen</span></button>}
+      {onTeamNotify && customer.team && <button type="button" className="nz-pop-row" onClick={onTeamNotify}><Users size={16} aria-hidden="true" /><span>Team informieren</span><span className="nz-pop-val">In der Glocke</span></button>}
       {onOpenItems && openItems > 0 && <button type="button" className="nz-pop-row" onClick={onOpenItems}><SquareKanban size={16} aria-hidden="true" /><span>Offene Punkte als Aufgaben</span><span className="nz-pop-val">{openItems}</span></button>}
       {onHistory && <button type="button" className="nz-pop-row" data-history-button onClick={onHistory}><History size={16} aria-hidden="true" /><span>Verlauf</span><span className="nz-pop-val">Frühere Fassungen</span></button>}
       <button type="button" className="nz-pop-row" onClick={onCopyLink}><Link2 size={16} aria-hidden="true" /><span>Link kopieren</span></button>
@@ -305,12 +323,12 @@ export function AudienceDialog({ ask, customer, notifyDefault, onConfirm, onClos
       <p className="modal-description">
         {release
           ? `„${ask.page.title}“ steht danach bei ${who} unter Projekte › Notizen.${writes}${count ? ` ${count} ${count === 1 ? "Unterseite wird" : "Unterseiten werden"} dabei eingeschränkt.` : ""}`
-          : `„${ask.page.title}“ wird „${audienceLabel(ask.target, customer.hasFreelancer)}“. Diese Unterseiten wären sonst sichtbarer als die Seite darüber:`}
+          : `„${ask.page.title}“ wird „${audienceLabel(ask.target, customer.hasFreelancer, customer.team)}“. Diese Unterseiten wären sonst sichtbarer als die Seite darüber:`}
       </p>
       {count > 0 && (
         <div className="nz-warn">
           <strong>Danach sichtbar für:</strong>
-          {ask.narrowed.map((item) => <span key={item.title} className="nz-warn-row">{item.title}: {audienceLabel(item.audience, customer.hasFreelancer)}</span>)}
+          {ask.narrowed.map((item) => <span key={item.title} className="nz-warn-row">{item.title}: {audienceLabel(item.audience, customer.hasFreelancer, customer.team)}</span>)}
         </div>
       )}
       {release && ask.hidden.length > 0 && (
@@ -324,6 +342,44 @@ export function AudienceDialog({ ask, customer, notifyDefault, onConfirm, onClos
       <div className="nz-dialog-actions">
         <button type="button" className="nz-btn" onClick={onClose}>Abbrechen</button>
         <button type="button" className="nz-btn is-primary" onClick={() => onConfirm(release && notify)}>{release ? "Freigeben" : "Einschränken"}</button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * „Team informieren“ at one of oalab's own pages (stage 2 of the plan „oalab als Unternehmen“): the other admins get a
+ * line in the bell, with an optional short sentence; the sender gets none.
+ */
+export function TeamNotifyDialog({ page, onSend, onClose }: { page: Pick<NotePageMeta, "title">; onSend: (message: string) => Promise<string | null>; onClose: () => void }) {
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const field = useRef<HTMLInputElement>(null);
+  // The dialog moves the focus to its first button when it opens; the sentence field takes it right after.
+  useEffect(() => {
+    const timer = window.setTimeout(() => field.current?.focus(), 30);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const send = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    const failed = await onSend(message);
+    setBusy(false);
+    if (failed) setError(failed);
+  };
+  return (
+    <Modal title="Team informieren" onClose={onClose} className="nz-dialog">
+      <p className="modal-description">Alle anderen Admins sehen in der Glocke, dass du „{page.title}“ geteilt hast. Interne Seiten sehen sie ohnehin; so merken sie, dass es hier Neues gibt. Du selbst bekommst keine Meldung.</p>
+      <label className="nz-field is-flat">
+        <span>Ein kurzer Satz dazu (freiwillig)</span>
+        <input ref={field} type="text" value={message} maxLength={TEAM_MESSAGE_MAX} placeholder="Etwa: Bitte bis Freitag ergänzen." onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void send(); } }} />
+      </label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="nz-dialog-actions">
+        <button type="button" className="nz-btn" onClick={onClose}>Abbrechen</button>
+        <button type="button" className="nz-btn is-primary" disabled={busy} onClick={() => void send()}><Users size={14} aria-hidden="true" />{busy ? "Sendet …" : "Team informieren"}</button>
       </div>
     </Modal>
   );

@@ -43,6 +43,10 @@ const WEB = "c0ffee00-0000-4000-8000-0000000a0001";
 const BRAND = "c0ffee00-0000-4000-8000-0000000a0002";
 const id = (n: number) => `0b0e0000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const KICKOFF = id(1), ABSTIMMUNG = id(2), BRIEFING = id(3), ZIELGRUPPEN = id(4), TEXTE = id(5), UEBERGABE = id(6), KALKULATION = id(7), STUNDEN = id(8), KONTAKT = id(9), WORKSHOP = id(10);
+/** oalab's own entry in the preview (stage 2 of „oalab als Unternehmen“), with its internal project and pages. */
+export const PREVIEW_TEAM = "c0ffee00-0000-4000-8000-0000000000a1";
+const TEAM_SITE = "c0ffee00-0000-4000-8000-0000000b0001";
+const WOCHE = id(11), IDEEN = id(12), MARKE = id(13), TEAMWORKSHOP = id(14);
 
 const at = (daysAgo: number, hour = 10) => new Date(Date.UTC(2026, 9, 15 - daysAgo, hour, 12)).toISOString();
 
@@ -132,6 +136,34 @@ const seeds: Seed[] = [
   },
 ];
 
+/** oalab's own pages: „Nur Team“ and one „Team und Freelancer“; a meeting note of an internal appointment. */
+const teamSeeds: Seed[] = [
+  {
+    id: WOCHE, title: "Wochenplanung KW 43", icon: "🗓️", audience: "team", projectId: null, cover: { kind: "gallery", value: "oalab", position: 50 }, datedOn: "2026-10-19", updatedAt: at(0, 8), updatedBy: "p-lea",
+    content: doc(
+      callout("🔒", text("Intern: Nur das oalab-Team sieht diese Seite. Kunden sehen bei oalab nie etwas.")),
+      h(2, "Diese Woche"),
+      bullets([bold("Montag: "), text("Team-Workshop, danach Produktionstag für Nordlicht")], [bold("Mittwoch: "), text("Angebote für zwei neue Anfragen schreiben")], [bold("Freitag: "), text("Rückblick und Planung der nächsten Woche")]),
+      h(2, "Offen"),
+      checks(["Portfolio um den Relaunch von Nordlicht ergänzen", false], ["Vorlage für Angebote überarbeiten", true], ["Urlaubsplanung Dezember", false]),
+      subpage(IDEEN),
+    ),
+  },
+  { id: IDEEN, title: "Ideen für 2027", icon: "💡", audience: "team", parentId: WOCHE, updatedAt: at(2), updatedBy: "p-jonas", content: doc(bullets([text("Eigene Fotostrecke für die Website")], [text("Newsletter für Bestandskunden")])) },
+  {
+    id: MARKE, title: "Markenmaterial & Vorlagen", icon: "🎨", audience: "freelancer", projectId: TEAM_SITE, cover: { kind: "gallery", value: "graphite", position: 50 }, updatedAt: at(3), updatedBy: "p-jonas",
+    content: doc(
+      p(text("Logos, Schriften und Vorlagen von oalab liegen im Asset Management unter "), bold("oalab"), text(". Die Seite ist für das Team und Freelancer, die oalab mitbetreuen.")),
+      h(2, "Vorlagen"),
+      bullets([text("Angebot, Rechnung und Projektbriefing")], [text("Präsentation im oalab-Design")]),
+    ),
+  },
+  {
+    id: TEAMWORKSHOP, title: "Besprechung: Team-Workshop (intern)", icon: "🗓️", audience: "team", appointmentId: APPT(3), datedOn: "2026-10-19", updatedAt: at(1, 15), updatedBy: "p-lea",
+    content: doc(h(2, "Agenda"), bullets([text("Rückblick auf den Oktober")], [text("Abläufe im Hub: Notizen und Dateien für oalab")]), h(2, "Beschlüsse"), checks(["Interne Notizen ab sofort bei oalab", true], ["Markenmaterial im Asset Management sammeln", false])),
+  },
+];
+
 export const previewNotePages: NotePage[] = seeds.map((seed, index) => ({
   customerEdits: false,
   // Freelancers write the pages that are theirs alone, as in the database.
@@ -150,6 +182,39 @@ export const previewNotePages: NotePage[] = seeds.map((seed, index) => ({
   position: index + 1,
   updatedBy: seed.updatedBy ?? null,
 } as NotePage));
+
+/** oalab's own pages in the preview (admins only). */
+export const previewTeamPages: NotePage[] = teamSeeds.map((seed, index) => ({
+  customerEdits: false,
+  freelancerEdits: false,
+  outsideEditedAt: null,
+  customerId: PREVIEW_TEAM,
+  parentId: null,
+  projectId: null,
+  appointmentId: null,
+  width: "normal",
+  datedOn: null,
+  version: 2,
+  createdAt: seed.updatedAt,
+  cover: null,
+  ...seed,
+  position: index + 1,
+  updatedBy: seed.updatedBy ?? null,
+} as NotePage));
+
+const allPages = () => [...previewNotePages, ...previewTeamPages];
+
+/** The pages of one entry of the preview as each role sees them: oalab's only for the team, the other customers none. */
+export function previewCustomerPages(customerId: string, viewer: NoteViewer): NotePageMeta[] {
+  const pages = customerId === PREVIEW_TEAM ? (viewer === "admin" ? previewTeamPages : []) : customerId === PREVIEW_CUSTOMER ? previewNotePages : [];
+  return pages.filter((page) => viewerReads(viewer, page.audience)).map(toMetaOnly);
+}
+
+/** The projects of one entry of the preview: oalab's internal one, Nordlicht's two. */
+export function previewCustomerProjects(customerId: string) {
+  if (customerId === PREVIEW_TEAM) return [{ id: TEAM_SITE, name: "Neue Website oalab" }];
+  return customerId === PREVIEW_CUSTOMER ? [{ id: WEB, name: "Ein neuer digitaler Auftritt." }, { id: BRAND, name: "Eine Marke. Ein Gefühl." }] : [];
+}
 
 const people: Record<string, string> = { "p-jonas": "Jonas Keller", "p-lea": "Lea Brandt", "p-mia": "Mia Berger" };
 
@@ -181,16 +246,18 @@ export function previewRefs(viewer: NoteViewer): NoteRefs {
 const previewAppointments: Record<string, NoteAppointmentView> = {
   [APPT(1)]: { id: APPT(1), title: "Review Konzept & Struktur", start: "2026-10-13T08:00:00.000Z", end: "2026-10-13T09:00:00.000Z", status: "confirmed", teamsUrl: "https://teams.microsoft.com/l/meetup-join/beispiel-oalab", customerId: PREVIEW_CUSTOMER },
   [APPT(2)]: { id: APPT(2), title: "Website-Texte durchgehen", start: "2026-10-21T07:00:00.000Z", end: "2026-10-21T08:00:00.000Z", status: "requested", teamsUrl: null, customerId: PREVIEW_CUSTOMER },
+  // An internal appointment, without a customer (the calendar's „Team-Workshop (intern)“).
+  [APPT(3)]: { id: APPT(3), title: "Team-Workshop (intern)", start: "2026-10-19T07:00:00.000Z", end: "2026-10-19T10:00:00.000Z", status: "confirmed", teamsUrl: null, customerId: null },
 };
 
 /** The preview's appointments for „/Termin“: upcoming first. */
 export function previewAppointmentOptions(viewer: NoteViewer): NoteAppointmentView[] {
-  return viewer === "freelancer" ? [] : Object.values(previewAppointments).sort((a, b) => b.start.localeCompare(a.start));
+  return viewer === "freelancer" ? [] : Object.values(previewAppointments).filter((item) => viewer === "admin" || item.customerId).sort((a, b) => b.start.localeCompare(a.start));
 }
 
 /** The preview's history of a page (team only): two former versions. */
 export function previewRevisions(pageId: string): NoteRevision[] {
-  const page = previewNotePages.find((item) => item.id === pageId);
+  const page = allPages().find((item) => item.id === pageId);
   if (!page) return [];
   const words = noteTextOf(page.content);
   return [
@@ -212,8 +279,13 @@ export function previewCalendarNotes(viewer: NoteViewer): CalendarNotes {
   const visible = previewNotePages.filter((page) => viewerReads(viewer, page.audience));
   return {
     dated: visible.filter((page) => page.datedOn && !page.appointmentId).map((page) => ({ id: page.id, title: page.title, icon: page.icon, customerId: page.customerId, day: page.datedOn! })),
-    // The calendar's preview has its own example appointments; the meeting note hangs at „Review Konzept & Struktur“.
-    byAppointment: viewer === "admin" ? { "sample-1": { id: ABSTIMMUNG, customerId: PREVIEW_CUSTOMER, title: "Abstimmung Startseite" } } : {},
+    // The calendar's preview has its own example appointments; the meeting note hangs at „Review Konzept & Struktur“,
+    // and oalab's at the internal „Team-Workshop (intern)“ (stage 2: notes of internal appointments go to oalab).
+    byAppointment: viewer === "admin" ? {
+      "sample-1": { id: ABSTIMMUNG, customerId: PREVIEW_CUSTOMER, title: "Abstimmung Startseite" },
+      "sample-6": { id: TEAMWORKSHOP, customerId: PREVIEW_TEAM, title: "Besprechung: Team-Workshop (intern)" },
+    } : {},
+    ...(viewer === "admin" ? { internal: true } : {}),
   };
 }
 
@@ -223,11 +295,22 @@ export function toMetaOnly(page: NotePage): NotePageMeta {
   return meta as NotePageMeta;
 }
 
-/** The preview's notes as each role would see them: the team everything, customers and freelancers what is shared. */
-export function notesFixtures(viewer: NoteViewer, pageId?: string | null): NotesArea {
+/**
+ * The preview's notes as each role would see them: the team everything, with oalab's own entry first (stage 2),
+ * customers and freelancers what is shared. `customerId` opens another entry (?customer=, e.g. oalab's).
+ */
+export function notesFixtures(viewer: NoteViewer, pageId?: string | null, customerId?: string | null): NotesArea {
+  const team = viewer === "admin" && (customerId === PREVIEW_TEAM || previewTeamPages.some((page) => page.id === pageId));
+  if (team) {
+    const pages = previewCustomerPages(PREVIEW_TEAM, viewer);
+    const found = previewTeamPages.find((page) => page.id === pageId) ?? previewTeamPages[0];
+    const base = notesFixtures(viewer);
+    return { ...base, customerId: PREVIEW_TEAM, projects: previewCustomerProjects(PREVIEW_TEAM), pages: pages.map((page) => ({ ...page, seenAt: page.id === found.id ? at(0, 12) : at(1) })), page: { ...found, refs: previewRefs(viewer) } };
+  }
   const visible = previewNotePages.filter((page) => viewerReads(viewer, page.audience));
   const customers = viewer === "admin"
     ? [
+      { id: PREVIEW_TEAM, name: "oalab", number: "OA-TEAM", hasFreelancer: false, team: true },
       { id: PREVIEW_CUSTOMER, name: "Nordlicht Studio", number: "KD-24017", hasFreelancer: true },
       { id: FORM, name: "Form & Feld", number: "KD-31877", hasFreelancer: false },
       { id: HORIZONT, name: "Studio Horizont", number: "KD-46092", hasFreelancer: false },
@@ -255,14 +338,14 @@ export function notesFixtures(viewer: NoteViewer, pageId?: string | null): Notes
 /** „Erwähnt in“ of the preview: the pages this role sees that name the task as a box row or a mention. */
 export function previewMentions(taskId: string, viewer: NoteViewer) {
   const names = (node: NoteNode): boolean => (node.attrs?.refKind === "task" && node.attrs.refId === taskId) || (node.content ?? []).some(names);
-  return previewNotePages
+  return allPages()
     .filter((page) => viewerReads(viewer, page.audience) && names(page.content))
     .map((page) => ({ id: page.id, title: page.title, icon: page.icon, customerId: page.customerId }));
 }
 
 /** A page of the preview with its document and what its references show to this role. */
 export function previewPage(pageId: string, viewer: NoteViewer = "admin"): NotePage | null {
-  const page = previewNotePages.find((item) => item.id === pageId);
+  const page = (viewer === "admin" ? allPages() : previewNotePages).find((item) => item.id === pageId);
   return page ? { ...page, refs: previewRefs(viewer) } : null;
 }
 

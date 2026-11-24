@@ -13,6 +13,10 @@ import { customerOption } from "../select-options";
 import { AssetPanel } from "./asset-panel";
 import { FileIcon } from "./files-parts";
 import type { AssignInput } from "./files-store";
+import { INTERNAL_TAG, TEAM_SIGHT_LABELS } from "@/lib/hub-team/rules";
+
+/** Where an entry stands among the choices: oalab, then customers, then freelancers. */
+const rank = (customer: HubFileCustomer) => customer.kind === "team" ? 0 : customer.kind === "freelancer" ? 2 : 1;
 
 /** What the panel was opened with: the files, the customer if it is known already, and where the files come from. */
 export type AssignRequest = { ids: string[]; target: string | null; source: AssignSource };
@@ -46,10 +50,10 @@ export function AssignPanel({ request, files, customers, folders, onAssign, onCl
   const customer = customers.find((item) => item.id === target) ?? null;
   const own = customer ? folders.filter((folder) => folder.customerId === customer.id) : [];
   const fresh = customer ? shown.filter((file) => !file.customers.some((item) => item.id === customer.id)).length : 0;
-  // The customers first, then the freelancers, each from A to Z (the list's groups follow this order).
+  // oalab first (stage 2), then the customers, then the freelancers, each from A to Z (the list's groups follow this order).
   const choices = customers
     .filter((item) => source.kind !== "customer" || item.id !== source.id)
-    .sort((a, b) => Number(a.kind === "freelancer") - Number(b.kind === "freelancer") || a.company.localeCompare(b.company, "de"));
+    .sort((a, b) => rank(a) - rank(b) || a.company.localeCompare(b.company, "de"));
   const info = useInfo("Zuordnen", {
     steps: [
       <><b>Ziehen:</b> angehakte Dateien links auf einen Kunden.</>,
@@ -92,7 +96,7 @@ export function AssignPanel({ request, files, customers, folders, onAssign, onCl
           <Users size={16} aria-hidden="true" />
           <Select variant="bare" showLead label="An welchen Kunden?" placeholder="Kunde wählen" value={target} disabled={busy}
             onChange={(value) => { setTarget(value); setFolderId(""); }}
-            options={choices.map((item) => customerOption(item, item.kind === "freelancer" ? "Freelancer" : "Kunden"))} />
+            options={choices.map((item) => customerOption(item, item.kind === "freelancer" ? "Freelancer" : item.kind === "team" ? INTERNAL_TAG : "Kunden"))} />
           <ChevronDown size={16} aria-hidden="true" />
         </span>
       </div>
@@ -139,7 +143,9 @@ export function AssignPanel({ request, files, customers, folders, onAssign, onCl
         </ul>
       </div>
 
-      {customer && fresh > 0 && <p className="am-note"><BellRing size={16} aria-hidden="true" /><span>{customer.company} sieht {fresh === 1 ? "die Datei" : "die Dateien"} sofort{customer.kind === "freelancer" ? " unter „Meine Dateien“" : ""} und bekommt eine Meldung{fresh > 1 ? " für alle" : ""}.</span></p>}
+      {customer && fresh > 0 && (customer.kind === "team"
+        ? <p className="am-note"><BellRing size={16} aria-hidden="true" /><span>{fresh === 1 ? "Die Datei liegt" : "Die Dateien liegen"} dann bei oalab, „{TEAM_SIGHT_LABELS.team}“. Kunden sehen sie nie.</span></p>
+        : <p className="am-note"><BellRing size={16} aria-hidden="true" /><span>{customer.company} sieht {fresh === 1 ? "die Datei" : "die Dateien"} sofort{customer.kind === "freelancer" ? " unter „Meine Dateien“" : ""} und bekommt eine Meldung{fresh > 1 ? " für alle" : ""}.</span></p>)}
       {error && <p className="form-error" role="alert">{error}</p>}
     </AssetPanel>
   );

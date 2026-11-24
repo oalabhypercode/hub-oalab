@@ -262,7 +262,9 @@ test("„Zuordnen“ is the admins' own action: one call for all files, with the
   assert.match(panel, /move: from !== null && mode === "move"/);
   // The customers come before the freelancers, each from A to Z (live check 19.11.2026: the server's order put the
   // freelancers first).
-  assert.match(panel, /\.sort\(\(a, b\) => Number\(a\.kind === "freelancer"\) - Number\(b\.kind === "freelancer"\) \|\| a\.company\.localeCompare\(b\.company, "de"\)\);/);
+  // oalab first (stage 2 of „oalab als Unternehmen“), then customers, then freelancers, each from A to Z.
+  assert.match(panel, /const rank = \(customer: HubFileCustomer\) => customer\.kind === "team" \? 0 : customer\.kind === "freelancer" \? 2 : 1;/);
+  assert.match(panel, /\.sort\(\(a, b\) => rank\(a\) - rank\(b\) \|\| a\.company\.localeCompare\(b\.company, "de"\)\);/);
 });
 
 test("files are dragged onto a customer (it asks first) or a folder (it moves at once); files from the computer onto a customer's name", async () => {

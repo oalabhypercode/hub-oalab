@@ -15,7 +15,7 @@ import {
 import { namesOf, notesCustomers, notesMissing, notesProjects, NOT_READY, readPage, readPages, toMeta, type NotesContext } from "@/lib/hub-notes/server";
 import { noteTemplate } from "@/lib/hub-notes/templates";
 import type { NoteDoc, NotePage, NotePageMeta, NotePatch, NoteResult, NoteSaved, NoteTemplateId } from "@/lib/hub-notes/types";
-import { createPageAs, logNoteEvent, notifyChangeAs, restorePageAs, savePageAs, setAudienceAs, trashPageAs } from "@/lib/hub-notes/write";
+import { createPageAs, logNoteEvent, notifyChangeAs, notifyTeamAs, restorePageAs, savePageAs, setAudienceAs, trashPageAs } from "@/lib/hub-notes/write";
 import type { ToolResult } from "./protocol";
 import type { Connection } from "./store";
 
@@ -202,10 +202,11 @@ const pageJson = (run: Run, page: Pick<NotePageMeta, "id" | "title" | "icon"> & 
   page_id: page.id,
   title: page.title,
   icon: page.icon || null,
-  ...(page.audience ? { visibility: audienceLabel(page.audience, customer.hasFreelancer) } : {}),
+  ...(page.audience ? { visibility: audienceLabel(page.audience, customer.hasFreelancer, customer.team) } : {}),
   // Who reads and who edits (23.11.2026): „Kunde: Bearbeiten“, and for the team each side as none, read or edit.
-  ...(page.audience ? { access: accessLabel(rightsOf(page), customer.hasFreelancer) } : {}),
-  ...(page.audience && run.ctx.viewer === "admin" ? { customer_access: accessOf(rightsOf(page)).customer, ...(customer.hasFreelancer ? { freelancer_access: accessOf(rightsOf(page)).freelancer } : {}) } : {}),
+  ...(page.audience ? { access: accessLabel(rightsOf(page), customer.hasFreelancer, customer.team) } : {}),
+  // oalab's own pages (stage 2) have no customer side: only „Nur Team“ or „Team und Freelancer“.
+  ...(page.audience && run.ctx.viewer === "admin" && !customer.team ? { customer_access: accessOf(rightsOf(page)).customer, ...(customer.hasFreelancer ? { freelancer_access: accessOf(rightsOf(page)).freelancer } : {}) } : {}),
   ...extra,
   link: pageLink(run.origin, page.id),
 });
@@ -229,8 +230,8 @@ async function listNotes(run: Run): Promise<ToolResult> {
   const only = typeof args.project_id === "string" ? lower(args.project_id) : null;
   const ordered = treeOrder(metas).filter(({ page }) => !only || (page.projectId && lower(page.projectId) === only));
   return json({
-    customer: { customer_id: customer.id, company: customer.name, customer_number: customer.number },
-    ...(ctx.viewer === "admin" ? { visibility_choices: audienceChoices(customer.hasFreelancer).map((audience) => ({ audience, label: audienceLabel(audience, customer.hasFreelancer) })) } : {}),
+    customer: { customer_id: customer.id, company: customer.name, customer_number: customer.number, ...(customer.team ? { internal: true } : {}) },
+    ...(ctx.viewer === "admin" ? { visibility_choices: audienceChoices(customer.hasFreelancer, customer.team).map((audience) => ({ audience, label: audienceLabel(audience, customer.hasFreelancer, customer.team) })) } : {}),
     projects: projects.map((project) => ({ project_id: project.id, name: project.name })),
     total: ordered.length,
     shown: Math.min(ordered.length, MAX_LISTED),
@@ -382,12 +383,12 @@ async function createNote(run: Run): Promise<ToolResult> {
   });
   if (!created.ok) return refuse(created.error);
   const page = created.data;
-  const visibility = accessLabel(page, customer.hasFreelancer);
+  const visibility = accessLabel(page, customer.hasFreelancer, customer.team);
   return json({
     saved: true,
-    message: `Die Seite „${page.title}“ ist bei ${customer.name} angelegt. Zugriff: ${visibility}.`,
+    message: `Die Seite „${page.title}“ ist bei ${customer.name} angelegt. ${customer.team ? "Sichtbar für" : "Zugriff"}: ${visibility}.`,
     page: pageJson(run, page, customer, { version: page.version, parent_id: page.parentId, project_id: page.projectId, dated_on: page.datedOn }),
-    ...(ctx.viewer === "admin" && page.audience === "team" ? { next: "Für den Kunden oder Freelancer freigeben: set_note_visibility." } : {}),
+    ...(ctx.viewer === "admin" && page.audience === "team" ? { next: customer.team ? "Die Kollegen darauf hinweisen: notify_note_change (Team informieren)." : "Für den Kunden oder Freelancer freigeben: set_note_visibility." } : {}),
   });
 }
 
@@ -485,9 +486,10 @@ async function setVisibility(run: Run): Promise<ToolResult> {
   });
   if (!result.ok) return refuse(result.error);
   const after = result.data.pages.find((item) => item.id === page.id) ?? { ...page, audience };
-  const label = accessLabel(after, customer.hasFreelancer);
+  const label = accessLabel(after, customer.hasFreelancer, customer.team);
   const gained = gainsRights(page, after);
-  const told = notify && (gained.customer || gained.freelancer || gained.customerEdit || gained.freelancerEdit);
+  // oalab's own pages tell nobody when they widen (no customer, freelancers only from stage 3).
+  const told = notify && !customer.team && (gained.customer || gained.freelancer || gained.customerEdit || gained.freelancerEdit);
   const toCustomer = gained.customer || gained.customerEdit;
   const toFreelancer = gained.freelancer || gained.freelancerEdit;
   const narrowed = result.data.narrowed;
@@ -504,6 +506,12 @@ async function notifyChange(run: Run): Promise<ToolResult> {
   const loaded = await pageFor(run.ctx, run.args.page_id, false);
   if (!loaded.ok) return refuse(loaded.error);
   const { page, customer } = loaded;
+  // oalab's own pages (stage 2): „Team informieren“, a line in the other admins' bell.
+  if (customer.team) {
+    const told = await notifyTeamAs(run.ctx, { id: page.id });
+    if (!told.ok) return refuse(told.error);
+    return json({ saved: true, message: told.data.count ? `${told.data.count === 1 ? "Eine Kollegin oder ein Kollege bekommt" : `${told.data.count} aus dem Team bekommen`} in der Glocke einen Hinweis auf „${page.title}“.` : "Außer dir ist gerade niemand im Team, der einen Hinweis bekäme.", page: pageJson(run, page, customer) });
+  }
   const result = await notifyChangeAs(run.ctx, { id: page.id });
   if (!result.ok) return refuse(result.error);
   const to = gains("team", page.audience);

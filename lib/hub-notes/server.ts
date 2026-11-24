@@ -13,6 +13,7 @@ import { loadFreelancerCustomerList } from "@/lib/hub-freelancer-customers/list"
 import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { notePageHref } from "@/lib/hub-notify/rules";
+import { loadTeamNotesEntry } from "@/lib/hub-team/server";
 import { cleanCoverPosition, isGalleryCover } from "./covers";
 import { resolveRefs } from "./refs";
 import { childrenOf, emptyNoteDoc, fitRights, isNoteAudience, isNoteWidth, isUuid } from "./rules";
@@ -136,19 +137,26 @@ export const notesContext = cache(async (): Promise<NotesContext | null> => {
 type CustomerRow = { id: string; company: string; customer_number: string; organization_id?: string | null; logo_path?: string | null; logo_background?: string | null; logo_color?: string | null };
 type Listed = NoteCustomer & { organizationId: string | null };
 
-/** The customers whose notes the viewer may open: admins every customer (not archived), freelancers theirs, customers their own. */
+/**
+ * The customers whose notes the viewer may open: admins every customer (not archived) and, first, oalab's own entry once
+ * the database takes notes for it (stage 2 of the plan „oalab als Unternehmen“; read error-tolerantly, so without the
+ * migration the list is as before), freelancers theirs, customers their own.
+ */
 export async function notesCustomers(ctx: NotesContext): Promise<Listed[] | null> {
   if (ctx.viewer === "admin") {
-    const [rows, archive, links] = await Promise.all([
+    const [rows, archive, links, team] = await Promise.all([
       ctx.session.from("hub_customers").select("id, company, customer_number, organization_id, kind").eq("kind", "customer").order("company").returns<CustomerRow[]>(),
       loadArchive(),
       ctx.session.from("hub_freelancer_customers").select("freelancer_id, customer_id").returns<{ freelancer_id: string; customer_id: string }[]>(),
+      loadTeamNotesEntry(ctx.db),
     ]);
     if (rows.error) return null;
     const shown = (rows.data ?? []).filter((row) => !archive.customerIds.has(row.id));
-    const logos = ctx.via ? new Map<string, CustomerLogo>() : await loadCustomerLogos(ctx.session, shown.map((row) => row.id));
+    const logos = ctx.via ? new Map<string, CustomerLogo>() : await loadCustomerLogos(ctx.session, [...(team ? [team.id] : []), ...shown.map((row) => row.id)]);
     const served = new Set((links.error ? [] : links.data ?? []).filter((link) => !archive.customerIds.has(link.freelancer_id)).map((link) => link.customer_id));
-    return shown.map((row) => ({ id: row.id, name: row.company, number: row.customer_number, organizationId: row.organization_id ?? null, hasFreelancer: served.has(row.id), ...(logos.get(row.id) ? { logo: logos.get(row.id) } : {}) }));
+    // oalab has no freelancers yet: they come with stage 3.
+    const internal: Listed[] = team ? [{ id: team.id, name: team.company, number: team.customerNumber, organizationId: team.organizationId, hasFreelancer: false, team: true, ...(logos.get(team.id) ? { logo: logos.get(team.id) } : {}) }] : [];
+    return [...internal, ...shown.map((row) => ({ id: row.id, name: row.company, number: row.customer_number, organizationId: row.organization_id ?? null, hasFreelancer: served.has(row.id), ...(logos.get(row.id) ? { logo: logos.get(row.id) } : {}) }))];
   }
   if (ctx.viewer === "freelancer") {
     const listed = await loadFreelancerCustomerList(ctx.session);
@@ -238,7 +246,14 @@ export async function markSeen(ctx: NotesContext, page: Pick<NotePageMeta, "id" 
   const at = new Date().toISOString();
   try {
     await ctx.db.from("hub_note_views").upsert({ page_id: page.id, user_id: ctx.userId, seen_at: at }, { onConflict: "page_id,user_id" });
-    if (ctx.viewer === "admin") await ctx.db.from("hub_inbox").update({ read_at: at }).eq("kind", "note.edited").eq("href", notePageHref(page.customerId, page.id)).is("read_at", null);
+    if (ctx.viewer === "admin") {
+      const href = notePageHref(page.customerId, page.id);
+      await Promise.all([
+        ctx.db.from("hub_inbox").update({ read_at: at }).eq("kind", "note.edited").eq("href", href).is("read_at", null),
+        // „Team informieren“ told each colleague on their own: opening the page settles only the own line.
+        ctx.db.from("hub_inbox").update({ read_at: at }).eq("kind", "note.team").eq("href", href).eq("user_id", ctx.userId).is("read_at", null),
+      ]);
+    }
   } catch {
     // „Zuletzt geöffnet“ is a convenience; opening the page succeeded.
   }
@@ -338,7 +353,7 @@ export const loadNotes = cache(async (customer?: string, page?: string): Promise
   const customers = await notesCustomers(ctx);
   if (!customers) return failed(ctx.viewer, LOAD_ERROR);
   const base = { viewer: ctx.viewer, viewerId: ctx.userId, settings: toSettings(settings.data), ready: true, error: null, taskWriter: await canWriteTasks(ctx) };
-  const list: NotesArea["customers"] = customers.map((item) => ({ id: item.id, name: item.name, number: item.number, hasFreelancer: item.hasFreelancer, ...(item.logo ? { logo: item.logo } : {}) }));
+  const list: NotesArea["customers"] = customers.map((item) => ({ id: item.id, name: item.name, number: item.number, hasFreelancer: item.hasFreelancer, ...(item.team ? { team: true } : {}), ...(item.logo ? { logo: item.logo } : {}) }));
   if (!customers.length) return { ...base, customers: list, customerId: null, projects: [], pages: [], page: null, people: {} };
 
   const opened = page && isUuid(page) ? await readPage(ctx, page) : null;

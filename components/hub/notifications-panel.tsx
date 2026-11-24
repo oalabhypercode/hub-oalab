@@ -17,7 +17,7 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
   if (kind === "file.shared") return { icon: Files, color: categories.files.fill };
   // A release for a freelancer under „Kunden“ (18.11.2026): the page has no category colour, so the accent.
   if (kind === "share.granted") return { icon: Building2, color: "var(--accent-text)" };
-  if (kind === "note.shared" || kind === "note.changed") return { icon: NotebookPen, color: categories.projects.fill };
+  if (kind === "note.shared" || kind === "note.changed" || kind === "note.team") return { icon: NotebookPen, color: categories.projects.fill };
   if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill };
   // A request to the team (24.11.2026) wears the overview's clock, like „Neu“ there.
   if (kind.startsWith("appointment.") && kind !== "appointment.requested") return { icon: CalendarDays, color: categories.calendar.fill };
@@ -27,7 +27,7 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
 
 /** What the empty bell promises, per role. */
 const EMPTY_TEXT = {
-  admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt, einen Termin anfragt oder auf der Serviceplattform eine Anfrage stellt, ein Kunde oder Freelancer in einer Notiz mitschreibt oder ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert.",
+  admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt, einen Termin anfragt oder auf der Serviceplattform eine Anfrage stellt, ein Kunde oder Freelancer in einer Notiz mitschreibt, ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert oder dich jemand aus dem Team auf eine interne Notiz hinweist.",
   freelancer: "Hier erscheint, wenn jemand eine Aufgabe in deinen Projekten anlegt, ändert oder kommentiert, eine Datei für dich dazukommt oder oalab dir bei einem Kunden etwas freigibt.",
   customer: "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe für dich dazukommt, sich ändert oder bei dir liegt, sich ein Projekt ändert, eine Datei oder ein Termin für dich dazukommt oder sich unter Vertrag & Domain etwas ändert.",
 };

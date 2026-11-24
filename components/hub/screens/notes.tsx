@@ -10,10 +10,10 @@ import { hubHref } from "@/lib/hub-data";
 import { useStoredValue } from "@/lib/use-stored-value";
 import {
   createNoteAppointment, createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteAppointmentOptions, noteCoverFiles, noteHistory, noteLinkPreview, notePresence, noteReaders, noteRequestSlots,
-  noteTaskOptions, notifyNoteChange, openNotePage, purgeNotePage, requestNoteAppointment, restoreNotePage, restoreNoteRevision, saveNotePage, saveNoteSettings, searchNoteTasks,
+  noteTaskOptions, notifyNoteChange, notifyNoteTeam, openNotePage, purgeNotePage, requestNoteAppointment, restoreNotePage, restoreNoteRevision, saveNotePage, saveNoteSettings, searchNoteTasks,
   setNoteAccess, setNoteTaskDone, taskMentions, trashNotePage,
 } from "@/lib/hub-notes/actions";
-import { notesFixtures, previewAppointmentOptions, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
+import { notesFixtures, previewAppointmentOptions, previewCustomerPages, previewCustomerProjects, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
 import { accessLabel, accessOf, audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, fitRights, gains, isEmptyDoc, narrowedBelow, newPageRights, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, rightsFrom, viewerEdits, viewerReads, within } from "@/lib/hub-notes/rules";
 import { coverWithLink, keepCoverLink } from "@/lib/hub-notes/covers";
 import { noteTemplate } from "@/lib/hub-notes/templates";
@@ -32,7 +32,7 @@ import { EmojiGlyph } from "./notes-blocks";
 import { CoverBand, CoverPicker } from "./notes-cover";
 import type { NoteEditorHandle } from "./notes-editor";
 import { EmojiPicker } from "./notes-emoji-picker";
-import { accessMark, AreaGear, AudienceDialog, PageGear, TextSizePop, type AudienceAsk } from "./notes-settings";
+import { accessMark, AreaGear, AudienceDialog, PageGear, TeamNotifyDialog, TextSizePop, type AudienceAsk } from "./notes-settings";
 import { NotesTree } from "./notes-tree";
 
 // „Notizen“ under Projekte (plan docs/planung/notizen.md, design V2 of 22.11.2026): a calm page list on the left, a
@@ -62,9 +62,11 @@ export function NotesScreen({ area, preview }: { area?: NotesArea; preview: bool
   const searchParams = useSearchParams();
   const role = searchParams.get("role");
   const previewViewer: NoteViewer = role === "customer" ? "customer" : role === "freelancer" ? "freelancer" : "admin";
-  // The preview opens the page of its address once (a link from „Erwähnt in“, a reload); later clicks only change the view.
+  // The preview opens the page (and customer) of its address once (a link from „Erwähnt in“, a reload); later clicks only
+  // change the view.
   const [startPage] = useState(() => searchParams.get("page"));
-  const initial = useMemo(() => preview ? notesFixtures(previewViewer, startPage) : area ?? unavailable, [preview, previewViewer, startPage, area]);
+  const [startCustomer] = useState(() => searchParams.get("customer"));
+  const initial = useMemo(() => preview ? notesFixtures(previewViewer, startPage, startCustomer) : area ?? unavailable, [preview, previewViewer, startPage, startCustomer, area]);
   return <NotesWorkspace key={preview ? previewViewer : "live"} initial={initial} preview={preview} />;
 }
 
@@ -109,6 +111,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
   const [readers, setReaders] = useState<NoteReaders | null | undefined>(undefined);
   // A new page that only the team sees offers „Mit Kunde teilen“ right under its title until it is shared or closed.
   const [shareHint, setShareHint] = useState<string | null>(null);
+  // „Team informieren“ at one of oalab's own pages (stage 2): the dialog with the optional sentence.
+  const [teamAsk, setTeamAsk] = useState(false);
   const editor = useRef<NoteEditorHandle | null>(null);
   const titleField = useRef<HTMLTextAreaElement>(null);
 
@@ -256,10 +260,10 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     if (!(await flush())) { say("Diese Seite ist noch nicht gespeichert. Bitte erst speichern oder neu laden."); return; }
     if (viewer === "admin") document.cookie = `${NOTES_CUSTOMER_COOKIE}=${encodeURIComponent(id)}; Path=/; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
     if (preview) {
-      const shown = id === initial.customerId ? initial.pages : [];
+      const shown = id === initial.customerId ? initial.pages : previewCustomerPages(id, viewer);
       setCustomerId(id);
       setPages(shown);
-      setProjects(id === initial.customerId ? initial.projects : []);
+      setProjects(id === initial.customerId ? initial.projects : previewCustomerProjects(id));
       const first = childrenOf(shown, null)[0];
       showPage(first ? previewPage(first.id, viewer) : null);
       setMobileView("tree");
@@ -292,7 +296,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
       const now = new Date().toISOString();
       created = {
         id: crypto.randomUUID(), customerId: customer.id, projectId, parentId: parent?.id ?? null, appointmentId: null, title: "Neue Seite", icon: "", cover: null,
-        width: settings.defaultWidth, ...newPageRights(viewer, parent, settings, customer.hasFreelancer), outsideEditedAt: null, seenAt: now, datedOn: null,
+        width: settings.defaultWidth, ...newPageRights(viewer, parent, settings, customer.hasFreelancer, customer.team), outsideEditedAt: null, seenAt: now, datedOn: null,
         position: positionAfter(childrenOf(pages, parent?.id ?? null)), version: 1, updatedBy: initial.viewerId, updatedAt: now, createdAt: now, content: emptyNoteDoc(),
       };
     } else {
@@ -317,12 +321,13 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     setFresh(meta.id);
     setMobileView("page");
     remember(customerId, meta.id);
-    const seen = `Zugriff: ${accessLabel(meta, customer?.hasFreelancer ?? true)}.`;
+    const seen = `${customer?.team ? "Sichtbar für" : "Zugriff"}: ${accessLabel(meta, customer?.hasFreelancer ?? true, customer?.team)}.`;
     say(parent ? `Neue Unterseite in „${parent.title}“ angelegt. ${seen}` : `Neue Seite angelegt. ${seen}`);
-    // The team decides right away whether the customer gets the page (unless a page above keeps it from them).
-    setShareHint(viewer === "admin" && accessOf(meta).customer === "none" && (!parent || accessOf(parent).customer !== "none") ? meta.id : null);
+    // The team decides right away whether the customer gets the page (unless a page above keeps it from them); oalab's
+    // own pages have no customer to share with.
+    setShareHint(viewer === "admin" && !customer?.team && accessOf(meta).customer === "none" && (!parent || accessOf(parent).customer !== "none") ? meta.id : null);
     window.setTimeout(() => { titleField.current?.focus(); titleField.current?.select(); }, 60);
-  }, [createPage, showPage, remember, customerId, say, customer?.hasFreelancer, viewer]);
+  }, [createPage, showPage, remember, customerId, say, customer?.hasFreelancer, customer?.team, viewer]);
   // Freelancers add pages only below pages the freelancers see (the server checks the same).
   const canAddUnder = useCallback((parent: NotePageMeta) => viewer === "admin" || (viewer === "freelancer" && within("freelancer", parent.audience)), [viewer]);
 
@@ -356,13 +361,14 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     if (!page) return;
     setAsk(null);
     const rights = fitRights(target);
-    const label = accessLabel(rights, customer?.hasFreelancer ?? true);
+    const label = accessLabel(rights, customer?.hasFreelancer ?? true, customer?.team);
+    const word = customer?.team ? "Sichtbar für" : "Zugriff";
     if (preview) {
       const changes = new Map(narrowedBelow(pages, page.id, rights.audience).map((item) => [item.id, item.audience]));
       setPages((list) => list.map((item) => item.id === page.id ? { ...item, ...rights } : changes.has(item.id) ? { ...item, ...fitRights({ ...item, audience: changes.get(item.id)! }) } : item));
       setPage((open) => open ? { ...open, ...rights } : open);
       if (accessOf(rights).customer !== "none") setShareHint(null);
-      say(`Zugriff: ${label}.${changes.size ? ` ${changes.size} ${changes.size === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
+      say(`${word}: ${label}.${changes.size ? ` ${changes.size} ${changes.size === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
       return;
     }
     if (!(await flush())) return;
@@ -375,8 +381,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     if (fresh) { versionRef.current = fresh.version; setPage((open) => open ? { ...open, audience: fresh.audience, customerEdits: fresh.customerEdits, freelancerEdits: fresh.freelancerEdits, version: fresh.version, updatedAt: fresh.updatedAt, updatedBy: fresh.updatedBy } : open); }
     if (accessOf(rights).customer !== "none") setShareHint(null);
     const n = result.data.narrowed;
-    say(`${rights.audience === "team" ? "Nur noch das oalab-Team sieht diese Seite." : `Zugriff: ${label}.`}${n ? ` ${n} ${n === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
-  }, [page, preview, pages, flush, say, customer?.hasFreelancer]);
+    say(`${rights.audience === "team" ? "Nur noch das oalab-Team sieht diese Seite." : `${word}: ${label}.`}${n ? ` ${n} ${n === 1 ? "Unterseite" : "Unterseiten"} ebenfalls eingeschränkt.` : ""}`);
+  }, [page, preview, pages, flush, say, customer?.hasFreelancer, customer?.team]);
 
   /**
    * One side's choice in „Zugriff“: releasing a page (or narrowing it with subpages) asks first, as before; only
@@ -384,6 +390,16 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
    */
   const requestAccess = (side: "customer" | "freelancer", value: NoteAccess) => {
     if (!page) return;
+    // oalab's own pages (stage 2): „Nur Team“ or „Team und Freelancer“. Nobody outside sees them yet, so widening
+    // needs no release; narrowing with subpages still asks first.
+    if (customer?.team) {
+      const target: NoteRights = { audience: side === "freelancer" && value !== "none" ? "freelancer" : "team", customerEdits: false, freelancerEdits: false };
+      if (target.audience === page.audience) return;
+      const narrowed = narrowedBelow(pages, page.id, target.audience).map(({ title, audience }) => ({ title, audience }));
+      if (narrowed.length) setAsk({ page: pageMeta ?? page, target: target.audience, rights: target, narrowed, hidden: [] });
+      else void applyRights(target, false);
+      return;
+    }
     const current = accessOf(page);
     const target = side === "customer" ? rightsFrom(value, current.freelancer) : rightsFrom(current.customer, value);
     if (target.audience === page.audience && target.customerEdits === page.customerEdits && target.freelancerEdits === page.freelancerEdits) return;
@@ -467,18 +483,19 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
       return viewer === "admin" ? createNoteAppointment({ pageId, ...draft }) : requestNoteAppointment({ pageId, ...draft });
     },
     notify: (appointment, onPage) => say(appointment.status === "confirmed"
-      ? `„${appointment.title}“ steht im Kalender${customer ? `; ${customer.name} bekommt eine Meldung` : ""}.${onPage ? " Der Termin steht jetzt auch auf der Seite." : ""}`
+      ? `„${appointment.title}“ steht im Kalender${customer?.team ? " als interner Termin" : customer ? `; ${customer.name} bekommt eine Meldung` : ""}.${onPage ? " Der Termin steht jetzt auch auf der Seite." : ""}`
       : `Deine Anfrage „${appointment.title}“ ist bei oalab. Du bekommst eine Meldung, sobald sie bestätigt ist.${onPage ? " Sie steht jetzt auch auf der Seite." : ""}`),
   }), [viewer, today, preview, customerId, pageId, say, customer]);
 
   /** „Zugriff“ in the gear: who may open the page and when they last did (team). */
   const loadReaders = useCallback(async () => {
-    if (viewer !== "admin" || !page) return;
+    // oalab's own pages have no customer and no freelancers yet: nobody to list.
+    if (viewer !== "admin" || !page || customer?.team) return;
     if (preview) { setReaders(previewReaders); return; }
     setReaders(null);
     const result = await noteReaders({ pageId: page.id });
     setReaders(result.ok ? result.data : { customer: [], freelancer: [] });
-  }, [viewer, page, preview]);
+  }, [viewer, page, preview, customer?.team]);
   const toggleGear = () => {
     setOpenItems(editor.current?.openItemCount() ?? 0);
     if (pop !== "gear") void loadReaders();
@@ -631,6 +648,17 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     const result = await notifyNoteChange({ id: page.id });
     say(result.ok ? "Meldung „Notiz geändert“ an alle, die die Seite sehen, ist unterwegs." : result.error);
   }, [page, preview, say]);
+  /** „Team informieren“ (oalab's own pages): a line in the other admins' bell; null when it went out, else the reason. */
+  const notifyTeam = useCallback(async (message: string): Promise<string | null> => {
+    if (!page) return "Keine Seite offen.";
+    if (preview) { setTeamAsk(false); say("Das Team hat eine Meldung in der Glocke."); return null; }
+    if (!(await flush())) return "Die Seite ist noch nicht gespeichert.";
+    const result = await notifyNoteTeam({ id: page.id, message });
+    if (!result.ok) return result.error;
+    setTeamAsk(false);
+    say(result.data.count ? `${result.data.count === 1 ? "Eine Kollegin oder ein Kollege hat" : `${result.data.count} aus dem Team haben`} eine Meldung in der Glocke.` : "Außer dir ist gerade niemand im Team, der eine Meldung bekäme.");
+    return null;
+  }, [page, preview, flush, say]);
   const applyTemplate = useCallback((id: NoteTemplateId) => {
     setFresh(null);
     if (id === "blank" || !page) return;
@@ -740,7 +768,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
     ...pathOf(pages, pageMeta.id).slice(0, -1).map((item) => item.title),
   ] : [];
   // Who reads and who writes the page, always in sight on top (23.11.2026).
-  const mark = pageMeta ? accessMark(pageMeta, viewer, customer.hasFreelancer) : null;
+  const mark = pageMeta ? accessMark(pageMeta, viewer, customer.hasFreelancer, customer.team) : null;
   const markText = mark ? viewer === "customer" ? `Von oalab geteilt · ${mark.label}` : mark.label : "";
   const showTree = phone ? mobileView === "tree" : treeOpen && !focus;
   const showPageArea = !phone || mobileView === "page";
@@ -903,6 +931,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                       projects={projects}
                       viewer={viewer}
                       pageAudience={page.audience}
+                      internal={Boolean(customer.team)}
                       loadTaskOptions={loadTaskOptions}
                       createTasks={createTasks}
                       loadPreview={loadPreview}
@@ -938,7 +967,8 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                 onCover={() => setPop("cover")}
                 onCopyLink={copyLink}
                 onClose={() => setPop(null)}
-                onNotify={viewer === "admin" ? () => void notifyChange() : undefined}
+                onNotify={viewer === "admin" && !customer.team ? () => void notifyChange() : undefined}
+                onTeamNotify={viewer === "admin" && customer.team ? () => { setPop(null); setTeamAsk(true); } : undefined}
                 onTrash={viewer === "admin" ? () => setPop("bin") : undefined}
                 openItems={initial.taskWriter && canEdit ? openItems : 0}
                 onOpenItems={() => { setPop(null); editor.current?.convertOpenItems(); }}
@@ -962,6 +992,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
         />
       )}
       {ask && <AudienceDialog ask={ask} customer={customer} notifyDefault={settings.notifyOnShare} onConfirm={(notify) => void applyRights(ask.rights, notify)} onClose={() => setAsk(null)} />}
+      {teamAsk && pageMeta && customer.team && <TeamNotifyDialog page={pageMeta} onSend={notifyTeam} onClose={() => setTeamAsk(false)} />}
       {peek && (
         <TaskPeek
           key={peek.id}

@@ -2,12 +2,14 @@ import "server-only";
 import { after } from "next/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { noteNotice } from "@/lib/hub-notify/rules";
-import { notifyNote, notifyNoteEdit } from "@/lib/hub-notify/server";
+import { notifyNote, notifyNoteEdit, notifyTeamNote } from "@/lib/hub-notify/server";
+import { cleanTeamMessage, TEAM_MESSAGE_MAX } from "@/lib/hub-team/rules";
+import { loadTeamNotesEntry } from "@/lib/hub-team/server";
 import { fetchLinkPreview } from "./link-preview";
 import { isGalleryCover, cleanCoverPosition } from "./covers";
 import {
   accessLabel, accessOf, childrenOf, cleanIcon, cleanNoteTitle, emptyNoteDoc, fitRights, gains, gainsRights, isIsoDate, isNoteAudience, isNoteWidth, isUuid,
-  narrowedBelow, newPageRights, positionAfter, validateNoteDoc, within,
+  narrowedBelow, newPageRights, positionAfter, TEAM_NOTE_AUDIENCES, validateNoteDoc, within,
 } from "./rules";
 import { listPages, namesOf, notesCustomers, PAGE_COLUMNS, readPage, readPages, SETTINGS_COLUMNS, toDoc, toMeta, toSettings, type NotesContext, type PageRow } from "./server";
 import { sweepNoteImages } from "./sweep";
@@ -32,6 +34,7 @@ const REFUSALS: Record<string, string> = {
   HUB_NOTE_PROJECT_OTHER_CUSTOMER: "Das Projekt gehört zu einem anderen Kunden.",
   HUB_NOTE_APPOINTMENT_OTHER_CUSTOMER: "Der Termin gehört zu einem anderen Kunden.",
   HUB_NOTE_CUSTOMER_FIXED: "Eine Seite bleibt bei ihrem Kunden.",
+  HUB_NOTE_TEAM_AUDIENCE: "Interne Seiten von oalab sind „Nur Team“ oder „Team und Freelancer“.",
 };
 
 export function noteError(error: { code?: string; message?: string } | null, fallback = "Die Seite konnte gerade nicht gespeichert werden. Bitte versuche es erneut.") {
@@ -168,7 +171,7 @@ export async function createPageAs(ctx: NotesContext, input: CreateInput): Promi
     readPages(ctx, customer.id),
   ]);
   const settings = toSettings(settingsRow.data as Parameters<typeof toSettings>[0]);
-  const rights = newPageRights(ctx.viewer, parent, settings, customer.hasFreelancer);
+  const rights = newPageRights(ctx.viewer, parent, settings, customer.hasFreelancer, customer.team);
   const audience = rights.audience;
   // A freelancer adds pages only below pages they may write next to: never under „Nur Kunde“ or „Nur Team“.
   if (parent && !within(audience, parent.audience)) return fail("Unter dieser Seite kannst du keine Seite anlegen.");
@@ -187,7 +190,7 @@ export async function createPageAs(ctx: NotesContext, input: CreateInput): Promi
     content: checked.doc, content_text: checked.text, position, ...(input.datedOn ? { dated_on: input.datedOn } : {}),
   }).select(`${PAGE_COLUMNS}, content`).single<PageRow>();
   if (error || !data) return fail(noteError(error, "Die Seite konnte gerade nicht angelegt werden. Bitte versuche es erneut."));
-  await logNoteEvent(ctx, "note.created", `Notiz angelegt · ${accessLabel(rights, customer.hasFreelancer)}`, customer.id);
+  await logNoteEvent(ctx, "note.created", `${customer.team ? "Interne Notiz" : "Notiz"} angelegt · ${accessLabel(rights, customer.hasFreelancer, customer.team)}`, customer.id);
   return { ok: true, data: { ...toMeta(data), seenAt: new Date().toISOString(), content: toDoc(data.content) } };
 }
 
@@ -205,7 +208,9 @@ export async function setRightsAs(ctx: NotesContext, input: { id: string; rights
   const customers = await notesCustomers(ctx);
   const customer = customers?.find((item) => item.id === page.customerId);
   if (!customer) return fail("Diese Seite gibt es nicht mehr.");
-  if (!customer.hasFreelancer && accessOf(target).freelancer !== "none") return fail("Diesen Kunden betreut kein Freelancer.");
+  // oalab's pages: „Nur Team“ or „Team und Freelancer“ (the database refuses the rest too); freelancers follow in stage 3.
+  if (customer.team && (!TEAM_NOTE_AUDIENCES.includes(target.audience) || target.customerEdits)) return fail("Interne Seiten von oalab sind „Nur Team“ oder „Team und Freelancer“.");
+  if (!customer.team && !customer.hasFreelancer && accessOf(target).freelancer !== "none") return fail("Diesen Kunden betreut kein Freelancer.");
   const before = await readPages(ctx, customer.id);
   const metas = (before.data ?? []).map(toMeta);
   const parent = page.parentId ? metas.find((item) => item.id === page.parentId) : undefined;
@@ -216,10 +221,11 @@ export async function setRightsAs(ctx: NotesContext, input: { id: string; rights
   const { error } = await ctx.session.from("hub_note_pages").update({ audience: target.audience, customer_edits: target.customerEdits, freelancer_edits: target.freelancerEdits }).eq("id", page.id).is("deleted_at", null);
   if (error) return fail(noteError(error, "Der Zugriff konnte gerade nicht geändert werden."));
   const fresh = await listPages(ctx, customer.id);
-  await logNoteEvent(ctx, "note.audience", `Notiz: ${accessLabel(page, customer.hasFreelancer)} → ${accessLabel(target, customer.hasFreelancer)}${narrowed ? ` (${narrowed} Unterseite${narrowed === 1 ? "" : "n"} mit eingeschränkt)` : ""}`, customer.id);
+  await logNoteEvent(ctx, "note.audience", `${customer.team ? "Interne Notiz" : "Notiz"}: ${accessLabel(page, customer.hasFreelancer, customer.team)} → ${accessLabel(target, customer.hasFreelancer, customer.team)}${narrowed ? ` (${narrowed} Unterseite${narrowed === 1 ? "" : "n"} mit eingeschränkt)` : ""}`, customer.id);
   // Who newly sees the page, or may newly write on it, hears of it once; later changes only with „Änderung mitteilen“.
+  // oalab has no chat (decision 9) and no freelancers before stage 3, so its pages tell nobody here.
   const gained = gainsRights(page, target);
-  if (input.notify !== false) {
+  if (input.notify !== false && !customer.team) {
     const sides = [
       { side: "customer" as const, sight: gained.customer, edit: gained.customerEdit },
       { side: "freelancer" as const, sight: gained.freelancer, edit: gained.freelancerEdit },
@@ -270,17 +276,42 @@ export async function saveSettingsAs(ctx: NotesContext, patch: Partial<NoteSetti
 
 // ---- Step 2: telling about a change, the trash, link previews and covers ------------------------------------------
 
+/** The team entry when the page is one of oalab's own (stage 2), else null. */
+async function teamOf(ctx: NotesContext, customerId: string) {
+  const team = await loadTeamNotesEntry(ctx.db);
+  return team && team.id === customerId ? team : null;
+}
+
 /** „Änderung mitteilen“ (team only, decision 6): everybody who sees the page hears of the change once. */
 export async function notifyChangeAs(ctx: NotesContext, input: { id: string }): Promise<NoteResult<null>> {
   if (ctx.viewer !== "admin") return fail("Mitteilen kann das oalab-Team.");
   const page = await readPage(ctx, input?.id, false);
   if (!page) return fail("Diese Seite gibt es nicht mehr.");
+  if (await teamOf(ctx, page.customerId)) return fail("Bei internen Seiten von oalab gibt es „Team informieren“.");
   const to = gains("team", page.audience);
   if (!to.customer && !to.freelancer) return fail("Diese Seite sieht nur das Team.");
   const card = { authorId: ctx.userId, event: { v: 1 as const, kind: "note.changed" as const, note: { customerId: page.customerId, pageId: page.id, title: page.title } } };
   after(() => notifyNote(page.customerId, noteNotice("note.changed", page.title, page.customerId, page.id), to, card));
   await logNoteEvent(ctx, "note.changed", "Notiz-Änderung mitgeteilt", page.customerId);
   return { ok: true, data: null };
+}
+
+/**
+ * „Team informieren“ at one of oalab's own pages (stage 2, decision 6): the other admins get a line in the bell, with
+ * the short sentence if there is one; the sender gets none. All admins see every internal page anyway, so this is how
+ * sharing becomes noticeable inside the team. Returns how many colleagues got the line.
+ */
+export async function notifyTeamAs(ctx: NotesContext, input: { id: string; message?: string }): Promise<NoteResult<{ count: number }>> {
+  if (ctx.viewer !== "admin") return fail("Das Team informiert das oalab-Team.");
+  const page = await readPage(ctx, input?.id, false);
+  if (!page) return fail("Diese Seite gibt es nicht mehr.");
+  if (!(await teamOf(ctx, page.customerId))) return fail("„Team informieren“ gibt es bei internen Seiten von oalab.");
+  const message = cleanTeamMessage(input?.message);
+  if (message === null) return fail(`Der Satz dazu hat höchstens ${TEAM_MESSAGE_MAX} Zeichen.`);
+  const count = await notifyTeamNote({ pageId: page.id, customerId: page.customerId, title: page.title, authorId: ctx.userId, message });
+  if (count < 0) return fail("Die Meldung konnte gerade nicht gesendet werden. Bitte versuche es erneut.");
+  await logNoteEvent(ctx, "note.team", `Team über eine interne Notiz informiert${message ? " (mit Satz)" : ""}`, page.customerId);
+  return { ok: true, data: { count } };
 }
 
 const TRASH_DAYS = 30;

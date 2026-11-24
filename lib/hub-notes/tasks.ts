@@ -49,6 +49,8 @@ export async function createNoteTaskAs(ctx: NotesContext, input: NoteTaskInput):
   if (!customer) return fail("Bei diesem Kunden kannst du keine Aufgaben anlegen.");
   const projects = await notesProjects(ctx, customer);
   if (!isUuid(input.projectId) || !projects.some((project) => project.id === input.projectId)) return fail("Wähle ein Projekt dieses Kunden.");
+  // oalab's internal tasks are never released to a customer (as on the board).
+  if (customer.team && input.audience === "customer") return fail("Interne Aufgaben sind „Nur Team“ oder „+ Freelancer“.");
   const dueOn = input.dueOn && isIsoDate(input.dueOn) ? input.dueOn : null;
   const assigneeIds = Array.isArray(input.assigneeIds) ? input.assigneeIds.filter(isUuid).slice(0, 10) : [];
   const created = await createTaskAs(writer, {

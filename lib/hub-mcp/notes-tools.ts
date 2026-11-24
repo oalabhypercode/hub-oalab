@@ -151,7 +151,7 @@ const tools: NotesTool[] = [
   {
     name: "set_note_visibility",
     title: "„Sichtbar für“ ändern",
-    description: "Zugriff auf eine Notizseite wie im Zahnrad der Seite: wer sie sieht (audience: team = Nur Team, both = Kunde und Freelancer, customer = Nur Kunde, ohne Freelancer beim Kunden einfach „Kunde“, freelancer = Nur Freelancer) und wer sie bearbeiten darf (customer_can_edit, freelancer_can_edit; „Lesen“ oder „Bearbeiten“). Ohne Angabe behält eine Seite die Rechte, die sie hat; sieht der Kunde sie neu, gilt der Standard der Notizen (meist „Bearbeiten“). Bearbeiten kann nur, wer die Seite sieht. Eine Unterseite ist höchstens so sichtbar wie die Seite darüber; eine engere Stufe nimmt die Unterseiten mit. Wer die Seite neu sieht oder neu bearbeiten darf, bekommt eine Meldung (Glocke und Mail), außer notify ist false.",
+    description: "Zugriff auf eine Notizseite wie im Zahnrad der Seite: wer sie sieht (audience: team = Nur Team, both = Kunde und Freelancer, customer = Nur Kunde, ohne Freelancer beim Kunden einfach „Kunde“, freelancer = Nur Freelancer) und wer sie bearbeiten darf (customer_can_edit, freelancer_can_edit; „Lesen“ oder „Bearbeiten“). Ohne Angabe behält eine Seite die Rechte, die sie hat; sieht der Kunde sie neu, gilt der Standard der Notizen (meist „Bearbeiten“). Bearbeiten kann nur, wer die Seite sieht. Eine Unterseite ist höchstens so sichtbar wie die Seite darüber; eine engere Stufe nimmt die Unterseiten mit. Wer die Seite neu sieht oder neu bearbeiten darf, bekommt eine Meldung (Glocke und Mail), außer notify ist false. Interne Seiten von oalab (internal) kennen nur team (Nur Team) und freelancer (Team und Freelancer).",
     inputSchema: {
       type: "object",
       properties: {
@@ -171,7 +171,7 @@ const tools: NotesTool[] = [
   {
     name: "notify_note_change",
     title: "Änderung mitteilen",
-    description: "„Änderung mitteilen“ wie im Hub: Alle, die eine freigegebene Notizseite sehen (Kunde und/oder Freelancer), bekommen einmal eine Meldung, dass sie sich geändert hat. Für Seiten mit „Nur Team“ gibt es niemanden zu benachrichtigen.",
+    description: "„Änderung mitteilen“ wie im Hub: Alle, die eine freigegebene Notizseite sehen (Kunde und/oder Freelancer), bekommen einmal eine Meldung, dass sie sich geändert hat. Für Seiten mit „Nur Team“ gibt es niemanden zu benachrichtigen. Bei internen Seiten von oalab (internal) ist es „Team informieren“: Die anderen Admins bekommen eine Zeile in der Glocke, du selbst keine.",
     inputSchema: { type: "object", properties: { page_id: id("Die Seite (ID aus list_notes).") }, required: ["page_id"], additionalProperties: false },
     annotations: { title: "Änderung mitteilen", ...WRITE },
     scope: "hub:write",
@@ -180,7 +180,7 @@ const tools: NotesTool[] = [
   {
     name: "create_meeting_note",
     title: "Besprechungsnotiz anlegen",
-    description: "„Notiz anlegen“ an einem Termin mit Kunde, wie im Kalender: eine Besprechungsnotiz pro Termin, „Besprechung: <Termin>“, mit dem Tag des Termins, „Nur Team“ und der Besprechungsvorlage. Mit content steht dein Markdown statt der Vorlage darin (Format wie bei create_note). Gibt es schon eine, kommt sie zurück; ändern dann mit update_note.",
+    description: "„Notiz anlegen“ an einem Termin, wie im Kalender: eine Besprechungsnotiz pro Termin, „Besprechung: <Termin>“, mit dem Tag des Termins, „Nur Team“ und der Besprechungsvorlage. Bei einem Termin mit Kunde liegt sie beim Kunden, bei einem internen Termin (ohne Kunde) bei oalab (internal). Mit content steht dein Markdown statt der Vorlage darin (Format wie bei create_note). Gibt es schon eine, kommt sie zurück; ändern dann mit update_note.",
     inputSchema: {
       type: "object",
       properties: { appointment_id: id("Der Termin (ID aus list_appointments)."), content: CONTENT },
