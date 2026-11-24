@@ -4,6 +4,7 @@ import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { customerFree, dayOf, isDay, lastRequestDay, startsIn, wallMinuteToUtc } from "@/lib/hub-calendar/rules";
 import { loadAvailability } from "@/lib/hub-calendar/server";
 import { requestAppointmentAs, writeAppointment, type CalendarClient } from "@/lib/hub-calendar/write";
+import { loadTeamNotesEntry } from "@/lib/hub-team/server";
 import { appointmentView } from "./refs";
 import { isUuid, noteText, positionAfter, validateNoteDoc } from "./rules";
 import { notesContext, notesCustomers, notesMissing, readPage, SETTINGS_COLUMNS, toSettings, type NotesContext } from "./server";
@@ -21,24 +22,34 @@ type PageRow = { id: string; title: string; icon: string; customer_id: string; d
 /**
  * For the calendar: pages with a date between two days (not the meeting notes, they hang at their appointment) and the
  * meeting notes of the given appointments, each only if the person sees it. Admins leave out archived customers like
- * the calendar does. Before the migration, nothing.
+ * the calendar does, and learn whether meeting notes of internal appointments go to oalab (stage 2 of the plan „oalab
+ * als Unternehmen“). Before the migration, nothing.
  */
 export async function loadCalendarNotes(appointmentIds: readonly string[], from: string, to: string): Promise<CalendarNotes> {
   const ctx = await notesContext();
   if (!ctx || !isDay(from) || !isDay(to)) return NO_CALENDAR_NOTES;
   const ids = appointmentIds.filter(isUuid).slice(0, 500);
-  const [dated, meetings, archive] = await Promise.all([
+  const [dated, meetings, archive, team] = await Promise.all([
     ctx.session.from("hub_note_pages").select("id, title, icon, customer_id, dated_on, appointment_id").is("deleted_at", null).is("appointment_id", null)
       .gte("dated_on", from).lte("dated_on", to).order("dated_on").limit(300).returns<PageRow[]>(),
     ids.length ? ctx.session.from("hub_note_pages").select("id, title, icon, customer_id, dated_on, appointment_id").is("deleted_at", null).in("appointment_id", ids).returns<PageRow[]>() : null,
     ctx.viewer === "admin" ? loadArchive() : null,
+    ctx.viewer === "admin" ? loadTeamNotesEntry(ctx.db) : null,
   ]);
   if (dated.error) return NO_CALENDAR_NOTES;
   const shown = (row: PageRow) => !archive?.customerIds.has(row.customer_id);
   return {
     dated: (dated.data ?? []).filter(shown).map((row) => ({ id: row.id, title: row.title, icon: row.icon, customerId: row.customer_id, day: row.dated_on! })),
     byAppointment: Object.fromEntries((meetings?.data ?? []).filter(shown).flatMap((row) => row.appointment_id ? [[row.appointment_id, { id: row.id, customerId: row.customer_id, title: row.title }]] : [])),
+    ...(team ? { internal: true } : {}),
   };
+}
+
+/** Whether a page's entry is oalab's own (stage 2): its appointments are the internal ones, without a customer. */
+async function isTeamEntry(ctx: NotesContext, customerId: string) {
+  if (ctx.viewer !== "admin") return false;
+  const team = await loadTeamNotesEntry(ctx.db);
+  return Boolean(team && team.id === customerId);
 }
 
 type AppointmentRow = { id: string; title: string; starts_at: string; ends_at: string; status: string; teams_url: string | null; customer_id: string | null };
@@ -49,9 +60,15 @@ export async function noteAppointmentOptionsAs(ctx: NotesContext, input: { custo
   if (ctx.viewer === "freelancer") return { ok: true, data: [] };
   if (!isUuid(input?.customerId)) return fail("Der Kunde ist unbekannt.");
   const now = new Date().toISOString();
+  // At oalab: the internal appointments, the ones without a customer.
+  const internal = await isTeamEntry(ctx, input.customerId);
+  const ofEntry = () => {
+    const query = ctx.session.from("hub_appointments").select(APPOINTMENT_FIELDS);
+    return internal ? query.is("customer_id", null) : query.eq("customer_id", input.customerId);
+  };
   const [upcoming, past] = await Promise.all([
-    ctx.session.from("hub_appointments").select(APPOINTMENT_FIELDS).eq("customer_id", input.customerId).gte("ends_at", now).order("starts_at").limit(15).returns<AppointmentRow[]>(),
-    ctx.session.from("hub_appointments").select(APPOINTMENT_FIELDS).eq("customer_id", input.customerId).lt("ends_at", now).order("starts_at", { ascending: false }).limit(10).returns<AppointmentRow[]>(),
+    ofEntry().gte("ends_at", now).order("starts_at").limit(15).returns<AppointmentRow[]>(),
+    ofEntry().lt("ends_at", now).order("starts_at", { ascending: false }).limit(10).returns<AppointmentRow[]>(),
   ]);
   if (upcoming.error || past.error) return fail("Die Termine konnten gerade nicht geladen werden.");
   return { ok: true, data: [...(upcoming.data ?? []), ...(past.data ?? [])].map(appointmentView) };
@@ -59,17 +76,20 @@ export async function noteAppointmentOptionsAs(ctx: NotesContext, input: { custo
 
 /**
  * „Notiz anlegen“ at an appointment (team): one meeting note per appointment, with the template of the settings, the
- * appointment's title and day, „Nur Team“ (plan 5.2). An existing note is returned instead of a second one.
+ * appointment's title and day, „Nur Team“ (plan 5.2). An existing note is returned instead of a second one. The note of
+ * an appointment without a customer goes to oalab (stage 2 of the plan „oalab als Unternehmen“, decision 7).
  */
 export async function createMeetingNoteAs(ctx: NotesContext, input: { appointmentId: string }): Promise<NoteResult<{ id: string; customerId: string; created: boolean }>> {
   if (ctx.viewer !== "admin") return fail("Besprechungsnotizen legt das oalab-Team an.");
   if (!isUuid(input?.appointmentId)) return fail("Unbekannter Termin.");
   const appointment = await ctx.session.from("hub_appointments").select(APPOINTMENT_FIELDS).eq("id", input.appointmentId).maybeSingle<AppointmentRow>();
   if (!appointment.data) return fail("Diesen Termin gibt es nicht mehr.");
-  const customerId = appointment.data.customer_id;
+  // Internal appointments have no customer: their note goes to oalab's own entry, once the database knows it.
+  const team = appointment.data.customer_id ? null : await loadTeamNotesEntry(ctx.db);
+  const customerId = appointment.data.customer_id ?? team?.id ?? null;
   const customers = customerId ? await notesCustomers(ctx) : null;
-  // Notes belong to customers: internal appointments and a freelancer's own ones have none.
-  if (!customerId || !customers?.some((item) => item.id === customerId)) return fail("Notizen gibt es nur zu Terminen mit einem Kunden.");
+  // Notes belong to customers and to oalab: a freelancer's own appointments have none (nor internal ones before stage 2).
+  if (!customerId || !customers?.some((item) => item.id === customerId)) return fail(team === null && !appointment.data.customer_id ? "Notizen gibt es nur zu Terminen mit einem Kunden." : "Notizen gibt es nur zu Terminen mit einem Kunden und zu internen Terminen.");
   const existing = await ctx.session.from("hub_note_pages").select("id, deleted_at").eq("appointment_id", input.appointmentId).maybeSingle<{ id: string; deleted_at: string | null }>();
   if (existing.error && notesMissing(existing.error)) return fail("Notizen sind noch nicht eingerichtet: Die Datenbank kennt sie noch nicht.");
   if (existing.data?.deleted_at) return fail("Die Besprechungsnotiz zu diesem Termin liegt im Papierkorb. Stelle sie dort wieder her.");
@@ -98,7 +118,7 @@ export async function createMeetingNoteAs(ctx: NotesContext, input: { appointmen
     }
     return fail(noteError(error, "Die Besprechungsnotiz konnte gerade nicht angelegt werden."));
   }
-  await logNoteEvent(ctx, "note.created", "Besprechungsnotiz angelegt · Sichtbar für: Nur Team", customerId);
+  await logNoteEvent(ctx, "note.created", `${team ? "Interne Besprechungsnotiz" : "Besprechungsnotiz"} angelegt · Sichtbar für: Nur Team`, customerId);
   return { ok: true, data: { id: data.id, customerId, created: true } };
 }
 
@@ -119,8 +139,10 @@ export async function createNoteAppointmentAs(ctx: NotesContext, input: NoteAppo
   if (!page) return fail("Diese Seite gibt es nicht mehr.");
   const supabase = await calendarSession(ctx);
   if (!supabase) return fail(confirmFirst);
+  // From one of oalab's own pages: an internal appointment, without a customer (the calendar never offers oalab).
+  const internal = await isTeamEntry(ctx, page.customerId);
   const written = await writeAppointment(supabase, null, {
-    title: String(input.title ?? ""), description: String(input.description ?? ""), customerId: page.customerId,
+    title: String(input.title ?? ""), description: String(input.description ?? ""), customerId: internal ? "" : page.customerId,
     day: String(input.day ?? ""), start: String(input.start ?? ""), minutes: Number(input.minutes), teamsUrl: String(input.teamsUrl ?? ""),
   }, ctx.userId);
   if (!written.ok) return fail(written.error);

@@ -11,7 +11,7 @@ export function noticeSymbol(kind: string): NoticeSymbol {
   if (kind === "file.shared") return { icon: Files, color: categories.files.fill, area: "Dateien" };
   // A release for a freelancer under „Kunden“: that page has no category colour, so the accent (as in the bell).
   if (kind === "share.granted") return { icon: Building2, color: "var(--accent-text)", area: "Kunden" };
-  if (kind === "note.shared" || kind === "note.changed" || kind === "note.edited") return { icon: NotebookPen, color: categories.projects.fill, area: "Notizen" };
+  if (kind === "note.shared" || kind === "note.changed" || kind === "note.edited" || kind === "note.team") return { icon: NotebookPen, color: categories.projects.fill, area: "Notizen" };
   // A customer's request or message on the service platform (23.11.2026), to the team.
   if (kind === "service.message") return { icon: LifeBuoy, color: "#30B0C7", area: "Serviceplattform" };
   // What waits for admins (derived on the Übersicht, components/hub/admin-notices.ts).

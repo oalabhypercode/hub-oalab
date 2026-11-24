@@ -142,6 +142,11 @@ export type NoteCustomer = {
   logo?: CustomerLogo;
   /** Some freelancer looks after the customer: „Sichtbar für“ then offers four levels instead of two. */
   hasFreelancer: boolean;
+  /**
+   * oalab's own entry (kind team, stage 2 of the plan „oalab als Unternehmen“): first in the list, tagged „Intern“,
+   * „Sichtbar für“ only „Nur Team“ or „Team und Freelancer“, „Team informieren“ instead of „Änderung mitteilen“.
+   */
+  team?: boolean;
 };
 
 export type NoteProject = { id: string; name: string };
@@ -217,7 +222,12 @@ export type NoteRevision = {
 
 /** Pages with a date, and meeting notes at their appointments, for the calendar (only what the viewer sees). */
 export type CalendarNote = { id: string; title: string; icon: string; customerId: string; day: string };
-export type CalendarNotes = { dated: CalendarNote[]; byAppointment: Record<string, { id: string; customerId: string; title: string }> };
+export type CalendarNotes = {
+  dated: CalendarNote[];
+  byAppointment: Record<string, { id: string; customerId: string; title: string }>;
+  /** Meeting notes of appointments without a customer go to oalab (admins, once the database knows it, stage 2). */
+  internal?: boolean;
+};
 export const NO_CALENDAR_NOTES: CalendarNotes = { dated: [], byAppointment: {} };
 
 /** A hit of the hub's search in the notes. */

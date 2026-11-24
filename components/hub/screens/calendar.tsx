@@ -732,7 +732,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
           ? <RequestPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish} onOpenTask={(id) => setPanel({ kind: "task", id })}
             related={tasks.filter((task) => task.customerId && task.customerId === panelAppointment.customer?.id && task.dueOn && task.status !== "done" && Math.abs(Date.parse(`${task.dueOn}T00:00:00Z`) - Date.parse(`${dayOf(panelAppointment.start)}T00:00:00Z`)) <= 3 * 86_400_000)} />
           : <AppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} onClose={close} onDone={finish}
-            extra={panelAppointment.customer && panelAppointment.customer.kind !== "freelancer" ? <MeetingNote appointmentId={panelAppointment.id} note={notes.byAppointment[panelAppointment.id] ?? null} canCreate preview={preview} /> : null} />
+            extra={(panelAppointment.customer ? panelAppointment.customer.kind !== "freelancer" : notes.internal || Boolean(notes.byAppointment[panelAppointment.id]))
+              ? <MeetingNote appointmentId={panelAppointment.id} note={notes.byAppointment[panelAppointment.id] ?? null} canCreate internal={!panelAppointment.customer} preview={preview} /> : null} />
         : <CustomerAppointmentPanel key={panelAppointment.id} store={store} appointment={panelAppointment} canWithdraw onClose={close} onDone={finish}
           extra={<MeetingNote appointmentId={panelAppointment.id} note={notes.byAppointment[panelAppointment.id] ?? null} canCreate={false} preview={preview} />} />
     : panel.kind === "new" ? <AppointmentPanel key={`new-${panel.day}-${panel.start}`} store={store} initial={panel} onClose={close} onDone={finish} />

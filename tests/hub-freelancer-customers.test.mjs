@@ -149,7 +149,8 @@ test("freelancers read their customers' names and logos through their list, neve
   const files = await source("lib/hub-files/server.ts");
   assert.match(files, /const theirs = await loadFreelancerCustomerList\(supabase\);/);
   // oalab's own entry (kind team) stays out of the files in stage 1 of the plan „oalab als Unternehmen“.
-  assert.match(files, /const customerRows = withFreelancerCustomers\(\(customers\.data \?\? \[\]\)\.filter\(\(row\) => !isTeamKind\(row\.kind\)\), theirs\);/);
+  // oalab's own entry only for admins, once the database knows its files (stage 2 of „oalab als Unternehmen“).
+  assert.match(files, /const customerRows = withFreelancerCustomers\(\(customers\.data \?\? \[\]\)\.filter\(\(row\) => !isTeamKind\(row\.kind\) \|\| \(canManage && row\.id === team\?\.id\)\), theirs\)/);
   assert.match(files, /assignment\.customer \|\| !assignment\.customer_id \? assignment : \{ \.\.\.assignment, customer: named\.get\(assignment\.customer_id\) \?\? null \}/);
   assert.match(files, /readFiles\("customer_id, folder_id, audience"\)/);
   assert.match(files, /customers: customerRows\.filter\(\(row\) => !archive\.customerIds\.has\(row\.id\)\)/);

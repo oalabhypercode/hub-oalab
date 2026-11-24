@@ -16,7 +16,7 @@ import { requestReference } from "@/lib/hub-conversations/rules";
 import {
   CURSOR, INBOX_LATEST, INBOX_UNREAD, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, appointmentHref, appointmentRequestNotice, calendarRows, chatHref, chatNotice, contractNotice, detectStudioNotices, dueDigests,
   fileNotice, fileNoticeLine, fileNoticeName, formatMoment, hasTaskChange, mailsWanted, mergeContractNotice, mergeFileNotice,
-  mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice,
+  mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice, teamNoteNotice,
   noticeAppointment, projectHref, readFrom, shareNotice, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type StudioCard, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
@@ -491,6 +491,40 @@ export async function notifyNoteEdit(input: { pageId: string; customerId: string
   } catch (error) {
     // The page is saved; only its notice is lost.
     logFailure("notice note.edited", error);
+  }
+}
+
+/**
+ * „Team informieren“ on one of oalab's own pages (stage 2): every other active admin gets „… hat ‚Seite‘ geteilt“ in the
+ * bell, with the sender's sentence; the sender gets none. A colleague who still has an unread line about the page gets
+ * the new one in its place, so a page fills the bell with one line. The mail follows a quarter of an hour later unless
+ * the line was read in the hub (opening the page reads it). Returns how many got the line, -1 when it failed.
+ */
+export async function notifyTeamNote(input: { pageId: string; customerId: string; title: string; authorId: string; message: string }): Promise<number> {
+  const db = createAdminClient();
+  if (!db) return -1;
+  try {
+    const [author, admins] = await Promise.all([
+      db.from("hub_profiles").select("first_name, last_name").eq("user_id", input.authorId).maybeSingle<{ first_name: string | null; last_name: string | null }>(),
+      activeAdminLogins(db),
+    ]);
+    const to = admins.filter((id) => id !== input.authorId);
+    if (!to.length) return 0;
+    const name = author.data ? `${author.data.first_name ?? ""} ${author.data.last_name ?? ""}`.trim() : "";
+    const notice = teamNoteNotice({ title: input.title, customerId: input.customerId, pageId: input.pageId, author: name, message: input.message });
+    const open = await db.from("hub_inbox").select("id, user_id").eq("kind", "note.team").eq("href", notice.href)
+      .in("user_id", to).is("read_at", null).eq("mail_state", "pending").returns<{ id: number; user_id: string }[]>();
+    const waiting = new Map((open.data ?? []).map((row) => [row.user_id, row.id]));
+    if (waiting.size) {
+      const { error } = await db.from("hub_inbox").update({ title: notice.title, body: notice.body, created_at: new Date().toISOString() }).in("id", [...waiting.values()]);
+      if (error) { logFailure("notice note.team: merge", error); return -1; }
+    }
+    const written = await insertNotices(db, to.filter((id) => !waiting.has(id)), notice);
+    return written < 0 ? -1 : to.length;
+  } catch (error) {
+    // The page is saved; only its notice is lost.
+    logFailure("notice note.team", error);
+    return -1;
   }
 }
 

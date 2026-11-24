@@ -10,6 +10,7 @@ import { fileInSight, noArchive } from "@/lib/hub-archive/rules";
 import { isFileCategory } from "./catalog";
 import { isFileAudience, type HubFileCustomer, type HubFilesState, type HubFolder, type HubStoredFile } from "./types";
 import { isTeamKind } from "@/lib/hub-team/rules";
+import { loadTeamNotesEntry } from "@/lib/hub-team/server";
 
 type CustomerRow = { id: string; customer_number: string; company: string; kind?: string };
 type FileRow = {
@@ -70,7 +71,8 @@ export async function loadHubFiles(): Promise<HubFilesState> {
   const isFreelancer = role === "oalab_freelancer";
   const readFiles = (assignment: string) => supabase.from("hub_files").select(`${FILE_COLUMNS}, hub_file_assignments(${assignment}, customer:hub_customers(id, customer_number, company))`).order("created_at", { ascending: false }).returns<FileRow[]>();
   const readCustomers = (columns: string) => supabase.from("hub_customers").select(columns).order("customer_number").returns<CustomerRow[]>();
-  const [firstFiles, firstCustomers, folders, shown, links, own, archive] = await Promise.all([
+  const adminDb = canManage ? createAdminClient() : null;
+  const [firstFiles, firstCustomers, folders, shown, links, own, archive, team] = await Promise.all([
     readFiles("customer_id, folder_id, audience"),
     readCustomers("id, customer_number, company, kind"),
     supabase.from("hub_folders").select("id, customer_id, name").order("name").returns<FolderRow[]>(),
@@ -80,6 +82,8 @@ export async function loadHubFiles(): Promise<HubFilesState> {
     // A freelancer's own entry: the files oalab provides for them ("Meine Dateien").
     isFreelancer && claims?.claims.sub ? supabase.from("hub_customer_members").select("customer_id").eq("user_id", claims.claims.sub).limit(1).maybeSingle<{ customer_id: string }>() : null,
     canManage ? loadArchive() : noArchive,
+    // oalab's own entry (kind team) holds files once the database knows notes and files for it (stage 2); before, as before.
+    loadTeamNotesEntry(adminDb),
   ]);
   // Before the freelancer migration the new columns are missing: read as before.
   const files = missingColumn(firstFiles.error) ? await readFiles("customer_id, folder_id") : firstFiles;
@@ -87,8 +91,9 @@ export async function loadHubFiles(): Promise<HubFilesState> {
   const error = files.error ?? folders.error;
   if (error) return { source: "supabase", files: [], customers: [], folders: [], canManage, error: describeStorageError(error) };
   const { logos, theirs } = shown;
-  // oalab's own entry (kind team) has no files yet: they follow in stage 2 of the plan „oalab als Unternehmen“.
-  const customerRows = withFreelancerCustomers((customers.data ?? []).filter((row) => !isTeamKind(row.kind)), theirs);
+  // oalab's own entry (kind team) only for admins and only with the migration of stage 2; it stands first.
+  const customerRows = withFreelancerCustomers((customers.data ?? []).filter((row) => !isTeamKind(row.kind) || (canManage && row.id === team?.id)), theirs)
+    .sort((a, b) => Number(isTeamKind(b.kind)) - Number(isTeamKind(a.kind)));
   // The embedded customer is empty where the session may not read the row (a freelancer's customers): named from the list.
   const named = new Map(customerRows.map((row) => [row.id, row]));
   const fileRows = (files.data ?? []).map((row): FileRow => ({
@@ -97,7 +102,6 @@ export async function loadHubFiles(): Promise<HubFilesState> {
   }));
   const linkRows = (links && !links.error ? links.data ?? [] : []).filter((link) => !archive.customerIds.has(link.freelancer_id) && !archive.customerIds.has(link.customer_id));
   // Admins pick no freelancer whose every login is deactivated (lib/hub-users/deactivated.ts); a failed read hides none.
-  const adminDb = canManage ? createAdminClient() : null;
   const inactive = adminDb ? await readEntriesWithoutActiveLogin(adminDb, customerRows.filter((row) => row.kind === "freelancer").map((row) => row.id)).catch(() => null) : null;
   // An archived customer's assignments drop out; a file only archived customers hold goes with them.
   const inSight = (row: FileRow) => (row.hub_file_assignments ?? []).filter((assignment) => !assignment.customer || !archive.customerIds.has(assignment.customer.id));
@@ -108,7 +112,7 @@ export async function loadHubFiles(): Promise<HubFilesState> {
     ...(canManage ? { freelancers: Boolean(links && !links.error) } : {}),
     customers: customerRows.filter((row) => !archive.customerIds.has(row.id)).map((row) => {
       const logo = logos.get(row.id);
-      const customer: HubFileCustomer = { ...toCustomer(row), kind: row.kind === "freelancer" ? "freelancer" : "customer" };
+      const customer: HubFileCustomer = { ...toCustomer(row), kind: row.kind === "freelancer" ? "freelancer" : isTeamKind(row.kind) ? "team" : "customer" };
       if (logo) customer.logo = logo;
       if (canManage) customer.freelancerIds = linkRows.filter((link) => link.customer_id === row.id).map((link) => link.freelancer_id);
       if (inactive?.has(row.id)) customer.inactive = true;

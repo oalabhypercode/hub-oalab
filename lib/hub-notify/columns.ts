@@ -115,6 +115,20 @@ export function noticeColumns(notice: { kind: string; title: string; body: strin
     return { where: cut < 0 ? fallback : body.slice(cut + SEP.length), path: "Projekte › Notizen", title: event, body: subject, from: freelancer ? who.slice(0, -FREELANCER_MARK.length) : who, fromDetail: freelancer ? "Freelancer" : "Kunde" };
   }
 
+  // Inside the team (stage 2 of „oalab als Unternehmen“): „Lea Brandt hat „Wochenplanung“ geteilt“, with her sentence.
+  if (kind === "note.team") {
+    const shared = /^(.+) hat „(.+)“ geteilt$/.exec(title);
+    return {
+      where: "Intern",
+      path: "Projekte › Notizen",
+      title: shared ? `„${shared[2]}“ geteilt` : title,
+      // Without a sentence the line says where the page is, which the path column already does.
+      body: body.startsWith("Interne Notiz unter ") ? "" : body,
+      from: shared?.[1] ?? OALAB.from,
+      fromDetail: "Team",
+    };
+  }
+
   // To the team (23.11.2026): „Neue Anfrage von Nordlicht Studio: OA-12 Texte freigeben“ with "Jana: Text".
   if (kind === "service.message") {
     const lead = SERVICE_LEADS.find((prefix) => event.startsWith(prefix));

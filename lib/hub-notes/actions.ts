@@ -2,7 +2,7 @@
 
 import { isUuid } from "./rules";
 import { customerView, markSeen, namesOf, noteReadersAs, notesContext, notesCustomers, readPage } from "./server";
-import { coverFilesAs, createPageAs, fail, linkPreviewAs, listTrashAs, notifyChangeAs, projectNotesAs, purgePageAs, restorePageAs, saveSettingsAs, savePageAs, setRightsAs, taskMentionsAs, trashPageAs, type CreateInput } from "./write";
+import { coverFilesAs, createPageAs, fail, linkPreviewAs, listTrashAs, notifyChangeAs, notifyTeamAs, projectNotesAs, purgePageAs, restorePageAs, saveSettingsAs, savePageAs, setRightsAs, taskMentionsAs, trashPageAs, type CreateInput } from "./write";
 import { createNoteTaskAs, noteTaskOptionsAs, searchNoteTasksAs, setNoteTaskDoneAs, type NoteTaskInput } from "./tasks";
 import { createMeetingNoteAs, createNoteAppointmentAs, noteAppointmentOptionsAs, noteRequestSlotsAs, requestNoteAppointmentAs, type NoteAppointmentInput } from "./calendar";
 import { noteHistoryAs, presenceAs, restoreRevisionAs, searchNotesAs } from "./history";
@@ -67,6 +67,12 @@ export async function saveNoteSettings(patch: Partial<NoteSettings>): Promise<No
 export async function notifyNoteChange(input: { id: string }): Promise<NoteResult<null>> {
   const ctx = await notesContext();
   return ctx ? notifyChangeAs(ctx, input) : fail(noAccess);
+}
+
+/** „Team informieren“ at one of oalab's own pages (stage 2): the other admins get a line in the bell. */
+export async function notifyNoteTeam(input: { id: string; message?: string }): Promise<NoteResult<{ count: number }>> {
+  const ctx = await notesContext();
+  return ctx ? notifyTeamAs(ctx, input) : fail(noAccess);
 }
 
 export async function trashNotePage(input: { id: string }): Promise<NoteResult<{ pages: NotePageMeta[] }>> {

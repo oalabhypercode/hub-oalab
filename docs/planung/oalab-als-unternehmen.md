@@ -1,6 +1,6 @@
 # Planung: oalab als eigenes Unternehmen im Hub
 
-Stand 24. November 2026 · Etappe 1 gebaut auf `feat/oalab-unternehmen` (Hub) und `feat/hub-team-entry` (service-oalab), PRs offen, noch nicht live (Abschnitt 11) · Entscheidungen 1 bis 10 am 23. November 2026 wie empfohlen getroffen (Abschnitt 9)
+Stand 24. November 2026 · Etappe 1 live seit 24. November 2026 (hub-oalab#163, service-oalab#41, Abschnitt 11) · Etappe 2 gebaut auf `feat/oalab-notizen-dateien` (Hub) und `feat/hub-team-notes` (service-oalab), PRs offen, noch nicht live (Abschnitt 12) · Entscheidungen 1 bis 10 am 23. November 2026 wie empfohlen getroffen (Abschnitt 9)
 
 Dieser Plan beschreibt den Wunsch vom 23. November 2026: Als Admin gehörst du zu keinem Unternehmen und kannst deshalb für oalab selbst keine Projekte, keine Aufgaben und keine Notizen anlegen. oalab soll ein eigenes Unternehmen im Hub werden, in dem das Team untereinander mit denselben Werkzeugen arbeitet wie mit Kunden und Freelancern: Projekte und Aufgaben anlegen, Notizen schreiben und freigeben.
 
@@ -244,7 +244,7 @@ Etappe 3:
 
 ## 11. Umsetzung Etappe 1 (23. November 2026)
 
-Gebaut am 23. November 2026 nach „Ja, Etappe 1 bauen“, noch nicht live:
+Gebaut am 23. November 2026 nach „Ja, Etappe 1 bauen“, live seit dem 24. November 2026 (hub-oalab#163 um 00:40, Migration über den Coolify-Import bis 01:20, service-oalab#41 um 01:30):
 
 - `service-oalab`, Branch `feat/hub-team-entry`: Migration `202611230003_hub_team_entry.sql`, Rückweg und Textprüfung (Abschnitt 3.6). Alle 140 Skript-Tests grün.
 - Hub, Branch `feat/oalab-unternehmen` auf dem Plan:
@@ -257,3 +257,26 @@ Gebaut am 23. November 2026 nach „Ja, Etappe 1 bauen“, noch nicht live:
   - Patch Notes im Paket 31 vom 24. November 2026 (nur Admins; geht es später live, wandert das Paket auf diesen Tag), Wissen des Assistenten, `PROJECT_CONTEXT.md`, Test `tests/hub-team.test.mjs`. `tsc`, `lint` und alle Tests grün, auch nach dem Abgleich mit `main` (#161, #162).
 - Livegang: erst den Hub-PR mergen (ohne Migration sieht der Hub aus wie vorher), dann die Migration über den Coolify-Import einspielen, danach live prüfen: oalab unter „Zugänge“ und „Projekte“, ein internes Testprojekt mit einer Aufgabe, und dass ein Kundenzugang davon nichts sieht. Zuletzt den PR in `service-oalab` mergen, damit Repository und Datenbank übereinstimmen.
 - Importdatei: aus dem committeten Stand gebaut wie bei den Importen davor (eigene Transaktion als Rolle `oalab`, Version mit der Prüfsumme von `scripts/oalab-db.mjs`). Ein Wächter bricht ohne Änderung ab, wenn die Migration schon eingespielt ist, `202611230002` fehlt, es nicht genau eine aktive oalab-Organisation gibt, schon ein Hub-Eintrag an ihr hängt oder ihre Nummer vergeben ist. Auf PGlite so eingespielt, wie Coolify es tut: 43 Prüfungen grün, auch Rückweg und zweiter Lauf.
+
+## 12. Umsetzung Etappe 2 (24. November 2026)
+
+Gebaut am 24. November 2026 nach Abschnitt 4, noch nicht live. Alles nur für Admins; Kunden sehen nichts davon, Freelancer erst mit Etappe 3.
+
+- `service-oalab`, Branch `feat/hub-team-notes`: Migration `202611240002_hub_team_notes.sql` (Nummer auf allen Branches frei), Rückweg, Textprüfung `scripts/hub-team-notes.test.mjs`. Sie ändert keine bestehende Regel, sondern erweitert drei Stellen:
+  - `hub_note_pages` nimmt den Team-Eintrag an (`customer_kind` in `customer`, `team`); der Trigger `hub_note_pages_entry_kind` setzt die Art aus dem Eintrag und läuft vor dem Wächter. Freelancer-Einträge bleiben draußen.
+  - Der Wächter ist der von `202611230002` plus zwei Regeln: Interne Seiten sind nur „Nur Team“ oder „Team und Freelancer“ (gespeichert als „Nur Freelancer“, Meldung `HUB_NOTE_TEAM_AUDIENCE`), und eine Besprechungsnotiz zu einem Termin ohne Kunde liegt beim Team-Eintrag (Kundenseiten weiter nur an Terminen ihres Kunden).
+  - Dateien beim Team-Eintrag sind „Nur Team“ (gespeichert als „Nur Kunde“; der Eintrag hat nie Mitglieder) oder „Team und Freelancer“ („Nur Freelancer“); ohne Angabe gilt „Nur Team“, auch für Verträge.
+  - Glocke: beim Bau festgelegt auf die neue Art `note.team` statt `note.changed` mit Admins als Empfängern. `note.changed` ist die Meldung an Kunden und Freelancer (mit Karte im Chat und Kunden-Mail); die Teamzeile nennt dagegen, wer geteilt hat, trägt den kurzen Satz und kommt per Mail nur, solange sie ungelesen ist.
+  - `hub_team_notes_ready()` sagt dem Hub, dass die Migration eingespielt ist. Ohne sie zeigt der Hub oalab weder in Notizen noch im Asset Management und sieht aus wie vorher.
+  - Auf PGlite geprüft (67 Prüfungen mit den echten Notizen-Migrationen und der echten Voreinstellung der Dateien): Art aus dem Eintrag, nur zwei Stufen intern (auch für den Server-Schlüssel), Unterseiten folgen, interne Projekte ja und fremde nein, Besprechungsnotiz zum internen Termin ja und zum Kundentermin nein (und umgekehrt), Kunden und Freelancer lesen und schreiben nichts Internes, `note.team` erlaubt, Voreinstellung der Dateien je Art, Rückweg und erneutes Einspielen.
+- Hub, Branch `feat/oalab-notizen-dateien`:
+  - `lib/hub-team`: `loadTeamNotesEntry` (fragt `hub_team_notes_ready()` fehlertolerant, einmal je Anfrage), Wörter und Zuordnung der zwei Stufen, `cleanTeamMessage` (höchstens 200 Zeichen, eine Zeile).
+  - Notizen: oalab steht bei Admins ganz oben (`NoteCustomer.team`, in der Kundenwahl „Intern · Nummer“). Neue Seiten starten mit „Nur Team“, Unterseiten übernehmen die Stufe. Das Zahnrad zeigt „Sichtbar für“ mit den zwei Kacheln statt „Zugriff“, die Kapsel „Nur Team“ oder „Team und Freelancer“, „Mit … teilen“ entfällt. Weiten braucht intern keine Freigabe (es sieht noch niemand außer dem Team), Einschränken mit Unterseiten fragt wie bisher. Aufgaben aus internen Seiten bieten kein „+ Kunde“.
+  - „Team informieren“ im Zahnrad: kleines Fenster mit einem freiwilligen Satz; alle anderen aktiven Admins bekommen „… hat ‚Seite‘ geteilt“ in der Glocke (Spalten: Intern, Projekte › Notizen, Absender), eine ungelesene Zeile zur selben Seite wird ersetzt; wer die Seite öffnet, liest seine Zeile. Der Absender bekommt keine. „Änderung mitteilen“ lehnt interne Seiten ab.
+  - Kalender: Bei Terminen ohne Kunde zeigt das Terminfenster „Besprechungsnotiz“ mit „Notiz anlegen“ (Hinweis „Bei oalab unter Notizen …“), sobald die Datenbank es kennt. Ein Termin, den man aus einer internen Seite anlegt, ist ein interner Termin; der Termin-Block zeigt dort interne Termine.
+  - Asset Management: Gruppe „Intern“ mit oalab über „Kunden“ (zählt nicht als Kunde), Kopf „Intern, nie für Kunden“, kein „Betreut von“, Kennzeichen „Team und Freelancer“ an Dateien, „Sichtbar für“ in den Details mit den zwei Stufen, „Zuordnen“ mit oalab als erster Gruppe. Bilder bei oalab stehen als Titelbilder interner Seiten zur Wahl (wie bei Kunden über die Zuordnung). Hochladen, Ordner und Umbenennen laufen unverändert; Meldungen und Karten gibt es für oalab keine (keine Logins, Karten nur für Kunden).
+  - Claude: Notizen bei oalab über die vorhandenen Werkzeuge, `internal: true` in `list_notes`, `notify_note_change` informiert bei internen Seiten das Team, `create_meeting_note` auch für interne Termine.
+  - Patch Notes im Paket 31 vom 24. November 2026 (nur Admins; geht es später live, wandern die Einträge in ein Paket dieses Tages), Wissen des Assistenten, `PROJECT_CONTEXT.md`, Tests in `tests/hub-team.test.mjs` (jetzt auch in `npm test`; eine Prüfung aus Etappe 1 war seit #164 veraltet und ist angepasst).
+  - Geprüft in `/preview`: Notizen bei oalab hell und dunkel, Rechner und Handy (`/preview/projects/notes?customer=c0ffee00-0000-4000-8000-0000000000a1`); Asset Management und Kalender der Admins über einen vorübergehenden, nicht committeten Schalter. Nicht geprüft: echte Anmeldung, Mails, PostgREST gegen die echte Datenbank.
+- Livegang wie bei Etappe 1: erst den Hub-PR mergen (ohne Migration sieht der Hub aus wie vorher), dann die Migration über den Coolify-Import einspielen und prüfen, dass oalab in „Notizen“ erscheint, zuletzt den PR in `service-oalab` mergen. Live-Test danach ohne Kunden: eine interne Testseite, „Team informieren“ an einen zweiten Admin, eine Besprechungsnotiz zu einem internen Termin, eine Datei bei oalab; Testdaten danach löschen.
+

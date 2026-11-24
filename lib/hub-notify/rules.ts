@@ -18,7 +18,8 @@ export type NoticeKind =
   | "share.granted"
   | "note.shared" | "note.changed" | "note.edited"
   | "service.message"
-  | "appointment.requested" | "contract.changed";
+  | "appointment.requested" | "contract.changed"
+  | "note.team";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -168,10 +169,10 @@ export type PendingRow = { id: number; user_id: string; created_at: string; read
 export const isChatKind = (kind: string) => kind === "chat.message" || kind === "chat.reply";
 /**
  * Notices about something to read in the hub (23.11.2026): a chat message, a customer's message on the service platform,
- * a page a customer or freelancer wrote on, and (24.11.2026) a customer's request for an appointment. Seen in the hub,
- * they need no mail.
+ * a page a customer or freelancer wrote on, (24.11.2026) a customer's request for an appointment and a colleague's
+ * „Team informieren“ on one of oalab's own pages. Seen in the hub, they need no mail.
  */
-export const isReadInHub = (kind: string) => isChatKind(kind) || kind === "service.message" || kind === "note.edited" || kind === "appointment.requested";
+export const isReadInHub = (kind: string) => isChatKind(kind) || kind === "service.message" || kind === "note.edited" || kind === "appointment.requested" || kind === "note.team";
 /** A customer's message, in the chat or on the service platform, reaches the admins' mail sooner. */
 export const mailWaitMinutes = (kind: string) => kind === "chat.message" || kind === "service.message" ? CHAT_MAIL_WAIT_MINUTES : MAIL_WAIT_MINUTES;
 
@@ -323,6 +324,22 @@ export function noteEditNotice(input: { title: string; customerId: string; pageI
   const who = oneLine(input.author) || (input.side === "customer" ? "Kunde" : "Freelancer");
   const body = input.side === "customer" ? `${who} · ${oneLine(input.company)}` : `${who} (Freelancer) · ${oneLine(input.company)}`;
   return { kind: "note.edited", title: clip(`Notiz bearbeitet: ${oneLine(input.title)}`, 200), body: clip(body, 300), href: notePageHref(input.customerId, input.pageId) };
+}
+
+/**
+ * „Team informieren“ on one of oalab's own pages (stage 2 of the plan „oalab als Unternehmen“): „Lea Brandt hat
+ * ‚Wochenplanung‘ geteilt“ for every other admin, with the sender's short sentence as the second line if there is one.
+ * Only the title and that sentence, never the content; the link opens the page.
+ */
+export function teamNoteNotice(input: { title: string; customerId: string; pageId: string; author: string; message?: string }): Notice {
+  const who = oneLine(input.author) || "Jemand aus dem Team";
+  const message = oneLine(input.message ?? "");
+  return {
+    kind: "note.team",
+    title: clip(`${who} hat „${oneLine(input.title)}“ geteilt`, 200),
+    body: clip(message || "Interne Notiz unter Projekte › Notizen", 300),
+    href: notePageHref(input.customerId, input.pageId),
+  };
 }
 
 // Service platform (23.11.2026) ---------------------------------------------------------------------------------------

@@ -54,3 +54,35 @@ export function teamRoleText(state: TeamRoleState): string {
 
 /** The tag of an entry in lists where customers and the team stand together. */
 export const entryTag = (kind: unknown) => isTeamKind(kind) ? INTERNAL_TAG : null;
+
+// ---- Stage 2: notes and files of oalab (migration 202611240002_hub_team_notes in service-oalab) ----------------------
+
+/**
+ * „Sichtbar für“ at oalab: only the team, or the team and freelancers. The entry never has members, so nobody of a
+ * customer ever sees it. Notes keep „Team und Freelancer“ as their level „Nur Freelancer“, files keep „Nur Team“ as
+ * „Nur Kunde“ (the database sets both, whatever the hub sends). Freelancers see oalab only once they may look after it
+ * (stage 3).
+ */
+export type TeamSight = "team" | "freelancer";
+export const TEAM_SIGHTS: readonly TeamSight[] = ["team", "freelancer"];
+export const TEAM_SIGHT_LABELS: Record<TeamSight, string> = { team: "Nur Team", freelancer: "Team und Freelancer" };
+/** The sentence under the choice. */
+export const TEAM_SIGHT_NOTES: Record<TeamSight, string> = {
+  team: "Alle Admins sehen und bearbeiten sie. Kunden sehen bei oalab nie etwas.",
+  freelancer: "Dazu Freelancer, sobald sie oalab mitbetreuen. Kunden sehen bei oalab nie etwas.",
+};
+
+/** A note's level at oalab: „Team und Freelancer“ wherever freelancers would see it, else „Nur Team“. */
+export const teamSightOfNote = (audience: unknown): TeamSight => audience === "freelancer" || audience === "both" ? "freelancer" : "team";
+/** A file's level at oalab: stored as „Nur Kunde“ (only the team) or „Nur Freelancer“ (with freelancers). */
+export const teamSightOfFile = (audience: unknown): TeamSight => audience === "freelancer" || audience === "both" ? "freelancer" : "team";
+/** What a file assignment at oalab stores for a level. */
+export const fileAudienceOfTeamSight = (sight: TeamSight) => sight === "freelancer" ? "freelancer" as const : "customer" as const;
+
+/** The optional sentence of „Team informieren“: one line, at most this long. */
+export const TEAM_MESSAGE_MAX = 200;
+/** The sentence as stored in the bell: trimmed, one line; null when it is too long. */
+export function cleanTeamMessage(value: unknown): string | null {
+  const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  return text.length > TEAM_MESSAGE_MAX ? null : text;
+}

@@ -3,8 +3,15 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 23. November 2026
+**Stand:** 24. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
+
+### Vorgabe vom 23. November 2026: oalab als eigenes Unternehmen, Etappe 2 (Notizen und Dateien)
+
+- Etappe 1 ist seit dem 24.11.2026 live (hub-oalab#163, service-oalab#41). Etappe 2 nach dem Plan `docs/planung/oalab-als-unternehmen.md` (Abschnitte 4, 7, 9, 10, 12), Entscheidungen 5 bis 8: alles nur für Admins.
+- Migration `202611240002_hub_team_notes.sql` in service-oalab (Branch `feat/hub-team-notes`, Rückweg in `supabase/rollbacks/`, Textprüfung `scripts/hub-team-notes.test.mjs`, 67 Prüfungen auf PGlite mit den echten Notizen-Migrationen): `hub_note_pages.customer_kind` erlaubt `team`, der Trigger `hub_note_pages_entry_kind` setzt die Art aus dem Eintrag (läuft alphabetisch vor dem Wächter). Der Wächter lässt bei internen Seiten nur `team` („Nur Team“) und `freelancer` („Team und Freelancer“) zu (`HUB_NOTE_TEAM_AUDIENCE`) und Besprechungsnotizen zu Terminen ohne Kunde nur beim Team-Eintrag. `hub_inbox` kennt `note.team`. Dateien beim Team-Eintrag sind „Nur Team“ (gespeichert als `customer`, der Eintrag hat keine Mitglieder) oder „Team und Freelancer“ (`freelancer`), ohne Angabe „Nur Team“. `hub_team_notes_ready()` sagt dem Hub, dass die Migration eingespielt ist.
+- Hub: `loadTeamNotesEntry` (`lib/hub-team/server.ts`) fragt `hub_team_notes_ready()` fehlertolerant; ohne Migration zeigt der Hub oalab weder in Notizen noch im Asset Management. `notesCustomers` stellt oalab bei Admins an den Anfang (`NoteCustomer.team`); Regeln in `lib/hub-notes/rules.ts` (`TEAM_NOTE_AUDIENCES`, `teamNoteAudience`, `newPageRights` und Beschriftungen mit `team`). `setRightsAs` lehnt Kundenstufen ab und meldet bei internen Seiten niemanden, `notifyChangeAs` verweist auf „Team informieren“ (`notifyTeamAs` → `notifyTeamNote`: alle anderen aktiven Admins, eine Zeile je Seite, Mail nur ungelesen, Öffnen der Seite liest die eigene Zeile). Kalender: `createMeetingNoteAs` legt Notizen zu Terminen ohne Kunde bei oalab an (`CalendarNotes.internal` zeigt „Notiz anlegen“), ein Termin aus einer internen Seite ist intern. Asset Management: Gruppe „Intern“ mit oalab, „Sichtbar für“ mit zwei Stufen, kein „Betreut von“. Claude: Notizen bei oalab, `notify_note_change` informiert dort das Team. Chat bekommt für oalab nie Karten (nur Einträge der Art Kunde).
+- Reihenfolge beim Livegang wie in Etappe 1: zuerst der Hub-PR, dann die Migration über den Coolify-Import, zuletzt der PR in service-oalab.
 
 ### Vorgabe vom 23. November 2026: oalab als eigenes Unternehmen (Plan, Etappe 1)
 

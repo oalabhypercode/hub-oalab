@@ -81,7 +81,7 @@ export function ProjectNotes({ projectId, customerId, preview, canCreate }: { pr
  * „Besprechungsnotiz“ at an appointment in the calendar (plan 5.2): the team creates it (one per appointment, „Nur
  * Team“, with the meeting template) or opens it; customers see „Notiz öffnen“ only once the page is shared with them.
  */
-export function MeetingNote({ appointmentId, note, canCreate, preview }: { appointmentId: string; note: { id: string; customerId: string; title: string } | null; canCreate: boolean; preview: boolean }) {
+export function MeetingNote({ appointmentId, note, canCreate, internal = false, preview }: { appointmentId: string; note: { id: string; customerId: string; title: string } | null; canCreate: boolean; internal?: boolean; preview: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -105,7 +105,8 @@ export function MeetingNote({ appointmentId, note, canCreate, preview }: { appoi
       ) : (
         <button type="button" className="nz-link-row is-new" disabled={busy} onClick={() => void create()}><Plus size={16} aria-hidden="true" /><span>{busy ? "Legt an …" : "Notiz anlegen"}</span></button>
       )}
-      {!note && <p className="nz-links-empty">Mit der Vorlage Besprechung, zuerst nur für das Team sichtbar.</p>}
+      {/* A note of an internal appointment goes to oalab's own notes (stage 2 of „oalab als Unternehmen“). */}
+      {!note && <p className="nz-links-empty">{internal ? "Bei oalab unter Notizen, mit der Vorlage Besprechung, nur für das Team sichtbar." : "Mit der Vorlage Besprechung, zuerst nur für das Team sichtbar."}</p>}
       {error && <p className="nz-links-empty" role="alert">{error}</p>}
     </section>
   );

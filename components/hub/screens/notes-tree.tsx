@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, FileText, PanelLeftClose, Plus, Search, Settings } from "lucide-react";
 import { childrenOf, hasOutsideNews } from "@/lib/hub-notes/rules";
+import { INTERNAL_TAG } from "@/lib/hub-team/rules";
 import type { NoteCustomer, NotePageMeta, NoteProject, NoteViewer } from "@/lib/hub-notes/types";
 import { companyInitials, LogoMark } from "../logo-mark";
 import { EmojiGlyph } from "./notes-blocks";
@@ -71,7 +72,7 @@ export function NotesTree({ viewer, customers, customer, projects, pages, openId
         const addable = canCreate && canAddUnder(page);
         if (matches) {
           // Every page says who reads and writes it; a dot marks news from outside the team since the last look.
-          const mark = accessMark(page, viewer, customer.hasFreelancer);
+          const mark = accessMark(page, viewer, customer.hasFreelancer, customer.team);
           const news = viewer === "admin" && hasOutsideNews(page);
           out.push(
             <div key={page.id} className={`nz-row${on ? " is-on" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
@@ -126,7 +127,8 @@ export function NotesTree({ viewer, customers, customer, projects, pages, openId
               {customers.map((item) => (
                 <button key={item.id} type="button" role="option" aria-selected={item.id === customer.id} className={`nz-cust-item${item.id === customer.id ? " is-on" : ""}`} onClick={() => { setSwitching(false); onCustomer(item.id); }}>
                   <LogoMark logo={item.logo ?? null} initials={companyInitials(item.name)} className="nz-logo is-sm" />
-                  <span className="nz-cust-text"><strong>{item.name}</strong><span>{item.number}</span></span>
+                  {/* oalab's own entry stands first, tagged „Intern“ like in Projekte (stage 2). */}
+                  <span className="nz-cust-text"><strong>{item.name}</strong><span>{item.team ? `${INTERNAL_TAG} · ${item.number}` : item.number}</span></span>
                   {item.id === customer.id && <Check size={16} className="nz-accent" aria-hidden="true" />}
                 </button>
               ))}

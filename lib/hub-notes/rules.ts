@@ -14,11 +14,22 @@ export const isNoteAudience = (value: unknown): value is NoteAudience => typeof 
 /** The words of the files („Kunde und Freelancer“, „Nur Kunde“, „Nur Freelancer“) and of the board („Nur Team“). */
 export const AUDIENCE_LABELS: Record<NoteAudience, string> = { team: "Nur Team", both: "Kunde und Freelancer", customer: "Nur Kunde", freelancer: "Nur Freelancer" };
 
-/** Customers without a freelancer know only two levels: „Nur Team“ and „Kunde“ (stored as „Nur Kunde“). */
-export const audienceLabel = (audience: NoteAudience, hasFreelancer = true) => !hasFreelancer && audience === "customer" ? "Kunde" : AUDIENCE_LABELS[audience];
+/**
+ * oalab's own pages (the team entry, stage 2 of the plan „oalab als Unternehmen“) know two levels: „Nur Team“ and „Team
+ * und Freelancer“, stored as „Nur Freelancer“ (the database allows only these two there; the words are the ones of
+ * lib/hub-team/rules.ts TEAM_SIGHT_LABELS).
+ */
+export const TEAM_NOTE_AUDIENCES: readonly NoteAudience[] = ["team", "freelancer"];
+export const TEAM_NOTE_LABELS = { team: "Nur Team", freelancer: "Team und Freelancer" } as const;
+/** A level as it applies to oalab's pages: wherever freelancers would see it „Team und Freelancer“, else „Nur Team“. */
+export const teamNoteAudience = (audience: NoteAudience): "team" | "freelancer" => audience === "freelancer" || audience === "both" ? "freelancer" : "team";
 
-/** The levels to choose from: four with a freelancer, two without. */
-export const audienceChoices = (hasFreelancer: boolean): NoteAudience[] => hasFreelancer ? ["team", "both", "customer", "freelancer"] : ["team", "customer"];
+/** Customers without a freelancer know only two levels: „Nur Team“ and „Kunde“ (stored as „Nur Kunde“); oalab its two. */
+export const audienceLabel = (audience: NoteAudience, hasFreelancer = true, team = false) =>
+  team ? TEAM_NOTE_LABELS[teamNoteAudience(audience)] : !hasFreelancer && audience === "customer" ? "Kunde" : AUDIENCE_LABELS[audience];
+
+/** The levels to choose from: four with a freelancer, two without, oalab's two at oalab. */
+export const audienceChoices = (hasFreelancer: boolean, team = false): NoteAudience[] => team ? [...TEAM_NOTE_AUDIENCES] : hasFreelancer ? ["team", "both", "customer", "freelancer"] : ["team", "customer"];
 
 const reach = (audience: NoteAudience) => ({ customer: audience === "both" || audience === "customer", freelancer: audience === "both" || audience === "freelancer" });
 
@@ -102,18 +113,21 @@ export function gainsRights(from: NoteRights, to: NoteRights) {
  * The level of a new page: a subpage takes its parent's, a freelancer's page is always „Nur Freelancer“, the team's
  * follows the default for all notes (fitted to customers without freelancers).
  */
-export function newPageAudience(viewer: NoteViewer, parent: Pick<NotePageMeta, "audience"> | null, settings: Pick<NoteSettings, "defaultAudience">, hasFreelancer: boolean): NoteAudience {
+export function newPageAudience(viewer: NoteViewer, parent: Pick<NotePageMeta, "audience"> | null, settings: Pick<NoteSettings, "defaultAudience">, hasFreelancer: boolean, team = false): NoteAudience {
   if (viewer === "freelancer") return "freelancer";
-  if (parent) return parent.audience;
-  return fitAudience(settings.defaultAudience, hasFreelancer);
+  if (parent) return team ? teamNoteAudience(parent.audience) : parent.audience;
+  // oalab's new pages start with „Nur Team“, whatever the default for customers says.
+  return team ? "team" : fitAudience(settings.defaultAudience, hasFreelancer);
 }
 
 /**
  * Level and rights of a new page: a subpage takes its parent's, a freelancer writes the pages they add, and a page the
  * team shares with the customer right away lets the customer edit as the default for all notes says.
  */
-export function newPageRights(viewer: NoteViewer, parent: NoteRights | null, settings: Pick<NoteSettings, "defaultAudience" | "customerAccess">, hasFreelancer: boolean): NoteRights {
+export function newPageRights(viewer: NoteViewer, parent: NoteRights | null, settings: Pick<NoteSettings, "defaultAudience" | "customerAccess">, hasFreelancer: boolean, team = false): NoteRights {
   if (viewer === "freelancer") return { audience: "freelancer", customerEdits: false, freelancerEdits: true };
+  // oalab's pages: „Nur Team“, or below a page its level; nobody of a customer ever edits them.
+  if (team) return fitRights({ audience: parent ? teamNoteAudience(parent.audience) : "team", customerEdits: false, freelancerEdits: parent?.freelancerEdits === true });
   if (parent) return fitRights({ audience: parent.audience, customerEdits: parent.customerEdits, freelancerEdits: parent.freelancerEdits });
   return fitRights({ audience: fitAudience(settings.defaultAudience, hasFreelancer), customerEdits: settings.customerAccess === "edit", freelancerEdits: false });
 }
@@ -126,8 +140,9 @@ export function hasOutsideNews(page: Pick<NotePageMeta, "outsideEditedAt" | "see
 
 const accessWord = (access: NoteAccess) => access === "edit" ? "Bearbeiten" : "Lesen";
 
-/** The label on top of a page for the team: „Nur Team“, „Kunde: Bearbeiten“, „Kunde und Freelancer: Lesen“, … */
-export function accessLabel(page: NoteRights, hasFreelancer = true): string {
+/** The label on top of a page for the team: „Nur Team“, „Kunde: Bearbeiten“, „Kunde und Freelancer: Lesen“, … (oalab: its two levels) */
+export function accessLabel(page: NoteRights, hasFreelancer = true, team = false): string {
+  if (team) return TEAM_NOTE_LABELS[teamNoteAudience(page.audience)];
   const access = accessOf(page);
   const freelancer = hasFreelancer ? access.freelancer : "none";
   if (access.customer === "none" && freelancer === "none") return "Nur Team";

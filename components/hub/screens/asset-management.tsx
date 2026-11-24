@@ -34,6 +34,7 @@ import { audienceTag, servedByNames, ServedByDialog } from "./asset-freelancers"
 import { CategoryDot, FileIcon } from "./files-parts";
 import { useFilesStore } from "./files-store";
 import type { ScreenProps } from "./types";
+import { INTERNAL_TAG, TEAM_SIGHT_LABELS, teamSightOfFile } from "@/lib/hub-team/rules";
 
 const ALL = "all";
 const NO_FOLDER = "none";
@@ -198,7 +199,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const canAssign = canManage && !fileState.error;
   const assignTargets = useMemo(() => customers.filter((customer) => !(customer.kind === "freelancer" && customer.inactive)), [customers]);
   const isOwn = current !== null && current.id === ownId;
-  const servedBy = current && canManage && current.kind !== "freelancer" ? servedByNames(current, freelancerEntries) : "";
+  const servedBy = current && canManage && current.kind !== "freelancer" && current.kind !== "team" ? servedByNames(current, freelancerEntries) : "";
   const customersOf = (freelancerId: string) => customers.filter((customer) => customer.freelancerIds?.includes(freelancerId)).length;
 
   const term = customerQuery.trim().toLowerCase();
@@ -206,10 +207,12 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     .filter((row) => row.customer.id !== ownId)
     .filter((row) => !term || `${row.customer.company} ${row.customer.customerNumber}`.toLowerCase().includes(term))
     .sort((a, b) => customerOrder === "az" ? a.customer.company.localeCompare(b.customer.company, "de") : b.last.localeCompare(a.last) || a.customer.company.localeCompare(b.customer.company, "de"));
-  const listedCustomers = listedRows.filter((row) => row.customer.kind !== "freelancer");
+  // oalab's own files (stage 2 of „oalab als Unternehmen“, admins only) stand on their own above the customers.
+  const listedTeam = listedRows.filter((row) => row.customer.kind === "team");
+  const listedCustomers = listedRows.filter((row) => row.customer.kind !== "freelancer" && row.customer.kind !== "team");
   const listedFreelancers = listedRows.filter((row) => row.customer.kind === "freelancer");
   const ownRow = ownId ? rows.find((row) => row.customer.id === ownId) ?? null : null;
-  const customerCount = customers.filter((customer) => customer.kind !== "freelancer" && customer.id !== ownId).length;
+  const customerCount = customers.filter((customer) => customer.kind !== "freelancer" && customer.kind !== "team" && customer.id !== ownId).length;
 
   const closeDetails = () => setPanel((now) => now?.kind === "file" ? null : now);
   function choose(next: View) {
@@ -410,6 +413,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
 
   /* ---------- Rows ---------- */
   const tagOf = (file: HubStoredFile) => {
+    // At oalab „Nur Team“ is the rule; a file for the team and freelancers says so.
+    if (current?.kind === "team") return teamSightOfFile(file.audiences?.[current.id]) === "freelancer" ? <span className="am-audience-tag">{TEAM_SIGHT_LABELS.freelancer}</span> : null;
     if (!current || (!freelancerView && !current.freelancerIds?.length)) return null;
     const text = audienceTag(file.audiences?.[current.id], freelancerView);
     return text ? <span className="am-audience-tag">{text}</span> : null;
@@ -629,12 +634,13 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         <span>{[
           isOwn ? "Von oalab für dich" : compact ? "" : current.customerNumber,
           current.kind === "freelancer" && canManage ? `Freelancer · ${plural(customersOf(current.id), "Kunde", "Kunden")}` : "",
+          current.kind === "team" ? `${INTERNAL_TAG}, nie für Kunden` : "",
           plural(paneFiles.length, "Datei", "Dateien"),
           totalSize(paneFiles),
         ].filter(Boolean).join(" · ")}</span>
       </div>
       <div className="am-pane-actions">
-        {canUpload && fileState.freelancers && current.kind !== "freelancer" && freelancerEntries.length > 0 && (
+        {canUpload && fileState.freelancers && current.kind !== "freelancer" && current.kind !== "team" && freelancerEntries.length > 0 && (
           <button type="button" className={`sheet-action am-served${servedBy ? " is-set" : ""}`} onClick={() => setServedFor(current.id)} data-tip={servedBy ? `Betreut von ${servedBy}` : "Einen Freelancer zuordnen"}>
             <Handshake size={15} aria-hidden="true" /><span className="am-served-text">{servedBy ? servedBy : "Freelancer"}</span>
           </button>
@@ -708,6 +714,10 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         {!term && pinned({ kind: "all" }, <span className={`am-tile${compact ? " is-md" : ""}`}><Files size={compact ? 16 : 20} aria-hidden="true" /></span>, "Alle Dateien", `${plural(customerCount, "Kunde", "Kunden")} · ${totalSize(files)}`, <span className="am-count">{files.length}</span>)}
         {!term && !freelancerView && pinned({ kind: "inbox" }, <span className={`am-tile is-inbox${compact ? " is-md" : ""}`}><Inbox size={compact ? 16 : 20} aria-hidden="true" /></span>, "Ablage", "Noch keinem Kunden zugeordnet", inbox.length ? <span className="chat-pill tone-todo">{inbox.length}</span> : <span className="am-count">0</span>)}
         {!term && ownRow && pinned({ kind: "customer", id: ownRow.customer.id }, <CustomerSign customer={ownRow.customer} logo={ownRow.customer.logo} size={compact ? "md" : undefined} />, "Meine Dateien", `Von oalab für dich · ${ownRow.files.length ? plural(ownRow.files.length, "Datei", "Dateien") : "noch keine Dateien"}`, compact ? <span className="am-count">{ownRow.files.length || ""}</span> : ownRow.last ? <time>{formatFileDay(ownRow.last, asOf)}</time> : null)}
+        {listedTeam.length > 0 && <>
+          <li className="am-list-label">{INTERNAL_TAG}</li>
+          {listedTeam.map(customerRow)}
+        </>}
         <li className="am-list-label">{freelancerView ? "Meine Kunden" : compact ? "Kunden" : customerOrder === "az" ? "Kunden von A bis Z" : "Kunden · zuletzt aktiv"}</li>
         {listedCustomers.map(customerRow)}
         {!listedCustomers.length && <li className="chat-empty">{term ? `Kein Kunde passt zu „${customerQuery.trim()}“.` : freelancerView ? "Dir sind noch keine Kunden zugeordnet." : "Es sind noch keine Kunden angelegt."}</li>}
