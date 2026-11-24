@@ -1,6 +1,6 @@
 # Planung: Änderungen im Chat mitteilen und eine aufgeräumte Glocke
 
-Stand 23. November 2026 · Etappe 1 (Glocke) live seit 23.11.2026, 16:04 Uhr (#160, Abschnitt 9) · alle Entscheidungen getroffen (Abschnitt 7) · Vorschau für Etappe 2 steht, Rückmeldung offen (Abschnitt 5)
+Stand 24. November 2026 · Etappe 1 (Glocke) live seit 23.11.2026, 16:04 Uhr (#160, Abschnitt 9) · alle Entscheidungen getroffen (Abschnitt 7) · Etappe 2 gebaut am 24.11.2026 nach Freigabe der Vorschau, noch nicht live (Abschnitt 10)
 
 Dieser Plan beschreibt vier Wünsche vom 23. November 2026:
 
@@ -250,7 +250,7 @@ Einen echten Terminvorschlag gibt es noch nicht. Legt ein Admin einen Termin mit
 - Etappe 1 kann sofort und unabhängig live gehen.
 - Etappe 2 kommt vor Etappe 3, weil der Vorschlag die Karten braucht. Freelancer-Chats folgen als kleiner eigener Schritt nach Etappe 2.
 - Bei Etappe 2 und 3 geht zuerst die Migration live (Import in Coolify), dann der PR des Hubs, wie beim Kalender-Abo.
-- Vor dem Bau von Etappe 2 zeigt eine Vorschau die Karten und das Abo-Fenster, auf derselben Vorschau-Fläche wie „Glocke V3“, hell und dunkel, am Rechner und am Handy. Sie steht seit dem 23. November 2026 als Seite „Karten im Chat“ der Vorschau-Fläche „Mitteilungen & Patch Notes“: Kunde dunkel und hell, Admin mit Terminanfrage und „Bestätigen“, das Fenster „Im Chat mitteilen“, Handy mit Karten und Handy mit Abos (hell). Rückmeldung offen.
+- Vor dem Bau von Etappe 2 zeigt eine Vorschau die Karten und das Abo-Fenster, auf derselben Vorschau-Fläche wie „Glocke V3“, hell und dunkel, am Rechner und am Handy. Sie steht seit dem 23. November 2026 als Seite „Karten im Chat“ der Vorschau-Fläche „Mitteilungen & Patch Notes“: Kunde dunkel und hell, Admin mit Terminanfrage und „Bestätigen“, das Fenster „Im Chat mitteilen“, Handy mit Karten und Handy mit Abos (hell). Drei der sechs Ansichten blieben dort zunächst leer (ein Fehler beim Erzeugen der Varianten), behoben in Version 13 am 24.11.2026; danach „Passt, umsetzen“.
 
 ## 6. Datenschutz, Sicherheit und Trennung von Service
 
@@ -335,3 +335,25 @@ Abweichungen vom Plan:
 - Die Designvorschau rechnet die Zeiten von einem festen „Jetzt“ aus, damit sie immer „Heute“, „Gestern“, einen Wochentag und ein Datum zeigt; dafür hat sie zwei Beispiel-Meldungen mehr. Die Zahl an der Glocke bleibt dort stehen, weil die Vorschau nichts speichert; bei echten Logins folgt sie, sobald die Markierung gespeichert ist.
 
 Geprüft in der Designvorschau: 1024 × 768 (760 px breit), 1512 × 900 (937 px), 1920 × 1080 (1190 px), 2560 × 1440 und 3840 × 2160 (je 1280 px, keine waagrechte Scrollleiste), Handy mit 390 px; mit 36 Meldungen scrollt nur die Liste, Überschrift und Knopf bleiben stehen, und eine fokussierte Zeile ganz unten bleibt sichtbar; hell und dunkel; Haken, „Rückgängig“ und „Alle als gelesen markieren“. Nicht geprüft: echte Logins (die Vorschau speichert nichts) und Safari.
+
+## 10. Umsetzung Etappe 2 (24. November 2026)
+
+Gebaut nach „Passt, umsetzen“ auf dem Branch `feat/chat-karten-und-abos` (Hub) und `feat/hub-chat-events` (`service-oalab`), beides gepusht, ohne PR und nicht live. Reihenfolge beim Livegang: zuerst die Migration als Import in Coolify, dann der PR des Hubs. Der Hub liest den Chat auch ohne die Migration weiter (ohne Karten und ohne „Abos“), damit ein früherer Livegang nichts kaputt macht.
+
+Datenbank (`service-oalab`, Migration `202611240001_hub_chat_events` mit Rückweg und Test, geprüft auf PGlite mit 38 Prüfungen):
+
+- `hub_private_messages.event` und `event_key`: beide oder keiner; je Chat ein Schlüssel einmal. Logins dürfen weiter nur ihre vier Spalten einfügen, Karten schreibt nur der Server.
+- `hub_chat_subscriptions` je Chat und Bereich, Zeilenrechte für Admins und die Logins des Kunden; wer und wann setzt die Datenbank. Ohne Zeile gilt die Voreinstellung (alles außer Aufgaben).
+- `hub_inbox` kennt `appointment.requested` (an Admins) und `contract.changed` (an Kunden).
+
+Hub:
+
+- `lib/hub-chat-events/rules.ts` (rein, mit Tests) und `server.ts` (`postChatEvent`: prüft Kunde und Abo, wächst die letzte Karte bei Dateien, derselben Aufgabe und Vertrag & Domain, solange die andere Seite noch nicht geschaut hat; wirft nie).
+- Angeschlossen an die Meldungen in `lib/hub-notify/server.ts`: Termine (`notifyCustomers` mit Karte, Person aus dem Kalender, Assistent oder Claude), Dateien (nur was der Kunde sieht), Notizen (nur bei Sicht für den Kunden), Aufgaben (nur der Teil für Kunden, Bereich Aufgaben), die regelmäßige Runde („Du bist am Zug“, Projektstatus; Schlüssel aus Aufgabe oder Projekt und Zeitpunkt der Änderung).
+- Terminanfragen: Glocke aller Admins, Telegram, Karte auf der Seite des Kunden mit „Bestätigen“ (übernimmt die gewünschte Zeit über `writeAppointment`) und „Im Kalender beantworten“. Beantworten, Ablehnen, Löschen und Zurückziehen nehmen die Zeile aus der Glocke der Admins; Zurückziehen steht als graue Zeile im Chat. Anfragen von Freelancern melden sich ebenfalls in Glocke und Telegram, Karten im Freelancer-Chat folgen mit Entscheidung 11.
+- Vertrag & Domain: sichtbare neue Einträge im Verlauf (auch beim Sichtbarmachen), Domains, E-Mail-Adressen und Pakete melden sich beim Kunden (eine Zeile, die weitere Änderungen aufnimmt) und kommen als Karte.
+- Chat: Karten neutral auf beiden Seiten, Schilder aus dem heutigen Stand des Termins, graue Zeilen für Abos, der runde Knopf „Abos“ mit dem Glasfenster „Im Chat mitteilen“ (am Handy als Blatt von unten), „In meinen Kalender“ mit Apple, Google und Outlook über die signierten Links der Mails. Graue Zeilen zählen nie als neu, Karten nie als Antwort (`chatActivity`). Glocke und Chat bleiben unabhängig (Entscheidung 8).
+- Claude liest Karten als Zeilen mit „[Hub]“; Wissen des Assistenten, Datenschutzerklärung (Telegram auch für Terminanfragen, Karten im Chat), Hinweis im Chat und Patch Notes (Paket 31) angepasst.
+- Trennung von Service: Die neuen Module verwenden nichts der Serviceplattform; der Abgleich der Service-Anfragen schreibt keine Karten (Test).
+
+Geprüft: Typen, Lint und 609 Tests; in der Designvorschau dunkel und hell, am Rechner und auf Handy-Größe die Karten, die graue Zeile, das Abo-Fenster mit Umschalten und als Admin (lokal umgeschaltet) die offene Anfrage mit „Bestätigen“. Nicht geprüft: echte Logins, Telegram, Mails und die Abfragen gegen die echte Datenbank (nur die Migration auf PGlite).

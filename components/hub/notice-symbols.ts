@@ -1,4 +1,4 @@
-import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CalendarX, Files, Flag, FolderOpen, Hourglass, LifeBuoy, ListTodo, MessageSquare, NotebookPen, SquareKanban, TriangleAlert, UserCheck, type LucideIcon } from "lucide-react";
+import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CalendarX, FileBadge, Files, Flag, FolderOpen, Hourglass, LifeBuoy, ListTodo, MessageSquare, NotebookPen, SquareKanban, TriangleAlert, UserCheck, type LucideIcon } from "lucide-react";
 import { categories } from "@/lib/categories";
 
 /** The area a notice of the bell belongs to, with its symbol and colour (the colour of the hub's category). */
@@ -22,6 +22,10 @@ export function noticeSymbol(kind: string): NoticeSymbol {
   if (kind === "todo.risk") return { icon: TriangleAlert, color: categories.projects.fill, area: "Projekte" };
   if (kind === "todo.waiting") return { icon: Hourglass, color: categories.projects.fill, area: "Projekte" };
   if (kind === "chat.message" || kind === "chat.reply") return { icon: MessageSquare, color: categories.messages.fill, area: "Nachrichten" };
+  // To the team (24.11.2026): a customer asked for an appointment, like „Neu“ on the overview.
+  if (kind === "appointment.requested") return { icon: CalendarClock, color: categories.calendar.fill, area: "Kalender" };
+  // To the customer (24.11.2026): something new under Vertrag & Domain.
+  if (kind === "contract.changed") return { icon: FileBadge, color: categories.contracts.fill, area: "Vertrag & Domain" };
   if (kind === "appointment.confirmed") return { icon: CalendarCheck, color: categories.calendar.fill, area: "Kalender" };
   if (kind === "appointment.cancelled" || kind === "appointment.declined") return { icon: CalendarX, color: categories.calendar.fill, area: "Kalender" };
   if (kind.startsWith("appointment.")) return { icon: CalendarDays, color: categories.calendar.fill, area: "Kalender" };

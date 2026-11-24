@@ -16,6 +16,30 @@ export function chatUnread(input: { lastOtherAt: string | null; lastOwnSideAt: s
   return Date.parse(input.lastOtherAt) > seen;
 }
 
+/**
+ * Cards in the chat (24.11.2026, lib/hub-chat-events): grey lines (a subscription switched, a request withdrawn) are
+ * never news; a card is news for the other side but never an answer of its own side, only people answer. The kinds are
+ * those of SYSTEM_EVENT_KINDS in lib/hub-chat-events/rules.ts (the tests compare them).
+ */
+export const SYSTEM_LINE_KINDS: readonly string[] = ["subscription", "appointment.withdrawn"];
+type ChatRowLike = { readonly side: string; readonly created_at: string; readonly event?: unknown };
+const kindOf = (event: unknown) => (event && typeof event === "object" && "kind" in event ? String((event as { kind: unknown }).kind) : null);
+export const isSystemRow = (row: Pick<ChatRowLike, "event">) => SYSTEM_LINE_KINDS.includes(kindOf(row.event) ?? "");
+export const isCardRow = (row: Pick<ChatRowLike, "event">) => kindOf(row.event) !== null && !isSystemRow(row);
+
+/**
+ * What the list needs of a chat's rows, newest first: the last message or card (never a grey line), the other side's
+ * newest message or card, and the newest message people of the own side wrote.
+ */
+export function chatActivity<T extends ChatRowLike>(newest: readonly T[], viewer: ChatSide) {
+  const shown = newest.filter((row) => isChatSide(row.side) && !isSystemRow(row));
+  return {
+    last: shown[0] ?? null,
+    lastOtherAt: shown.find((row) => row.side !== viewer)?.created_at ?? null,
+    lastOwnSideAt: shown.find((row) => row.side === viewer && !isCardRow(row))?.created_at ?? null,
+  };
+}
+
 /** A message counts as read once someone of the other side looked at the chat after it came. */
 export function readByOtherSide(at: string, otherSideReads: readonly string[]): boolean {
   const time = Date.parse(at);

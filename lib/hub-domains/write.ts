@@ -1,5 +1,8 @@
 import "server-only";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifyContractChange } from "@/lib/hub-notify/server";
+import type { ContractItem } from "@/lib/hub-chat-events/rules";
 import { isUuid, readDomain, readMailbox } from "./rules";
 
 // What „Domain & Mail“ under „Vertrag & Domain“ writes once the caller is checked as an admin: the tab's actions
@@ -29,6 +32,13 @@ export async function logDomainEvent(w: DomainWriter, action: string, summary: s
   await w.db.from("hub_admin_events").insert({ actor_id: w.actorId, action: claude ? `claude.${action}` : action, summary: `${summary}${claude ? " (über Claude)" : ""}`.slice(0, 300), target_customer_id: customerId });
 }
 
+/**
+ * The customer sees their domains and addresses under Vertrag & Domain, so they hear of new and changed ones
+ * (24.11.2026): a line in the bell and a card in their chat, after the answer. Only the domain or the address.
+ */
+const tellCustomer = (w: DomainWriter, customerId: string, item: ContractItem) =>
+  after(() => notifyContractChange({ customerId, item, actorId: w.actorId }));
+
 /** Only entries of the kind customer hold domains and mail; freelancers do not. */
 export async function customerHoldsDomains(db: SupabaseClient, customerId: unknown): Promise<boolean> {
   if (!isUuid(customerId)) return false;
@@ -55,11 +65,13 @@ export async function saveDomainAs(w: DomainWriter, input: { id?: unknown; custo
     if (error) return failed(domainWriteError(error, duplicate));
     if (!data) return failed(gone);
     await logDomainEvent(w, "customer.domain_updated", `Domain geändert: ${fields.domain}`, customerId);
+    tellCustomer(w, customerId, { what: "domain", label: fields.domain, change: "changed" });
     return { ok: true, data: { id: data.id } };
   }
   const { data, error } = await w.db.from("hub_customer_domains").insert({ ...row, customer_id: customerId, created_by: w.actorId }).select("id").single<{ id: string }>();
   if (error || !data) return failed(error ? domainWriteError(error, duplicate) : DOMAIN_TRY_AGAIN);
   await logDomainEvent(w, "customer.domain_created", `Domain eingetragen: ${fields.domain}`, customerId);
+  tellCustomer(w, customerId, { what: "domain", label: fields.domain, change: "new" });
   return { ok: true, data: { id: data.id } };
 }
 
@@ -77,10 +89,12 @@ export async function saveMailboxAs(w: DomainWriter, input: { id?: unknown; cust
     if (error) return failed(domainWriteError(error, duplicate));
     if (!data) return failed(gone);
     await logDomainEvent(w, "customer.mailbox_updated", `E-Mail-Adresse geändert: ${mailbox.value.address}`, customerId);
+    tellCustomer(w, customerId, { what: "mailbox", label: mailbox.value.address, change: "changed" });
     return { ok: true, data: { id: data.id } };
   }
   const { data, error } = await w.db.from("hub_customer_mailboxes").insert({ ...row, customer_id: customerId, created_by: w.actorId }).select("id").single<{ id: string }>();
   if (error || !data) return failed(error ? domainWriteError(error, duplicate) : DOMAIN_TRY_AGAIN);
   await logDomainEvent(w, "customer.mailbox_created", `E-Mail-Adresse eingetragen: ${mailbox.value.address}`, customerId);
+  tellCustomer(w, customerId, { what: "mailbox", label: mailbox.value.address, change: "new" });
   return { ok: true, data: { id: data.id } };
 }

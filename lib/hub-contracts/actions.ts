@@ -7,7 +7,10 @@ import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { readPackageChoices } from "@/lib/service-packages";
 import { isUuid } from "./rules";
 import { packagesOf, readCustomerPackages } from "./packages";
-import { saveTimelineEntryAs } from "./write";
+import { saveTimelineEntryAs, tellCustomer } from "./write";
+import { after } from "next/server";
+import { notifyContractChange } from "@/lib/hub-notify/server";
+import { packageCatalog, packageGroups } from "@/lib/service-packages";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database considers
 // them an active admin (with a confirmed second factor) before the service role touches anything. Inputs are checked
@@ -68,6 +71,13 @@ export async function saveCustomerPackages(input: { customerId?: unknown; packag
   })), { onConflict: "customer_id,package_group" });
   if (error) return failed(writeError(error));
   await log(ctx, "customer.packages", "Pakete geändert", customerId);
+  // The customer hears of each changed package (Vertrag & Domain, 24.11.2026): bell and chat.
+  for (const choice of changed) {
+    const old = before.find((item) => item.group === choice.group);
+    const label = choice.packageId ? packageCatalog[choice.packageId].name : `kein ${packageGroups[choice.group].name}-Paket mehr`;
+    const change = !old?.packageId && choice.packageId ? "new" as const : "changed" as const;
+    after(() => notifyContractChange({ customerId, item: { what: "package", label, change }, actorId: ctx.actorId }));
+  }
   refreshWorkspace();
   return { ok: true, data: { changed: changed.length } };
 }
@@ -86,9 +96,11 @@ export async function setTimelineVisible(input: { id?: unknown; visible?: unknow
   const ctx = await context();
   if (!ctx) return denied;
   if (!isUuid(input?.id) || typeof input.visible !== "boolean") return failed("Diesen Eintrag gibt es nicht mehr.");
-  const { data, error } = await ctx.db.from("hub_customer_timeline").update({ customer_visible: input.visible, updated_by: ctx.actorId }).eq("id", input.id).select("customer_id").maybeSingle<{ customer_id: string }>();
+  const before = await ctx.db.from("hub_customer_timeline").select("customer_visible").eq("id", input.id).maybeSingle<{ customer_visible: boolean }>();
+  const { data, error } = await ctx.db.from("hub_customer_timeline").update({ customer_visible: input.visible, updated_by: ctx.actorId }).eq("id", input.id).select("customer_id, title").maybeSingle<{ customer_id: string; title: string }>();
   if (error) return failed(writeError(error));
   if (!data) return failed("Diesen Eintrag gibt es nicht mehr.");
+  if (input.visible && before.data && !before.data.customer_visible) tellCustomer(ctx, data.customer_id, data.title);
   await log(ctx, "customer.timeline_visibility", input.visible ? "Zeitpunkt für den Kunden freigegeben" : "Zeitpunkt vor dem Kunden verborgen", data.customer_id);
   refreshWorkspace();
   return { ok: true, data: { visible: input.visible } };

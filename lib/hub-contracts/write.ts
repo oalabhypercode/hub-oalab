@@ -1,5 +1,7 @@
 import "server-only";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifyContractChange } from "@/lib/hub-notify/server";
 import { isUuid, readTimelineEntry } from "./rules";
 
 // What the timeline under „Vertrag & Domain“ writes once the caller is checked as an admin: the tab's action
@@ -45,14 +47,26 @@ export async function saveTimelineEntryAs(ctx: ContractWriter, input: { id?: unk
   };
   if (input.id !== undefined && input.id !== null && input.id !== "") {
     if (!isUuid(input.id)) return failed("Diesen Eintrag gibt es nicht mehr.");
+    const before = await ctx.db.from("hub_customer_timeline").select("customer_visible").eq("id", input.id).eq("customer_id", customerId).maybeSingle<{ customer_visible: boolean }>();
     const { data, error } = await ctx.db.from("hub_customer_timeline").update(row).eq("id", input.id).eq("customer_id", customerId).select("id").maybeSingle<{ id: string }>();
     if (error) return failed(contractWriteError(error));
     if (!data) return failed("Diesen Eintrag gibt es nicht mehr.");
     await logContractEvent(ctx, "customer.timeline_updated", "Zeitpunkt geändert", customerId);
+    // An entry the customer newly sees is new to them.
+    if (row.customer_visible && before.data && !before.data.customer_visible) tellCustomer(ctx, customerId, row.title);
     return { ok: true, data: { id: data.id } };
   }
   const { data, error } = await ctx.db.from("hub_customer_timeline").insert({ ...row, customer_id: customerId, created_by: ctx.actorId }).select("id").single<{ id: string }>();
   if (error || !data) return failed(error ? contractWriteError(error) : "Das hat gerade nicht geklappt. Bitte versuche es erneut.");
   await logContractEvent(ctx, "customer.timeline_created", "Zeitpunkt eingetragen", customerId);
+  if (row.customer_visible) tellCustomer(ctx, customerId, row.title);
   return { ok: true, data: { id: data.id } };
+}
+
+/**
+ * A timeline entry the customer sees is new to them (24.11.2026): a line in their bell and a card in their chat,
+ * after the answer. Only the title, never the amount or a note.
+ */
+export function tellCustomer(ctx: ContractWriter, customerId: string, title: string) {
+  after(() => notifyContractChange({ customerId, item: { what: "timeline", label: title, change: "new" }, actorId: ctx.actorId }));
 }

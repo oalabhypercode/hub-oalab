@@ -130,7 +130,7 @@ async function createAppointment(w: Writer, args: Json): Promise<ToolResult> {
   const input = read.value;
   const customer = await customerOf(w, input.customerId);
   if (input.customerId && !customer) return refuse(noCustomer);
-  const saved = await writeAppointment(calendarClient(w), null, input);
+  const saved = await writeAppointment(calendarClient(w), null, input, w.userId);
   if (!saved.ok) return refuse(saved.error);
   const id = saved.data.id;
   await logEvent(w.userId, "claude.appointment.created", `Termin „${input.title.trim()}“ am ${formatDayShort(input.day)} um ${input.start} über Claude eingetragen`, customer?.id);
@@ -153,7 +153,7 @@ async function updateAppointment(w: Writer, args: Json): Promise<ToolResult> {
   const input = merged.value;
   const customer = await customerOf(w, input.customerId);
   if (input.customerId && !customer) return refuse(noCustomer);
-  const saved = await writeAppointment(calendarClient(w), stored.id, input);
+  const saved = await writeAppointment(calendarClient(w), stored.id, input, w.userId);
   if (!saved.ok) return refuse(saved.error);
   const confirmed = stored.status === "requested";
   await logEvent(w.userId, confirmed ? "claude.appointment.confirmed" : "claude.appointment.updated", `Termin „${input.title.trim()}“ über Claude ${confirmed ? "bestätigt" : "geändert"}`, customer?.id);
@@ -175,7 +175,7 @@ async function cancelAppointment(w: Writer, args: Json): Promise<ToolResult> {
   if (!status) return refuse("Dieser Termin ist schon abgesagt oder abgelehnt.");
   if (args.note !== undefined && typeof args.note !== "string") return refuse("note muss Text sein.");
   const note = (args.note as string | undefined) ?? "";
-  const closed = await closeAppointmentAs(calendarClient(w), stored.id, status, note);
+  const closed = await closeAppointmentAs(calendarClient(w), stored.id, status, note, w.userId);
   if (!closed.ok) return refuse(closed.error);
   const customer = await customerOf(w, stored.customer_id);
   await logEvent(w.userId, `claude.appointment.${status}`, `Termin „${stored.title}“ über Claude ${status === "declined" ? "abgelehnt" : "abgesagt"}`, customer?.id);

@@ -255,7 +255,7 @@ async function withdrawRequest(w: Writer, args: Json): Promise<ToolResult> {
   if (!data) return refuse("Diese Anfrage gibt es nicht. Nimm die ID aus list_appointments.");
   if (data.status === "confirmed") return refuse("Dieser Termin ist schon bestätigt. Absagen kann ihn nur das oalab-Team; schreib ihm unter „Nachrichten“.");
   if (data.status !== "requested") return refuse("Diese Anfrage ist schon beantwortet oder zurückgezogen.");
-  const done = await withdrawRequestAs(calendarClient(w), data.id);
+  const done = await withdrawRequestAs(calendarClient(w), data.id, w.userId);
   if (!done.ok) return refuse(done.error);
   await logEvent(w.userId, "claude.appointment.withdrawn", `Anfrage „${data.title}“ über Claude zurückgezogen (Freelancer)`);
   return json({

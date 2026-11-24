@@ -34,6 +34,9 @@ test("moving a task to the customer notifies once; re-reading the same event doe
   assert.deepEqual(first.notices[0], {
     organizationId: "org1",
     notice: { kind: "task.customer", title: "Du bist am Zug: Logo freigeben", body: "Website · Aufgabe #12", href: "/dashboard/projects?project=p1" },
+    // The chat's card (24.11.2026) and its key: the subject and the time of the change, so a repeated run writes it once.
+    card: { kind: "task.customer", projectId: "p1", number: 12, title: "Logo freigeben", project: "Website" },
+    key: "task:t1:2026-10-30T10:00:00.000000+00:00",
   });
   assert.equal(first.marks.get("task:t1"), "customer");
   const again = detectStudioNotices({ activity: [event("task.update")], tasks: [task()], details: [details], projects: [project], marks: first.marks });
@@ -64,6 +67,7 @@ test("project notices name what changed in Studio's status and target date", () 
   assert.equal(describeProjectChange("active|2026-11-20", "complete|"), "Status: Aktiv → Abgeschlossen · Zieltermin entfernt");
   const changed = detectStudioNotices({ activity: [event("project.update")], tasks: [], details: [{ ...details, status: "risk" }], projects: [project], marks: new Map([["project:p1", "active|2026-11-20"]]) });
   assert.deepEqual(changed.notices.map((item) => item.notice), [{ kind: "project.changed", title: "Projekt aktualisiert: Website", body: "Status: Aktiv → Risiko", href: "/dashboard/projects?project=p1" }]);
+  assert.deepEqual(changed.notices.map((item) => [item.card, item.key]), [[{ kind: "project.changed", projectId: "p1", name: "Website", change: "Status: Aktiv → Risiko" }, "project:p1:2026-10-30T10:00:00.000000+00:00"]]);
   const first = detectStudioNotices({ activity: [event("project.update")], tasks: [], details: [details], projects: [project], marks: new Map() });
   assert.equal(first.notices.length, 0);
   assert.equal(first.marks.get("project:p1"), "active|2026-11-20");
@@ -291,7 +295,7 @@ test("the schedule needs its token, rows are written by the server and read only
   assert.doesNotMatch(actions, /createAdminClient/);
   // The appointment window and the Claude connector save through the same code, so both notify (lib/hub-calendar/write.ts).
   assert.match(await source("lib/hub-calendar/write.ts"), /await notifyCustomers\(/);
-  assert.match(await source("lib/hub-calendar/actions.ts"), /writeAppointment\(supabase, id, input\)/);
+  assert.match(await source("lib/hub-calendar/actions.ts"), /writeAppointment\(session\.supabase, id, input, session\.userId\)/);
   // Files reach the customers and the freelancers who look after them, each as "Sichtbar für" allows.
   assert.match(await source("lib/hub-files/actions.ts"), /await notifyFileShared\(/);
   assert.match(server, /export async function notifyFileShared\(fileId: string, customerIds: string\[\], notice: Notice/);
@@ -319,8 +323,8 @@ test("new files make one line in the bell: a single file keeps its own, several 
   assert.match(server, /\.eq\("kind", "file\.shared"\)\.is\("read_at", null\)\.eq\("mail_state", "pending"\)/);
   assert.doesNotMatch(server.split("export async function notifyFileShared(")[1].split("\nexport ")[0], /insertNotices/);
   // Several files at once (Zuordnen) reach each side once, as „Sichtbar für“ allows.
-  assert.match(server, /export async function notifyFilesShared\(files: \{ id: string; title: string \}\[\], customerId: string\)/);
-  assert.match(server, /noticesOf\(files\.filter\(\(file\) => audienceOf\.get\(file\.id\) !== "freelancer"\)\)/);
+  assert.match(server, /export async function notifyFilesShared\(files: \{ id: string; title: string \}\[\], customerId: string, actorId\?: string \| null\)/);
+  assert.match(server, /const forCustomer = files\.filter\(\(file\) => audienceOf\.get\(file\.id\) !== "freelancer"\);\n {4}await deliverFileNotice\(db, customerSide, noticesOf\(forCustomer\)\);/);
   assert.match(server, /noticesOf\(files\.filter\(\(file\) => audienceOf\.get\(file\.id\) !== "customer"\)\)/);
 });
 
@@ -792,7 +796,7 @@ test("the bell lists only unread lines; a tick, opening or „Alle als gelesen m
   assert.match(panel, /const now = preview \? PREVIEW_NOW : clock;/);
   // Newer kinds (the team's lines about service requests and edited notes) wear the overview's symbol, never the calendar.
   assert.match(panel, /import \{ noticeSymbol \} from "\.\/notice-symbols";/);
-  assert.match(panel, /if \(kind\.startsWith\("appointment\."\)\) return \{ icon: CalendarDays, color: categories\.calendar\.fill \};\n  \/\/ [^\n]*\n  return noticeSymbol\(kind\);\n\}/);
+  assert.match(panel, /if \(kind\.startsWith\("appointment\."\) && kind !== "appointment\.requested"\) return \{ icon: CalendarDays, color: categories\.calendar\.fill \};\n  \/\/ [^\n]*\n  return noticeSymbol\(kind\);\n\}/);
   const actions = await source("lib/hub-notify/actions.ts");
   assert.match(actions, /export async function markNoticesUnread\(ids: number\[\]\)/);
   assert.match(actions, /update\(\{ read_at: null \}\)\.eq\("user_id", session\.userId\)\.in\("id", list\)/);

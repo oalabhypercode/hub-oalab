@@ -183,7 +183,7 @@ async function assignFiles(w: Writer, args: Json): Promise<ToolResult> {
     folder = found.data;
   }
   if (!await filesInSight(w, ids)) return refuse(notInSight);
-  const result = await assignFilesAs(fileClient(w), { fileIds: ids, customerId: entry.id, folderId: folder?.id ?? null, from: from?.id ?? null, move: args.move === true });
+  const result = await assignFilesAs(fileClient(w), { fileIds: ids, customerId: entry.id, folderId: folder?.id ?? null, from: from?.id ?? null, move: args.move === true }, w.userId);
   if (!result.ok) return refuse(result.error);
   const { added, moved } = result.data;
   if (added || moved || folder) {
@@ -220,7 +220,7 @@ async function setFileVisibility(w: Writer, args: Json): Promise<ToolResult> {
   const link = `${w.origin}/dashboard/files?customer=${entry.id}`;
   const visibility = AUDIENCE_WORDS[args.visibility];
   if ((assignment.data.audience ?? "both") === args.visibility) return json({ saved: false, file: { file_id: fileId, title: file.data.title }, visibility, note: "Das steht schon so.", link });
-  const result = await setFileAudienceAs(w.db, fileId, entry.id, args.visibility);
+  const result = await setFileAudienceAs(w.db, fileId, entry.id, args.visibility, w.userId);
   if (!result.ok) return refuse(result.error);
   await logEvent(w.userId, "claude.file.visibility", `„${file.data.title}“ bei „${entry.company}“ über Claude auf „${visibility}“ gestellt`, entry.id);
   return json({ saved: true, file: { file_id: fileId, title: file.data.title }, customer: { customer_id: entry.id, company: entry.company }, visibility, note: "Wer die Datei dadurch neu sieht, bekommt eine Meldung in der Glocke.", link });

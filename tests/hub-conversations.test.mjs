@@ -151,7 +151,10 @@ test("private chats are read and written with the person's own session; names an
   assert.match(server, /supabase\.from\("hub_customer_members"\)\.select\("customer_id"\)\.eq\("user_id", data\.claims\.sub\)/);
   assert.match(server, /if \(viewer\.side === "customer" && !viewer\.customerIds\.includes\(customerId\)\) return \{ ok: false, error: NOT_FOUND \};/);
   // Messages and read marks of the reader's chats come through the session (RLS), the server key only names people.
-  assert.match(server, /supabase\.from\("hub_private_messages"\)\.select\(MESSAGES\)\.eq\("customer_id", customerId\)/);
+  assert.match(server, /readMessages\(\(columns\) => supabase\.from\("hub_private_messages"\)\.select\(columns\)\.eq\("customer_id", customerId\)/);
+  // Cards come with the migration of 24.11.2026; until then the chat reads its rows without them.
+  assert.match(server, /const MESSAGES = "id, customer_id, author_id, side, body, created_at, event";/);
+  assert.match(server, /return missingEvents\(first\.error\) \? run\(MESSAGES_WITHOUT_EVENTS\) : first;/);
   assert.doesNotMatch(server.slice(0, server.indexOf("export async function markPrivateRead")), /db\.from\("hub_private/);
   // The read mark and the bell: for admins the whole team counts as having read the chat.
   const mark = server.slice(server.indexOf("export async function markPrivateRead"));
