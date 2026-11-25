@@ -62,6 +62,7 @@ export function demoConversations() {
     handBack: item.aiPaused ? "client" : null,
     aiState: item.aiPaused ? "paused" : null,
     writable: item.group !== "done",
+    teamAccess: true,
   }]));
   return { state, messages, controls };
 }
@@ -70,7 +71,7 @@ export function demoConversations() {
 export type DemoStep = { readonly kind: "hand_back" } | { readonly kind: ServiceWriteKind; readonly body: string };
 
 export function demoStep(thread: ConversationThread, step: DemoStep, author: string, at: string): ConversationThread {
-  const controls = thread.controls ?? { version: 1, handBack: null, aiState: null, writable: true };
+  const controls = thread.controls ?? { version: 1, handBack: null, aiState: null, writable: true, teamAccess: true };
   const withState = (conversation: ConversationSummary, next: string): ConversationSummary => {
     const view = conversationState(next);
     return { ...conversation, state: next, stateLabel: view.label, tone: view.tone, group: view.group };
