@@ -74,6 +74,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 32,
+    date: "2026-11-25",
+    title: "Erinnerung zum Start im dunklen Look",
+    summary: "Die Erinnerung zum Start von Client Hub und Serviceplattform kommt nur noch in der dunklen Fassung, auch wenn das Mailprogramm hell eingestellt ist. Alle anderen Mails richten sich weiter nach der Einstellung von hell oder dunkel.",
+    changes: [
+      { kind: "improved", area: "hub", place: "User Management › Erinnerung", also: ["messages"], title: "Erinnerung zum Start nur dunkel", text: "„Erinnerung senden“ verschickt die Mail jetzt immer mit der dunklen Karte, auch in hell eingestellten Mailprogrammen. Nur das klassische Outlook für Windows zeigt weiter die helle Karte." },
+    ],
+  },
+  {
     number: 31,
     date: "2026-11-24",
     title: "Karten im Chat, Abos, Terminanfragen an das Team und oalab als eigenes Unternehmen",
