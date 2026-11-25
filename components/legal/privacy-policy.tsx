@@ -11,7 +11,7 @@ import { OPERATOR } from "@/lib/legal-details";
  * platform), freelancers
  * who see the customers assigned to them, customer master data taken over from the accounting (Sevdesk import). Vercel
  * and Supabase only keep the frozen copy from before the move (8.11.2026) until they are deleted. Only necessary
- * cookies and browser storage, no trackers, fonts served by the hub itself. Change this text whenever one of these
+ * cookies (session, reduce motion, the proxy's sticky cookie oalab_srv of service-oalab docs/operations/eigener-server.md) and browser storage, no trackers, fonts served by the hub itself. Change this text whenever one of these
  * changes, and move PRIVACY_POLICY_DATE (lib/legal-details.ts) with it.
  */
 export const PRIVACY_SECTIONS = [
@@ -79,12 +79,13 @@ export function PrivacyPolicy() {
         <h3>Server-Protokolle</h3>
         <p>Bei jedem Aufruf verarbeiten Cloudflare und unser Server technische Daten: IP-Adresse, Datum und Uhrzeit, die aufgerufene Adresse, Browser und Betriebssystem, die zuvor besuchte Seite und das Ergebnis der Anfrage. Wir brauchen sie, um den Hub auszuliefern, Fehler zu finden und Angriffe abzuwehren (Art. 6 Abs. 1 lit. f DSGVO). Die Protokolle bleiben nur kurz gespeichert und werden nicht mit anderen Daten zusammengeführt.</p>
         <h3>Cookies</h3>
-        <p>Der Hub setzt nur Cookies, die für die Anmeldung oder eine von dir gewählte Einstellung unbedingt nötig sind:</p>
+        <p>Der Hub setzt nur Cookies, die für die Anmeldung, eine von dir gewählte Einstellung oder das vollständige Laden der Seiten unbedingt nötig sind:</p>
         <ul>
           <li><strong>__Secure-oalab.session_token</strong> hält dich angemeldet, auf hub.oalab.de und service.oalab.de zugleich. Er enthält nur eine zufällige, signierte Kennung deiner Sitzung; Skripte können ihn nicht lesen. Er wird beim Abmelden gelöscht und läuft sonst 30 Tage nach deiner letzten Nutzung ab.</li>
           <li><strong>oalab_reduce_motion</strong> gibt es nur, wenn du unter Darstellung „Bewegung reduzieren“ einschaltest. Er enthält nur diese Wahl, damit sie auch auf service.oalab.de gilt. Er wird gelöscht, wenn du die Einstellung wieder ausschaltest, sonst nach einem Jahr.</li>
+          <li><strong>oalab_srv</strong> setzt unser Server auf hub.oalab.de und service.oalab.de. Geht gerade eine neue Version live, laufen für einige Sekunden zwei Server nebeneinander; das Cookie sorgt dafür, dass dein Browser alle Teile einer Seite vom selben Server holt und die Seite vollständig lädt. Er enthält nur eine Kennung dieses Servers, nichts über dich; Skripte können ihn nicht lesen. Er wird gelöscht, wenn du den Browser schließt.</li>
         </ul>
-        <p>Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, weil der Hub ohne diese Cookies die Anmeldung und deine gewählte Einstellung nicht umsetzen kann, für die Anmeldedaten selbst Art. 6 Abs. 1 lit. b DSGVO.</p>
+        <p>Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, weil der Hub ohne diese Cookies die Anmeldung, deine gewählte Einstellung und das vollständige Laden der Seiten nicht umsetzen kann, für die Anmeldedaten selbst Art. 6 Abs. 1 lit. b DSGVO.</p>
         <h3>Speicher im Browser</h3>
         <p>Einige Einstellungen merkt sich der Hub nur auf deinem Gerät (Local Storage und Session Storage):</p>
         <ul>
