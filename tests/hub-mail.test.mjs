@@ -206,6 +206,26 @@ test("the launch reminder names the start, asks whether the login's address fits
   assert.match(odd.text, /\nAuf der Serviceplattform beschreibst du, was wir/);
 });
 
+test("the launch reminder comes only dark, the other mails follow the reader's light or dark mode", () => {
+  const input = { day: new Date("2026-11-26T12:00:00Z"), email: "info@musterfirma.de", sender: "hub@oalab.de", hubUrl: "https://hub.oalab.de", serviceUrl: "https://service.oalab.de" };
+  for (const active of [true, false]) {
+    const { html } = launchReminderMail({ ...input, active }, legal);
+    assert.match(html, /<meta name="color-scheme" content="dark">\n<meta name="supported-color-schemes" content="dark">/);
+    assert.match(html, /:root\{color-scheme:dark;supported-color-schemes:dark\}/);
+    // The dark card without a media query, hidden from classic Outlook for Windows, which keeps the light card.
+    assert.doesNotMatch(html, /prefers-color-scheme/);
+    assert.match(html, /<!--\[if !mso\]><!--><style>\n\.canvas\{background-color:#3A0624 !important\}\n\.card\{background:#1C181B !important;border-color:#2E262B !important\}/);
+    // Outlook on the web in its own dark mode: text and backgrounds it recoloured go back to the dark design.
+    assert.match(html, /\[data-ogsc\] \.ink\{color:#F6F0F3 !important\}/);
+    assert.match(html, /\[data-ogsb\] \.card\{background:#1C181B !important/);
+    assert.match(html, /class="canvas" style="background-color:#3A0624;/);
+  }
+  const announcement = accessAnnouncementMail({ day: input.day, sender: "hub@oalab.de", days: 7, hubUrl: "https://hub.oalab.de" }, legal).html;
+  assert.match(announcement, /<meta name="color-scheme" content="light dark">/);
+  assert.match(announcement, /@media \(prefers-color-scheme:dark\)\{\n\.canvas\{/);
+  assert.doesNotMatch(announcement, /\[if !mso\]|\[data-ogsb\]/);
+});
+
 test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {
   const env = { SMTP_HOST: " mxe989.netcup.net ", SMTP_USER: "hub@oalab.de", SMTP_PASSWORD: "geheim" };
   assert.deepEqual(readSmtpSettings(env), { host: "mxe989.netcup.net", port: 465, secure: true, user: "hub@oalab.de", password: "geheim" });

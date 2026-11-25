@@ -108,6 +108,7 @@ const table = (content: string, attributes = "") => `<table role="presentation" 
 function darkRules(scope: string) {
   const s = (selectors: string) => selectors.split(",").map((selector) => `${scope}${selector.trim()}`).join(",");
   return `
+${s(".canvas")}{background-color:${C.canvas} !important}
 ${s(".card")}{background:#1C181B !important;border-color:#2E262B !important}
 ${s(".ink")}{color:#F6F0F3 !important}
 ${s(".body")}{color:#D3C9CE !important}
@@ -479,6 +480,8 @@ type Mail = {
   /** Where the notification mails are switched off (notice mails only). */
   manage?: string;
   legal?: MailLegal;
+  /** The dark card in light mode too, not only by the reader's setting (launch reminder, 25.11.2026). */
+  dark?: boolean;
 };
 
 const shortDate = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short", year: "numeric" });
@@ -531,6 +534,10 @@ function render(mail: Mail): MailContent {
 <tr><td align="center" style="padding:12px 32px 0;${t(12, 19, 400, "#F3E6EC")}">${esc(mail.reason)}<br>${manage ? `<a href="${esc(manage)}" style="color:#FFFFFF;text-decoration:underline;">Benachrichtigungen verwalten</a>&nbsp;&middot;&nbsp;` : ""}Fragen? Antworte einfach auf diese E-Mail.</td></tr>
 <tr><td align="center" style="padding:12px 32px 48px;${t(12, 18, 400, "#D9BFCB")}">${legal}oalab Client Hub</td></tr>`;
 
+  // Light and dark by the reader's setting, or always dark (`dark`): then the dark rules apply without the media query,
+  // except in classic Outlook for Windows (if !mso), which takes class rules only in part and keeps the light card.
+  // Outlook on the web marks what its own dark mode recoloured with data-ogsc (text) and data-ogsb (backgrounds).
+  const scheme = mail.dark ? "dark" : "light dark";
   const html = `<!doctype html>
 <html lang="de" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -538,24 +545,23 @@ function render(mail: Mail): MailContent {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
 <meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
-<meta name="color-scheme" content="light dark">
-<meta name="supported-color-schemes" content="light dark">
+<meta name="color-scheme" content="${scheme}">
+<meta name="supported-color-schemes" content="${scheme}">
 <title>${esc(subject)}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>
-:root{color-scheme:light dark;supported-color-schemes:light dark}
+:root{color-scheme:${scheme};supported-color-schemes:${scheme}}
 body{margin:0;padding:0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
 table{border-collapse:separate}
 img{-ms-interpolation-mode:bicubic}
 a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !important}
 ${PHONE}
-@media (prefers-color-scheme:dark){${darkRules("")}}
-${darkRules("[data-ogsc] ")}
+${mail.dark ? "" : `@media (prefers-color-scheme:dark){${darkRules("")}}\n`}${darkRules("[data-ogsc] ")}${mail.dark ? darkRules("[data-ogsb] ") : ""}
 </style>
-</head>
+${mail.dark ? `<!--[if !mso]><!--><style>${darkRules("")}</style><!--<![endif]-->\n` : ""}</head>
 <body style="margin:0;padding:0;background:${C.canvas};">
 <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;">${esc(mail.preheader)}${"&#8199;&#65279;&#847; ".repeat(40)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.canvas}" style="${CANVAS}"><tr><td class="outer" align="center" style="padding:40px 14px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.canvas}" class="canvas" style="${CANVAS}"><tr><td class="outer" align="center" style="padding:40px 14px 0;">
 <!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
 <tr><td>
@@ -732,6 +738,8 @@ export function launchReminderMail(input: { day: Date; email: string; active: bo
     signoff: { text: "Wir freuen uns auf den Start mit dir!", from: "Dein oalab-Team" },
     reason: "Du bekommst diese E-Mail, weil du einen Zugang zum oalab Client Hub hast.",
     legal,
+    // Only the dark version (user, 25.11.2026): the same look in light and dark mode.
+    dark: true,
   });
 }
 
