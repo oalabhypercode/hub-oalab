@@ -77,7 +77,7 @@ test("a chat message is text up to 5000 characters, never only spaces", () => {
   assert.equal(readMessage("x".repeat(5001)).ok, false);
 });
 
-test("only active admins read service conversations in the hub, client-visible ones, and nothing is written to them", async () => {
+test("only active admins read service conversations in the hub, client-visible ones, and write only through the team command", async () => {
   const server = await source("lib/hub-conversations/server.ts");
   assert.match(server, /export const conversationReader = cache\(async \(\): Promise<\{ readonly userId: string \} \| null> => verifyHubAdmin\(\)\);/);
   assert.match(server, /if \(!\(await conversationReader\(\)\)\) return failed\(unavailable\);/);
@@ -91,6 +91,10 @@ test("only active admins read service conversations in the hub, client-visible o
   assert.match(actions, /^"use server";/);
   assert.match(actions, /if \(!db \|\| !\(await conversationReader\(\)\)\) return unavailable;/);
   assert.doesNotMatch(actions, /fetch\(|api\/hub\/requests|sendConversationMessage|access_token/);
+  // Writing goes only through the database's team command, with the admin, a key per click and the request's version.
+  assert.doesNotMatch(actions, /from\("(?:request_messages|service_requests|business_automation_tasks)"\)/);
+  assert.match(actions, /db\.rpc\("hub_service_command", \{\s+actor: admin\.userId,\s+command_key: input\.key,/);
+  assert.match(actions, /expectedVersion: input\.version/);
 });
 
 test("service conversations carry the customer's logo from the Asset Management", async () => {
