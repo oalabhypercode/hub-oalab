@@ -118,9 +118,28 @@ async function pausedRequests(db: SupabaseClient): Promise<ReadonlySet<string>> 
   return new Set(error ? [] : (data ?? []).map((row) => row.request_id));
 }
 
+const TEAM_ROLES = ["oalab_operator", "oalab_release_manager", "oalab_admin"];
+
+/**
+ * Whether an admin is on the oalab team of the service platform: the same rule as `app.user_is_oalab_staff`, which
+ * the team command checks again. Cached per request; a failed read counts as access, so the database's own answer
+ * stays the one the admin sees.
+ */
+const teamAccessOf = cache(async (userId: string): Promise<boolean> => {
+  const db = createAdminClient();
+  if (!db) return true;
+  const { data, error } = await db.from("memberships").select("organization_id").eq("user_id", userId).eq("status", "active")
+    .in("role", TEAM_ROLES).returns<{ organization_id: string }[]>();
+  if (error) return true;
+  const organizations = (data ?? []).map((row) => row.organization_id);
+  if (organizations.length === 0) return false;
+  const team = await db.from("organizations").select("id").in("id", organizations).eq("kind", "oalab").eq("status", "active").limit(1);
+  return team.error ? true : (team.data ?? []).length > 0;
+});
+
 /** What an admin may do in one conversation; `null` keeps it read-only, as before the team controls existed. */
 export async function readControls(db: SupabaseClient, requestId: string): Promise<ServiceControls | null> {
-  const { data, error } = await db.rpc("hub_service_controls", { request: requestId });
+  const [{ data, error }, admin] = await Promise.all([db.rpc("hub_service_controls", { request: requestId }), conversationReader()]);
   if (error || !data || typeof data !== "object") return null;
   const row = data as Record<string, unknown>;
   if (!Number.isInteger(row.version)) return null;
@@ -129,6 +148,7 @@ export async function readControls(db: SupabaseClient, requestId: string): Promi
     handBack: row.handBack === "client" || row.handBack === "ai" ? row.handBack : null,
     aiState: typeof row.aiState === "string" ? row.aiState : null,
     writable: row.writable === true,
+    teamAccess: admin ? await teamAccessOf(admin.userId) : false,
   };
 }
 

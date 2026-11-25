@@ -99,6 +99,11 @@ export function serviceWriteHint(kind: "on_behalf" | "reply", input: { readonly 
     : `Zählt wie eine Nachricht von ${company}. ${company} sieht „oalab für ${company}“.`;
 }
 
+/** Read-only line for an admin who is not on the oalab team of the service platform: the database would refuse each step. */
+export function serviceTeamHint(paused: boolean): string {
+  return `Du liest mit. Eingreifen${paused ? " und Freigeben" : ""} geht erst, wenn dein Login auf der Serviceplattform zum oalab-Team gehört.`;
+}
+
 /** What the database answers when a team command cannot run, in words for the admins. */
 export function teamCommandError(message: string | undefined | null): string {
   switch (message) {

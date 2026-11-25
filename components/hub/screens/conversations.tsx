@@ -16,7 +16,7 @@ import { handBackService, openConversation, refreshConversations, writeService }
 import { demoConversations, demoStep, type DemoStep } from "@/lib/hub-conversations/fixtures";
 import {
   CONVERSATION_FILTERS, MAX_MESSAGE_LENGTH, clockTime, conversationFilter, handBackCopy, listTime, messageSide, previewText, senderLabel,
-  serviceWriteHint, threadItems, type ConversationFilter,
+  serviceTeamHint, serviceWriteHint, threadItems, type ConversationFilter,
 } from "@/lib/hub-conversations/rules";
 import type { ConversationResult, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind } from "@/lib/hub-conversations/types";
 import { demoPrivateChats } from "@/lib/hub-private-chat/fixtures";
@@ -270,6 +270,8 @@ function ServiceThread({ thread, now, live, onClose, onChanged, onDemoStep }: {
         <p className="chat-readonly"><Lock size={16} aria-hidden="true" />{conversation.group === "done"
           ? "Abgeschlossen. Hier schreibt niemand mehr; neue Wünsche kommen als neue Anfrage."
           : "Hier kann gerade niemand schreiben: Die Anfrage liegt im Papierkorb oder die Firma ist gesperrt."}</p>
+      ) : !controls.teamAccess ? (
+        <p className="chat-readonly"><Lock size={16} aria-hidden="true" />{serviceTeamHint(controls.handBack !== null)}</p>
       ) : (
         <ServiceComposer conversation={conversation} controls={controls} live={live} onChanged={onChanged} onDemoStep={onDemoStep} />
       )}

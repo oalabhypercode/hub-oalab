@@ -44,6 +44,11 @@ export interface ServiceControls {
   readonly aiState: string | null;
   /** Open, not in the bin, the company active: the team may write. */
   readonly writable: boolean;
+  /**
+   * The signed-in admin belongs to the oalab team of the service platform (`app.user_is_oalab_staff`). Without it the
+   * database refuses every step, so the hub shows why up front instead of a field that fails on the first click.
+   */
+  readonly teamAccess: boolean;
 }
 
 /** How the team writes into a service conversation: for the customer (to the AI) or as oalab. */
