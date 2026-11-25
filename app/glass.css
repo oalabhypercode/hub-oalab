@@ -682,6 +682,43 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .chat-tabs svg { flex: 0 0 auto; }
 .chat-tab-count { min-width: 18px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: var(--on-accent); font-size: 11px; font-weight: 700; line-height: 1; }
 .chat-tab-note { margin: -4px 20px 10px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+/* Service requests (Nachrichten › Service): the number as a quiet chip, the filters across the list, and the team's
+   field – write for the customer or as oalab, give a paused request back. A message written for the customer sits on
+   the customer's side with a dashed edge: it counts as theirs, but somebody of oalab wrote it. */
+.chat-filter.is-wide { display: flex; align-self: stretch; margin-right: 14px; overflow-x: auto; scrollbar-width: none; }
+.chat-filter.is-wide::-webkit-scrollbar { display: none; }
+.chat-filter.is-wide button { flex: 1 0 auto; justify-content: center; gap: 5px; padding: 0 7px; white-space: nowrap; }
+.chat-filter.is-wide button span { color: var(--sheet-muted); font-variant-numeric: tabular-nums; }
+.chat-filter.is-wide button[aria-pressed="true"] span { color: var(--accent-text); }
+.chat-conv-company { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.chat-conv-company > span:not(.chat-ref) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-ref { flex: 0 0 auto; padding: 0 5px; border-radius: 5px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 11px; line-height: 16px; font-weight: 600; color: var(--label); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.chat-conv-sub .chat-badge { margin-left: -2px; }
+.chat-msg.is-in.is-proxy .chat-bubble { padding: 5.5px 10.5px; border: 1.5px dashed color-mix(in srgb, var(--accent-text) 42%, var(--sheet-line)); background: color-mix(in srgb, var(--sheet) 88%, rgb(var(--accent-rgb)) 4%); box-shadow: none; }
+.chat-msg.is-proxy .chat-who { color: var(--accent-text); }
+.chat-mode { align-self: flex-start; max-width: 100%; margin: 0; }
+.chat-mode button { min-width: 0; }
+.chat-mode button > span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; font-weight: inherit; }
+.chat-composer.is-proxy .chat-compose-row textarea { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 38%, var(--sheet-line)); }
+.chat-composer.is-proxy .chat-compose-row textarea:focus { box-shadow: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k))); }
+.chat-hint.is-done { display: flex; align-items: center; gap: 6px; color: var(--tone-ok); font-weight: 600; animation: chat-step-in 360ms var(--ease-spring) backwards; }
+.chat-hint.is-done svg { flex: 0 0 auto; }
+.chat-handback { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 10px 10px 12px; border-radius: 16px; background: var(--tone-todo-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-todo) 16%, transparent); animation: chat-step-in 380ms var(--ease-spring) backwards; }
+.chat-handback[data-state="closed"] { animation: chat-step-out 200ms cubic-bezier(0.5, 0, 0.75, 0) forwards; pointer-events: none; }
+.chat-handback-icon { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--tone-todo) 14%, transparent); color: var(--tone-todo); }
+.chat-handback-text { min-width: 0; }
+.chat-handback-text strong { display: block; font-size: 13.5px; line-height: 18px; font-weight: 700; color: var(--tone-todo); }
+.chat-handback-text p { margin: 1px 0 0; font-size: 12.5px; line-height: 17px; color: var(--label-body); }
+.chat-handback .chat-card-action { white-space: nowrap; }
+@keyframes chat-step-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes chat-step-out { to { opacity: 0; transform: translateY(6px) scale(0.98); } }
+:root[data-reduce-motion="true"] :is(.chat-handback, .chat-hint.is-done) { animation-duration: 1ms; }
+/* The field measures itself (phones have no sheet container): narrow, the button goes under the text. */
+.chat-composer { container: composer / inline-size; }
+@container composer (max-width: 560px) {
+  .chat-handback { grid-template-columns: 32px minmax(0, 1fr); }
+  .chat-handback .chat-card-action { grid-column: 2; justify-self: start; }
+}
 /* Customers have one chat: it sits on top, the way to the service platform right below, Ali at the bottom. */
 .chat-list.is-single .chat-convs { flex: none; }
 .chat-list.is-single .chat-think { margin-top: auto; }

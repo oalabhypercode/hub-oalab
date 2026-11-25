@@ -9,21 +9,34 @@ import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
 import { conversationState, isSender, requestReference, type ConversationSender } from "./rules";
 import { noticeRequest } from "@/lib/hub-notify/rules";
-import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread } from "./types";
+import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread, ServiceControls } from "./types";
 
 // Service conversations are the service platform's requests (service_requests) with their client-visible messages
-// (request_messages). Since 4 November 2026 only admins read them in the hub, in the tab "Service"; customers write to
-// oalab in their private chat (lib/hub-private-chat) and use the service platform for requests. Service grants browsers
-// no direct read, so the hub first checks for an active admin and only then reads with the server key.
+// (request_messages). Only admins see them in the hub, in the tab "Service"; customers write to oalab in their private
+// chat (lib/hub-private-chat) and use the service platform for requests. Service grants browsers no direct read, so the
+// hub first checks for an active admin and only then reads with the server key. Admins also step in there (migration
+// 202611250001): give a request back, write for the customer or answer as oalab (./actions.ts).
 
 const REQUESTS = "id, request_number, title, state, organization_id, created_at, updated_at";
 const MESSAGES = "id, request_id, sender_type, sender_user_id, body, body_format, created_at";
+// The team's mark on messages it wrote for a customer comes with migration 202611250001; without it every message reads
+// as before (the second try leaves the column out).
+const MESSAGES_TEAM = `${MESSAGES}, on_behalf`;
 const LIST_LIMIT = 200;
 const THREAD_LIMIT = 200;
 const unavailable = "Die Gespräche konnten gerade nicht geladen werden. Bitte versuche es erneut.";
 
-interface RequestRow { id: string; request_number: number; title: string; state: string; organization_id: string; created_at: string; updated_at: string }
-interface MessageRow { id: string; request_id: string; sender_type: string; sender_user_id: string | null; body: string; body_format: string; created_at: string }
+export interface RequestRow { id: string; request_number: number; title: string; state: string; organization_id: string; created_at: string; updated_at: string }
+interface MessageRow { id: string; request_id: string; sender_type: string; sender_user_id: string | null; body: string; body_format: string; created_at: string; on_behalf?: boolean }
+
+type Read<T> = PromiseLike<{ data: T | null; error: { code?: string; message?: string } | null }>;
+const missingColumn = (error: { code?: string; message?: string }) => error.code === "42703" || error.code === "PGRST204" || /on_behalf/.test(error.message ?? "");
+
+/** Messages with the team's mark, or without it while the database does not know the column yet. */
+async function readMessages<T>(query: (columns: string) => Read<T>) {
+  const first = await query(MESSAGES_TEAM);
+  return first.error && missingColumn(first.error) ? query(MESSAGES) : first;
+}
 /** The hub customer behind an organization of the service platform, with its logo from the Asset Management. */
 interface CompanyOf { readonly name: string | null; readonly customerId: string | null; readonly logo: CustomerLogo | null }
 
@@ -72,10 +85,11 @@ function toMessage(row: MessageRow, people: Map<string, string>): ConversationMe
     body: row.body,
     markdown: row.body_format === "safe_markdown",
     at: row.created_at,
+    onBehalf: row.on_behalf === true && sender === "client",
   };
 }
 
-function summarize(request: RequestRow, newest: MessageRow[], people: Map<string, string>, company: CompanyOf | undefined): ConversationSummary {
+function summarize(request: RequestRow, newest: MessageRow[], people: Map<string, string>, company: CompanyOf | undefined, aiPaused: boolean): ConversationSummary {
   const state = conversationState(request.state);
   const last = newest.map((row) => toMessage(row, people)).find((message) => message !== null) ?? null;
   return {
@@ -90,7 +104,31 @@ function summarize(request: RequestRow, newest: MessageRow[], people: Map<string
     customerId: company?.customerId ?? null,
     logo: company?.logo ?? null,
     lastAt: last?.at ?? request.updated_at,
-    lastMessage: last && { body: last.body, sender: last.sender, name: last.name },
+    lastMessage: last && { body: last.body, sender: last.sender, name: last.name, onBehalf: last.onBehalf },
+    aiPaused,
+  };
+}
+
+/**
+ * Requests whose AI waits for a person: „Selbst nachbearbeiten“ in Service or stopped in NoteTree. A decoration of the
+ * list; without it (no rights, older database) no request shows as paused.
+ */
+async function pausedRequests(db: SupabaseClient): Promise<ReadonlySet<string>> {
+  const { data, error } = await db.from("business_automation_tasks").select("request_id").eq("state", "paused").limit(500).returns<{ request_id: string }[]>();
+  return new Set(error ? [] : (data ?? []).map((row) => row.request_id));
+}
+
+/** What an admin may do in one conversation; `null` keeps it read-only, as before the team controls existed. */
+export async function readControls(db: SupabaseClient, requestId: string): Promise<ServiceControls | null> {
+  const { data, error } = await db.rpc("hub_service_controls", { request: requestId });
+  if (error || !data || typeof data !== "object") return null;
+  const row = data as Record<string, unknown>;
+  if (!Number.isInteger(row.version)) return null;
+  return {
+    version: row.version as number,
+    handBack: row.handBack === "client" || row.handBack === "ai" ? row.handBack : null,
+    aiState: typeof row.aiState === "string" ? row.aiState : null,
+    writable: row.writable === true,
   };
 }
 
@@ -135,10 +173,11 @@ export async function readConversations(db: SupabaseClient): Promise<Conversatio
 
   const ids = rows.map((request) => request.id);
   // The newest messages of these requests, enough to find each one's last message.
-  const [messageParts, company] = await Promise.all([
-    Promise.all(chunks(ids, 100).map((part) => db.from("request_messages").select(MESSAGES).in("request_id", part).eq("visibility", "client")
-      .order("created_at", { ascending: false }).limit(1000).returns<MessageRow[]>())),
+  const [messageParts, company, paused] = await Promise.all([
+    Promise.all(chunks(ids, 100).map((part) => readMessages((columns) => db.from("request_messages").select(columns).in("request_id", part).eq("visibility", "client")
+      .order("created_at", { ascending: false }).limit(1000).returns<MessageRow[]>()))),
     companies(db, rows.map((request) => request.organization_id)),
+    pausedRequests(db),
   ]);
   if (messageParts.some((part) => part.error) || !company) return failed(unavailable);
 
@@ -148,7 +187,7 @@ export async function readConversations(db: SupabaseClient): Promise<Conversatio
   const people = await names(db, [...byRequest.values()].flatMap((list) => list[0]?.sender_user_id ? [list[0].sender_user_id] : []));
 
   const conversations = rows
-    .map((request) => summarize(request, byRequest.get(request.id) ?? [], people, company.get(request.organization_id)))
+    .map((request) => summarize(request, byRequest.get(request.id) ?? [], people, company.get(request.organization_id), paused.has(request.id)))
     .sort((a, b) => b.lastAt.localeCompare(a.lastAt));
   return { source: "service", conversations, error: null };
 }
@@ -164,20 +203,28 @@ export async function withUnread(state: ConversationsState): Promise<Conversatio
   return state.error ? state : { ...state, unread: await unreadServiceRequests() };
 }
 
-/** One conversation with its messages, for an admin. */
-export async function loadThread(db: SupabaseClient, requestId: string): Promise<ConversationThread | null> {
+/** The request behind a conversation, for the team's commands: its company of the service platform. */
+export async function readRequest(db: SupabaseClient, requestId: string): Promise<RequestRow | null> {
   const request = await db.from("service_requests").select(REQUESTS).eq("id", requestId).is("trashed_at", null).maybeSingle<RequestRow>();
-  if (request.error || !request.data) return null;
-  const [messages, company] = await Promise.all([
-    db.from("request_messages").select(MESSAGES).eq("request_id", requestId).eq("visibility", "client")
-      .order("created_at", { ascending: false }).limit(THREAD_LIMIT).returns<MessageRow[]>(),
-    companies(db, [request.data.organization_id]),
+  return request.error ? null : request.data;
+}
+
+/** One conversation with its messages and what an admin may do there. */
+export async function loadThread(db: SupabaseClient, requestId: string): Promise<ConversationThread | null> {
+  const request = await readRequest(db, requestId);
+  if (!request) return null;
+  const [messages, company, controls] = await Promise.all([
+    readMessages((columns) => db.from("request_messages").select(columns).eq("request_id", requestId).eq("visibility", "client")
+      .order("created_at", { ascending: false }).limit(THREAD_LIMIT).returns<MessageRow[]>()),
+    companies(db, [request.organization_id]),
+    readControls(db, requestId),
   ]);
   if (messages.error) return null;
   const rows = messages.data ?? [];
   const people = await names(db, rows.flatMap((row) => row.sender_user_id ? [row.sender_user_id] : []));
   return {
-    conversation: summarize(request.data, rows, people, company?.get(request.data.organization_id)),
+    conversation: summarize(request, rows, people, company?.get(request.organization_id), controls?.aiState === "paused"),
     messages: rows.map((row) => toMessage(row, people)).filter((message) => message !== null).reverse(),
+    controls,
   };
 }

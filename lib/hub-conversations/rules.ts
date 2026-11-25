@@ -40,12 +40,78 @@ export function isSender(value: string): value is ConversationSender {
   return value === "client" || value === "oalab" || value === "assistant" || value === "system";
 }
 
-/** Who wrote, as the admins read it: the customer and the team by name, otherwise the team or its assistant. */
-export function senderLabel(sender: ConversationSender, name: string | null): string {
+/**
+ * Who wrote, as the admins read it: the customer and the team by name, otherwise the team or its assistant. A message
+ * the team wrote for the customer names both: „Lena Schneider für Atelier Brandt“.
+ */
+export function senderLabel(sender: ConversationSender, name: string | null, onBehalf = false, company: string | null = null): string {
   if (sender === "assistant") return "oalab-Assistent";
   if (sender === "oalab") return name || "oalab-Team";
   if (sender === "system") return "";
+  if (onBehalf) return `${name || "oalab"} für ${company || "den Kunden"}`;
   return name || "Kunde";
+}
+
+/**
+ * The filters of the request list: whose turn it is. „Bei uns“ = the team or its AI works on it, also when the AI waits
+ * for a person; „Beim Kunden“ = the customer answers or approves; „Erledigt“ = finished or closed.
+ */
+export type ConversationFilter = "all" | "team" | "customer" | "done";
+export const CONVERSATION_FILTERS: readonly { readonly id: ConversationFilter; readonly label: string }[] = [
+  { id: "all", label: "Alle" },
+  { id: "team", label: "Bei uns" },
+  { id: "customer", label: "Beim Kunden" },
+  { id: "done", label: "Erledigt" },
+];
+
+export function conversationFilter(item: { readonly group: ConversationGroup; readonly aiPaused: boolean }): Exclude<ConversationFilter, "all"> {
+  if (item.group === "done") return "done";
+  if (item.aiPaused || item.group === "active") return "team";
+  return "customer";
+}
+
+/** The banner above the field while the AI waits for a person, and its button. */
+export function handBackCopy(mode: "client" | "ai", company: string | null): { readonly title: string; readonly text: string; readonly action: string } {
+  const who = company || "dem Kunden";
+  return mode === "client"
+    ? {
+      title: "Liegt zur Nachbearbeitung in NoteTree",
+      text: `„Wieder freigeben“ gibt die Testseite zurück an ${company || "den Kunden"} zur Zustimmung. Neue Nachrichten von ${who} bearbeitet die KI dann wieder selbst.`,
+      action: "Wieder freigeben",
+    }
+    : {
+      title: "Die KI ist angehalten",
+      text: `„KI weitermachen lassen“ gibt die Anfrage zurück an die KI. Sie liest alle neuen Nachrichten von ${who} und arbeitet weiter.`,
+      action: "KI weitermachen lassen",
+    };
+}
+
+/**
+ * The line under the field: what happens with the message. For the customer it counts as their message and the AI takes
+ * it up, unless the AI waits for a person; as oalab it reaches the customer like a published answer.
+ */
+export function serviceWriteHint(kind: "on_behalf" | "reply", input: { readonly company: string | null; readonly aiState: string | null; readonly paused: boolean }): string {
+  const company = input.company || "der Kunde";
+  if (kind === "reply") return `${company} liest das als Antwort von oalab und bekommt eine Benachrichtigung.`;
+  if (input.paused) return `Zählt wie eine Nachricht von ${company}. Die KI ist angehalten und liest sie erst nach „KI weitermachen lassen“.`;
+  return input.aiState
+    ? `Zählt wie eine Nachricht von ${company}: Die KI liest sie und arbeitet weiter. ${company} sieht „oalab für ${company}“.`
+    : `Zählt wie eine Nachricht von ${company}. ${company} sieht „oalab für ${company}“.`;
+}
+
+/** What the database answers when a team command cannot run, in words for the admins. */
+export function teamCommandError(message: string | undefined | null): string {
+  switch (message) {
+    case "BUSINESS_TICKET_CHANGED": return "Die Anfrage hat sich gerade geändert. Der neue Stand ist geladen, bitte schau ihn dir kurz an und versuch es noch einmal.";
+    case "BUSINESS_HANDBACK_NOT_PAUSED": return "Diese Anfrage ist schon freigegeben.";
+    case "BUSINESS_AUTOMATION_STOP_REQUIRED": return "Die KI arbeitet gerade noch an dieser Anfrage. Versuch es in einer Minute noch einmal.";
+    case "BUSINESS_TERMINAL_TICKET": return "Diese Anfrage ist abgeschlossen. Neue Wünsche kommen als neue Anfrage.";
+    case "BUSINESS_WRONG_TENANT_OR_TICKET": return "Diese Anfrage gibt es nicht mehr, sie liegt im Papierkorb oder die Firma ist gesperrt.";
+    case "BUSINESS_STAFF_REQUIRED": return "Dein Login gehört auf der Serviceplattform nicht zum oalab-Team. Ohne diesen Zugang kann der Hub hier nichts ändern.";
+    case "BUSINESS_COMMAND_CONFLICT": return "Dieser Schritt wurde gerade schon mit anderem Inhalt gesendet. Der neue Stand ist geladen, bitte versuch es noch einmal.";
+    case "BUSINESS_MESSAGE_INVALID": return `Schreib zuerst eine Nachricht, höchstens ${MAX_MESSAGE_LENGTH} Zeichen.`;
+    default: return "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
+  }
 }
 
 /**

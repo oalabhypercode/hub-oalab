@@ -17,7 +17,9 @@ export interface ConversationSummary {
   readonly customerId: string | null;
   readonly logo: CustomerLogo | null;
   readonly lastAt: string;
-  readonly lastMessage: { readonly body: string; readonly sender: ConversationSender; readonly name: string | null } | null;
+  readonly lastMessage: { readonly body: string; readonly sender: ConversationSender; readonly name: string | null; readonly onBehalf: boolean } | null;
+  /** The AI of this request waits for a person („Selbst nachbearbeiten“ or stopped in NoteTree): the team is up. */
+  readonly aiPaused: boolean;
 }
 
 export interface ConversationMessage {
@@ -27,11 +29,31 @@ export interface ConversationMessage {
   readonly body: string;
   readonly markdown: boolean;
   readonly at: string;
+  /** Written by the team for the customer (`request_messages.on_behalf`): counts as the customer's message. */
+  readonly onBehalf: boolean;
 }
+
+/**
+ * What an admin may do in an open conversation (migration 202611250001, `hub_service_controls`). `handBack`: what
+ * „Zurückgeben“ would do now – back to the customer for approval („client“), back to the AI („ai“) or nothing.
+ */
+export interface ServiceControls {
+  readonly version: number;
+  readonly handBack: "client" | "ai" | null;
+  /** The AI's step in NoteTree (`business_automation_tasks.state`), `null` without automation. */
+  readonly aiState: string | null;
+  /** Open, not in the bin, the company active: the team may write. */
+  readonly writable: boolean;
+}
+
+/** How the team writes into a service conversation: for the customer (to the AI) or as oalab. */
+export type ServiceWriteKind = "on_behalf" | "reply";
 
 export interface ConversationThread {
   readonly conversation: ConversationSummary;
   readonly messages: readonly ConversationMessage[];
+  /** `null` while the database has no team controls yet (or they could not be read): read along only, as before. */
+  readonly controls: ServiceControls | null;
 }
 
 export interface ConversationsState {
@@ -43,4 +65,5 @@ export interface ConversationsState {
   readonly unread?: readonly string[];
 }
 
-export type ConversationResult<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly error: string };
+/** A failed step may still bring the fresh state along, e.g. when the request changed in between. */
+export type ConversationResult<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly error: string; readonly data?: T };

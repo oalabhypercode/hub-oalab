@@ -8,6 +8,7 @@ import { readCustomerPackages } from "@/lib/hub-contracts/packages";
 import { timelineKinds } from "@/lib/hub-contracts/rules";
 import { CUSTOMER_TIMELINE_COLUMNS } from "@/lib/hub-contracts/server";
 import { loadThread, readConversations } from "@/lib/hub-conversations/server";
+import { senderLabel } from "@/lib/hub-conversations/rules";
 import { domainChecks, domainOwners, domainStatuses, mailboxKinds } from "@/lib/hub-domains/rules";
 import { loadDomainMailForAdmin } from "@/lib/hub-domains/server";
 import { fileCategories } from "@/lib/hub-files/catalog";
@@ -288,7 +289,8 @@ async function listConversations(db: Db, userId: string, args: Json, origin: str
       company: item.company,
       customer_id: item.customerId,
       last_at: item.lastAt,
-      last_message: item.lastMessage ? { from: item.lastMessage.name ?? SENDER_WORDS[item.lastMessage.sender] ?? item.lastMessage.sender, text: item.lastMessage.body.slice(0, 300) } : null,
+      last_message: item.lastMessage ? { from: item.lastMessage.onBehalf ? senderLabel("client", item.lastMessage.name, true, item.company) : item.lastMessage.name ?? SENDER_WORDS[item.lastMessage.sender] ?? item.lastMessage.sender, text: item.lastMessage.body.slice(0, 300) } : null,
+      ai_paused: item.aiPaused,
     }));
   }
 
@@ -340,9 +342,10 @@ async function readConversation(db: Db, args: Json, origin: string): Promise<Too
     if (!thread || !request.data || isArchivedOrganization(archive, request.data.organization_id)) return refuse("Diese Anfrage gibt es nicht (mehr), oder ihr Kunde ist archiviert. Nimm die ID aus list_conversations.");
     return json({
       request: { request_id: thread.conversation.id, reference: thread.conversation.reference, title: thread.conversation.title, state: thread.conversation.stateLabel, company: thread.conversation.company },
-      messages: thread.messages.map((message) => ({ from: message.name ?? SENDER_WORDS[message.sender] ?? message.sender, side: SENDER_WORDS[message.sender] ?? message.sender, at: message.at, text: message.body })),
-      note: "Antworten geht auf der Serviceplattform.",
-      link: `${origin}/dashboard/messages`,
+      // A message the team wrote for the customer names both: „Lena Schneider für Atelier Brandt“.
+      messages: thread.messages.map((message) => ({ from: message.onBehalf ? senderLabel("client", message.name, true, thread.conversation.company) : message.name ?? SENDER_WORDS[message.sender] ?? message.sender, side: SENDER_WORDS[message.sender] ?? message.sender, at: message.at, text: message.body })),
+      note: "Antworten, für den Kunden schreiben und eine pausierte Anfrage zurückgeben geht im Hub unter Nachrichten › Service.",
+      link: `${origin}/dashboard/messages?tab=service&conversation=${thread.conversation.id}`,
     });
   }
   if (args.kind === "private") {
