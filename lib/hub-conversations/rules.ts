@@ -93,7 +93,7 @@ export function handBackCopy(mode: "client" | "ai", company: string | null): { r
 export function serviceWriteHint(kind: "on_behalf" | "reply", input: { readonly company: string | null; readonly aiState: string | null; readonly paused: boolean }): string {
   const company = input.company || "der Kunde";
   if (kind === "reply") return `${company} liest das als Antwort von oalab und bekommt eine Benachrichtigung.`;
-  if (input.paused) return `Zählt wie eine Nachricht von ${company}. Die KI ist angehalten und liest sie erst nach „KI weitermachen lassen“.`;
+  if (input.paused) return `Zählt wie eine Nachricht von ${company}. Die KI ist angehalten: Nach dem Senden steht oben „KI weitermachen lassen“, erst dann liest sie die Nachricht.`;
   return input.aiState
     ? `Zählt wie eine Nachricht von ${company}: Die KI liest sie und arbeitet weiter. ${company} sieht „oalab für ${company}“.`
     : `Zählt wie eine Nachricht von ${company}. ${company} sieht „oalab für ${company}“.`;
