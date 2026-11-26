@@ -7,7 +7,19 @@
  * renders them directly.
  */
 
-export type MailContent = { subject: string; html: string; text: string; images: string[] };
+/** `unsubscribe` (info mails only) is the one-click address for the List-Unsubscribe header (RFC 8058). */
+export type MailContent = { subject: string; html: string; text: string; images: string[]; unsubscribe?: string };
+
+/**
+ * Where a reader stops the info mails: the page behind the link at the foot (it asks before it switches anything, as
+ * mail scanners open links), and the address mail programs post to for their own „Abbestellen“ button.
+ */
+export type MailOptOut = { page: string; oneClick: string };
+
+/**
+ * The objection notice of § 7 Abs. 3 Nr. 4 UWG and Art. 21 Abs. 4 DSGVO, at the foot of every info mail (26.11.2026).
+ */
+export const OPT_OUT_NOTICE = "Du kannst der Nutzung deiner E-Mail-Adresse für diese Infomails jederzeit widersprechen, ohne dass dir dafür andere als die Übermittlungskosten nach den Basistarifen entstehen.";
 /** Imprint and privacy addresses for the footer; empty strings leave the links out. */
 export type MailLegal = { imprint: string; privacy: string };
 
@@ -479,6 +491,8 @@ type Mail = {
   reason: string;
   /** Where the notification mails are switched off (notice mails only). */
   manage?: string;
+  /** How the reader stops this kind of mail (the start series): a link and the objection notice at the foot. */
+  unsubscribe?: MailOptOut;
   legal?: MailLegal;
   /** The dark card in light mode too, not only by the reader's setting (launch reminder, 25.11.2026). */
   dark?: boolean;
@@ -498,6 +512,9 @@ function legalLinks(legal?: MailLegal) {
 function render(mail: Mail): MailContent {
   const subject = cleanSubject(mail.subject);
   const manage = mail.manage ? safeUrl(mail.manage) : "";
+  const optOut = mail.unsubscribe && safeUrl(mail.unsubscribe.page) && safeUrl(mail.unsubscribe.oneClick)
+    ? { page: safeUrl(mail.unsubscribe.page), oneClick: safeUrl(mail.unsubscribe.oneClick) }
+    : null;
   // Buttons lead to http(s) pages, or write a mail through a mailto link built above.
   const ctaUrl = mail.cta ? safeUrl(mail.cta.url) || (/^mailto:[^\s"'<>]+$/.test(mail.cta.url) ? mail.cta.url : "") : "";
   const cta = mail.cta && ctaUrl ? { label: mail.cta.label, url: ctaUrl } : undefined;
@@ -539,7 +556,7 @@ function render(mail: Mail): MailContent {
   const footer = `
 <tr><td align="center" style="padding:30px 24px 0;">${image("logo", 32, "oalab", "margin:0 auto;border-radius:8px;")}</td></tr>
 <tr><td align="center" style="padding:12px 32px 0;${t(12, 19, 400, "#F3E6EC")}">${esc(mail.reason)}<br>${manage ? `<a href="${esc(manage)}" style="color:#FFFFFF;text-decoration:underline;">Benachrichtigungen verwalten</a>&nbsp;&middot;&nbsp;` : ""}Fragen? Antworte einfach auf diese E-Mail.</td></tr>
-<tr><td align="center" style="padding:12px 32px 48px;${t(12, 18, 400, "#D9BFCB")}">${legal}oalab Client Hub</td></tr>`;
+${optOut ? `<tr><td align="center" style="padding:12px 32px 0;${t(12, 19, 400, "#F3E6EC")}"><a href="${esc(optOut.page)}" style="color:#FFFFFF;font-weight:600;text-decoration:underline;">Infomails abbestellen</a><br><span style="color:#D9BFCB;">${esc(OPT_OUT_NOTICE)}</span></td></tr>\n` : ""}<tr><td align="center" style="padding:12px 32px 48px;${t(12, 18, 400, "#D9BFCB")}">${legal}oalab Client Hub</td></tr>`;
 
   // Light and dark by the reader's setting, or always dark (`dark`): then the dark rules apply without the media query,
   // except in classic Outlook for Windows (if !mso), which takes class rules only in part and keeps the light card.
@@ -622,10 +639,10 @@ ${footer}
   if (cta) lines.push(`${cta.label}: ${cta.url.startsWith("mailto:") ? cta.url.slice(7).split("?")[0] : cta.url}`, "");
   if (mail.small) lines.push(mail.small, "");
   if (mail.signoff) lines.push(mail.signoff.text, "", "Viele Grüße", mail.signoff.from, "");
-  lines.push("—", mail.reason, ...(manage ? [`Benachrichtigungen verwalten: ${manage}`] : []), "Fragen? Antworte einfach auf diese E-Mail.", ...legalLinks(mail.legal).map(([label, url]) => `${label}: ${url}`));
+  lines.push("—", mail.reason, ...(manage ? [`Benachrichtigungen verwalten: ${manage}`] : []), "Fragen? Antworte einfach auf diese E-Mail.", ...(optOut ? [`Infomails abbestellen: ${optOut.page}`, OPT_OUT_NOTICE] : []),...legalLinks(mail.legal).map(([label, url]) => `${label}: ${url}`));
 
   const images = [...new Set([...html.matchAll(/src="cid:([a-z0-9-]+)@hub\.oalab\.de"/g)].map((match) => match[1]))];
-  return { subject, html, text: lines.join("\n"), images };
+  return { subject, html, text: lines.join("\n"), images, ...(optOut ? { unsubscribe: optOut.oneClick } : {}) };
 }
 
 // ---------- The mails ----------
@@ -762,10 +779,10 @@ export function launchReminderMail(input: { day: Date; email: string; active: bo
 
 /**
  * What every mail of the series needs: the login's address, whether anybody has signed in with it (else the button
- * activates the login, as in launchReminderMail), the hub's sender address, where hub and service platform live and
- * oalab's phone number for questions.
+ * activates the login, as in launchReminderMail), the hub's sender address, where hub and service platform live,
+ * oalab's phone number for questions and the login's own signed links to stop the info mails.
  */
-export type StartSeriesInput = { email: string; active: boolean; sender: string; hubUrl: string; serviceUrl: string; phone: string };
+export type StartSeriesInput = { email: string; active: boolean; sender: string; hubUrl: string; serviceUrl: string; phone: string; optOut: MailOptOut };
 export type StartSeriesKind = "launch" | "service" | "hub" | "outlook";
 
 /**
@@ -845,6 +862,7 @@ export function launchDayMail(input: StartSeriesInput, legal?: MailLegal): MailC
     ...startSeriesButton(input, { label: "Zum Client Hub", url: hub }),
     signoff: { text: "Danke für dein Vertrauen. Wir freuen uns auf alles, was wir gemeinsam umsetzen!", from: "Dein oalab-Team" },
     reason: START_REASON,
+    unsubscribe: input.optOut,
     legal,
     dark: true,
   });
@@ -895,6 +913,7 @@ export function serviceInfoMail(input: StartSeriesInput, legal?: MailLegal): Mai
     ...startSeriesButton(input, { label: "Zur Serviceplattform", url: service }),
     signoff: { text: "Wir freuen uns auf deine Anfragen!", from: "Dein oalab-Team" },
     reason: START_REASON,
+    unsubscribe: input.optOut,
     legal,
     dark: true,
   });
@@ -925,6 +944,7 @@ export function hubInfoMail(input: StartSeriesInput, legal?: MailLegal): MailCon
     ...startSeriesButton(input, { label: "Zum Client Hub", url: hub }),
     signoff: { text: "Schau gern gleich mal rein!", from: "Dein oalab-Team" },
     reason: START_REASON,
+    unsubscribe: input.optOut,
     legal,
     dark: true,
   });
@@ -958,6 +978,7 @@ export function outlookInfoMail(input: StartSeriesInput, legal?: MailLegal): Mai
     ...startSeriesButton(input, { label: "Zum Client Hub", url: hub }),
     signoff: { text: "Danke, dass du von Anfang an dabei bist. Wir wünschen dir schöne Feiertage und einen guten Start ins neue Jahr!", from: "Dein oalab-Team" },
     reason: START_REASON,
+    unsubscribe: input.optOut,
     legal,
     dark: true,
   });
