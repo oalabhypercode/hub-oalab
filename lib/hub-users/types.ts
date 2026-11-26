@@ -1,6 +1,7 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import type { PackageId } from "@/lib/service-packages";
 import type { TeamEntry, TeamRoleState } from "@/lib/hub-team/rules";
+import type { StartMailKind } from "@/lib/hub-invitations/rules";
 import type { AccountStatus, CustomerKind, DisplayStatus, HubRole } from "./rules";
 
 /** A login as the user management lists it: Supabase Auth data merged with its profile and customers. */
@@ -38,6 +39,10 @@ export type ManagedUser = {
   announcedAt: string | null;
   /** When the last reminder before the start of hub and service platform went out to the login („Erinnerung senden“). */
   remindedAt: string | null;
+  /** When each mail of the start series last went out to the login („Startmails senden“, 26.11.2026). */
+  startMails: Partial<Record<StartMailKind, string>>;
+  /** False once the login stopped the info mails with the link at the foot of one (lib/hub-mail/opt-out.ts). */
+  infoMails: boolean;
   decidedAt: string | null;
   decisionNote: string;
   privacyNotedAt: string | null;

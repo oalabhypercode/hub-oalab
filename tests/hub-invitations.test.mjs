@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ANNOUNCE_DAYS_AHEAD, announceDays, berlinDayKey, checkLogins, customerLoginState, INVITE_BATCH, isAnnounceable, isFirstAnnouncement, isFirstInvitation, isFirstReminder, isInvitable,
   isRemindable, LAUNCH_DAY, launchDays, LOGIN_BATCH, loginDrafts, loginStateLabels, readAnnounceDay, readLaunchDay,
+  isFirstStartMail, isStartMailKind, START_MAILS, startMailAction, suggestedStartMail,
 } from "../lib/hub-invitations/rules.ts";
 import { guessMapping, parseCsv, readContacts } from "../lib/hub-customer-import/rules.ts";
 import { cleanEmail, normalizeCompany, readPerson } from "../lib/hub-users/rules.ts";
@@ -134,6 +135,30 @@ test("the reminder before the start goes to every customer login, signed in or n
   assert.deepEqual(launchDays(new Date("2026-11-25T08:00:00Z")), { min: "2026-11-26", max: "2026-12-01", suggested: "2026-11-26" });
 });
 
+test("the start mails go one at a time to customer logins that still want info mails", () => {
+  assert.deepEqual(START_MAILS.map((mail) => [mail.kind, mail.day]), [["launch", "2026-11-26"], ["service", "2026-12-04"], ["hub", "2026-12-11"], ["outlook", "2026-12-18"]]);
+  assert.ok(START_MAILS.every((mail) => isStartMailKind(mail.kind)));
+  for (const bad of ["", "Start", "reminder", null, undefined, 1]) assert.ok(!isStartMailKind(bad), String(bad));
+  assert.equal(startMailAction("service"), "user.start_mail.service");
+
+  // The window opens on the newest mail whose day has come, in Berlin time.
+  assert.equal(suggestedStartMail(new Date("2026-11-26T09:00:00Z")), "launch");
+  assert.equal(suggestedStartMail(new Date("2026-12-03T22:59:00Z")), "launch", "still Thursday in Berlin");
+  assert.equal(suggestedStartMail(new Date("2026-12-03T23:30:00Z")), "service", "Friday has begun in Berlin");
+  assert.equal(suggestedStartMail(new Date("2026-12-11T10:00:00Z")), "hub");
+  assert.equal(suggestedStartMail(new Date("2027-01-20T10:00:00Z")), "outlook");
+  assert.equal(suggestedStartMail(new Date("2026-11-20T10:00:00Z")), "launch", "before the start the launch mail");
+
+  const login = (extra = {}) => ({ id: "a", displayStatus: "active", invitedAt: null, role: "oalab_customer", remindedAt: null, startMails: {}, infoMails: true, ...extra });
+  assert.ok(isFirstStartMail(login(), "launch"));
+  assert.ok(isFirstStartMail(login({ displayStatus: "invited" }), "launch"), "not activated yet gets it too");
+  assert.ok(!isFirstStartMail(login({ startMails: { launch: "2026-11-26T10:00:00Z" } }), "launch"), "has it already");
+  assert.ok(isFirstStartMail(login({ startMails: { launch: "2026-11-26T10:00:00Z" } }), "service"), "the next one is still due");
+  assert.ok(!isFirstStartMail(login({ infoMails: false }), "launch"), "stopped the info mails");
+  assert.ok(!isFirstStartMail(login({ role: "oalab_freelancer" }), "launch"), "customers only");
+  assert.ok(!isFirstStartMail(login({ displayStatus: "disabled" }), "launch"), "never deactivated logins");
+});
+
 test("an activation link lives a week, a reset a day, and the mail says until when", () => {
   assert.equal(ACTIVATION_LINK_HOURS, 168);
   assert.equal(LINK_HOURS, 24);
@@ -186,8 +211,25 @@ test("the platform and the actions use these rules", async () => {
 
   const server = await source("lib/hub-users/server.ts");
   assert.match(server, /\.eq\("kind", "user\.activation"\)\.eq\("status", "sent"\)/, "invited means a mail really went out");
-  assert.match(server, /\.in\("action", \["user\.announcement", "user\.launch_reminder"\]\)/, "announced and reminded come from the admin log");
+  assert.match(server, /\.in\("action", \["user\.announcement", "user\.launch_reminder", \.\.\.START_MAIL_ACTIONS\]\)/, "announced, reminded and the start mails come from the admin log");
   assert.match(server, /const seen = row\.action === "user\.launch_reminder" \? remindedAt : announcedAt;/);
+  assert.match(server, /const START_MAIL_ACTIONS = START_MAILS\.map\(\(mail\) => startMailAction\(mail\.kind\)\);/);
+  assert.match(server, /startMails: startMails\.get\(user\.id\) \?\? \{\},\n\s*infoMails: infoMailsWanted\(user\.user_metadata\),/);
+
+  // „Startmails senden“: admins only, a mail server and the key for the opt-out links, customer logins that are active
+  // and still want info mails, the version by the first sign-in, in the admin log under its own kind.
+  const start = body("sendStartMails");
+  assert.match(start, /const ctx = await context\(\);\s*if \(!ctx\) return denied;/, "admins only");
+  assert.match(start, /if \(!mailSettings\(\)\.configured\) return failed\(/, "nothing starts without a mail server");
+  assert.match(start, /const setup = await startMailInput\(input\?\.kind\);\s*if \(!setup\.ok\) return setup;/);
+  assert.match(start, /ids\.length > INVITE_BATCH/);
+  assert.match(start, /if \(roleOf\(user\) !== "oalab_customer"\) \{ results\.push\(\{ userId, outcome: "skipped"/, "customer logins only");
+  assert.match(start, /if \(await profileStatus\(ctx, user\.id\) !== "active"\) \{ results\.push\(\{ userId, outcome: "skipped"/);
+  assert.match(start, /if \(!infoMailsWanted\(user\.user_metadata\)\) \{ results\.push\(\{ userId, outcome: "skipped", error: "Hat die Infomails abbestellt\." \}\); continue; \}/, "who stopped them gets none");
+  assert.match(start, /mailStartSeries\(user\.email, \{ \.\.\.setup\.data, userId: user\.id, active: Boolean\(user\.last_sign_in_at\) \}\)/, "each login gets its own link, the version follows the first sign-in");
+  assert.match(start, /mail === "sent" \? startMailAction\(kind\) : "user\.start_mail_failed"/);
+  assert.match(actions, /if \(!secret\) return failed\("Der Schlüssel für die Abmelde-Links fehlt auf dem Server \(HUB_NOTIFY_TOKEN\)\. Ohne ihn geht keine Infomail raus\."\);/, "no info mail without its way to object");
+  assert.match(body("sendStartMailTest"), /for \(const active of \[true, false\]\) \{\s*const mail = await mailStartSeries\(admin\.email, \{ \.\.\.setup\.data, userId: admin\.id, active, test: true \}\);/, "the admin gets both versions");
 });
 
 test("the User Management shows roles, states and the two bulk windows", async () => {
