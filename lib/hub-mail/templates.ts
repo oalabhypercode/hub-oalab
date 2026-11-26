@@ -780,9 +780,14 @@ export function launchReminderMail(input: { day: Date; email: string; active: bo
 /**
  * What every mail of the series needs: the login's address, whether anybody has signed in with it (else the button
  * activates the login, as in launchReminderMail), the hub's sender address, where hub and service platform live,
- * oalab's phone number for questions and the login's own signed links to stop the info mails.
+ * and the login's own signed links to stop the info mails. No phone number (user, 26.11.2026): for every other way to
+ * reach oalab the mails point to the imprint.
  */
-export type StartSeriesInput = { email: string; active: boolean; sender: string; hubUrl: string; serviceUrl: string; phone: string; optOut: MailOptOut };
+export type StartSeriesInput = { email: string; active: boolean; sender: string; hubUrl: string; serviceUrl: string; optOut: MailOptOut };
+
+/** „Zum Impressum“ under the contact lines, when the mail has the imprint's address. */
+const imprintLink = (legal?: MailLegal) => (legal && safeUrl(legal.imprint) ? { link: { label: "Zum Impressum", url: safeUrl(legal.imprint) } } : {});
+const OTHER_WAYS = "Alle weiteren Kontaktwege findest du in unserem Impressum.";
 export type StartSeriesKind = "launch" | "service" | "hub" | "outlook";
 
 /**
@@ -850,7 +855,7 @@ export function launchDayMail(input: StartSeriesInput, legal?: MailLegal): MailC
     list: [
       { area: "projects", label: "Client Hub", title: "Unsere Zusammenarbeit an einem Ort", body: "Projekte, Termine, Notizen, Dateien und Nachrichten: Im Client Hub siehst du jederzeit, woran wir für dich arbeiten und wo deine Rückmeldung gefragt ist.", ...(hub ? { link: { label: "Zum Client Hub", url: hub } } : {}) },
       { area: "news", label: "Serviceplattform", title: "Änderungen direkt beauftragen", body: `${service ? `Auf ${new URL(service).host}` : "Auf der Serviceplattform"} beschreibst du, was sich an deiner Website ändern soll, prüfst das Ergebnis auf einer Testseite und gibst es mit „Gefällt mir“ frei. Mit demselben Zugang wie im Client Hub.`, ...(service ? { link: { label: "Zur Serviceplattform", url: service } } : {}) },
-      { area: "messages", label: "Nachrichten", title: "Direkter Draht zu uns", body: `Fragen und Absprachen schreibst du uns im Client Hub unter „Nachrichten“, so oft du willst; das zählt nicht als Service-Anfrage. Lieber telefonieren? Ruf uns an: ${input.phone}.` },
+      { area: "messages", label: "Nachrichten", title: "Direkter Draht zu uns", body: `Fragen und Absprachen schreibst du uns im Client Hub unter „Nachrichten“, so oft du willst; das zählt nicht als Service-Anfrage. ${OTHER_WAYS}`, ...imprintLink(legal) },
     ],
     listFirst: true,
     guide: {
@@ -973,7 +978,7 @@ export function outlookInfoMail(input: StartSeriesInput, legal?: MailLegal): Mai
     listTitle: "Was als Nächstes kommt",
     list: [
       { area: "contracts", label: "Servicepakete", title: "Neue Preismodelle nach dem Startbonus", body: `Dein Startbonus ohne Anfragen-Grenze läuft bis ${START_BONUS_UNTIL}. Bis dahin sehen wir uns an, wie viele Anfragen tatsächlich gebraucht werden. Danach kommen angepasste Preismodelle, die mit deinem Servicevertrag verknüpft sind. Wir informieren dich rechtzeitig, bevor sich etwas ändert.` },
-      { area: "messages", label: "Kontakt", title: "Fragen? Wir sind für dich da", body: `Schreib uns im Client Hub unter „Nachrichten“ oder ruf uns an: ${input.phone}.` },
+      { area: "messages", label: "Kontakt", title: "Fragen? Wir sind für dich da", body: `Schreib uns im Client Hub unter „Nachrichten“. ${OTHER_WAYS}`, ...imprintLink(legal) },
     ],
     ...startSeriesButton(input, { label: "Zum Client Hub", url: hub }),
     signoff: { text: "Danke, dass du von Anfang an dabei bist. Wir wünschen dir schöne Feiertage und einen guten Start ins neue Jahr!", from: "Dein oalab-Team" },
