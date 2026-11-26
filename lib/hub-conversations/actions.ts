@@ -5,7 +5,9 @@ import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { markServiceRead } from "@/lib/hub-notify/server";
 import { readMessage, requestReference, teamCommandError } from "./rules";
 import { conversationReader, loadConversations, loadThread, readRequest, withUnread } from "./server";
+import { testSitesForRequests } from "./test-site";
 import type { ConversationResult, ConversationsState, ConversationThread, ServiceWriteKind } from "./types";
+import type { TestSiteView } from "./work-status";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one. Only active admins open service
 // conversations in the hub. They write there only through the team command of the database
@@ -33,6 +35,19 @@ export async function openConversation(input: { id: string }): Promise<Conversat
   // The counts in the sidebar and the tab bar come from the layout.
   if (await markServiceRead(input.id)) refreshWorkspace();
   return { ok: true, data: thread };
+}
+
+/**
+ * The test sites of requests oalab works on, with the date of their last change: the list shows „Rückmeldung fehlt“
+ * once a site changed and the AI did not report (26.11.2026). Asked after the list shows, so it never holds the page up.
+ */
+export async function serviceSites(input: { ids: string[] }): Promise<ConversationResult<Record<string, TestSiteView | null>>> {
+  const ids = Array.isArray(input?.ids) ? [...new Set(input.ids.map(String).filter((id) => uuid.test(id)))].slice(0, 40) : [];
+  if (!ids.length) return { ok: true, data: {} };
+  const db = createAdminClient();
+  if (!db || !(await conversationReader())) return unavailable;
+  const sites = await testSitesForRequests(db, ids);
+  return sites ? { ok: true, data: sites } : unavailable;
 }
 
 const COMMANDS = { hand_back: "work.hand_back", on_behalf: "message.on_behalf", reply: "message.reply" } as const;

@@ -63,3 +63,31 @@ export async function setMailNotifications(enabled: boolean): Promise<Result<{ e
   if (error) return { ok: false, error: "Die Einstellung konnte nicht gespeichert werden." };
   return { ok: true, data: { enabled: enabled === true } };
 }
+
+type PreviewMailRow = { enabled?: unknown; customer?: unknown } | null;
+
+/**
+ * „Neue Testansicht per E-Mail“ (26.11.2026): the service platform's e-mail when a new test view is ready, the same
+ * switch as under „Updates erhalten“ there. Read with the login's own session (public.hub_preview_email, service-oalab
+ * migration 202611260001), which answers only for customers of the service platform. `null`: no customer there, or
+ * the server does not know the switch yet; the profile then shows no row.
+ */
+export async function getPreviewMail(): Promise<Result<{ enabled: boolean } | null>> {
+  const session = await signedIn();
+  if (!session) return notSignedIn;
+  const { data, error } = await session.supabase.rpc("hub_preview_email");
+  const row = data as PreviewMailRow;
+  if (error || row?.customer !== true) return { ok: true, data: null };
+  return { ok: true, data: { enabled: row.enabled !== false } };
+}
+
+/** Switches it for every company the customer belongs to on the service platform. */
+export async function setPreviewMail(enabled: boolean): Promise<Result<{ enabled: boolean }>> {
+  if (typeof enabled !== "boolean") return { ok: false, error: "Die Einstellung konnte nicht gespeichert werden." };
+  const session = await signedIn();
+  if (!session) return notSignedIn;
+  const { data, error } = await session.supabase.rpc("hub_set_preview_email", { enabled });
+  const row = data as PreviewMailRow;
+  if (error || row?.customer !== true) return { ok: false, error: "Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut." };
+  return { ok: true, data: { enabled: row.enabled === true } };
+}

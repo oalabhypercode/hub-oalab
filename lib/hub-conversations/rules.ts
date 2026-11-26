@@ -169,6 +169,19 @@ export function clockTime(iso: string): string {
   return new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
 
+/**
+ * When the test site last changed, always with the time (26.11.2026): „heute, 15:20“, „gestern, 20:12“, „23. Nov., 19:14“,
+ * in another year with the year. The same words as on the service platform.
+ */
+export function stampLabel(iso: string, now: Date): string {
+  const date = new Date(iso);
+  const days = daysBetween(dayKey(now), dayKey(date));
+  if (days === 0) return `heute, ${clockTime(iso)}`;
+  if (days === 1) return `gestern, ${clockTime(iso)}`;
+  const sameYear = dayKey(now).slice(0, 4) === dayKey(date).slice(0, 4);
+  return `${new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, day: "numeric", month: "short", year: sameYear ? undefined : "numeric" }).format(date)}, ${clockTime(iso)}`;
+}
+
 export interface ThreadItem<M> {
   readonly message: M;
   /** A new day starts here: show its divider first. */

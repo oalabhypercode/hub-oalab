@@ -719,6 +719,39 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .chat-handback { grid-template-columns: 32px minmax(0, 1fr); }
   .chat-handback .chat-card-action { grid-column: 2; justify-self: start; }
 }
+/* Testansicht (26.11.2026): the test site with the date of its last change in the head of a service conversation, the
+   bubble whose lines take turns while the AI works, „Neue Testansicht bereit“ after each result and the line when the
+   site changed before the AI said a word. */
+.chat-pane-title .chat-pane-sub { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.chat-pane-sub > span { min-width: 0; }
+.chat-site { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 5px; min-width: 0; color: var(--sheet-muted); font-size: 12.5px; line-height: 17px; text-decoration: none; }
+.chat-site b { flex: 0 0 auto; color: var(--label); font-weight: 600; }
+.chat-site:hover b { text-decoration: underline; text-underline-offset: 2px; }
+.chat-pane-title .chat-site-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--tone-todo); }
+.chat-msg.is-working .chat-bubble { background: var(--sheet); color: var(--label-body); box-shadow: 0 0 0 1px var(--sheet-line); }
+.chat-quip { display: flex; align-items: center; gap: 9px; }
+.chat-quip-t { transition: opacity 320ms ease, transform 320ms ease; }
+.chat-quip-t.is-out { opacity: 0; transform: translateY(5px); }
+.chat-quip-dots { display: inline-flex; flex: 0 0 auto; gap: 4px; }
+.chat-quip-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-text); opacity: 0.35; animation: chat-quip-dot 1.2s ease infinite; }
+.chat-quip-dots i:nth-child(2) { animation-delay: 0.16s; }
+.chat-quip-dots i:nth-child(3) { animation-delay: 0.32s; }
+.chat-quip.is-slow .chat-quip-dots i { background: var(--tone-todo); animation-duration: 2.4s; }
+@keyframes chat-quip-dot { 0%, 70%, 100% { opacity: 0.3; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
+:root[data-reduce-motion="true"] .chat-quip-dots i { animation: none; opacity: 0.7; }
+:root[data-reduce-motion="true"] .chat-quip-t { transition: none; }
+.chat-system.is-fresh, .chat-system.is-site { color: var(--label-secondary); }
+.chat-system.is-fresh b, .chat-system.is-site b { color: var(--label); font-weight: 600; }
+/* Phones: the test site gets its own line under number and company, and the state moves under them, so the date stays
+   readable. */
+@media (max-width: 767px) {
+  .chat-pane-title .chat-pane-sub { flex-direction: column; align-items: flex-start; gap: 0; }
+  .chat-pane-sub > span, .chat-site { max-width: 100%; }
+  .chat-pane-head:has(.chat-site) { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px; }
+  .chat-pane-head:has(.chat-site) > :is(.chat-back, .chat-avatar, .chat-icon-button) { grid-row: 1 / span 2; }
+  .chat-pane-head:has(.chat-site) > .chat-pane-title { grid-column: 3; grid-row: 1; }
+  .chat-pane-head:has(.chat-site) > .chat-pill { grid-column: 3; grid-row: 2; justify-self: start; }
+}
 /* Customers have one chat: it sits on top, the way to the service platform right below, Ali at the bottom. */
 .chat-list.is-single .chat-convs { flex: none; }
 .chat-list.is-single .chat-think { margin-top: auto; }
@@ -830,6 +863,9 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .settings-label { font-size: 13px; font-weight: 600; color: var(--label-secondary); margin-top: 6px; }
 .settings-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
 .settings-switch-row label { font-size: 17px; color: var(--label); }
+/* A second switch in the same card (Neue Testansicht per E-Mail, 26.11.2026), new ones marked for a few weeks. */
+.settings-divider { height: 1px; margin: 6px 0; border: 0; background: var(--separator); }
+.settings-new { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: rgb(var(--accent-rgb) / calc(0.12 * var(--tint-k))); color: var(--accent-text); font-size: 12px; font-weight: 600; line-height: 18px; vertical-align: 2px; }
 .account-input { height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--fill-tertiary); font-size: 17px; color: var(--label); width: 100%; }
 
 /* Detail page */
