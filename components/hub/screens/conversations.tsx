@@ -21,7 +21,7 @@ import {
 import type { ConversationMessage, ConversationResult, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind } from "@/lib/hub-conversations/types";
 import {
   QUIPS, QUIP_MS, WORKING_STATES, freshViewLabel, mailNote, preparedReply, silenceCopy, statusFromFacts, teamSlowLines, threadStatus,
-  type TestSiteView, type WorkStatus,
+  unreportedSiteAt, type TestSiteView, type WorkStatus,
 } from "@/lib/hub-conversations/work-status";
 import { demoPrivateChats } from "@/lib/hub-private-chat/fixtures";
 import type { PrivateChatState } from "@/lib/hub-private-chat/types";
@@ -145,7 +145,7 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
     if (clock === null) return false;
     // The open conversation knows its test site freshest.
     const site = thread?.conversation.id === item.id && thread.testSite !== undefined ? thread.testSite : sites[item.id];
-    return statusFromFacts({ state: item.state, lastClientAt: item.lastClientAt ?? null, lastResultAt: item.lastResultAt ?? null, siteAt: site?.updatedAt ?? null, paused: item.aiPaused, now: clock }).silentSince !== null;
+    return statusFromFacts({ state: item.state, lastClientAt: item.lastClientAt ?? null, lastResultAt: item.lastResultAt ?? null, siteAt: unreportedSiteAt(site), paused: item.aiPaused, now: clock }).silentSince !== null;
   };
 
   useEffect(() => {
