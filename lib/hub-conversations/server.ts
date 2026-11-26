@@ -9,6 +9,7 @@ import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
 import { conversationState, isSender, requestReference, type ConversationSender } from "./rules";
 import { noticeRequest } from "@/lib/hub-notify/rules";
+import { previewMails, testSitesFor } from "./test-site";
 import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread, ServiceControls } from "./types";
 
 // Service conversations are the service platform's requests (service_requests) with their client-visible messages
@@ -17,8 +18,9 @@ import type { ConversationMessage, ConversationsState, ConversationSummary, Conv
 // hub first checks for an active admin and only then reads with the server key. Admins also step in there (migration
 // 202611250001): give a request back, write for the customer or answer as oalab (./actions.ts).
 
-const REQUESTS = "id, request_number, title, state, organization_id, created_at, updated_at";
-const MESSAGES = "id, request_id, sender_type, sender_user_id, body, body_format, created_at";
+const REQUESTS = "id, request_number, title, state, organization_id, project_id, created_at, updated_at";
+// Results of oalab carry what landed on the test site (`delivery`); the hub only needs its kind (26.11.2026).
+const MESSAGES = "id, request_id, sender_type, sender_user_id, body, body_format, created_at, delivery_kind:delivery->>kind";
 // The team's mark on messages it wrote for a customer comes with migration 202611250001; without it every message reads
 // as before (the second try leaves the column out).
 const MESSAGES_TEAM = `${MESSAGES}, on_behalf`;
@@ -26,8 +28,8 @@ const LIST_LIMIT = 200;
 const THREAD_LIMIT = 200;
 const unavailable = "Die Gespräche konnten gerade nicht geladen werden. Bitte versuche es erneut.";
 
-export interface RequestRow { id: string; request_number: number; title: string; state: string; organization_id: string; created_at: string; updated_at: string }
-interface MessageRow { id: string; request_id: string; sender_type: string; sender_user_id: string | null; body: string; body_format: string; created_at: string; on_behalf?: boolean }
+export interface RequestRow { id: string; request_number: number; title: string; state: string; organization_id: string; project_id: string | null; created_at: string; updated_at: string }
+interface MessageRow { id: string; request_id: string; sender_type: string; sender_user_id: string | null; body: string; body_format: string; created_at: string; on_behalf?: boolean; delivery_kind?: string | null }
 
 type Read<T> = PromiseLike<{ data: T | null; error: { code?: string; message?: string } | null }>;
 const missingColumn = (error: { code?: string; message?: string }) => error.code === "42703" || error.code === "PGRST204" || /on_behalf/.test(error.message ?? "");
@@ -86,6 +88,7 @@ function toMessage(row: MessageRow, people: Map<string, string>): ConversationMe
     markdown: row.body_format === "safe_markdown",
     at: row.created_at,
     onBehalf: row.on_behalf === true && sender === "client",
+    ...(sender === "oalab" && (row.delivery_kind === "preview" || row.delivery_kind === "work") ? { result: row.delivery_kind } : {}),
   };
 }
 
@@ -93,6 +96,9 @@ function summarize(request: RequestRow, newest: MessageRow[], people: Map<string
   const state = conversationState(request.state);
   const last = newest.map((row) => toMessage(row, people)).find((message) => message !== null) ?? null;
   return {
+    // Newest first: who wrote last on each side, for „Rückmeldung fehlt“ (26.11.2026).
+    lastClientAt: newest.find((row) => row.sender_type === "client")?.created_at ?? null,
+    lastResultAt: newest.find((row) => row.sender_type === "oalab")?.created_at ?? null,
     id: request.id,
     reference: requestReference(request.request_number),
     title: request.title,
@@ -229,15 +235,20 @@ export async function readRequest(db: SupabaseClient, requestId: string): Promis
   return request.error ? null : request.data;
 }
 
-/** One conversation with its messages and what an admin may do there. */
+/**
+ * One conversation with its messages and what an admin may do there, since 26.11.2026 with its test site (date of the
+ * last change) and per result whether the e-mail „Neue Testansicht bereit“ went out.
+ */
 export async function loadThread(db: SupabaseClient, requestId: string): Promise<ConversationThread | null> {
   const request = await readRequest(db, requestId);
   if (!request) return null;
-  const [messages, company, controls] = await Promise.all([
+  const [messages, company, controls, sites, mails] = await Promise.all([
     readMessages((columns) => db.from("request_messages").select(columns).eq("request_id", requestId).eq("visibility", "client")
       .order("created_at", { ascending: false }).limit(THREAD_LIMIT).returns<MessageRow[]>()),
     companies(db, [request.organization_id]),
     readControls(db, requestId),
+    testSitesFor(db, [request]),
+    previewMails(db, requestId),
   ]);
   if (messages.error) return null;
   const rows = messages.data ?? [];
@@ -246,5 +257,7 @@ export async function loadThread(db: SupabaseClient, requestId: string): Promise
     conversation: summarize(request, rows, people, company?.get(request.organization_id), controls?.aiState === "paused"),
     messages: rows.map((row) => toMessage(row, people)).filter((message) => message !== null).reverse(),
     controls,
+    testSite: sites.get(request.id) ?? null,
+    mails,
   };
 }

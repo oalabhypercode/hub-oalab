@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Check, ChevronLeft, Info, Lock, MessagesSquare, PauseCircle, Search, SendHorizontal } from "lucide-react";
+import { ArrowUpRight, Check, ChevronLeft, Globe, Info, Lock, MessagesSquare, PauseCircle, Search, SendHorizontal, Sparkles, TriangleAlert } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
@@ -12,18 +12,39 @@ import { LoadNotice } from "./overview";
 import { CustomerSign } from "./customer-sign";
 import { ChatTabs, PrivateChats, type ChatTab } from "./private-chat";
 import type { ScreenProps } from "./types";
-import { handBackService, openConversation, refreshConversations, writeService } from "@/lib/hub-conversations/actions";
-import { demoConversations, demoStep, type DemoStep } from "@/lib/hub-conversations/fixtures";
+import { handBackService, openConversation, refreshConversations, serviceSites, writeService } from "@/lib/hub-conversations/actions";
+import { DEMO_NOW, demoConversations, demoStep, type DemoStep } from "@/lib/hub-conversations/fixtures";
 import {
   CONVERSATION_FILTERS, MAX_MESSAGE_LENGTH, clockTime, conversationFilter, handBackCopy, listTime, messageSide, previewText, senderLabel,
-  serviceTeamHint, serviceWriteHint, threadItems, type ConversationFilter,
+  serviceTeamHint, serviceWriteHint, stampLabel, threadItems, type ConversationFilter,
 } from "@/lib/hub-conversations/rules";
-import type { ConversationResult, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind } from "@/lib/hub-conversations/types";
+import type { ConversationMessage, ConversationResult, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind } from "@/lib/hub-conversations/types";
+import {
+  QUIPS, QUIP_MS, WORKING_STATES, freshViewLabel, mailNote, preparedReply, silenceCopy, statusFromFacts, teamSlowLines, threadStatus,
+  type TestSiteView, type WorkStatus,
+} from "@/lib/hub-conversations/work-status";
 import { demoPrivateChats } from "@/lib/hub-private-chat/fixtures";
 import type { PrivateChatState } from "@/lib/hub-private-chat/types";
 import { SERVICE_PLATFORM_URL } from "@/lib/service-packages";
 
 const POLL_MS = 15_000;
+/** How often the list asks for the test sites of requests in work („Rückmeldung fehlt“). */
+const SITES_MS = 120_000;
+
+/**
+ * The clock of the work status (26.11.2026): every half minute in the browser and none on the server, so the server and
+ * the browser render the same first and the bubble, the site line and „Rückmeldung fehlt“ follow right after.
+ */
+const CLOCK_MS = 30_000;
+const clockNow = () => Math.floor(Date.now() / CLOCK_MS) * CLOCK_MS;
+function subscribeClock(change: () => void) {
+  const timer = window.setInterval(change, CLOCK_MS);
+  return () => window.clearInterval(timer);
+}
+function useClock(fixed: number | null): number | null {
+  const live = useSyncExternalStore(subscribeClock, clockNow, () => null);
+  return fixed ?? live;
+}
 
 /**
  * Nachrichten (4 November 2026): customers write here with oalab in their private chat; requests go to the service
@@ -93,12 +114,39 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
   const [filter, setFilter] = useState<ConversationFilter>("all");
   // The preview keeps its steps in this window: messages and controls per example.
   const [demo, setDemo] = useState(() => fixtures ? { messages: fixtures.messages, controls: fixtures.controls } : null);
+  // The examples read the work status at their own afternoon; real requests at the browser's clock.
+  const clock = useClock(fixtures ? Date.parse(DEMO_NOW) : null);
+  // Test sites of the requests in work, asked after the list shows; the examples bring theirs along.
+  const [sites, setSites] = useState<Readonly<Record<string, TestSiteView | null>>>(() => fixtures ? Object.fromEntries(fixtures.sites) : {});
 
   const withLogo = (item: ConversationSummary): ConversationSummary => ({ ...item, logo: logos.get(item.id) ?? item.logo });
   const conversation = list.find((item) => item.id === openId) ?? null;
   const thread: ConversationThread | null = live
     ? liveThread && liveThread.conversation.id === openId ? liveThread : null
-    : conversation && demo ? { conversation, messages: demo.messages.get(conversation.id) ?? [], controls: demo.controls.get(conversation.id) ?? null } : null;
+    : conversation && demo && fixtures
+      ? { conversation, messages: demo.messages.get(conversation.id) ?? [], controls: demo.controls.get(conversation.id) ?? null, testSite: fixtures.sites.get(conversation.id) ?? null, mails: fixtures.mails.get(conversation.id) }
+      : null;
+
+  // Requests the AI or the team works on: only their test sites can tell that the AI did not report.
+  const watched = useMemo(() => list.filter((item) => WORKING_STATES.has(item.state) && item.lastClientAt && !item.aiPaused).map((item) => item.id).sort().join(","), [list]);
+  useEffect(() => {
+    if (!live || !watched) return;
+    let current = true;
+    const look = () => serviceSites({ ids: watched.split(",") })
+      .then((result) => { if (current && result.ok) setSites((before) => ({ ...before, ...result.data })); })
+      .catch(() => { /* the next look tries again */ });
+    look();
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") look(); }, SITES_MS);
+    return () => { current = false; window.clearInterval(timer); };
+  }, [live, watched]);
+
+  /** „Rückmeldung fehlt“: the test site changed after the customer's last message and the AI has not reported for half an hour. */
+  const silent = (item: ConversationSummary) => {
+    if (clock === null) return false;
+    // The open conversation knows its test site freshest.
+    const site = thread?.conversation.id === item.id && thread.testSite !== undefined ? thread.testSite : sites[item.id];
+    return statusFromFacts({ state: item.state, lastClientAt: item.lastClientAt ?? null, lastResultAt: item.lastResultAt ?? null, siteAt: site?.updatedAt ?? null, paused: item.aiPaused, now: clock }).silentSince !== null;
+  };
 
   useEffect(() => {
     if (!openId || !live) return;
@@ -180,7 +228,7 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
                       <span className="chat-conv-company"><span className="chat-ref">{item.reference}</span>{item.company && <span>{item.company}</span>}</span>
                       <span className="chat-conv-sub">
                         <span className="chat-conv-last">{lastLine(item)}</span>
-                        <StatePill conversation={item} />
+                        <StatePill conversation={item} silent={silent(item)} />
                         {isNew(item) && <span className="chat-badge"><span className="visually-hidden">Neu</span></span>}
                       </span>
                     </span>
@@ -195,7 +243,7 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
 
         <section className="chat-pane" aria-label={thread ? `Anfrage ${thread.conversation.reference}: ${thread.conversation.title}` : "Anfrage"}>
           {thread ? (
-            <ServiceThread key={thread.conversation.id} thread={{ ...thread, conversation: withLogo(thread.conversation) }} now={now} live={live} onClose={close} onChanged={changed} onDemoStep={demoChange} />
+            <ServiceThread key={thread.conversation.id} thread={{ ...thread, conversation: withLogo(thread.conversation) }} now={now} clock={clock} live={live} onClose={close} onChanged={changed} onDemoStep={demoChange} />
           ) : openId && live && !threadError ? (
             <div className="chat-placeholder"><MiniLoader size={22} /><span>Anfrage wird geladen …</span></div>
           ) : (
@@ -211,15 +259,88 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
   );
 }
 
-/** The state as the customer reads it; a paused AI is what the team has to look at first. */
-function StatePill({ conversation }: { conversation: ConversationSummary }) {
-  return conversation.aiPaused
-    ? <span className="chat-pill tone-todo">KI pausiert</span>
-    : <span className={`chat-pill tone-${conversation.tone}`}>{conversation.stateLabel}</span>;
+/**
+ * The state as the customer reads it; a paused AI is what the team has to look at first, then a test site that changed
+ * without a word from the AI (26.11.2026).
+ */
+function StatePill({ conversation, silent = false }: { conversation: ConversationSummary; silent?: boolean }) {
+  if (conversation.aiPaused) return <span className="chat-pill tone-todo">KI pausiert</span>;
+  if (silent) return <span className="chat-pill tone-todo" data-tip="Die Testseite hat sich geändert, die KI hat sich seit einer halben Stunde nicht gemeldet.">Rückmeldung fehlt</span>;
+  return <span className={`chat-pill tone-${conversation.tone}`}>{conversation.stateLabel}</span>;
 }
 
-function ServiceThread({ thread, now, live, onClose, onChanged, onDemoStep }: {
-  thread: ConversationThread; now: Date; live: boolean; onClose: () => void;
+/** The test site in the head of a conversation, with the date of its last change (26.11.2026). */
+function SiteLink({ site, now }: { site: TestSiteView; now: Date }) {
+  const label = site.updatedAt ? stampLabel(site.updatedAt, now) : null;
+  return (
+    <a className="chat-site" href={site.url} target="_blank" rel="noopener noreferrer" data-tip={label ? `Testseite öffnen · zuletzt angepasst ${label}` : "Testseite öffnen"}
+      aria-label={label ? `Testseite öffnen, zuletzt angepasst ${label} (neuer Tab)` : "Testseite öffnen (neuer Tab)"}>
+      <span className="chat-site-dot" aria-hidden="true" /><b>Testseite</b>{label && <span>· {label}</span>}
+    </a>
+  );
+}
+
+/** After a result: what landed on the test site and when, and whether the customer got the e-mail. */
+function FreshLine({ message, people, now }: { message: ConversationMessage; people: number | undefined; now: Date }) {
+  const label = freshViewLabel(message.result);
+  if (!label) return null;
+  const note = mailNote(people);
+  return <p className="chat-system is-fresh"><Sparkles size={14} aria-hidden="true" /><span><b>{label}</b> · Testseite angepasst {stampLabel(message.at, now)}{note && ` · ${note}`}</span></p>;
+}
+
+/**
+ * Lines that take turns while the AI works, each a few seconds; honest lines once it takes long or the AI did not
+ * report. Screen readers hear one steady sentence instead of every line.
+ */
+function Quips({ lines, honest }: { lines: readonly string[]; honest: boolean }) {
+  const [index, setIndex] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const count = lines.length;
+  useEffect(() => {
+    if (count < 2) return;
+    let swap: number | undefined;
+    const timer = window.setInterval(() => {
+      if (document.documentElement.dataset.reduceMotion === "true") { setIndex((value) => (value + 1) % count); return; }
+      setLeaving(true);
+      swap = window.setTimeout(() => { setIndex((value) => (value + 1) % count); setLeaving(false); }, 320);
+    }, QUIP_MS);
+    return () => { window.clearInterval(timer); window.clearTimeout(swap); };
+  }, [count]);
+  return (
+    <span className={`chat-quip${honest ? " is-slow" : ""}`}>
+      <span className="chat-quip-dots" aria-hidden="true"><i /><i /><i /></span>
+      <span className={`chat-quip-t${leaving ? " is-out" : ""}`} aria-hidden="true">{lines[index % count]}</span>
+      <span className="visually-hidden">{honest ? lines[0] : "Die KI arbeitet an dieser Anfrage."}</span>
+    </span>
+  );
+}
+
+/** While the AI or the team works: since when, with the lines; and that the test site changed before the AI said a word. */
+function WorkLines({ status, now }: { status: WorkStatus; now: Date }) {
+  const short = (iso: string) => stampLabel(iso, now).replace(/^heute, /, "");
+  const working = status.working;
+  const honest = Boolean(working && (working.slow || status.silentSince));
+  return (
+    <>
+      {status.siteChangedAt && (
+        <div className="chat-item"><p className="chat-system is-site"><Globe size={14} aria-hidden="true" /><span><b>Testseite wurde neu gebaut</b> · {short(status.siteChangedAt)}, noch ohne Nachricht der KI</span></p></div>
+      )}
+      {working && (
+        <div className="chat-item">
+          <div className="chat-msg is-in is-first is-last is-working">
+            <span className="chat-who">oalab-KI · arbeitet seit {short(working.since)}</span>
+            <div className="chat-bubble"><div className="chat-text">
+              <Quips key={honest ? "honest" : "quips"} honest={honest} lines={honest ? teamSlowLines({ since: working.since, siteChangedAt: status.siteChangedAt }, short) : QUIPS} />
+            </div></div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ServiceThread({ thread, now, clock, live, onClose, onChanged, onDemoStep }: {
+  thread: ConversationThread; now: Date; clock: number | null; live: boolean; onClose: () => void;
   onChanged: (thread: ConversationThread) => void; onDemoStep: (step: DemoStep) => void;
 }) {
   const { conversation, messages, controls } = thread;
@@ -227,20 +348,29 @@ function ServiceThread({ thread, now, live, onClose, onChanged, onDemoStep }: {
   const log = useRef<HTMLDivElement>(null);
   const subtitle = [conversation.reference, conversation.company].filter(Boolean).join(" · ");
   const serviceUrl = `${SERVICE_PLATFORM_URL}/workspace/requests/${encodeURIComponent(conversation.reference)}`;
+  // Dates of real requests read against the browser's clock; the examples against the page's day.
+  const labelNow = live && clock !== null ? new Date(clock) : now;
+  const status = clock === null || conversation.group === "done" ? null
+    : threadStatus({ state: conversation.state, messages, testSite: thread.testSite, paused: conversation.aiPaused, now: clock });
+  const site = thread.testSite ?? null;
+  const silence = status?.silentSince
+    ? { copy: silenceCopy(conversation.company, stampLabel(status.silentSince, labelNow).replace(/^heute, /, "")), draft: preparedReply(stampLabel(status.silentSince, labelNow)) }
+    : null;
+  const tail = `${messages.length}:${status?.working ? 1 : 0}:${status?.siteChangedAt ?? ""}`;
 
-  // New messages scroll into view, like in a messenger.
+  // New messages and the bubble scroll into view, like in a messenger.
   useEffect(() => {
     const element = log.current;
     if (element) element.scrollTop = element.scrollHeight;
-  }, [messages.length]);
+  }, [tail]);
 
   return (
     <>
       <header className="chat-pane-head">
         <button type="button" className="chat-back" onClick={onClose} aria-label="Zurück zu den Anfragen"><ChevronLeft size={24} aria-hidden="true" /></button>
         <ServiceAvatar conversation={conversation} />
-        <div className="chat-pane-title"><strong>{conversation.title}</strong><span>{subtitle}</span></div>
-        <StatePill conversation={conversation} />
+        <div className="chat-pane-title"><strong>{conversation.title}</strong><span className="chat-pane-sub"><span>{subtitle}</span>{site && <SiteLink site={site} now={labelNow} />}</span></div>
+        <StatePill conversation={conversation} silent={Boolean(status?.silentSince)} />
         <a className="chat-icon-button" href={serviceUrl} target="_blank" rel="noopener noreferrer" data-tip="In Service öffnen" aria-label={`${conversation.reference} in Service öffnen (neuer Tab)`}><ArrowUpRight size={19} aria-hidden="true" /></a>
       </header>
       <div className="chat-log" ref={log} role="log" aria-live="polite" aria-label="Nachrichten">
@@ -260,9 +390,11 @@ function ServiceThread({ thread, now, live, onClose, onChanged, onDemoStep }: {
                   </div>
                 </div>
               )}
+              {message.result && <FreshLine message={message} people={thread.mails?.[message.id]} now={labelNow} />}
             </div>
           );
         }) : <p className="chat-system">Noch keine Nachricht in dieser Anfrage.</p>}
+        {status && <WorkLines status={status} now={labelNow} />}
       </div>
       {controls === null ? (
         <p className="chat-readonly"><Info size={16} aria-hidden="true" />Du liest mit. Antworten und interne Notizen von oalab entstehen in NoteTree Business.</p>
@@ -273,7 +405,7 @@ function ServiceThread({ thread, now, live, onClose, onChanged, onDemoStep }: {
       ) : !controls.teamAccess ? (
         <p className="chat-readonly"><Lock size={16} aria-hidden="true" />{serviceTeamHint(controls.handBack !== null)}</p>
       ) : (
-        <ServiceComposer conversation={conversation} controls={controls} live={live} onChanged={onChanged} onDemoStep={onDemoStep} />
+        <ServiceComposer conversation={conversation} controls={controls} live={live} silence={silence} onChanged={onChanged} onDemoStep={onDemoStep} />
       )}
     </>
   );
@@ -287,8 +419,10 @@ const sameCopy = (a: HandBackCopy | null, b: HandBackCopy | null) => a?.action =
  * give a paused request back. Every step carries the request's version and one key per draft or click, so a double
  * click or a resend after a lost answer stays one step.
  */
-function ServiceComposer({ conversation, controls, live, onChanged, onDemoStep }: {
+function ServiceComposer({ conversation, controls, live, silence, onChanged, onDemoStep }: {
   conversation: ConversationSummary; controls: ServiceControls; live: boolean;
+  /** The test site changed and the AI did not report: the hint with a prepared answer as oalab (26.11.2026). */
+  silence: { readonly copy: ReturnType<typeof silenceCopy>; readonly draft: string } | null;
   onChanged: (thread: ConversationThread) => void; onDemoStep: (step: DemoStep) => void;
 }) {
   const company = conversation.company;
@@ -352,6 +486,17 @@ function ServiceComposer({ conversation, controls, live, onChanged, onDemoStep }
     setBusy(null);
   }
 
+  /** „Antwort vorbereiten“: as oalab, with the date of the test site; nothing goes out before the admin sends it. */
+  function prepare() {
+    if (!silence || busy) return;
+    setKind("reply");
+    setDraft(silence.draft);
+    sendAttempt.current = null;
+    setError("");
+    setDone("");
+    field.current?.focus();
+  }
+
   const placeholder = kind === "on_behalf" ? `Für ${company || "den Kunden"} schreiben …` : `Antwort an ${company || "den Kunden"} …`;
   const hint = !live ? "Vorschau: Neue Nachrichten bleiben in diesem Fenster und gehen an niemanden." : serviceWriteHint(kind, { company, aiState: controls.aiState, paused: controls.handBack !== null });
   return (
@@ -363,6 +508,13 @@ function ServiceComposer({ conversation, controls, live, onChanged, onDemoStep }
           <button type="button" className="chat-card-action is-primary" disabled={busy !== null} onClick={() => void handBack()}>
             {busy === "hand_back" && <MiniLoader size={14} />}{banner.action}
           </button>
+        </div>
+      )}
+      {silence && !banner && (
+        <div className="chat-handback is-hint" role="note">
+          <span className="chat-handback-icon" aria-hidden="true"><TriangleAlert size={18} /></span>
+          <div className="chat-handback-text"><strong>{silence.copy.title}</strong><p>{silence.copy.text}</p></div>
+          <button type="button" className="chat-card-action is-primary" disabled={busy !== null} onClick={prepare}>{silence.copy.action}</button>
         </div>
       )}
       {error && <p className="form-error chat-error" role="alert">{error}</p>}
