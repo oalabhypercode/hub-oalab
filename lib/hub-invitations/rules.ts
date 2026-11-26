@@ -177,3 +177,32 @@ export function launchDays(now: Date) {
 export function readLaunchDay(value: unknown, now: Date): Date | null {
   return readDayWithin(value, launchDays(now));
 }
+
+/**
+ * „Startmails senden“ (26.11.2026): the launch mail and the three info mails of the following Fridays, in order, each
+ * with the day it is meant for and its subject (the same as lib/hub-mail/templates.ts, which the tests compare).
+ */
+export const START_MAILS = [
+  { kind: "launch", label: "Start", day: "2026-11-26", subject: "Wir sind live: Client Hub und Serviceplattform starten heute" },
+  { kind: "service", label: "Info 1 · Serviceplattform", day: "2026-12-04", subject: "Infomail 1 von 3: So nutzt du die Serviceplattform" },
+  { kind: "hub", label: "Info 2 · Client Hub", day: "2026-12-11", subject: "Infomail 2 von 3: Der Client Hub im Detail" },
+  { kind: "outlook", label: "Info 3 · Ausblick", day: "2026-12-18", subject: "Infomail 3 von 3: Ein Blick hinter die Kulissen" },
+] as const;
+
+export type StartMailKind = (typeof START_MAILS)[number]["kind"];
+
+export const isStartMailKind = (value: unknown): value is StartMailKind => START_MAILS.some((mail) => mail.kind === value);
+
+/** The admin log's entry for a mail of the series that went out; it tells who has which. */
+export const startMailAction = (kind: StartMailKind) => `user.start_mail.${kind}`;
+
+/** The mail the window opens on: the newest one whose day has come, the launch mail before that. */
+export function suggestedStartMail(now: Date): StartMailKind {
+  const today = berlinDayKey(now);
+  return [...START_MAILS].reverse().find((mail) => mail.day <= today)?.kind ?? "launch";
+}
+
+export type StartMailLogin = RemindableLogin & { startMails: Partial<Record<StartMailKind, string>>; infoMails: boolean };
+
+/** Ticked at the start: customer logins that still want info mails and do not have this one yet. */
+export const isFirstStartMail = (login: StartMailLogin, kind: StartMailKind) => isRemindable(login) && login.infoMails && !login.startMails[kind];

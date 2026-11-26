@@ -6,13 +6,14 @@ import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
-import { mailAnnouncement, mailApproval, mailLaunchReminder, mailLoginEmailChanged, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import { mailAnnouncement, mailApproval, mailLaunchReminder, mailLoginEmailChanged, mailPasswordLink, mailRejection, mailStartSeries } from "@/lib/hub-mail/notify";
+import { infoMailSecret, infoMailsWanted } from "@/lib/hub-mail/opt-out";
 import { hasConfirmedApp, secondFactorMethod } from "@/lib/hub-auth/second-factor";
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
 import { fillsFor, IMPORT_BATCH } from "@/lib/hub-customer-import/rules";
-import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, LOGIN_BATCH, readAnnounceDay, readLaunchDay } from "@/lib/hub-invitations/rules";
+import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, isStartMailKind, LOGIN_BATCH, readAnnounceDay, readLaunchDay, START_MAILS, startMailAction, type StartMailKind } from "@/lib/hub-invitations/rules";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { ACTIVATION_LINK_HOURS, LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
@@ -618,6 +619,68 @@ export async function sendLaunchReminderTest(input: { day?: unknown }): Promise<
   if (!admin?.email) return failed("Dein Zugang hat keine E-Mail-Adresse.");
   for (const active of [true, false]) {
     const mail = await mailLaunchReminder(admin.email, { ...reminder, active, test: true });
+    if (mail !== "sent") return failed(mailStatusMessage(mail));
+  }
+  return { ok: true, data: { to: admin.email } };
+}
+
+/**
+ * What every mail of the start series needs before it goes out: the mail of the series, the hub's origin for the links
+ * and the key that signs each login's link to stop the info mails. Without the key no mail goes out, as none could
+ * carry its way to object (§ 7 Abs. 3 UWG).
+ */
+async function startMailInput(kind: unknown): Promise<ActionResult<{ kind: StartMailKind; hubUrl: string; secret: string }>> {
+  if (!isStartMailKind(kind)) return failed("Bitte eine der vier Startmails wählen.");
+  const hubUrl = await requestOrigin();
+  if (!hubUrl) return failed("Die Adresse des Hubs fehlt. Bitte lade die Seite neu.");
+  const secret = infoMailSecret();
+  if (!secret) return failed("Der Schlüssel für die Abmelde-Links fehlt auf dem Server (HUB_NOTIFY_TOKEN). Ohne ihn geht keine Infomail raus.");
+  return { ok: true, data: { kind, hubUrl, secret } };
+}
+
+const startMailLabel = (kind: StartMailKind) => START_MAILS.find((mail) => mail.kind === kind)?.label ?? kind;
+
+/**
+ * „Startmails senden“ (26.11.2026): one mail of the start series (the launch mail or one of the three info mails) to
+ * customer logins that are active, signed in already or not yet (startSeriesMail). Logins that stopped the info mails
+ * get none. At most INVITE_BATCH per call; each mail lands in the admin log (user.start_mail.<kind>), which shows who
+ * has which already.
+ */
+export async function sendStartMails(input: { userIds?: unknown; kind?: unknown }): Promise<ActionResult<InvitationResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Startmail raus.");
+  const setup = await startMailInput(input?.kind);
+  if (!setup.ok) return setup;
+  const ids = Array.isArray(input?.userIds) ? [...new Set(input.userIds.filter((id): id is string => typeof id === "string" && uuid.test(id)))] : [];
+  if (!ids.length || ids.length > INVITE_BATCH) return failed(`Bitte 1 bis ${INVITE_BATCH} Startmails auf einmal senden.`);
+  const { kind } = setup.data;
+  const results: InvitationResult[] = [];
+  for (const userId of ids) {
+    const user = await loadUser(ctx, userId);
+    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Diesen Zugang gibt es nicht mehr." }); continue; }
+    if (roleOf(user) !== "oalab_customer") { results.push({ userId, outcome: "skipped", error: "Die Startmails sind nur für Kunden-Zugänge." }); continue; }
+    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "skipped", error: "Der Zugang ist nicht aktiv." }); continue; }
+    if (!infoMailsWanted(user.user_metadata)) { results.push({ userId, outcome: "skipped", error: "Hat die Infomails abbestellt." }); continue; }
+    const mail = await mailStartSeries(user.email, { ...setup.data, userId: user.id, active: Boolean(user.last_sign_in_at) });
+    await log(ctx, mail === "sent" ? startMailAction(kind) : "user.start_mail_failed", mail === "sent" ? `Startmail „${startMailLabel(kind)}“ per E-Mail verschickt` : `Startmail „${startMailLabel(kind)}“ ging nicht raus`, { userId: user.id });
+    results.push(mail === "sent" ? { userId, outcome: "sent" } : { userId, outcome: "failed", error: mailStatusMessage(mail) });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
+}
+
+/** One mail of the series to the admin's own address in both versions, the version in the subject. */
+export async function sendStartMailTest(input: { kind?: unknown }): Promise<ActionResult<{ to: string }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet.");
+  const setup = await startMailInput(input?.kind);
+  if (!setup.ok) return setup;
+  const admin = await loadUser(ctx, ctx.actorId);
+  if (!admin?.email) return failed("Dein Zugang hat keine E-Mail-Adresse.");
+  for (const active of [true, false]) {
+    const mail = await mailStartSeries(admin.email, { ...setup.data, userId: admin.id, active, test: true });
     if (mail !== "sent") return failed(mailStatusMessage(mail));
   }
   return { ok: true, data: { to: admin.email } };

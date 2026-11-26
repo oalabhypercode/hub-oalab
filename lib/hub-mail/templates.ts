@@ -7,7 +7,19 @@
  * renders them directly.
  */
 
-export type MailContent = { subject: string; html: string; text: string; images: string[] };
+/** `unsubscribe` (info mails only) is the one-click address for the List-Unsubscribe header (RFC 8058). */
+export type MailContent = { subject: string; html: string; text: string; images: string[]; unsubscribe?: string };
+
+/**
+ * Where a reader stops the info mails: the page behind the link at the foot (it asks before it switches anything, as
+ * mail scanners open links), and the address mail programs post to for their own „Abbestellen“ button.
+ */
+export type MailOptOut = { page: string; oneClick: string };
+
+/**
+ * The objection notice of § 7 Abs. 3 Nr. 4 UWG and Art. 21 Abs. 4 DSGVO, at the foot of every info mail (26.11.2026).
+ */
+export const OPT_OUT_NOTICE = "Du kannst der Nutzung deiner E-Mail-Adresse für diese Infomails jederzeit widersprechen, ohne dass dir dafür andere als die Übermittlungskosten nach den Basistarifen entstehen.";
 /** Imprint and privacy addresses for the footer; empty strings leave the links out. */
 export type MailLegal = { imprint: string; privacy: string };
 
@@ -479,9 +491,13 @@ type Mail = {
   reason: string;
   /** Where the notification mails are switched off (notice mails only). */
   manage?: string;
+  /** How the reader stops this kind of mail (the start series): a link and the objection notice at the foot. */
+  unsubscribe?: MailOptOut;
   legal?: MailLegal;
   /** The dark card in light mode too, not only by the reader's setting (launch reminder, 25.11.2026). */
   dark?: boolean;
+  /** The list above the guide instead of below it (launch mail, 26.11.2026). */
+  listFirst?: boolean;
 };
 
 const shortDate = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "numeric", month: "short", year: "numeric" });
@@ -496,6 +512,9 @@ function legalLinks(legal?: MailLegal) {
 function render(mail: Mail): MailContent {
   const subject = cleanSubject(mail.subject);
   const manage = mail.manage ? safeUrl(mail.manage) : "";
+  const optOut = mail.unsubscribe && safeUrl(mail.unsubscribe.page) && safeUrl(mail.unsubscribe.oneClick)
+    ? { page: safeUrl(mail.unsubscribe.page), oneClick: safeUrl(mail.unsubscribe.oneClick) }
+    : null;
   // Buttons lead to http(s) pages, or write a mail through a mailto link built above.
   const ctaUrl = mail.cta ? safeUrl(mail.cta.url) || (/^mailto:[^\s"'<>]+$/.test(mail.cta.url) ? mail.cta.url : "") : "";
   const cta = mail.cta && ctaUrl ? { label: mail.cta.label, url: ctaUrl } : undefined;
@@ -513,9 +532,14 @@ function render(mail: Mail): MailContent {
   if (mail.notice) rows.push(section(noticeCard(mail.notice)));
   if (calendar) rows.push(section(calendarBlock(calendar), 16));
   // The guide comes after the facts: close under the hosts (announcement), with room under a panel (launch reminder).
-  if (mail.guide) rows.push(section(guidePanel(mail.guide), mail.details?.length || mail.notice || calendar ? 28 : 16));
-  if (list?.length && mail.listTitle) rows.push(section(`<div class="muted" style="${caps(C.muted)}">${esc(mail.listTitle)}</div>`, 34));
-  if (list?.length) rows.push(section(noticeList(list), mail.listTitle ? 2 : 16));
+  // `listFirst` puts the list above the guide (launch mail: what hub and service are for, then the info mails ahead).
+  const listRows = () => {
+    if (list?.length && mail.listTitle) rows.push(section(`<div class="muted" style="${caps(C.muted)}">${esc(mail.listTitle)}</div>`, 34));
+    if (list?.length) rows.push(section(noticeList(list), mail.listTitle ? 2 : 16));
+  };
+  if (mail.listFirst) listRows();
+  if (mail.guide) rows.push(section(guidePanel(mail.guide), mail.details?.length || mail.notice || calendar || (mail.listFirst && list?.length) ? 28 : 16));
+  if (!mail.listFirst) listRows();
   if (mail.more) rows.push(section(`<p class="muted" style="margin:0;${t(14, 21, 400, C.muted)}">${esc(mail.more)}</p>`, 4));
   if (mail.quote) rows.push(section(quote(mail.quote.label, mail.quote.value), 24));
   if (mail.note) rows.push(section(note(mail.note.tone, mail.note.text), 24));
@@ -532,7 +556,7 @@ function render(mail: Mail): MailContent {
   const footer = `
 <tr><td align="center" style="padding:30px 24px 0;">${image("logo", 32, "oalab", "margin:0 auto;border-radius:8px;")}</td></tr>
 <tr><td align="center" style="padding:12px 32px 0;${t(12, 19, 400, "#F3E6EC")}">${esc(mail.reason)}<br>${manage ? `<a href="${esc(manage)}" style="color:#FFFFFF;text-decoration:underline;">Benachrichtigungen verwalten</a>&nbsp;&middot;&nbsp;` : ""}Fragen? Antworte einfach auf diese E-Mail.</td></tr>
-<tr><td align="center" style="padding:12px 32px 48px;${t(12, 18, 400, "#D9BFCB")}">${legal}oalab Client Hub</td></tr>`;
+${optOut ? `<tr><td align="center" style="padding:12px 32px 0;${t(12, 19, 400, "#F3E6EC")}"><a href="${esc(optOut.page)}" style="color:#FFFFFF;font-weight:600;text-decoration:underline;">Infomails abbestellen</a><br><span style="color:#D9BFCB;">${esc(OPT_OUT_NOTICE)}</span></td></tr>\n` : ""}<tr><td align="center" style="padding:12px 32px 48px;${t(12, 18, 400, "#D9BFCB")}">${legal}oalab Client Hub</td></tr>`;
 
   // Light and dark by the reader's setting, or always dark (`dark`): then the dark rules apply without the media query,
   // except in classic Outlook for Windows (if !mso), which takes class rules only in part and keeps the light card.
@@ -591,26 +615,34 @@ ${footer}
   for (const host of mail.hosts ?? []) lines.push(`${host.name}: ${host.hello} ${host.line}`, "");
   if (mail.details?.length) lines.push(...mail.details.map((row) => `${row.label}: ${row.value}`), "");
   if (mail.notice) lines.push(mail.notice.title, ...(mail.notice.body ? [mail.notice.body] : []), "");
-  if (mail.guide) {
+  const guideLines = () => {
+    if (!mail.guide) return;
     lines.push(mail.guide.date, mail.guide.line);
     mail.guide.steps.forEach((step, index) => lines.push("", `${index + 1}. ${step.title}`, step.text, ...(step.link && safeUrl(step.link.url) ? [safeUrl(step.link.url)] : [])));
     lines.push("");
-  }
-  if (list?.length && mail.listTitle) lines.push(`${mail.listTitle}:`, "");
-  if (calendar) lines.push(...calendarText(calendar), "");
-  for (const item of list ?? []) {
-    lines.push(`${item.label}: ${item.title}`, ...(item.body ? [item.body] : []), ...(item.calendar ? calendarText(item.calendar) : []), ...(item.link ? [`${item.link.label}: ${item.link.url}`] : []), "");
-  }
+  };
+  const listLines = (withCalendar: boolean) => {
+    if (list?.length && mail.listTitle) lines.push(`${mail.listTitle}:`, "");
+    if (withCalendar && calendar) lines.push(...calendarText(calendar), "");
+    for (const item of list ?? []) {
+      lines.push(`${item.label}: ${item.title}`, ...(item.body ? [item.body] : []), ...(item.calendar ? calendarText(item.calendar) : []), ...(item.link ? [`${item.link.label}: ${item.link.url}`] : []), "");
+    }
+  };
+  if (mail.listFirst) listLines(false);
+  guideLines();
+  if (mail.listFirst) {
+    if (calendar) lines.push(...calendarText(calendar), "");
+  } else listLines(true);
   if (mail.more) lines.push(mail.more, "");
   if (mail.quote) lines.push(`${mail.quote.label}:`, mail.quote.value, "");
   if (mail.note) lines.push(`${NOTES[mail.note.tone].title}: ${mail.note.text}`, "");
   if (cta) lines.push(`${cta.label}: ${cta.url.startsWith("mailto:") ? cta.url.slice(7).split("?")[0] : cta.url}`, "");
   if (mail.small) lines.push(mail.small, "");
   if (mail.signoff) lines.push(mail.signoff.text, "", "Viele Grüße", mail.signoff.from, "");
-  lines.push("—", mail.reason, ...(manage ? [`Benachrichtigungen verwalten: ${manage}`] : []), "Fragen? Antworte einfach auf diese E-Mail.", ...legalLinks(mail.legal).map(([label, url]) => `${label}: ${url}`));
+  lines.push("—", mail.reason, ...(manage ? [`Benachrichtigungen verwalten: ${manage}`] : []), "Fragen? Antworte einfach auf diese E-Mail.", ...(optOut ? [`Infomails abbestellen: ${optOut.page}`, OPT_OUT_NOTICE] : []),...legalLinks(mail.legal).map(([label, url]) => `${label}: ${url}`));
 
   const images = [...new Set([...html.matchAll(/src="cid:([a-z0-9-]+)@hub\.oalab\.de"/g)].map((match) => match[1]))];
-  return { subject, html, text: lines.join("\n"), images };
+  return { subject, html, text: lines.join("\n"), images, ...(optOut ? { unsubscribe: optOut.oneClick } : {}) };
 }
 
 // ---------- The mails ----------
@@ -741,6 +773,225 @@ export function launchReminderMail(input: { day: Date; email: string; active: bo
     // Only the dark version (user, 25.11.2026): the same look in light and dark mode.
     dark: true,
   });
+}
+
+// ---------- The start series (26.11.2026): the launch mail and three info mails on the Fridays after it ----------
+
+/**
+ * What every mail of the series needs: the login's address, whether anybody has signed in with it (else the button
+ * activates the login, as in launchReminderMail), the hub's sender address, where hub and service platform live,
+ * and the login's own signed links to stop the info mails. No phone number (user, 26.11.2026): for every other way to
+ * reach oalab the mails point to the imprint.
+ */
+export type StartSeriesInput = { email: string; active: boolean; sender: string; hubUrl: string; serviceUrl: string; optOut: MailOptOut };
+
+/** „Zum Impressum“ under the contact lines, when the mail has the imprint's address. */
+const imprintLink = (legal?: MailLegal) => (legal && safeUrl(legal.imprint) ? { link: { label: "Zum Impressum", url: safeUrl(legal.imprint) } } : {});
+const OTHER_WAYS = "Alle weiteren Kontaktwege findest du in unserem Impressum.";
+export type StartSeriesKind = "launch" | "service" | "hub" | "outlook";
+
+/**
+ * The launch bonus (user, 26.11.2026): six months with more requests on the service platform. The platform knows no
+ * credits, only new requests a month (Service Lite 5, Max 20), counted only while „Service-Kontingente“ is switched on;
+ * it is off, so the bonus reads as no monthly limit, which also holds for customers without a service package.
+ */
+const START_BONUS_UNTIL = "Ende Mai 2027";
+const START_BONUS = `Bis ${START_BONUS_UNTIL} gilt auf der Serviceplattform für dich keine monatliche Grenze: Du stellst so viele neue Anfragen, wie du brauchst.`;
+
+/** The three info mails after the start, one each Friday (user, 26.11.2026); the launch mail announces them in this order. */
+export const START_INFO_MAILS: { kind: Exclude<StartSeriesKind, "launch">; day: string; title: string; text: string }[] = [
+  { kind: "service", day: "2026-12-04", title: "Die Serviceplattform", text: "Wofür sie da ist, wie du eine Anfrage stellst, was sie kann und was nicht und ab wann du das Ergebnis auf deiner Website siehst." },
+  { kind: "hub", day: "2026-12-11", title: "Der Client Hub", text: "Projekte, Notizen, Dateien und Nachrichten: wie der Hub unsere Zusammenarbeit und unsere Kommunikation einfacher macht." },
+  { kind: "outlook", day: "2026-12-18", title: "Ein Blick nach vorn", text: "Woran wir gerade arbeiten, darunter unsere eigene SEO-Plattform, und wie es mit den Servicepaketen weitergeht." },
+];
+
+const seriesDay = (day: string) => { const date = new Date(`${day}T12:00:00Z`); return `${weekdayName.format(date)}, ${dayOfMonth.format(date)}`; };
+const START_REASON = "Du bekommst diese E-Mail, weil du einen Zugang zum oalab Client Hub hast.";
+const ALI = { image: "host-ali", side: "left" as const, name: "Ali von oalab · Client Hub" };
+const OMED = { image: "host-omed", side: "right" as const, name: "Omed von oalab · Serviceplattform" };
+
+/** The way in for logins nobody has signed in with: „Passwort vergessen?“ works without a password ever set. */
+function startSeriesButton(input: StartSeriesInput, cta: { label: string; url: string }): Pick<Mail, "cta" | "small"> {
+  if (input.active) return { cta };
+  const hub = safeUrl(input.hubUrl);
+  return {
+    cta: { label: "Zugang aktivieren", url: hub ? safeUrl(new URL("/auth/forgot-password", hub).toString()) : "" },
+    small: `Dein Zugang wartet noch auf dich: Auf der Anmeldeseite unter „Passwort vergessen?“ gibst du ${input.email} ein und legst über den Link aus der E-Mail dein Passwort fest. Das klappt auch, wenn du noch nie ein Passwort hattest.`,
+  };
+}
+
+/** The line under each info mail that names the next one. */
+function nextInfoMail(kind: StartSeriesKind) {
+  const index = START_INFO_MAILS.findIndex((mail) => mail.kind === kind);
+  const next = START_INFO_MAILS[index + 1];
+  return next ? `Nächste Infomail am ${seriesDay(next.day)}: ${next.title}.` : undefined;
+}
+
+/**
+ * On the day of the start (26.11.2026), to every customer login: congratulations on being there from the start, the
+ * launch bonus, what hub and service platform are for, the three info mails ahead and how to reach oalab.
+ */
+export function launchDayMail(input: StartSeriesInput, legal?: MailLegal): MailContent {
+  const hub = safeUrl(input.hubUrl);
+  const service = safeUrl(input.serviceUrl);
+  return render({
+    subject: "Wir sind live: Client Hub und Serviceplattform starten heute",
+    preheader: "Danke, dass du von Anfang an dabei bist: dein Startbonus und was dich in den nächsten drei Wochen erwartet.",
+    area: "news",
+    heading: "Wir sind live!",
+    lead: `Heute starten der oalab Client Hub und unsere Serviceplattform offiziell, und du bist von Anfang an dabei. Herzlichen Glückwunsch und danke, dass du diesen Weg mit uns gehst!${input.active ? "" : " Dein Zugang ist schon eingerichtet, es fehlt nur noch dein Passwort."}`,
+    hosts: [
+      { ...ALI, hello: "Herzlichen Glückwunsch!", line: "Du gehörst zu unseren ersten Kunden im Client Hub. Ab heute läuft hier unsere ganze Zusammenarbeit zusammen." },
+      { ...OMED, hello: "Dein Startbonus ist da!", line: "Als Dankeschön gilt auf unserer Serviceplattform sechs Monate lang keine Grenze für deine Anfragen." },
+    ],
+    notice: {
+      area: "news",
+      label: "Startbonus",
+      title: "Sechs Monate ohne Anfragen-Grenze",
+      chip: ["Für dich", "ok"],
+      body: `${START_BONUS} In dieser Zeit schauen wir uns an, wie viele Anfragen wirklich gebraucht werden, und passen danach unsere Servicepakete daran an. Darüber informieren wir dich rechtzeitig.`,
+    },
+    listTitle: "Wofür Client Hub und Serviceplattform da sind",
+    list: [
+      { area: "projects", label: "Client Hub", title: "Unsere Zusammenarbeit an einem Ort", body: "Projekte, Termine, Notizen, Dateien und Nachrichten: Im Client Hub siehst du jederzeit, woran wir für dich arbeiten und wo deine Rückmeldung gefragt ist.", ...(hub ? { link: { label: "Zum Client Hub", url: hub } } : {}) },
+      { area: "news", label: "Serviceplattform", title: "Änderungen direkt beauftragen", body: `${service ? `Auf ${new URL(service).host}` : "Auf der Serviceplattform"} beschreibst du, was sich an deiner Website ändern soll, prüfst das Ergebnis auf einer Testseite und gibst es mit „Gefällt mir“ frei. Mit demselben Zugang wie im Client Hub.`, ...(service ? { link: { label: "Zur Serviceplattform", url: service } } : {}) },
+      { area: "messages", label: "Nachrichten", title: "Direkter Draht zu uns", body: `Fragen und Absprachen schreibst du uns im Client Hub unter „Nachrichten“, so oft du willst; das zählt nicht als Service-Anfrage. ${OTHER_WAYS}`, ...imprintLink(legal) },
+    ],
+    listFirst: true,
+    guide: {
+      tile: "calendar-tile",
+      date: "Deine nächsten drei Wochen",
+      line: "Jeden Freitag bekommst du eine kurze Infomail zu einem Thema:",
+      steps: START_INFO_MAILS.map((mail) => ({ title: `${seriesDay(mail.day)}: ${mail.title}`, text: mail.text })),
+    },
+    ...startSeriesButton(input, { label: "Zum Client Hub", url: hub }),
+    signoff: { text: "Danke für dein Vertrauen. Wir freuen uns auf alles, was wir gemeinsam umsetzen!", from: "Dein oalab-Team" },
+    reason: START_REASON,
+    unsubscribe: input.optOut,
+    legal,
+    dark: true,
+  });
+}
+
+/** Info mail 1 (Friday, 4.12.2026): what the service platform is for, how a request works, its limits and results. */
+export function serviceInfoMail(input: StartSeriesInput, legal?: MailLegal): MailContent {
+  const service = safeUrl(input.serviceUrl);
+  const host = service ? new URL(service).host : "der Serviceplattform";
+  return render({
+    subject: "Infomail 1 von 3: So nutzt du die Serviceplattform",
+    preheader: "Wofür die Serviceplattform da ist, wie du eine Anfrage stellst und ab wann du das Ergebnis auf deiner Website siehst.",
+    area: "news",
+    heading: "Die Serviceplattform im Detail",
+    lead: "Wie angekündigt, heute das erste Thema unserer kleinen Reihe: die Serviceplattform. Hier erfährst du, wofür sie da ist, wie du eine Anfrage stellst, was sie kann und was nicht und ab wann du das Ergebnis auf deiner Website siehst.",
+    // Facts from service-oalab (26.11.2026): the new-request page greets with Omed and „Was sollen wir für dich
+    // verbessern?“; one text field with images (plus button, Strg+V, dragging; PNG, JPEG or WebP up to 25 MB) and
+    // dictation, the website to choose only with more than one, „Anfrage senden“, then the conversation. Every change is
+    // built on the test site first; „Gefällt mir“ is required before the team's „Live schalten“ for exactly that version.
+    // No duration is promised anywhere, and whether AI replies go out at once or after a team check is a setting.
+    hosts: [{ ...OMED, hello: "Was sollen wir für dich verbessern?", line: `Mit dieser Frage begrüße ich dich bei jeder neuen Anfrage auf ${host}. Beschreib in deinen Worten, was sich ändern soll, den Rest übernehmen wir.` }],
+    notice: {
+      area: "news",
+      label: "Wofür sie da ist",
+      title: "Änderungen an deiner Website, direkt beauftragt",
+      body: "Dir fällt ein Fehler auf, ein Text soll sich ändern oder du hast eine Idee für deine Website? Dafür ist die Serviceplattform da. Jede Anfrage bekommt ihr eigenes Gespräch, in dem sich unser KI-Assistent und das oalab-Team bei dir melden. Jede Änderung entsteht zuerst auf einer Testseite; deine Live-Website bleibt bis zu deinem Okay, wie sie ist.",
+    },
+    guide: {
+      tile: "mail-tile",
+      date: "So stellst du eine Anfrage",
+      line: "In drei Schritten:",
+      steps: [
+        { title: "Neues Gespräch starten", text: `Öffne ${host} und tippe auf „Neues Gespräch“. Aus dem Client Hub kommst du unter „Nachrichten“ mit „Anfrage stellen“ direkt hin. Bist du im Hub angemeldet, bist du es dort auch.`, ...(service ? { link: { label: "Zur Serviceplattform", url: service } } : {}) },
+        { title: "Beschreiben, was sich ändern soll", text: "Schreib oder diktier in deinen Worten, was du brauchst. Screenshots helfen uns sehr: über den Plus-Knopf, mit Strg+V oder einfach ins Feld ziehen. Hast du mehrere Websites, wählst du noch aus, um welche es geht." },
+        { title: "Anfrage senden", text: "Tippe auf „Anfrage senden“. Danach öffnet sich das Gespräch zu deiner Anfrage. Dort stellen wir Rückfragen, und du kannst jederzeit etwas ergänzen." },
+      ],
+    },
+    listTitle: "Gut zu wissen",
+    list: [
+      { area: "projects", label: "Das kann sie", title: "Jede Anfrage im Blick", body: "In der Liste deiner Gespräche siehst du, was auf dich wartet, was in Arbeit und was erledigt ist, und oben im Gespräch den Fortschritt: Angekommen, In Arbeit, Testseite, Live. Brauchst du eine Anfrage nicht mehr, schließt du sie selbst." },
+      { area: "security", label: "Das kann sie nicht", title: "Allgemeine Fragen und andere Dateien", body: "Die Serviceplattform ist für Änderungen an deinen Websites da. Fragen und Absprachen ohne Auftrag schreibst du uns im Client Hub unter „Nachrichten“. Als Anhang nimmt sie Bilder (PNG, JPG oder WebP bis 25 MB), keine anderen Dateien." },
+      { area: "files", label: "Das Ergebnis", title: "Zuerst auf der Testseite", body: "Ist deine Änderung fertig, steht sie auf „Testseite bereit“. Im Gespräch öffnest du die Testvorschau und siehst Vorher, Nachher und was wir geprüft haben. Dann entscheidest du: „Gefällt mir“ oder „Gefällt mir noch nicht“, und wir arbeiten weiter." },
+      { area: "news", label: "Auf deiner Website", title: "Live nach deinem „Gefällt mir“", body: "Erst wenn dir die Änderung gefällt, schaltet das oalab-Team sie auf deiner Website live; ohne deine Zustimmung geht nichts online. Ob sie schon live ist, zeigt dir der Schritt „Live“ im Gespräch. Oben im Gespräch führen „Testseite“ und „Live-Website“ direkt zu beiden Fassungen." },
+      { area: "messages", label: "Benachrichtigung", title: "Du verpasst keine Antwort", body: "Antworten wir dir, sagen wir Bescheid: mit einer Mitteilung auf deinem Gerät, wenn du sie erlaubt hast, sonst nach einer Viertelstunde per E-Mail." },
+    ],
+    more: nextInfoMail("service"),
+    note: { tone: "info", text: `Startbonus: ${START_BONUS} Fragen und Absprachen im Client Hub zählen ohnehin nie als Anfrage.` },
+    ...startSeriesButton(input, { label: "Zur Serviceplattform", url: service }),
+    signoff: { text: "Wir freuen uns auf deine Anfragen!", from: "Dein oalab-Team" },
+    reason: START_REASON,
+    unsubscribe: input.optOut,
+    legal,
+    dark: true,
+  });
+}
+
+/** Info mail 2 (Friday, 11.12.2026): the client hub, area by area, as the place of collaboration and communication. */
+export function hubInfoMail(input: StartSeriesInput, legal?: MailLegal): MailContent {
+  const hub = safeUrl(input.hubUrl);
+  return render({
+    subject: "Infomail 2 von 3: Der Client Hub im Detail",
+    preheader: "Projekte, Notizen, Dateien und Nachrichten: So macht der Client Hub unsere Zusammenarbeit einfacher.",
+    area: "news",
+    heading: "Der Client Hub im Detail",
+    lead: "Heute geht es um den Client Hub, den Ort, an dem unsere Zusammenarbeit und unsere Kommunikation zusammenlaufen. Statt verstreuter E-Mails, Anhänge und Telefonnotizen hast du hier alles an einem Platz, und wir beide sehen jederzeit denselben Stand.",
+    hosts: [{ ...ALI, hello: "Schön, dass du da bist!", line: "Ich zeige dir, was im Client Hub alles steckt. Du triffst mich übrigens jedes Mal in deiner Übersicht." }],
+    listTitle: "Das findest du im Client Hub",
+    list: [
+      { area: "news", label: "Übersicht", title: "Auf einen Blick, was neu ist", body: "Deine Pakete, die neuesten Benachrichtigungen und der direkte Weg zur Serviceplattform. Die Glocke oben rechts zeigt, was ungelesen ist; Neuigkeiten kommen zusätzlich gebündelt per Mail." },
+      { area: "projects", label: "Projekte", title: "Immer wissen, wo dein Projekt steht", body: "Deine Projekte mit uns stehen im Hub, mit Status, Fortschritt, Meilenstein und nächstem Termin. Wie in einem gemeinsamen Projektmanagement siehst du in den Details die Aufgaben und ob gerade wir oder du am Zug sind. Was auf deine Rückmeldung wartet, steht unter „Dein Feedback“." },
+      { area: "projects", label: "Notizen", title: "Gemeinsame Seiten statt verstreuter Mails", body: "Unter Projekte › Notizen teilen wir Seiten mit dir, etwa Besprechungsnotizen, Briefings oder Abnahmen. Wo wir es freigeben, schreibst du direkt mit; gespeichert wird von selbst." },
+      { area: "files", label: "Dateien", title: "Alles zum Herunterladen", body: "Logos, Designs, Dokumente, Verträge und Rechnungen, die wir für dich bereitstellen, lädst du einzeln oder als ZIP herunter und sortierst sie in eigene Ordner." },
+      { area: "messages", label: "Nachrichten", title: "Dein direkter Draht zu uns", body: "Ein privater Chat für dein Unternehmen, den alle Zugänge deiner Firma sehen. Zwei Häkchen zeigen, dass wir gelesen haben, und was wir für dich ändern, etwa neue Dateien oder Termine, erscheint dort als Karte." },
+      { area: "calendar", label: "Kalender", title: "Termine direkt anfragen", body: "Unter Projekte › Kalender siehst du, wann wir Zeit haben, und fragst einen Termin an. Mit dem Kalender-Abo stehen deine Termine auch in deinem eigenen Kalender." },
+      { area: "contracts", label: "Vertrag & Domain", title: "Pakete, Domain und Postfächer", body: "Deine Pakete, Zahlungen, Domain und E-Mail-Adressen und, wenn wir deine E-Mail betreuen, eine Anleitung zum Einrichten deines Mailprogramms." },
+    ],
+    more: nextInfoMail("hub"),
+    note: { tone: "info", text: "Auf dem Handy holst du dir den Client Hub mit „App installieren“ neben der Glocke als App auf den Startbildschirm." },
+    ...startSeriesButton(input, { label: "Zum Client Hub", url: hub }),
+    signoff: { text: "Schau gern gleich mal rein!", from: "Dein oalab-Team" },
+    reason: START_REASON,
+    unsubscribe: input.optOut,
+    legal,
+    dark: true,
+  });
+}
+
+/** Info mail 3 (Friday, 18.12.2026): a sneak peek at oalab's own SEO platform and what follows the launch bonus. */
+export function outlookInfoMail(input: StartSeriesInput, legal?: MailLegal): MailContent {
+  const hub = safeUrl(input.hubUrl);
+  return render({
+    subject: "Infomail 3 von 3: Ein Blick hinter die Kulissen",
+    preheader: "Woran wir gerade arbeiten: unsere eigene SEO-Plattform und wie es nach dem Startbonus mit den Servicepaketen weitergeht.",
+    area: "news",
+    heading: "Woran wir gerade arbeiten",
+    lead: "Zum Abschluss unserer kleinen Reihe werfen wir einen Blick nach vorn: woran wir gerade arbeiten, damit du mit oalab noch besser fährst, und wie es nach deinem Startbonus weitergeht.",
+    hosts: [
+      { ...OMED, hello: "Ein kleiner Sneak Peek!", line: "Wir bauen gerade unsere eigene SEO-Plattform. Was dahintersteckt, liest du unten." },
+      { ...ALI, hello: "Danke fürs Mitlesen!", line: "Das war unsere kleine Reihe. Im Client Hub bleibst du ab jetzt immer auf dem Laufenden." },
+    ],
+    notice: {
+      area: "news",
+      label: "Sneak Peek",
+      title: "Unsere eigene SEO-Plattform",
+      chip: ["In Arbeit", "info"],
+      body: "Wir entwickeln gerade eine eigene SEO-Plattform, damit deine Website in Suchmaschinen wie Google noch besser gefunden wird und du ein noch besseres Erlebnis mit uns hast. Sobald es so weit ist, erfährst du es hier zuerst.",
+    },
+    listTitle: "Was als Nächstes kommt",
+    list: [
+      { area: "contracts", label: "Servicepakete", title: "Neue Preismodelle nach dem Startbonus", body: `Dein Startbonus ohne Anfragen-Grenze läuft bis ${START_BONUS_UNTIL}. Bis dahin sehen wir uns an, wie viele Anfragen tatsächlich gebraucht werden. Danach kommen angepasste Preismodelle, die mit deinem Servicevertrag verknüpft sind. Wir informieren dich rechtzeitig, bevor sich etwas ändert.` },
+      { area: "messages", label: "Kontakt", title: "Fragen? Wir sind für dich da", body: `Schreib uns im Client Hub unter „Nachrichten“. ${OTHER_WAYS}`, ...imprintLink(legal) },
+    ],
+    ...startSeriesButton(input, { label: "Zum Client Hub", url: hub }),
+    signoff: { text: "Danke, dass du von Anfang an dabei bist. Wir wünschen dir schöne Feiertage und einen guten Start ins neue Jahr!", from: "Dein oalab-Team" },
+    reason: START_REASON,
+    unsubscribe: input.optOut,
+    legal,
+    dark: true,
+  });
+}
+
+/** One mail of the start series by its kind (User Management → „Startmails senden“). */
+export function startSeriesMail(kind: StartSeriesKind, input: StartSeriesInput, legal?: MailLegal): MailContent {
+  return { launch: launchDayMail, service: serviceInfoMail, hub: hubInfoMail, outlook: outlookInfoMail }[kind](input, legal);
 }
 
 const REGISTRATION_REASON = "Diese E-Mail gehört zu deiner Registrierung beim oalab Client Hub.";

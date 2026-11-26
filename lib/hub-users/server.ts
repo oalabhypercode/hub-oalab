@@ -14,6 +14,11 @@ import { hasConfirmedApp, secondFactorMethod, secondFactorMissing } from "@/lib/
 import { CLAUDE_SWITCH } from "@/lib/hub-mcp/config";
 import { isTeamKind } from "@/lib/hub-team/rules";
 import { loadTeamEntry, loadTeamRoles } from "@/lib/hub-team/server";
+import { START_MAILS, startMailAction, type StartMailKind } from "@/lib/hub-invitations/rules";
+import { infoMailsWanted } from "@/lib/hub-mail/opt-out";
+
+/** The admin log's entries of the start series, one per mail (lib/hub-invitations/rules.ts). */
+const START_MAIL_ACTIONS = START_MAILS.map((mail) => startMailAction(mail.kind));
 
 type ProfileRow = {
   user_id: string;
@@ -183,9 +188,9 @@ export async function loadUserManagement(): Promise<UserManagementState> {
       // Every activation mail that went out, newest first: when each login was last invited (all of them, not only the
       // newest 300 of the history above).
       db.from("hub_notifications").select("user_id, created_at").eq("kind", "user.activation").eq("status", "sent").order("created_at", { ascending: false }).limit(5000).returns<{ user_id: string | null; created_at: string }[]>(),
-      // Every announcement and every reminder before the start that went out (admin log, „Ankündigung senden“ and
-      // „Erinnerung senden“), newest first.
-      db.from("hub_admin_events").select("target_user_id, created_at, action").in("action", ["user.announcement", "user.launch_reminder"]).order("created_at", { ascending: false }).limit(5000).returns<{ target_user_id: string | null; created_at: string; action: string }[]>(),
+      // Every announcement, every reminder before the start and every mail of the start series that went out (admin
+      // log, „Ankündigung senden“, „Erinnerung senden“ and „Startmails senden“), newest first.
+      db.from("hub_admin_events").select("target_user_id, created_at, action").in("action", ["user.announcement", "user.launch_reminder", ...START_MAIL_ACTIONS]).order("created_at", { ascending: false }).limit(5000).returns<{ target_user_id: string | null; created_at: string; action: string }[]>(),
       // The packages of „Vertrag & Domain“; without their migration the list simply shows none.
       readCustomerPackages(db),
       // The archive (migration 202611170001 in service-oalab); before it, only Service's archive counts.
@@ -198,9 +203,17 @@ export async function loadUserManagement(): Promise<UserManagementState> {
     for (const row of activations.data ?? []) if (row.user_id && !invitedAt.has(row.user_id)) invitedAt.set(row.user_id, row.created_at);
     const announcedAt = new Map<string, string>();
     const remindedAt = new Map<string, string>();
+    const startMails = new Map<string, Partial<Record<StartMailKind, string>>>();
     for (const row of announcementsAndReminders.data ?? []) {
+      if (!row.target_user_id) continue;
+      const kind = START_MAILS.find((mail) => startMailAction(mail.kind) === row.action)?.kind;
+      if (kind) {
+        const sent = startMails.get(row.target_user_id) ?? {};
+        if (!sent[kind]) startMails.set(row.target_user_id, { ...sent, [kind]: row.created_at });
+        continue;
+      }
       const seen = row.action === "user.launch_reminder" ? remindedAt : announcedAt;
-      if (row.target_user_id && !seen.has(row.target_user_id)) seen.set(row.target_user_id, row.created_at);
+      if (!seen.has(row.target_user_id)) seen.set(row.target_user_id, row.created_at);
     }
     const failure = profiles.error ?? customers.error ?? members.error ?? events.error;
     if (failure) {
@@ -243,6 +256,8 @@ export async function loadUserManagement(): Promise<UserManagementState> {
         invitedAt: invitedAt.get(user.id) ?? null,
         announcedAt: announcedAt.get(user.id) ?? null,
         remindedAt: remindedAt.get(user.id) ?? null,
+        startMails: startMails.get(user.id) ?? {},
+        infoMails: infoMailsWanted(user.user_metadata),
         decidedAt: profile?.decided_at ?? null,
         decisionNote: profile?.decision_note ?? "",
         privacyNotedAt: profile?.privacy_noted_at ?? null,

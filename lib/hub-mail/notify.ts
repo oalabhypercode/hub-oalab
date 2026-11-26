@@ -6,7 +6,8 @@ import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
 import { hasMailbox, maskEmail } from "@/lib/hub-auth/mail-code";
 import { SERVICE_PLATFORM_URL } from "@/lib/service-packages";
-import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, launchReminderMail, loginCodeMail, loginEmailChangedMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
+import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, launchReminderMail, loginCodeMail, loginEmailChangedMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, startSeriesMail, teamRegistrationMail, type MailContent, type StartSeriesKind } from "./templates";
+import { infoMailOptOut } from "./opt-out";
 
 // Every mail the hub sends on its own. Each attempt lands in hub_notifications (kind and outcome only);
 // the registration mails go out once per login. Nothing here throws: a mail problem never breaks an action.
@@ -146,6 +147,23 @@ export async function mailLaunchReminder(to: string, input: { day: Date; active:
   const content = launchReminderMail({ day: input.day, email: to, active: input.active, sender: senderAddress(settings.from), hubUrl: input.hubUrl, serviceUrl: SERVICE_PLATFORM_URL }, settings.legal);
   const subject = input.test ? `[Test: ${input.active ? "aktiv" : "noch nicht aktiviert"}] ${content.subject}` : content.subject;
   const result = await sendMail(mailOf([to], { ...content, subject }, { kind: "user.launch_reminder" }));
+  return result.status;
+}
+
+/**
+ * One mail of the start series (User Management → „Startmails senden“, 26.11.2026) to one login: `active` when somebody
+ * has signed in with it, else the version with the way in. Every mail carries the login's own signed link to stop the
+ * info mails, at the foot and in the List-Unsubscribe header; `hubUrl` is the hub's origin for those links and `secret`
+ * the key that signs them. Like the reminder it is recorded in the admin log; `test` names the version in the subject.
+ */
+export async function mailStartSeries(to: string, input: { kind: StartSeriesKind; userId: string; active: boolean; hubUrl: string; secret: string; test?: boolean }): Promise<MailStatus> {
+  const settings = mailSettings();
+  const content = startSeriesMail(input.kind, {
+    email: to, active: input.active, sender: senderAddress(settings.from), hubUrl: input.hubUrl, serviceUrl: SERVICE_PLATFORM_URL,
+    optOut: infoMailOptOut(input.hubUrl, input.userId, input.secret),
+  }, settings.legal);
+  const subject = input.test ? `[Test: ${input.active ? "aktiv" : "noch nicht aktiviert"}] ${content.subject}` : content.subject;
+  const result = await sendMail(mailOf([to], { ...content, subject }, { kind: `user.start_mail.${input.kind}` }));
   return result.status;
 }
 

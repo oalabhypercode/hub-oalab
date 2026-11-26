@@ -8,7 +8,8 @@ import { OPERATOR } from "@/lib/legal-details";
  * with company, name and text, since 24.11.2026 also requests for appointments with company, name, title and time; at
  * the user's wish the text below says only that the team hears of new messages and requests there and makes no claim
  * about their content), cards for changes in the private chat (24.11.2026, only the hub, nothing of the service
- * platform), freelancers
+ * platform), the info mails of the start series with „Infomails abbestellen“ in each (26.11.2026, § 7 Abs. 3 UWG,
+ * lib/hub-mail/opt-out.ts), freelancers
  * who see the customers assigned to them, customer master data taken over from the accounting (Sevdesk import). Vercel
  * and Supabase only keep the frozen copy from before the move (8.11.2026) until they are deleted. Only necessary
  * cookies (session, reduce motion, the proxy's sticky cookie oalab_srv of service-oalab docs/operations/eigener-server.md) and browser storage, no trackers, fonts served by the hub itself. Change this text whenever one of these
@@ -23,7 +24,7 @@ export const PRIVACY_SECTIONS = [
   { id: "inhalte", title: "Projekte, Dateien und Termine" },
   { id: "nachrichten", title: "Nachrichten und Meldung an Telegram" },
   { id: "assistent", title: "KI-Assistent „Assistent & Hilfe“" },
-  { id: "e-mails", title: "E-Mails und Benachrichtigungen" },
+  { id: "e-mails", title: "E-Mails, Benachrichtigungen und Infomails" },
   { id: "speicherdauer", title: "Speicherdauer" },
   { id: "rechte", title: "Deine Rechte" },
   { id: "sicherheit", title: "Sicherheit" },
@@ -56,7 +57,8 @@ export function PrivacyPolicy() {
         <ul>
           <li>Der Hub ist das Kundenportal von oalab. Wir verarbeiten deine Daten, um dir Zugang zu geben und mit dir an Projekten zu arbeiten.</li>
           <li>Der Hub läuft auf unserem eigenen Server bei netcup in der EU. Davor steht Cloudflare, das die Verbindungen weiterleitet und vor Angriffen schützt (Abschnitt 3).</li>
-          <li>Es gibt keine Werbung, kein Tracking, keine Analyse-Werkzeuge und keine eingebetteten Inhalte fremder Anbieter; auch die Schrift liefert der Hub selbst aus. Cookies und Browser-Speicher nutzt der Hub nur, soweit er sie zum Funktionieren braucht.</li>
+          <li>Im Hub gibt es keine Werbung, kein Tracking, keine Analyse-Werkzeuge und keine eingebetteten Inhalte fremder Anbieter; auch die Schrift liefert der Hub selbst aus. Cookies und Browser-Speicher nutzt der Hub nur, soweit er sie zum Funktionieren braucht.</li>
+          <li>Kunden bekommen von uns gelegentlich Infomails zum Hub, zur Serviceplattform und zu unseren Leistungen. Die kannst du jederzeit mit einem Klick abbestellen (Abschnitt 9).</li>
           <li>Wir verkaufen keine Daten. Dienstleister bekommen Daten nur, soweit es für den Hub nötig ist; du findest sie unten mit Namen.</li>
           <li>Zwei Punkte solltest du kennen: Schreibt dein Unternehmen uns im Chat oder fragt einen Termin an, meldet der Hub das unserem Team auch über Telegram (Abschnitt 7). Fragen an den KI-Assistenten verarbeitet Anthropic (Abschnitt 8).</li>
         </ul>
@@ -150,6 +152,9 @@ export function PrivacyPolicy() {
       <LegalSection id="e-mails" title={title("e-mails")}>
         <p>Der Hub schickt E-Mails von hub@oalab.de über netcup: zur Registrierung (Eingang, Freigabe oder Ablehnung), Links zum Aktivieren des Kontos oder Zurücksetzen des Passworts, Anmeldecodes und Benachrichtigungen. Kunden bekommen zu Aufgaben, Projektstatus, neuen Dateien, Terminen und Antworten im Chat eine E-Mail, mehrere Meldungen gesammelt; dieselben Meldungen stehen in der Glocke. Benachrichtigungs-E-Mails schaltest du im Profil unter „Benachrichtigungen“ ab; E-Mails zu Konto und Sicherheit kommen immer. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
         <p>Bilder stecken direkt in der E-Mail. Beim Öffnen wird nichts nachgeladen, und wir messen nicht, ob du eine E-Mail öffnest.</p>
+        <h3>Infomails</h3>
+        <p>Kunden-Zugänge bekommen von uns gelegentlich Infomails von hub@oalab.de: zum Start des Hubs und der Serviceplattform, Anleitungen zu ihren Funktionen und Neuigkeiten zu unseren Leistungen. Dafür nutzen wir die E-Mail-Adresse deines Zugangs und merken uns, welche Infomail du wann bekommen hast. Rechtsgrundlage ist unser berechtigtes Interesse, unsere Kunden über ihre Werkzeuge und über ähnliche eigene Leistungen zu informieren (Art. 6 Abs. 1 lit. f DSGVO in Verbindung mit § 7 Abs. 3 UWG).</p>
+        <p>Du kannst der Nutzung deiner E-Mail-Adresse für Infomails jederzeit widersprechen, ohne dass dir dafür andere als die Übermittlungskosten nach den Basistarifen entstehen: über „Infomails abbestellen“ unten in jeder Infomail, über die Abmelden-Funktion deines Mailprogramms oder per E-Mail an <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a>. Danach bekommst du keine Infomails mehr; dass du abbestellt hast, merken wir uns an deinem Zugang, und du kannst sie auf derselben Seite wieder bestellen. Benachrichtigungen und E-Mails zu Konto und Sicherheit kommen weiter.</p>
       </LegalSection>
 
       <LegalSection id="speicherdauer" title={title("speicherdauer")}>
@@ -165,6 +170,7 @@ export function PrivacyPolicy() {
         <p>Du hast das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18) und Datenübertragbarkeit (Art. 20). Schreib uns dazu an <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a>.</p>
         <div className="legal-highlight">
           <p><strong>Widerspruchsrecht nach Art. 21 DSGVO:</strong> Verarbeiten wir Daten auf Grundlage unseres berechtigten Interesses (Art. 6 Abs. 1 lit. f DSGVO), kannst du jederzeit aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen. Wir verarbeiten die Daten dann nicht mehr, es sei denn, wir können zwingende schutzwürdige Gründe nachweisen, die deine Interessen überwiegen, oder die Verarbeitung dient der Geltendmachung, Ausübung oder Verteidigung von Rechtsansprüchen.</p>
+          <p>Der Nutzung deiner Daten für Direktwerbung, etwa für unsere Infomails, kannst du jederzeit ohne Angabe von Gründen widersprechen (Art. 21 Abs. 2 und 3 DSGVO); danach nutzen wir sie dafür nicht mehr.</p>
         </div>
         <p>Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO), zum Beispiel bei der für uns zuständigen:</p>
         <LegalCard><strong>Landesbeauftragte für Datenschutz und Informationsfreiheit Nordrhein-Westfalen</strong><br />Kavalleriestraße 2–4, 40213 Düsseldorf</LegalCard>

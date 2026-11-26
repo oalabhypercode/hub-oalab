@@ -74,6 +74,17 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 33,
+    date: "2026-11-26",
+    title: "Infomails mit Abmelde-Link",
+    summary: "Zum offiziellen Start verschickt „Startmails senden“ unter „Zugänge“ die Start-Mail und danach freitags drei Infomails zu Serviceplattform, Client Hub und Ausblick, jeweils dunkel, einzeln und mit Testmail. Jede Infomail hat unten „Infomails abbestellen“; die Seite dahinter fragt nach, bevor sie etwas ändert, und Mailprogramme bekommen ihren eigenen Abbestellen-Knopf. Wer abbestellt, bekommt keine Infomail mehr. Die Datenschutzerklärung nennt die Infomails und das Widerspruchsrecht.",
+    changes: [
+      { kind: "new", area: "hub", place: "User Management › Startmails", also: ["messages"], title: "Startmails senden", text: "Unter „Zugänge“ verschickt „Startmails senden“ die Start-Mail und die drei Infomails zu Serviceplattform, Client Hub und Ausblick, jeweils einzeln. Die Spalte „Erhalten“ zeigt, wer welche Mail schon hat, abbestellte Zugänge bleiben außen vor, und „Testmail an mich“ schickt beide Fassungen vorab an dich." },
+      { kind: "new", area: "messages", place: "E-Mails › Infomails", customers: true, title: "Infomails abbestellen", text: "Unten in jeder Infomail steht jetzt „Infomails abbestellen“. Die Seite dahinter fragt kurz nach, danach bekommst du keine Infomails mehr; wieder bestellen geht dort jederzeit. Benachrichtigungen und E-Mails zu deinem Zugang kommen weiter." },
+      { kind: "improved", area: "hub", place: "Datenschutz", also: ["messages"], customers: true, title: "Datenschutz zu Infomails", text: "Die Datenschutzerklärung erklärt jetzt, wofür wir Infomails schicken und wie du ihnen jederzeit widersprichst." },
+    ],
+  },
+  {
     number: 32,
     date: "2026-11-25",
     title: "Erinnerung zum Start im dunklen Look",

@@ -5,6 +5,7 @@ import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
 import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, serviceOrigin, signedInRedirect } from "../auth-redirect";
 import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub-auth/second-factor";
 import { LEGAL_PATHS } from "../legal-links";
+import { OPT_OUT_PATHS } from "../hub-mail/opt-out";
 import { movedCalendarPath } from "../hub-calendar/paths";
 import { isConnectorPath } from "../hub-mcp/config";
 import { localAdminEmail } from "../local-admin";
@@ -24,8 +25,10 @@ export async function updateSession(request: NextRequest) {
   // The WhatsApp webhook is called by Meta without a session; it checks Meta's signature itself. The notification
   // schedule is called by the database without a session; it checks its token itself. The calendar links of the
   // notification mails open on any phone without a session; each checks its own signature. Imprint and privacy policy
-  // are open to everyone, signed in or not (§ 5 DDG, Art. 13 DSGVO).
+  // are open to everyone, signed in or not (§ 5 DDG, Art. 13 DSGVO); so is „Infomails abbestellen“ with its one-click
+  // address, which check the signature of their link (lib/hub-mail/opt-out.ts).
   const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === LEGAL_PATHS.imprint || pathname === LEGAL_PATHS.privacy
+    || pathname === OPT_OUT_PATHS.page || pathname === OPT_OUT_PATHS.oneClick
     || pathname === "/api/whatsapp" || pathname === "/api/notifications/sweep" || pathname.startsWith("/api/calendar/");
   let supabaseResponse = NextResponse.next({ request });
 
