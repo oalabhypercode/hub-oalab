@@ -3,8 +3,7 @@
  * (month, week, day, list), tasks with a date in the all-day row, panels at the right edge. Built from the hub's sheet,
  * list, panel and menu styles; only what is new lives here. Colours only from the hub's tokens.
  */
-:root { --cal-task: #FF9500; --cal-now: #FF3B30; --cal-teams: #4b53bc; }
-:root[data-theme=dark] { --cal-teams: #a3a9ff; }
+:root { --cal-task: #FF9500; --cal-now: #FF3B30; }
 /* As wide as the work area since 22.11.2026 (before, 1720 px); the line of the entries under „Projekte“ lives in app/sidebar.css. */
 
 /* Sheet: admins list left / calendar right (.am); customers the calendar alone, same height */
@@ -128,7 +127,6 @@
 .cal-ev-time { color: var(--accent-text); font-weight: 650; }
 .cal-ev.is-short { justify-content: center; padding-top: 1px; padding-bottom: 1px; }
 .cal-ev-tag { margin-right: 5px; font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; color: var(--tone-todo); }
-.cal-ev-teams { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--cal-teams); }
 .cal-ev.is-requested { background: var(--tone-todo-bg); box-shadow: inset 3px 0 0 var(--tone-todo-bar), 0 0 0 1px var(--sheet); outline: 1.5px dashed var(--tone-todo-bar); outline-offset: -1.5px; }
 .cal-ev.is-requested .cal-ev-time { color: var(--tone-todo); }
 .cal-ev.is-internal { background: var(--tone-off-bg); box-shadow: inset 3px 0 0 var(--tone-off-bar), 0 0 0 1px var(--sheet); }
@@ -180,6 +178,74 @@ html.is-dragging, html.is-dragging * { cursor: grabbing !important; }
 .cal-ag-cust { white-space: nowrap; }
 .cal-ag-cust .am-avatar { vertical-align: -4px; margin-right: 7px; }
 .cal-ag-acts { width: 70px; text-align: right; }
+
+/* ---------- Meeting links as buttons (27.11.2026, preview „Version 3“): Microsoft Teams, Zoom and Google Meet ----------
+   components/hub/meeting.tsx draws the marks and the button; here its three sizes, the appointment window's card and
+   the admin's field. Week and day: the button is a sibling of the event, at its top right corner (calendar-views.tsx). */
+.mlogo { display: block; flex: 0 0 auto; }
+.cal-ev.has-join { padding-right: 34px; }
+.cal-ev.is-short.has-join { padding-right: 30px; }
+.cal-ev.is-live { box-shadow: inset 3px 0 0 var(--tone-ok-bar), 0 0 0 1px var(--sheet), 0 0 0 3px rgb(var(--accent-rgb) / .18); }
+.cal-ev-live { color: var(--tone-ok); font-weight: 700; }
+.cal-ev-join { position: absolute; z-index: 4; width: 26px; height: 26px; }
+.cal-ev-join.is-short { width: 22px; height: 22px; }
+
+.cal-join { display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: 0 0 auto; color: var(--label); background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line), 0 1px 2px #14040e14; font-weight: 650; white-space: nowrap; text-decoration: none; cursor: pointer; transition: box-shadow .12s ease, background .12s ease, transform .12s ease; }
+.cal-join:hover { box-shadow: inset 0 0 0 1px var(--accent-text), 0 3px 10px #14040e1f; }
+.cal-join:active { transform: scale(.97); }
+.cal-join:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent-text); }
+.cal-join > svg.lucide { width: 14px; height: 14px; color: var(--sheet-muted); }
+.cal-join.is-icon { width: 100%; height: 100%; padding: 0; border-radius: 8px; }
+.cal-ev-join.is-short .cal-join.is-icon { border-radius: 7px; }
+.cal-ev-join.is-short .mlogo { width: 13px; height: 13px; }
+.cal-join.is-list { height: 28px; padding: 0 10px 0 8px; border-radius: 9px; font-size: 12.5px; }
+/* In the list every provider's button has the same width (user 27.11.2026). */
+.cal-ag-acts .cal-join.is-list { width: 156px; }
+.cal-join.is-card { width: 204px; height: 40px; padding: 0 14px 0 12px; border-radius: 11px; font-size: 14.5px; }
+.cal-join.is-live { color: #fff; background: var(--accent-gradient); box-shadow: 0 2px 10px rgb(var(--accent-rgb) / .3); }
+.cal-join.is-live > svg.lucide { color: #ffffffcc; }
+.cal-join.is-live .mlogo { padding: 2px; border-radius: 5px; background: #fff; }
+.cal-join.is-icon.is-live { animation: cal-join-pulse 2.2s ease-in-out infinite; }
+@keyframes cal-join-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / .38), 0 2px 8px rgb(var(--accent-rgb) / .3); } 55% { box-shadow: 0 0 0 6px rgb(var(--accent-rgb) / 0), 0 2px 8px rgb(var(--accent-rgb) / .3); } }
+.cal-join.is-sample { cursor: default; opacity: .7; }
+.cal-chip-meet { display: inline-flex; flex: none; margin-left: auto; }
+
+/* The list: a running meeting marks its row, every time sits in a field of its own („Farbig“, 27.11.2026). */
+@media (min-width: 768px) { .cal-ag-acts { width: 1%; white-space: nowrap; } }
+.cal-ag-acts .row-action + .cal-join { margin-left: 6px; }
+.cal-ag-row.is-live td:first-child { box-shadow: inset 3px 0 0 var(--tone-ok-bar); }
+.cal-ag-live { margin-left: 8px; }
+.cal-time-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 7px; font-size: 12.5px; font-weight: 650; white-space: nowrap; color: var(--accent-text); background: color-mix(in srgb, rgb(var(--accent-rgb)) 10%, var(--sheet)); }
+.cal-time-chip.is-live { color: var(--tone-ok); background: var(--tone-ok-bg); }
+.cal-time-chip.is-req { color: var(--tone-todo); background: var(--tone-todo-bg); }
+.cal-time-chip.is-allday, .cal-time-chip.is-past { color: var(--label-body); background: var(--sheet-seg); font-weight: 600; }
+.cal-time-chip.is-past { color: var(--sheet-muted); }
+
+/* The appointment window: the meeting as a card with the large button and „Link kopieren“. */
+.cal-meet { margin-top: 16px; }
+.cal-join-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: 14px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cal-join-card.is-live { box-shadow: inset 0 0 0 1.5px var(--accent-text), 0 0 0 4px rgb(var(--accent-rgb) / .1); }
+.cal-join-logo { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 11px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.cal-join-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cal-join-text strong { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 14.5px; font-weight: 650; color: var(--label); }
+.cal-join-text > span { overflow: hidden; font-size: 12.5px; color: var(--sheet-muted); white-space: nowrap; text-overflow: ellipsis; }
+.cal-join-sub { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 8px 2px 0; font-size: 12.5px; color: var(--sheet-muted); }
+.cal-join-copy { display: inline-flex; align-items: center; flex: none; gap: 5px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
+.cal-join-copy:hover { background: var(--sheet-hover); }
+.cal-join-link { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@container (max-width: 420px) {
+  .cal-join-card { grid-template-columns: auto minmax(0, 1fr); }
+  .cal-join-card .cal-join.is-card { grid-column: 1 / -1; width: auto; }
+}
+
+/* The admin's field „Meeting-Link“: the provider's mark at the start, one line on what the customer gets. */
+.mlink .pj-url { padding-left: 6px; }
+.mlink-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; background: var(--sheet-seg); color: var(--sheet-muted); }
+.mlink-state { display: flex; align-items: flex-start; gap: 6px; margin: 7px 0 0; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
+.mlink-state svg { flex: 0 0 auto; margin-top: 1px; }
+.mlink-state b { font-weight: 650; }
+.mlink-state.is-ok b { color: var(--tone-ok); }
+.mlink-state.is-bad { color: var(--tone-bad); }
 .cal-ag-icon.tone-bad { color: var(--tone-bad); }
 .cal-ag-daynum { display: inline-block; min-width: 20px; text-align: center; font-size: 13px; font-weight: 750; color: var(--label); }
 .cal-ag-head { cursor: default; }
@@ -256,8 +322,6 @@ html.is-dragging, html.is-dragging * { cursor: grabbing !important; }
 .cal-quick-btn:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--accent-text); }
 .cal-quick-btn.is-on { font-weight: 650; color: var(--accent-text); background: rgb(var(--accent-rgb) / .1); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / .35); }
 .am-input.is-overdue { color: var(--tone-bad); box-shadow: inset 0 0 0 1px var(--tone-bad-bar); }
-.cal-teams { margin-top: 16px; }
-.cal-teams small { font-size: 11px; font-weight: 600; opacity: .75; }
 .cal-panel .segmented-control { width: 100%; height: 32px; padding: 2px; border: 0; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .cal-panel .segment { color: var(--sheet-muted); border-radius: 7px; font-size: 13px; font-weight: 500; padding: 0 8px; }
 .cal-panel .segment[aria-pressed=true] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px #0000001a, 0 0 0 1px var(--sheet-line); }

@@ -6,7 +6,8 @@ import { Building2, CalendarCheck, CalendarPlus, CalendarX, Check, ChevronLeft, 
 import { MiniLoader } from "@/components/brand-loader";
 import {
   addDays, addMonths, adminFree, APPOINTMENT_DURATIONS, appointmentStatuses, availableIntervals, calendarWindow, clockOf, customerFree, dayOf, formatDayLong, formatDayShort,
-  formatDuration, formatMonth, formatNotice, formatTimeRange, isClock, isDay, lastRequestDay, mondayOf, monthOf, monthWeeks, overlaps, startsIn, timeOf, wallTimeToUtc,
+  formatDuration, formatMonth, formatNotice, formatTimeRange, isClock, isDay, lastRequestDay, meetingProvider, mondayOf, monthOf, monthWeeks, overlaps, startsIn, timeOf,
+  wallTimeToUtc,
   type AppointmentStatus, type Interval,
 } from "@/lib/hub-calendar/rules";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
@@ -14,6 +15,7 @@ import { hubHref } from "@/lib/hub-data";
 import { PRIORITY_NAMES, STATUS_NAMES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/hub-tasks/rules";
 import type { TaskPriority, TaskStatus } from "@/lib/hub-tasks/types";
 import { SegmentedControl } from "../controls";
+import { MeetingCard, MeetingLinkField, meetingWhen } from "../meeting";
 import { useInfo } from "../info-box";
 import { Select } from "../select";
 import { customerOption } from "../select-options";
@@ -98,13 +100,13 @@ export function AppointmentPanel({ store, appointment, initial, extra, onClose, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const info = useInfo("Termin und Teams-Link", {
+  const info = useInfo("Termin und Meeting-Link", {
     steps: [
-      <><b>Teams-Link</b> aus Teams oder Outlook einfügen.</>,
+      <><b>Meeting-Link</b> aus Teams, Zoom oder Google Meet einfügen.</>,
       <><b>Intern</b> heißt ohne Kunde; für Kunden ist die Zeit belegt.</>,
-      <><b>Der Kunde</b> bekommt eine Meldung mit Kalenderknöpfen.</>,
+      <><b>Der Kunde</b> bekommt eine Meldung und tritt per Knopf bei.</>,
     ],
-    ask: "Wie lege ich einen Termin mit Teams-Link an?",
+    ask: "Wie lege ich einen Termin mit Meeting-Link an?",
   });
   const status = appointment?.status ?? "confirmed";
   const upcoming = !appointment || appointment.end > store.now;
@@ -160,9 +162,8 @@ export function AppointmentPanel({ store, appointment, initial, extra, onClose, 
         <Select label="Kunde" value={customerId} onChange={setCustomerId} disabled={busy || appointment?.status === "requested"} searchPlaceholder="Kunde oder Nummer suchen …"
           options={[{ value: "", label: "Intern (kein Kunde)", lead: <Building2 size={15} aria-hidden="true" />, meta: "Für Kunden belegt, ohne Titel" }, ...store.customers.map((item) => customerOption(item, "Kunden"))]} />
       </PanelSection>
-      <PanelSection title="Microsoft Teams">
-        <label className="um-field"><span className="pj-url"><Video size={16} aria-hidden="true" /><input value={teamsUrl} onChange={(event) => setTeamsUrl(event.target.value)} inputMode="url" maxLength={2048} placeholder="https://teams.microsoft.com/l/meetup-join/…" aria-label="Teams-Link" disabled={busy} spellCheck={false} /></span>
-          <small className="pj-form-hint">In Teams oder Outlook ein Meeting anlegen und den Link „An der Besprechung teilnehmen“ hier einfügen.</small></label>
+      <PanelSection title="Meeting-Link" meta="optional">
+        <MeetingLinkField value={teamsUrl} onChange={setTeamsUrl} disabled={busy} customer={customer?.company ?? null} />
       </PanelSection>
       <PanelSection title="Beschreibung">
         <textarea className="am-textarea" rows={3} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} placeholder="Agenda oder Vorbereitung für den Termin" disabled={busy} />
@@ -228,7 +229,7 @@ export function RequestPanel({ store, appointment, related, onClose, onDone, onO
     if (result.ok) onDone(message); else setError(result.error);
   }
   const accept = () => run(() => store.save(appointment.id, { title: appointment.title, description: appointment.description, customerId: customer?.id ?? null, day, start, minutes, teamsUrl }),
-    `Bestätigt: „${appointment.title}“ am ${formatDayShort(day)}, ${start}. ${customer?.company ?? "Der Kunde"} bekommt eine Meldung${teamsUrl.trim() ? " mit Teams-Link" : ""} und Kalenderknöpfen.`);
+    `Bestätigt: „${appointment.title}“ am ${formatDayShort(day)}, ${start}. ${customer?.company ?? "Der Kunde"} bekommt eine Meldung${teamsUrl.trim() ? " mit Meeting-Link" : ""} und Kalenderknöpfen.`);
 
   const footer = declining ? null : <>
     <button type="button" className="sheet-action" onClick={() => setDeclining(true)} disabled={busy}><X size={15} aria-hidden="true" />Ablehnen</button>
@@ -265,8 +266,8 @@ export function RequestPanel({ store, appointment, related, onClose, onDone, onO
         <SlotChecks store={store} day={day} start={start} minutes={minutes} exceptId={appointment.id} />
         {moved && customer && <Note icon={CalendarCheck}>{customer.company} sieht die neue Zeit in der Bestätigung: {formatDayShort(day)}, {start} Uhr.</Note>}
       </PanelSection>
-      <PanelSection title="Microsoft Teams" meta="optional">
-        <span className="pj-url"><Video size={16} aria-hidden="true" /><input value={teamsUrl} onChange={(event) => setTeamsUrl(event.target.value)} inputMode="url" maxLength={2048} placeholder="https://teams.microsoft.com/l/meetup-join/…" aria-label="Teams-Link" disabled={busy} spellCheck={false} /></span>
+      <PanelSection title="Meeting-Link" meta="optional">
+        <MeetingLinkField value={teamsUrl} onChange={setTeamsUrl} disabled={busy} customer={customer?.company ?? null} />
       </PanelSection>
       {declining && (
         <div className="cal-decline">
@@ -307,16 +308,14 @@ export function CustomerAppointmentPanel({ store, appointment, canWithdraw, extr
     <AssetPanel className="um-panel cal-panel" label={appointment.title} onClose={onClose} icon={<Glyph tone={statusTone[status]}><Icon size={19} aria-hidden="true" /></Glyph>}
       title={appointment.title} subtitle={`${appointmentStatuses[status]} · ${formatDayShort(dayOf(appointment.start))}, ${timeOf(appointment.start)}`} footer={footer}>
       <div className="cal-summary"><span className="cal-summary-day"><CalendarCheck size={16} aria-hidden="true" /><b>{formatDayLong(dayOf(appointment.start))}</b></span><span className="cal-summary-time numeric">{formatTimeRange(appointment)}</span></div>
+      {status === "confirmed" && upcoming && (meetingProvider(appointment.teamsUrl)
+        ? <MeetingCard url={appointment.teamsUrl!} live={appointment.start <= store.now} sample={appointment.sample} when={meetingWhen(appointment.start, appointment.end, store.now)} />
+        : <Note icon={Video}>Den Meeting-Link ergänzt dein oalab-Team.</Note>)}
       {status === "requested" && <Note icon={Hourglass} tone="todo">Angefragt. Dein oalab-Team bestätigt den Termin oder schlägt eine andere Zeit vor. Erst dann ist er fest.</Note>}
       <dl className="file-details cal-details">
         <div className="file-details-block"><dt>{status === "requested" ? "Deine Nachricht" : "Beschreibung"}</dt><dd>{appointment.description || "Keine Beschreibung hinterlegt."}</dd></div>
         {appointment.responseNote && <div className="file-details-block"><dt>Hinweis von oalab</dt><dd>{appointment.responseNote}</dd></div>}
       </dl>
-      {status === "confirmed" && (appointment.teamsUrl
-        ? appointment.sample
-          ? <span className="teams-join is-sample cal-teams" data-tip="Beispiel-Link aus der Vorschau, kein echtes Meeting"><Video size={18} aria-hidden="true" /><span className="teams-join-label">Teams-Meeting beitreten</span><small>Beispiel</small></span>
-          : <a className="teams-join cal-teams" href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer"><Video size={18} aria-hidden="true" /><span className="teams-join-label">Teams-Meeting beitreten</span></a>
-        : <Note icon={Video}>Den Teams-Link ergänzt dein oalab-Team.</Note>)}
       {extra}
       {error && <p className="form-error" role="alert">{error}</p>}
     </AssetPanel>

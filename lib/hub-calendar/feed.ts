@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { clip, compact, fold, icsText, utc } from "./links";
+import { clip, compact, fold, icsText, meetingName, utc } from "./links";
 import { FEED_FILE, FEED_FUTURE_MONTHS, FEED_LIMIT, FEED_PAST_DAYS, FEED_REFRESH, FEED_TOKEN, feedClient, type FeedClient, type FeedOptions, type FeedRole } from "./feed-rules";
 
 export * from "./feed-rules";
@@ -120,7 +120,7 @@ export function feedEvents(input: FeedInput): FeedEvent[] {
     const url = feedCalendarUrl(origin, `appointment=${item.id}`);
     const notes = [
       confirmed ? "" : "Anfrage: noch nicht bestätigt.",
-      item.teamsUrl ? `Teams-Besprechung beitreten:\n${item.teamsUrl}` : "",
+      item.teamsUrl ? `${meetingName(item.teamsUrl).meeting} beitreten:\n${item.teamsUrl}` : "",
       clip(item.description.trim(), NOTE_LENGTH),
       `Termin im oalab Client Hub:\n${url}`,
     ];
@@ -129,7 +129,7 @@ export function feedEvents(input: FeedInput): FeedEvent[] {
       uid: `${item.id}@hub.oalab.de`,
       summary: `${confirmed ? "" : "Anfrage: "}${named(item.title, item.company)}`,
       description: notes.filter(Boolean).join("\n\n"),
-      // The Teams link as the place too (decision 3): phones offer to join right from the entry.
+      // The meeting link as the place too (decision 3): phones offer to join right from the entry.
       location: item.teamsUrl ?? "",
       url,
       start: utc(item.startsAt),

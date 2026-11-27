@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  addDays, addMonths, adminFree, appointmentStatusIds, availabilityFrom, availableSpans, calendarWindow, checkAvailabilityRequest, cleanRules, cleanTeamsUrl,
-  cleanWeek, customerFree, dayOf, dayOff, DEFAULT_AVAILABILITY, FIXED_AVAILABILITY, formatDuration, formatNotice, isCalendarView, isoWeek, isTeamsUrl,
+  addDays, addMonths, adminFree, appointmentStatusIds, availabilityFrom, availableSpans, calendarWindow, checkAvailabilityRequest, cleanMeetingUrl, cleanRules,
+  cleanWeek, customerFree, dayOf, dayOff, DEFAULT_AVAILABILITY, FIXED_AVAILABILITY, formatDuration, formatNotice, isCalendarView, isoWeek, MEETING_PROVIDERS, meetingLabel, meetingProvider,
   layoutLanes, LIST_DAYS, mergeSpans, minutesOn, mondayOf, monthWeeks, readAvailabilityRequest, readException, spanMinutes, startsIn, stepDay,
   subtractSpans, teamsHosts, timeOf, viewDays, wallMinuteToUtc, wallTimeToUtc, weekDays, weekSummary,
 } from "../lib/hub-calendar/rules.ts";
@@ -179,23 +179,39 @@ test("availability: loaded per role, checked on the server and by the database, 
   assert.match(screen, /useAvailabilityPaint\(root, admin && editing && \(view === "week" \|\| view === "day"\), onPaint\);/, "painting only for admins in week and day");
 });
 
-test("only Microsoft Teams meeting links are accepted", () => {
-  for (const url of [
-    "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0?context=%7b%7d",
-    "https://teams.microsoft.com/meet/3412345678901?p=AbCdEf",
-    "https://teams.live.com/meet/9876543210",
-    "https://teams.cloud.microsoft/meet/123?p=x",
-  ]) assert.equal(isTeamsUrl(url), true, url);
+test("meeting links of Microsoft Teams, Zoom and Google Meet are accepted, with their provider (27.11.2026)", () => {
+  for (const [url, provider] of [
+    ["https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0?context=%7b%7d", "teams"],
+    ["https://teams.microsoft.com/meet/3412345678901?p=AbCdEf", "teams"],
+    ["https://teams.live.com/meet/9876543210", "teams"],
+    ["https://teams.cloud.microsoft/meet/123?p=x", "teams"],
+    ["https://us02web.zoom.us/j/84122345567?pwd=abc", "zoom"],
+    ["https://zoom.us/j/84122345567", "zoom"],
+    ["https://Firma.Zoom.us/my/raum", "zoom"],
+    ["https://events.zoom.com/ev/abc", "zoom"],
+    ["https://meet.google.com/kpr-xnow-tzb", "meet"],
+  ]) assert.equal(meetingProvider(url), provider, url);
   for (const url of [
     "http://teams.microsoft.com/l/meetup-join/x",
     "https://teams.microsoft.com.evil.example/l/meetup-join/x",
     "https://evil.example/?q=teams.microsoft.com",
     "https://user:pass@teams.microsoft.com/l/x",
     "https://teams.microsoft.com/",
+    "https://zoom.us.evil.example/j/1",
+    "https://notzoom.us/j/1",
+    "https://zoom.us:8443/j/1",
+    "https://meet.google.com/",
+    "https://meet.jit.si/oalab",
     "javascript:alert(1)",
-  ]) assert.equal(isTeamsUrl(url), false, url);
-  assert.deepEqual(cleanTeamsUrl("  "), { ok: true, url: null });
-  assert.equal(cleanTeamsUrl("https://zoom.us/j/1").ok, false);
+    "",
+    null,
+  ]) assert.equal(meetingProvider(url), null, String(url));
+  assert.deepEqual(cleanMeetingUrl("  "), { ok: true, url: null });
+  assert.deepEqual(cleanMeetingUrl(" https://zoom.us/j/1 "), { ok: true, url: "https://zoom.us/j/1" });
+  assert.equal(cleanMeetingUrl("https://meet.jit.si/x").ok, false);
+  assert.equal(meetingLabel("https://meet.google.com/abc-defg-hij"), "Google Meet");
+  assert.equal(meetingLabel(null), null);
+  assert.deepEqual(Object.keys(MEETING_PROVIDERS), ["teams", "zoom", "meet"]);
 });
 
 test("the calendar migration matches the code and guards the table with RLS", async () => {

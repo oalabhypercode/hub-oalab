@@ -89,7 +89,7 @@ const exampleFeed = (options: FeedOptions) => ({ id: "preview", options, created
 function feedRows(role: FeedRole, options: FeedOptions) {
   type Key = "confirmed" | "requests" | "goals" | "tasks";
   const rows: { key: Key; label: string; sub: string; on: boolean; locked?: boolean; scope?: boolean }[] = [
-    { key: "confirmed", label: "Bestätigte Termine", sub: role === "admin" ? "alle Kunden, als „Firma: Titel“" : "immer dabei, mit Teams-Link", on: true, locked: true },
+    { key: "confirmed", label: "Bestätigte Termine", sub: role === "admin" ? "alle Kunden, als „Firma: Titel“" : "immer dabei, mit Meeting-Link", on: true, locked: true },
     { key: "requests", label: "Offene Anfragen", sub: "vorläufig markiert, als „Anfrage: …“", on: options.requests },
   ];
   if (role !== "freelancer") rows.push({ key: "goals", label: "Projektziele", sub: "ganztägig, blockieren keine Zeit", on: options.goals });
@@ -303,7 +303,7 @@ export function CalendarFeedPanel({ preview, active = false, role: pageRole, con
           {info.box}
           <p className="cal-feed-lead">{lead}</p>
           <FeedSwitches role={role} options={draft} disabled={busy} onChange={setDraft} />
-          <p className="cal-panel-note is-box"><Info size={15} aria-hidden="true" /><span><b>Mit Teams-Link:</b> Am Handy trittst du direkt aus dem Termin bei. Abgesagte Termine verschwinden beim nächsten Abruf von selbst.</span></p>
+          <p className="cal-panel-note is-box"><Info size={15} aria-hidden="true" /><span><b>Mit Meeting-Link:</b> Am Handy trittst du direkt aus dem Termin bei. Abgesagte Termine verschwinden beim nächsten Abruf von selbst.</span></p>
           {needsCode && <p className="cal-panel-note is-box"><LockKeyhole size={15} aria-hidden="true" /><span>Zum Anlegen bestätigst du einmal deinen Code, weil der Link danach ohne Anmeldung liest.</span></p>}
         </PanelSection>
       </>}

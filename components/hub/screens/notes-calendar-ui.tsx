@@ -143,7 +143,7 @@ export function AppointmentDialog({ ui, title: initialTitle, onDone, onClose }: 
       )}
       {request
         ? <label className="nz-field is-flat"><span>Nachricht</span><textarea rows={2} value={description} maxLength={2000} placeholder="Worum es gehen soll (optional)" onChange={(event) => setDescription(event.target.value)} /></label>
-        : <label className="nz-field is-flat"><span>Teams-Link</span><input value={teamsUrl} inputMode="url" maxLength={2048} placeholder="https://teams.microsoft.com/l/meetup-join/… (optional)" onChange={(event) => setTeamsUrl(event.target.value)} spellCheck={false} /></label>}
+        : <label className="nz-field is-flat"><span>Meeting-Link</span><input value={teamsUrl} inputMode="url" maxLength={2048} placeholder="Link aus Teams, Zoom oder Google Meet (optional)" onChange={(event) => setTeamsUrl(event.target.value)} spellCheck={false} /></label>}
       <p className="nz-pop-note">{request ? "oalab bestätigt den Termin oder schlägt eine andere Zeit vor; die Antwort kommt in die Glocke und per E-Mail." : "Der Termin steht sofort fest; der Kunde bekommt eine Meldung in der Glocke und per E-Mail."}</p>
       {error && <p className="nz-pop-note is-warn" role="alert">{error}</p>}
       <div className="nz-dialog-actions">

@@ -61,7 +61,7 @@ const places = [
   // The calendar under Projekte (since 16.11.2026): in the head of its panels; for admins at the week's row „ganztägig“.
   { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin anfragen"', button: /title="Termin anfragen" subtitle="bei oalab · nur freie Zeiten" actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Anfrage beantworten"', button: /title=\{appointment\.title\} subtitle=\{`Anfrage von [^\n]*actions=\{info\.button\}/, box: "{info.box}" },
-  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin und Teams-Link"', button: /title=\{appointment \? appointment\.title : "Neuer Termin"\}[^]*?actions=\{info\.button\} footer=\{footer\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin und Meeting-Link"', button: /title=\{appointment \? appointment\.title : "Neuer Termin"\}[^]*?actions=\{info\.button\} footer=\{footer\}>/, box: "{info.box}" },
   { file: "components/hub/screens/calendar.tsx", call: 'useInfo("Aufgaben im Kalender"', button: /tasksInfo: admin \? tasksInfo\.button : undefined/, box: "{tasksInfo.box}" },
   // The availability (since 16.11.2026): at the weekly plan of its panel.
   { file: "components/hub/screens/calendar-availability.tsx", call: 'useInfo("Verfügbarkeit"', button: /<PanelSection title="Wochenplan" info=\{info\.button\}/, box: "{info.box}" },

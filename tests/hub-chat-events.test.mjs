@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import {
   AREA_LABELS, CHAT_AREAS, DEFAULT_SUBSCRIPTIONS, SYSTEM_EVENT_KINDS, appointmentBadge, areaDescription, areaOf, areaSubject, cardAppointmentHref, cardFileHref,
-  cardNoteHref, cardProjectHref, cardTaskHref, cardView, eventKey, eventLine, eventListLine, isSystemEvent, mergeEvents, mergeGroup, readChatEvent, shortWhen,
+  appointmentWhen, cardNoteHref, cardProjectHref, cardTaskHref, cardView, eventKey, eventLine, eventListLine, isSystemEvent, mergeEvents, mergeGroup, readChatEvent, shortWhen,
   subjectArea, subscriptionsOf, systemLine,
 } from "../lib/hub-chat-events/rules.ts";
 import { SYSTEM_LINE_KINDS, chatActivity, chatUnread, isCardRow, isSystemRow } from "../lib/hub-private-chat/rules.ts";
@@ -307,4 +307,14 @@ test("Claude reads cards as lines marked [Hub]", async () => {
   assert.match(areas, /const chatText = \(row: ChatRow\) => \(row\.event \? `\[Hub\] \$\{row\.body\}` : row\.body\);/);
   assert.match(areas, /const \{ last, lastOtherAt: lastCustomer, lastOwnSideAt: lastTeam \} = chatActivity\(rows, "oalab"\);/);
   assert.match(areas, /text: chatText\(row\)/);
+});
+
+test("a card names the meeting's provider; cards written before carry Teams (27.11.2026)", () => {
+  assert.equal(appointmentWhen(facts), "Di., 24. Nov. · 10:00–10:30 · Teams");
+  assert.equal(appointmentWhen({ ...facts, meeting: "zoom" }), "Di., 24. Nov. · 10:00–10:30 · Zoom");
+  assert.equal(appointmentWhen({ ...facts, meeting: "meet" }), "Di., 24. Nov. · 10:00–10:30 · Google Meet");
+  assert.equal(appointmentWhen({ ...facts, teams: false }), "Di., 24. Nov. · 10:00–10:30");
+  const stored = readChatEvent({ v: 1, kind: "appointment.created", appointment: { ...facts, meeting: "zoom" } });
+  assert.equal(stored.appointment.meeting, "zoom");
+  assert.equal(readChatEvent({ v: 1, kind: "appointment.created", appointment: { ...facts, meeting: "skype" } }).appointment.meeting, undefined);
 });
