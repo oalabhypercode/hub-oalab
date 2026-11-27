@@ -49,19 +49,22 @@ test("a header click flips the sorted column and starts others in their first di
 });
 
 test("both tables offer search, filters, sorting and grouping in one toolbar", async () => {
-  // The projects table sits in its own file; its sheet comes from the page (customers) or the panel (admins).
-  for (const [path, search, frame] of [["components/hub/screens/projects-table.tsx", "Projekte durchsuchen", "components/hub/screens/projects.tsx"], ["components/hub/screens/files.tsx", "Dateien durchsuchen"]]) {
+  // The projects table sits in its own file; its sheet comes from the page (customers) or the panel (admins). The
+  // files of every role live in the Asset Management since 27.11.2026, whose sheet fills the window on its own.
+  for (const [path, search, frame] of [["components/hub/screens/projects-table.tsx", "Projekte durchsuchen", "components/hub/screens/projects.tsx"], ["components/hub/screens/asset-management.tsx", "Dateien durchsuchen", null]]) {
     const screen = await source(path);
     assert.ok(screen.includes(`label="${search}"`), path);
     // Filters, sorting and grouping sit in menus of the sheet's toolbar, next to the search field.
     const toolbar = screen.slice(screen.indexOf("<SheetToolbar "), screen.indexOf("</SheetToolbar>"));
     for (const menu of ["Filter", "Sortierung", "Gruppe"]) assert.ok(toolbar.includes(`label="${menu}"`), `${path}: ${menu}`);
-    assert.match(toolbar, /<FilterSelect /, path);
+    // The Asset Management keeps its filters in one fragment, shared by its compact and its detailed toolbar.
+    assert.match(toolbar, /<FilterSelect |\{filters\}/, path);
+    assert.match(screen, /<FilterSelect /, path);
     assert.match(toolbar, /<SortControl /, path);
     assert.match(screen, /<SortHeader /, path);
     assert.match(screen, /<TableGroup /, path);
     // Every table page is at least as tall as the panels of „Vertrag & Domain“.
-    assert.match(frame ? await source(frame) : screen, /className="sheet section-first sheet-fill"/, path);
+    if (frame) assert.match(await source(frame), /className="sheet section-first sheet-fill"/, path);
   }
   const sheet = await source("components/hub/sheet.tsx");
   assert.match(sheet, /aria-expanded=\{open\}/);

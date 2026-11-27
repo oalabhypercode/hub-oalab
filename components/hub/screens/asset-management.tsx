@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutGrid, LayoutList, List, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import type { ListView } from "@/lib/appearance";
+import { categoryLabel } from "@/lib/categories";
 import { deleteFiles, setFileAudience } from "@/lib/hub-files/actions";
 import { fileCategories, fileCategoryIds, fileDayGroup, fileFormat, formatBytes, formatFileDate, formatFileDay } from "@/lib/hub-files/catalog";
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
@@ -73,13 +74,20 @@ function DensitySwitch({ view, onChange }: { view: ListView; onChange: (view: Li
  * Uploading and a file's details open as panels over the files; files can be dragged straight onto a folder.
  * Admins see the freelancers as a group of their own below the customers, and at each customer who looks after it.
  * Freelancers get the same view, read only: "Meine Dateien" (their own entry) and the customers they look after.
+ * Customers (27.11.2026) get it for their own files, with folders and moves as before: one company fills the page
+ * without the list on the left; a login that belongs to several companies picks them there.
  */
-export function AssetManagement({ asOf, fileState }: ScreenProps) {
+export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenProps) {
   const store = useFilesStore(fileState);
   const { files, folders } = store;
   const { customers, canManage, source } = fileState;
   const freelancerView = Boolean(fileState.freelancer);
   const ownId = fileState.freelancer?.ownId ?? null;
+  // A customer's login (also the preview): no upload, no assigning, only their own companies.
+  const customerView = !admin && !canManage && !freelancer && !freelancerView;
+  const single = customerView && customers.length <= 1;
+  // What the list on the left holds: customers, or the companies of a customer's login.
+  const word = customerView ? { one: "Firma", many: "Firmen" } : { one: "Kunde", many: "Kunden" };
   // „Betreut von“ names and offers no freelancer whose every login is deactivated (lib/hub-users/deactivated.ts).
   const freelancerEntries = useMemo(() => customers.filter((customer) => customer.kind === "freelancer" && !customer.inactive), [customers]);
   const { appearance, update } = useAppearance();
@@ -107,6 +115,8 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const linkedCustomer = customers.some((customer) => customer.id === params.get("customer")) ? params.get("customer") : null;
   const [panel, setPanel] = useState<Panel | null>(() => linkedFile && files.some((file) => file.id === linkedFile) ? { kind: "file", id: linkedFile, assign: false } : null);
   const [view, setView] = useState<View>(() => {
+    // A customer with one company always looks at it.
+    if (single && customers[0]) return { kind: "customer", id: customers[0].id };
     const linked = files.find((file) => file.id === linkedFile);
     if (linked) return linked.customers[0] ? { kind: "customer", id: linked.customers[0].id } : { kind: "inbox" };
     if (linkedCustomer) return { kind: "customer", id: linkedCustomer };
@@ -612,11 +622,12 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     </label>
   );
   const body = empty
-    ? <SheetEmpty text={narrowed ? (query.trim() ? `Keine Dateien zu „${query.trim()}“.` : "Keine Dateien für diese Auswahl.") : view.kind === "inbox" ? "Die Ablage ist leer. Alle Dateien haben einen Kunden." : "Noch keine Dateien."} onReset={narrowed ? () => { setQuery(""); setCategory(ALL); setFormat(ALL); } : undefined} />
+    ? <SheetEmpty text={narrowed ? (query.trim() ? `Keine Dateien zu „${query.trim()}“.` : "Keine Dateien für diese Auswahl.") : view.kind === "inbox" ? "Die Ablage ist leer. Alle Dateien haben einen Kunden." : customerView && !files.length ? "Für dich sind noch keine Dateien freigegeben." : "Noch keine Dateien."} onReset={narrowed ? () => { setQuery(""); setCategory(ALL); setFormat(ALL); } : undefined} />
     : current ? customerBody : view.kind === "inbox" ? inboxBody : allBody;
 
   /* ---------- Pane head ---------- */
-  const back = <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label="Zurück zu den Kunden"><ChevronLeft size={24} aria-hidden="true" /></button>;
+  // Without the list (a customer with one company) there is nothing to go back to.
+  const back = single ? null : <button type="button" className="chat-back" onClick={() => setPaneOpen(false)} aria-label={`Zurück zu den ${word.many}`}><ChevronLeft size={24} aria-hidden="true" /></button>;
   // On phones the head's buttons show their symbols only, so the customer's name keeps its room (glass.css).
   const uploadButton = canUpload && <button type="button" className="sheet-action is-primary" onClick={() => startUpload({ customerId: current?.id ?? null, folderId: "" })}><Upload size={15} aria-hidden="true" /><span className="am-btn-text">Hochladen</span></button>;
   const head = current ? (
@@ -660,7 +671,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
     <header className="am-pane-head">
       {back}
       <span className="am-tile is-lg"><Files size={22} aria-hidden="true" /></span>
-      <div className="am-pane-title"><strong>Alle Dateien</strong><span>{compact ? `${plural(files.length, "Datei", "Dateien")} · neueste zuerst` : `${plural(files.length, "Datei", "Dateien")} bei ${plural(customerCount, "Kunde", "Kunden")} · ${totalSize(files)}`}</span></div>
+      <div className="am-pane-title"><strong>Alle Dateien</strong><span>{compact ? `${plural(files.length, "Datei", "Dateien")} · neueste zuerst` : `${plural(files.length, "Datei", "Dateien")} bei ${plural(customerCount, word.one, word.many)} · ${totalSize(files)}`}</span></div>
       <div className="am-pane-actions">{uploadButton}</div>
     </header>
   );
@@ -699,11 +710,11 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
   const customerList = (
     <div className="chat-list" {...listDropHandlers}>
       <div className="chat-list-head">
-        <h2>{freelancerView ? "Meine Kunden" : "Kunden"}<span>{customerCount}</span>{freelancerView && freelancerInfo.button}</h2>
+        <h2>{freelancerView || customerView ? `Meine ${word.many}` : "Kunden"}<span>{customerCount}</span>{freelancerView && freelancerInfo.button}</h2>
         {canUpload && <button type="button" className="chat-icon-button" onClick={() => startUpload({ customerId: null, folderId: "" })} aria-label="Hochladen" data-tip="Hochladen"><Upload size={19} aria-hidden="true" /></button>}
       </div>
       {freelancerView && freelancerInfo.box}
-      <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder={compact ? "Kunde suchen" : "Kunde oder Kundennummer"} aria-label="Kunden durchsuchen" /></label>
+      <label className="chat-search"><Search size={15} aria-hidden="true" /><input type="search" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder={compact ? `${word.one} suchen` : `${word.one} oder Kundennummer`} aria-label={`${word.many} durchsuchen`} /></label>
       {!compact && (
         <div className="chat-filter" role="group" aria-label="Reihenfolge">
           <button type="button" aria-pressed={customerOrder === "recent"} onClick={() => setCustomerOrder("recent")}>Zuletzt aktiv</button>
@@ -711,16 +722,16 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
         </div>
       )}
       <ul className="chat-convs" role="list">
-        {!term && pinned({ kind: "all" }, <span className={`am-tile${compact ? " is-md" : ""}`}><Files size={compact ? 16 : 20} aria-hidden="true" /></span>, "Alle Dateien", `${plural(customerCount, "Kunde", "Kunden")} · ${totalSize(files)}`, <span className="am-count">{files.length}</span>)}
-        {!term && !freelancerView && pinned({ kind: "inbox" }, <span className={`am-tile is-inbox${compact ? " is-md" : ""}`}><Inbox size={compact ? 16 : 20} aria-hidden="true" /></span>, "Ablage", "Noch keinem Kunden zugeordnet", inbox.length ? <span className="chat-pill tone-todo">{inbox.length}</span> : <span className="am-count">0</span>)}
+        {!term && pinned({ kind: "all" }, <span className={`am-tile${compact ? " is-md" : ""}`}><Files size={compact ? 16 : 20} aria-hidden="true" /></span>, "Alle Dateien", `${plural(customerCount, word.one, word.many)} · ${totalSize(files)}`, <span className="am-count">{files.length}</span>)}
+        {!term && !freelancerView && !customerView && pinned({ kind: "inbox" }, <span className={`am-tile is-inbox${compact ? " is-md" : ""}`}><Inbox size={compact ? 16 : 20} aria-hidden="true" /></span>, "Ablage", "Noch keinem Kunden zugeordnet", inbox.length ? <span className="chat-pill tone-todo">{inbox.length}</span> : <span className="am-count">0</span>)}
         {!term && ownRow && pinned({ kind: "customer", id: ownRow.customer.id }, <CustomerSign customer={ownRow.customer} logo={ownRow.customer.logo} size={compact ? "md" : undefined} />, "Meine Dateien", `Von oalab für dich · ${ownRow.files.length ? plural(ownRow.files.length, "Datei", "Dateien") : "noch keine Dateien"}`, compact ? <span className="am-count">{ownRow.files.length || ""}</span> : ownRow.last ? <time>{formatFileDay(ownRow.last, asOf)}</time> : null)}
         {listedTeam.length > 0 && <>
           <li className="am-list-label">{INTERNAL_TAG}</li>
           {listedTeam.map(customerRow)}
         </>}
-        <li className="am-list-label">{freelancerView ? "Meine Kunden" : compact ? "Kunden" : customerOrder === "az" ? "Kunden von A bis Z" : "Kunden · zuletzt aktiv"}</li>
+        <li className="am-list-label">{freelancerView || customerView ? `Meine ${word.many}` : compact ? "Kunden" : customerOrder === "az" ? "Kunden von A bis Z" : "Kunden · zuletzt aktiv"}</li>
         {listedCustomers.map(customerRow)}
-        {!listedCustomers.length && <li className="chat-empty">{term ? `Kein Kunde passt zu „${customerQuery.trim()}“.` : freelancerView ? "Dir sind noch keine Kunden zugeordnet." : "Es sind noch keine Kunden angelegt."}</li>}
+        {!listedCustomers.length && <li className="chat-empty">{term ? `${customerView ? "Keine Firma" : "Kein Kunde"} passt zu „${customerQuery.trim()}“.` : freelancerView ? "Dir sind noch keine Kunden zugeordnet." : "Es sind noch keine Kunden angelegt."}</li>}
         {listedFreelancers.length > 0 && <>
           <li className="am-list-label">Freelancer</li>
           {listedFreelancers.map(customerRow)}
@@ -736,9 +747,9 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
 
   return (
     <>
-      <LargeTitleHeader title="Asset Management" icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
+      <LargeTitleHeader title={customerView ? categoryLabel("files", false) : "Asset Management"} icon={<CategoryTitle category="files" />} actions={<HeaderActions />} />
       {fileState.error && <GlassCard className="section-first"><p className="t-headline">Dateien nicht verfügbar</p><p className="t-subheadline t-secondary">{fileState.error}</p></GlassCard>}
-      {source === "fixtures" && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">Hochladen und Zuordnen ist nur mit echtem Admin-Login möglich. Die Liste zeigt fiktive Beispieldateien; Ordner und Verschiebungen bleiben in diesem Browserfenster.</p></GlassCard>}
+      {source === "fixtures" && <GlassCard className="section-first file-demo-note"><Inbox size={18} color="var(--accent-text)" aria-hidden="true" /><p className="t-subheadline">{customerView ? "" : "Hochladen und Zuordnen ist nur mit echtem Admin-Login möglich. "}Die Liste zeigt fiktive Beispieldateien; Ordner und Verschiebungen bleiben in diesem Browserfenster.</p></GlassCard>}
       {notice && (
         <p className="calendar-notice" role="status">
           <Check size={18} aria-hidden="true" /><span className="calendar-notice-text">{notice}</span>
@@ -748,15 +759,15 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {!fileState.error && (
-        <div ref={sheet} className={`sheet section-first am${compact ? " is-minimal" : ""}${finder ? " is-list" : ""}${tiles ? " is-tiles" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen ? "" : undefined} {...guardSheet}>
+        <div ref={sheet} className={`sheet section-first am${compact ? " is-minimal" : ""}${finder ? " is-list" : ""}${tiles ? " is-tiles" : ""}${single ? " is-single" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen || single ? "" : undefined} {...guardSheet}>
           <div className="am-grid">
-            {customerList}
+            {!single && customerList}
             <section className={`am-pane${panel && (panel.kind !== "rename" || renaming) ? " has-panel" : ""}`} aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
               {head}
               {/* The selection bar takes the place of the search line instead of pushing the files down, so nothing moves
                   under the mouse between two clicks (user 23.11.2026; on phones it stays below and sticks, glass.css). */}
               <div className="am-bars">
-                <SheetToolbar query={query} onQuery={setQuery} placeholder={current ? `In ${current.company} suchen …` : "Titel, Dateiname oder Kunde …"} label="Dateien durchsuchen" compact={!compact}
+                <SheetToolbar query={query} onQuery={setQuery} placeholder={single ? "Titel, Dateiname …" : current ? `In ${current.company} suchen …` : `Titel, Dateiname oder ${word.one} …`} label="Dateien durchsuchen" compact={!compact}
                   trailing={<>{tiles && <TileSizeSwitch size={appearance.tileSize} onChange={(tileSize) => update({ tileSize })} place="top" />}<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} /></>}>
                   {compact ? <ToolbarMenu icon={SlidersHorizontal} label="Filter" badge={filterCount}>{filters}</ToolbarMenu> : <>
                     <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>{filters}</ToolbarMenu>
@@ -806,7 +817,7 @@ export function AssetManagement({ asOf, fileState }: ScreenProps) {
               )}
               {openFile && (
                 <FilePanel file={openFile} customers={customers} folders={folders} here={current} live={source === "supabase"} canAssign={canManage && source === "supabase"}
-                  canFile={(customerId) => !freelancerView || customerId === ownId} freelancerView={freelancerView}
+                  canFile={(customerId) => !freelancerView || customerId === ownId} freelancerView={freelancerView} customerView={customerView}
                   onAudience={canManage && source === "supabase" && fileState.freelancers ? async (customerId, audience) => {
                     const result = await setFileAudience(openFile.id, customerId, audience);
                     if (result.ok) setNotice(`Sichtbarkeit von „${openFile.title}“ gespeichert.`);

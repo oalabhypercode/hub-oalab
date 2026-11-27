@@ -15,7 +15,7 @@ const listViews: { id: ListView; label: string }[] = [{ id: "minimal", label: "M
 const widths: { id: PageWidth; label: string }[] = [{ id: "standard", label: "Standard" }, { id: "xl", label: "Breit (XL)" }];
 
 /** Profile › Appearance: every change applies live to the whole hub and is stored in this browser. */
-export function AppearanceScreen({ preview, admin = false }: { preview: boolean; admin?: boolean }) {
+export function AppearanceScreen({ preview, admin = false, freelancer = false }: { preview: boolean; admin?: boolean; freelancer?: boolean }) {
   const { appearance, update } = useAppearance();
   const profile = hubHref(preview, "settings");
   return (
@@ -51,16 +51,14 @@ export function AppearanceScreen({ preview, admin = false }: { preview: boolean;
           <p className="t-footnote t-secondary">Gilt nur auf diesem Gerät, für alle Notizen und in jeder Rolle; für andere ändert sich nichts. Titel, Abstände und Tabellen wachsen mit, und die Schreibfläche wird so breit, dass eine Zeile gleich viele Zeichen hat.</p>
         </GlassCard>
 
-        {/* Only admins have a list with both views so far; customers get the card once their lists follow it. */}
-        {admin && (
-          <GlassCard aria-labelledby="appearance-lists">
-            <h2 className="t-headline" id="appearance-lists">Listen</h2>
-            <div className="swatch-grid list-swatches">
-              {listViews.map((view) => <ListViewSwatch key={view.id} view={view.id} label={view.label} selected={appearance.listView === view.id} onSelect={() => update({ listView: view.id })} />)}
-            </div>
-            <p className="t-footnote t-secondary">Minimalistisch zeigt je Zeile nur Symbol, Titel und Datum. Liste ordnet wie die Listenansicht im Finder: schmale Zeilen mit Name, Datum, Größe und Art, Ordner zum Aufklappen. Kacheln zeigt jede Datei als Karte, Logos und Bilder mit einem kleinen Vorschaubild; die Größe stellst du in der Liste unten rechts ein. Detail zeigt alle Spalten. Die Wahl gilt heute für das Asset Management und später für weitere Listen. Oben rechts in der Liste lässt sie sich jederzeit umschalten.</p>
-          </GlassCard>
-        )}
+        {/* Every role has the files in these views since 27.11.2026 (customers under „Dateien“), so everyone gets the card. */}
+        <GlassCard aria-labelledby="appearance-lists">
+          <h2 className="t-headline" id="appearance-lists">Listen</h2>
+          <div className="swatch-grid list-swatches">
+            {listViews.map((view) => <ListViewSwatch key={view.id} view={view.id} label={view.label} selected={appearance.listView === view.id} onSelect={() => update({ listView: view.id })} />)}
+          </div>
+          <p className="t-footnote t-secondary">Minimalistisch zeigt je Zeile nur Symbol, Titel und Datum. Liste ordnet wie die Listenansicht im Finder: schmale Zeilen mit Name, Datum, Größe und Art, Ordner zum Aufklappen. Kacheln zeigt jede Datei als Karte, Logos und Bilder mit einem kleinen Vorschaubild; die Größe stellst du in der Liste unten rechts ein. Detail zeigt alle Spalten. Die Wahl gilt heute für {admin || freelancer ? "das Asset Management" : "die Dateien"} und später für weitere Listen. Oben rechts in der Liste lässt sie sich jederzeit umschalten.</p>
+        </GlassCard>
 
         <GlassCard aria-labelledby="appearance-background">
           <h2 className="t-headline" id="appearance-background">Hintergrund</h2>

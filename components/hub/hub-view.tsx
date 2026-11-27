@@ -142,7 +142,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
 
   return (
     <>
-      {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} />
+      {detail === "appearance" ? <AppearanceScreen preview={preview} admin={admin} freelancer={freelancer} />
         : detail === "tasks" ? <TasksScreen board={taskBoard} preview={preview} asOf={asOf} />
         : detail === "notes" ? <NotesScreen area={notes} preview={preview} />
         : detail && isMetricId(detail) ? <MetricDetailScreen {...screen} metricId={detail} />

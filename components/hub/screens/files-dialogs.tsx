@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Download, Trash2, Users } from "lucide-react";
+import { Check, Download, Trash2 } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { createDownloadUrl, setFileAssignments, type ActionResult } from "@/lib/hub-files/actions";
-import { fileCategories, fileFormat, formatBytes, formatFileDateTime, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
-import type { HubFileCustomer, HubFolder, HubStoredFile } from "@/lib/hub-files/types";
+import { createDownloadUrl, type ActionResult } from "@/lib/hub-files/actions";
+import { fileCategories, fileFormat, MAX_FOLDER_NAME } from "@/lib/hub-files/catalog";
+import type { HubFolder, HubStoredFile } from "@/lib/hub-files/types";
 import type { SortValue } from "@/lib/table-tools";
 import { useInfo } from "../info-box";
 import { Modal } from "../modal";
 import { alphabetical, type SortOption } from "../table-tools";
-import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
 
 /** Fixture samples are plain links; real files get a 60-second signed URL from the server first. */
 export function DownloadButton({ file, onError, label = false, compact = false, className: look }: { file: HubStoredFile; onError: (message: string) => void; label?: boolean; compact?: boolean; className?: string }) {
@@ -28,55 +27,6 @@ export function DownloadButton({ file, onError, label = false, compact = false, 
     else onError(result.error);
   }
   return <button type="button" className={className} onClick={download} disabled={busy} aria-label={label ? undefined : `${file.title} herunterladen`} data-tip={label ? undefined : "Herunterladen"}>{content}</button>;
-}
-
-/** All details of a file; admins can change the customer assignment here. */
-export function FileDetailDialog({ file, customers, folders, canManage, onClose, startEditing = false }: { file: HubStoredFile; customers: HubFileCustomer[]; folders: HubFolder[]; canManage: boolean; onClose: () => void; startEditing?: boolean }) {
-  const [error, setError] = useState("");
-  const [editing, setEditing] = useState(startEditing && canManage);
-  const [selected, setSelected] = useState(file.customers.map((customer) => customer.id));
-  const [saving, setSaving] = useState(false);
-  const folderName = (customerId: string) => folders.find((folder) => folder.id === file.folderIds[customerId])?.name ?? "Ohne Ordner";
-
-  async function save() {
-    setSaving(true);
-    const result = await setFileAssignments(file.id, selected);
-    setSaving(false);
-    if (result.ok) { setEditing(false); setError(""); } else setError(result.error);
-  }
-
-  return (
-    <Modal title={file.title} onClose={onClose}>
-      <div className="file-detail-head"><span className="modal-file-icon"><FileIcon file={file} size={30} /></span><span><strong>{file.fileName}</strong><small>{fileFormat(file.fileName)} · {formatBytes(file.sizeBytes)}</small></span></div>
-      <dl className="file-details">
-        <div><dt>Kategorie</dt><dd><CategoryPill category={file.category} /></dd></div>
-        <div className="file-details-block"><dt>Beschreibung</dt><dd>{file.description || "Keine Beschreibung hinterlegt."}</dd></div>
-        <div><dt>Originaldatei</dt><dd>{file.fileName}</dd></div>
-        <div><dt>Format</dt><dd>{fileFormat(file.fileName)} ({file.mimeType})</dd></div>
-        <div><dt>Größe</dt><dd>{formatBytes(file.sizeBytes)} ({new Intl.NumberFormat("de-DE").format(file.sizeBytes)} Bytes)</dd></div>
-        <div><dt>Bereitgestellt</dt><dd>{formatFileDateTime(file.createdAt)}</dd></div>
-        <div><dt>{file.customers.length > 1 ? "Kunden" : "Kunde"}</dt><dd>{file.customers.length ? file.customers.map((customer) => `${customer.customerNumber} · ${customer.company}`).join(", ") : "Ablage (keinem Kunden zugeordnet)"}</dd></div>
-        {file.customers.length > 0 && <div><dt>Ordner</dt><dd>{file.customers.length === 1 ? folderName(file.customers[0].id) : file.customers.map((customer) => `${customer.customerNumber}: ${folderName(customer.id)}`).join(", ")}</dd></div>}
-        {file.sha256 && <div className="file-details-block"><dt>Prüfsumme (SHA-256)</dt><dd className="file-checksum">{file.sha256}</dd></div>}
-      </dl>
-      {file.sha256 && <p className="t-footnote t-secondary file-detail-note">Der Download liefert genau diese Fassung. Die Prüfsumme wurde beim Upload berechnet.</p>}
-      {file.sampleHref && <p className="t-footnote t-secondary file-detail-note">Fiktive Beispieldatei für die Vorschau.</p>}
-      {canManage && editing && (
-        <div className="file-assign">
-          <CustomerPicker customers={customers} selected={selected} onChange={setSelected} idPrefix={`assign-${file.id}`} />
-          <div className="file-assign-actions">
-            <button type="button" className="sheet-button" onClick={() => { setEditing(false); setSelected(file.customers.map((customer) => customer.id)); }} disabled={saving}>Abbrechen</button>
-            <button type="button" className="sheet-button sheet-button-primary" onClick={save} disabled={saving}>{saving ? <MiniLoader size={18} /> : <Check size={18} aria-hidden="true" />}Zuordnung speichern</button>
-          </div>
-        </div>
-      )}
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="file-detail-actions">
-        {canManage && !editing && <button type="button" className="sheet-button" onClick={() => setEditing(true)}><Users size={18} aria-hidden="true" />Zuordnung ändern</button>}
-        <DownloadButton file={file} onError={setError} label />
-      </div>
-    </Modal>
-  );
 }
 
 /** Name a new folder or rename one; the same window for admins, customers and freelancers. */

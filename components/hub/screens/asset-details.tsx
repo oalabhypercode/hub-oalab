@@ -35,6 +35,8 @@ type DetailProps = {
   canFile: (customerId: string) => boolean;
   /** A freelancer's view: only the customers they see, with "Nur für dich" at working files. */
   freelancerView?: boolean;
+  /** A customer's view (27.11.2026): the file lies at their own company; the link is their own. */
+  customerView?: boolean;
   /** Admins with freelancers in the database: who sees the file at a customer that has freelancers. */
   onAudience?: (customerId: string, audience: FileAudience) => Promise<ActionResult<null>>;
   startAssigning: boolean;
@@ -65,7 +67,7 @@ export function FilePanel({ onClose, ...props }: DetailProps & { onClose: () => 
   );
 }
 
-function FileDetails({ file, customers, folders, here, live, canAssign, canFile, freelancerView = false, onAudience, startAssigning, onMove, onDelete, onNotice, editingDetails, onEditDetails }: DetailProps & { editingDetails: boolean; onEditDetails: (on: boolean) => void }) {
+function FileDetails({ file, customers, folders, here, live, canAssign, canFile, freelancerView = false, customerView = false, onAudience, startAssigning, onMove, onDelete, onNotice, editingDetails, onEditDetails }: DetailProps & { editingDetails: boolean; onEditDetails: (on: boolean) => void }) {
   const [editing, setEditing] = useState(startAssigning && canAssign);
   const [selected, setSelected] = useState(file.customers.map((customer) => customer.id));
   const [busy, setBusy] = useState<"assign" | "move" | "logo" | "audience" | null>(null);
@@ -142,7 +144,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
     <FilePreview file={file} live={live} onSize={setImageSize} />
     <div className="am-panel-actions">
       <DownloadButton file={file} onError={setError} label className="sheet-action is-primary" />
-      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" data-tip={copied ? "Link kopiert" : freelancerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
+      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" data-tip={copied ? "Link kopiert" : freelancerView || customerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
       {canAssign && <MoreMenu onDelete={onDelete} disabled={busy !== null} />}
     </div>
     {copied && <p className="am-help" role="status">Link kopiert. Wer ihn öffnet, sieht die Datei, wenn sein Login sie sehen darf.</p>}
@@ -158,7 +160,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
     )}
 
     <div className="am-field">
-      <span className="am-label">{freelancerView ? "Liegt bei" : "Freigegeben für"}
+      <span className="am-label">{freelancerView || customerView ? "Liegt bei" : "Freigegeben für"}
         {canAssign && shareInfo.button}
         {canAssign && !editing && <button type="button" className="am-label-action" onClick={() => setEditing(true)} disabled={busy !== null}><UserPlus size={13} aria-hidden="true" />Zuordnung ändern</button>}
       </span>
@@ -189,7 +191,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
                 <CustomerSign customer={sign} logo={sign.logo} />
                 <span className="am-share-name">
                   <strong>{customer.company}</strong>
-                  <span>{customer.customerNumber}{customer.id === here?.id ? " · hier geöffnet" : ""}{freelancerView && audience === "freelancer" ? " · nur für dich" : ""}</span>
+                  <span>{customer.customerNumber}{customer.id === here?.id && !customerView ? " · hier geöffnet" : ""}{freelancerView && audience === "freelancer" ? " · nur für dich" : ""}</span>
                   {served && (
                     <span className="am-mini am-audience">
                       <Eye size={14} aria-hidden="true" />
@@ -207,7 +209,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
                       options={[{ value: "", label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }, ...own.map((folder) => ({ value: folder.id, label: folder.name, lead: <Folder size={15} aria-hidden="true" /> }))]} />
                     <ChevronDown size={14} aria-hidden="true" />
                   </span>
-                ) : <span className="am-mini is-static" data-tip="Dieser Kunde hat noch keine Ordner"><Folder size={14} aria-hidden="true" />Ohne Ordner</span>}
+                ) : <span className="am-mini is-static" data-tip={customerView ? "Noch keine Ordner" : "Dieser Kunde hat noch keine Ordner"}><Folder size={14} aria-hidden="true" />Ohne Ordner</span>}
               </div>
             );
           }) : (
