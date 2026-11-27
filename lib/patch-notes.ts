@@ -74,6 +74,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 
 export const patchPackages: PatchPackage[] = [
   {
+    number: 34,
+    date: "2026-11-27",
+    title: "„Rückmeldung fehlt“ nur bei echten Fällen",
+    summary: "Unter Nachrichten › Service stand „Rückmeldung fehlt“ auch bei älteren offenen Anfragen, wenn die KI ein Ergebnis zu einer anderen Anfrage desselben Projekts gemeldet hatte. Jetzt zählt nur eine Änderung der Testseite, die neuer ist als jede Meldung; dasselbe gilt in Service.",
+    changes: [
+      { kind: "fixed", area: "messages", place: "Nachrichten › Service", title: "„Rückmeldung fehlt“ nur bei echten Fällen", text: "Meldete die KI ein Ergebnis zu einer anderen Anfrage desselben Projekts, stand bei älteren offenen Anfragen fälschlich „Rückmeldung fehlt“. Jetzt zählt nur eine Änderung der Testseite, zu der es noch gar keine Meldung gibt." },
+    ],
+  },
+  {
     number: 33,
     date: "2026-11-26",
     title: "Infomails mit Abmelde-Link und E-Mail zur neuen Testansicht",

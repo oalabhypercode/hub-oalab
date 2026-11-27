@@ -259,6 +259,25 @@ test("testansicht: a test site that changed without a word from the AI shows, af
   assert.equal(preparedReply("heute, 15:20"), "Deine Änderung ist auf der Testseite, Stand heute, 15:20. Schau gern drauf. Passt alles, drück im Chat „Gefällt mir“.");
 });
 
+test("testansicht: only the site's own date counts, never one that a reported result explains", async () => {
+  const { threadStatus, unreportedSiteAt } = await import("../lib/hub-conversations/work-status.ts");
+  // 26.11.2026: OA-3 and OA-4 (KalaClo, open since 12.10.) looked silent because OA-13 of the same project reported a
+  // result on 22.11.; the site itself sends no date.
+  const messages = [{ sender: "client", at: "2026-10-12T19:37:57Z" }];
+  const now = "2026-11-26T17:30:00Z";
+  const reported = threadStatus({ state: "running", messages, now, testSite: { url: "https://kunde-test.vercel.app/", updatedAt: "2026-11-22T01:04:57Z", source: "result" } });
+  assert.equal(reported.siteChangedAt, null);
+  assert.equal(reported.silentSince, null);
+  assert.equal(reported.working.slow, true);
+  // The site's own date, newer than every report: nobody said a word about it.
+  const own = threadStatus({ state: "running", messages, now, testSite: { url: "https://kunde-test.vercel.app/", updatedAt: "2026-11-25T14:20:27Z", source: "site" } });
+  assert.equal(own.silentSince, "2026-11-25T14:20:27Z");
+  assert.equal(unreportedSiteAt(null), null);
+  assert.equal(unreportedSiteAt({ url: "https://a.example/", updatedAt: null, source: null }), null);
+  // The list asks the same question.
+  assert.match(await source("components/hub/screens/conversations.tsx"), /siteAt: unreportedSiteAt\(site\), paused: item\.aiPaused/);
+});
+
 test("testansicht: the stamp always names the time, results name what landed and whether the e-mail went out", async () => {
   const { freshViewLabel, mailNote, publicHttpsUrl } = await import("../lib/hub-conversations/work-status.ts");
   const today = new Date("2026-11-26T16:00:00+01:00");

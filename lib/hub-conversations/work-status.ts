@@ -81,6 +81,15 @@ export function newestAt(messages: readonly { readonly sender: string; readonly 
   return found;
 }
 
+/**
+ * The test site's own date, only while it is newer than every result reported for the project: a change nobody
+ * reported. A date that comes from a reported result, also one for another request of the same project, never counts
+ * (26.11.2026: a result for OA-13 made the older KalaClo requests OA-3 and OA-4 look as if the AI had gone silent).
+ */
+export function unreportedSiteAt(testSite: TestSiteView | null | undefined): string | null {
+  return testSite?.source === "site" ? testSite.updatedAt : null;
+}
+
 /** The status of an open conversation from its messages and its test site. */
 export function threadStatus(input: {
   readonly state: string;
@@ -93,7 +102,7 @@ export function threadStatus(input: {
     state: input.state,
     lastClientAt: newestAt(input.messages, "client"),
     lastResultAt: newestAt(input.messages, "oalab"),
-    siteAt: input.testSite?.updatedAt ?? null,
+    siteAt: unreportedSiteAt(input.testSite),
     paused: input.paused,
     now: input.now,
   });
