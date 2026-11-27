@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Check, ChevronLeft, Globe, Info, Lock, MessagesSquare, PauseCircle, Search, SendHorizontal, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, Check, ChevronLeft, Globe, Info, Lock, MessagesSquare, PauseCircle, Search, Sparkles, TriangleAlert, Wrench } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
@@ -11,14 +11,16 @@ import { CategoryTitle } from "./workspace";
 import { LoadNotice } from "./overview";
 import { CustomerSign } from "./customer-sign";
 import { ChatTabs, PrivateChats, type ChatTab } from "./private-chat";
+import { ComposeRow, runStep, useGrowingField, type Attempt } from "./conversation-compose";
+import { TeamIssueComposer, TeamIssueDialog, TeamSign, type ReportInput } from "./team-issue";
 import type { ScreenProps } from "./types";
-import { handBackService, openConversation, refreshConversations, serviceSites, writeService } from "@/lib/hub-conversations/actions";
-import { DEMO_NOW, demoConversations, demoStep, type DemoStep } from "@/lib/hub-conversations/fixtures";
+import { handBackService, openConversation, refreshConversations, reportTeamIssue, serviceSites, writeService } from "@/lib/hub-conversations/actions";
+import { DEMO_NOW, demoConversations, demoReport, demoStep, type DemoStep } from "@/lib/hub-conversations/fixtures";
 import {
-  CONVERSATION_FILTERS, MAX_MESSAGE_LENGTH, clockTime, conversationFilter, handBackCopy, listTime, messageSide, previewText, senderLabel,
-  serviceTeamHint, serviceWriteHint, stampLabel, threadItems, type ConversationFilter,
+  CONVERSATION_FILTERS, TEAM_ISSUE_PREFIX, clockTime, conversationFilter, handBackCopy, listTime, messageSide, previewText, reportRest, senderLabel,
+  serviceTeamHint, serviceWriteHint, stampLabel, teamIssueTitle, threadItems, type ConversationFilter,
 } from "@/lib/hub-conversations/rules";
-import type { ConversationMessage, ConversationResult, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind } from "@/lib/hub-conversations/types";
+import type { ConversationMessage, ConversationResult, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind, TeamIssueReport } from "@/lib/hub-conversations/types";
 import {
   QUIPS, QUIP_MS, WORKING_STATES, freshViewLabel, mailNote, preparedReply, silenceCopy, statusFromFacts, teamSlowLines, threadStatus,
   unreportedSiteAt, type TestSiteView, type WorkStatus,
@@ -50,7 +52,7 @@ function useClock(fixed: number | null): number | null {
  * Nachrichten (4 November 2026): customers write here with oalab in their private chat; requests go to the service
  * platform. Admins have two tabs: "Privat" with every customer's private chat to answer, and "Service" with every
  * request of the service platform, where they also step in: give a paused request back, write for the customer or
- * answer as oalab.
+ * answer as oalab. The team reports problems with NoteTree there too (./team-issue.tsx).
  */
 export function ConversationsScreen({ admin, freelancer, firstName, company, asOf, conversations, privateChats }: ScreenProps & { conversations?: ConversationsState; privateChats?: PrivateChatState }) {
   const router = useRouter();
@@ -76,16 +78,25 @@ export function ConversationsScreen({ admin, freelancer, firstName, company, asO
   );
 }
 
+/** The customer's logo; a report of the team has its own sign. */
 function ServiceAvatar({ conversation }: { conversation: ConversationSummary }) {
+  if (conversation.team) return <TeamSign />;
   const company = conversation.company ?? conversation.title;
   return <CustomerSign customer={{ id: conversation.customerId ?? company, company }} logo={conversation.logo} />;
 }
 
+// A report of the team names its kind once, in the line where a request names its company, not in every title.
+const titleOf = (conversation: ConversationSummary) => conversation.team ? teamIssueTitle(conversation.title) : conversation.title;
+const originOf = (conversation: ConversationSummary) => conversation.team ? TEAM_ISSUE_PREFIX : conversation.company;
+
 function lastLine(conversation: ConversationSummary) {
   const last = conversation.lastMessage;
   if (!last) return "Noch keine Nachricht";
-  const text = previewText(last.body);
-  return last.sender === "system" ? text : `${senderLabel(last.sender, last.name, last.onBehalf, conversation.company)}: ${text}`;
+  const text = previewText(conversation.team ? reportRest(last.body, titleOf(conversation)) : last.body);
+  if (last.sender === "system") return text;
+  const who = senderLabel(last.sender, last.name, last.onBehalf, conversation.company);
+  // A report of one line is its own title already.
+  return text ? `${who}: ${text}` : `Gemeldet von ${who}`;
 }
 
 /** „oa 14“, „OA-14“ and „14“ all find OA-14. */
@@ -93,7 +104,8 @@ const compact = (value: string) => value.toLowerCase().replace(/[\s-]+/g, "");
 
 /**
  * Every request of the service platform for admins, one list with its number and state: open one to read along and
- * step in. Answers and internal notes from NoteTree Business keep coming from there.
+ * step in. Answers and internal notes from NoteTree Business keep coming from there. The team's own reports
+ * („NoteTree-Verbesserung“) are made here and sit in the same list.
  */
 function ServiceConversations({ now, state, author, tabs }: { now: Date; state?: ConversationsState; author: string; tabs?: (unread: number) => ReactNode }) {
   const fixtures = useMemo(() => state ? null : demoConversations(), [state]);
@@ -118,6 +130,11 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
   const clock = useClock(fixtures ? Date.parse(DEMO_NOW) : null);
   // Test sites of the requests in work, asked after the list shows; the examples bring theirs along.
   const [sites, setSites] = useState<Readonly<Record<string, TestSiteView | null>>>(() => fixtures ? Object.fromEntries(fixtures.sites) : {});
+  // „NoteTree-Problem melden“: the draft stays with the list, so closing the window loses nothing.
+  const [reporting, setReporting] = useState(false);
+  const [reportDraft, setReportDraft] = useState("");
+  // Said in a report right after it was made, until the next step there.
+  const [notice, setNotice] = useState<{ readonly id: string; readonly text: string } | null>(null);
 
   const withLogo = (item: ConversationSummary): ConversationSummary => ({ ...item, logo: logos.get(item.id) ?? item.logo });
   const conversation = list.find((item) => item.id === openId) ?? null;
@@ -189,10 +206,32 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
 
   const open = (id: string) => {
     setUnread((current) => { const next = new Set(current); next.delete(id); return next; });
+    setNotice((current) => current?.id === id ? current : null);
     router.push(`${pathname}?tab=service&conversation=${encodeURIComponent(id)}`, { scroll: false });
   };
   const isNew = (item: ConversationSummary) => unread.has(item.id) && item.id !== openId;
-  const close = () => router.push(`${pathname}?tab=service`, { scroll: false });
+  const close = () => { setNotice(null); router.push(`${pathname}?tab=service`, { scroll: false }); };
+
+  // From an open request of a customer the report may name it.
+  const related = conversation && !conversation.team && conversation.group !== "done" ? conversation : null;
+  const submitReport = async (input: ReportInput): Promise<ConversationResult<TeamIssueReport>> => {
+    if (live) return reportTeamIssue(input);
+    const about = list.find((item) => item.id === input.relatedRequestId) ?? null;
+    return { ok: true, data: demoReport({ body: input.body, related: about, author: author || "Du", at: new Date().toISOString() }, list, demo!.messages) };
+  };
+  /** The report (new, or the open one with the same text) shows in the list, opens and says what happened. */
+  const reported = ({ thread: next, existing }: TeamIssueReport) => {
+    const { id } = next.conversation;
+    if (live) setLiveThread(next);
+    else setDemo((before) => before && { messages: new Map(before.messages).set(id, [...next.messages]), controls: new Map(before.controls).set(id, next.controls!) });
+    setList((current) => [next.conversation, ...current.filter((item) => item.id !== id)]);
+    setReporting(false);
+    setReportDraft("");
+    setFilter("all");
+    setQuery("");
+    open(id);
+    setNotice({ id, text: existing ? "Diese Meldung gibt es schon, sie ist noch offen." : "Gemeldet. Sie steht jetzt hier und in NoteTree Business." });
+  };
 
   const term = query.trim().toLowerCase();
   const found = [...list].sort((a, b) => Date.parse(b.lastAt) - Date.parse(a.lastAt))
@@ -205,7 +244,10 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
     <div className="sheet chat section-first" data-open={thread || openId ? "true" : undefined}>
       <div className="chat-grid">
         <section className="chat-list" aria-label="Service-Anfragen">
-          <div className="chat-list-head"><h2>Anfragen</h2></div>
+          <div className="chat-list-head has-report">
+            <h2>Anfragen</h2>
+            <button type="button" className="sheet-action chat-report-open" onClick={() => setReporting(true)}><Wrench size={14} aria-hidden="true" />NoteTree-Problem melden</button>
+          </div>
           {tabs?.(list.filter(isNew).length)}
           <label className="chat-search"><Search size={16} aria-hidden="true" /><span className="visually-hidden">Anfragen durchsuchen</span>
             <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nummer, Kunde, Thema oder Text" /></label>
@@ -224,8 +266,8 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
                   <button type="button" className="chat-conv" aria-current={item.id === openId ? "true" : undefined} onClick={() => open(item.id)}>
                     <ServiceAvatar conversation={withLogo(item)} />
                     <span className="chat-conv-main">
-                      <span className="chat-conv-top"><strong>{item.title}</strong><time dateTime={item.lastAt} className={isNew(item) ? "is-new" : undefined}>{listTime(item.lastAt, now)}</time></span>
-                      <span className="chat-conv-company"><span className="chat-ref">{item.reference}</span>{item.company && <span>{item.company}</span>}</span>
+                      <span className="chat-conv-top"><strong>{titleOf(item)}</strong><time dateTime={item.lastAt} className={isNew(item) ? "is-new" : undefined}>{listTime(item.lastAt, now)}</time></span>
+                      <span className="chat-conv-company"><span className="chat-ref">{item.reference}</span>{originOf(item) && <span>{originOf(item)}</span>}</span>
                       <span className="chat-conv-sub">
                         <span className="chat-conv-last">{lastLine(item)}</span>
                         <StatePill conversation={item} silent={silent(item)} />
@@ -241,9 +283,10 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
           )}
         </section>
 
-        <section className="chat-pane" aria-label={thread ? `Anfrage ${thread.conversation.reference}: ${thread.conversation.title}` : "Anfrage"}>
+        <section className="chat-pane" aria-label={thread ? `${thread.conversation.team ? "Meldung" : "Anfrage"} ${thread.conversation.reference}: ${titleOf(thread.conversation)}` : "Anfrage"}>
           {thread ? (
-            <ServiceThread key={thread.conversation.id} thread={{ ...thread, conversation: withLogo(thread.conversation) }} now={now} clock={clock} live={live} onClose={close} onChanged={changed} onDemoStep={demoChange} />
+            <ServiceThread key={thread.conversation.id} thread={{ ...thread, conversation: withLogo(thread.conversation) }} now={now} clock={clock} live={live} onClose={close} onChanged={changed} onDemoStep={demoChange}
+              notice={notice?.id === thread.conversation.id ? notice.text : undefined} onNoticeSeen={() => setNotice(null)} />
           ) : openId && live && !threadError ? (
             <div className="chat-placeholder"><MiniLoader size={22} /><span>Anfrage wird geladen …</span></div>
           ) : (
@@ -255,6 +298,7 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
           )}
         </section>
       </div>
+      {reporting && <TeamIssueDialog draft={reportDraft} onDraft={setReportDraft} related={related} submit={submitReport} onReported={reported} onClose={() => setReporting(false)} />}
     </div>
   );
 }
@@ -339,20 +383,27 @@ function WorkLines({ status, now }: { status: WorkStatus; now: Date }) {
   );
 }
 
-function ServiceThread({ thread, now, clock, live, onClose, onChanged, onDemoStep }: {
-  thread: ConversationThread; now: Date; clock: number | null; live: boolean; onClose: () => void;
+/** Why nobody can write in a conversation any more. */
+function closedLine({ group, team }: ConversationSummary) {
+  if (group !== "done") return team ? "Hier kann gerade niemand schreiben: Die Meldung liegt im Papierkorb." : "Hier kann gerade niemand schreiben: Die Anfrage liegt im Papierkorb oder die Firma ist gesperrt.";
+  return team ? "Abgeschlossen. Taucht das Problem wieder auf, melde es neu." : "Abgeschlossen. Hier schreibt niemand mehr; neue Wünsche kommen als neue Anfrage.";
+}
+
+function ServiceThread({ thread, now, clock, live, notice, onNoticeSeen, onClose, onChanged, onDemoStep }: {
+  thread: ConversationThread; now: Date; clock: number | null; live: boolean; notice?: string; onNoticeSeen: () => void; onClose: () => void;
   onChanged: (thread: ConversationThread) => void; onDemoStep: (step: DemoStep) => void;
 }) {
   const { conversation, messages, controls } = thread;
   const items = useMemo(() => threadItems(messages.map((message) => ({ ...message, author: `${message.sender}:${message.name ?? ""}:${message.onBehalf}` })), now), [messages, now]);
   const log = useRef<HTMLDivElement>(null);
-  const subtitle = [conversation.reference, conversation.company].filter(Boolean).join(" · ");
+  const subtitle = [conversation.reference, originOf(conversation)].filter(Boolean).join(" · ");
   const serviceUrl = `${SERVICE_PLATFORM_URL}/workspace/requests/${encodeURIComponent(conversation.reference)}`;
   // Dates of real requests read against the browser's clock; the examples against the page's day.
   const labelNow = live && clock !== null ? new Date(clock) : now;
-  const status = clock === null || conversation.group === "done" ? null
+  // A report of the team has neither a test site nor an AI at work.
+  const status = clock === null || conversation.group === "done" || conversation.team ? null
     : threadStatus({ state: conversation.state, messages, testSite: thread.testSite, paused: conversation.aiPaused, now: clock });
-  const site = thread.testSite ?? null;
+  const site = conversation.team ? null : thread.testSite ?? null;
   const silence = status?.silentSince
     ? { copy: silenceCopy(conversation.company, stampLabel(status.silentSince, labelNow).replace(/^heute, /, "")), draft: preparedReply(stampLabel(status.silentSince, labelNow)) }
     : null;
@@ -369,7 +420,7 @@ function ServiceThread({ thread, now, clock, live, onClose, onChanged, onDemoSte
       <header className="chat-pane-head">
         <button type="button" className="chat-back" onClick={onClose} aria-label="Zurück zu den Anfragen"><ChevronLeft size={24} aria-hidden="true" /></button>
         <ServiceAvatar conversation={conversation} />
-        <div className="chat-pane-title"><strong>{conversation.title}</strong><span className="chat-pane-sub"><span>{subtitle}</span>{site && <SiteLink site={site} now={labelNow} />}</span></div>
+        <div className="chat-pane-title"><strong>{titleOf(conversation)}</strong><span className="chat-pane-sub"><span>{subtitle}</span>{site && <SiteLink site={site} now={labelNow} />}</span></div>
         <StatePill conversation={conversation} silent={Boolean(status?.silentSince)} />
         <a className="chat-icon-button" href={serviceUrl} target="_blank" rel="noopener noreferrer" data-tip="In Service öffnen" aria-label={`${conversation.reference} in Service öffnen (neuer Tab)`}><ArrowUpRight size={19} aria-hidden="true" /></a>
       </header>
@@ -399,11 +450,11 @@ function ServiceThread({ thread, now, clock, live, onClose, onChanged, onDemoSte
       {controls === null ? (
         <p className="chat-readonly"><Info size={16} aria-hidden="true" />Du liest mit. Antworten und interne Notizen von oalab entstehen in NoteTree Business.</p>
       ) : !controls.writable ? (
-        <p className="chat-readonly"><Lock size={16} aria-hidden="true" />{conversation.group === "done"
-          ? "Abgeschlossen. Hier schreibt niemand mehr; neue Wünsche kommen als neue Anfrage."
-          : "Hier kann gerade niemand schreiben: Die Anfrage liegt im Papierkorb oder die Firma ist gesperrt."}</p>
+        <p className="chat-readonly"><Lock size={16} aria-hidden="true" />{closedLine(conversation)}</p>
       ) : !controls.teamAccess ? (
         <p className="chat-readonly"><Lock size={16} aria-hidden="true" />{serviceTeamHint(controls.handBack !== null)}</p>
+      ) : conversation.team ? (
+        <TeamIssueComposer conversation={conversation} controls={controls} live={live} notice={notice} onNoticeSeen={onNoticeSeen} onChanged={onChanged} onDemoStep={onDemoStep} />
       ) : (
         <ServiceComposer conversation={conversation} controls={controls} live={live} silence={silence} onChanged={onChanged} onDemoStep={onDemoStep} />
       )}
@@ -431,38 +482,15 @@ function ServiceComposer({ conversation, controls, live, silence, onChanged, onD
   const [busy, setBusy] = useState<"send" | "hand_back" | null>(null);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
-  const field = useRef<HTMLTextAreaElement>(null);
-  // The key and version of a step that got no answer; sending the same again repeats exactly that step.
-  const sendAttempt = useRef<{ key: string; version: number } | null>(null);
-  const handAttempt = useRef<{ key: string; version: number } | null>(null);
+  const field = useGrowingField(draft);
+  const sendAttempt: Attempt = useRef(null);
+  const handAttempt: Attempt = useRef(null);
+  const step = { id: conversation.id, version: controls.version, onChanged, onError: setError };
 
   // The banner stays on screen while it leaves, whoever gave the request back.
   const copy = controls.handBack ? handBackCopy(controls.handBack, company) : null;
   const [banner, setBanner] = useState<HandBackCopy | null>(copy);
   if (copy && !sameCopy(copy, banner)) setBanner(copy);
-
-  // The field grows with the text up to a few lines.
-  useEffect(() => {
-    const element = field.current;
-    if (!element) return;
-    element.style.height = "auto";
-    element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
-  }, [draft]);
-
-  async function run(attempt: { current: { key: string; version: number } | null }, call: (input: { id: string; version: number; key: string }) => Promise<ConversationResult<ConversationThread>>) {
-    attempt.current ??= { key: crypto.randomUUID(), version: controls.version };
-    try {
-      const result = await call({ id: conversation.id, ...attempt.current });
-      // The server answered: the next click is a new step.
-      attempt.current = null;
-      if (result.data) onChanged(result.data);
-      if (!result.ok) setError(result.error);
-      return result.ok;
-    } catch {
-      setError("Keine Verbindung. Bitte versuche es erneut.");
-      return false;
-    }
-  }
 
   async function send() {
     const body = draft.trim();
@@ -471,7 +499,7 @@ function ServiceComposer({ conversation, controls, live, silence, onChanged, onD
     setDone("");
     if (!live) { onDemoStep({ kind, body }); setDraft(""); return; }
     setBusy("send");
-    if (await run(sendAttempt, (input) => writeService({ ...input, kind, body }))) setDraft("");
+    if (await runStep({ ...step, attempt: sendAttempt, call: (input) => writeService({ ...input, kind, body }) })) setDraft("");
     setBusy(null);
   }
 
@@ -482,7 +510,7 @@ function ServiceComposer({ conversation, controls, live, silence, onChanged, onD
     const message = mode === "client" ? `Freigegeben: ${company || "Der Kunde"} kann der Testseite wieder zustimmen.` : "Die KI arbeitet wieder an dieser Anfrage.";
     if (!live) { onDemoStep({ kind: "hand_back" }); setDone(message); return; }
     setBusy("hand_back");
-    if (await run(handAttempt, handBackService)) setDone(message);
+    if (await runStep({ ...step, attempt: handAttempt, call: handBackService })) setDone(message);
     setBusy(null);
   }
 
@@ -523,13 +551,10 @@ function ServiceComposer({ conversation, controls, live, silence, onChanged, onD
         <button type="button" aria-pressed={kind === "on_behalf"} data-tip={`Für ${company || "den Kunden"} schreiben`} onClick={() => { setKind("on_behalf"); sendAttempt.current = null; }}><span>Für {company || "den Kunden"}</span></button>
         <button type="button" aria-pressed={kind === "reply"} onClick={() => { setKind("reply"); sendAttempt.current = null; }}>Als oalab</button>
       </div>
-      <div className="chat-compose-row">
-        <label className="visually-hidden" htmlFor={`service-field-${conversation.id}`}>{kind === "on_behalf" ? `Nachricht für ${company || "den Kunden"}` : "Antwort als oalab"}</label>
-        <textarea id={`service-field-${conversation.id}`} ref={field} rows={1} value={draft} maxLength={MAX_MESSAGE_LENGTH} placeholder={placeholder} disabled={busy === "send"}
-          onChange={(event) => { setDraft(event.target.value); sendAttempt.current = null; setDone(""); }}
-          onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
-        <button type="submit" className="chat-send" disabled={busy !== null || !draft.trim()} aria-label={kind === "on_behalf" ? `Für ${company || "den Kunden"} senden` : "Als oalab senden"}>{busy === "send" ? <MiniLoader size={18} /> : <SendHorizontal size={18} aria-hidden="true" />}</button>
-      </div>
+      <ComposeRow id={`service-field-${conversation.id}`} label={kind === "on_behalf" ? `Nachricht für ${company || "den Kunden"}` : "Antwort als oalab"}
+        sendLabel={kind === "on_behalf" ? `Für ${company || "den Kunden"} senden` : "Als oalab senden"} field={field} value={draft} placeholder={placeholder}
+        disabled={busy === "send"} sending={busy === "send"} canSend={busy === null && Boolean(draft.trim())}
+        onChange={(value) => { setDraft(value); sendAttempt.current = null; setDone(""); }} />
       <p className="chat-hint">{hint}</p>
     </form>
   );

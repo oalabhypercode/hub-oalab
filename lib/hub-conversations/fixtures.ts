@@ -1,11 +1,13 @@
-import { conversationState, requestReference } from "./rules";
-import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind } from "./types";
+import { conversationState, requestReference, TEAM_COMPANY, TEAM_ISSUE_PREFIX, teamIssueState } from "./rules";
+import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread, ServiceControls, ServiceWriteKind, TeamIssueReport } from "./types";
 import { newestAt, type TestSiteView } from "./work-status";
 
 // Example service conversations for the admins' tab "Service" in the demo logins. Fictional people and companies.
 
 interface DemoThread {
   id: string; number: number; title: string; state: string; company: string; paused?: boolean; messages: Omit<ConversationMessage, "id">[];
+  /** A report of the team („NoteTree-Verbesserung“). */
+  issue?: boolean;
   /** When the example's test site changed last (26.11.2026). */
   site?: string;
   /** Per message number: how many people got the e-mail „Neue Testansicht bereit“. */
@@ -48,6 +50,14 @@ export function demoConversations() {
       team("Die neuen Texte für die Startseite sind auf der Testseite. Magst du drüberschauen?", "2026-10-13T10:02:00+02:00", "work"),
       client("Passt so, danke!", "2026-10-14T15:20:00+02:00"),
     ] },
+    // The team's own reports: one open, one done.
+    { id: "demo-issue-send", number: 1029, title: `${TEAM_ISSUE_PREFIX}: Beim Senden bleibt die Anfrage stehen`, state: "submitted", company: TEAM_COMPANY, issue: true, messages: [
+      team("Beim Senden bleibt die Anfrage stehen\n\nNach „Senden“ dreht sich nur der Kreis, erst nach dem Neuladen ist die Nachricht da.\n\nBezug: OA-1031 · Atelier Brandt", "2026-10-14T13:10:00+02:00"),
+    ] },
+    { id: "demo-issue-images", number: 1008, title: `${TEAM_ISSUE_PREFIX}: Vorschaubilder fehlen manchmal`, state: "resolved", company: TEAM_COMPANY, issue: true, messages: [
+      team("Vorschaubilder fehlen manchmal\n\nBei zwei Ergebnissen kam nur der Text an.", "2026-10-08T17:20:00+02:00"),
+      team("Behoben: Die Bilder werden jetzt noch einmal geladen.", "2026-10-09T11:45:00+02:00"),
+    ] },
     { id: "demo-social", number: 1012, title: "Instagram-Plan November", state: "submitted", company: "Atelier Brandt", messages: [
       client("Könnt ihr für November drei Posts zu unserem Herbstangebot planen?", "2026-10-10T11:00:00+02:00", "Paul Brandt"),
       note("assistant", "Danke für deine Anfrage! Das oalab-Team plant die Posts und meldet sich bis Freitag.", "2026-10-10T11:05:00+02:00"),
@@ -59,7 +69,7 @@ export function demoConversations() {
   ];
   const messages = new Map(threads.map((thread) => [thread.id, thread.messages.map((message, index) => ({ ...message, id: `${thread.id}-${index}` }))]));
   const conversations: ConversationSummary[] = threads.map((thread) => {
-    const state = conversationState(thread.state);
+    const state = thread.issue ? teamIssueState(thread.state) : conversationState(thread.state);
     const last = messages.get(thread.id)?.at(-1) ?? null;
     return {
       id: thread.id,
@@ -72,6 +82,7 @@ export function demoConversations() {
       company: thread.company,
       customerId: null,
       logo: null,
+      team: thread.issue === true,
       lastAt: last?.at ?? thread.messages[0].at,
       lastMessage: last && { body: last.body, sender: last.sender, name: last.name, onBehalf: last.onBehalf },
       aiPaused: thread.paused === true,
@@ -85,26 +96,63 @@ export function demoConversations() {
     ? { url: `https://${thread.id.replace("demo-", "")}.testseite.example/`, updatedAt: new Date(thread.site).toISOString(), source: "site" }
     : null]));
   const mails = new Map<string, Record<string, number>>(threads.map((thread) => [thread.id, Object.fromEntries(Object.entries(thread.mails ?? {}).map(([index, people]) => [`${thread.id}-${index}`, people]))]));
-  // What an admin could do in each example: the paused one goes back to the customer, finished ones are closed.
+  // What an admin could do in each example: the paused one goes back to the customer, finished requests are closed, a
+  // finished report of the team can be reopened.
   const controls = new Map<string, ServiceControls>(conversations.map((item) => [item.id, {
     version: 1,
     handBack: item.aiPaused ? "client" : null,
     aiState: item.aiPaused ? "paused" : null,
-    writable: item.group !== "done",
+    writable: item.team || item.group !== "done",
     teamAccess: true,
   }]));
   return { state, messages, controls, sites, mails };
 }
 
-/** One step of the team in the preview, as the database would do it (migration 202611250001), only in this window. */
-export type DemoStep = { readonly kind: "hand_back" } | { readonly kind: ServiceWriteKind; readonly body: string };
+/**
+ * A report made in the preview, as the database would do it (migration 202611270002), only in this window: the new
+ * conversation, or the open one with the same text.
+ */
+export function demoReport(
+  input: { readonly body: string; readonly related: ConversationSummary | null; readonly author: string; readonly at: string },
+  list: readonly ConversationSummary[], messages: ReadonlyMap<string, readonly ConversationMessage[]>,
+): TeamIssueReport {
+  const body = input.related ? `${input.body}\n\nBezug: ${input.related.reference} · ${input.related.company ?? ""}` : input.body;
+  const controls: ServiceControls = { version: 1, handBack: null, aiState: null, writable: true, teamAccess: true };
+  const open = list.find((item) => item.team && item.group !== "done" && messages.get(item.id)?.[0]?.body === body);
+  if (open) return { thread: { conversation: open, messages: messages.get(open.id)!, controls }, existing: true };
+  const number = Math.max(0, ...list.map((item) => Number(item.reference.replace(/\D/g, "")))) + 1;
+  const id = `demo-issue-${number}`;
+  const message: ConversationMessage = { id: `${id}-0`, sender: "oalab", name: input.author, body, markdown: false, at: input.at, onBehalf: false };
+  const view = teamIssueState("submitted");
+  const headline = `${TEAM_ISSUE_PREFIX}: ${input.body.split("\n")[0].replace(/\s+/g, " ").trim()}`;
+  const conversation: ConversationSummary = {
+    id, reference: requestReference(number), title: headline.length > 180 ? `${headline.slice(0, 177).trimEnd()}…` : headline,
+    state: "submitted", stateLabel: view.label, tone: view.tone, group: view.group,
+    company: TEAM_COMPANY, customerId: null, logo: null, team: true, aiPaused: false,
+    lastAt: input.at, lastMessage: { body, sender: "oalab", name: input.author, onBehalf: false }, lastResultAt: input.at,
+  };
+  return { thread: { conversation, messages: [message], controls }, existing: false };
+}
+
+/** One step of the team in the preview, as the database would do it (migrations 202611250001 and 202611270002), only in this window. */
+export type DemoStep =
+  | { readonly kind: "hand_back" }
+  | { readonly kind: ServiceWriteKind; readonly body: string }
+  /** A report of the team: finished (with `body` as the last answer) or reopened. */
+  | { readonly kind: "resolve"; readonly body?: string }
+  | { readonly kind: "reopen" };
 
 export function demoStep(thread: ConversationThread, step: DemoStep, author: string, at: string): ConversationThread {
   const controls = thread.controls ?? { version: 1, handBack: null, aiState: null, writable: true, teamAccess: true };
   const withState = (conversation: ConversationSummary, next: string): ConversationSummary => {
-    const view = conversationState(next);
+    const view = conversation.team ? teamIssueState(next) : conversationState(next);
     return { ...conversation, state: next, stateLabel: view.label, tone: view.tone, group: view.group };
   };
+  if (step.kind === "resolve" || step.kind === "reopen") {
+    const answered: ConversationThread = step.kind === "resolve" && step.body ? demoStep(thread, { kind: "reply", body: step.body }, author, at) : { ...thread, controls };
+    const before = answered.controls!;
+    return { ...answered, conversation: withState(answered.conversation, step.kind === "resolve" ? "resolved" : "submitted"), controls: { ...before, version: before.version + 1 } };
+  }
   if (step.kind === "hand_back") {
     if (!controls.handBack) return thread;
     // Back to the customer: the test page waits for approval again. Back to the AI: it works on, the state stays.

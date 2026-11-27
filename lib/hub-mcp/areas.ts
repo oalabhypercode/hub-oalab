@@ -344,7 +344,9 @@ async function readConversation(db: Db, args: Json, origin: string): Promise<Too
       request: { request_id: thread.conversation.id, reference: thread.conversation.reference, title: thread.conversation.title, state: thread.conversation.stateLabel, company: thread.conversation.company },
       // A message the team wrote for the customer names both: „Lena Schneider für Atelier Brandt“.
       messages: thread.messages.map((message) => ({ from: message.onBehalf ? senderLabel("client", message.name, true, thread.conversation.company) : message.name ?? SENDER_WORDS[message.sender] ?? message.sender, side: SENDER_WORDS[message.sender] ?? message.sender, at: message.at, text: message.body })),
-      note: "Antworten, für den Kunden schreiben und eine pausierte Anfrage zurückgeben geht im Hub unter Nachrichten › Service.",
+      note: thread.conversation.team
+        ? "Meldung aus dem Team (NoteTree-Verbesserung). Antworten, erledigen und wieder öffnen geht im Hub unter Nachrichten › Service."
+        : "Antworten, für den Kunden schreiben und eine pausierte Anfrage zurückgeben geht im Hub unter Nachrichten › Service.",
       link: `${origin}/dashboard/messages?tab=service&conversation=${thread.conversation.id}`,
     });
   }

@@ -21,6 +21,8 @@ export interface ConversationSummary {
   readonly lastMessage: { readonly body: string; readonly sender: ConversationSender; readonly name: string | null; readonly onBehalf: boolean } | null;
   /** The AI of this request waits for a person („Selbst nachbearbeiten“ or stopped in NoteTree): the team is up. */
   readonly aiPaused: boolean;
+  /** A report of the team („NoteTree-Verbesserung“, request of the OALab company): open or done, no customer. */
+  readonly team: boolean;
   /**
    * Newest message of the customer (also one the team wrote for them) and of oalab, for „Rückmeldung fehlt“ in the list
    * (26.11.2026); missing in the examples.
@@ -62,6 +64,12 @@ export interface ServiceControls {
 
 /** How the team writes into a service conversation: for the customer (to the AI) or as oalab. */
 export type ServiceWriteKind = "on_behalf" | "reply";
+
+/** A new report „NoteTree-Problem melden“: the conversation it became, or the open one with the same text. */
+export interface TeamIssueReport {
+  readonly thread: ConversationThread;
+  readonly existing: boolean;
+}
 
 export interface ConversationThread {
   readonly conversation: ConversationSummary;

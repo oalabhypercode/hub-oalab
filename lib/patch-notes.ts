@@ -76,10 +76,12 @@ export const patchPackages: PatchPackage[] = [
   {
     number: 34,
     date: "2026-11-27",
-    title: "„Rückmeldung fehlt“ nur bei echten Fällen",
-    summary: "Unter Nachrichten › Service stand „Rückmeldung fehlt“ auch bei älteren offenen Anfragen, wenn die KI ein Ergebnis zu einer anderen Anfrage desselben Projekts gemeldet hatte. Jetzt zählt nur eine Änderung der Testseite, die neuer ist als jede Meldung; dasselbe gilt in Service.",
+    title: "In Fenstern gleich lostippen",
+    summary: "In der Suche und in anderen Fenstern steht der Cursor jetzt gleich im Eingabefeld. Admins melden unter Nachrichten › Service jetzt Probleme mit NoteTree; die Meldung steht dort und in NoteTree Business, bis jemand sie erledigt. Außerdem stand dort „Rückmeldung fehlt“ auch bei älteren offenen Anfragen, wenn die KI ein Ergebnis zu einer anderen Anfrage desselben Projekts gemeldet hatte. Jetzt zählt nur eine Änderung der Testseite, die neuer ist als jede Meldung; dasselbe gilt in Service.",
     changes: [
+      { kind: "new", area: "messages", place: "Nachrichten › Service", title: "NoteTree-Problem melden", text: "Geht in NoteTree etwas nicht oder sollte besser gehen, meldest du es oben in der Liste mit „NoteTree-Problem melden“, auf Wunsch mit Bezug zur geöffneten Anfrage. Die Meldung steht als „NoteTree-Verbesserung“ hier und in NoteTree Business; dort wie hier antwortet das Team, erledigt sie oder öffnet sie wieder." },
       { kind: "fixed", area: "messages", place: "Nachrichten › Service", title: "„Rückmeldung fehlt“ nur bei echten Fällen", text: "Meldete die KI ein Ergebnis zu einer anderen Anfrage desselben Projekts, stand bei älteren offenen Anfragen fälschlich „Rückmeldung fehlt“. Jetzt zählt nur eine Änderung der Testseite, zu der es noch gar keine Meldung gibt." },
+      { kind: "fixed", area: "hub", place: "Suche", customers: true, freelancers: true, title: "Gleich lostippen", text: "Öffnest du die Suche oder ein anderes Fenster mit einem ersten Eingabefeld, steht der Cursor jetzt gleich darin statt auf „Schließen“. Du kannst sofort schreiben, ohne erst hineinzuklicken." },
     ],
   },
   {

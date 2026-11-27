@@ -719,6 +719,28 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .chat-handback { grid-template-columns: 32px minmax(0, 1fr); }
   .chat-handback .chat-card-action { grid-column: 2; justify-self: start; }
 }
+/* Reports of the team („NoteTree-Verbesserung“): „NoteTree-Problem melden“ beside the list's heading (under it where the
+   list is narrow) with its window, an own sign in list and head, and a quiet bar above the field – open in the accent,
+   done in green, never the orange of a paused AI. The button is as high as the pen button of the tab „Privat“, so the
+   tabs stay in place when switching. */
+.chat-list-head.has-report { flex-wrap: wrap; padding-right: 14px; }
+.sheet-action.chat-report-open { height: 34px; gap: 5px; padding: 0 9px; }
+.chat-avatar.am-avatar.is-issue { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / calc(0.2 * var(--tint-k))); color: var(--accent-text); }
+.chat-handback.is-issue { background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.chat-handback.is-issue .chat-handback-icon { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); color: var(--accent-text); }
+.chat-handback.is-issue .chat-handback-text strong { color: var(--label); }
+.chat-handback.is-issue.is-done .chat-handback-icon { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.chat-report form { display: grid; gap: 12px; }
+.chat-report .am-textarea { min-height: 132px; padding: 10px 12px; font-size: 15px; line-height: 21px; }
+.chat-report .am-textarea::placeholder { color: var(--sheet-muted); }
+.chat-report .field-hint { margin: -4px 0 0; }
+.hub-modal.chat-report .form-error { margin: 0; }
+.chat-report .um-actions .sheet-action { height: 36px; padding: 0 16px; }
+@media (max-width: 767px) {
+  .sheet-action.chat-report-open { height: 36px; }
+  .chat-report .am-textarea { font-size: 16px; }
+  .chat-report .um-actions .sheet-action { flex: 1 1 0; justify-content: center; height: 44px; }
+}
 /* Testansicht (26.11.2026): the test site with the date of its last change in the head of a service conversation, the
    bubble whose lines take turns while the AI works, „Neue Testansicht bereit“ after each result and the line when the
    site changed before the AI said a word. */

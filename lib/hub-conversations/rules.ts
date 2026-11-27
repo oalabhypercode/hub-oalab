@@ -31,6 +31,29 @@ export function conversationState(state: string): ConversationStateView {
   }
 }
 
+/**
+ * A report of the team („NoteTree-Verbesserung“, migration 202611270002) waits for nobody but the team: open or done.
+ * Closed in another way, it reads like every closed request.
+ */
+export function teamIssueState(state: string): ConversationStateView {
+  const view = conversationState(state);
+  if (view.tone === "off") return view;
+  return view.group === "done" ? { label: "Erledigt", tone: "ok", group: "done" } : { label: "Offen", tone: "todo", group: "active" };
+}
+
+/** The company of the team's own reports, as the list names it. */
+export const TEAM_COMPANY = "oalab-Team";
+/** What the database puts before the first line of a report; the list says it once above instead. */
+export const TEAM_ISSUE_PREFIX = "NoteTree-Verbesserung";
+export function teamIssueTitle(title: string): string {
+  return title.startsWith(`${TEAM_ISSUE_PREFIX}:`) ? title.slice(TEAM_ISSUE_PREFIX.length + 1).trim() || title : title;
+}
+/** A report's text without the first line where that line is the title, so the list does not say it twice. */
+export function reportRest(body: string, title: string): string {
+  const [first = "", ...rest] = body.split("\n");
+  return first.replace(/\s+/g, " ").trim() === title ? rest.join("\n").trim() : body;
+}
+
 /** "OA-12": how the service platform names a request, also in its addresses. */
 export function requestReference(requestNumber: number | string): string {
   return `OA-${requestNumber}`;
@@ -116,6 +139,19 @@ export function teamCommandError(message: string | undefined | null): string {
     case "BUSINESS_COMMAND_CONFLICT": return "Dieser Schritt wurde gerade schon mit anderem Inhalt gesendet. Der neue Stand ist geladen, bitte versuch es noch einmal.";
     case "BUSINESS_MESSAGE_INVALID": return `Schreib zuerst eine Nachricht, höchstens ${MAX_MESSAGE_LENGTH} Zeichen.`;
     default: return "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
+  }
+}
+
+export type TeamIssueAction = "create" | "resolve" | "reopen";
+
+/** What the database answers when a step on a team report cannot run (`public.hub_team_issue`). */
+export function teamIssueError(message: string | undefined | null, action: TeamIssueAction): string {
+  switch (message) {
+    case "BUSINESS_TICKET_CHANGED": return "Die Meldung hat sich gerade geändert. Der neue Stand ist geladen, bitte schau ihn dir kurz an und versuch es noch einmal.";
+    case "BUSINESS_WRONG_TENANT_OR_TICKET": return action === "create" ? "Die Anfrage für den Bezug gibt es nicht mehr. Nimm den Haken weg und melde es noch einmal." : "Diese Meldung gibt es nicht mehr oder sie liegt im Papierkorb.";
+    case "BUSINESS_TERMINAL_TICKET": return "Diese Meldung ist abgeschlossen. Melde das Problem neu.";
+    case "BUSINESS_MESSAGE_INVALID": return action === "create" ? `Beschreib kurz, was nicht geht, höchstens ${MAX_MESSAGE_LENGTH} Zeichen.` : teamCommandError(message);
+    default: return teamCommandError(message);
   }
 }
 

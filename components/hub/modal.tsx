@@ -6,6 +6,9 @@ import { X } from "lucide-react";
 /**
  * A modal dialog. Windows may open over windows (the logo from "Kunde bearbeiten"): each has its own title id, and
  * Escape closes only the top one, because "cancel" does not bubble in the browser and must not in React either.
+ * The field to start typing in carries `data-autofocus`: React's `autoFocus` runs before the window is open, and the
+ * browser would put the cursor on „Schließen“ instead. A field that only appears later in an open window keeps
+ * `autoFocus` as well.
  */
 export function Modal({ title, children, onClose, className = "", actions }: { title: string; children: React.ReactNode; onClose: () => void; className?: string; actions?: React.ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -14,6 +17,7 @@ export function Modal({ title, children, onClose, className = "", actions }: { t
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
+    dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return () => dialog?.close();
   }, []);
 

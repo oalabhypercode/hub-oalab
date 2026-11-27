@@ -296,7 +296,7 @@ function CustomerPicker({ chats, logoOf, onClose, onPick }: { chats: readonly Pr
   return (
     <Modal title="Kunden anschreiben" onClose={onClose}>
       <label className="chat-pick-search"><Search size={16} aria-hidden="true" /><span className="visually-hidden">Kunde suchen</span>
-        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kunde oder Kundennummer" autoFocus /></label>
+        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kunde oder Kundennummer" data-autofocus /></label>
       {shown.length ? (
         <ul className="chat-pick">
           {shown.map((item) => (
