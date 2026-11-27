@@ -2030,73 +2030,83 @@ a.teams-join:active { transform: scale(0.97); }
 .load-error { display: grid; gap: 12px; justify-items: start; }
 .load-error .button-primary { margin-top: 8px; }
 
-/* Patch notes: one glass card per package, each change with its kind as a pill */
-/* The intro sits on the background, not on glass, so it takes the background's text colour like the large title. */
-.patch-intro { max-width: 680px; font-weight: 600; color: var(--on-bg-soft); }
-.patch-kind { justify-content: center; margin-top: 1px; }
-.patch-kind-new { color: var(--tone-info); background: var(--tone-info-bg); }
-.patch-kind-improved { color: var(--tone-ok); background: var(--tone-ok-bg); }
-.patch-kind-fixed { color: var(--tone-todo); background: var(--tone-todo-bg); }
-.patch-kind-security { color: var(--tone-bad); background: var(--tone-bad-bg); }
-.patch-kind .numeric { margin-left: 2px; }
-/* The patch notes as a table (user 21.11.2026): Art · Bereich & Stelle · Änderung · Sichtbar für, grouped by package
-   (go-live) or by one of the six areas, with a row of area chips under the toolbar. */
-.patch-sheet { margin-top: 16px; }
-.patch-sheet .sheet-toolbar .segment { flex: 0 0 auto; }
+/* Patch notes (user 27.11.2026): patch blocks (1, 1.1, 1.2 …; a big step makes 2) as a quiet list after the Asset
+   Management's „Liste“ (fl-*): Art · Bereich · Stelle · Änderung · Datum; a click opens the text below the line across
+   the whole width. Narrower lists fold Stelle, then Bereich into the opened text; phones keep a dot in the area's
+   colour, the title and the day. */
+.pn-sheet .sheet-toolbar .segment { flex: 0 0 auto; }
 /* A switch wider than the phone scrolls sideways instead of running out of the sheet. */
-.patch-sheet .sheet-toolbar .segmented-control { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.patch-sheet .sheet-toolbar .segmented-control::-webkit-scrollbar { display: none; }
-.patch-toolbar-label { margin: 0 2px 0 8px; font-size: 12.5px; color: var(--sheet-muted); white-space: nowrap; }
-.patch-areas { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px 10px 20px; border-bottom: 1px solid var(--sheet-line); }
-.patch-chip, .patch-touch { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-weight: 500; white-space: nowrap; transition: background-color 120ms ease; }
-.patch-chip { min-height: 30px; padding: 0 11px 0 10px; font-size: 12.5px; }
-.patch-touch { min-height: 24px; padding: 0 9px 0 8px; gap: 6px; font-size: 12px; }
-.patch-chip:hover, .patch-touch:hover { background: var(--sheet-hover); }
-.patch-chip[aria-pressed="true"] { color: var(--accent-text); background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); box-shadow: inset 0 0 0 1px var(--accent-text); }
-.patch-chip i, .patch-touch i { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
-.patch-touch i { width: 8px; height: 8px; }
-.patch-chip .numeric, .patch-touch .numeric { color: var(--sheet-muted); }
-.patch-table td { height: auto; padding-top: 12px; padding-bottom: 12px; vertical-align: top; }
-.patch-table .cell-kind { width: 104px; }
-.patch-table .cell-where { width: 240px; }
-.patch-table .cell-aud { width: 176px; }
-.patch-where { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.patch-area-icon { flex: 0 0 auto; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 7px; color: #ffffff; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 72%, #ffffff), var(--c)); box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.1); }
-.patch-where-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.patch-where-text strong { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--label); }
-.patch-where-text span { font-size: 12.5px; line-height: 17px; color: var(--label-body); }
-.patch-where-text small { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
-.patch-change-title { font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); }
-.patch-change-text { max-width: 760px; margin-top: 3px; font-size: 13.5px; line-height: 19px; color: var(--label-secondary); }
-.patch-change-text.is-clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.patch-more { min-height: 24px; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--accent-text); }
-.patch-more:hover { text-decoration: underline; }
-.patch-auds { display: flex; flex-wrap: wrap; gap: 4px; }
-.patch-aud { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 7px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 500; white-space: nowrap; }
-.patch-aud i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
-.patch-table .patch-head-row th { height: auto; padding-top: 12px; padding-bottom: 12px; background: var(--sheet-sunken); font-weight: 400; white-space: normal; }
-.patch-head { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px 12px; }
-.patch-toggle { flex: 1 1 320px; align-items: flex-start; gap: 8px; min-width: 0; padding: 2px 4px; text-align: left; }
-.patch-toggle .table-group-chevron { margin-top: 2px; }
-.patch-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.patch-eyebrow { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--sheet-muted); }
-.patch-head-title { font-size: 16px; line-height: 21px; font-weight: 700; color: var(--label); }
-.patch-kinds { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 2px; }
-.patch-touches { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0 26px; font-size: 12px; color: var(--sheet-muted); }
-.patch-summary-toggle { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; margin: 6px 0 0 26px; font-size: 12.5px; font-weight: 600; color: var(--accent-text); }
-.patch-summary-toggle svg { transition: transform 160ms ease; }
-.patch-summary-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
-.patch-summary-toggle:hover { text-decoration: underline; }
-.patch-summary { max-width: 780px; margin: 4px 0 2px 26px; font-size: 13px; line-height: 19px; color: var(--label-secondary); }
-:root[data-reduce-motion="true"] .patch-summary-toggle svg { transition: none; }
-/* Phones: a row stacks, kind and place on top, the change below it. */
+.pn-sheet .sheet-toolbar .segmented-control { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pn-sheet .sheet-toolbar .segmented-control::-webkit-scrollbar { display: none; }
+.pn-toolbar-label { margin: 0 2px 0 8px; font-size: 12.5px; color: var(--sheet-muted); white-space: nowrap; }
+/* The area filter: the hub's own list behind a quiet field, like „Verschieben“ in the selection bar. */
+.pn-filter { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; height: 32px; max-width: 230px; padding: 0 8px 0 10px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.pn-filter.is-set { color: var(--accent-text); }
+.pn-filter .hub-select-trigger { gap: 7px; min-width: 0; height: 30px; color: var(--label); font-size: 13px; font-weight: 500; }
+.pn-filter .hub-select-trigger:focus-visible { outline: 0; }
+.pn-filter:has(.hub-select-trigger[aria-expanded="true"]), .pn-filter:has(.hub-select-trigger:focus-visible) { box-shadow: var(--select-open-ring); }
+.pn-dot-mark { display: inline-block; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.pn-hint b { font-weight: 600; color: var(--label); }
+.pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 132px 218px minmax(0, 0.8fr) minmax(0, 1.4fr) 100px; }
+.pn-list .fl-head .pn-kind { padding-left: 34px; }
+.pn-list .fl-head .pn-date { justify-content: flex-end; }
+.pn-list .fl-row { cursor: pointer; }
+.pn-list .fl-row:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.pn-list .fl-row.pn-patch { display: flex; align-items: center; }
+.pn-patch-cell { flex: 1; padding-left: 4px; color: var(--label); }
+.pn-patch .fl-icon { color: var(--accent-text); }
+.pn-patch :is(.pn-count, .pn-span) { color: var(--sheet-muted); }
+.pn-patch .pn-span { margin-left: auto; }
+.pn-line .pn-kind { padding-left: 24px; color: var(--sheet-muted); }
+.pn-line .pn-place-col { color: var(--sheet-muted); }
+.pn-line .pn-change { color: var(--label); }
+.pn-line .pn-change .fl-title { font-weight: 500; }
+.pn-line .pn-date { justify-content: flex-end; }
+/* The kind as a dot in its tone, like the Finder's tags; the area as a tag with a dot in its colour. */
+.pn-dot { display: inline-grid; place-items: center; flex: 0 0 auto; width: 10px; }
+.pn-dot i { width: 8px; height: 8px; border-radius: 50%; background: var(--sheet-icon); }
+.pn-dot-new i { background: var(--tone-info-bar); }
+.pn-dot-improved i { background: var(--tone-ok-bar); }
+.pn-dot-fixed i { background: var(--tone-todo-bar); }
+.pn-dot-security i { background: var(--tone-bad-bar); }
+.pn-area { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 500; }
+.pn-area i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.pn-area span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pn-main { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+/* Admins: who sees an entry, as small dots after the title (blue customers, purple freelancers, grey internal). */
+.pn-tags { display: inline-flex; flex: 0 0 auto; gap: 3px; margin-left: 2px; }
+.pn-tags i { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--sheet); }
+.pn-area-dot, .pn-meta-kind, .pn-date-short, .pn-detail-meta { display: none; }
+.pn-area-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.pn-line[aria-expanded="true"] { border-radius: 6px 6px 0 0; }
+.pn-line[aria-expanded="true"] .pn-change { padding-block: 6px; white-space: normal; }
+.pn-line[aria-expanded="true"] .pn-change .fl-title { white-space: normal; }
+.pn-detail { display: grid; padding: 0 0 12px; border-radius: 0 0 6px 6px; }
+.pn-detail.is-alt { background: color-mix(in srgb, var(--label) 3.5%, transparent); }
+.pn-detail-body { grid-column: 1 / -1; padding: 0 16px 0 48px; }
+.pn-detail-meta { margin-bottom: 3px; font-size: 12px; line-height: 17px; color: var(--sheet-muted); }
+.pn-detail p { font-size: 13px; line-height: 19px; color: var(--label-secondary); }
+@container fl (max-width: 900px) {
+  .pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 128px 210px minmax(0, 1fr) 96px; }
+  .pn-list .pn-place-col { display: none; }
+  .pn-detail-meta { display: block; }
+}
+@container fl (max-width: 640px) {
+  .pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 44px minmax(0, 1fr) 84px; }
+  .pn-list .pn-area-col { display: none; }
+  .pn-line .pn-kind { padding-left: 4px; padding-right: 0; gap: 4px; }
+  .pn-line :is(.pn-dot, .pn-kind-label), .pn-list .fl-head .pn-kind span { display: none; }
+  .pn-area-dot { display: inline-block; }
+  .pn-meta-kind { display: inline; }
+  .pn-detail-body { padding-left: 26px; padding-right: 10px; }
+}
+@container fl (max-width: 440px) {
+  .pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 44px minmax(0, 1fr) 62px; }
+  .pn-patch .pn-span, .pn-date-long { display: none; }
+  .pn-date-short { display: inline; }
+}
 @media (max-width: 767px) {
-  .patch-table, .patch-table tbody, .patch-table tr, .patch-table th, .patch-table td { display: block; }
-  .patch-table thead { display: none; }
-  .patch-table .patch-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 12px; padding: 12px 16px; border-bottom: 1px solid var(--sheet-divider); }
-  .patch-table .patch-row td { width: auto; padding: 0; border: 0; }
-  .patch-table .patch-row :is(.cell-change, .cell-aud) { grid-column: 1 / -1; }
-  .patch-touches, .patch-summary-toggle, .patch-summary { margin-left: 0; }
+  .pn-filter { max-width: 160px; }
 }
 
 /* Tasks of a Studio project in the project dialog */

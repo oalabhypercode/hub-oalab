@@ -1,29 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ChevronDown, ChevronRight, FileBadge, Files, FolderOpen, LayoutGrid, MessageSquare, Settings, type LucideIcon } from "lucide-react";
+import { Fragment, useMemo, useRef, useState, type CSSProperties } from "react";
+import { ChevronRight, ListFilter, Package } from "lucide-react";
 import { categories } from "@/lib/categories";
-import { formatPatchDate, patchAreaLabels, patchAreaOrder, patchKindLabels, patchPackagesFor, type PatchArea, type PatchChange, type PatchChangeKind, type PatchPackage } from "@/lib/patch-notes";
+import { formatPatchDay, formatPatchDayShort, formatPatchSpan, patchAreaLabels, patchAreaOrder, patchBlocksFor, patchKindLabels, type PatchArea, type PatchEntry, type PatchView } from "@/lib/patch-notes";
 import { matchesSearch } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
 import { SegmentedControl } from "../controls";
 import { TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
 import { sectionIcons } from "../navigation";
+import { Select, type SelectOption } from "../select";
 import { useHubShell } from "../shell-context";
-import { SheetEmpty, SheetFooter, SheetToolbar, TableGroup, useCollapsedGroups } from "../sheet";
+import { SheetEmpty, SheetFooter, SheetToolbar } from "../sheet";
 
-/** Symbol and colour of each area: the hub's category colours where an area is one of them. */
-const areaLook: Record<PatchArea, { icon: LucideIcon; fill: string; text: string }> = {
-  start: { icon: LayoutGrid, fill: "#a3175f", text: "var(--accent-text)" },
-  projects: { icon: FolderOpen, fill: categories.projects.fill, text: categories.projects.text },
-  files: { icon: Files, fill: categories.files.fill, text: categories.files.text },
-  customers: { icon: FileBadge, fill: categories.contracts.fill, text: categories.contracts.text },
-  messages: { icon: MessageSquare, fill: categories.messages.fill, text: categories.messages.text },
-  hub: { icon: Settings, fill: "#8e8e93", text: "var(--label-secondary)" },
+/** The colour of each area: the hub's category colours where an area is one of them. */
+const areaFill: Record<PatchArea, string> = {
+  start: "#a3175f",
+  projects: categories.projects.fill,
+  files: categories.files.fill,
+  customers: categories.contracts.fill,
+  messages: categories.messages.fill,
+  hub: "#8e8e93",
 };
-
-const kindOrder: readonly PatchChangeKind[] = ["new", "improved", "fixed", "security"];
 
 type Audience = "all" | "customers" | "freelancers" | "internal";
 const audienceLook = {
@@ -31,226 +30,175 @@ const audienceLook = {
   freelancers: { label: "Freelancer", dot: "#af52de" },
   internal: { label: "Intern", dot: "#8e8e93" },
 } as const;
-const audiencesOf = (change: PatchChange): (keyof typeof audienceLook)[] => {
+const audiencesOf = (entry: PatchEntry): (keyof typeof audienceLook)[] => {
   const list: (keyof typeof audienceLook)[] = [];
-  if (change.customers) list.push("customers");
-  if (change.freelancers) list.push("freelancers");
+  if (entry.customers) list.push("customers");
+  if (entry.freelancers) list.push("freelancers");
   return list.length ? list : ["internal"];
 };
-const seenBy = (change: PatchChange, audience: Audience) => audience === "all" || audiencesOf(change).includes(audience);
 
-type Row = { key: string; pkg: PatchPackage; change: PatchChange };
-type Grouping = "package" | "area";
 const changes = (count: number) => (count === 1 ? "1 Änderung" : `${count} Änderungen`);
-
-/** A text cut to two lines; „Ganzen Text anzeigen“ appears only when something is cut off. */
-function ClampText({ text }: { text: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
-  const [open, setOpen] = useState(false);
-  const [clipped, setClipped] = useState(false);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element || open) return;
-    // The observer reports once right away and again whenever the column changes its width.
-    const observer = new ResizeObserver(() => setClipped(element.scrollHeight > element.clientHeight + 1));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [open, text]);
-  return (
-    <>
-      <p ref={ref} className={`patch-change-text${open ? "" : " is-clamped"}`}>{text}</p>
-      {(clipped || open) && <button type="button" className="patch-more" aria-expanded={open} onClick={() => setOpen((now) => !now)}>{open ? "Weniger anzeigen" : "Ganzen Text anzeigen"}</button>}
-    </>
-  );
-}
+const searchFields = (entry: PatchEntry) => [entry.title, entry.text, entry.place, patchAreaLabels[entry.area], patchKindLabels[entry.kind]];
+const color = (fill: string) => ({ "--c": fill }) as CSSProperties;
 
 /**
- * Every change to the hub as a table (design „Patch Notes V2“, user 21.11.2026): Art · Bereich & Stelle · Änderung,
- * for admins also „Sichtbar für“. Grouped by package (go-live) or by one of the six areas, with search and filters for
- * kind, area and, for admins, audience. Real admins see all entries, freelancers the ones for them (since 18.11.2026),
- * everyone else the ones for customers.
+ * The patch notes as patch blocks in a quiet list (user 27.11.2026), after the Asset Management's „Liste“ (fl-*): each
+ * patch a line with its number, how many changes and when, each change a line with Art, Bereich, Stelle, Änderung and
+ * Datum; a click (or Enter) opens its text below the line, across the whole width. Search and the area filter sit on
+ * top. Customers and freelancers see their entries; admins see all, with dots for who sees them, and „Sichtbar für:
+ * Kunden“ or „Freelancer“ shows exactly that role's list. Phones keep the dot in the area's colour, the title and the
+ * day; kind, area and place stand above the opened text.
  */
 export function PatchNotesScreen() {
   const { manageUsers, account } = useHubShell();
   const admin = manageUsers;
-  const view = admin ? "admin" : account.freelancer ? "freelancer" : "customer";
-  const packages = useMemo(() => patchPackagesFor(view), [view]);
-  const rows = useMemo<Row[]>(() => packages.flatMap((pkg) => pkg.changes.map((change) => ({ key: `${pkg.number}:${change.title}`, pkg, change }))), [packages]);
-
+  const view: PatchView = admin ? "admin" : account.freelancer ? "freelancer" : "customer";
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<"all" | PatchChangeKind>("all");
   const [area, setArea] = useState<"all" | PatchArea>("all");
   const [audience, setAudience] = useState<Audience>("all");
-  const [grouping, setGrouping] = useState<Grouping>("package");
-  const [summaries, setSummaries] = useState<ReadonlySet<number>>(new Set());
-  const groups = useCollapsedGroups();
+  // Every patch starts open; the set holds the closed ones. The opened lines are keyed by patch and position.
+  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  const list = useRef<HTMLDivElement>(null);
 
-  const audienceNow: Audience = admin ? audience : "all";
-  const found = rows.filter((row) => matchesSearch(query, [row.change.title, row.change.text, row.change.place, patchAreaLabels[row.change.area], ...(row.change.also ?? []).map((other) => patchAreaLabels[other])]));
-  const inArea = (row: Row) => area === "all" || row.change.area === area;
-  const ofKind = (row: Row) => kind === "all" || row.change.kind === kind;
-  const base = found.filter((row) => seenBy(row.change, audienceNow));
-  const shown = base.filter((row) => inArea(row) && ofKind(row));
+  const asRole = admin && (audience === "customers" || audience === "freelancers");
+  const blocks = useMemo(() => patchBlocksFor(asRole ? (audience === "customers" ? "customer" : "freelancer") : view), [asRole, audience, view]);
+  const allEntries = useMemo(() => (admin ? patchBlocksFor("admin").flatMap((block) => block.entries) : []), [admin]);
+  const tagged = admin && !asRole;
 
-  const kindPool = base.filter(inArea);
-  const areaPool = base.filter(ofKind);
-  const audiencePool = found.filter((row) => inArea(row) && ofKind(row));
-  const areaCounts = new Map(patchAreaOrder.map((key) => [key, areaPool.filter((row) => row.change.area === key).length]));
-  // Only the kinds this reader has at all (customers have no security entries, say).
-  const kinds = kindOrder.filter((item) => rows.some((row) => row.change.kind === item));
-  const columns = admin ? 4 : 3;
-  const reset = () => { setQuery(""); setKind("all"); setArea("all"); setAudience("all"); };
-  const filtered = Boolean(query.trim()) || kind !== "all" || area !== "all" || audienceNow !== "all";
-  const packageLabel = (pkg: PatchPackage) => `${admin ? `Paket ${pkg.number} · ` : ""}${formatPatchDate(pkg.date)}`;
-  const toggleSummary = (number: number) => setSummaries((current) => {
-    const next = new Set(current);
-    if (next.has(number)) next.delete(number); else next.add(number);
+  const searched = (entry: PatchEntry) => matchesSearch(query, searchFields(entry));
+  const inAudience = (entry: PatchEntry) => !admin || audience !== "internal" || (!entry.customers && !entry.freelancers);
+  const inArea = (entry: PatchEntry) => area === "all" || entry.area === area;
+  // The area filter counts what the search and the audience leave, before the area itself is chosen.
+  const pool = blocks.flatMap((block) => block.entries).filter((entry) => inAudience(entry) && searched(entry));
+  const narrowed = Boolean(query.trim()) || area !== "all";
+  const groups = blocks
+    .map((block) => ({ block, entries: block.entries.map((entry, index) => ({ entry, key: `${block.version}:${index}` })).filter(({ entry }) => inAudience(entry) && inArea(entry) && searched(entry)) }))
+    .filter(({ entries }) => entries.length || !narrowed);
+  const shown = groups.reduce((sum, group) => sum + group.entries.length, 0);
+  const audiencePool = allEntries.filter((entry) => inArea(entry) && searched(entry));
+
+  const flip = (set: ReadonlySet<string>, key: string) => {
+    const next = new Set(set);
+    if (next.has(key)) next.delete(key); else next.add(key);
     return next;
-  });
+  };
+  const chooseArea = (value: string) => { setArea(value as "all" | PatchArea); setOpened(new Set()); };
+  const chooseAudience = (value: Audience) => { setAudience(value); setOpened(new Set()); };
+  const reset = () => { setQuery(""); setArea("all"); };
 
-  function changeRow({ key, pkg, change }: Row) {
-    const look = areaLook[change.area];
-    const Icon = look.icon;
+  // Enter and the space bar open a line, the arrow keys walk the lines.
+  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const row = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-row]") : null;
+    if (!row) return;
+    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); row.click(); return; }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const rows = Array.from(list.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []);
+    rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
+  }
+
+  const areaOptions: SelectOption[] = [
+    { value: "all", label: "Alle Bereiche", meta: String(pool.length) },
+    ...patchAreaOrder.filter((item) => item === area || pool.some((entry) => entry.area === item)).map((item) => ({
+      value: item,
+      label: patchAreaLabels[item],
+      lead: <i className="pn-dot-mark" style={color(areaFill[item])} />,
+      meta: String(pool.filter((entry) => entry.area === item).length),
+    })),
+  ];
+
+  let stripe = 0;
+  const lines = groups.map(({ block, entries }) => {
+    const open = narrowed || !closed.has(block.version);
+    const patchAlt = stripe++ % 2 ? " is-alt" : "";
     return (
-      <tr key={key} className="patch-row">
-        <td className="cell-kind"><span className={`project-status patch-kind patch-kind-${change.kind}`}>{patchKindLabels[change.kind]}</span></td>
-        <td className="cell-where">
-          <span className="patch-where">
-            {grouping === "package" && <span className="patch-area-icon" style={{ "--c": look.fill } as CSSProperties} aria-hidden="true"><Icon size={14} /></span>}
-            <span className="patch-where-text">
-              {grouping === "package"
-                ? <strong style={{ color: look.text }}>{patchAreaLabels[change.area]}</strong>
-                : <strong>{packageLabel(pkg)}</strong>}
-              <span>{change.place}</span>
-              {change.also?.length ? <small>auch: {change.also.map((other) => patchAreaLabels[other]).join(", ")}</small> : null}
-            </span>
+      <Fragment key={block.version}>
+        <div className={`fl-row is-folder pn-patch${patchAlt}`} role="row" aria-level={1} aria-expanded={open} tabIndex={0} data-row="" onClick={() => setClosed((now) => flip(now, block.version))}>
+          <span role="gridcell" className="fl-cell pn-patch-cell">
+            <span className="fl-twist" aria-hidden="true"><ChevronRight size={13} /></span>
+            <span className="fl-icon"><Package size={16} strokeWidth={1.8} aria-hidden="true" /></span>
+            <span className="fl-title">Patch {block.version}</span>
+            <span className="pn-count">{changes(entries.length)}</span>
+            <span className="pn-span">{formatPatchSpan(block.from, block.to)}</span>
           </span>
-        </td>
-        <td className="cell-change">
-          <p className="patch-change-title">{change.title}</p>
-          <ClampText text={change.text} />
-        </td>
-        {admin && (
-          <td className="cell-aud">
-            <span className="patch-auds">
-              {audiencesOf(change).map((item) => <span key={item} className="patch-aud" style={{ "--c": audienceLook[item].dot } as CSSProperties}><i aria-hidden="true" />{audienceLook[item].label}</span>)}
-            </span>
-          </td>
-        )}
-      </tr>
-    );
-  }
-
-  function packageGroup(pkg: PatchPackage, list: Row[]) {
-    const key = `package:${pkg.number}`;
-    const collapsed = groups.isCollapsed(key);
-    const open = summaries.has(pkg.number);
-    const touched = patchAreaOrder.filter((item) => list.some((row) => row.change.area === item));
-    return (
-      <tbody key={key} className="table-group-body patch-group">
-        <tr className="table-group patch-head-row">
-          <th colSpan={columns} scope="rowgroup">
-            <div className="patch-head">
-              <button type="button" className="table-group-toggle patch-toggle" aria-expanded={!collapsed} onClick={() => groups.toggle(key)}>
-                <ChevronDown size={14} className="table-group-chevron" aria-hidden="true" />
-                <span className="patch-head-text">
-                  <span className="patch-eyebrow">{packageLabel(pkg)} · {changes(list.length)}</span>
-                  <span className="patch-head-title">{pkg.title}</span>
+        </div>
+        {open && entries.map(({ entry, key }) => {
+          const alt = stripe++ % 2 ? " is-alt" : "";
+          const expanded = opened.has(key);
+          const areaLabel = patchAreaLabels[entry.area];
+          const kindLabel = patchKindLabels[entry.kind];
+          return (
+            <Fragment key={key}>
+              <div className={`fl-row pn-line${alt}`} role="row" aria-level={2} aria-expanded={expanded} tabIndex={0} data-row="" onClick={() => setOpened((now) => flip(now, key))}>
+                <span role="gridcell" className="fl-cell pn-kind">
+                  <span className="fl-twist" aria-hidden="true"><ChevronRight size={13} /></span>
+                  <span className={`pn-dot pn-dot-${entry.kind}`}><i /></span>
+                  <span className="pn-area-dot" style={color(areaFill[entry.area])} />
+                  <span className="pn-kind-label">{kindLabel}</span>
                 </span>
-              </button>
-              <span className="patch-kinds">
-                {kindOrder.filter((item) => list.some((row) => row.change.kind === item)).map((item) => (
-                  <span key={item} className={`project-status patch-kind patch-kind-${item}`}>{patchKindLabels[item]} <span className="numeric">{list.filter((row) => row.change.kind === item).length}</span></span>
-                ))}
-              </span>
-            </div>
-            <div className="patch-touches">
-              <span>Betrifft</span>
-              {touched.map((item) => {
-                const count = list.filter((row) => row.change.area === item).length;
-                return (
-                  <button key={item} type="button" className="patch-touch" style={{ "--c": areaLook[item].fill } as CSSProperties} aria-label={`${patchAreaLabels[item]}: ${changes(count)}, nur diesen Bereich zeigen`} onClick={() => setArea(item)}>
-                    <i aria-hidden="true" />{patchAreaLabels[item]}<span className="numeric">{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {admin && <>
-              <button type="button" className="patch-summary-toggle" aria-expanded={open} onClick={() => toggleSummary(pkg.number)}><ChevronRight size={13} aria-hidden="true" />Zusammenfassung für Admins</button>
-              {open && <p className="patch-summary">{pkg.summary}</p>}
-            </>}
-          </th>
-        </tr>
-        {!collapsed && list.map(changeRow)}
-      </tbody>
+                <span role="gridcell" className="fl-cell pn-area-col"><span className="pn-area" style={color(areaFill[entry.area])}><i /><span>{areaLabel}</span></span></span>
+                <span role="gridcell" className="fl-cell pn-place-col"><span className="fl-title">{entry.place}</span></span>
+                <span role="gridcell" className="fl-cell pn-change">
+                  <span className="pn-main">
+                    <span className="fl-title">{entry.title}</span>
+                    {tagged && (
+                      <span className="pn-tags" data-tip={entry.customers || entry.freelancers ? `Sichtbar für ${audiencesOf(entry).map((item) => audienceLook[item].label).join(" und ")}` : "Nur intern"}>
+                        {audiencesOf(entry).map((item) => <i key={item} style={{ background: audienceLook[item].dot }} />)}
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <span role="gridcell" className="fl-cell pn-date"><span className="pn-date-long">{formatPatchDay(entry.date)}</span><span className="pn-date-short">{formatPatchDayShort(entry.date)}</span></span>
+              </div>
+              {expanded && (
+                <div className={`pn-detail${alt}`} role="row">
+                  <div className="pn-detail-body" role="gridcell">
+                    <span className="pn-detail-meta"><span className="pn-meta-kind">{kindLabel} · </span>{areaLabel} · {entry.place}</span>
+                    <p>{entry.text}</p>
+                  </div>
+                </div>
+              )}
+            </Fragment>
+          );
+        })}
+      </Fragment>
     );
-  }
-
-  function areaGroup(item: PatchArea, list: Row[]) {
-    const key = `area:${item}`;
-    const look = areaLook[item];
-    const Icon = look.icon;
-    return (
-      <TableGroup key={key} colSpan={columns} label={patchAreaLabels[item]} count={list.length} collapsed={groups.isCollapsed(key)} onToggle={() => groups.toggle(key)} className="patch-group"
-        glyph={<span className="patch-area-icon" style={{ "--c": look.fill } as CSSProperties}><Icon size={14} aria-hidden="true" /></span>}
-        sub={`zuletzt ${formatPatchDate(list[0].pkg.date)}`}>
-        {list.map(changeRow)}
-      </TableGroup>
-    );
-  }
-
-  const bodies = grouping === "package"
-    ? packages.map((pkg) => ({ pkg, list: shown.filter((row) => row.pkg === pkg) })).filter(({ list }) => list.length).map(({ pkg, list }) => packageGroup(pkg, list))
-    : patchAreaOrder.map((item) => ({ item, list: shown.filter((row) => row.change.area === item) })).filter(({ list }) => list.length).map(({ item, list }) => areaGroup(item, list));
-  const packageCount = new Set(shown.map((row) => row.pkg.number)).size;
+  });
 
   return (
     <>
       <LargeTitleHeader title="Patch Notes" icon={<TitleIcon icon={sectionIcons["patch-notes"]!} />} actions={<HeaderActions />} />
-      <p className="section-first t-subheadline patch-intro">
-        {admin
-          ? "Alle Änderungen am Hub, ein Paket pro Livegang. Jede Zeile nennt Art, Bereich und genaue Stelle; „Sichtbar für“ zeigt, wer den Eintrag sieht."
-          : "Was sich am Client Hub geändert hat, ein Paket pro Livegang, mit Bereich und genauer Stelle."}
-      </p>
-      <div className="sheet sheet-fill patch-sheet">
-        <SheetToolbar query={query} onQuery={setQuery} placeholder="Titel, Text oder Stelle …" label="Patch Notes durchsuchen"
-          trailing={<>
-            <span className="patch-toolbar-label" aria-hidden="true">Gruppieren</span>
-            <SegmentedControl label="Gruppieren nach" value={grouping} onChange={setGrouping} options={[{ id: "package", label: "Paket", name: "Nach Paket gruppieren" }, { id: "area", label: "Bereich", name: "Nach Bereich gruppieren" }]} />
-          </>}>
-          <SegmentedControl label="Art der Änderung" value={kind} onChange={setKind}
-            options={[{ id: "all", label: "Alle", name: "Alle Arten", count: kindPool.length }, ...kinds.map((item) => ({ id: item, label: patchKindLabels[item], name: patchKindLabels[item], count: kindPool.filter((row) => row.change.kind === item).length }))]} />
+      <div className="sheet section-first sheet-fill pn-sheet">
+        <SheetToolbar query={query} onQuery={(value) => { setQuery(value); setOpened(new Set()); }} placeholder="Änderung, Bereich oder Stelle …" label="Patch Notes durchsuchen">
+          <label className={`pn-filter${area === "all" ? "" : " is-set"}`} data-tip="Nach Bereich filtern">
+            <ListFilter size={15} aria-hidden="true" />
+            <Select variant="bare" chevron showLead label="Bereich" value={area} onChange={chooseArea} options={areaOptions} />
+          </label>
           {admin && <>
-            <span className="patch-toolbar-label" aria-hidden="true">Sichtbar für</span>
-            <SegmentedControl label="Sichtbar für" value={audience} onChange={setAudience}
-              options={[{ id: "all", label: "Alle", name: "Alle Einträge", count: audiencePool.length }, ...(["customers", "freelancers", "internal"] as const).map((item) => ({ id: item, label: audienceLook[item].label, name: `Sichtbar für ${audienceLook[item].label}`, count: audiencePool.filter((row) => seenBy(row.change, item)).length }))]} />
+            <span className="pn-toolbar-label" aria-hidden="true">Sichtbar für</span>
+            <SegmentedControl label="Sichtbar für" value={audience} onChange={chooseAudience}
+              options={[{ id: "all", label: "Alle", name: "Alle Einträge", count: audiencePool.length }, ...(["customers", "freelancers", "internal"] as const).map((item) => ({ id: item, label: audienceLook[item].label, name: `Sichtbar für ${audienceLook[item].label}`, count: audiencePool.filter((entry) => audiencesOf(entry).includes(item)).length }))]} />
           </>}
         </SheetToolbar>
-        <div className="patch-areas" role="group" aria-label="Bereiche">
-          <button type="button" className="patch-chip" aria-pressed={area === "all"} onClick={() => setArea("all")}>Alle Bereiche<span className="numeric">{areaPool.length}</span></button>
-          {patchAreaOrder.filter((item) => (areaCounts.get(item) ?? 0) > 0 || item === area).map((item) => (
-            <button key={item} type="button" className="patch-chip" aria-pressed={area === item} style={{ "--c": areaLook[item].fill } as CSSProperties} onClick={() => setArea(area === item ? "all" : item)}>
-              <i aria-hidden="true" />{patchAreaLabels[item]}<span className="numeric">{areaCounts.get(item) ?? 0}</span>
-            </button>
-          ))}
-        </div>
-        {shown.length ? (
+        {asRole && <p className="sheet-hint pn-hint">So sehen <b>{audienceLook[audience].label}</b> die Patch Notes, mit ihren eigenen Texten.</p>}
+        {groups.length ? (
           <div className="sheet-scroll">
-            <table className="data-table patch-table">
-              <caption className="visually-hidden">Änderungen am Hub mit Art, {grouping === "package" ? "Bereich" : admin ? "Paket" : "Datum"} und Stelle, Änderung{admin ? " und wer sie sieht" : ""}</caption>
-              <thead>
-                <tr>
-                  <th scope="col" className="cell-kind">Art</th>
-                  <th scope="col" className="cell-where">{grouping === "package" ? "Bereich & Stelle" : admin ? "Paket & Stelle" : "Datum & Stelle"}</th>
-                  <th scope="col">Änderung</th>
-                  {admin && <th scope="col" className="cell-aud">Sichtbar für</th>}
-                </tr>
-              </thead>
-              {bodies}
-            </table>
+            <div ref={list} className="fl pn-list" role="treegrid" aria-label="Patch Notes" onKeyDown={onKeyDown}>
+              <div className="fl-head" role="row">
+                <span role="columnheader" className="fl-col pn-kind"><span>Art</span></span>
+                <span role="columnheader" className="fl-col pn-area-col">Bereich</span>
+                <span role="columnheader" className="fl-col pn-place-col">Stelle</span>
+                <span role="columnheader" className="fl-col pn-change">Änderung</span>
+                <span role="columnheader" className="fl-col pn-date">Datum</span>
+              </div>
+              <div className="fl-body" role="rowgroup">{lines}</div>
+            </div>
           </div>
-        ) : <SheetEmpty text="Keine Änderungen für diese Suche oder Filter." onReset={filtered ? reset : undefined} />}
-        <SheetFooter>{changes(shown.length)} von {rows.length} · {packageCount === 1 ? "1 Paket" : `${packageCount} Pakete`}</SheetFooter>
+        ) : (
+          <SheetEmpty text={query.trim() ? `Keine Änderung zu „${query.trim()}“${area === "all" ? "" : ` in ${patchAreaLabels[area]}`}.` : "Keine Änderung in diesem Bereich."} onReset={reset} />
+        )}
+        <SheetFooter hint="Klick auf eine Zeile zeigt die Beschreibung">{changes(shown)} · {groups.length === 1 ? "1 Patch" : `${groups.length} Patches`}</SheetFooter>
       </div>
     </>
   );

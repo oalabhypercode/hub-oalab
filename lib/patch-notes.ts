@@ -1,13 +1,14 @@
 /**
- * Patch notes of the hub: one package per go-live day, newest first. Every change that reaches `main` adds its
- * entries here (rule in CLAUDE.md). Self-contained (no imports) so tests can check it directly.
+ * Patch notes of the hub, in patch blocks (user 27.11.2026): Patch 1 holds everything up to 27.11.2026, every further
+ * patch collects about 20 changes (1.1, 1.2, …), and only a big step, on the user's word, starts the next whole number
+ * (Patch 2). The page lists them like the Asset Management's „Liste“: one line per change with Art, Bereich, Stelle,
+ * Änderung and Datum, a click opens its text. Every change that reaches `main` adds its entries here (rule in
+ * CLAUDE.md). Self-contained (no imports) so tests can check it directly.
  *
  * Admins see every entry. Customers see only entries marked `customers: true`, freelancers only those marked
- * `freelancers: true` (since 18.11.2026), each only packages that contain one; the package summary is for admins. Texts are plain German for people who use the hub, never names, addresses,
- * keys or infrastructure details.
- *
- * Every entry names one of six areas and the place in the hub where the change happened (22.11.2026), so the patch
- * notes read as a table: Art · Bereich & Stelle · Änderung.
+ * `freelancers: true`, each written for them: what they see and use themselves, never admins, other roles, technology,
+ * tests or internal tools (tests/patch-notes.test.mjs checks the words). What only admins need is an entry of its own.
+ * Texts are plain German for people who use the hub, never names, addresses, keys or infrastructure details.
  */
 
 export type PatchChangeKind = "new" | "improved" | "fixed" | "security";
@@ -33,16 +34,16 @@ export const patchAreaLabels: Record<PatchArea, string> = {
   hub: "Hub & Konto",
 };
 
-/** The order of the areas in filters and groups. */
+/** The order of the areas in the filter. */
 export const patchAreaOrder: readonly PatchArea[] = ["start", "projects", "files", "customers", "messages", "hub"];
 
 export type PatchChange = {
   kind: PatchChangeKind;
-  /** The area of the hub the change belongs to. */
+  /** The area of the hub the change belongs to; the list shows it as a coloured tag and filters by it. */
   area: PatchArea;
   /** Where exactly, as the hub names it, levels joined by „ › “: "Kalender › Freie Zeiten". */
   place: string;
-  /** Further areas the change touches, shown as „auch: …“. */
+  /** Further areas the change touches. */
   also?: PatchArea[];
   title: string;
   text: string;
@@ -52,16 +53,12 @@ export type PatchChange = {
   freelancers?: true;
 };
 
-export type PatchPackage = {
-  number: number;
+/** The changes of one go-live day within one patch. */
+export type PatchDay = {
+  /** The patch the day belongs to: "1", "1.1", "1.2" … ("2" only for a big step). */
+  patch: string;
   /** Go-live day, YYYY-MM-DD. */
   date: string;
-  /** Shown to customers as well, so it names only changes they see; internal topics belong in the summary. */
-  title: string;
-  /** For freelancers when the title names things they do not have (Vertrag & Domain, say). */
-  freelancerTitle?: string;
-  /** What the package is about, for admins. */
-  summary: string;
   changes: PatchChange[];
 };
 
@@ -72,13 +69,21 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
   security: "Sicherheit",
 };
 
-export const patchPackages: PatchPackage[] = [
+/** Newest first. A change adds its entries to the topmost day of the open patch, or a new day on top of it. */
+export const patchDays: PatchDay[] = [
   {
-    number: 34,
+    patch: "1.1",
     date: "2026-11-27",
-    title: "Dateien in vier Ansichten, Screenshots in Notizen und gleich lostippen",
-    freelancerTitle: "Listen unter Darstellung, Screenshots in Notizen und gleich lostippen",
-    summary: "In Notizen lassen sich Screenshots und Bilder jetzt mit Strg+V, durch Hineinziehen oder über „/Bild“ einfügen, von allen, die die Seite bearbeiten dürfen; der Hub legt sie verkleinert beim Kunden ab, räumt ungenutzte nach einem Tag auf, und Claude sieht sie als eigene Zeile. In der Suche und in anderen Fenstern steht der Cursor jetzt gleich im Eingabefeld. Kunden sehen ihre Dateien jetzt im Aufbau des Asset Managements: Minimal, Liste, Kacheln und Detail, Details mit Bildvorschau rechts, Ordner wie bisher und ohne die zwei Kennzahl-Karten; die Karte „Listen“ unter Darstellung haben jetzt alle Rollen. Admins melden unter Nachrichten › Service jetzt Probleme mit NoteTree; die Meldung steht dort und in NoteTree Business, bis jemand sie erledigt. Außerdem stand dort „Rückmeldung fehlt“ auch bei älteren offenen Anfragen, wenn die KI ein Ergebnis zu einer anderen Anfrage desselben Projekts gemeldet hatte. Jetzt zählt nur eine Änderung der Testseite, die neuer ist als jede Meldung; dasselbe gilt in Service. Dazu ein Sicherheitsupdate im Hintergrund.",
+    changes: [
+      { kind: "improved", area: "hub", place: "Patch Notes", customers: true, freelancers: true, title: "Patch Notes als ruhige Liste", text: "Jede Änderung steht jetzt in einer schmalen Zeile mit Art, Bereich, Stelle und Datum; ein Klick klappt die Beschreibung auf, oben filterst du nach Bereich. Neues kommt gebündelt als Patch 1.1, 1.2 und so weiter, große Schritte bekommen eine neue Nummer." },
+      { kind: "improved", area: "hub", place: "Patch Notes", customers: true, freelancers: true, title: "Nur, was dich betrifft", text: "Jeder Eintrag beschreibt nur noch, was du selbst im Hub siehst und nutzt. Ältere Einträge sind dafür neu formuliert." },
+      { kind: "new", area: "hub", place: "Verwaltung › Patch Notes", title: "Ansicht als Kunde oder Freelancer", text: "„Sichtbar für: Kunden“ oder „Freelancer“ zeigt die Patch Notes genau so, wie diese Rolle sie sieht. So prüfst du vor dem Livegang, was dort ankommt." },
+      { kind: "new", area: "hub", place: "Verwaltung › Patch Notes", title: "Prüfung der Texte", text: "Ein Test hält Wörter wie Admin, Datenbank oder Testmail aus Kunden- und Freelancertexten fern. Jeder Patch sammelt rund 20 Änderungen; erst ein großer Schritt bekommt die nächste ganze Nummer." },
+    ],
+  },
+  {
+    patch: "1",
+    date: "2026-11-27",
     changes: [
       { kind: "security", area: "hub", place: "Technik", title: "Sicherheitsupdate", text: "Das Grundgerüst des Hubs und der Baustein für den E-Mail-Versand sind auf neueren Versionen. Damit sind mittelschwere Lücken geschlossen, unter anderem bei zwischengespeicherten Daten und Empfängeradressen. An der Bedienung ändert sich nichts." },
       { kind: "new", area: "messages", place: "Nachrichten › Service", title: "NoteTree-Problem melden", text: "Geht in NoteTree etwas nicht oder sollte besser gehen, meldest du es oben in der Liste mit „NoteTree-Problem melden“, auf Wunsch mit Bezug zur geöffneten Anfrage. Die Meldung steht als „NoteTree-Verbesserung“ hier und in NoteTree Business; dort wie hier antwortet das Team, erledigt sie oder öffnet sie wieder." },
@@ -90,10 +95,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 33,
+    patch: "1",
     date: "2026-11-26",
-    title: "Infomails mit Abmelde-Link und E-Mail zur neuen Testansicht",
-    summary: "Zum offiziellen Start verschickt „Startmails senden“ unter „Zugänge“ die Start-Mail und danach freitags drei Infomails zu Serviceplattform, Client Hub und Ausblick, jeweils dunkel, einzeln und mit Testmail. Jede Infomail hat unten „Infomails abbestellen“; die Seite dahinter fragt nach, bevor sie etwas ändert, und Mailprogramme bekommen ihren eigenen Abbestellen-Knopf. Wer abbestellt, bekommt keine Infomail mehr. Die Datenschutzerklärung nennt die Infomails und das Widerspruchsrecht. Unter Nachrichten › Service zeigt jedes Gespräch jetzt, wann die Testseite zuletzt angepasst wurde, eine Sprechblase, solange die KI arbeitet, und „Neue Testansicht bereit“ nach jedem Ergebnis; ändert sich die Testseite, ohne dass sich die KI meldet, steht dort „Rückmeldung fehlt“. Kunden schalten im Profil die E-Mail der Serviceplattform zu jeder neuen Testansicht an oder aus.",
     changes: [
       { kind: "new", area: "hub", place: "Profil › Benachrichtigungen", also: ["messages"], customers: true, title: "Neue Testansicht per E-Mail", text: "Im Profil steht unter Benachrichtigungen der Schalter „Neue Testansicht per E-Mail“. Ist er an, schickt dir die Serviceplattform eine kurze E-Mail mit Datum, Uhrzeit und Link, sobald ein neuer Stand auf deiner Testseite liegt. Es ist derselbe Schalter wie unter „Updates erhalten“ auf der Serviceplattform." },
       { kind: "new", area: "messages", place: "Nachrichten › Service", title: "Testseite mit Zeitstempel", text: "Im Kopf jeder Anfrage steht die Testseite mit Datum und Uhrzeit ihrer letzten Änderung. Nach jedem Ergebnis zeigt der Verlauf „Neue Testansicht bereit“ und ob die E-Mail dazu an den Kunden rausging." },
@@ -104,25 +107,20 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 32,
+    patch: "1",
     date: "2026-11-25",
-    title: "Erinnerung zum Start im dunklen Look",
-    summary: "Die Erinnerung zum Start von Client Hub und Serviceplattform kommt nur noch in der dunklen Fassung, auch wenn das Mailprogramm hell eingestellt ist. Alle anderen Mails richten sich weiter nach der Einstellung von hell oder dunkel. Admins steuern Service-Anfragen jetzt auch ohne NoteTree: Unter Nachrichten › Service steht eine Liste aller Anfragen mit Nummer, Stand und Filtern, und im Gespräch geben sie eine angehaltene Anfrage zurück, schreiben für den Kunden an die KI oder antworten als oalab. Seiten laden jetzt auch in den Sekunden vollständig, in denen eine neue Version live geht; das dafür nötige technische Cookie steht in der Datenschutzerklärung.",
     changes: [
       { kind: "improved", area: "hub", place: "User Management › Erinnerung", also: ["messages"], title: "Erinnerung zum Start nur dunkel", text: "„Erinnerung senden“ verschickt die Mail jetzt immer mit der dunklen Karte, auch in hell eingestellten Mailprogrammen. Nur das klassische Outlook für Windows zeigt weiter die helle Karte." },
       { kind: "new", area: "messages", place: "Nachrichten › Service", title: "Anfragen zurückgeben", text: "Hat jemand „Selbst nachbearbeiten“ gedrückt oder die KI in NoteTree angehalten, steht im Gespräch ein Hinweis mit „Wieder freigeben“ oder „KI weitermachen lassen“. Liegt die geprüfte Testseite noch aktuell bereit, geht sie zurück an den Kunden zur Zustimmung; sonst arbeitet die KI weiter und liest alle neuen Nachrichten." },
       { kind: "new", area: "messages", place: "Nachrichten › Service", title: "Für den Kunden schreiben", text: "Unter jedem offenen Gespräch steht jetzt ein Eingabefeld. „Für“ und der Firmenname zählt wie eine Nachricht des Kunden: Die KI nimmt sie auf, und alle sehen sie mit deinem Namen „für“ die Firma. „Als oalab“ geht als sichtbare Antwort mit Benachrichtigung an den Kunden." },
       { kind: "improved", area: "messages", place: "Nachrichten › Service", title: "Eine Liste aller Anfragen", text: "Jede Zeile zeigt jetzt die Nummer der Anfrage und immer ihren Stand, bei angehaltener KI „KI pausiert“. Die Filter „Bei uns“, „Beim Kunden“ und „Erledigt“ zählen mit, die Suche findet auch Nummern, und der Pfeil oben im Gespräch öffnet die Anfrage in Service." },
       { kind: "improved", area: "hub", place: "Claude › Nachrichten", also: ["messages"], title: "Claude erkennt Nachrichten für Kunden", text: "Liest Claude eine Service-Anfrage, stehen Nachrichten, die das Team für einen Kunden geschrieben hat, mit Name „für“ die Firma da, und die Liste nennt Anfragen mit angehaltener KI. Der Verweis führt direkt in das Gespräch im Hub." },
-      { kind: "fixed", area: "hub", place: "Alle Seiten", customers: true, freelancers: true, title: "Seiten laden auch während eines Updates", text: "Ging gerade eine neue Version live, kam eine Seite für ein paar Sekunden manchmal ohne Gestaltung oder gar nicht. Jetzt holt dein Browser alle Teile einer Seite vom selben Server und sie lädt vollständig. Dafür gibt es ein technisch nötiges Cookie, das die Datenschutzerklärung nennt." },
+      { kind: "fixed", area: "hub", place: "Alle Seiten", customers: true, freelancers: true, title: "Seiten laden auch während eines Updates", text: "Ging gerade eine neue Version live, kam eine Seite für ein paar Sekunden manchmal ohne Gestaltung oder gar nicht. Jetzt lädt sie auch dann vollständig. Dafür gibt es ein technisch nötiges Cookie, das die Datenschutzerklärung nennt." },
     ],
   },
   {
-    number: 31,
+    patch: "1",
     date: "2026-11-24",
-    title: "Karten im Chat, Abos, Terminanfragen an das Team und oalab als eigenes Unternehmen",
-    freelancerTitle: "Terminanfragen erreichen das Team sofort",
-    summary: "oalab ist jetzt ein eigenes Unternehmen im Hub: ganz oben in „Projekte“ mit internen Projekten und ihren Aufgaben im Board, die kein Kunde sieht, und unter „Zugänge“ mit Logo und Nummer. Neue Admins bekommen mit „Darf Projekte und Aufgaben bearbeiten“ gleich die Team-Rolle im Studio, die unter „Sicherheit“ an- und abschaltbar ist, und Claude legt interne Projekte und Aufgaben ebenfalls an. Was oalab für einen Kunden ändert, steht jetzt zusätzlich als Karte in seinem privaten Chat: Termine, Dateien, Notizen, „Du bist am Zug“ und andere Aufgaben, Projektstatus und neu auch Vertrag & Domain, das sich damit erstmals in der Glocke meldet. Über „Abos“ legt jeder Chat fest, welche Bereiche als Karte kommen (vorab alles außer Aufgaben), beide Seiten können das ändern, und jede Änderung steht als graue Zeile im Chat. Terminanfragen von Kunden und Freelancern melden sich jetzt in der Glocke aller Admins und in der Telegram-Gruppe; im Chat des Kunden steht die Anfrage als Karte mit „Bestätigen“. Glocke und Chat bleiben unabhängig, Service-Anfragen bekommen keine Karten, und Claude liest Karten als Zeilen mit „[Hub]“. Dazu bekommt oalab eigene Notizen und Dateien: „oalab“ steht ganz oben in „Notizen“ und als Gruppe „Intern“ im Asset Management, beides nur „Nur Team“ oder „Team und Freelancer“; „Team informieren“ meldet eine interne Seite in der Glocke der anderen Admins, und Besprechungsnotizen zu internen Terminen landen bei oalab.",
     changes: [
       { kind: "new", area: "projects", place: "Projekte › oalab", title: "Interne Projekte für oalab", text: "oalab steht in „Projekte“ jetzt ganz oben als eigenes Unternehmen mit dem Zeichen „Intern“. Dort legst du Projekte für oalab selbst an, mit Status, Terminen und Meilensteinen wie bei Kunden; kein Kunde sieht sie, und Pakete, Domains und Service fehlen dort." },
       { kind: "new", area: "projects", place: "Projekte › Aufgaben", title: "Interne Aufgaben im Board", text: "Aufgaben interner Projekte stehen im Board unter „oalab · Intern“ und lassen sich wie gewohnt anlegen, zuweisen, verschieben und kommentieren. Die Wahl „+ Kunde“ fehlt dort, weil es keinen Kunden gibt, der sie sehen könnte." },
@@ -144,11 +142,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 30,
+    patch: "1",
     date: "2026-11-23",
-    title: "Kalender abonnieren, in Notizen mitschreiben und eine aufgeräumte Glocke",
-    freelancerTitle: "Kalender abonnieren, in Notizen mitschreiben, Notizen mit Claude, Kacheln für Dateien und eine aufgeräumte Glocke",
-    summary: "Jede Person mit Zugang abonniert ihre Termine jetzt als Kalender „oalab“: „Abonnieren“ im Kalenderkopf oder die neue Karte „Kalender-Abo“ im Profil legen einen geheimen Link an, den der Hub einmal zeigt, mit Apple, Google, Outlook, Kopieren, QR-Code und Anleitung je Gerät. Apple Kalender, Google und Outlook holen damit selbst neue, verschobene und abgesagte Termine. Im Abo stehen bestätigte Termine und offene Anfragen; Projektziele und Aufgaben lassen sich zuschalten, bei Admins alle Termine als „Firma: Titel“ und Aufgaben wahlweise eigene oder alle, bei Freelancern nur ihre Termine und Anfragen. Admins und Freelancer legen das Abo nur mit bestätigtem Code an. Gespeichert ist nur eine Prüfsumme des Links; jeder Abruf liest mit den Rechten der Person, höchstens 60 Mal je Stunde. Anlegen, neuer Link und Beenden stehen im Verlauf des Kontos. Das Abo endet von selbst bei deaktiviertem Zugang, anderer Rolle, zurückgesetztem zweiten Faktor oder nach 180 Tagen ohne Abruf. Wer ein Abo hat, bekommt in Termin-Mails einen Satz statt der vier Kalender-Knöpfe. Der Claude-Connector kennt jetzt die Notizen unter Projekte: Claude liest den Seitenbaum eines Kunden und jede Seite als Text mit dem aktuellen Stand der Aufgaben, Projekte und Termine darin, sucht in allen Notizen und legt Seiten und Unterseiten an, mit Inhalt oder aus einer Vorlage. Bestehende Seiten ergänzt Claude oben oder unten oder überarbeitet sie mit Versionsprüfung, sodass nichts überschrieben wird, was inzwischen jemand anders geschrieben hat; Aufgabenboxen, Termine, Unterseiten und Linkkarten bleiben dabei erhalten. Für das Team gibt Claude Seiten frei, teilt Änderungen mit, legt Besprechungsnotizen an Terminen an, liest den Verlauf, holt frühere Fassungen zurück und legt Seiten in den Papierkorb (30 Tage wiederherstellbar); endgültig löschen bleibt im Hub. Freelancer mit Claude lesen die für sie freigegebenen Seiten und schreiben ihre „Nur Freelancer“-Seiten. Jede Änderung fragt vorher nach und steht als claude.note.* im Admin-Protokoll; bestehende Verbindungen bekommen das ohne neues Verbinden, in Claude reicht ein neuer Chat. Dazu kann Claude Projekte, Aufgaben und Kalender jetzt so weit wie die Seiten im Hub: bestehende Projekte ändern (Name, Status, Beschreibung, Start, Zieltermin, Meilensteine, Domains, Sichtbarkeit), jede Aufgabe mit Beschreibung, Checkliste, Kommentaren, Dateien und Verlauf lesen, Checklisten abhaken und ergänzen, Freelancer auf Projekte setzen oder herunternehmen, die Verfügbarkeit lesen und Abwesenheiten oder zusätzliche Zeiten eintragen. Die Projektleiste, „Beteiligte“, das Aufgabenfenster und „Verfügbarkeit“ speichern dafür über denselben Code wie Claude. Freelancer mit Claude lesen ihre Aufgaben im Detail und haken Checklisten ab. Außerdem liest Claude für das Team jetzt alle übrigen Bereiche: Kontaktdaten und Zugänge eines Kunden, die Dateien im Asset Management, Vertrag & Domain (Pakete, Verlauf, Domains, Mailserver, Postfächer, Kontingent, Freigaben für Freelancer), die Service-Anfragen und den privaten Chat, das Admin- und das KI-Protokoll und Insights. Passwörter, Zugangsdaten aus dem Schlüsselbund, Codes, den zweiten Faktor und Download-Links gibt der Connector nie heraus, und was Claude liest, bleibt für das Team ungelesen. Schreiben kann Claude dort jetzt auch: im privaten Chat antworten, Kontaktdaten eines Kunden ändern, Dateien zuordnen, umbenennen und „Sichtbar für“ einstellen, Ordner anlegen, unter Vertrag & Domain Verlauf, Domains und E-Mail-Adressen eintragen und festlegen, was ein Freelancer von einem Kunden sieht, jeweils über denselben Code wie die Fenster im Hub und mit Rückfrage vor jeder Änderung; Zugänge, Einladungen, Pakete, Passwörter und Löschen bleiben im Hub. Im Asset Management öffnet ein Doppelklick in der Liste wieder die angeklickte Datei: Die Auswahlleiste liegt über der Suchzeile, statt die Liste zu verschieben, und der zweite Klick zählt für die Zeile des ersten. Die Details zeigen jedes Bild als Vorschau, die der Server verkleinert und der Browser einen Tag lang nur für diese Person aufhebt, ohne 8-MB-Grenze und unabhängig vom Typ, den der Browser beim Hochladen meldete; Uploads ohne Typ bekommen ihn jetzt aus der Endung. HEIC-Fotos erklären, warum sie keine Vorschau haben. Neu ist „Kacheln“ als vierte Ansicht im Asset Management: Karten mit Vorschaubild (Fotos füllend, Logos ganz auf dem Grund, der zu ihnen passt), ein Klick öffnet die Details, das Häkchen wählt, ⇧ oder Strg ergänzt. Die Größe klein, mittel oder groß steht unten rechts in der Fußzeile, in schmalen oder flachen Fenstern oben neben dem Ansichtsschalter, und gilt je Gerät; bei offenem Detailfenster rücken die Kacheln daneben. Die Vorschaubilder entstehen auf dem Server nacheinander, weil der Speicher der Hub-App begrenzt ist: Eine Anfrage lädt ihr Original erst, wenn sie an der Reihe ist, wartet höchstens 40 Sekunden und wird dann vom Browser einmal wiederholt; PNG, TIFF und GIF über 24 Megapixel bekommen keine Vorschau. In den Notizen legt ein Plus an jeder Seite der Seitenliste eine Unterseite an, und unter der geöffneten Seite steht „Neue Unterseite“; Freelancer sehen das Plus nur an Seiten, die für Freelancer freigegeben sind. Breite Seiten füllen den ganzen Schreibbereich, und oben rechts legt ein roter Papierkorb die Seite nach einer Rückfrage mit ihren Unterseiten in den Papierkorb. Kunden schreiben jetzt in Notizen mit: Im Zahnrad jeder Seite legt das Team für Kunde und Freelancer „Kein Zugriff“, „Lesen“ oder „Bearbeiten“ fest und sieht, welcher Zugang die Seite wann zuletzt geöffnet hat; neu geteilte Seiten lassen den Kunden standardmäßig mitschreiben (änderbar im Zahnrad für alle Notizen). Kunden ändern dort Titel, Symbol und Text, nie Sichtbarkeit, Projekt, Datum, Titelbild oder Papierkorb, und die Datenbank prüft das selbst. Eine Kapsel oben rechts zeigt an jeder Seite, wer liest und wer mitschreibt, die Seitenliste trägt das Zeichen jeder Seite und einen Punkt für Neues von außerhalb des Teams, und neue Seiten bieten „Mit Kunde teilen“ an. Schreibt ein Kunde oder Freelancer, meldet die Glocke es dem Team, eine Zeile je Seite, per Mail nur, solange niemand die Seite geöffnet hat. Neue Anfragen und Nachrichten der Kunden auf der Serviceplattform melden sich jetzt auch: in der Glocke aller Admins, in der Telegram-Gruppe und nach einigen Minuten per Mail; der Reiter „Service“ und Nachrichten zählen ungelesene Anfragen, und Öffnen gilt für das ganze Team. Claude legt beim Freigeben auch Lesen oder Bearbeiten fest. Die Glocke zeigt nur noch ungelesene Benachrichtigungen, mit der Zeit links vor dem Symbol (Heute, Gestern, Wochentag oder Datum über der Uhrzeit), einem Haken je Zeile, „Rückgängig“ für einige Sekunden und einem Fenster, das mit dem Bildschirm wächst (etwa 62 % der Breite, 760 bis 1280 px, nur die Liste scrollt); gelesene stehen in der Übersicht unter „Früher“. Sie lädt dafür alle ungelesenen (bis 100) zusätzlich zu den 30 neuesten, sodass ältere ungelesene nicht mehr hinter neueren aus der Liste fallen. Vor dem offiziellen Start von Client Hub und Serviceplattform am 25. November schickt „Erinnerung senden“ unter „Zugänge“ allen Kunden-Zugängen, die aktiv sind oder auf ihre erste Anmeldung warten, eine Mail mit dem Starttag, der Adresse des Zugangs samt der Frage, ob es eine andere sein soll (Antwort per Mail), den Funktionen von Hub und Serviceplattform und für noch nicht Aktivierte dem Weg über „Passwort vergessen?“. Angehakt sind alle ohne Erinnerung, jede Mail steht im Admin-Protokoll, und „Testmail an mich“ schickt beide Fassungen an die eigene Adresse. Im User Management ändern Admins die E-Mail-Adresse eines Zugangs (Profil, Stift neben der Adresse, mit Rückfrage): Derselbe Zugang mit allen Daten meldet sich danach nur noch mit der neuen Adresse an, im Hub und auf der Serviceplattform. Seine Sitzungen enden, Passwort- und Aktivierungslinks an die alte Adresse gelten nicht mehr, und auf Wunsch bekommen beide Adressen eine Info-Mail; das Admin-Protokoll nennt die Änderung ohne die Adressen.",
     changes: [
       { kind: "new", area: "projects", place: "Kalender › Abonnieren", title: "Kalender abonnieren", text: "Mit „Abonnieren“ im Kalender stehen deine Termine bei oalab in Apple Kalender, Google oder Outlook und bleiben von selbst aktuell: Neue, verschobene und abgesagte Termine kommen ohne Mail und ohne Löschen von Hand. Den Link zeigt der Hub einmal, mit QR-Code fürs Handy und einer kurzen Anleitung je Gerät.", customers: true, freelancers: true },
       { kind: "new", area: "hub", place: "Profil › Kalender-Abo", title: "Kalender-Abo im Profil", text: "Im Profil zeigt die Karte „Kalender-Abo“, ob dein Abo läuft, wann dein Kalender es zuletzt abgerufen hat und was darin steht. Dort änderst du die Inhalte, erzeugst einen neuen Link oder beendest das Abo; der alte Link geht dann sofort nicht mehr.", customers: true, freelancers: true },
@@ -191,10 +186,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 29,
+    patch: "1",
     date: "2026-11-22",
-    title: "Notizen unter Projekte, Benachrichtigungen in Spalten, Patch Notes als Tabelle und eine Sidebar zum Einklappen",
-    summary: "Neuer Bereich Projekte › Notizen: je Kunde Seiten und Unterseiten wie in Notion, gegliedert nach den Projekten des Kunden und „Allgemein“. Auf der Seite stehen nur Titelbild, Emoji, Titel und Text; Sichtbar für, Projekt, Datum, Symbol, Titelbild und Breite liegen hinter dem Zahnrad, die Standardwerte für alle Notizen hinter dem Zahnrad der Seitenliste. Geschrieben wird mit „/“, Markdown-Kürzeln, „:“ für Emojis (Fluent Emoji, vom Hub ausgeliefert), Werkzeugleiste, sauberen Links, Tabellen mit Spaltenarten und Aufklappern; gespeichert wird nach einer Sekunde mit Versionsprüfung. „Sichtbar für“ kennt vier Stufen (Nur Team als Standard), Unterseiten höchstens so sichtbar wie ihre Seite; Kunden lesen, Freelancer schreiben in „Nur Freelancer“. Aufgaben aus dem Board stehen lebendig in Notizen (Block, „#“-Erwähnung, Aufgabenliste mit Filtern), Checklisten-Zeilen werden mit einem Klick zu Aufgaben, Aufgaben und Projekte zeigen „Erwähnt in“; dazu Projekt-Block, Linkkarten mit sicher geladener Vorschau, Titelbilder aus den Dateien oder als Upload, Vorlagen, Papierkorb für 30 Tage und Meldungen beim Freigeben. Mit dem Kalender: Termine als Block, Besprechungsnotiz je Termin, Termin anlegen oder anfragen aus markiertem Text, Seiten mit Datum im Kalender und ein Notiz-Symbol am Termin; dazu Verlauf mit Wiederherstellen, „bearbeitet gerade“ und Notizen in der Suche. Die Datenbank prüft das selbst. Dazu Fokus und die Schriftgröße je Gerät. Die Glocke zeigt jede Benachrichtigung in drei Spalten: wo (Kunde oder Bereich, dazu Projekt und Aufgabe), die Nachricht mit Uhrzeit und von wem sie kommt; das Fenster ist dafür breiter, Glas und Schrift bleiben. Aufgaben-Meldungen an Admins und Freelancer nennen dafür jetzt die Firma des Kunden. Die Patch Notes sind eine Tabelle mit Art, Bereich und Stelle, Änderung und für Admins „Sichtbar für“: Jeder Eintrag trägt einen von sechs Bereichen und die genaue Stelle, dazu kommen Suche, Filter nach Art, Bereich und Zielgruppe und die Gruppierung nach Paket oder Bereich. Im Reiter „Domain & Mail“ eines Kunden ist der Name jeder Domain jetzt ein Link: Ein Klick öffnet die Website in einem neuen Tab; vorher wurde der Name beim Überfahren wie ein Link unterstrichen, ließ sich aber nicht anklicken. Am Rechner klappt die Sidebar mit einem Griff an ihrem Rand auf ihre Symbole ein; Auswahl und Knöpfe sind aus klarem Glas mit einem Tropfen beim Darüberfahren, und jede Seite nutzt die ganze Breite neben der Sidebar. Eingeklappt trägt das Profilbild unten die Zacken eines Zahnrads und öffnet mit einem Klick die Einstellungen. Im Schlüsselbund legen Admins Postfächer jetzt auch für Kunden an, wie bei oalab intern; alle Kategorien gelten für beide gleich. Ein solches Postfach hält nur die Zugangsdaten und steht beim Kunden unter „Zugangsdaten“ bei den Postfächern; gibt es die Adresse aus „Domain & Mail“ schon, weist das Formular darauf hin. Gesperrt und entsperrt ist im Kopf des Schlüsselbunds jetzt ein Schalter, grau oder grün; vor dem Sperren fragt er nach. Neue Zugänge kommen über das Plus, das Zahnrad steht ganz rechts. Im User Management steht unter „Zugänge“ jedes Unternehmen als Zeile in den Spalten der Tabelle: Kunden-Nr., Art (Kunde, Freelancer, Admin), Zugänge mit Stand wie unter „Kunden“ und letzter Login; eingeklappte Unternehmen folgen ohne Lücke aufeinander.",
     changes: [
       { kind: "new", area: "projects", place: "Projekte › Notizen", title: "Notizen je Kunde", text: "Unter Projekte gibt es jetzt Notizen: je Kunde Seiten und Unterseiten, gegliedert nach seinen Projekten. Ihr schreibt wie in Notion mit „/“ für Blöcke, Checklisten, Tabellen, Hinweisen und Emojis; gespeichert wird von selbst, und wer zuletzt gespeichert hat, wird nie überschrieben." },
       { kind: "new", area: "projects", place: "Projekte › Notizen › Zahnrad", title: "Sichtbar für je Seite", text: "Jede neue Seite ist zuerst „Nur Team“. Über das Zahnrad einer Seite gebt ihr sie für den Kunden, seine Freelancer oder beide frei; Unterseiten sind höchstens so sichtbar wie die Seite darüber und gehen beim Einschränken mit. Das Zahnrad der Seitenliste legt die Standardwerte für alle Notizen fest." },
@@ -236,10 +229,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 28,
+    patch: "1",
     date: "2026-11-21",
-    title: "Kundendaten für Freelancer und Zugänge nach Unternehmen",
-    summary: "Der Hub holt Namen, Kundennummern und Logos der Kunden eines Freelancers jetzt über eine eigene, schmale Abfrage: im Asset Management, an den Dateien und im Kalender. Damit kann die Datenbank Freelancern die übrigen Kundendaten ganz sperren; Kontaktdaten und gebuchte Pakete gibt es dann nur noch über „Vertrag & Domain“ mit Freigabe. Im User Management stehen die Zugänge jetzt unter ihrem Unternehmen und die Admins unter oalab; weitere Zugänge und Admins legt man direkt dort an.",
     changes: [
       { kind: "new", area: "hub", place: "User Management › Zugänge", title: "Admin anlegen", text: "Einen weiteren Admin legst du jetzt mit „Admin anlegen“ im Zahnrad unter „Zugänge“ an oder mit „Admin“ im Kopf von oalab. Der Dialog startet gleich mit der Rolle Admin und fragt nach keinem Kunden, denn Admins gehören zum oalab-Team." },
       { kind: "improved", area: "hub", place: "User Management › Zugänge", title: "Zugänge nach Unternehmen", text: "Unter „Zugänge“ steht jetzt jedes Unternehmen mit Logo, Nummer und der Zahl seiner Zugänge, darunter seine Zugänge; oalab mit den Admins folgt direkt auf die offenen Registrierungen. „Zugang“ im Kopf eines Unternehmens legt einen weiteren Zugang für es an, das Zahnrad öffnet seine Stammdaten. Die Ansicht nach Status gibt es weiter im Menü „Gruppe“." },
@@ -247,21 +238,16 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 27,
+    patch: "1",
     date: "2026-11-20",
-    title: "Claude für Freelancer",
-    summary: "Admins schalten Claude im User Management für einzelne Freelancer-Zugänge ein (Zeile „Claude“ unter Sicherheit, ab Werk aus). Freelancer verbinden Claude dann im Profil unter „Verbundene Apps“. Der Connector arbeitet für sie nur mit ihren eigenen Rechten: Er liest ihre Projekte mit den Aufgaben ohne „Nur Team“, die betreuten Kunden ohne Kontaktdaten, freie Zeiten bei oalab und die eigenen Anfragen, legt Aufgaben an, ändert, verschiebt und kommentiert sie wie im Board und stellt Terminanfragen oder zieht sie zurück. Jede Änderung steht im Admin-Protokoll. Eine Verbindung gilt 30 Tage ab „Erlauben“; Ausschalten, Deaktivieren oder Archivieren beendet sie sofort.",
     changes: [
       { kind: "new", area: "hub", place: "User Management › Sicherheit › Claude", title: "Claude für Freelancer einschalten", text: "Im User Management schaltest du Claude jetzt für einzelne Freelancer-Zugänge ein, unter „Sicherheit“ in der Zeile „Claude“. Claude arbeitet dann nur mit den Rechten dieses Zugangs: eigene Projekte und Aufgaben, Terminanfragen bei oalab, keine Kontaktdaten der Kunden; jede Änderung steht im Admin-Protokoll. Darunter siehst und trennst du die Verbindungen; Ausschalten trennt alle sofort." },
       { kind: "new", area: "hub", place: "Profil › Verbundene Apps", title: "Claude verbinden", text: "Hat das oalab-Team es für dich eingeschaltet, verbindest du Claude im Profil unter „Verbundene Apps“ mit dem Hub. Dann fragst du in Claude nach deinen Aufgaben und freien Zeiten, lässt Aufgaben anlegen, verschieben oder kommentieren und fragst Termine an. Claude sieht nur, was du im Hub siehst, fragt vor jeder Änderung, und eine Verbindung gilt 30 Tage.", freelancers: true },
     ],
   },
   {
-    number: 26,
+    patch: "1",
     date: "2026-11-19",
-    title: "Neue Dateien in einer Meldung",
-    freelancerTitle: "Dein Überblick und neue Dateien in einer Meldung",
-    summary: "Freelancer sehen unter Insights jetzt eigene Kacheln statt eines Hinweises: ihre zugewiesenen Aufgaben mit Fristen, den nächsten Termin mit dem Team, ihre Kunden mit offenen Aufgaben, Freigaben und dem Hinweis des Teams, Neues aus der Glocke, den Fortschritt ihrer Projekte nach den Aufgaben, die sie sehen, und neue Dateien. Die Seite lädt dafür ihr Board und ihre Kundenkarten. Im Asset Management ordnen Admins mehrere Dateien auf einmal einem Kunden zu: „Zuordnen“ in der Auswahl-Leiste oder bei einer Datei in der Ablage öffnet rechts eine Leiste mit Kunde, Ordner und, von einem anderen Kunden aus, „Verschieben“ oder „Auch behalten“; „Sichtbar für“ zieht beim Verschieben mit um. Mehrere neue Dateien stehen bei Kunden und Freelancern als eine Zeile in der Glocke und in der E-Mail, auch beim Hochladen.",
     changes: [
       { kind: "new", area: "start", place: "Insights", title: "Insights für dich", text: "Unter Insights siehst du jetzt auf einen Blick, was für dich ansteht: deine Aufgaben mit Fristen, die überfälligen zuerst, deinen nächsten Termin, deine Kunden mit offenen Aufgaben, Freigaben und dem Hinweis des Teams, den Fortschritt deiner Projekte und neue Dateien.", freelancers: true },
       { kind: "new", area: "files", place: "Asset Management › Ansicht „Liste“", title: "Listensicht wie im Finder", text: "Neben Minimal und Detail gibt es im Asset Management jetzt die Ansicht „Liste“, wie die Listenansicht am Mac: schmale Zeilen mit Name, Datum, Größe und Art, sortierbar über die Spaltenköpfe, und Ordner, die sich mit einem Dreieck aufklappen. Auswählen geht per Klick, mit ⇧ oder ⌘/Strg auch mehrere, ein Doppelklick öffnet die Datei." },
@@ -271,19 +257,17 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 25,
+    patch: "1",
     date: "2026-11-18",
-    title: "Neue Übersicht und Insights, Meldungen zu Aufgaben, eine Glocke, die auffällt, und ruhigere Markierungen im Kalender",
-    freelancerTitle: "Deine Übersicht, Kunden und Kalender für dich, Meldungen aus dem Board und eine Glocke, die auffällt",
-    summary: "Freelancer haben jetzt den Bereich „Kunden“: je betreutem Kunden ein Überblick mit Website, Hinweisen des Teams, ihren Projekten und Dateien, und unter „Vertrag & Domain“ zum Lesen genau das, was ein Admin im neuen Reiter „Freelancer“ freigibt: Domains & Hosting, E-Mail, Pakete und Kontaktdaten, je Freelancer mit kleinem Schalter und einem eigenen Hinweistext; Passwörter bleiben im Schlüsselbund. Freelancer finden den Kalender jetzt unter Projekte neben den Aufgaben und fragen dort Termine beim oalab-Team an wie Kunden: freie Zeiten in Grün, „Termin anfragen“, die Antwort per Glocke und E-Mail. Die Aufgaben mit Datum aus ihren Projekten stehen dort zum Lesen. Admins sehen die Anfrage mit dem Namen des Freelancers; in der Kundenliste des Kalenders trägt er den Hinweis „Freelancer“. Heute, der gewählte Tag und die gewählte Uhrzeit sind im Kalender für alle nur noch leicht getönt und etwas kleiner. Wer eine Aufgabe im Board sieht, erfährt jetzt in der Glocke, wenn jemand anderes sie anlegt, verschiebt, bearbeitet, kommentiert oder abhakt: die Freelancer des Projekts außer bei „Nur Team“, Kunden bei freigegebenen Aufgaben (nur neu, Status, Titel und Fälligkeit) und Admins, wenn ein Freelancer etwas geändert hat. Je Aufgabe bleibt es eine Zeile, solange sie ungelesen ist; Freelancer und Kunden bekommen die Meldungen auch in der gebündelten E-Mail, Admins nur in der Glocke. Die Glocke zeigt jetzt die Zahl ungelesener Meldungen, und solange seit dem letzten Blick hinein etwas dazugekommen ist, pulsiert ein Ring um sie. Ein offener Hub schaut alle 15 Sekunden und beim Zurückkehren in den Tab nach Neuem und zeigt es ohne Neuladen. Scheitert eine Meldung, steht das jetzt im Server-Log. Insights zeigt jetzt Kacheln: Kunden sehen ihr Projekt, ihre Service-Anfragen, was bei ihnen liegt, den nächsten Termin, Neues aus der Glocke und Nachrichten; Admins sehen fünf Zahlen (Freigaben, Nachrichten, Termine heute, fällige Aufgaben, Projekte im Blick), die Listen dazu und die Service-Anfragen des Monats je Kunde. Leere Seiten führen nicht mehr zur Designvorschau, die es live nicht gibt. Die Übersicht zeigt unter einer langen Begrüßungskarte (bei Kunden mit Paketen und dem Weg zur Serviceplattform, bei Admins mit der Zahl der Kunden und Servicepakete) die Meldungen der Glocke wie ein Handy: Neu und Früher, Stapel je Bereich, × zum Ausblenden und „Alle gelesen“; die bisherigen Listen stehen unter Insights. Rechts daneben zwei Widget-Stapel wie am iPhone mit sechs Widgets (Aufgaben nach Status, Fälligkeiten, Service-Kontingent, Projektfortschritt, Woche, Aktivität), Punkten, Wischen und Zahnrad; sie schließen bündig mit der letzten Meldung ab, die Wahl bleibt im Browser. Admins sehen unter den Meldungen zusätzlich, was auf sie wartet: Registrierungen, Terminanfragen, Überfälliges, volle Kontingente, gefährdete oder wartende Projekte. Freelancer bekommen dieselbe Übersicht: ihre betreuten Kunden und den Weg zum Board in der Begrüßung, ihre Meldungen und eigene Widgets aus ihrem Board, ihren Kunden und Dateien. Die Patch Notes haben eine eigene Gruppe für Freelancer.",
     changes: [
-      { kind: "new", area: "customers", place: "Kunden › Überblick", title: "Kunden für Freelancer", text: "Freelancer finden unter „Kunden“ alle Kunden, die sie für oalab betreuen. Je Kunde zeigt der Überblick die Website und wo sie läuft, die Hinweise des Teams, die eigenen Projekte mit offenen Aufgaben und die Dateien; „Vertrag & Domain“ zeigt zum Lesen, was das Team freigegeben hat. Passwörter stehen dort nie.", freelancers: true },
+      { kind: "new", area: "customers", place: "Kunden › Überblick", title: "Kunden für Freelancer", text: "Unter „Kunden“ findest du alle Kunden, die du für oalab betreust. Je Kunde zeigt der Überblick die Website und wo sie läuft, die Hinweise des Teams, deine Projekte mit offenen Aufgaben und die Dateien; „Vertrag & Domain“ zeigt zum Lesen, was das Team freigegeben hat. Passwörter stehen dort nie.", freelancers: true },
       { kind: "new", area: "customers", place: "Vertrag & Domain › Reiter „Freelancer“", title: "Freigaben für Freelancer", text: "Unter Vertrag & Domain hat jeder Kunde den neuen Reiter „Freelancer“. Dort legst du je Freelancer mit kleinen Schaltern fest, ob er Domains & Hosting, E-Mail, Pakete oder Kontaktdaten sieht, und schreibst ihm Hinweise wie CMS oder Testseite. Alles beginnt ausgeschaltet und steht im Admin-Protokoll." },
       { kind: "new", area: "messages", place: "Glocke", also: ["customers"], title: "Glocke bei neuer Freigabe", text: "Schaltest du für einen Freelancer einen Bereich frei, sieht er es in der Glocke, etwa „Neu freigegeben bei Nordlicht Studio: E-Mail“, mit dem Weg direkt dorthin. Weitere Freigaben beim selben Kunden kommen in dieselbe Zeile, solange er sie nicht gelesen hat; eine E-Mail geht dafür nicht raus." },
       { kind: "new", area: "projects", place: "Kalender", title: "Kalender für Freelancer", text: "Freelancer finden den Kalender jetzt unter Projekte neben den Aufgaben. Sie sehen die freien Zeiten des oalab-Teams in Grün, fragen mit „Termin anfragen“ einen Termin an und ziehen offene Anfragen auch wieder zurück; die Antwort kommt per Glocke und E-Mail. Dazu stehen die Aufgaben mit Datum aus ihren Projekten im Kalender, geändert wird im Board.", freelancers: true },
       { kind: "improved", area: "projects", place: "Kalender", title: "Ruhigere Markierungen im Kalender", text: "Heute, der gewählte Tag und die gewählte Uhrzeit sind jetzt nur noch leicht getönt statt voll ausgefüllt, und die Datumszahlen sind etwas kleiner. So bleibt der Blick bei deinen Terminen.", customers: true, freelancers: true },
       { kind: "new", area: "messages", place: "Glocke & E-Mail", also: ["projects"], title: "Meldungen zu deinen Aufgaben", text: "Kommt eine Aufgabe für dich dazu oder ändern sich Status, Titel oder Fälligkeit einer Aufgabe, die oalab für dich freigegeben hat, steht das jetzt in der Glocke und in der gebündelten E-Mail. Ein Klick führt zum Projekt.", customers: true },
-      { kind: "new", area: "messages", place: "Glocke & E-Mail", also: ["projects"], title: "Meldungen aus dem Aufgaben-Board", text: "Legt jemand eine Aufgabe an oder verschiebt, bearbeitet, kommentiert oder hakt sie ab, bekommen alle anderen, die die Karte sehen, eine Meldung: die Freelancer des Projekts (nicht bei „Nur Team“) mit E-Mail, Admins nur in der Glocke, wenn ein Freelancer etwas geändert hat. Je Aufgabe bleibt es eine Zeile, solange sie ungelesen ist, mit der neuesten Änderung vorn; ein Klick öffnet die Karte im Board. Das gilt auch für Änderungen über den Assistenten und über Claude.", freelancers: true },
+      { kind: "new", area: "messages", place: "Glocke & E-Mail", also: ["projects"], title: "Meldungen aus dem Aufgaben-Board", text: "Legt jemand eine Aufgabe an oder verschiebt, bearbeitet, kommentiert oder hakt sie ab, bekommst du eine Meldung mit E-Mail, sobald du die Karte siehst. Je Aufgabe bleibt es eine Zeile, solange sie ungelesen ist, mit der neuesten Änderung vorn; ein Klick öffnet die Karte im Board.", freelancers: true },
+      { kind: "new", area: "messages", place: "Glocke › Aufgaben-Board", title: "Board-Meldungen für Admins", text: "Admins bekommen Meldungen aus dem Board nur in der Glocke und nur, wenn ein Freelancer etwas geändert hat. Änderungen über den Assistenten und über Claude zählen mit." },
       { kind: "improved", area: "messages", place: "Glocke", title: "Die Glocke fällt auf", text: "An der Glocke steht jetzt die Zahl ungelesener Meldungen. Ist seit deinem letzten Blick hinein etwas dazugekommen, pulsiert ein Ring um sie und sie schwingt ab und zu; mit „Bewegung reduzieren“ steht der Ring still.", customers: true, freelancers: true },
       { kind: "improved", area: "messages", place: "Alle Seiten › ohne Neuladen", title: "Neues erscheint von selbst", text: "Ein offener Hub schaut jetzt alle 15 Sekunden und beim Zurückkehren in den Tab nach, ob es etwas Neues für dich gibt. Dann zeigen Glocke, Zähler und die Seite es von selbst, ohne Neuladen. Was du gerade tippst, bleibt dabei stehen.", customers: true, freelancers: true },
       { kind: "new", area: "start", place: "Insights", title: "Insights auf einen Blick", text: "Insights zeigt jetzt Kacheln statt einer Zusammenfassung: wo dein Projekt steht, wie viele Service-Anfragen dein Paket im Monat umfasst, was gerade bei dir liegt, deinen nächsten Termin, das Neueste aus der Glocke und die letzte Antwort von oalab. Jede Kachel führt direkt an die passende Stelle.", customers: true },
@@ -292,18 +276,16 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", area: "start", place: "Übersicht › Widgets", title: "Widgets neben den Benachrichtigungen", text: "Neben deinen Meldungen stehen jetzt zwei Widget-Felder wie auf dem iPhone: Aufgaben nach Status, Fälliges der nächsten zwei Wochen, dein Service-Kontingent, der Projektfortschritt, deine Woche und die Aktivität. Über die Punkte oder durch Wischen wechselst du das Widget, das Zahnrad legt fest, was ein Feld zeigt.", customers: true },
       { kind: "improved", area: "start", place: "Übersicht › Begrüßung", title: "Eine Begrüßungskarte", text: "Begrüßung, Unternehmen, aktive Pakete und der Weg zur Serviceplattform stehen jetzt zusammen in einer langen Karte. So bleibt auf der Übersicht mehr Platz für das, was neu ist.", customers: true },
       { kind: "new", area: "start", place: "Übersicht", title: "Übersicht für Freelancer", text: "Freelancer sehen auf der Übersicht jetzt die lange Begrüßungskarte mit ihren betreuten Kunden und dem Weg zum Board, darunter ihre Meldungen wie am Handy und daneben eigene Widgets: Aufgaben nach Status, ihre Fristen, ihre Woche, Aktivität, ihre Kunden und neue Dateien. Insights zeigt bis zu eigenen Kacheln den Weg zum Board.", freelancers: true },
-      { kind: "improved", area: "hub", place: "Patch Notes", title: "Patch Notes für Freelancer", text: "Freelancer sehen in den Patch Notes jetzt, was sie betrifft, statt der Neuigkeiten für Kunden: ihre Übersicht, ihre Kunden, das Board, den Kalender und alles, was im ganzen Hub besser geworden ist. Admins sehen solche Einträge mit dem Hinweis „Freelancer“.", freelancers: true },
+      { kind: "improved", area: "hub", place: "Patch Notes", title: "Patch Notes für Freelancer", text: "In den Patch Notes siehst du jetzt, was dich betrifft: deine Übersicht, deine Kunden, das Board, den Kalender und alles, was im ganzen Hub besser geworden ist.", freelancers: true },
       { kind: "new", area: "start", place: "Übersicht › Benachrichtigungen", title: "Was auf dich wartet", text: "Admins sehen in den Benachrichtigungen jetzt auch, was auf sie wartet: neue Registrierungen, offene Terminanfragen, überfällige Aufgaben, volle Service-Kontingente und Projekte, die gefährdet sind oder auf den Kunden warten. Ein Klick führt hin; das × blendet eine Zeile aus, bis sich daran etwas ändert." },
       { kind: "improved", area: "start", place: "Übersicht › Begrüßung", title: "Begrüßung für das Team", text: "Admins sehen in der Begrüßung jetzt, wie viele Kunden es gibt und wie viele davon ein Servicepaket haben, dazu den Weg zur Serviceplattform. Die bisherigen Listen der Übersicht stehen unter Insights." },
-      { kind: "fixed", area: "hub", place: "Leere Seiten", title: "Kein Weg mehr ins Leere", text: "Eine Seite ohne Inhalt bot bisher einen Link zur Designvorschau an, die es im Hub gar nicht gibt. Der Link ist weg; die Seite sagt nur noch, was hier bald erscheint.", customers: true, freelancers: true },
+      { kind: "fixed", area: "hub", place: "Leere Seiten", title: "Kein Weg mehr ins Leere", text: "Eine Seite ohne Inhalt bot bisher einen Link an, der ins Leere führte. Jetzt sagt sie nur noch, was hier bald erscheint.", customers: true, freelancers: true },
       { kind: "fixed", area: "messages", place: "Glocke & E-Mail", title: "Fehlende Meldungen fallen auf", text: "Konnte der Hub eine Meldung nicht schreiben, ging das bisher still unter. Jetzt steht es mit der Art der Meldung im Server-Log, ohne Namen oder Adressen." },
     ],
   },
   {
-    number: 24,
+    patch: "1",
     date: "2026-11-17",
-    title: "Kalender und Projekte immer auf dem neuesten Stand",
-    summary: "Im User Management lassen sich Kunden und Freelancer jetzt archivieren und endgültig löschen, ganz unten in ihren Stammdaten. Archivierte verschwinden überall im Hub außer im User Management, ihre Zugänge sind gesperrt, und „Wiederherstellen“ holt alles zurück. Löschen zeigt vorher, was wegfällt, und entfernt nach Eingabe der Nummer alles, was der Hub zum Eintrag speichert; die Firma bleibt in Service archiviert stehen. Claude legt über den Connector jetzt auch Termine, Aufgaben und neue Projekte an und ändert sie, mit Rückfrage vor jeder Änderung und einer Zeile im Admin-Protokoll; bestehende Verbindungen werden dafür einmal neu verbunden. Kalender und Projektseite laden beim Zurückkommen den neuesten Stand. Deaktivierte Zugänge stehen außerhalb des User Managements nirgends mehr zur Auswahl. Der Link aus Einladung und „Passwort vergessen“ wird erst mit „Passwort speichern“ eingelöst, sodass Virenscanner und ein zwischendurch geschlossenes Fenster ihn nicht mehr verbrauchen; die Seite zeigt dazu die E-Mail-Adresse des Zugangs. Die Ankündigung nennt den Tag der Einladungen jetzt mit Datum im Betreff.",
     changes: [
       { kind: "new", area: "customers", place: "User Management › Kunden", title: "Kunden archivieren", text: "Ganz unten in den Stammdaten eines Kunden oder Freelancers steht jetzt „Archivieren …“. Der Eintrag verschwindet dann aus Asset Management, Projekten, Kalender, Nachrichten, Vertrag & Domain, Schlüsselbund, Assistent und Claude, seine Zugänge sind sofort gesperrt, und gelöscht wird nichts. Archivierte stehen in der Liste unten unter „Archiviert“; „Wiederherstellen“ holt alles zurück, auch die Zugänge." },
       { kind: "new", area: "customers", place: "User Management › Kunden", title: "Kunden endgültig löschen", text: "„Löschen …“ zeigt vorher, was wegfällt: Zugänge, Dateien, die nur dieser Kunde hat, Ordner, Termine, Pakete, Domains, Zugangsdaten und Chat. Nach Eingabe der Kundennummer ist alles weg; ein Zugang, auf den die Serviceplattform noch verweist, wird gesperrt statt gelöscht. Die Firma bleibt in Service archiviert stehen, mit ihren Anfragen." },
@@ -316,10 +298,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 23,
+    patch: "1",
     date: "2026-11-16",
-    title: "Kalender unter Projekte, freie Zeiten und der Hub als App",
-    summary: "Auf Handy und Tablet lässt sich der Hub jetzt als Web-App mit eigenem Icon auf den Home-Bildschirm legen; ein Knopf oben links neben der Glocke und eine Zeile im Profil erklären es, ohne Netz zeigt die App eine Seite „Keine Verbindung“. Der Kalender hängt jetzt unter Projekte neben den Aufgaben: links die Kunden, rechts Monat, Woche, Tag oder Liste mit Terminen, Anfragen und jeder Aufgabe mit Datum; Ziehen verschiebt Termine und Fälligkeiten, auch im Board, und Kunden sehen ihre freien Zeiten grün. Wann Kunden anfragen können, legt das Team jetzt selbst fest: Wochenplan, Ausnahmen und Regeln, direkt in der Woche gemalt oder in der Leiste „Verfügbarkeit“. Unter Projekte stehen links jetzt alle Kunden, rechts beim gewählten Kunden alle seine Projekte mit dem Status in der Zeile, Domains & Links und sein Service. Neu ist der Bereich Aufgaben: je Projekt ein Board mit den Spalten Backlog, Offen, In Arbeit, In Prüfung und Erledigt, wahlweise als Liste, mit denselben Aufgaben wie im Studio; Freelancer arbeiten dort in den Projekten mit, in die das Team sie einträgt, und „Sichtbar für“ legt je Aufgabe fest, ob nur das Team, auch die Freelancer oder zusätzlich der Kunde sie sieht. Ein Klick auf ein Projekt öffnet rechts eine Leiste mit allen Angaben und dem Weg ins Board; dort lassen sich Name, Beschreibung, Termine, Meilensteine und die Freigabe für den Kunden ändern, und „Projekt“ legt beim Kunden ein neues Projekt an. Im Assistenten diktieren Admins ihre Fragen jetzt auch per Mikrofon, und Claude lässt sich mit dem Hub verbinden: Admins fragen dann in ihren Claude-Chats nach Kunden, Projekten, Aufgaben und Terminen. Ein erstes eigenes Passwort und neue Zugänge mit Passwort werden wieder gespeichert.",
     changes: [
       { kind: "new", area: "hub", place: "Profil › Verbundene Apps", title: "Claude mit dem Hub verbinden", text: "Admins verbinden Claude jetzt im Profil unter „Verbundene Apps“ mit dem Hub. Danach beantwortet Claude in normalen Chats Fragen wie „Welche Termine habe ich diese Woche?“ oder „Was ist bei einem Kunden noch offen?“ mit den Daten des Hubs und prüft freie Zeiten mit denselben Regeln wie der Kalender. Die Verbindung erlaubst du im Hub mit Code; Claude liest nur, und „Trennen“ beendet sie sofort." },
       { kind: "new", area: "hub", place: "Als App installieren", title: "Der Hub als App", text: "Auf Handy und Tablet legst du den Hub jetzt als App auf den Home-Bildschirm: mit eigenem Icon, im Vollbild und ohne Browserleiste. Wie das geht, zeigt der Knopf mit dem Pfeil oben links neben der Glocke; im Profil steht derselbe Weg unter „Als App installieren“.", customers: true, freelancers: true },
@@ -356,11 +336,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 22,
+    patch: "1",
     date: "2026-11-15",
-    title: "Projekte klarer, Website mit einem Klick, breite Ansicht",
-    freelancerTitle: "Breite Ansicht und gleich hohe Tafeln",
-    summary: "Projekte ist für Admins jetzt aufgebaut wie Vertrag & Domain: links die Kunden, rechts alles zum gewählten Projekt, die Website mit Live- und Test-Adresse ganz oben, dazu Domains, Stand und Aufgaben; Adressen und Domains lassen sich dort direkt eintragen. Das Fenster eines Projekts führt mit einem Klick zu Chat, Dateien, Kalender, Vertrag & Domain, Zugängen und Kundeneintrag. Unter Darstellung gibt es die Breite XL, und alle Tabellen-Seiten reichen bis unten.",
     changes: [
       { kind: "new", area: "projects", place: "Projekte", title: "Projekte als Kundenpanel", text: "Projekte ist jetzt aufgebaut wie Vertrag & Domain: links die Kunden, rechts alles zum gewählten Projekt. Ganz oben steht die Website mit Live- und Test-Adresse zum Öffnen und Kopieren, darunter die Domains des Kunden, der Stand und die Aufgaben. Adressen und Domains lassen sich gleich dort eintragen; der Überblick zeigt weiter alle Projekte in einer Tabelle." },
       { kind: "new", area: "projects", place: "Projekte › Projektfenster", title: "Live- und Test-Adresse im Projekt", text: "Im Fenster eines Projekts stehen jetzt ganz oben die fertige Website und die Vorschau, auf der jede Änderung zuerst erscheint. Ein Klick öffnet sie in einem neuen Tab.", customers: true },
@@ -371,19 +348,15 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 21,
+    patch: "1",
     date: "2026-11-14",
-    title: "Klarer Hinweis zum Schlüssel",
-    summary: "Unter Vertrag & Domain › Zugangsdaten stand unten ein veralteter Hinweis zum Schlüssel für die Passwörter. Jetzt steht dort nur seine Kennung und wozu sie dient.",
     changes: [
       { kind: "fixed", area: "customers", place: "Vertrag & Domain › Zugangsdaten", title: "Hinweis zum Schlüssel unter Zugangsdaten", text: "Unten unter Zugangsdaten stand noch ein veralteter Hinweis, wo der Schlüssel für die Passwörter eingetragen sein muss. Jetzt steht dort nur seine Kennung und dass sich gespeicherte Passwörter nur mit genau diesem Schlüssel öffnen." },
     ],
   },
   {
-    number: 20,
+    patch: "1",
     date: "2026-11-13",
-    title: "Aufgeräumte Auswahl bei den Dateien",
-    summary: "Im Asset Management lassen sich Dateien jetzt nach einem Muster benennen, beim Hochladen und nachträglich, ähnlich wie beim Export in Lightroom: etwa Kunde, Ordner und eine fortlaufende Nummer statt kryptischer WhatsApp-Namen. Dazu kommen „Alle auswählen“ für die ganze Liste und je Ordner, eine aufgeräumte Auswahl-Leiste und ein Fehler weniger bei den Knöpfen auf dem Handy. Neu für Admins ist außerdem der Schlüsselbund: Er sammelt alle Zugänge von oalab und den Kunden an einem Ort, geordnet nach festen Kategorien wie Postfächer, Domain-Anbieter oder Software & Tools. Die Zugänge sind immer sichtbar, die Passwörter öffnen sich nur mit dem Code aus einer Authenticator-App, die einmal mit dem Schlüsselbund verbunden wird. Derselbe Code öffnet jetzt auch die Passwörter unter Vertrag & Domain.",
     changes: [
       { kind: "new", area: "files", place: "Asset Management › Hochladen", title: "Namen nach Muster beim Hochladen", text: "Fotos mit Kamera- oder WhatsApp-Namen bekommen beim Hochladen auf Wunsch neue Namen nach einem Muster, zum Beispiel Kunde, Ordner und Nummer. Die Nummer zählt im Ordner automatisch weiter, und ein Beispiel zeigt vorher, wie die Dateien heißen werden." },
       { kind: "new", area: "files", place: "Asset Management › Umbenennen", title: "Mehrere Dateien umbenennen", text: "Ausgewählte Dateien lassen sich über „Umbenennen“ in einem Rutsch neu benennen, mit Vorher und Nachher für jede Datei. Es ändern sich Titel und Download-Name, die Datei selbst bleibt unverändert, und Kunden bekommen dafür keine Meldung." },
@@ -396,10 +369,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 19,
+    patch: "1",
     date: "2026-11-12",
-    title: "Auswahllisten und Hinweise im Hub-Look",
-    summary: "Schreibt ein Kunde im privaten Chat, kommt seine Nachricht wieder vollständig in die Telegram-Gruppe des Teams: oben fett Firma und Name, darunter der Text, dazu der Knopf in den Hub. Jede Nachricht kommt einzeln an, nicht mehr nur eine Meldung pro Chat. Dazu sehen alle Auswahllisten, Vorschläge beim Tippen und die kleinen Hinweise beim Darüberfahren jetzt aus wie der Rest des Hubs, statt wie die Standardfenster des Browsers.",
     changes: [
       { kind: "improved", area: "messages", place: "Telegram", title: "Nachrichten mit Text in Telegram", text: "Die Telegram-Gruppe des Teams zeigt bei jeder Kundennachricht Firma, Name und den Text selbst, sehr lange Nachrichten gekürzt. Geantwortet wird weiter im Hub über den Knopf „Im Hub öffnen“." },
       { kind: "improved", area: "hub", place: "Alle Seiten › Auswahllisten", title: "Auswahllisten im Hub-Look", text: "Aufklappende Listen, etwa für Filter, Kategorien, Ordner oder Termine, öffnen sich jetzt als ruhiges weißes Blatt in der Schrift des Hubs, die Auswahl trägt ein Häkchen. Lange Listen wie Kunden lassen sich durchsuchen, und auf dem Handy öffnet jede Auswahl als Blatt von unten.", customers: true, freelancers: true },
@@ -407,10 +378,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 18,
+    patch: "1",
     date: "2026-11-10",
-    title: "Seiten laden nach Änderungen wieder zuverlässig",
-    summary: "Alle Demo-Zugänge sind entfernt: die vier Testlogins samt ihren drei Beispielkunden, die Anmeldeknöpfe für Testkonten und die öffentliche Demo mit Beispieldaten. Das User Management sperrt keine Demo-Zugänge mehr, und wer im Hub angemeldet ist, ist immer ein echter Zugang mit echten Daten. Die Designvorschau mit erfundenen Beispieldaten ist online nicht mehr erreichbar. Dazu behoben: Nach einer Änderung im Hub, etwa einer Terminanfrage, einer gelesenen Benachrichtigung oder einer Aktion im User Management, ließen sich die Unterseiten beim Neuladen oder über einen direkten Link nicht mehr öffnen, bis der Hub neu ausgeliefert wurde. Jetzt lädt eine Änderung nur noch die eigene Ansicht neu. Neu im User Management: „Ankündigung senden“ kündigt Kunden-Zugängen ohne Anmeldung vorab per Mail den Tag ihrer Einladung an, mit einer kurzen Anleitung zum ersten Anmelden, den Bereichen des Hubs und den beiden Avataren; eine Testmail an die eigene Adresse zeigt sie vorher.",
     changes: [
       { kind: "fixed", area: "hub", place: "Alle Seiten", title: "Unterseiten öffnen sich wieder", text: "Nach einer Änderung im Hub, etwa einer Terminanfrage oder einer gelesenen Benachrichtigung, zeigten Seiten wie Dateien, Kalender oder Profil beim Neuladen oder über einen Link nur einen Fehler. Das ist behoben: Änderungen aktualisieren jetzt nur deine Ansicht, und alle Seiten öffnen sich wie gewohnt.", customers: true, freelancers: true },
       { kind: "security", area: "hub", place: "User Management › Zugänge", title: "Keine Demo-Zugänge mehr", text: "Die vier Testlogins mit ihren Beispielkunden und die öffentliche Demo gibt es nicht mehr. Im User Management sind sie nicht länger schreibgeschützt und lassen sich löschen; wer sich im Hub anmeldet, hat damit immer einen echten Zugang mit echten Daten." },
@@ -419,10 +388,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 17,
+    patch: "1",
     date: "2026-11-09",
-    title: "Zugänge und Kunden in der Seitenleiste bearbeiten",
-    summary: "Im User Management öffnen sich Zugänge, Registrierungen, Kunden und Freelancer jetzt in einer Seitenleiste am rechten Rand, im Look der Tabelle statt als Glasfenster in der Mitte. Die Tabelle bleibt daneben sichtbar und bedienbar: Ein Klick auf eine andere Zeile oder die Pfeile im Kopf der Leiste zeigen den nächsten Eintrag, die offene Zeile ist markiert. Zugänge haben die Reiter Profil, Sicherheit und Verlauf, Kunden und Freelancer Stammdaten, Zugänge und Verlauf. Gespeichert wird unten in der Leiste; dort steht, ob noch etwas ungespeichert ist, und vor einem Wechsel fragt der Hub nach. Zugangslink, Zwei-Faktor-Schutz, Deaktivieren und Löschen wirken wie bisher sofort. Am Handy füllt die Leiste den ganzen Bildschirm. Was bisher Konto hieß, heißt jetzt Zugang. Kunden und Freelancer ohne Zugang zeigen das in der Tabelle und oben in ihren Stammdaten, mit einem Knopf, der den Zugang mit Kunde, Rolle und Kontakt-E-Mail vorausgefüllt öffnet; nach dem Anlegen eines Kunden oder Freelancers geht es direkt weiter zu seinem Zugang. Rot hinterlegt sind Kunden und Freelancer ohne Zugang, gelb die, bei denen sich noch niemand angemeldet hat. Die Aktionen jedes Reiters liegen jetzt hinter einem roten Zahnrad oben rechts. Ein Zugang mit der Rolle Freelancer fragt nicht mehr nach einem Freelancer, sondern gehört zum Freelancer selbst. Im Vertragsgenerator kommt die Vorlage „Website & Domain“ dazu: Website-Pflege plus Domain und Hosting bei oalab, die E-Mail bleibt beim externen IT-Dienstleister.",
     changes: [
       { kind: "improved", area: "hub", place: "User Management", title: "Bearbeiten in der Seitenleiste", text: "Zugänge, Kunden und Freelancer öffnen sich im User Management rechts neben der Tabelle, in derselben Optik wie die Tabelle. Mit den Pfeilen im Kopf geht es zum nächsten Eintrag, ohne die Leiste zu schließen; ungespeicherte Änderungen zeigt die Leiste unten an und fragt vor dem Wechsel nach." },
       { kind: "improved", area: "hub", place: "User Management › Zugänge", title: "Rolle, Kunde und Zugang übersichtlicher", text: "Die Rolle wählt man jetzt mit einem Schalter statt mit drei großen Kacheln, den Kunden in einer Auswahl mit Logo. Zwei-Faktor-Schutz, Zugangslink, Deaktivieren und Löschen stehen gesammelt im Reiter „Sicherheit“, der Verlauf als Zeitleiste in einem eigenen Reiter." },
@@ -437,10 +404,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 16,
+    patch: "1",
     date: "2026-11-08",
-    title: "Datenschutzerklärung aktualisiert und Einladung eine Woche gültig",
-    summary: "Admins übernehmen Kunden jetzt in einem Rutsch aus dem Kontakt-Export der Buchhaltung (Sevdesk, als CSV-Datei): im User Management unter „Kunden“ mit „Importieren“. Der Hub erkennt die Spalten selbst, zeigt vor dem Speichern je Zeile, was passiert, und legt neue Kunden genau wie „Kunde anlegen“ an, auch in Service, ohne Login, Mail oder Paket. Kunden, die schon im Hub stehen, bekommen nur leere Felder ergänzt und die Kundennummer aus der Buchhaltung. Für alle Kunden ohne Konto legen Admins danach in einem Rutsch Konten an, mit den Ansprechpartnern aus der Sevdesk-Datei, und schicken die Einladungen später gesammelt los, auch als Erinnerung. Der Link in der Einladung gilt jetzt eine Woche statt eines Tages, und die E-Mail nennt das Ablaufdatum. Das User Management zeigt bei den Konten die Rolle und bei den Kunden den Stand der Konten und den letzten Login; ein i erklärt den Unterschied zwischen Konten, Kunden und Freelancern. Dazu beschreibt die Datenschutzerklärung jetzt den Betrieb auf dem eigenen Server: Hoster, Weiterleitung und Schutz vor Angriffen, das neue Anmelde-Cookie, die nächtliche Sicherung und die frühere Plattform, die nur noch eine ruhende Kopie hält, bis sie gelöscht wird. Neu sind dort die Abschnitte zu Freelancern als Empfängern und zur Herkunft der Firmendaten aus der Buchhaltung.",
     changes: [
       { kind: "improved", area: "hub", place: "Datenschutz", title: "Datenschutzerklärung aktualisiert", text: "Die Datenschutzerklärung beschreibt jetzt, wo der Hub läuft und wer deine Daten dafür verarbeitet, welches Cookie dich angemeldet hält und dass wir jede Nacht eine Sicherung anlegen. Neu steht dort auch, was ein Freelancer sieht, der dein Unternehmen im Auftrag von oalab mitbetreut, und dass wir die Angaben zu deinem Unternehmen aus unserer Buchhaltung übernehmen können.", customers: true, freelancers: true },
       { kind: "improved", area: "hub", place: "Anmeldung › Einladung", title: "Einladung eine Woche gültig", text: "Der Link in der E-Mail, mit der du deinen Zugang zum Hub aktivierst, gilt jetzt eine Woche statt eines Tages. Die E-Mail nennt dir genau, bis wann; ist er abgelaufen, schickt dir dein oalab-Team einen neuen.", customers: true, freelancers: true },
@@ -451,11 +416,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 15,
+    patch: "1",
     date: "2026-11-06",
-    title: "Erklärungen per i und Vertrag & Domain im neuen Look",
-    freelancerTitle: "Erklärungen auf einen Blick",
-    summary: "Die Sonderfunktionen des Hubs erklären sich jetzt mit einem kleinen i-Knopf an der Stelle, an der man sie nutzt: für Admins im Asset Management, im User Management, unter Vertrag & Domain samt Domain & Mail und Zugängen, im Kalender, im Chat und an den Vorschlägen des Assistenten; für Kunden bei Terminanfragen, im Chat, bei Ordnern, beim Zwei-Faktor-Schutz, bei WhatsApp und bei den Einstellungen für ihr Mailprogramm; für Freelancer zusätzlich in ihrem Asset Management. Die Erklärungen sind kurze Karten mit höchstens drei Punkten direkt am i, die nichts auf der Seite verschieben; alles Weitere beantwortet der Assistent, den „Mehr dazu im Assistenten“ gleich mit der passenden Frage öffnet. Die ausführlichen Texte kennt er jetzt. Die sichtbaren Hinweistexte bleiben stehen. Dazu kommen die Service-Kontingente: Das Servicepaket bestimmt jetzt, wie viele neue Anfragen ein Kunde im Monat auf der Serviceplattform stellen darf (Service Lite 5, Service Max 20, ohne Paket keine). Die Sperre ist noch ausgeschaltet; der Überblick unter Vertrag & Domain zeigt, wen sie beim Einschalten träfe, und beim Kunden lassen sich einzelne Anfragen aus der Zählung nehmen. Kunden sehen „Vertrag & Domain“ jetzt in der Sprache der Dateien: zwei Kennzahlen (Pakete, letzte Zahlung) und darunter eine Tabelle mit Paketen, Domains, E-Mail-Adressen, Dokumenten und Verlauf, mit Suche, Filter und dem Fenster „Mailprogramm einrichten“ in drei Schritten. Der Überblick der Admins ist eine Tabelle mit Handlungsbedarf, Fristen, Paketen, Service-Kontingenten, Verlauf und Vorlagen; beim Kunden sind die vier Reiter Tabellen mit Umschalter, Suche, Paketwahl in der Zeile, den Service-Anfragen des Monats und einer Speicherleiste nur bei Änderungen.",
     changes: [
       { kind: "improved", area: "hub", place: "Alle Seiten › i-Knopf", title: "Kurze Erklärungen per i", text: "Bei Terminanfragen, im Chat, bei Ordnern, beim Zwei-Faktor-Schutz, bei WhatsApp und bei den Einstellungen für dein Mailprogramm steht jetzt ein kleines i neben der Überschrift. Ein Klick darauf erklärt direkt an Ort und Stelle, wie die Funktion arbeitet und worauf du achten solltest; ein zweiter Klick schließt die Erklärung wieder.", customers: true },
       { kind: "improved", area: "customers", place: "Vertrag & Domain", title: "Vertrag & Domain übersichtlicher", text: "„Vertrag & Domain“ sieht jetzt aus wie deine Dateien: Oben stehen deine Pakete und die letzte Zahlung auf einen Blick, darunter eine Liste mit Paketen, Domains, E-Mail-Adressen, Dokumenten und Verlauf. Suche und Filter sitzen oben in der Liste, Verträge und Rechnungen lädst du direkt herunter, und „Mailprogramm einrichten“ führt dich in drei Schritten durch die Einstellungen.", customers: true },
@@ -468,11 +430,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 14,
+    patch: "1",
     date: "2026-11-05",
-    title: "Vertrag & Domain, Begrüßung, Animationen, Abmelden auf dem Tablet und Code-Mails mit Uhrzeit",
-    freelancerTitle: "Begrüßung, Animationen, Abmelden auf dem Tablet und Code-Mails mit Uhrzeit",
-    summary: "Der Avatar oben in der Übersicht der Kunden begrüßt jetzt bei jedem Öffnen der Übersicht und nicht mehr nur einmal direkt nach der Anmeldung. Weil die Anmeldung lange gültig bleibt, war er vorher kaum in Bewegung zu sehen. Mit „Bewegung reduzieren“ steht er weiter still neben seiner Sprechblase. Animationen laufen jetzt auf jedem Gerät von Anfang an, auch wenn das Gerät Bewegung reduziert; „Bewegung reduzieren“ muss man selbst einschalten, und der Schalter gilt über ein Cookie auch auf der Serviceplattform. Auf dem Tablet sitzt oben rechts jetzt ein Knopf zum Abmelden. Code-Mails tragen die Uhrzeit im Betreff, und die Code-Seite nennt die Mail, deren Code gilt: Mail-Apps hatten die gleich betitelten Mails gestapelt und einen älteren Code zuerst gezeigt. Neu ist außerdem die Rolle Freelancer, nur im Hub: Freelancer bekommen Kunden zugeordnet, eigene Dateien und lesen die freigegebenen Dateien ihrer Kunden, immer mit Code bei der Anmeldung. Dazu kommt der Bereich „Vertrag & Domain“ unter dem Asset Management: Admins pflegen dort im Contract & Domain Management je Kunde ein Domain-Paket (OALAB Domain oder Domain & Mail) und ein Servicepaket (Service Lite oder Max) mit Beginn und Kündigung und führen einen Verlauf mit Zeitpunkten wie bezahlten Rechnungen; Kunden sehen dort ihre Pakete, ihre Verträge und Rechnungen und die freigegebenen Zeitpunkte. Die vier alten Website-Pakete gibt es nicht mehr. Impressum und Datenschutzerklärung nennen jetzt die Anschrift der GbR, die auch in den Serviceverträgen steht. Admins erstellen Serviceverträge jetzt direkt im Hub: aus den beiden Vorlagen „Website, Domain & Mail“ und „Website-Pflege“, mit den Daten aus dem Kundenstamm, als Word-Datei zum Herunterladen oder direkt beim Kunden abgelegt. Je Kunde kommen dort die Reiter „Domain & Mail“ (Domains mit Anbietern, Fristen und Prüfhäkchen, Mail-Server und E-Mail-Adressen) und „Zugänge“ hinzu, mit verschlüsselten Passwörtern, die nur mit bestätigtem zweitem Faktor sichtbar werden; Kunden sehen ihre Domains, ihre Adressen und die Daten für ihr Mailprogramm.",
     changes: [
       { kind: "new", area: "customers", place: "Vertrag & Domain", title: "Vertrag & Domain", text: "Unter „Vertrag & Domain“ siehst du jetzt deine Pakete und seit wann sie laufen, deine Verträge und Rechnungen und wichtige Zeitpunkte, die dein oalab-Team für dich freigibt, zum Beispiel eine bezahlte Rechnung. Die Pakete heißen jetzt OALAB Domain, OALAB Domain & Mail, OALAB Service Lite und OALAB Service Max.", customers: true },
       { kind: "new", area: "customers", place: "Vertrag & Domain › Domain & Mail", title: "Domain & E-Mail", text: "Unter „Vertrag & Domain“ siehst du jetzt deine Domains und deine E-Mail-Adressen. Mit OALAB Domain & Mail stehen dort auch die Daten für dein Mailprogramm, also Server, Port und Verschlüsselung, jeweils mit Knopf zum Kopieren. Passwörter zeigt der Hub aus Sicherheitsgründen nicht an.", customers: true },
@@ -497,10 +456,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 13,
+    patch: "1",
     date: "2026-11-04",
-    title: "Privater Chat, Rechtstexte, Begrüßung und Mitdenken",
-    summary: "Unter Nachrichten schreiben Kunden jetzt privat mit oalab statt in Service-Anfragen, und Admins antworten direkt im Hub. Admins haben dafür die Reiter „Privat“ und „Service“, sehen ihre Kunden mit Logo und werden bei neuen Nachrichten in der Glocke, per E-Mail und in ihrer Telegram-Gruppe benachrichtigt; Service-Anfragen laufen nur noch über die Serviceplattform. Impressum und Datenschutzerklärung sind jetzt eigene, öffentliche Seiten im Hub, erreichbar von jeder Seite in höchstens zwei Klicks und aus jeder E-Mail; für Telegram beschreibt die Datenschutzerklärung schon den Betrieb mit echten Kunden (nur Firmenname), während der Testphase kommt weiter der volle Text. Außerdem begrüßt der Avatar oben in der Übersicht nur noch ohne Ton, darunter steht das Unternehmen jetzt in einer eigenen Zeile mit seinem Logo, und unten in der Gesprächsliste denkt ein Avatar von oalab mit. Admins laden das Logo eines Kunden in einem einfacheren Fenster hoch, aus dem Asset Management oder dem User Management.",
     changes: [
       { kind: "new", area: "messages", place: "Nachrichten › Privater Chat", title: "Privater Chat mit oalab", text: "Unter Nachrichten schreibst du jetzt direkt mit deinem oalab-Team, in einem privaten Chat für deine Firma. Nur ihr und oalab lest mit; zwei Häkchen zeigen, dass deine Nachricht gelesen wurde.", customers: true },
       { kind: "improved", area: "messages", place: "Nachrichten › Serviceplattform", title: "Service-Anfragen auf der Serviceplattform", text: "Anfragen wie Änderungen an deiner Website stellst du jetzt direkt auf der Serviceplattform. Unter dem Chat führen „Anfrage stellen“ und „Meine Anfragen“ dorthin; die Gespräche zu Anfragen stehen nicht mehr im Hub.", customers: true },
@@ -518,10 +475,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 12,
+    patch: "1",
     date: "2026-11-03",
-    title: "Begrüßung und Ladeanimation",
-    summary: "Nach der Anmeldung begrüßt der Hub jetzt mit dem oalab-Logo, und wo etwas lädt, dreht sich das Logo statt grauer Platzhalter oder eines Kreises. Kunden begrüßt oben in der Übersicht außerdem ein sprechender Avatar von oalab mit Sprechblase. Im Asset Management öffnen sich Hochladen und die Details einer Datei jetzt rechts neben der Liste statt in einem Fenster. Dateien lassen sich direkt in einen Ordner ziehen, die Kategorie gilt je Datei, und aus einem Bild wird mit einem Klick das Logo des Kunden. Außerdem lassen sich Dateien jetzt bearbeiten und löschen.",
     changes: [
       { kind: "new", area: "hub", place: "Anmeldung › Begrüßung", title: "Begrüßung nach der Anmeldung", text: "Nach der Anmeldung begrüßt dich der Hub mit dem oalab-Logo und deinem Vornamen, während dein Workspace im Hintergrund lädt. Danach blendet die Übersicht wie gewohnt ein.", customers: true },
       { kind: "new", area: "start", place: "Übersicht › Begrüßung", title: "Persönliche Begrüßung in der Übersicht", text: "Oben in deiner Übersicht steht jetzt ein Ansprechpartner von oalab als Avatar. Nach der Anmeldung sagt er dir in einer Sprechblase Hallo; über den Lautsprecher in der Blase hörst du ihn mit Ton. Mit „Bewegung reduzieren“ steht er still da.", customers: true },
@@ -538,10 +493,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 11,
+    patch: "1",
     date: "2026-11-02",
-    title: "Gespräche wie im Messenger",
-    summary: "Nachrichten werden ein Chat: alle Gespräche mit oalab an einem Ort, wie man es vom Handy kennt. Dazu steht das Logo am Tablet mittig oben, und die Ecke unten links ist aufgeräumt. Für Admins ordnet das Asset Management die Dateien nach Kunden, als Minimal- oder Detailansicht. Und wo bisher eure Anfangsbuchstaben standen, kann jetzt euer Firmenlogo stehen.",
     changes: [
       { kind: "new", area: "messages", place: "Nachrichten", title: "Gespräche wie im Messenger", text: "Unter Nachrichten stehen jetzt deine Gespräche mit oalab als Chat: links die Liste mit dem Neuesten oben, rechts das offene Gespräch mit Sprechblasen, Datum und dem Stand deiner Anfrage. Am Smartphone öffnet ein Tipp das Gespräch bildschirmfüllend.", customers: true },
       { kind: "new", area: "messages", place: "Nachrichten", title: "Direkt im Hub antworten", text: "Deine Antwort landet in derselben Anfrage wie auf der Serviceplattform, und das oalab-Team erfährt davon wie gewohnt. Neue Antworten erscheinen ohne Neuladen; liest du sie im Hub, kommt dazu keine zusätzliche E-Mail mehr.", customers: true },
@@ -559,10 +512,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 10,
+    patch: "1",
     date: "2026-11-01",
-    title: "Ein einheitlicher Look",
-    summary: "Das Redesign des Hubs: gemeinsame Farben und Bausteine wie in den E-Mails des Hubs, einheitliche Seitenköpfe und Begriffe, klare Tabellen mit Suche, Filter und Gruppen, ein dunkler Modus, eine aufgeräumte Navigation am Smartphone und mehrere kleine Korrekturen.",
     changes: [
       { kind: "new", area: "hub", place: "Profil › Darstellung", title: "Dunkler Modus", text: "Der Hub kann jetzt auch dunkel. Unter Profil › Darstellung wählst du beim Erscheinungsbild Automatisch, Hell oder Dunkel; Automatisch folgt deinem Gerät und wechselt mit ihm, auch auf der Anmeldeseite.", customers: true },
       { kind: "improved", area: "hub", place: "Navigation › Tab-Leiste", title: "Navigation am Smartphone", text: "Die Tab-Leiste zeigt jetzt fünf Einträge mit größerer Schrift: Übersicht, Projekte, Dateien, Kalender und Mehr. Unter „Mehr“ findest du Insights, Nachrichten, den Chat, die Patch Notes, dein Profil und die Darstellung, und Glocke und Assistent stehen oben neben dem Logo, damit Seitentitel ganz lesbar bleiben.", customers: true },
@@ -578,16 +529,14 @@ export const patchPackages: PatchPackage[] = [
       { kind: "improved", area: "hub", place: "Navigation", title: "Klarere Begriffe", text: "Der Bereich mit deinen Angaben heißt überall „Profil“, Projekte, Dateien, Nachrichten und Kalender stehen unter „Bereiche“, und die Ziele von Projekten heißen im Kalender einheitlich „Zieltermin“.", customers: true },
       { kind: "improved", area: "hub", place: "Mehr › Favoriten", title: "Favoriten in einer Reihe", text: "Vier Favoriten passen am Rechner nebeneinander. In schmalen Karten tritt das Datum zurück, damit der Titel ganz lesbar bleibt.", customers: true },
       { kind: "fixed", area: "hub", place: "Alle Seiten › Hinweise", title: "Hinweise und Fehlermeldungen", text: "Hinweise im Kalender und bei den Dateien zeigen Symbol und Text wieder nebeneinander. Fehlermeldungen in den Karten des Profils sind deutlich als Fehler zu erkennen, und ein Fehler beim Abmelden erscheint jetzt auch auf dem Smartphone.", customers: true },
-      { kind: "improved", area: "hub", place: "Patch Notes", title: "Patch Notes nach Datum", text: "Die Pakete der Patch Notes tragen für Kunden nur noch ihr Datum. So entstehen keine Lücken in der Nummerierung, wenn ein Paket nur interne Änderungen enthält.", customers: true },
+      { kind: "improved", area: "hub", place: "Patch Notes", title: "Patch Notes nach Datum", text: "Jedes Paket der Patch Notes trägt jetzt sein Datum. So siehst du auf einen Blick, wann eine Änderung kam.", customers: true },
       { kind: "fixed", area: "hub", place: "KI-Protokoll", title: "KI-Protokoll auf dem Smartphone", text: "Admins erreichen das KI-Protokoll jetzt auch auf dem Smartphone über „Mehr“ unter „Verwaltung“. Die Zeitspalte trägt dort nicht mehr fälschlich den Vorsatz „Letzter Login“." },
       { kind: "improved", area: "hub", place: "User Management", title: "Konto anlegen", text: "Im User Management heißt der Button jetzt „Konto anlegen“, wie der Dialog, den er öffnet." },
     ],
   },
   {
-    number: 9,
+    patch: "1",
     date: "2026-10-31",
-    title: "Kalender-Logos und ein gemeinsamer Kundenstamm",
-    summary: "Die Kalender-Buttons in Termin-Mails zeigen jetzt die Logos von Apple, Google und Microsoft statt eines gemeinsamen Kalender-Symbols. Hub und Serviceplattform haben einen gemeinsamen Kundenstamm: Neue Kunden entstehen auf beiden Seiten, ihre Logins kommen mit demselben Zugang auf die Serviceplattform, und Unternehmen, Kundennummer und Kontaktdaten gelten überall.",
     changes: [
       { kind: "improved", area: "messages", place: "E-Mail › Termine", title: "Kalender-Buttons mit Logos", text: "In E-Mails zu einem neuen, bestätigten oder verschobenen Termin trägt jeder Kalender-Button jetzt das Logo seines Kalenders: Apple, Google und Microsoft für Outlook, einfarbig im Design des Hubs. So findest du den passenden Button auf einen Blick.", customers: true },
       { kind: "improved", area: "customers", place: "Firmendaten", title: "Deine Firmendaten überall gleich", text: "Unternehmen, Kontakt-E-Mail, Telefon, Website und Anschrift sind im Client Hub und auf der Serviceplattform jetzt dieselben. Was du auf der Serviceplattform unter „Profil und Firma“ änderst, siehst du auch im Hub.", customers: true },
@@ -595,10 +544,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 8,
+    patch: "1",
     date: "2026-10-30",
-    title: "Benachrichtigungen, neue E-Mails und ein bequemerer Assistent",
-    summary: "Kunden erfahren jetzt in der Glocke und per E-Mail, was für sie neu ist: Aufgaben, bei denen sie am Zug sind, Änderungen an Status oder Zieltermin aus dem Studio, neue Dateien und Termine. Termine lassen sich aus der E-Mail mit einem Tipp in den eigenen Kalender übernehmen. Alle E-Mails des Hubs haben ein neues Design, und Links führen direkt zum Termin oder zur Datei. Admins bekommen noch keine Benachrichtigungen. Der Assistent behält seinen Verlauf im Browser, lässt sich rechts andocken, zeigt Vorschauen übersichtlicher, und das neue KI-Protokoll listet alle seine Vorschläge.",
     changes: [
       { kind: "improved", area: "hub", place: "Assistent", title: "Assistent behält den Verlauf", text: "Der Chat mit dem Assistenten bleibt nach dem Neuladen und sogar nach einem Neustart des Browsers erhalten, bis du „Neu starten“ klickst oder dich abmeldest. Er liegt nur in deinem Browser.", customers: true },
       { kind: "new", area: "hub", place: "Assistent", title: "Assistent als Seitenleiste", text: "Ein Knopf im Chat dockt den Assistenten rechts an. Die Seite daneben bleibt bedienbar, und der Chat bleibt beim Wechseln der Seiten offen. Auf dem Handy öffnet er weiter als Fenster.", customers: true },
@@ -614,10 +561,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 7,
+    patch: "1",
     date: "2026-10-29",
-    title: "Projekte, Aufgaben und Kunden per Assistent",
-    summary: "Der Assistent schlägt jetzt auch Änderungen an Projekten und bestehenden Aufgaben sowie neue Kunden vor. Gespeichert wird nur, was der Admin in der Vorschau bestätigt, und nie über eine neuere Änderung im Studio hinweg.",
     changes: [
       { kind: "new", area: "hub", place: "Assistent › Kunden anlegen", also: ["customers"], title: "Kunden anlegen", text: "Admins können den Assistenten bitten, einen neuen Kunden anzulegen. Er prüft vorher, ob es das Unternehmen schon gibt, und zeigt eine Vorschau mit Kontaktdaten und Service-Paket. Erst „Kunde anlegen“ legt ihn an, mit einer neuen Kundennummer aus OA- und einer fünfstelligen Zahl." },
       { kind: "new", area: "hub", place: "Assistent › Kunden anlegen", title: "Login für den Ansprechpartner", text: "Nennt der Admin einen Ansprechpartner mit E-Mail-Adresse, bietet die Vorschau gleich einen Login für ihn an. Die Einladungs-Mail geht nur raus, wenn sie dort eigens angehakt ist; sonst gibt es den Aktivierungslink im User Management." },
@@ -628,26 +573,24 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 6,
+    patch: "1",
     date: "2026-10-28",
-    title: "Patch Notes und echte Projekte",
-    summary: "Der neue Reiter „Patch Notes“ hält jede Änderung am Hub fest. Projekte und Aufgaben kommen jetzt aus OALab Studio statt aus Beispieldaten. Der Assistent liest sie für Admins und schlägt neue Aufgaben vor, die erst nach Bestätigung gespeichert werden.",
     changes: [
-      { kind: "new", area: "projects", place: "Projekte", title: "Echte Projekte aus OALab Studio", text: "Projekte, Fortschritt und Zieltermine im Hub kommen jetzt aus OALab Studio, wo das oalab-Team sie pflegt. Kunden sehen nur, was für sie freigegeben ist. Der Fortschritt ist der Anteil erledigter Aufgaben, genau wie im Studio.", customers: true },
+      { kind: "new", area: "projects", place: "Projekte", title: "Echte Projekte im Hub", text: "Deine Projekte zeigen jetzt den echten Stand: Fortschritt und Zieltermine pflegt das oalab-Team, und du siehst alles, was für dich freigegeben ist. Der Fortschritt ist der Anteil erledigter Aufgaben.", customers: true },
+      { kind: "new", area: "projects", place: "Projekte", title: "Projekte aus OALab Studio", text: "Projekte, Fortschritt und Zieltermine im Hub kommen aus OALab Studio, wo das Team sie pflegt. Kunden sehen nur, was für sie freigegeben ist." },
       { kind: "new", area: "projects", place: "Projekte › Aufgaben", title: "Aufgaben im Projekt und „Du bist am Zug“", text: "Die Projektdetails zeigen die Aufgaben mit Stand, Fälligkeit und ob oalab oder du dran bist. Aufgaben, die bei dir liegen, stehen in der Übersicht unter „Du bist am Zug“ und setzen das Projekt auf „Dein Feedback“.", customers: true },
       { kind: "new", area: "hub", place: "Assistent", title: "Assistent liest Projektdaten", text: "Admins können den Assistenten nach Kunden, Projekten und Aufgaben fragen, etwa „Welche Aufgaben liegen gerade bei Kunden?“. Er liest nur, was der Admin im Hub ohnehin sieht, ändert selbst nichts und braucht den aktiven Zwei-Faktor-Schutz. Über „Assistent zu diesem Projekt fragen“ im Projektdialog versteht er „dieses Projekt“." },
       { kind: "new", area: "hub", place: "Assistent", title: "Aufgaben per Assistent anlegen", text: "Admins können den Assistenten bitten, Aufgaben für ein Projekt anzulegen. Er zeigt sie zuerst als Vorschau im Chat; dort lassen sie sich abwählen, zwischen oalab und Kunde umstellen und für den Kunden freigeben. Erst „Speichern“ legt sie im Studio an, unter dem Namen des Admins." },
       { kind: "new", area: "hub", place: "Assistent", title: "Meetingtranskripte auswerten", text: "Admins können ein Meeting-Transkript in den Chat einfügen. Der Assistent fasst es zusammen, nennt Beschlüsse und offene Fragen und schlägt die Aufgaben daraus vor, jede mit einem Zitat als Beleg. Termine und Zuständigkeiten übernimmt er nur, wenn sie eindeutig genannt sind; der Hub speichert Transkripte nicht." },
       { kind: "improved", area: "hub", place: "KI-Protokoll", title: "Protokoll der KI-Aktionen", text: "Jeder Vorschlag des Assistenten wird mit seinem Ausgang festgehalten: gespeichert, verworfen oder fehlgeschlagen. Ein doppelter Klick legt nichts doppelt an, und ein Vorschlag gilt 30 Minuten." },
       { kind: "improved", area: "projects", place: "Projekte › Aufgaben", title: "Kundenaufgaben im Studio", text: "Aufgaben mit dem Label „Kunde“ gelten im Hub als Aufgaben des Kunden. Sichtbar werden sie für den Kunden erst, wenn sie im Studio freigegeben sind. Admins sehen in der Übersicht, was gerade bei Kunden liegt." },
-      { kind: "new", area: "hub", place: "Patch Notes", title: "Patch Notes", text: "Hier steht, was sich am Hub geändert hat: ein Paket pro Livegang, gegliedert in Neu, Verbessert, Behoben und Sicherheit. Admins finden den Reiter unter „Verwaltung“ und sehen alle Einträge, Kunden finden ihn unter „Neuigkeiten“ und sehen die Einträge, die sie betreffen.", customers: true },
+      { kind: "new", area: "hub", place: "Patch Notes", title: "Patch Notes", text: "Hier steht, was sich am Hub geändert hat: ein Paket pro Livegang, gegliedert in Neu, Verbessert und Behoben. Du findest die Patch Notes in der Seitenleiste unter „Neuigkeiten“ und siehst die Einträge, die dich betreffen.", customers: true },
+      { kind: "new", area: "hub", place: "Verwaltung › Patch Notes", title: "Patch Notes für Admins", text: "Admins finden die Patch Notes unter „Verwaltung“ und sehen alle Einträge, auch die internen. Kunden sehen nur die Einträge, die sie betreffen." },
     ],
   },
   {
-    number: 5,
+    patch: "1",
     date: "2026-10-26",
-    title: "Zweiter Faktor nach Wahl",
-    summary: "Jede Person wählt im Profil, wie sie ihren Login zusätzlich absichert: Code per E-Mail oder Authenticator-App.",
     changes: [
       { kind: "new", area: "hub", place: "Anmeldung › Code", title: "Code per E-Mail", text: "Nach dem Passwort kommt ein sechsstelliger Code an die Login-Adresse. Er gilt zehn Minuten, „Neuen Code senden“ schickt einen frischen. Eine zusätzliche App ist dafür nicht nötig.", customers: true },
       { kind: "new", area: "hub", place: "Profil › Zwei-Faktor-Schutz", title: "Zwei-Faktor-Schutz im Profil", text: "Unter Profil › „Zwei-Faktor-Schutz“ wählt jede Person selbst: Aus, Code per E-Mail oder Authenticator-App. Die Wahl gilt auch für die Serviceplattform.", customers: true },
@@ -655,15 +598,13 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 4,
+    patch: "1",
     date: "2026-10-25",
-    title: "Ein Login für Hub und Serviceplattform",
-    summary: "Hub und Serviceplattform teilen sich Konto und Datenbank. Dazu ein schnellerer Start und eine Code-Abfrage beim Login.",
     changes: [
       { kind: "new", area: "hub", place: "Anmeldung", title: "Ein Konto für Hub und Serviceplattform", text: "Wer im Hub angemeldet ist, ist es auch auf der Serviceplattform. Abmelden in einer der beiden meldet in beiden ab.", customers: true },
       { kind: "new", area: "messages", place: "Navigation › Chat", title: "Chat in der Navigation", text: "Der Eintrag „Chat“ in Sidebar und Tab-Leiste öffnet die Serviceplattform in einem neuen Tab. Der Hub bleibt im ersten Tab offen.", customers: true },
       { kind: "new", area: "hub", place: "Anmeldung › Code", title: "Code-Abfrage beim Login", text: "Konten mit eingerichteter Authenticator-App geben nach dem Passwort den Code aus der App ein.", customers: true },
-      { kind: "improved", area: "hub", place: "Alle Seiten", title: "Schnellerer Start", text: "Der Rahmen des Hubs erscheint sofort, die Inhalte laden danach. Die Server laufen in Frankfurt, nah an der Datenbank.", customers: true },
+      { kind: "improved", area: "hub", place: "Alle Seiten", title: "Schnellerer Start", text: "Der Rahmen des Hubs erscheint sofort, die Inhalte laden danach. So siehst du schneller, wo du bist.", customers: true },
       { kind: "improved", area: "customers", place: "Kundenstamm", title: "Eine gemeinsame Datenbank", text: "Hub und Serviceplattform arbeiten auf derselben Datenbank. Kunden der Serviceplattform erscheinen dadurch automatisch im Hub, samt Unternehmen und Kundennummer." },
       { kind: "fixed", area: "hub", place: "Anmeldung", title: "Angemeldet direkt in den Hub", text: "Wer schon angemeldet ist, sieht beim Öffnen nicht mehr die Login-Seite, sondern gleich den Hub.", customers: true },
       { kind: "fixed", area: "start", place: "Übersicht › Begrüßung", title: "Begrüßung mit dem richtigen Unternehmen", text: "Kunden der Serviceplattform werden im Hub mit ihrem Unternehmen begrüßt statt mit „Noch nicht zugeordnet“.", customers: true },
@@ -671,10 +612,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 3,
+    patch: "1",
     date: "2026-10-23",
-    title: "Kalender, User Management und KI-Assistent",
-    summary: "Der bisher größte Livegang: Kalender mit Terminanfragen, Verwaltung von Konten und Kunden, E-Mails, KI-Assistent, Ordner für Dateien und überarbeitete Tabellen.",
     changes: [
       { kind: "security", area: "hub", place: "Technik", title: "Sicherheitsupdate", text: "Das Framework Next.js wurde wegen bekannter kritischer Sicherheitslücken auf Version 16.4.2 aktualisiert." },
       { kind: "new", area: "projects", place: "Kalender", title: "Kalender", text: "Kunden sehen, wie ausgelastet oalab an jedem Tag ist, und fragen Termine in freien Zeiten an (Montag bis Freitag, 9 bis 17 Uhr, 30 bis 90 Minuten). Das oalab-Team bestätigt mit einem Microsoft-Teams-Link oder lehnt mit Begründung ab. Projektziele erscheinen als ganztägige Einträge.", customers: true },
@@ -683,7 +622,8 @@ export const patchPackages: PatchPackage[] = [
       { kind: "new", area: "messages", place: "E-Mail", title: "E-Mails vom Hub", text: "Bestätigung der Adresse, Eingangsbestätigung, Freigabe, Ablehnung sowie Aktivierungs- und Passwort-Links kommen als E-Mail im oalab-Design.", customers: true },
       { kind: "new", area: "hub", place: "Assistent", title: "KI-Assistent", text: "Die Sprechblase „Assistent & Hilfe“ oben rechts beantwortet Fragen zu den Funktionen des Hubs. Sie sieht keine Projekt- oder Kundendaten und ändert nichts.", customers: true },
       { kind: "new", area: "hub", place: "Profil › WhatsApp", title: "WhatsApp-Anbindung vorbereitet", text: "Der Assistent kann auch per WhatsApp antworten, sobald eine Nummer im Profil verbunden ist. Aktiv wird das, wenn der Zugang bei Meta eingerichtet ist." },
-      { kind: "new", area: "files", place: "Dateien", title: "Ordner, Mehrfach-Upload und ZIP-Download", text: "Dateien liegen in Ordnern pro Kunde. Admins laden bis zu 20 Dateien auf einmal hoch, und mehrere Dateien lassen sich zusammen als ZIP herunterladen.", customers: true },
+      { kind: "new", area: "files", place: "Dateien", title: "Ordner und ZIP-Download", text: "Deine Dateien liegen jetzt in Ordnern, und mehrere Dateien lädst du zusammen als ZIP herunter.", customers: true },
+      { kind: "new", area: "files", place: "Dateien › Hochladen", title: "Mehrfach-Upload", text: "Admins laden bis zu 20 Dateien auf einmal hoch und legen sie gleich in den Ordner des Kunden." },
       { kind: "improved", area: "projects", place: "Projekte", title: "Projekte als Tabelle", text: "Projekte stehen in einer Tabelle mit Bereich, aktuellem Meilenstein, Status, Start, nächstem Termin und Fortschritt. Ein Klick aufs Datum öffnet den Kalender an diesem Tag.", customers: true },
       { kind: "improved", area: "hub", place: "Alle Tabellen", title: "Suchen, Filtern, Sortieren", text: "Jede Tabelle hat ein Suchfeld und eine erweiterte Suche mit Filtern und Sortierung. Umlaute sowie Groß- und Kleinschreibung spielen keine Rolle.", customers: true },
       { kind: "improved", area: "files", place: "Asset Management", title: "Asset Management", text: "Für Admins heißt der Bereich „Dateien“ jetzt „Asset Management“. Kunden sehen weiterhin „Dateien“." },
@@ -691,10 +631,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 2,
+    patch: "1",
     date: "2026-10-20",
-    title: "Neues Design und Dateiaustausch",
-    summary: "Der Hub bekommt den Liquid-Glass-Look, eine Tab-Leiste für Smartphones und mit den Dateien den ersten echten Datenaustausch.",
     changes: [
       { kind: "new", area: "hub", place: "Profil › Darstellung", title: "Neues Design", text: "Glasflächen über einem kräftigen Farbhintergrund. Hintergrund, Deckkraft und Unschärfe lassen sich unter Profil › Darstellung einstellen.", customers: true },
       { kind: "new", area: "hub", place: "Navigation › Tab-Leiste", title: "Tab-Leiste auf Smartphone und Tablet", text: "Unter 1024 Pixel Breite ersetzt eine Leiste am unteren Bildschirmrand die Sidebar.", customers: true },
@@ -705,10 +643,8 @@ export const patchPackages: PatchPackage[] = [
     ],
   },
   {
-    number: 1,
+    patch: "1",
     date: "2026-10-15",
-    title: "Der Client Hub geht an den Start",
-    summary: "Erste Fassung des Hubs: Login, persönlicher Bereich und Testkonten mit Beispieldaten.",
     changes: [
       { kind: "new", area: "hub", place: "Anmeldung", title: "Login und persönlicher Bereich", text: "Kunden und das oalab-Team melden sich mit E-Mail-Adresse und Passwort an und landen in ihrem Bereich mit Übersicht, Projekten, Dateien und Nachrichten.", customers: true },
       { kind: "new", area: "hub", place: "Testkonten", title: "Testkonten", text: "Vier Testkonten, ein Admin und drei Kunden, zeigen den Hub mit erfundenen Beispieldaten. Jedes Kundenkonto sieht nur sein eigenes Unternehmen." },
@@ -717,19 +653,42 @@ export const patchPackages: PatchPackage[] = [
   },
 ];
 
-/** The packages one audience sees: everything for admins, the entries marked for customers otherwise. */
 /** Who reads the patch notes: admins everything, customers and freelancers what is marked for them. */
 export type PatchView = "admin" | "customer" | "freelancer";
 
-export function patchPackagesFor(view: PatchView): PatchPackage[] {
-  if (view === "admin") return patchPackages;
-  const shown = (change: PatchChange) => view === "freelancer" ? change.freelancers === true : change.customers === true;
-  return patchPackages
-    .map((item) => ({ ...item, title: view === "freelancer" ? item.freelancerTitle ?? item.title : item.title, changes: item.changes.filter(shown) }))
-    .filter((item) => item.changes.length > 0);
+/** One change with its go-live day, as the list shows it. */
+export type PatchEntry = PatchChange & { date: string };
+
+/** One patch block with the changes this audience sees, newest first, and its first and last go-live day. */
+export type PatchBlock = { version: string; entries: PatchEntry[]; from: string; to: string };
+
+const seenBy = (view: PatchView) => (change: PatchChange) => view === "admin" || (view === "freelancer" ? change.freelancers === true : change.customers === true);
+
+/** The patch blocks one audience sees, newest first; a block without an entry for it stays out. */
+export function patchBlocksFor(view: PatchView): PatchBlock[] {
+  const blocks: PatchBlock[] = [];
+  for (const day of patchDays) {
+    const entries = day.changes.filter(seenBy(view)).map((change) => ({ ...change, date: day.date }));
+    if (!entries.length) continue;
+    const block = blocks.find((item) => item.version === day.patch);
+    if (block) {
+      block.entries.push(...entries);
+      block.from = day.date;
+    } else blocks.push({ version: day.patch, entries, from: day.date, to: day.date });
+  }
+  return blocks;
 }
 
-const patchDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+const at = (day: string) => Date.parse(`${day}T00:00:00Z`);
+const dayFormat = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" });
+const dayShort = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit" });
 
-/** "26. Oktober 2026" */
-export const formatPatchDate = (day: string) => patchDate.format(Date.parse(`${day}T00:00:00Z`));
+/** "27.11.2026" */
+export const formatPatchDay = (day: string) => dayFormat.format(at(day));
+
+/** "27.11." where the list is narrow. */
+export const formatPatchDayShort = (day: string) => dayShort.format(at(day));
+
+/** "15.10.–27.11.2026", the whole first day when the year changes, one day alone when they are the same. */
+export const formatPatchSpan = (from: string, to: string) => from === to ? formatPatchDay(to)
+  : `${from.slice(0, 4) === to.slice(0, 4) ? formatPatchDayShort(from) : formatPatchDay(from)}–${formatPatchDay(to)}`;
