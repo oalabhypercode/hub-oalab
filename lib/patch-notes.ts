@@ -79,6 +79,7 @@ export const patchDays: PatchDay[] = [
       { kind: "improved", area: "hub", place: "Patch Notes", customers: true, freelancers: true, title: "Nur, was dich betrifft", text: "Jeder Eintrag beschreibt nur noch, was du selbst im Hub siehst und nutzt. Ältere Einträge sind dafür neu formuliert." },
       { kind: "new", area: "hub", place: "Verwaltung › Patch Notes", title: "Ansicht als Kunde oder Freelancer", text: "„Sichtbar für: Kunden“ oder „Freelancer“ zeigt die Patch Notes genau so, wie diese Rolle sie sieht. So prüfst du vor dem Livegang, was dort ankommt." },
       { kind: "new", area: "hub", place: "Verwaltung › Patch Notes", title: "Prüfung der Texte", text: "Ein Test hält Wörter wie Admin, Datenbank oder Testmail aus Kunden- und Freelancertexten fern. Jeder Patch sammelt rund 20 Änderungen; erst ein großer Schritt bekommt die nächste ganze Nummer." },
+      { kind: "new", area: "messages", place: "Glocke › Serviceplattform", also: ["start"], title: "„Gefällt mir“ vom Kunden", text: "Drückt ein Kunde auf der Serviceplattform „Gefällt mir“, steht das sofort in der Glocke und auf der Übersicht, mit Firma, Anfrage und wer gedrückt hat. Ein Klick öffnet die Anfrage unter Nachrichten › Service; dort steht am Ergebnis „Gefällt dem Kunden“ mit Uhrzeit. Liest niemand die Meldung, kommt nach fünf Minuten eine E-Mail, dazu eine Nachricht in der Telegram-Gruppe." },
     ],
   },
   {

@@ -17,7 +17,7 @@ export type NoticeKind =
   | TaskNoticeKind
   | "share.granted"
   | "note.shared" | "note.changed" | "note.edited"
-  | "service.message"
+  | "service.message" | "service.approved"
   | "appointment.requested" | "contract.changed"
   | "note.team";
 
@@ -172,9 +172,12 @@ export const isChatKind = (kind: string) => kind === "chat.message" || kind === 
  * a page a customer or freelancer wrote on, (24.11.2026) a customer's request for an appointment and a colleague's
  * „Team informieren“ on one of oalab's own pages. Seen in the hub, they need no mail.
  */
-export const isReadInHub = (kind: string) => isChatKind(kind) || kind === "service.message" || kind === "note.edited" || kind === "appointment.requested" || kind === "note.team";
-/** A customer's message, in the chat or on the service platform, reaches the admins' mail sooner. */
-export const mailWaitMinutes = (kind: string) => kind === "chat.message" || kind === "service.message" ? CHAT_MAIL_WAIT_MINUTES : MAIL_WAIT_MINUTES;
+export const isReadInHub = (kind: string) => isChatKind(kind) || isServiceKind(kind) || kind === "note.edited" || kind === "appointment.requested" || kind === "note.team";
+/** The team's lines about a request on the service platform: a customer's message and (27.11.2026) a „Gefällt mir“. */
+export const SERVICE_KINDS = ["service.message", "service.approved"] as const;
+export const isServiceKind = (kind: string) => (SERVICE_KINDS as readonly string[]).includes(kind);
+/** A customer's message or approval, in the chat or on the service platform, reaches the admins' mail sooner. */
+export const mailWaitMinutes = (kind: string) => kind === "chat.message" || isServiceKind(kind) ? CHAT_MAIL_WAIT_MINUTES : MAIL_WAIT_MINUTES;
 
 /**
  * Chat notices (and the team's lines about service messages and edited notes) read before their mail is due stay out
@@ -370,6 +373,30 @@ export function serviceNotice(input: { requestId: string; reference: string; tit
   const body = who ? `${who}: ${oneLine(input.body)}` : oneLine(input.body);
   return { kind: "service.message", title: clip(`${lead} ${company}: ${input.reference} ${oneLine(input.title)}`, 200), body: clip(body, 300), href: serviceHref(input.requestId) };
 }
+
+// „Gefällt mir“ on the service platform (27.11.2026) ------------------------------------------------------------------
+
+/** The hub's place in the customers' approvals (`audit_events` `client.preview_approved`), and the mark of each one. */
+export const SERVICE_APPROVAL_CURSOR = "cursor:service_approvals";
+export const serviceApprovalMark = (eventId: string) => `service-approval:${eventId}`;
+
+/**
+ * The admins' line when a customer pressed „Gefällt mir – an OALab-Team senden“ on a result: „Gefällt mir von
+ * Nordlicht Studio: OA-12 Texte freigeben“ with "Jana Sommer: Änderung auf der Testseite passt, bereit für live". One
+ * line per approval; it leads to the request in Nachrichten › Service, where the result shows the approval too.
+ */
+export function serviceApprovalNotice(input: { requestId: string; reference: string; title: string; company: string; author: string }): Notice {
+  const company = oneLine(input.company) || "Kunde";
+  const who = oneLine(input.author);
+  const text = "Änderung auf der Testseite passt, bereit für live";
+  return {
+    kind: "service.approved",
+    title: clip(`${SERVICE_APPROVAL_LEAD}${company}: ${input.reference} ${oneLine(input.title)}`, 200),
+    body: clip(who ? `${who}: ${text}` : text, 300),
+    href: serviceHref(input.requestId),
+  };
+}
+export const SERVICE_APPROVAL_LEAD = "Gefällt mir von ";
 
 /** A file shared with the customer; the link opens it in the files page. */
 export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });

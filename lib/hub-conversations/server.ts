@@ -8,8 +8,8 @@ import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
 import { conversationState, isSender, requestReference, TEAM_COMPANY, teamIssueState, type ConversationSender } from "./rules";
-import { noticeRequest } from "@/lib/hub-notify/rules";
-import { previewMails, testSitesFor } from "./test-site";
+import { noticeRequest, SERVICE_KINDS } from "@/lib/hub-notify/rules";
+import { previewApprovals, previewMails, testSitesFor } from "./test-site";
 import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread, ServiceControls } from "./types";
 
 // Service conversations are the service platform's requests (service_requests) with their client-visible messages
@@ -179,13 +179,14 @@ export const loadConversations = cache(async (): Promise<ConversationsState> => 
 });
 
 /**
- * The requests with a customer's message the signed-in admin has not seen yet: their unread lines in the bell
- * (service.message, 23.11.2026), read with the admin's own session. Empty for everybody else.
+ * The requests with a customer's message or „Gefällt mir“ the signed-in admin has not seen yet: their unread lines in
+ * the bell (service.message, 23.11.2026; service.approved, 27.11.2026), read with the admin's own session. Empty for
+ * everybody else.
  */
 export const unreadServiceRequests = cache(async (): Promise<string[]> => {
   if (!(await conversationReader())) return [];
   const supabase = await createClient();
-  const { data, error } = await supabase.from("hub_inbox").select("href").eq("kind", "service.message").is("read_at", null).limit(200).returns<{ href: string }[]>();
+  const { data, error } = await supabase.from("hub_inbox").select("href").in("kind", [...SERVICE_KINDS]).is("read_at", null).limit(200).returns<{ href: string }[]>();
   if (error) return [];
   return [...new Set((data ?? []).map((row) => noticeRequest(row.href)).filter((id): id is string => Boolean(id)))];
 });
@@ -250,18 +251,20 @@ export async function isTeamRequest(db: SupabaseClient, request: RequestRow): Pr
 
 /**
  * One conversation with its messages and what an admin may do there, since 26.11.2026 with its test site (date of the
- * last change) and per result whether the e-mail „Neue Testansicht bereit“ went out.
+ * last change) and per result whether the e-mail „Neue Testansicht bereit“ went out and (27.11.2026) when the customer
+ * pressed „Gefällt mir“.
  */
 export async function loadThread(db: SupabaseClient, requestId: string): Promise<ConversationThread | null> {
   const request = await readRequest(db, requestId);
   if (!request) return null;
-  const [messages, company, controls, sites, mails] = await Promise.all([
+  const [messages, company, controls, sites, mails, approvals] = await Promise.all([
     readMessages((columns) => db.from("request_messages").select(columns).eq("request_id", requestId).eq("visibility", "client")
       .order("created_at", { ascending: false }).limit(THREAD_LIMIT).returns<MessageRow[]>()),
     companies(db, [request.organization_id]),
     readControls(db, requestId),
     testSitesFor(db, [request]),
     previewMails(db, requestId),
+    previewApprovals(db, requestId),
   ]);
   if (messages.error) return null;
   const rows = messages.data ?? [];
@@ -272,5 +275,6 @@ export async function loadThread(db: SupabaseClient, requestId: string): Promise
     controls,
     testSite: sites.get(request.id) ?? null,
     mails,
+    approvals,
   };
 }

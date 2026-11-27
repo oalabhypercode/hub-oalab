@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Check, ChevronLeft, Globe, Info, Lock, MessagesSquare, PauseCircle, Search, Sparkles, TriangleAlert, Wrench } from "lucide-react";
+import { ArrowUpRight, Check, ChevronLeft, Globe, Info, Lock, MessagesSquare, PauseCircle, Search, Sparkles, ThumbsUp, TriangleAlert, Wrench } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { HeaderActions } from "../app-shell";
 import { LargeTitleHeader } from "../large-title-header";
@@ -141,7 +141,7 @@ function ServiceConversations({ now, state, author, tabs }: { now: Date; state?:
   const thread: ConversationThread | null = live
     ? liveThread && liveThread.conversation.id === openId ? liveThread : null
     : conversation && demo && fixtures
-      ? { conversation, messages: demo.messages.get(conversation.id) ?? [], controls: demo.controls.get(conversation.id) ?? null, testSite: fixtures.sites.get(conversation.id) ?? null, mails: fixtures.mails.get(conversation.id) }
+      ? { conversation, messages: demo.messages.get(conversation.id) ?? [], controls: demo.controls.get(conversation.id) ?? null, testSite: fixtures.sites.get(conversation.id) ?? null, mails: fixtures.mails.get(conversation.id), approvals: fixtures.approvals.get(conversation.id) }
       : null;
 
   // Requests the AI or the team works on: only their test sites can tell that the AI did not report.
@@ -332,6 +332,11 @@ function FreshLine({ message, people, now }: { message: ConversationMessage; peo
   return <p className="chat-system is-fresh"><Sparkles size={14} aria-hidden="true" /><span><b>{label}</b> · Testseite angepasst {stampLabel(message.at, now)}{note && ` · ${note}`}</span></p>;
 }
 
+/** Under a result the customer approved: „Gefällt dem Kunden“ and when, so the team knows it can go live (27.11.2026). */
+function ApprovedLine({ at, now }: { at: string; now: Date }) {
+  return <p className="chat-system is-approved"><ThumbsUp size={14} aria-hidden="true" /><span><b>Gefällt dem Kunden</b> · {stampLabel(at, now)} · bereit für live</span></p>;
+}
+
 /**
  * Lines that take turns while the AI works, each a few seconds; honest lines once it takes long or the AI did not
  * report. Screen readers hear one steady sentence instead of every line.
@@ -442,6 +447,7 @@ function ServiceThread({ thread, now, clock, live, notice, onNoticeSeen, onClose
                 </div>
               )}
               {message.result && <FreshLine message={message} people={thread.mails?.[message.id]} now={labelNow} />}
+              {message.result && thread.approvals?.[message.id] && <ApprovedLine at={thread.approvals[message.id]} now={labelNow} />}
             </div>
           );
         }) : <p className="chat-system">Noch keine Nachricht in dieser Anfrage.</p>}

@@ -1295,6 +1295,8 @@ const NOTICE_VIEWS: Record<string, NoticeView> = {
   "chat.reply": { area: "messages", label: "Nachricht", prefix: "", heading: "Neue Nachricht von oalab", lead: "Dein oalab-Team hat dir im Client Hub geschrieben.", cta: "Nachricht lesen", link: "Nachricht lesen", note: { tone: "info", text: "Antworte einfach im Client Hub unter Nachrichten." } },
   // To the admins (23.11.2026): a customer's request or message on the service platform, and a customer writing in a note.
   "service.message": { area: "messages", label: "Serviceplattform", prefix: "", heading: "Ein Kunde hat auf der Serviceplattform geschrieben", lead: "Auf der Serviceplattform wartet eine Anfrage auf euch.", cta: "Anfrage im Hub öffnen", link: "Anfrage öffnen", chip: ["Wartet auf Antwort", "todo"], note: { tone: "team", text: "Antworten geht in NoteTree Business. Diese E-Mail kommt nur, solange niemand aus dem Team die Anfrage im Hub geöffnet hat." } },
+  // To the admins (27.11.2026): a customer pressed „Gefällt mir“ on a result on the test site.
+  "service.approved": { area: "messages", label: "Serviceplattform", prefix: "", heading: "Einem Kunden gefällt die Änderung", lead: "Ein Kunde hat auf der Serviceplattform „Gefällt mir“ gedrückt. Die Änderung auf der Testseite kann live.", cta: "Anfrage im Hub öffnen", link: "Anfrage öffnen", chip: ["Bereit für live", "ok"], note: { tone: "team", text: "Live schalten geht in NoteTree Business. Diese E-Mail kommt nur, solange niemand aus dem Team die Anfrage im Hub geöffnet hat." } },
   "note.edited": { area: "projects", label: "Notiz", prefix: "Notiz bearbeitet: ", heading: "Neues in einer geteilten Notiz", lead: "Auf einer Notizseite hat jemand außerhalb des Teams geschrieben.", cta: "Notiz öffnen", link: "Notiz öffnen", chip: ["Neu", "info"], note: { tone: "team", text: "Diese E-Mail kommt nur, solange niemand aus dem Team die Seite geöffnet hat." } },
   // Inside the team (stage 2 of „oalab als Unternehmen“): „Team informieren“ on one of oalab's own pages.
   "note.team": { area: "projects", label: "Interne Notiz", prefix: "", heading: "Eine Notiz aus dem Team", lead: "Jemand aus dem Team hat dich auf eine interne Notizseite von oalab hingewiesen.", cta: "Notiz öffnen", link: "Notiz öffnen", chip: ["Intern", "info"], note: { tone: "team", text: "Diese E-Mail kommt nur, solange du die Seite im Hub noch nicht geöffnet hast." } },
@@ -1340,19 +1342,25 @@ export function noticeDigestMail(input: { firstName?: string; items: MailNotice[
   // Admins get chat messages and, since 23.11.2026, messages on the service platform: customers who wait for an answer.
   const chats = input.items.filter((item) => item.kind === "chat.message").length;
   const service = input.items.filter((item) => item.kind === "service.message").length;
+  // Since 27.11.2026 also customers who pressed „Gefällt mir“: their change can go live.
+  const approved = input.items.filter((item) => item.kind === "service.approved").length;
+  const approvedLine = approved === 1 ? "Ein Kunde hat „Gefällt mir“ gedrückt, die Änderung kann live." : `${approved} Kunden haben „Gefällt mir“ gedrückt, die Änderungen können live.`;
   const first = input.items[0]?.title ?? "";
   return render({
     subject: `Neu im Client Hub: ${count} Neuigkeiten`,
     preheader: `${first} – und ${count - 1} weitere`,
     area: "news",
     heading: `${count} Neuigkeiten für dich`,
-    lead: service && chats
+    lead: (service && chats
       ? `Im Chat und auf der Serviceplattform warten ${chats + service} Nachrichten von Kunden auf eine Antwort.`
       : service
       ? `Auf der Serviceplattform ${service === 1 ? "wartet ein Kunde" : `warten ${service} Nachrichten von Kunden`} auf eine Antwort.`
       : chats
       ? `Im privaten Chat des Client Hub ${chats === 1 ? "wartet ein Kunde" : `warten ${chats} Kunden`} auf eine Antwort.`
-      : `Im Client Hub hat sich einiges getan.${tasks ? ` ${waiting}${tasks < count ? ", der Rest ist zur Info." : "."}` : " Alles hier ist zur Info."}`,
+      : approved
+      ? ""
+      : `Im Client Hub hat sich einiges getan.${tasks ? ` ${waiting}${tasks < count ? ", der Rest ist zur Info." : "."}` : " Alles hier ist zur Info."}`)
+      + (approved ? `${service || chats ? " " : ""}${approvedLine}` : ""),
     list: input.items.map((item) => {
       const view = viewOf(item);
       const url = safeUrl(item.url ?? "");

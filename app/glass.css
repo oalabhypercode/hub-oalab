@@ -764,6 +764,10 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 :root[data-reduce-motion="true"] .chat-quip-t { transition: none; }
 .chat-system.is-fresh, .chat-system.is-site { color: var(--label-secondary); }
 .chat-system.is-fresh b, .chat-system.is-site b { color: var(--label); font-weight: 600; }
+/* „Gefällt dem Kunden“ under an approved result (27.11.2026): the ok tone on the symbol and the words, the rest calm. */
+.chat-system.is-approved { color: var(--label-secondary); }
+.chat-system.is-approved svg, .chat-system.is-approved b { color: var(--tone-ok); }
+.chat-system.is-approved b { font-weight: 600; }
 /* Phones: the test site gets its own line under number and company, and the state moves under them, so the date stays
    readable. */
 @media (max-width: 767px) {

@@ -80,6 +80,8 @@ export interface ConversationThread {
   readonly testSite?: TestSiteView | null;
   /** Per result message: how many people got the e-mail „Neue Testansicht bereit“ for it. */
   readonly mails?: Readonly<Record<string, number>>;
+  /** Per result message: when the customer pressed „Gefällt mir“ on it (27.11.2026). */
+  readonly approvals?: Readonly<Record<string, string>>;
 }
 
 export interface ConversationsState {
