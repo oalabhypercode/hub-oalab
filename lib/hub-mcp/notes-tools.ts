@@ -27,6 +27,7 @@ const TEAM = ["admin"] as const;
 export const NOTE_MARKDOWN_HELP = [
   "Inhalt als Markdown: # bis ### Überschriften, **fett**, *kursiv*, ~~durchgestrichen~~, <u>unterstrichen</u>, `Code`, Links mit https: oder mailto:, Listen (-, 1.), Checklisten (- [ ] / - [x]), Tabellen (| … |), Codeblöcke (```), Trennlinie (---), Hinweisbox (> 💡 Text), Aufklapper (<details><summary>Titel</summary> … </details>); jede neue Zeile ist ein Zeilenumbruch.",
   "Blöcke des Hubs je als eigene Zeile: [Titel](oalab:task/<project_id>/<task_number>) für eine Aufgabe (mehrere solche Zeilen untereinander ergeben eine Aufgabenbox; im Satz ist sie eine Erwähnung), [Titel](oalab:tasklist/<project_id>) für die offenen Aufgaben eines Projekts, [Titel](oalab:project/<project_id>), [Titel](oalab:appointment/<appointment_id>), [Titel](oalab:page/<page_id>) für eine Unterseite und [Titel](https://… \"Linkkarte\") für eine Linkkarte. Aufgaben, Projekte und Termine müssen zum Kunden der Seite gehören.",
+  "Bilder der Seite (etwa Screenshots) stehen als ![Bildunterschrift](oalab:image/<id>) auf einer eigenen Zeile: Lass diese Zeilen stehen, wenn das Bild bleiben soll; den Text in den Klammern darfst du als Bildunterschrift ändern („Bild“ heißt ohne Unterschrift). Neue Bilder lassen sich nur im Hub einfügen, nicht über Claude.",
 ].join(" ");
 
 const CONTENT = { type: "string", maxLength: MAX_MARKDOWN, description: "Inhalt als Markdown (Format wie in der Beschreibung von create_note)." };

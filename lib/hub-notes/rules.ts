@@ -278,6 +278,73 @@ const isTaskNumber = (value: unknown): value is number => typeof value === "numb
 /** A link card's image lies in the hub's own storage, under the notes of a customer. */
 const isPreviewImage = (value: unknown): value is string => typeof value === "string" && /^notes\/[0-9a-f-]{36}\/links\/[0-9a-f-]{36}\.webp$/.test(value);
 
+// ---- Pictures in the text (27.11.2026) ----------------------------------------------------------------------------
+
+const UUID_PART = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const NOTE_IMAGE_PATH = new RegExp(`^notes/${UUID_PART}/images/${UUID_PART}\\.webp$`);
+
+/** A picture in the text (a pasted screenshot, say) lies in the hub's own storage: `notes/<customer>/images/<id>.webp`. */
+export const isNoteImagePath = (value: unknown): value is string => typeof value === "string" && NOTE_IMAGE_PATH.test(value);
+
+/** Every picture a page may name from the hub's storage: the previews of link cards and the pictures in the text. */
+export const isStoredNoteImage = (value: unknown): value is string => isPreviewImage(value) || isNoteImagePath(value);
+
+/** How wide a picture shows: about a third, about two thirds or the whole text column, never wider than it is. */
+export type NoteImageSize = "small" | "medium" | "large";
+export const NOTE_IMAGE_SIZES: readonly { id: NoteImageSize; label: string }[] = [{ id: "small", label: "Klein" }, { id: "medium", label: "Mittel" }, { id: "large", label: "Groß" }];
+export const isNoteImageSize = (value: unknown): value is NoteImageSize => value === "small" || value === "medium" || value === "large";
+
+/** What the hub takes as a picture; a GIF keeps its first frame. */
+export const NOTE_IMAGE_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+/**
+ * At most this many bytes go up per picture: the hub's proxy keeps only the first 10 MB of a request (Next's
+ * `proxyClientMaxBodySize`), and the form needs a little room around the file.
+ */
+export const NOTE_IMAGE_MAX_BYTES = 9 * 1024 * 1024;
+/** The stored picture is at most 2400 pixels wide (sharp enough for text) and 16,000 high (WebP stops at 16,383). */
+export const NOTE_IMAGE_MAX_WIDTH = 2400;
+export const NOTE_IMAGE_MAX_HEIGHT = 16_000;
+/**
+ * …and at most 6 megapixels. Writing WebP takes about 14 bytes of memory per pixel (measured 27.11.2026: a 16-megapixel
+ * scrolling screenshot cost 237 MB), and the hub may use 512 MB in all; 6 megapixels cost about 85 MB. A screenshot of
+ * a whole screen stays as it is (2400 × 1350 are 3.2 megapixels); only long scrolling shots get smaller.
+ */
+export const NOTE_IMAGE_MAX_PIXELS = 6_000_000;
+/** At most this many pictures per paste, drop or choice. */
+export const NOTE_IMAGE_BATCH = 10;
+
+const isPixels = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 16_384;
+
+/** The pictures among files dropped on a page or chosen: known types only, at most ten. */
+export function droppedImages<T extends { type: string }>(files: readonly T[]): T[] {
+  return files.filter((file) => NOTE_IMAGE_TYPES.includes(file.type)).slice(0, NOTE_IMAGE_BATCH);
+}
+
+/**
+ * The pictures of a paste: the clipboard's image files, but only when it holds no text. Word, Excel and Outlook put a
+ * picture of copied text next to the text itself, and that text belongs in the page as text.
+ */
+export function pastedImages<T extends { type: string }>(files: readonly T[], text: string): T[] {
+  return text.trim() ? [] : droppedImages(files);
+}
+
+/** The size the hub stores a picture at: its own, or shrunk to 2400 pixels wide, 16,000 high and 6 megapixels at most. */
+export function storedSize(width: number, height: number): { width: number; height: number } {
+  const scale = Math.min(1, NOTE_IMAGE_MAX_WIDTH / width, NOTE_IMAGE_MAX_HEIGHT / height, Math.sqrt(NOTE_IMAGE_MAX_PIXELS / (width * height)));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+
+/**
+ * The size a picture is shrunk to in the browser before it goes up, or null when it may go as it is: larger than the
+ * hub stores (storedSize) or heavier than 9 MB. The server keeps the same limits, so the picture looks the same either
+ * way; the upload just stays small and the server has less to do.
+ */
+export function uploadSize(width: number, height: number, bytes: number): { width: number; height: number } | null {
+  if (!(width > 0 && height > 0)) return null;
+  const target = storedSize(width, height);
+  return target.width === width && target.height === height && bytes <= NOTE_IMAGE_MAX_BYTES ? null : target;
+}
+
 /** Which tasks a task list block shows for this viewer. */
 export function filterTasks<T extends { status: string; customerTurn: boolean; dueOn: string | null; assignees: { id: string }[] }>(tasks: readonly T[], filter: TaskFilter, viewerId: string, dueBy?: string | null): T[] {
   const open = tasks.filter((task) => task.status !== "done");
@@ -334,6 +401,8 @@ const NODES: Record<string, Record<string, AttrCheck>> = {
   noteLinkCard: { href: (value) => typeof value === "string" && /^https:/i.test(value) && isSafeHref(value) ? value : null, title: keep(isShortText(300)), description: keep(isShortText(600)), site: keep(isShortText(120)), image: keep(isPreviewImage) },
   // Step 3: an appointment of the calendar; day, time and status come from the calendar with the viewer's rights.
   noteAppointment: { refKind: () => "appointment", refId: keep(isUuid) },
+  // 27.11.2026: a picture in the text, stored by the hub (app/api/notes/image); width and height are the stored picture's.
+  noteImage: { image: keep(isNoteImagePath), width: keep(isPixels), height: keep(isPixels), size: (value) => isNoteImageSize(value) ? value : "large", caption: keep(isShortText(300)) },
 };
 
 const MARKS: Record<string, Record<string, AttrCheck>> = {
@@ -354,7 +423,7 @@ const MARKS: Record<string, Record<string, AttrCheck>> = {
 };
 
 /** Attributes without which a node makes no sense. */
-const REQUIRED: Record<string, string[]> = { noteEmoji: ["char"], noteSubpage: ["refId"], noteTaskItem: ["refId"], noteTaskMention: ["refId"], noteTaskList: ["refId"], noteProject: ["refId"], noteLinkCard: ["href"], noteAppointment: ["refId"] };
+const REQUIRED: Record<string, string[]> = { noteEmoji: ["char"], noteSubpage: ["refId"], noteTaskItem: ["refId"], noteTaskMention: ["refId"], noteTaskList: ["refId"], noteProject: ["refId"], noteLinkCard: ["href"], noteAppointment: ["refId"], noteImage: ["image"] };
 
 export type NoteRef = { kind: "task" | "project" | "appointment" | "file" | "page"; id: string };
 const REF_KINDS = new Set(["task", "project", "appointment", "file", "page"]);
@@ -441,7 +510,7 @@ export function validateNoteDoc(input: unknown): ValidDoc {
 
 const byteLength = (text: string) => new TextEncoder().encode(text).length;
 
-const BLOCKS = new Set(["paragraph", "heading", "listItem", "taskItem", "codeBlock", "tableRow", "detailsSummary", "noteCallout", "noteLinkCard"]);
+const BLOCKS = new Set(["paragraph", "heading", "listItem", "taskItem", "codeBlock", "tableRow", "detailsSummary", "noteCallout", "noteLinkCard", "noteImage"]);
 
 /** The plain text of a document for the search: blocks on their own lines, cells separated, emojis as characters. */
 export function noteText(doc: NoteDoc): string {
@@ -451,6 +520,7 @@ export function noteText(doc: NoteDoc): string {
     else if (node.type === "noteEmoji" && typeof node.attrs?.char === "string") parts.push(node.attrs.char);
     else if (node.type === "hardBreak") parts.push("\n");
     else if (node.type === "noteLinkCard") parts.push([node.attrs?.title, node.attrs?.description, node.attrs?.href].filter((part) => typeof part === "string" && part).join(" "));
+    else if (node.type === "noteImage" && typeof node.attrs?.caption === "string") parts.push(node.attrs.caption);
     else if ((node.type === "noteTaskItem" || node.type === "noteTaskMention") && typeof node.attrs?.number === "number") parts.push(`#${node.attrs.number}`);
     else if (node.type === "tableCell" || node.type === "tableHeader") parts.push(" ");
     for (const child of node.content ?? []) walk(child);

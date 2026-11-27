@@ -3,15 +3,22 @@
  * lib/hub-notes/rules.ts) becomes Markdown that Claude reads, and Markdown that Claude writes becomes a document the
  * hub's editor opens. The hub's own blocks keep their place as links with the scheme `oalab:` on a line of their own
  * (subpages, task boxes, live task lists, projects, appointments; a task inside a sentence is a mention), a link card is
- * a link titled „Linkkarte“, a callout a quote, a toggle <details>. What Markdown cannot say (column types and widths of
- * tables, what a link card or a link's hover shows) comes back from the page as it was. Self-contained (lib/hub-notes/
- * rules.ts and type imports only), so tests check it directly.
+ * a link titled „Linkkarte“, a picture `![Unterschrift](oalab:image/<id>)` (27.11.2026), a callout a quote, a toggle
+ * <details>. What Markdown cannot say (column types and widths of tables, what a link card or a link's hover shows, a
+ * picture's place and size) comes back from the page as it was; a picture the page did not have falls away, since
+ * pictures go up only in the hub. Self-contained (lib/hub-notes/rules.ts and type imports only), so tests check it directly.
  */
 import { cleanIcon, isIsoDate, isSafeHref, isTaskFilter, TASK_FILTERS } from "./rules";
 import type { NoteDoc, NoteMark, NoteNode } from "./types";
 
 /** The title of a link that makes it a link card. */
 export const CARD_TITLE = "Linkkarte";
+
+/** What a picture without a caption is called in Markdown. */
+export const IMAGE_LABEL = "Bild";
+
+/** The id of a picture in the text, from its place in storage (`notes/<customer>/images/<id>.webp`). */
+const imageIdOf = (path: unknown) => (typeof path === "string" ? /\/images\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.webp$/i.exec(path)?.[1]?.toLowerCase() ?? null : null);
 
 /** What the reader shows of the hub's own blocks: titles and states, read with the viewer's rights beforehand. */
 export type MarkdownLabels = {
@@ -108,6 +115,12 @@ function blockMd(node: NoteNode, labels: MarkdownLabels): string {
       if (typeof href !== "string" || !isSafeHref(href)) return "";
       const title = [node.attrs?.title, node.attrs?.site].find((value): value is string => typeof value === "string" && Boolean(value.trim())) ?? href;
       return `[${label(title)}](${hrefMd(href)} "${CARD_TITLE}")`;
+    }
+    case "noteImage": {
+      const id = imageIdOf(node.attrs?.image);
+      if (!id) return "";
+      const caption = typeof node.attrs?.caption === "string" ? label(node.attrs.caption) : "";
+      return `![${caption || IMAGE_LABEL}](oalab:image/${id})`;
     }
     default:
       return lineStarts(escapeText(plainText(node)));
@@ -621,6 +634,7 @@ function parseParagraph(lines: string[], start: number, out: NoteNode[], context
   for (const line of collected) {
     const block = blockLine(line.trim(), context);
     if (context.error) return index;
+    if (block === DROPPED) continue;
     if (block?.type === "noteTaskItem") { flushText(); tasks.push(block); continue; }
     flushTasks();
     if (block) { flushText(); out.push(block); continue; }
@@ -654,7 +668,29 @@ function readRef(url: string): Ref | null {
   return { kind: match[1].toLowerCase() as Ref["kind"], id: match[2].toLowerCase(), ...(match[3] ? { number: Number(match[3]) } : {}), params: new URLSearchParams(match[4] ?? "") };
 }
 
+/** A line that stood for a picture the page did not have: it falls away instead of becoming text. */
+const DROPPED: NoteNode = { type: "dropped" };
+
+/**
+ * A picture as `![Unterschrift](oalab:image/<id>)` on a line of its own: only a picture the page already had comes back,
+ * with its place and size from the page; the text in brackets is its caption („Bild“ for none).
+ */
+function imageLine(line: string, context: Context): NoteNode | null {
+  const link = readLink(line, 1);
+  if (!link || link.end !== line.length) return null;
+  const id = /^oalab:image\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(link.url)?.[1]?.toLowerCase();
+  if (!id) return null;
+  const kept = context.carry.images.get(id);
+  if (!kept) return DROPPED;
+  const caption = labelText(link.label, context).slice(0, 300);
+  const attrs: Record<string, unknown> = { ...kept };
+  delete attrs.caption;
+  if (caption && caption !== IMAGE_LABEL) attrs.caption = caption;
+  return { type: "noteImage", attrs };
+}
+
 function blockLine(line: string, context: Context): NoteNode | null {
+  if (line.startsWith("![")) return imageLine(line, context);
   if (!line.startsWith("[")) return null;
   const link = readLink(line, 0);
   if (!link || link.end !== line.length) return null;
@@ -915,6 +951,8 @@ function linkNodes(link: Link, marks: NoteMark[], context: Context): NoteNode[] 
 type Carry = {
   links: Map<string, Record<string, unknown>>;
   cards: Map<string, Record<string, unknown>>;
+  /** The pictures of the page by id, with their place, size and caption. */
+  images: Map<string, Record<string, unknown>>;
   /** Per table (by its header row): the column types, and each cell's width by row and column. */
   tables: Map<string, { types: unknown[]; widths: unknown[][] }>;
   numbers: Map<string, number>;
@@ -923,7 +961,7 @@ type Carry = {
 const headerKey = (table: NoteNode) => (table.content?.[0]?.content ?? []).map((cell) => plainText(cell).replace(/\s+/g, " ").trim()).join("\u0001");
 
 function carryFrom(doc: NoteDoc | null | undefined): Carry {
-  const carry: Carry = { links: new Map(), cards: new Map(), tables: new Map(), numbers: new Map() };
+  const carry: Carry = { links: new Map(), cards: new Map(), images: new Map(), tables: new Map(), numbers: new Map() };
   const walk = (node: NoteNode) => {
     for (const mark of node.marks ?? []) {
       const href = mark.attrs?.href;
@@ -931,6 +969,8 @@ function carryFrom(doc: NoteDoc | null | undefined): Carry {
     }
     const href = node.attrs?.href;
     if (node.type === "noteLinkCard" && typeof href === "string") carry.cards.set(href, { ...node.attrs });
+    const imageId = node.type === "noteImage" ? imageIdOf(node.attrs?.image) : null;
+    if (imageId) carry.images.set(imageId, { ...node.attrs });
     const refId = node.attrs?.refId;
     const number = node.attrs?.number;
     if ((node.type === "noteTaskItem" || node.type === "noteTaskMention") && typeof refId === "string" && typeof number === "number") carry.numbers.set(refId.toLowerCase(), number);

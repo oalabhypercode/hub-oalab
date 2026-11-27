@@ -1,7 +1,7 @@
 import "server-only";
 import { loadLiveProjects } from "@/lib/hub-projects/server";
 import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
-import { isUuid } from "./rules";
+import { isStoredNoteImage, isUuid } from "./rules";
 import type { NotesContext } from "./server";
 import type { NoteAppointmentView, NoteDoc, NoteNode, NoteRefs, NoteTaskView } from "./types";
 
@@ -27,6 +27,13 @@ const STATUSES = new Set(["backlog", "todo", "progress", "review", "done"]);
 const isCustomerLabel = (label: string) => label.trim().toLowerCase() === "kunde";
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "·";
 
+/** The pictures of a page that the hub signs: only those stored at the page's own customer, never another's. */
+export function ownImages(paths: readonly string[], customerId: string | null | undefined): string[] {
+  if (!customerId) return [];
+  const own = `notes/${customerId.toLowerCase()}/`;
+  return paths.filter((path) => path.startsWith(own) && isStoredNoteImage(path));
+}
+
 /** The ids a document refers to, by kind. */
 export function refsIn(doc: NoteDoc) {
   const tasks = new Set<string>();
@@ -39,7 +46,7 @@ export function refsIn(doc: NoteDoc) {
     if ((node.type === "noteTaskItem" || node.type === "noteTaskMention") && isUuid(attrs.refId)) tasks.add(String(attrs.refId));
     if (node.type === "noteProject" && isUuid(attrs.refId)) projects.add(String(attrs.refId));
     if (node.type === "noteTaskList" && isUuid(attrs.refId)) lists.add(String(attrs.refId));
-    if (node.type === "noteLinkCard" && typeof attrs.image === "string" && attrs.image.startsWith("notes/")) images.add(attrs.image);
+    if ((node.type === "noteLinkCard" || node.type === "noteImage") && typeof attrs.image === "string" && attrs.image.startsWith("notes/")) images.add(attrs.image);
     if (node.type === "noteAppointment" && isUuid(attrs.refId)) appointments.add(String(attrs.refId));
     for (const child of node.content ?? []) walk(child);
   };
@@ -65,13 +72,13 @@ function toTask(row: TaskRow, projectName: string, names: Map<string, string>, f
 }
 
 /**
- * Everything a page refers to, as the viewer may see it. Missing tables or reads leave the references unresolved. Link
- * pictures are signed only from the notes of the page's own customer, whatever path a document names.
+ * Everything a page refers to, as the viewer may see it. Missing tables or reads leave the references unresolved.
+ * Pictures (link previews and pictures in the text) are signed only from the notes of the page's own customer,
+ * whatever path a document names.
  */
 export async function resolveRefs(ctx: NotesContext, doc: NoteDoc, customerId?: string): Promise<NoteRefs> {
   const found = refsIn(doc);
-  const own = customerId ? `notes/${customerId.toLowerCase()}/links/` : null;
-  const wanted = { ...found, images: own ? found.images.filter((path) => path.startsWith(own)) : [] };
+  const wanted = { ...found, images: ownImages(found.images, customerId) };
   const refs: NoteRefs = { tasks: {}, projects: {}, projectTasks: {}, images: {}, appointments: {} };
   const projectIds = [...new Set([...wanted.projects, ...wanted.lists])];
   if (!wanted.tasks.length && !projectIds.length && !wanted.images.length && !wanted.appointments.length) return refs;

@@ -9,18 +9,19 @@ import { categories } from "@/lib/categories";
 import { hubHref } from "@/lib/hub-data";
 import { useStoredValue } from "@/lib/use-stored-value";
 import {
-  createNoteAppointment, createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteAppointmentOptions, noteCoverFiles, noteHistory, noteLinkPreview, notePresence, noteReaders, noteRequestSlots,
+  createNoteAppointment, createNotePage, createNoteTask, loadNoteTrash, loadNotesCustomer, noteAppointmentOptions, noteCoverFiles, noteHistory, noteImageUrls, noteLinkPreview, notePresence, noteReaders, noteRequestSlots,
   noteTaskOptions, notifyNoteChange, notifyNoteTeam, openNotePage, purgeNotePage, requestNoteAppointment, restoreNotePage, restoreNoteRevision, saveNotePage, saveNoteSettings, searchNoteTasks,
   setNoteAccess, setNoteTaskDone, taskMentions, trashNotePage,
 } from "@/lib/hub-notes/actions";
 import { notesFixtures, previewAppointmentOptions, previewCustomerPages, previewCustomerProjects, previewMentions, previewPage, previewRefs, previewRevisions, toMetaOnly } from "@/lib/hub-notes/fixtures";
-import { accessLabel, accessOf, audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, fitRights, gains, isEmptyDoc, narrowedBelow, newPageRights, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, rightsFrom, viewerEdits, viewerReads, within } from "@/lib/hub-notes/rules";
+import { accessLabel, accessOf, audienceLabel, cleanNoteTitle, editedAgo, emptyNoteDoc, fitRights, gains, isEmptyDoc, narrowedBelow, newPageRights, noteText, pathOf, plainDoc, positionAfter, childrenOf, descendantsOf, rightsFrom, uploadSize, viewerEdits, viewerReads, within } from "@/lib/hub-notes/rules";
 import { coverWithLink, keepCoverLink } from "@/lib/hub-notes/covers";
 import { noteTemplate } from "@/lib/hub-notes/templates";
 import { wallTimeToUtc } from "@/lib/hub-calendar/rules";
 import { DEMO_AS_OF } from "@/lib/hub-data";
 import { todayIso } from "@/lib/hub-routes";
-import { NO_REFS, type NoteAccess, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCover, type NoteCustomer, type NoteDoc, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteReaders, type NoteRefs, type NoteRights, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
+import { NO_REFS, type NoteAccess, type NoteAppointmentView, type NoteRevision, type NoteAudience, type NoteCover, type NoteCustomer, type NoteDoc, type NoteImageUpload, type NoteLinkPreview, type NotePage, type NotePageMeta, type NotePatch, type NoteProject, type NoteReaders, type NoteRefs, type NoteResult, type NoteRights, type NotesArea, type NoteSettings, type NoteTaskView, type NoteTemplateId, type NoteTrashItem, type NoteViewer } from "@/lib/hub-notes/types";
+import type { NoteImageUi } from "./notes-image";
 import type { NoteRefsUi } from "./notes-refs";
 import type { TaskDraft, TaskOptions } from "./notes-tasks-ui";
 import { HistoryPanel, TaskPeek, TemplateChips, TrashAsk, TrashPanel } from "./notes-panels";
@@ -453,10 +454,37 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
   }, [preview, viewer, customerId, addTasks]);
   const addAppointments = useCallback((list: NoteAppointmentView[]) => setRefs((current) => ({ ...current, appointments: { ...current.appointments, ...Object.fromEntries(list.map((item) => [item.id, item])) } })), []);
   const calendarHref = useCallback((appointmentId: string) => `${hubHref(preview, "projects")}/calendar?appointment=${encodeURIComponent(appointmentId)}`, [preview]);
+  // Pictures in the text (27.11.2026): links hold an hour, so a page open longer asks for new ones; the design preview
+  // keeps its pictures in the browser and uploads nothing.
+  const openPageId = page?.id ?? null;
+  const refreshImage = useCallback(async (path: string): Promise<boolean> => {
+    if (preview || !openPageId) return false;
+    const result = await noteImageUrls({ pageId: openPageId, paths: [path] });
+    const url = result.ok ? result.data[path] : undefined;
+    if (url) addImage(path, url);
+    return Boolean(url);
+  }, [preview, openPageId, addImage]);
+  const imageUi: NoteImageUi = useMemo(() => ({
+    upload: async (file: File, size: { width: number; height: number }): Promise<NoteResult<NoteImageUpload>> => {
+      if (!openPageId) return { ok: false, error: "Keine Seite offen." };
+      if (preview) {
+        const stored = uploadSize(size.width, size.height, 0) ?? size;
+        return { ok: true, data: { image: `notes/${customerId ?? "vorschau"}/images/${crypto.randomUUID()}.webp`, url: null, width: stored.width, height: stored.height } };
+      }
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch(`/api/notes/image?page=${encodeURIComponent(openPageId)}`, { method: "POST", body: form }).catch(() => null);
+      const result = response ? await response.json().catch(() => null) as NoteResult<NoteImageUpload> | null : null;
+      if (result && (result.ok || result.error)) return result;
+      return { ok: false, error: response?.status === 413 ? "Ein Bild darf höchstens 9 MB groß sein." : "Das Bild konnte gerade nicht hochgeladen werden. Versuche es gleich noch einmal." };
+    },
+    show: addImage,
+    notify: say,
+  }), [openPageId, preview, customerId, addImage, say]);
   const refsUi: NoteRefsUi = useMemo(() => ({
     refs, viewer, viewerId: initial.viewerId, taskWriter: initial.taskWriter, editable: canEdit, today,
-    toggleTask: (task) => void toggleTask(task), openTask: (task) => setPeek(task), boardHref, searchTasks, addTasks, addImage, addAppointments, calendarHref,
-  }), [refs, viewer, initial.viewerId, initial.taskWriter, canEdit, today, toggleTask, boardHref, searchTasks, addTasks, addImage, addAppointments, calendarHref]);
+    toggleTask: (task) => void toggleTask(task), openTask: (task) => setPeek(task), boardHref, searchTasks, addTasks, addImage, refreshImage, addAppointments, calendarHref,
+  }), [refs, viewer, initial.viewerId, initial.taskWriter, canEdit, today, toggleTask, boardHref, searchTasks, addTasks, addImage, refreshImage, addAppointments, calendarHref]);
 
   // ---- Step 3: appointments, history, „bearbeitet gerade“ ----------------------------------------------------------
 
@@ -936,6 +964,7 @@ function NotesWorkspace({ initial, preview }: { initial: NotesArea; preview: boo
                       createTasks={createTasks}
                       loadPreview={loadPreview}
                       calendarUi={calendarUi}
+                      imageUi={imageUi}
                     />
                     {viewer === "customer" && !canEdit && (
                       <p className="nz-readonly-note"><MessageCircle size={15} aria-hidden="true" /><span>Diese Seite ist zum Lesen. Etwas ergänzen oder fragen? <Link href={hubHref(preview, "messages")}>Schreib uns im Chat</Link></span></p>

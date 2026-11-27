@@ -7,13 +7,15 @@ import { cleanTeamMessage, TEAM_MESSAGE_MAX } from "@/lib/hub-team/rules";
 import { loadTeamNotesEntry } from "@/lib/hub-team/server";
 import { fetchLinkPreview } from "./link-preview";
 import { isGalleryCover, cleanCoverPosition } from "./covers";
+import { inImageTurn } from "@/lib/hub-files/image-work";
+import { renderNoteImage } from "./image-render";
 import {
   accessLabel, accessOf, childrenOf, cleanIcon, cleanNoteTitle, emptyNoteDoc, fitRights, gains, gainsRights, isIsoDate, isNoteAudience, isNoteWidth, isUuid,
-  narrowedBelow, newPageRights, positionAfter, TEAM_NOTE_AUDIENCES, validateNoteDoc, within,
+  narrowedBelow, newPageRights, positionAfter, TEAM_NOTE_AUDIENCES, validateNoteDoc, viewerEdits, within,
 } from "./rules";
 import { listPages, namesOf, notesCustomers, PAGE_COLUMNS, readPage, readPages, SETTINGS_COLUMNS, toDoc, toMeta, toSettings, type NotesContext, type PageRow } from "./server";
 import { sweepNoteImages } from "./sweep";
-import type { NoteAudience, NoteCover, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteResult, NoteRights, NoteSaved, NoteSettings, NoteTrashItem } from "./types";
+import type { NoteAudience, NoteCover, NoteDoc, NoteImageUpload, NoteLinkPreview, NotePage, NotePageMeta, NotePatch, NoteResult, NoteRights, NoteSaved, NoteSettings, NoteTrashItem } from "./types";
 
 // The core of writing notes, for the hub's actions now and the assistant or the Claude connector later: every write
 // goes through the person's own session, so the rules and the guard of hub_note_pages decide (migration 202611221001).
@@ -458,6 +460,32 @@ export async function saveCoverUploadAs(ctx: NotesContext, input: { id: string; 
   if (previous) await removeStored(ctx, [previous]);
   const url = (await ctx.db.storage.from(HUB_FILES_BUCKET).createSignedUrl(path, 60 * 60)).data?.signedUrl ?? null;
   return { ok: true, data: { id: data.id, version: data.version, updatedAt: data.updated_at, updatedBy: data.updated_by, cover: { kind: "upload", value: path, position: 50, url } } };
+}
+
+/**
+ * A picture for the text of a page (app/api/notes/image, 27.11.2026), from anyone who may edit the page: the team,
+ * freelancers and customers where the page lets them write. The rights are checked before the upload is read; then
+ * the upload is read and turned into the stored picture (upright, at most 2400 pixels wide and 6 megapixels, WebP
+ * without metadata) inside the hub's one line for image work, so a request that waits holds no copies of its own.
+ * `read` gives the uploaded bytes or the reason they cannot be taken. The page names the picture once the browser
+ * saves; if it never does, the sweep removes it a day later (lib/hub-notes/images.ts).
+ */
+export async function saveNoteImageAs(ctx: NotesContext, input: { pageId: string; read: () => Promise<Uint8Array | string> }): Promise<NoteResult<NoteImageUpload>> {
+  if (!ctx.db) return fail("Hochladen geht gerade nicht.");
+  const page = await readPage(ctx, input?.pageId, false);
+  if (!page || !viewerEdits(ctx.viewer, page)) return fail("Auf dieser Seite kannst du keine Bilder einfügen.");
+  const picture = await inImageTurn(async () => {
+    const bytes = await input.read();
+    if (typeof bytes === "string") return bytes;
+    return (await renderNoteImage(bytes)) ?? "Das Bild ließ sich nicht lesen. PNG, JPG, WebP oder GIF gehen.";
+  });
+  if (picture === "busy") return fail("Gerade werden viele Bilder verarbeitet. Versuche es gleich noch einmal.");
+  if (typeof picture === "string") return fail(picture);
+  const path = `notes/${page.customerId.toLowerCase()}/images/${crypto.randomUUID()}.webp`;
+  const stored = await ctx.db.storage.from(HUB_FILES_BUCKET).upload(path, picture.data, { contentType: "image/webp", upsert: false });
+  if (stored.error) return fail("Das Bild konnte gerade nicht gespeichert werden.");
+  const url = (await ctx.db.storage.from(HUB_FILES_BUCKET).createSignedUrl(path, 60 * 60)).data?.signedUrl ?? null;
+  return { ok: true, data: { image: path, url, width: picture.width, height: picture.height } };
 }
 
 /** The pages of a project the viewer sees (the project window's „Notizen“). */

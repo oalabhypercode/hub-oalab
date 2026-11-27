@@ -6,6 +6,7 @@ import {
   audienceChoices, audienceLabel, cleanIcon, cleanNoteTitle, descendantsOf, fitAudience, gains, isSafeHref, meet, narrowedBelow, newPageAudience, noteText,
   pathOf, plainDoc, statusTone, validateNoteDoc, viewerEdits, viewerReads, within,
   accessLabel, accessOf, accessSentence, fitRights, gainsRights, hasOutsideNews, isNoteAccess, newPageRights, rightsFrom,
+  droppedImages, isNoteImagePath, NOTE_IMAGE_BATCH, NOTE_IMAGE_MAX_BYTES, NOTE_IMAGE_MAX_HEIGHT, NOTE_IMAGE_MAX_PIXELS, NOTE_IMAGE_MAX_WIDTH, pastedImages, storedSize, uploadSize,
 } from "../lib/hub-notes/rules.ts";
 import { EMOJIS, emojiCode, emojiSrc, searchEmojis, stripVariation } from "../lib/hub-notes/emoji.ts";
 import { coverWithLink, GALLERY_COVERS, keepCoverLink, nextCoverPosition } from "../lib/hub-notes/covers.ts";
@@ -480,8 +481,12 @@ test("a stored image goes once no page and no version names it, and not before i
     { name: `notes/${CUSTOMER}/links/sub/${TASK}.webp`, created_at: ago(48), used: false },
     { name: `notes/${CUSTOMER}/links/${TASK}.png`, created_at: ago(48), used: false },
     { name: `notes/${CUSTOMER}/readme.txt`, created_at: ago(48), used: false },
+    // Pictures in the text (27.11.2026) go the same way.
+    { name: `notes/${CUSTOMER}/images/${TASK}.webp`, created_at: ago(30), used: false },
+    { name: `notes/${CUSTOMER}/images/${PROJECT}.webp`, created_at: ago(30), used: true },
+    { name: `notes/${CUSTOMER}/images/22222222-2222-4333-8444-555555555555.webp`, created_at: ago(2), used: false },
   ];
-  assert.deepEqual(removableNoteImages(rows, CUSTOMER, now), [preview, cover], "only the hub's own covers and previews in this folder, unused and older than a day");
+  assert.deepEqual(removableNoteImages(rows, CUSTOMER, now), [preview, cover, `notes/${CUSTOMER}/images/${TASK}.webp`], "only the hub's own covers, previews and pictures in this folder, unused and older than a day");
   assert.deepEqual(removableNoteImages(rows, CUSTOMER.toUpperCase(), now), [], "folders carry the id in small letters");
   assert.deepEqual(removableNoteImages(rows, "kein-kunde", now), []);
   assert.equal(NOTE_IMAGE_GRACE_HOURS, 24);
@@ -492,7 +497,7 @@ test("a stored image goes once no page and no version names it, and not before i
 test("what names an image: pages of its customer also in the trash, with covers and cards in any block, and their history", async () => {
   // A version keeps a removed card's picture, so „Verlauf → Diese Fassung wiederherstellen“ always finds it.
   assert.match(NOTE_IMAGES_SQL, /from public\.hub_note_revisions r\s+join public\.hub_note_pages p on p\.id = r\.page_id/);
-  assert.equal((NOTE_IMAGES_SQL.match(/jsonb_path_query\((p|r)\.content, 'lax \$\.\*\* \? \(@\.type == "noteLinkCard"\)'\)/g) ?? []).length, 2, "cards in callouts, lists, tables and toggles too, in pages and versions");
+  assert.equal((NOTE_IMAGES_SQL.match(/jsonb_path_query\((p|r)\.content, 'lax \$\.\*\* \? \(@\.type == "noteLinkCard" \|\| @\.type == "noteImage"\)'\)/g) ?? []).length, 2, "cards and pictures in callouts, lists, tables and toggles too, in pages and versions");
   assert.match(NOTE_IMAGES_SQL, /p\.customer_id = \$2::uuid and p\.cover_kind = 'upload'/);
   assert.doesNotMatch(NOTE_IMAGES_SQL, /deleted_at/, "a page in the trash can come back with its pictures");
   assert.match(NOTE_IMAGES_SQL, /left join used u on u\.name = o\.name/, "the names in use are gathered once, not once per object");
@@ -523,7 +528,8 @@ test("what names an image: pages of its customer also in the trash, with covers 
 const { registerHooks } = await import("node:module");
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (/^\.{1,2}\//.test(specifier) && !/\.[cm]?[jt]sx?$/.test(specifier) && context.parentURL?.includes("/lib/")) return nextResolve(`${specifier}.ts`, context);
+    // Only the hub's own lib/: packages in node_modules have lib folders too (detect-libc under sharp, say).
+    if (/^\.{1,2}\//.test(specifier) && !/\.[cm]?[jt]sx?$/.test(specifier) && context.parentURL?.includes("/lib/") && !context.parentURL.includes("/node_modules/")) return nextResolve(`${specifier}.ts`, context);
     return nextResolve(specifier, context);
   },
 });
@@ -685,4 +691,112 @@ test("Markdown: what Markdown cannot say comes back from the page as it was, and
     const filled = (value) => ({ ...value, content: value.content.filter((node) => node.type !== "paragraph" || node.content) });
     assert.equal(clean(filled(md.markdownToNote(md.noteToMarkdown(doc)).doc)), clean(filled(doc)), id);
   }
+});
+
+/* ---------- Pictures in the text: pasted screenshots, dropped files and „/Bild“ (27.11.2026) ---------- */
+
+test("a picture in the text names only the hub's own storage, with a known size, and its caption is found by the search", () => {
+  const picture = `notes/${CUSTOMER}/images/${TASK}.webp`;
+  const check = (node) => validateNoteDoc({ type: "doc", content: [node] });
+  const kept = check({ type: "noteImage", attrs: { image: picture, width: 609, height: 342, size: "medium", caption: "Fehler beim Login", src: "https://elsewhere.example/x.png" } });
+  assert.equal(kept.ok, true);
+  assert.deepEqual(kept.doc.content[0].attrs, { image: picture, width: 609, height: 342, size: "medium", caption: "Fehler beim Login" }, "unknown attributes fall away");
+  assert.equal(kept.text, "Fehler beim Login");
+  assert.deepEqual(check({ type: "noteImage", attrs: { image: picture, size: "riesig", width: 0, height: 99999, caption: null } }).doc.content[0].attrs, { image: picture, size: "large" });
+  for (const image of ["https://elsewhere.example/x.png", "data:image/png;base64,AAAA", `notes/${CUSTOMER}/links/${TASK}.webp`, `notes/${CUSTOMER}/${TASK}.webp`, `notes/${CUSTOMER}/images/${TASK}.png`, `notes/../images/${TASK}.webp`, null]) {
+    assert.equal(check({ type: "noteImage", attrs: { image } }).ok, false, `no picture from ${image}`);
+  }
+  assert.equal(check({ type: "noteImage" }).ok, false, "a picture block without its picture is refused");
+  assert.ok(isNoteImagePath(picture) && !isNoteImagePath(picture.toUpperCase()));
+});
+
+test("a paste becomes a picture only without text: Word, Excel and Outlook put a picture of copied text next to it", () => {
+  const png = { type: "image/png", name: "Screenshot.png" };
+  const pdf = { type: "application/pdf", name: "Angebot.pdf" };
+  const heic = { type: "image/heic", name: "IMG_0001.heic" };
+  assert.deepEqual(pastedImages([png], ""), [png], "the Snipping Tool puts only the picture there");
+  assert.deepEqual(pastedImages([png], " \n "), [png]);
+  assert.deepEqual(pastedImages([png], "Umsatz\t1200"), [], "cells copied from Excel stay text");
+  assert.deepEqual(pastedImages([pdf, heic], ""), []);
+  assert.equal(pastedImages(Array.from({ length: 14 }, () => png), "").length, NOTE_IMAGE_BATCH);
+  assert.deepEqual(droppedImages([pdf, png, { type: "image/gif" }, { type: "image/jpeg" }, { type: "image/webp" }, { type: "image/svg+xml" }]).map((file) => file.type), ["image/png", "image/gif", "image/jpeg", "image/webp"]);
+});
+
+test("the browser shrinks a picture only where the hub would shrink it anyway, and keeps it under 9 MB", () => {
+  assert.equal(uploadSize(609, 342, 40_000), null, "a Snipping Tool shot goes up as it is");
+  assert.equal(uploadSize(2400, 2500, NOTE_IMAGE_MAX_BYTES), null, "6 megapixels and 9 MB go as they are");
+  assert.deepEqual(uploadSize(2400, 6000, 3_000_000), { width: 1549, height: 3873 });
+  assert.deepEqual(uploadSize(5120, 2880, 6_000_000), { width: 2400, height: 1350 }, "a 5K screenshot");
+  assert.deepEqual(uploadSize(1200, 30_000, 4_000_000), { width: 490, height: 12_247 }, "a long scrolling shot keeps 6 megapixels");
+  assert.deepEqual(uploadSize(1600, 900, 12_000_000), { width: 1600, height: 900 }, "too heavy: written again at the same size");
+  assert.equal(NOTE_IMAGE_MAX_PIXELS, 6_000_000, "WebP needs about 14 bytes a pixel on the server, which may use 512 MB in all");
+  for (const [width, height] of [[2000, 10_000], [2399, 9_000], [4096, 4096], [6000, 4000], [375, 40_000]]) {
+    const size = uploadSize(width, height, 1);
+    assert.ok(size.width <= NOTE_IMAGE_MAX_WIDTH && size.height <= NOTE_IMAGE_MAX_HEIGHT && size.width * size.height <= NOTE_IMAGE_MAX_PIXELS * 1.001, `${width} × ${height}`);
+    assert.ok(Math.abs(size.width / size.height - width / height) < 0.01, `${width} × ${height} keeps its shape`);
+  }
+  assert.equal(uploadSize(0, 0, 1), null);
+  assert.ok(NOTE_IMAGE_MAX_BYTES + 64 * 1024 < 10 * 1024 * 1024, "below the 10 MB the hub's proxy keeps of a request");
+});
+
+test("the hub keeps a picture upright, at most 2400 pixels wide, as WebP without its metadata", async () => {
+  const { renderNoteImage } = await import("../lib/hub-notes/image-render.ts");
+  const sharp = (await import("sharp")).default;
+  const wide = await renderNoteImage(await sharp({ create: { width: 5120, height: 2880, channels: 3, background: "#f4f4f4" } }).png().toBuffer());
+  assert.deepEqual([wide.width, wide.height], [2400, 1350]);
+  const wideMeta = await sharp(wide.data).metadata();
+  assert.deepEqual([wideMeta.format, wideMeta.width, wideMeta.height], ["webp", 2400, 1350]);
+  const small = await renderNoteImage(await sharp({ create: { width: 609, height: 342, channels: 4, background: { r: 20, g: 20, b: 20, alpha: 0.5 } } }).png().toBuffer());
+  assert.deepEqual([small.width, small.height], [609, 342], "never larger than it was");
+  assert.equal((await sharp(small.data).metadata()).hasAlpha, true, "transparency stays");
+  const photo = await sharp({ create: { width: 800, height: 600, channels: 3, background: "#c8553d" } }).jpeg().withMetadata({ orientation: 6 }).toBuffer();
+  const upright = await renderNoteImage(photo);
+  assert.deepEqual([upright.width, upright.height], [600, 800], "turned as the camera meant it");
+  const uprightMeta = await sharp(upright.data).metadata();
+  assert.equal(uprightMeta.orientation, undefined);
+  assert.equal(uprightMeta.exif, undefined, "no camera, place or time");
+  const tall = await renderNoteImage(await sharp({ create: { width: 1000, height: 20_000, channels: 3, background: "#ffffff" } }).png().toBuffer());
+  assert.deepEqual([tall.width, tall.height], [548, 10_954], "a long scrolling shot keeps 6 megapixels, the same size the browser makes");
+  assert.deepEqual(storedSize(1000, 20_000), { width: 548, height: 10_954 });
+  assert.equal(await renderNoteImage(Buffer.from("%PDF-1.7 not an image")), null);
+  assert.equal(await renderNoteImage(await sharp({ create: { width: 5000, height: 5000, channels: 3, background: "#3b2418" } }).png().toBuffer()), null, "25 megapixels are more than the hub reads at once");
+});
+
+test("Markdown: a picture stands on a line of its own and comes back with its place and size", () => {
+  const picture = `notes/${ID.page}/images/${ID.other}.webp`;
+  const image = (attrs) => ({ type: "noteImage", attrs: { image: picture, width: 609, height: 342, size: "medium", ...attrs } });
+  const page = { type: "doc", content: [para(t("Vorher")), image({ caption: "Fehler beim Login" }), para(t("Nachher"))] };
+  const markdown = md.noteToMarkdown(page);
+  assert.equal(markdown, `Vorher\n\n![Fehler beim Login](oalab:image/${ID.other})\n\nNachher`);
+  assert.deepEqual(md.markdownToNote(markdown, { before: page }).doc, page);
+  // Claude may change the caption; „Bild“ stands for none.
+  assert.deepEqual(md.markdownToNote(markdown.replace("Fehler beim Login", "Absturz"), { before: page }).doc.content[1].attrs, { image: picture, width: 609, height: 342, size: "medium", caption: "Absturz" });
+  assert.deepEqual(md.markdownToNote(markdown.replace("Fehler beim Login", md.IMAGE_LABEL), { before: page }).doc.content[1].attrs, { image: picture, width: 609, height: 342, size: "medium" });
+  assert.equal(md.noteToMarkdown({ type: "doc", content: [image({})] }), `![Bild](oalab:image/${ID.other})`);
+  // A picture the page did not have falls away (pictures go up only in the hub); the text around it stays.
+  const foreign = md.markdownToNote(`Text\n![Bild](oalab:image/${ID.task})\n\nMehr`, { before: page });
+  assert.deepEqual(foreign.doc.content.map((node) => node.type), ["paragraph", "paragraph"]);
+  assert.equal(md.markdownToNote(markdown).doc.content.some((node) => node.type === "noteImage"), false);
+  // Inside a sentence it stays text.
+  assert.equal(md.markdownToNote(`Siehe ![Bild](oalab:image/${ID.other}) oben`, { before: page }).doc.content[0].type, "paragraph");
+});
+
+test("pictures go up through their own route, one at a time with the previews, only for who may edit the page", async () => {
+  const route = await source("app/api/notes/image/route.ts");
+  assert.match(route, /if \(length > NOTE_IMAGE_MAX_BYTES \+ 64 \* 1024\)/);
+  assert.match(route, /NOTE_IMAGE_TYPES\.includes\(file\.type\)/);
+  assert.match(route, /const pageId = new URL\(request\.url\)\.searchParams\.get\("page"\) \?\? "";/, "the page comes before the upload, so the rights are checked first");
+  const write = await source("lib/hub-notes/write.ts");
+  assert.match(write, /if \(!page \|\| !viewerEdits\(ctx\.viewer, page\)\) return fail\("Auf dieser Seite kannst du keine Bilder einfügen\."\);/);
+  // The upload is read only in its turn: a request that waits holds no copies of its own (512 MB for the whole hub).
+  assert.match(write, /const picture = await inImageTurn\(async \(\) => \{\s+const bytes = await input\.read\(\);/);
+  assert.ok(write.indexOf("viewerEdits(ctx.viewer, page)") < write.indexOf("const bytes = await input.read();"));
+  assert.match(write, /const path = `notes\/\$\{page\.customerId\.toLowerCase\(\)\}\/images\/\$\{crypto\.randomUUID\(\)\}\.webp`;/);
+  assert.match(await source("lib/hub-files/image-work.ts"), /shared\.__oalabImageTurns \?\?= createTurns\(1, 40_000\)/);
+  assert.match(await source("lib/hub-files/preview-server.ts"), /const inTurn = inImageTurn;/);
+  assert.match(await source("lib/hub-notes/refs.ts"), /path\.startsWith\(own\) && isStoredNoteImage\(path\)/, "pictures are signed only at the page's own customer");
+  assert.match(await source("lib/hub-notes/server.ts"), /const named = new Set\(ownImages\(refsIn\(page\.content\)\.images, page\.customerId\)\);/, "new links only for pictures the stored page names");
+  const editor = await source("components/hub/screens/notes-editor.tsx");
+  assert.match(editor, /pastedImages\(Array\.from\(event\.clipboardData\?\.files \?\? \[\]\), event\.clipboardData\?\.getData\("text\/plain"\) \?\? ""\)/);
+  assert.match(editor, /if \(moved \|\| !view\.editable \|\| !images \|\| !files\.length\) return false;/, "moving a block stays ProseMirror's");
 });

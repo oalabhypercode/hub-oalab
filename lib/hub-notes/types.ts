@@ -135,6 +135,9 @@ export type NoteTrashItem = { id: string; title: string; icon: string; deletedAt
 /** What a link card keeps in the document: read once from the page by the hub's server. */
 export type NoteLinkPreview = { href: string; title: string; description: string; site: string; image: string | null };
 
+/** A picture just stored for the text of a page (app/api/notes/image, 27.11.2026): its place, a link for an hour, its size. */
+export type NoteImageUpload = { image: string; url: string | null; width: number; height: number };
+
 export type NoteCustomer = {
   id: string;
   name: string;

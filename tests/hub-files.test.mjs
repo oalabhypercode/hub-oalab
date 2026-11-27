@@ -170,8 +170,9 @@ test("previews are made two at a time; the others wait without loading anything 
   assert.equal(await first, "done");
   // The original is loaded inside the turn, never before it.
   const server = await source("lib/hub-files/preview-server.ts");
-  // One at a time on the server: the hub may use 512 MB in all.
-  assert.match(server, /const inTurn = createTurns\(1, 40_000\);/);
+  // One at a time on the server, in one line with the pictures of the notes (27.11.2026): the hub may use 512 MB in all.
+  assert.match(server, /const inTurn = inImageTurn;/);
+  assert.match(await source("lib/hub-files/image-work.ts"), /shared\.__oalabImageTurns \?\?= createTurns\(1, 40_000\)/);
   assert.ok(server.indexOf(".download(file.storage_path)") > server.indexOf("const result = await inTurn(async"));
   assert.match(await source("lib/hub-files/preview-render.ts"), /sharp\.cache\(false\);\r?\n {4}sharp\.concurrency\(1\);/);
 });

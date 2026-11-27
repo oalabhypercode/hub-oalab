@@ -570,6 +570,40 @@ button.nz-mention:hover { background: var(--sheet-hover); }
 .nz-card-site { display: flex; align-items: center; gap: 7px; margin-top: 6px; font-size: 12.5px; color: var(--label-secondary); }
 .nz-card-side { width: 132px; flex: 0 0 132px; display: flex; align-items: center; justify-content: center; background: var(--sheet-sunken); border-left: 1px solid var(--sheet-divider); color: var(--sheet-icon); overflow: hidden; }
 .nz-card-side img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Pictures in the text (27.11.2026): pasted screenshots and uploads, centred, never wider than they are. Klein and
+   Mittel take about a third and two thirds of the column. The block's own ring shows the selection, not the row's. */
+.nz-image { margin: 14px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.nz-prose .ProseMirror-selectednode:has(> .nz-image) { outline: none; }
+.nz-image-frame { position: relative; max-width: 100%; border-radius: 10px; background: var(--sheet-sunken); box-shadow: 0 0 0 1px var(--sheet-line); }
+.nz-image.is-medium .nz-image-frame { max-width: 64%; }
+.nz-image.is-small .nz-image-frame { max-width: 36%; }
+.nz-image.is-selected .nz-image-frame { box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.55); }
+.nz-image-frame img { display: block; width: 100%; height: auto; border-radius: inherit; }
+.nz-editor.is-read .nz-image-frame img { cursor: zoom-in; }
+.nz-image-missing { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 96px; padding: 16px; color: var(--sheet-muted); font-size: 13px; }
+.nz-image-bar { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 4px; border-radius: 11px; opacity: 0; pointer-events: none; transition: opacity 150ms ease; }
+.nz-image .nz-image-bar { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.nz-image-bar .nz-tb { height: 28px; }
+.nz-image:hover .nz-image-bar, .nz-image.is-selected .nz-image-bar, .nz-image:focus-within .nz-image-bar { opacity: 1; pointer-events: auto; }
+.nz-image-caption { width: min(100%, 560px); padding: 3px 8px; text-align: center; font-size: 13px; line-height: 19px; color: var(--sheet-muted); }
+input.nz-image-caption { border: 0; border-radius: 8px; background: transparent; outline: none; font: inherit; font-size: 13px; color: var(--sheet-muted); }
+input.nz-image-caption:hover { background: var(--sheet-hover); }
+input.nz-image-caption:focus { background: var(--fill-tertiary); color: var(--label-body); }
+.nz-image-upload { margin: 14px 0; display: flex; justify-content: center; }
+.nz-image-upload .nz-image-frame img { opacity: 0.5; }
+.nz-image-upload-label { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 6px 12px; border-radius: 999px; background: rgba(0, 0, 0, 0.6); color: #ffffff; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+@media (hover: none) { .nz-image.is-selected .nz-image-bar { opacity: 1; pointer-events: auto; } }
+@media (max-width: 640px) { .nz-image.is-small .nz-image-frame { max-width: 56%; } .nz-image.is-medium .nz-image-frame { max-width: 100%; } }
+
+/* The picture large over the hub. */
+.nz-lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 64px 24px 32px; background: rgba(10, 4, 8, 0.9); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); cursor: zoom-out; animation: nz-fade 140ms ease; }
+.nz-lightbox-figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 100%; max-height: 100%; cursor: default; }
+.nz-lightbox-figure img { max-width: 100%; max-height: calc(100vh - 150px); object-fit: contain; border-radius: 8px; background: #ffffff; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5); }
+.nz-lightbox-figure figcaption { max-width: 720px; text-align: center; font-size: 14px; line-height: 20px; color: rgba(255, 255, 255, 0.88); }
+.nz-lightbox-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; }
+.nz-lightbox-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.14); color: #ffffff; font-size: 13px; font-weight: 600; text-decoration: none; }
+.nz-lightbox-btn:hover { background: rgba(255, 255, 255, 0.24); }
 .nz-to-task { position: absolute; right: -8px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; height: 26px; margin-top: calc(var(--nz-box) - 4px); padding: 0 9px; border-radius: 7px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 12.5px; font-weight: 600; animation: nz-fade 120ms ease; }
 .nz-to-task:hover { color: var(--label-body); background: var(--sheet-hover); }
 .nz-paste-pop { position: fixed; width: 300px; padding: 6px; z-index: 61; }

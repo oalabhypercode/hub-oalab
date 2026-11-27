@@ -1,7 +1,7 @@
 "use server";
 
 import { isUuid } from "./rules";
-import { customerView, markSeen, namesOf, noteReadersAs, notesContext, notesCustomers, readPage } from "./server";
+import { customerView, markSeen, namesOf, noteImageUrlsAs, noteReadersAs, notesContext, notesCustomers, readPage } from "./server";
 import { coverFilesAs, createPageAs, fail, linkPreviewAs, listTrashAs, notifyChangeAs, notifyTeamAs, projectNotesAs, purgePageAs, restorePageAs, saveSettingsAs, savePageAs, setRightsAs, taskMentionsAs, trashPageAs, type CreateInput } from "./write";
 import { createNoteTaskAs, noteTaskOptionsAs, searchNoteTasksAs, setNoteTaskDoneAs, type NoteTaskInput } from "./tasks";
 import { createMeetingNoteAs, createNoteAppointmentAs, noteAppointmentOptionsAs, noteRequestSlotsAs, requestNoteAppointmentAs, type NoteAppointmentInput } from "./calendar";
@@ -123,6 +123,12 @@ export async function noteLinkPreview(input: { customerId: string; url: string }
 export async function noteCoverFiles(input: { customerId: string }): Promise<NoteResult<{ id: string; title: string; url: string | null }[]>> {
   const ctx = await notesContext();
   return ctx ? coverFilesAs(ctx, input) : fail(noAccess);
+}
+
+/** New links for pictures of an open page whose links ran out after an hour (27.11.2026). */
+export async function noteImageUrls(input: { pageId: string; paths: string[] }): Promise<NoteResult<Record<string, string>>> {
+  const ctx = await notesContext();
+  return ctx ? noteImageUrlsAs(ctx, input) : fail(noAccess);
 }
 
 /** The project window's „Notizen“ (team, customers and freelancers): only pages the person sees. */

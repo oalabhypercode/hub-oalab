@@ -796,6 +796,7 @@ test("notes: the team's tools and the freelancers' few, strict, every change ask
   // How Claude writes a page: Markdown and the hub's blocks as oalab: links on their own line.
   assert.match(notesTools.NOTE_MARKDOWN_HELP, /oalab:task\/<project_id>\/<task_number>/);
   assert.match(notesTools.NOTE_MARKDOWN_HELP, /"Linkkarte"/);
+  assert.match(notesTools.NOTE_MARKDOWN_HELP, /!\[Bildunterschrift\]\(oalab:image\/<id>\)/, "pictures of the page stay as lines of their own");
   assert.match(create.description, /oalab:page\/<page_id>/);
   // Replacing the content needs the version Claude read; adding does not.
   const update = admin.find((tool) => tool.name === "update_note");
