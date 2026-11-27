@@ -231,7 +231,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
         </div>
         {panel === "search" && (
           <Modal title="Wonach suchst du?" onClose={closeSearch}>
-            <label className="search-field"><Search size={18} aria-hidden="true" /><input autoFocus aria-label="Suchbegriff" placeholder="Seiten, Projekte und Notizen" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+            <label className="search-field"><Search size={18} aria-hidden="true" /><input data-autofocus aria-label="Suchbegriff" placeholder="Seiten, Projekte und Notizen" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
             <div className="search-results">
               {sectionResults.map((key) => <Link key={key} href={hubHref(preview, key)} onClick={closeSearch}><LayoutGrid size={18} aria-hidden="true" /><span>{sectionLabel(key, account.admin || account.freelancer)}</span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {metricResults.map((id) => <Link key={id} href={metricHref(preview, id)} onClick={closeSearch}><CategoryIcon category={metricMeta[id].category} size={18} /><span>{metricMeta[id].name}<small>Kennzahl</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}

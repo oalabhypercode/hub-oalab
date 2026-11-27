@@ -70,7 +70,7 @@ export function TaskConvertDialog({ titles, viewer, pageAudience, internal = fal
           {count > 20 && <p className="nz-pop-note is-warn">Höchstens 20 auf einmal.</p>}
         </div>
       ) : (
-        <label className="nz-field is-flat"><span>Titel</span><input value={title} maxLength={240} onChange={(event) => setTitle(event.target.value)} autoFocus /></label>
+        <label className="nz-field is-flat"><span>Titel</span><input value={title} maxLength={240} onChange={(event) => setTitle(event.target.value)} data-autofocus /></label>
       )}
       <div className="nz-field is-flat"><span>Projekt</span>
         <Select value={project} onChange={setProject} label="Projekt" placeholder={options ? "Projekt wählen" : "Lädt …"} options={(options?.projects ?? []).map((item) => ({ value: item.id, label: item.name }))} />

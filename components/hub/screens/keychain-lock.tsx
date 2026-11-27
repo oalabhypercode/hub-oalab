@@ -288,7 +288,7 @@ export function SetupDialog({ email, relink = false, onClose, onDone }: { email:
                 <div className="kc-step-body">
                   {sent ? (
                     <div className="kc-step-row">
-                      <input className="kc-code" value={mailCode} onChange={(event) => { const next = digits(event.target.value); setMailCode(next); setError(""); if (next.length === 6) checkMail(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der E-Mail" disabled={busy} autoFocus />
+                      <input className="kc-code" value={mailCode} onChange={(event) => { const next = digits(event.target.value); setMailCode(next); setError(""); if (next.length === 6) checkMail(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der E-Mail" disabled={busy} autoFocus data-autofocus />
                       <button type="button" className="sheet-action is-primary" onClick={() => checkMail(mailCode)} disabled={busy || mailCode.length !== 6}>{busy ? <MiniLoader size={15} /> : <Check size={15} aria-hidden="true" />}Weiter</button>
                     </div>
                   ) : (
@@ -317,7 +317,7 @@ export function SetupDialog({ email, relink = false, onClose, onDone }: { email:
                     <button type="button" className="row-action" onClick={async () => { try { await navigator.clipboard.writeText(qr.key.replace(/\s/g, "")); setCopied(true); window.setTimeout(() => setCopied(false), 1500); } catch { /* blocked: the key stays readable */ } }} aria-label="Schlüssel kopieren" data-tip={copied ? "Kopiert" : "Schlüssel kopieren"}>{copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}</button>
                   </div>
                   <div className="kc-step-row">
-                    <input className="kc-code" value={appCode} onChange={(event) => { const next = digits(event.target.value); setAppCode(next); setError(""); if (next.length === 6) checkApp(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der App" disabled={busy} autoFocus />
+                    <input className="kc-code" value={appCode} onChange={(event) => { const next = digits(event.target.value); setAppCode(next); setError(""); if (next.length === 6) checkApp(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der App" disabled={busy} autoFocus data-autofocus />
                     <button type="button" className="sheet-action is-primary" onClick={() => checkApp(appCode)} disabled={busy || appCode.length !== 6}>{busy ? <MiniLoader size={15} /> : <Check size={15} aria-hidden="true" />}Verbinden</button>
                   </div>
                 </div>

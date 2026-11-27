@@ -120,7 +120,7 @@ export function AppointmentDialog({ ui, title: initialTitle, onDone, onClose }: 
   const changeMinutes = (value: number) => { setMinutes(value); if (request) setLoadingSlots(true); };
   return (
     <Modal title={request ? "Termin anfragen" : "Termin anlegen"} onClose={onClose} className="nz-dialog">
-      <label className="nz-field is-flat"><span>{request ? "Thema" : "Titel"}</span><input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} autoFocus /></label>
+      <label className="nz-field is-flat"><span>{request ? "Thema" : "Titel"}</span><input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} data-autofocus /></label>
       {request && (
         <div className="nz-field is-flat"><span>Dauer</span>
           <span className="nz-seg" role="group" aria-label="Dauer">{(slots?.durations ?? [30, 60]).map((value) => <button key={value} type="button" className={`nz-seg-btn${minutes === value ? " is-on" : ""}`} aria-pressed={minutes === value} onClick={() => changeMinutes(value)}>{durationLabel(value)}</button>)}</span>
