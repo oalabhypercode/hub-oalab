@@ -12,6 +12,8 @@ interface DemoThread {
   site?: string;
   /** Per message number: how many people got the e-mail „Neue Testansicht bereit“. */
   mails?: Record<number, number>;
+  /** Per message number: when the customer pressed „Gefällt mir“ on that result (27.11.2026). */
+  approved?: Record<number, string>;
 }
 
 /**
@@ -26,7 +28,7 @@ export function demoConversations() {
   const note = (sender: "system" | "assistant", body: string, at: string): Omit<ConversationMessage, "id"> => ({ sender, name: null, body, markdown: false, at, onBehalf: false });
   const threads: DemoThread[] = [
     // The test site changed at 15:20 and the AI has not reported since: „Rückmeldung fehlt“ (as with OA-14).
-    { id: "demo-voucher", number: 1031, title: "Gutschein-Hinweis als Leiste rechts", state: "running", company: "Atelier Brandt", site: "2026-10-14T15:20:00+02:00", mails: { 1: 1, 3: 2 }, messages: [
+    { id: "demo-voucher", number: 1031, title: "Gutschein-Hinweis als Leiste rechts", state: "running", company: "Atelier Brandt", site: "2026-10-14T15:20:00+02:00", mails: { 1: 1, 3: 2 }, approved: { 3: "2026-10-13T21:02:00+02:00" }, messages: [
       client("Beim Öffnen der Website soll ein Hinweis auf unsere Gutscheinaktion erscheinen, mit dem Knopf „Gutschein anfragen“.", "2026-10-12T11:50:00+02:00", "Paul Brandt"),
       team("Der Gutschein-Hinweis ist auf der Testseite: Er erscheint beim Öffnen der Website und lässt sich schließen.", "2026-10-12T19:16:00+02:00", "preview"),
       client("Den Hintergrund hinter dem Hinweis bitte noch etwas ruhiger.", "2026-10-13T10:36:00+02:00", "Paul Brandt"),
@@ -96,6 +98,7 @@ export function demoConversations() {
     ? { url: `https://${thread.id.replace("demo-", "")}.testseite.example/`, updatedAt: new Date(thread.site).toISOString(), source: "site" }
     : null]));
   const mails = new Map<string, Record<string, number>>(threads.map((thread) => [thread.id, Object.fromEntries(Object.entries(thread.mails ?? {}).map(([index, people]) => [`${thread.id}-${index}`, people]))]));
+  const approvals = new Map<string, Record<string, string>>(threads.map((thread) => [thread.id, Object.fromEntries(Object.entries(thread.approved ?? {}).map(([index, at]) => [`${thread.id}-${index}`, new Date(at).toISOString()]))]));
   // What an admin could do in each example: the paused one goes back to the customer, finished requests are closed, a
   // finished report of the team can be reopened.
   const controls = new Map<string, ServiceControls>(conversations.map((item) => [item.id, {
@@ -105,7 +108,7 @@ export function demoConversations() {
     writable: item.team || item.group !== "done",
     teamAccess: true,
   }]));
-  return { state, messages, controls, sites, mails };
+  return { state, messages, controls, sites, mails, approvals };
 }
 
 /**

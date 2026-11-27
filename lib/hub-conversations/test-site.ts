@@ -129,3 +129,14 @@ export async function previewMails(db: SupabaseClient, requestId: string): Promi
   for (const row of data ?? []) people.set(row.message_id, (people.get(row.message_id) ?? new Set()).add(row.user_id));
   return Object.fromEntries([...people].map(([messageId, users]) => [messageId, users.size]));
 }
+
+/**
+ * Per result message: when the customer pressed „Gefällt mir“ on it (`audit_events` `client.preview_approved`, one per
+ * result, migration 202610180001). A decoration of the thread: without it (no rights, failed read) none shows.
+ */
+export async function previewApprovals(db: SupabaseClient, requestId: string): Promise<Record<string, string>> {
+  const { data, error } = await db.from("audit_events").select("target_id, occurred_at").eq("action", "client.preview_approved")
+    .eq("result", "success").eq("safe_metadata->>requestId", requestId).limit(200).returns<{ target_id: string | null; occurred_at: string }[]>();
+  if (error) return {};
+  return Object.fromEntries((data ?? []).flatMap((row) => row.target_id ? [[row.target_id, row.occurred_at]] : []));
+}

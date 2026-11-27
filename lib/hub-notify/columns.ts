@@ -42,7 +42,7 @@ function areaOf(kind: string) {
 }
 
 const CHAT_LEADS = ["Neue Nachrichten von ", "Neue Nachricht von "];
-const SERVICE_LEADS = ["Neue Nachrichten von ", "Neue Nachricht von ", "Neue Anfrage von "];
+const SERVICE_LEADS = ["Neue Nachrichten von ", "Neue Nachricht von ", "Neue Anfrage von ", "Gefällt mir von "];
 const FREELANCER_MARK = " (Freelancer)";
 const SHARE_LEAD = "Neu freigegeben bei ";
 
@@ -129,8 +129,9 @@ export function noticeColumns(notice: { kind: string; title: string; body: strin
     };
   }
 
-  // To the team (23.11.2026): „Neue Anfrage von Nordlicht Studio: OA-12 Texte freigeben“ with "Jana: Text".
-  if (kind === "service.message") {
+  // To the team (23.11.2026): „Neue Anfrage von Nordlicht Studio: OA-12 Texte freigeben“ with "Jana: Text"; (27.11.2026)
+  // „Gefällt mir von Nordlicht Studio: OA-12 …“ with "Jana: Änderung auf der Testseite passt, bereit für live".
+  if (kind === "service.message" || kind === "service.approved") {
     const lead = SERVICE_LEADS.find((prefix) => event.startsWith(prefix));
     const company = lead ? event.slice(lead.length) : "";
     const colon = body.indexOf(": ");
