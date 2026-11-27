@@ -124,8 +124,8 @@ test("the assistant knows archive and delete, and the patch notes keep them inte
   assert.match(knowledge, /- Archivieren oder löschen \(nur Admin, ganz unten in den Stammdaten/);
   assert.doesNotMatch(knowledge, /Importierte Kunden lassen sich bearbeiten, aber nicht löschen/);
   assert.doesNotMatch(knowledge.slice(knowledge.indexOf("## Noch nicht verfügbar (geplant)")), /Kunden löschen/);
-  const { patchPackages } = await import("../lib/patch-notes.ts");
-  const entries = patchPackages.flatMap((item) => item.changes).filter((change) => /archivieren|löschen|bleiben weg/i.test(change.title));
+  const { patchDays } = await import("../lib/patch-notes.ts");
+  const entries = patchDays.flatMap((day) => day.changes).filter((change) => /archivieren|löschen|bleiben weg/i.test(change.title));
   assert.ok(entries.length >= 3);
   for (const entry of entries.filter((change) => /Kunden (archivieren|endgültig löschen)|bleiben weg/.test(change.title))) assert.equal(entry.customers, undefined, entry.title);
 });
