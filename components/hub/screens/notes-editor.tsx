@@ -16,9 +16,9 @@ import { TableMap } from "@tiptap/pm/tables";
 import {
   Bold, ChevronDown, ChevronRight, CheckSquare, Code, Columns3, Copy, ExternalLink, FileText, GripVertical, Heading1, Heading2, Heading3, Italic,
   Lightbulb, Link2, List, ListOrdered, Minus, Pencil, Plus, Rows3, Smile, Strikethrough, Table2, Trash2, Type, Underline, ArrowDown, ArrowUp, Unlink,
-  SquareCheck, CircleDot, UserRound, SquareKanban, ListTodo, FolderOpen, IdCard, CalendarDays, CalendarPlus,
+  SquareCheck, CircleDot, UserRound, SquareKanban, ListTodo, FolderOpen, IdCard, CalendarDays, CalendarPlus, ImagePlus,
 } from "lucide-react";
-import { isSafeHref, COLUMN_TYPE_LABELS, COLUMN_TYPES, isColumnType, type ColumnType } from "@/lib/hub-notes/rules";
+import { isSafeHref, COLUMN_TYPE_LABELS, COLUMN_TYPES, droppedImages, isColumnType, NOTE_IMAGE_TYPES, pastedImages, type ColumnType } from "@/lib/hub-notes/rules";
 import type { NoteAppointmentView, NoteAudience, NoteDoc, NoteLinkPreview, NotePage, NotePageMeta, NoteProject, NoteTaskView, NoteViewer } from "@/lib/hub-notes/types";
 import type { EmojiEntry } from "@/lib/hub-notes/emoji";
 import {
@@ -29,6 +29,7 @@ import { EmojiPicker } from "./notes-emoji-picker";
 import { createHashExtension, NoteAppointment, NoteLinkCard, NoteProject as NoteProjectNode, NoteRefsContext, NoteTaskGroup, NoteTaskItem, NoteTaskList, NoteTaskMention, setTaskSearch, type NoteRefsUi } from "./notes-refs";
 import { RefPicker, TaskConvertDialog, type PickerKind, type TaskDraft, type TaskOptions } from "./notes-tasks-ui";
 import { AppointmentDialog, AppointmentPicker, ReadSelectionBar, type NoteCalendarUi } from "./notes-calendar-ui";
+import { anchorAt, insertPictures, NoteImage, NoteImageUploads, pictureAnchor, type NoteImageUi } from "./notes-image";
 
 // The writing area of a note (plan 1.3): Tiptap 3 with the basic blocks of step 1, the block menu on „/“, Markdown
 // shortcuts, emojis after „:“, a toolbar over selected text, clean links with a card on hover, tables with column
@@ -59,6 +60,8 @@ type Props = {
   loadPreview: (url: string) => Promise<PreviewResult>;
   /** Step 3: appointments as blocks, and selected text as an appointment (the team enters it, others ask for one). */
   calendarUi: NoteCalendarUi;
+  /** Pictures in the text (27.11.2026): pasted screenshots, dropped image files and „/Bild“ go up through this. */
+  imageUi?: NoteImageUi;
 };
 
 /** Puts a block where the caret stands: in place of an empty line, else after the line. */
@@ -165,7 +168,10 @@ function ColonMenu({ items, command, query, handleRef }: MenuProps<EmojiEntry> &
 
 const domainOf = (href: string) => /^https:\/\/([^/?#]+)/i.exec(href)?.[1]?.replace(/^www\./i, "") ?? href.replace(/^mailto:/i, "");
 
-export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef, refsUi, projects, viewer, pageAudience, internal = false, loadTaskOptions, createTasks, loadPreview, calendarUi }: Props) {
+export default function NoteEditor({ page, editable, pages, onChange, onOpenPage, onCreateSubpage, handleRef, refsUi, projects, viewer, pageAudience, internal = false, loadTaskOptions, createTasks, loadPreview, calendarUi, imageUi }: Props) {
+  const imagesRef = useRef(imageUi);
+  useEffect(() => { imagesRef.current = imageUi; });
+  const fileInput = useRef<HTMLInputElement>(null);
   const [picker2, setPicker2] = useState<{ kind: PickerKind; anchor: DOMRect; at: number } | null>(null);
   const [apptPicker, setApptPicker] = useState<{ anchor: DOMRect; at: number } | null>(null);
   /** „Termin anlegen/anfragen“ for a text; `at` is where the block goes afterwards (null on a page one only reads). */
@@ -208,6 +214,11 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
       { id: "numbers", group: basic, label: "Nummerierung", hint: "1., 2., 3.", keywords: "liste nummer", icon: <ListOrdered size={16} />, run: (editor, range) => editor.chain().focus().deleteRange(range).toggleOrderedList().run() },
       { id: "checks", group: basic, label: "Checkliste", hint: "Zum Abhaken", keywords: "todo aufgaben", icon: <CheckSquare size={16} />, run: (editor, range) => editor.chain().focus().deleteRange(range).toggleTaskList().run() },
       { id: "table", group: basic, label: "Tabelle", hint: "Zeilen und Spalten", icon: <Table2 size={16} />, run: (editor, range) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+      ...(imagesRef.current ? [{
+        id: "image", group: basic, label: "Bild", hint: "Hochladen oder Strg/⌘ + V", keywords: "screenshot foto image upload grafik",
+        icon: <ImagePlus size={16} />,
+        run: (editor: Editor, range: Range) => { editor.chain().focus().deleteRange(range).run(); fileInput.current?.click(); },
+      }] : []),
       { id: "callout", group: basic, label: "Hinweis", hint: "Hervorgehobener Kasten mit Emoji", keywords: "callout box", icon: <Lightbulb size={16} />, run: (editor, range) => editor.chain().focus().deleteRange(range).setParagraph().wrapIn("noteCallout").run() },
       { id: "toggle", group: basic, label: "Aufklapper", hint: "Inhalt zum Aufklappen", keywords: "toggle details", icon: <ChevronRight size={16} />, run: (editor, range) => editor.chain().focus().deleteRange(range).setDetails().run() },
       { id: "divider", group: basic, label: "Trennlinie", hint: "Teilt Abschnitte", keywords: "linie hr", icon: <Minus size={16} />, run: (editor, range) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
@@ -304,6 +315,8 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
     NoteProjectNode,
     NoteLinkCard,
     NoteAppointment,
+    NoteImage,
+    NoteImageUploads,
     // „#“ looks up tasks, which customers cannot do.
     ...(viewer === "customer" ? [] : [createHashExtension()]),
     createSlashExtension(SlashMenu),
@@ -328,7 +341,16 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
         return false;
       },
       // A pasted address on its own: a link in the text at once, and the question „Link im Text oder Linkkarte?“.
+      // A pasted picture without text (a screenshot, 27.11.2026) goes up and stands as a block where the caret is.
       handlePaste: (view, event) => {
+        const pictures = pastedImages(Array.from(event.clipboardData?.files ?? []), event.clipboardData?.getData("text/plain") ?? "");
+        const images = imagesRef.current;
+        if (pictures.length && view.editable && images) {
+          event.preventDefault();
+          if (!view.state.selection.empty && !(view.state.selection instanceof NodeSelection)) view.dispatch(view.state.tr.deleteSelection());
+          void insertPictures(view, pictures, () => pictureAnchor(view.state), images);
+          return true;
+        }
         const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
         if (!view.editable || !view.state.selection.empty || !/^https:\/\/\S+$/i.test(text) || !isSafeHref(text)) return false;
         const from = view.state.selection.from;
@@ -342,6 +364,18 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
         };
         // Customers keep the plain link; a card is made by the team's server.
         if (viewer !== "customer") setPasted({ url: text, from, to: from + text.length, locate });
+        return true;
+      },
+      // Image files dragged onto the page go up and stand where they were dropped; moving a block stays ProseMirror's.
+      handleDrop: (view, event, _slice, moved) => {
+        const images = imagesRef.current;
+        const files = Array.from(event.dataTransfer?.files ?? []);
+        if (moved || !view.editable || !images || !files.length) return false;
+        event.preventDefault();
+        const pictures = droppedImages(files);
+        if (!pictures.length) { images.notify("In eine Seite lassen sich Bilder ziehen: PNG, JPG, WebP oder GIF."); return true; }
+        const point = { left: event.clientX, top: event.clientY };
+        void insertPictures(view, pictures, () => { const found = view.posAtCoords(point); return found ? anchorAt(view.state.doc, found.pos) : pictureAnchor(view.state); }, images);
         return true;
       },
       handleClick: (view, _pos, event) => {
@@ -471,6 +505,20 @@ export default function NoteEditor({ page, editable, pages, onChange, onOpenPage
           }} />}
         {editor && !editable && calendarUi.mode === "request" && !apptDraft && <ReadSelectionBar host={wrap} onRequest={(text) => setApptDraft({ title: text, at: null })} />}
         {editor && editable && <TableToolbar editor={editor} />}
+        {editor && editable && imageUi && (
+          <input
+            ref={fileInput}
+            type="file"
+            accept={NOTE_IMAGE_TYPES.join(",")}
+            multiple
+            hidden
+            onChange={(event) => {
+              const files = droppedImages(Array.from(event.target.files ?? []));
+              event.target.value = "";
+              if (files.length) void insertPictures(editor.view, files, () => pictureAnchor(editor.state), imageUi);
+            }}
+          />
+        )}
         {editor && linkEdit && <LinkPopover editor={editor} state={linkEdit} onClose={() => setLinkEdit(null)} onCard={async (href) => {
           const result = await previewRef.current(href);
           if (!result.ok) return result.error;
@@ -805,7 +853,8 @@ function BlockHandles({ editor, wrap }: { editor: Editor; wrap: React.RefObject<
       const probe = document.elementFromPoint(Math.min(Math.max(event.clientX, bounds.left + 4), bounds.right - 4), event.clientY);
       let element = probe instanceof HTMLElement ? probe : null;
       while (element && element.parentElement !== root) element = element.parentElement;
-      if (!element) return;
+      // A picture still going up is no block yet.
+      if (!element || element.classList.contains("nz-image-upload")) return;
       const pos = editor.view.posAtDOM(element, 0);
       const resolved = editor.state.doc.resolve(Math.min(pos, editor.state.doc.content.size));
       const start = resolved.depth > 0 ? resolved.before(1) : pos;

@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { HUB_FILES_BUCKET } from "./catalog";
 import { PREVIEW_EDGE, PREVIEW_MAX_PIXELS, previewKind, type PreviewSize } from "./preview";
+import { inImageTurn } from "./image-work";
 import { renderPreview, type RenderedPreview } from "./preview-render";
-import { createTurns } from "./turns";
 
 /**
  * The preview of one stored file for the signed-in person (app/api/files/[id]/preview). Row Level Security decides as
@@ -45,8 +45,9 @@ function recall(key: string) {
  * the tiles of a customer with 40 large photos asked for 36 previews at once; each loaded its original (up to 9 MB,
  * several copies) before waiting for its turn, and the system stopped the hub twice for lack of memory. Now a request
  * waits before it loads anything (36 previews take a few seconds), and gives up after 40 s; the browser asks once more.
+ * Pictures pasted into notes wait in the same line (lib/hub-files/image-work.ts).
  */
-const inTurn = createTurns(1, 40_000);
+const inTurn = inImageTurn;
 
 export async function filePreview(fileId: string, size: PreviewSize): Promise<PreviewResult> {
   if (!uuid.test(fileId)) return { status: 404 };

@@ -26,6 +26,8 @@ export type NoteRefsUi = {
   /** Tasks and images newly put on the page (picked, created), so they show at once. */
   addTasks: (tasks: NoteTaskView[]) => void;
   addImage: (path: string, url: string) => void;
+  /** A new link for a picture whose link ran out (an open page may outlast its hour); false when there is none. */
+  refreshImage?: (path: string) => Promise<boolean>;
   openTask: (task: NoteTaskView) => void;
   boardHref: (projectId: string, number?: number) => string;
   searchTasks: (query: string) => Promise<NoteTaskView[]>;

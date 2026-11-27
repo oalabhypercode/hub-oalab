@@ -15,7 +15,7 @@ import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
 import { notePageHref } from "@/lib/hub-notify/rules";
 import { loadTeamNotesEntry } from "@/lib/hub-team/server";
 import { cleanCoverPosition, isGalleryCover } from "./covers";
-import { resolveRefs } from "./refs";
+import { ownImages, refsIn, resolveRefs } from "./refs";
 import { childrenOf, emptyNoteDoc, fitRights, isNoteAudience, isNoteWidth, isUuid } from "./rules";
 import { NO_REFS, type NoteCover, type NoteCustomer, type NoteDoc, type NotePage, type NotePageMeta, type NoteProject, type NoteReaders, type NotesArea, type NoteSettings, type NotesCustomerView, type NoteTemplateId, type NoteViewer } from "./types";
 
@@ -316,6 +316,21 @@ export async function signCover(ctx: NotesContext, cover: NoteCover | null): Pro
   if (!file.data || !file.data.mime_type.startsWith("image/")) return { ...cover, url: null };
   const signed = await ctx.session.storage.from(HUB_FILES_BUCKET).createSignedUrl(file.data.storage_path, 60 * 60);
   return { ...cover, url: signed.data?.signedUrl ?? null, name: file.data.title };
+}
+
+/**
+ * New links for pictures of a page whose links ran out (they hold an hour, a page may stay open longer; 27.11.2026):
+ * only pictures the page names as it is stored, of its own customer, for a viewer who may read the page.
+ */
+export async function noteImageUrlsAs(ctx: NotesContext, input: { pageId: string; paths: string[] }): Promise<{ ok: true; data: Record<string, string> } | { ok: false; error: string }> {
+  const asked = Array.isArray(input?.paths) ? input.paths.filter((path): path is string => typeof path === "string").slice(0, 100) : [];
+  const page = await readPage(ctx, input?.pageId, false);
+  if (!page) return { ok: false, error: "Diese Seite gibt es nicht mehr, oder sie ist nicht für dich freigegeben." };
+  const named = new Set(ownImages(refsIn(page.content).images, page.customerId));
+  const paths = asked.filter((path) => named.has(path));
+  if (!paths.length || !ctx.db || ctx.via) return { ok: true, data: {} };
+  const signed = await ctx.db.storage.from(HUB_FILES_BUCKET).createSignedUrls(paths, 60 * 60);
+  return { ok: true, data: Object.fromEntries((signed.data ?? []).flatMap((item) => item.path && item.signedUrl ? [[item.path, item.signedUrl]] : [])) };
 }
 
 /** List, projects and names for one customer the viewer may open; null when they may not. */
