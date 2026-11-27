@@ -13,10 +13,11 @@ import { telegramAppointmentRequest, telegramChatMessage, telegramServiceMessage
 import { postChatEvent, postChatEvents, type ChatPost } from "@/lib/hub-chat-events/server";
 import { contractItemLine, eventKey, type AppointmentFacts, type ChatEvent, type ContractItem } from "@/lib/hub-chat-events/rules";
 import { requestReference } from "@/lib/hub-conversations/rules";
+import { collectServiceApprovals } from "./service-approvals";
 import {
   CURSOR, INBOX_LATEST, INBOX_UNREAD, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, appointmentHref, appointmentRequestNotice, calendarRows, chatHref, chatNotice, contractNotice, detectStudioNotices, dueDigests,
   fileNotice, fileNoticeLine, fileNoticeName, formatMoment, hasTaskChange, mailsWanted, mergeContractNotice, mergeFileNotice,
-  mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice, teamNoteNotice,
+  mergeInboxRows, mergeShareNotice, mergeTaskNotice, nextCursor, noteEditNotice, SERVICE_CURSOR, SERVICE_KINDS, SERVICE_OVERLAP_MINUTES, serviceHref, serviceMark, serviceNotice, teamNoteNotice,
   noticeAppointment, projectHref, readFrom, shareNotice, skipsMail, taskAudience, taskBoardHref, taskChangeParts, taskNotice, taskNoticePrefix, taskState,
   type ActivityRow, type Notice, type NoticeDetails, type NoticeProject, type NoticeTask, type PendingRow, type StudioCard, type TaskChange, type TaskNoticeDraft, type TaskSight,
 } from "./rules";
@@ -530,12 +531,13 @@ export async function notifyTeamNote(input: { pageId: string; customerId: string
 
 /**
  * An admin opened a request in Nachrichten › Service: it counts as seen by the team, so every admin's line about it
- * leaves the bell (and the mail that would still come), as with the private chat. True when something was unread.
+ * (a customer's message or „Gefällt mir“) leaves the bell (and the mail that would still come), as with the private
+ * chat. True when something was unread.
  */
 export async function markServiceRead(requestId: string): Promise<boolean> {
   const db = createAdminClient();
   if (!db) return false;
-  const { data, error } = await db.from("hub_inbox").update({ read_at: new Date().toISOString() }).eq("kind", "service.message").eq("href", serviceHref(requestId)).is("read_at", null).select("id").returns<{ id: number }[]>();
+  const { data, error } = await db.from("hub_inbox").update({ read_at: new Date().toISOString() }).in("kind", [...SERVICE_KINDS]).eq("href", serviceHref(requestId)).is("read_at", null).select("id").returns<{ id: number }[]>();
   return !error && Boolean(data?.length);
 }
 
@@ -778,8 +780,12 @@ export async function runNotificationSweep(origin: string, now = new Date()) {
   const studio = await collectStudioNotices(db);
   // A failed read of the service platform never stops the rest of the run.
   const service = await collectServiceNotices(db, origin).catch(() => ({ error: "service" }));
+  const approvals = await collectServiceApprovals(db, origin, {
+    admins: () => activeAdminLogins(db),
+    insert: (userIds, notice) => insertNotices(db, userIds, notice),
+  }).catch(() => ({ error: "approvals" }));
   const mails = await sendDueMails(db, origin, now);
-  return { ok: true as const, studio, service, mails };
+  return { ok: true as const, studio, service, approvals, mails };
 }
 
 type InboxRow = { id: number; kind: string; title: string; body: string; href: string; created_at: string; read_at: string | null };
