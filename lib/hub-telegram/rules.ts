@@ -53,6 +53,15 @@ export function telegramServiceMessage(input: { company: string; author: string;
 }
 
 /**
+ * A customer's „Gefällt mir“ on a result for the group (27.11.2026): „Gefällt mir · OA-12 · Firma · Name“ in bold,
+ * then the request's title and what it means, and a button into Nachrichten › Service.
+ */
+export function telegramServiceApproval(input: { company: string; author: string; reference: string; title: string; url: string }) {
+  const head = ["Gefällt mir", oneLine(input.reference, 20), oneLine(input.company, 120) || "Kunde", oneLine(input.author, 120)].filter(Boolean).join(" · ");
+  return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.title, 200)}\nÄnderung auf der Testseite passt, bereit für live.`, url: input.url });
+}
+
+/**
  * A request for an appointment for the group (24.11.2026, decision 9 of the chat plan): „Neue Terminanfrage · Firma ·
  * Name“ in bold, then title and time, and a button into the calendar. Answered in the hub, in the calendar or the chat.
  */

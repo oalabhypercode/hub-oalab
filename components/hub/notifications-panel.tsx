@@ -27,7 +27,7 @@ function symbolOf(kind: string): { icon: LucideIcon; color: string } {
 
 /** What the empty bell promises, per role. */
 const EMPTY_TEXT = {
-  admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt, einen Termin anfragt oder auf der Serviceplattform eine Anfrage stellt, ein Kunde oder Freelancer in einer Notiz mitschreibt, ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert oder dich jemand aus dem Team auf eine interne Notiz hinweist.",
+  admin: "Hier erscheint, wenn dir ein Kunde im privaten Chat unter Nachrichten schreibt, einen Termin anfragt oder auf der Serviceplattform eine Anfrage stellt oder „Gefällt mir“ drückt, ein Kunde oder Freelancer in einer Notiz mitschreibt, ein Freelancer eine Aufgabe anlegt, ändert oder kommentiert oder dich jemand aus dem Team auf eine interne Notiz hinweist.",
   freelancer: "Hier erscheint, wenn jemand eine Aufgabe in deinen Projekten anlegt, ändert oder kommentiert, eine Datei für dich dazukommt oder oalab dir bei einem Kunden etwas freigibt.",
   customer: "Hier erscheint, wenn oalab dir im Chat antwortet, eine Aufgabe für dich dazukommt, sich ändert oder bei dir liegt, sich ein Projekt ändert, eine Datei oder ein Termin für dich dazukommt oder sich unter Vertrag & Domain etwas ändert.",
 };

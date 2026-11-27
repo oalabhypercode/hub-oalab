@@ -731,8 +731,8 @@ test("the schedule reads the customers' service messages from a cursor, skips th
   assert.match(server, /if \(!request \|\| \(message\.sender_user_id && team\.has\(message\.sender_user_id\)\) \|\| customer\?\.archived_at\) continue;/);
   assert.match(server, /await sendTelegram\(telegramServiceMessage\(/);
   assert.match(server, /const service = await collectServiceNotices\(db, origin\)\.catch\(\(\) => \(\{ error: "service" \}\)\);/);
-  // Opening a request in the hub counts for the whole team, like the private chat.
-  assert.match(server, /update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)\.eq\("kind", "service\.message"\)\.eq\("href", serviceHref\(requestId\)\)\.is\("read_at", null\)/);
+  // Opening a request in the hub counts for the whole team, like the private chat; its „Gefällt mir“ lines too.
+  assert.match(server, /update\(\{ read_at: new Date\(\)\.toISOString\(\) \}\)\.in\("kind", \[\.\.\.SERVICE_KINDS\]\)\.eq\("href", serviceHref\(requestId\)\)\.is\("read_at", null\)/);
   // Edits from outside reach the bell once per page and writer in two minutes, never every autosave.
   assert.match(server, /const EDIT_NOTICE_PAUSE_MS = 2 \* 60_000;/);
   const actions = await source("lib/hub-conversations/actions.ts");
