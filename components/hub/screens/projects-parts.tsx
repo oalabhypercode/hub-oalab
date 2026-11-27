@@ -76,13 +76,17 @@ export function DueCell({ project, asOf }: { project: Project; asOf: string }) {
   return <><span className="numeric">{formatDeadline(project.dueOn)}</span>{!done && <small className={hint.endsWith("überfällig") ? "is-overdue" : undefined}>{hint}</small>}</>;
 }
 
+/** What the progress counts, for its hint: „3 von 10 Aufgaben erledigt“. */
+export function progressBasis(project: Project) {
+  return project.progressBasis === "tasks"
+    ? `${(project.tasks ?? []).filter((task) => task.status === "done").length} von ${project.tasks?.length ?? 0} Aufgaben erledigt`
+    : `${project.requests?.done ?? 0} von ${(project.requests?.done ?? 0) + (project.requests?.open ?? 0)} Anfragen erledigt`;
+}
+
 /** Progress as Studio counts it; without tasks or requests there is nothing to count yet. */
 export function ProgressCell({ project }: { project: Project }) {
   if (project.progressBasis === "none") return <span className="pj-none" data-tip="Noch keine Aufgaben oder Anfragen">–</span>;
-  const basis = project.progressBasis === "tasks"
-    ? `${(project.tasks ?? []).filter((task) => task.status === "done").length} von ${project.tasks?.length ?? 0} Aufgaben erledigt`
-    : `${project.requests?.done ?? 0} von ${(project.requests?.done ?? 0) + (project.requests?.open ?? 0)} Anfragen erledigt`;
-  return <span className="progress-line" data-tip={basis}><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>;
+  return <span className="progress-line" data-tip={progressBasis(project)}><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>;
 }
 
 /** What the coloured rows mean and how many there are of each, like „ohne Zugang“ in the User Management. */

@@ -163,3 +163,71 @@ export function byUrgency<P extends Pick<Project, "studio" | "status" | "dueOn" 
   return [...projects].sort((a, b) => studioGroupOrder.indexOf(statusOf(a)) - studioGroupOrder.indexOf(statusOf(b))
     || (a.dueOn ?? "9999-12-31").localeCompare(b.dueOn ?? "9999-12-31") || a.name.localeCompare(b.name, "de"));
 }
+
+/** One entry of the page's customer list: a hub customer (or, for a project without one, its organization) with its projects. */
+export type DeskEntry = { key: string; company: string; customer: DeskCustomer | null; projects: Project[] };
+
+/**
+ * „Kacheln“ under Alle Projekte (user 27.11.2026): every customer a tile with its projects as cards, for a quick look
+ * over everything. „Gruppe: Status“ sorts the tiles into four sections by their most urgent project, at risk first.
+ */
+export type TileSection = "risk" | "running" | "hold" | "idle";
+export const tileSections: readonly { id: TileSection; label: string; glyph: StudioProjectStatus; hint: string }[] = [
+  { id: "risk", label: "Gefährdet", glyph: "risk", hint: "mindestens ein Projekt gefährdet" },
+  { id: "running", label: "Laufend", glyph: "active", hint: "alles im Plan" },
+  { id: "hold", label: "Pausiert", glyph: "hold", hint: "nur pausierte Projekte" },
+  { id: "idle", label: "Ohne laufendes Projekt", glyph: "complete", hint: "fertig oder noch keins" },
+];
+
+/** A customer's tile: its open projects (most urgent first) and the finished ones (latest first), as search and filter leave them. */
+export type ProjectTile = { entry: DeskEntry; open: Project[]; done: Project[]; section: TileSection; firstDue: string | null };
+
+/**
+ * The tiles of the board. `shown` is the search and the filter; a customer without a project that passes it stays out,
+ * except a customer without any project at all under `withEmpty` (Alle, no search), so its tile can start the first one.
+ * By target day the tile with the earliest open project leads, tiles without one come last; by customer oalab's own
+ * entry leads and the customers follow A–Z, like the list on the left.
+ */
+export function projectTiles(entries: readonly DeskEntry[], shown: (project: Project) => boolean, options: { withEmpty: boolean; sort: "due" | "customer"; dir: "asc" | "desc" }): ProjectTile[] {
+  const tiles: ProjectTile[] = [];
+  for (const entry of entries) {
+    const projects = entry.projects.filter(shown);
+    if (!projects.length && !(options.withEmpty && !entry.projects.length)) continue;
+    const statuses = projects.map(statusOf);
+    const open = byUrgency(projects.filter((project) => statusOf(project) !== "complete"));
+    const done = projects.filter((project) => statusOf(project) === "complete").sort((a, b) => (b.dueOn ?? "").localeCompare(a.dueOn ?? ""));
+    const section: TileSection = statuses.includes("risk") ? "risk" : statuses.some(isRunning) ? "running" : statuses.includes("hold") ? "hold" : "idle";
+    const firstDue = open.flatMap((project) => project.dueOn ? [project.dueOn] : []).sort()[0] ?? null;
+    tiles.push({ entry, open, done, section, firstDue });
+  }
+  const flip = options.dir === "asc" ? 1 : -1;
+  return tiles.sort((a, b) => {
+    if (options.sort === "customer") return Number(Boolean(b.entry.customer?.team)) - Number(Boolean(a.entry.customer?.team)) || flip * a.entry.company.localeCompare(b.entry.company, "de");
+    if (Boolean(a.firstDue) !== Boolean(b.firstDue)) return a.firstDue ? -1 : 1;
+    return flip * (a.firstDue ?? "").localeCompare(b.firstDue ?? "") || a.entry.company.localeCompare(b.entry.company, "de");
+  });
+}
+
+export type TimeMark = { title: string; day: string; /** Place on the line, 0–100. */ at: number; past: boolean; next: boolean; feedback: boolean };
+export type ProjectTimeline = { start: string; due: string; /** Share of the time that has passed, 0–100; 100 once finished. */ share: number; /** Days past the target day. */ over: number; marks: TimeMark[] };
+
+/**
+ * The time line of a large card (user 27.11.2026): from the start (or, without one, the first milestone) to the target
+ * day, how much of that time has passed on `asOf`, the days past the target day and the milestones on the way. Null
+ * without a start or a target day after it.
+ */
+export function projectTimeline(project: Pick<Project, "startedOn" | "dueOn" | "milestones" | "studio" | "status">, asOf: string): ProjectTimeline | null {
+  const start = project.startedOn ?? project.milestones[0]?.at.slice(0, 10) ?? null;
+  const due = project.dueOn;
+  if (!start || !due || start >= due) return null;
+  const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000;
+  const total = day(due) - day(start);
+  const share = (iso: string) => Math.round(Math.min(100, Math.max(0, ((day(iso) - day(start)) / total) * 100)) * 10) / 10;
+  const done = statusOf(project) === "complete";
+  const next = nextMilestone(project, asOf);
+  const marks = project.milestones.flatMap((milestone) => {
+    const at = milestone.at.slice(0, 10);
+    return at < start || at > due ? [] : [{ title: milestone.title, day: at, at: share(at), past: at < asOf, next: milestone === next, feedback: milestone.kind === "feedback" }];
+  });
+  return { start, due, share: done ? 100 : share(asOf), over: done ? 0 : Math.max(0, Math.round(day(asOf) - day(due))), marks };
+}

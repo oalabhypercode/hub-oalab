@@ -4,7 +4,7 @@ import test from "node:test";
 import { countRequests, customerSteps, projectSites, restatesSite, shortUrl, toHubProject, toProjectTask } from "../lib/hub-projects/map.ts";
 import { blankDraft, changedWords, changesOf, draftOf, isDay, mergeDraft, projectKeyFrom, readProjectDraft, readProjectPatch, readProjectUrl, sameDraft } from "../lib/hub-projects/edit.ts";
 import { deadlineHint, formatDeadline } from "../lib/hub-data.ts";
-import { byUrgency, customerSees, customerState, isStudioStatus, mainLinks, nextMilestone, statusOf, studioStatusOrder, studioStatuses, veilCounts, veilOf, withStudio } from "../lib/hub-projects/desk.ts";
+import { byUrgency, customerSees, customerState, isStudioStatus, mainLinks, nextMilestone, projectTiles, projectTimeline, statusOf, studioStatusOrder, studioStatuses, tileSections, veilCounts, veilOf, withStudio } from "../lib/hub-projects/desk.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const row = { id: "p1", organization_id: "o1", display_name: "Website-Relaunch", status: "active" };
@@ -360,3 +360,48 @@ test("Projekte V2: every customer on the left, loaded only on the page and only 
   assert.match(parts, /<Select\s+variant="bare"/);
 });
 
+
+// „Kacheln“ under Alle Projekte (user 27.11.2026): a tile per customer, the projects inside as cards.
+const card = (id, status, dueOn, extra = {}) => ({ id, name: `Projekt ${id}`, status: status === "complete" ? "Abgeschlossen" : "In Umsetzung", studio: { status, version: 1 }, dueOn, startedOn: null, milestones: [], ...extra });
+const entry = (key, company, projects, customer = {}) => ({ key, company, customer: { id: key, company, ...customer }, projects });
+
+test("Kacheln: the tiles fall into sections by their most urgent project and keep finished ones apart", () => {
+  const entries = [
+    entry("t", "oalab", [card("t1", "active", "2026-12-11")], { team: true }),
+    entry("a", "Alpha", [card("a1", "active", "2026-12-20"), card("a2", "risk", "2026-11-30"), card("a3", "complete", "2026-10-01"), card("a4", "complete", "2026-11-01")]),
+    entry("b", "Beta", [card("b1", "hold", "2027-01-10")]),
+    entry("c", "Gamma", [card("c1", "complete", "2026-09-30")]),
+    entry("d", "Delta", []),
+  ];
+  const tiles = projectTiles(entries, () => true, { withEmpty: true, sort: "due", dir: "asc" });
+  assert.deepEqual(tiles.map((tile) => [tile.entry.key, tile.section]), [["a", "risk"], ["t", "running"], ["b", "hold"], ["d", "idle"], ["c", "idle"]]);
+  const alpha = tiles[0];
+  assert.deepEqual(alpha.open.map((project) => project.id), ["a2", "a1"], "at risk first");
+  assert.deepEqual(alpha.done.map((project) => project.id), ["a4", "a3"], "the latest finished first");
+  assert.equal(alpha.firstDue, "2026-11-30");
+  // Without „Alle“ (or with a search) a customer without projects stays out, and so does one whose projects are filtered away.
+  const running = projectTiles(entries, (project) => isRunningStatus(project), { withEmpty: false, sort: "due", dir: "asc" });
+  assert.deepEqual(running.map((tile) => tile.entry.key), ["a", "t"]);
+  assert.deepEqual(running[0].done, []);
+  // By customer: oalab's own entry first, then A–Z, also backwards.
+  assert.deepEqual(projectTiles(entries, () => true, { withEmpty: true, sort: "customer", dir: "asc" }).map((tile) => tile.entry.key), ["t", "a", "b", "d", "c"]);
+  assert.deepEqual(projectTiles(entries, () => true, { withEmpty: true, sort: "customer", dir: "desc" }).map((tile) => tile.entry.key), ["t", "c", "d", "b", "a"]);
+  assert.deepEqual(tileSections.map((section) => section.id), ["risk", "running", "hold", "idle"]);
+});
+const isRunningStatus = (project) => ["planning", "active", "risk"].includes(project.studio.status);
+
+test("Kacheln: the time line of a large card from the start to the target day", () => {
+  const milestones = [{ title: "Design", description: "", at: "2026-10-01T10:00", kind: "milestone" }, { title: "Inhalte", description: "", at: "2026-11-20T10:00", kind: "feedback" }, { title: "Livegang", description: "", at: "2026-11-30T10:00", kind: "milestone" }];
+  const line = projectTimeline(card("p", "risk", "2026-11-30", { startedOn: "2026-09-01", milestones }), "2026-11-27");
+  assert.equal(line.start, "2026-09-01");
+  assert.equal(line.share, 96.7, "87 of 90 days have passed");
+  assert.equal(line.over, 0);
+  assert.deepEqual(line.marks.map((mark) => [mark.title, mark.at, mark.past, mark.next, mark.feedback]), [["Design", 33.3, true, false, false], ["Inhalte", 88.9, true, false, true], ["Livegang", 100, false, true, false]]);
+  // Past the target day the line is full and counts the days over; a finished project is simply full.
+  assert.deepEqual([projectTimeline(card("p", "risk", "2026-11-20", { startedOn: "2026-09-15" }), "2026-11-27").share, projectTimeline(card("p", "risk", "2026-11-20", { startedOn: "2026-09-15" }), "2026-11-27").over], [100, 7]);
+  assert.deepEqual([projectTimeline(card("p", "complete", "2026-11-20", { startedOn: "2026-09-15" }), "2026-11-27").share, projectTimeline(card("p", "complete", "2026-11-20", { startedOn: "2026-09-15" }), "2026-11-27").over], [100, 0]);
+  // Without a start the first milestone starts the line; without a target day there is none.
+  assert.equal(projectTimeline(card("p", "planning", "2027-02-15", { milestones: [{ title: "Konzept", description: "", at: "2026-12-12T10:00", kind: "milestone" }] }), "2026-11-27").share, 0);
+  assert.equal(projectTimeline(card("p", "planning", null, { startedOn: "2026-11-01" }), "2026-11-27"), null);
+  assert.equal(projectTimeline(card("p", "planning", "2026-11-01", { startedOn: "2026-11-01" }), "2026-11-27"), null);
+});
