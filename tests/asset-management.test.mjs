@@ -80,10 +80,12 @@ test("„Liste“ is the third view: a Finder-like tree of folders and files tha
   assert.match(await source("components/hub/screens/keychain.tsx"), /const listView: ListView = appearance\.listView === "detail" \? "detail" : "minimal";/);
 });
 
-test("admins get the Asset Management with customers first; customers keep their files table", async () => {
+test("everyone gets the Asset Management: admins with the customers first, customers with their own files", async () => {
   const files = await source("components/hub/screens/files.tsx");
-  // Freelancers work in the same Asset Management, read only (4.11.2026).
-  assert.match(files, /return props\.admin \|\| props\.freelancer \? <AssetManagement \{\.\.\.props\} \/> : <CustomerFiles \{\.\.\.props\} \/>;/);
+  // Freelancers work in the same Asset Management, read only (4.11.2026); customers too since 27.11.2026, so their
+  // „Dateien“ have the same four views instead of a table of their own.
+  assert.match(files, /export function FilesScreen\(props: ScreenProps\) \{\n {2}return <AssetManagement \{\.\.\.props\} \/>;\n\}/);
+  assert.doesNotMatch(files, /CustomerFiles/);
   const screen = await source("components/hub/screens/asset-management.tsx");
   // The switch and the setting under Darstellung are one value.
   assert.match(screen, /<DensitySwitch view=\{listView\} onChange=\{\(next\) => update\(\{ listView: next \}\)\} \/><\/>\}>/);
@@ -95,14 +97,43 @@ test("admins get the Asset Management with customers first; customers keep their
   assert.match(screen, /const params = useSearchParams\(\);\n  const linkedFile = params\.get\("file"\);/);
   // The project dialog links a customer (?customer=<id>): the page opens on that customer's files.
   assert.match(screen, /if \(linkedCustomer\) return \{ kind: "customer", id: linkedCustomer \};/);
-  // Admins no longer see the two metric cards above the list.
+  // Admins no longer see the two metric cards above the list, and customers neither since 27.11.2026.
   assert.doesNotMatch(screen, /CategoryMetrics/);
+  // Every role has these lists now, so every role gets the card under Darstellung.
   const appearance = await source("components/hub/screens/appearance.tsx");
-  assert.match(appearance, /\{admin && \(\s*<GlassCard aria-labelledby="appearance-lists">/);
+  assert.match(appearance, /\n {8}<GlassCard aria-labelledby="appearance-lists">/);
+  assert.doesNotMatch(appearance, /\{admin && \(\s*<GlassCard aria-labelledby="appearance-lists">/);
+  assert.match(appearance, /Die Wahl gilt heute für \{admin \|\| freelancer \? "das Asset Management" : "die Dateien"\}/);
   const css = await source("app/glass.css");
   assert.match(css, /\.am-min-lead \{ position: relative; width: 34px; height: 34px;[^}]*color: var\(--cat\);/);
   assert.match(css, /@container sheet \(max-width: 820px\) \{\s*\.am-grid \{ grid-template-columns: minmax\(0, 1fr\); \}/);
   assert.match(css, /@media \(hover: none\) \{\s*\.am-min-section-acts \{ opacity: 1; \}/);
+});
+
+test("customers see their own files in the same four views, without the list of customers (27.11.2026)", async () => {
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  // A customer's login (and the preview) neither uploads nor assigns; one company fills the page on its own.
+  assert.match(screen, /const customerView = !admin && !canManage && !freelancer && !freelancerView;\n {2}const single = customerView && customers\.length <= 1;/);
+  assert.match(screen, /if \(single && customers\[0\]\) return \{ kind: "customer", id: customers\[0\]\.id \};/);
+  assert.match(screen, /\{!single && customerList\}/);
+  assert.match(screen, /\$\{single \? " is-single" : ""\}/);
+  assert.match(screen, /data-open=\{paneOpen \|\| single \? "" : undefined\}/);
+  assert.match(screen, /const back = single \? null : <button type="button" className="chat-back"/);
+  // Their page keeps its name „Dateien“; the Ablage stays with the admins; a login with several companies lists them.
+  assert.match(screen, /title=\{customerView \? categoryLabel\("files", false\) : "Asset Management"\}/);
+  assert.match(screen, /\{!term && !freelancerView && !customerView && pinned\(\{ kind: "inbox" \}/);
+  assert.match(screen, /const word = customerView \? \{ one: "Firma", many: "Firmen" \} : \{ one: "Kunde", many: "Kunden" \};/);
+  // The details speak to the customer: the file lies at their company, the link is their own.
+  assert.match(screen, /freelancerView=\{freelancerView\} customerView=\{customerView\}/);
+  const details = await source("components/hub/screens/asset-details.tsx");
+  assert.match(details, /\{freelancerView \|\| customerView \? "Liegt bei" : "Freigegeben für"\}/);
+  assert.match(details, /freelancerView \|\| customerView \? "Link kopieren" : "Link für den Kunden kopieren"/);
+  // The table, its dialog and the metric cards of the customers' old page are gone.
+  const dialogs = await source("components/hub/screens/files-dialogs.tsx");
+  assert.doesNotMatch(dialogs, /FileDetailDialog/);
+  assert.doesNotMatch(await source("components/hub/screens/workspace.tsx"), /CategoryMetrics/);
+  const css = await source("app/glass.css");
+  assert.match(css, /\.am\.is-single \.am-grid \{ grid-template-columns: minmax\(0, 1fr\); \}/);
 });
 
 test("a picked file gets a first category from its name and type; every one can be changed before uploading", () => {

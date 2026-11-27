@@ -10,7 +10,6 @@ import { LegalLinks } from "@/components/legal-links";
 import { LEGAL_PATHS } from "@/lib/legal-links";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
 import { HeaderActions } from "../app-shell";
-import { MetricCard } from "../cards";
 import { SearchField } from "../controls";
 import { CategoryIcon, GlassCard, SectionHeader, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
@@ -27,11 +26,6 @@ import type { ScreenProps } from "./types";
 
 export function CategoryTitle({ category }: { category: CategoryId }) {
   return <span className="title-icon"><CategoryIcon category={category} size={24} /></span>;
-}
-
-export function CategoryMetrics({ model, category }: Pick<ScreenProps, "model"> & { category: CategoryId }) {
-  const metrics = metricOrder.filter((id) => metricMeta[id].category === category);
-  return <div className="metric-grid section-first">{metrics.map((id) => <MetricCard key={id} metric={model.metrics[id]} />)}</div>;
 }
 
 export function DiscoverScreen({ model, preview, populated, admin, freelancer }: ScreenProps) {

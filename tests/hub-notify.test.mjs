@@ -332,8 +332,10 @@ test("a file notice opens its file: the link names it and the files page opens w
   const actions = await source("lib/hub-files/actions.ts");
   assert.match(actions, /notifyFileShared\(data\.id, customerIds, fileNotice\(title, data\.id\)\)/);
   assert.match(actions, /notifyFileShared\(fileId, added, fileNotice\(file\.data\.title, fileId\)\)/);
-  const files = await source("components/hub/screens/files.tsx");
-  assert.match(files, /const linkedFile = useSearchParams\(\)\.get\("file"\);\s+const \[openId, setOpenId\] = useState<string \| null>\(\(\) => files\.some\(\(file\) => file\.id === linkedFile\) \? linkedFile : null\);/);
+  // Every role's files page is the Asset Management since 27.11.2026: a link opens the file's details there.
+  const screen = await source("components/hub/screens/asset-management.tsx");
+  assert.match(screen, /const linkedFile = params\.get\("file"\);/);
+  assert.match(screen, /useState<Panel \| null>\(\(\) => linkedFile && files\.some\(\(file\) => file\.id === linkedFile\) \? \{ kind: "file", id: linkedFile, assign: false \} : null\);/);
 });
 
 test("chat notices: one line per chat and recipient, admins' mails after a few minutes, chats read in time stay out", () => {

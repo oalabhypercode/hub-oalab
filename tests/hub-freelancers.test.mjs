@@ -81,7 +81,7 @@ test("the asset management: freelancers read, admins set who looks after a custo
   const am = await source("components/hub/screens/asset-management.tsx");
   // A freelancer organises folders only in their own files; the "Ablage" stays with the admins.
   assert.match(am, /const canOrganize = !freelancerView \|\| \(current !== null && current\.id === ownId\);/);
-  assert.match(am, /\{!term && !freelancerView && pinned\(\{ kind: "inbox" \}/);
+  assert.match(am, /\{!term && !freelancerView && !customerView && pinned\(\{ kind: "inbox" \}/);
   assert.match(am, /canFile=\{\(customerId\) => !freelancerView \|\| customerId === ownId\}/);
   // Upload, logo and "Betreut von" need the admin's upload right; the audience only goes through the server.
   // „Betreut von“ for customers; oalab gets freelancers only in stage 3 of „oalab als Unternehmen“.

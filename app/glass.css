@@ -2300,6 +2300,8 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am { height: calc(100dvh - 148px); min-height: 560px; overflow: hidden; }
 .hub-app:has(.hub-notice) .am { height: calc(100dvh - 200px); }
 .am-grid { height: 100%; display: grid; grid-template-columns: minmax(264px, 316px) minmax(0, 1fr); }
+/* A customer with one company (Dateien, 27.11.2026): their files fill the sheet, without the list on the left. */
+.am.is-single .am-grid { grid-template-columns: minmax(0, 1fr); }
 .am .chat-list { background: var(--sheet); }
 .am .chat-list-head h2 span { margin-left: 6px; font-size: 14px; font-weight: 500; color: var(--sheet-muted); }
 .am .chat-convs { padding-bottom: 8px; }
