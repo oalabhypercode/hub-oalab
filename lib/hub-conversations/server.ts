@@ -7,7 +7,7 @@ import { verifyHubAdmin } from "@/lib/hub-users/server";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { readArchive } from "@/lib/hub-archive/server";
-import { conversationState, isSender, requestReference, type ConversationSender } from "./rules";
+import { conversationState, isSender, requestReference, TEAM_COMPANY, teamIssueState, type ConversationSender } from "./rules";
 import { noticeRequest } from "@/lib/hub-notify/rules";
 import { previewMails, testSitesFor } from "./test-site";
 import type { ConversationMessage, ConversationsState, ConversationSummary, ConversationThread, ServiceControls } from "./types";
@@ -39,8 +39,11 @@ async function readMessages<T>(query: (columns: string) => Read<T>) {
   const first = await query(MESSAGES_TEAM);
   return first.error && missingColumn(first.error) ? query(MESSAGES) : first;
 }
-/** The hub customer behind an organization of the service platform, with its logo from the Asset Management. */
-interface CompanyOf { readonly name: string | null; readonly customerId: string | null; readonly logo: CustomerLogo | null }
+/**
+ * The hub customer behind an organization of the service platform, with its logo from the Asset Management. The OALab
+ * company (`team`) holds the team's own reports: no customer.
+ */
+interface CompanyOf { readonly name: string | null; readonly customerId: string | null; readonly logo: CustomerLogo | null; readonly team: boolean }
 
 /** An active admin, once per request; nobody else reads service conversations in the hub. */
 export const conversationReader = cache(async (): Promise<{ readonly userId: string } | null> => verifyHubAdmin());
@@ -64,15 +67,17 @@ async function companies(db: SupabaseClient, organizationIds: readonly string[])
   const ids = [...new Set(organizationIds)];
   if (!ids.length) return new Map();
   const [organizations, customers] = await Promise.all([
-    db.from("organizations").select("id, name").in("id", ids).returns<{ id: string; name: string }[]>(),
+    db.from("organizations").select("id, name, kind").in("id", ids).returns<{ id: string; name: string; kind: string | null }[]>(),
     db.from("hub_customers").select("id, organization_id").in("organization_id", ids).returns<{ id: string; organization_id: string }[]>(),
   ]);
   if (organizations.error) return null;
   const customerOf = new Map((customers.data ?? []).map((row) => [row.organization_id, row.id]));
   const logos = await loadCustomerLogos(await createClient(), [...customerOf.values()]);
-  return new Map(ids.map((id) => {
+  return new Map(ids.map((id): [string, CompanyOf] => {
+    const organization = organizations.data?.find((row) => row.id === id);
+    if (organization?.kind === "oalab") return [id, { name: TEAM_COMPANY, customerId: null, logo: null, team: true }];
     const customerId = customerOf.get(id) ?? null;
-    return [id, { name: organizations.data?.find((row) => row.id === id)?.name ?? null, customerId, logo: customerId ? logos.get(customerId) ?? null : null }];
+    return [id, { name: organization?.name ?? null, customerId, logo: customerId ? logos.get(customerId) ?? null : null, team: false }];
   }));
 }
 
@@ -93,7 +98,8 @@ function toMessage(row: MessageRow, people: Map<string, string>): ConversationMe
 }
 
 function summarize(request: RequestRow, newest: MessageRow[], people: Map<string, string>, company: CompanyOf | undefined, aiPaused: boolean): ConversationSummary {
-  const state = conversationState(request.state);
+  const team = company?.team === true;
+  const state = team ? teamIssueState(request.state) : conversationState(request.state);
   const last = newest.map((row) => toMessage(row, people)).find((message) => message !== null) ?? null;
   return {
     // Newest first: who wrote last on each side, for „Rückmeldung fehlt“ (26.11.2026).
@@ -109,6 +115,7 @@ function summarize(request: RequestRow, newest: MessageRow[], people: Map<string
     company: company?.name ?? null,
     customerId: company?.customerId ?? null,
     logo: company?.logo ?? null,
+    team,
     lastAt: last?.at ?? request.updated_at,
     lastMessage: last && { body: last.body, sender: last.sender, name: last.name, onBehalf: last.onBehalf },
     aiPaused,
@@ -233,6 +240,12 @@ export async function withUnread(state: ConversationsState): Promise<Conversatio
 export async function readRequest(db: SupabaseClient, requestId: string): Promise<RequestRow | null> {
   const request = await db.from("service_requests").select(REQUESTS).eq("id", requestId).is("trashed_at", null).maybeSingle<RequestRow>();
   return request.error ? null : request.data;
+}
+
+/** Whether a request is a report of the team: it sits in the OALab company, where nobody writes for a customer. */
+export async function isTeamRequest(db: SupabaseClient, request: RequestRow): Promise<boolean> {
+  const { data } = await db.from("organizations").select("kind").eq("id", request.organization_id).maybeSingle<{ kind: string }>();
+  return data?.kind === "oalab";
 }
 
 /**

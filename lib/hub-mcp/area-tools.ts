@@ -48,7 +48,7 @@ const tools: (ToolDefinition & { scope: HubScope })[] = [
   {
     name: "list_conversations",
     title: "Gespräche auflisten",
-    description: "Gespräche wie unter Nachrichten: service = Anfragen der Kunden auf der Serviceplattform mit Stand und letzter Nachricht, private = der private Chat je Kunde mit letzter Nachricht und ob etwas Neues für dich da ist. Neueste zuerst, nach Wunsch nur für einen Kunden.",
+    description: "Gespräche wie unter Nachrichten: service = Anfragen der Kunden auf der Serviceplattform und Meldungen aus dem Team mit Stand und letzter Nachricht, private = der private Chat je Kunde mit letzter Nachricht und ob etwas Neues für dich da ist. Neueste zuerst, nach Wunsch nur für einen Kunden.",
     inputSchema: {
       type: "object",
       properties: {

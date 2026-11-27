@@ -3,8 +3,15 @@
 > Zentrale Projektübersicht, Entscheidungsgrundlage und Sammlung offener Fragen.
 > Dieses Dokument soll bei jeder fachlichen oder technischen Entscheidung aktualisiert werden.
 
-**Stand:** 25. November 2026
+**Stand:** 27. November 2026
 **Projektphase:** Livebetrieb mit echten Kunden auf der eigenen Plattform; Demo-Zugänge entfernt
+
+### Vorgabe vom 27. November 2026: NoteTree-Probleme aus dem Team melden
+
+- Aufgabe `service-oalab/docs/tasks/business-anhalten-bearbeiter-tickets-2026-11-27-tasks.md`. Nachrichten › Service: „NoteTree-Problem melden“ legt eine Anfrage „NoteTree-Verbesserung“ der OALab-Firma an, die hier und in NoteTree Business in derselben Liste steht. Offen („Bei uns“) oder erledigt; im Gespräch „Antwort an das Team“, „Als erledigt markieren“, „Antworten & erledigen“, „Wieder öffnen“. Kein Kunde, keine KI, keine Abrechnung.
+- Braucht Migration `202611270002_business_team_issues.sql` (service-oalab); ohne sie meldet der Dialog „noch nicht eingerichtet“.
+- Technik: `lib/hub-conversations/` (`actions.ts` `reportTeamIssue`, `resolveTeamIssue`, `reopenTeamIssue` über `public.hub_team_issue`, Protokoll `service.team_issue*`; `on_behalf` bei Meldungen gesperrt), `components/hub/screens/team-issue.tsx` (Zeichen, Dialog, Feld), `conversation-compose.tsx` (gemeinsam mit dem Kundenfeld).
+- Fenster (`components/hub/modal.tsx`): Das erste Eingabefeld trägt `data-autofocus`; Reacts `autoFocus` wirkt dort nicht, der Cursor landete sonst auf „Schließen“. Felder, die erst im offenen Fenster erscheinen, behalten zusätzlich `autoFocus`.
 
 ### Vorgabe vom 25. November 2026: Service-Anfragen im Hub steuern
 
