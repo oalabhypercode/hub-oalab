@@ -767,7 +767,7 @@ export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenPr
               {/* The selection bar takes the place of the search line instead of pushing the files down, so nothing moves
                   under the mouse between two clicks (user 23.11.2026; on phones it stays below and sticks, glass.css). */}
               <div className="am-bars">
-                <SheetToolbar query={query} onQuery={setQuery} placeholder={single ? "Titel, Dateiname, Beschreibung …" : current ? `In ${current.company} suchen …` : `Titel, Dateiname oder ${word.one} …`} label="Dateien durchsuchen" compact={!compact}
+                <SheetToolbar query={query} onQuery={setQuery} placeholder={single ? "Titel, Dateiname …" : current ? `In ${current.company} suchen …` : `Titel, Dateiname oder ${word.one} …`} label="Dateien durchsuchen" compact={!compact}
                   trailing={<>{tiles && <TileSizeSwitch size={appearance.tileSize} onChange={(tileSize) => update({ tileSize })} place="top" />}<DensitySwitch view={listView} onChange={(next) => update({ listView: next })} /></>}>
                   {compact ? <ToolbarMenu icon={SlidersHorizontal} label="Filter" badge={filterCount}>{filters}</ToolbarMenu> : <>
                     <ToolbarMenu icon={ListFilter} label="Filter" badge={filterCount}>{filters}</ToolbarMenu>
