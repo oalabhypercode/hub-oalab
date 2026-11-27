@@ -1,10 +1,12 @@
 "use client";
 
-import { CalendarOff, ChevronDown, Flag, Hand, NotebookPen, Plus, TriangleAlert, Video } from "lucide-react";
+import { Fragment } from "react";
+import { CalendarOff, ChevronDown, Flag, Hand, NotebookPen, Plus, TriangleAlert } from "lucide-react";
 import {
-  availableSpans, clockOf, dayOf, dayOff, exceptionsOn, formatDayLong, formatDayShort, layoutLanes, mergeIntervals, minutesOn, monthOf, monthWeeks, subtractSpans,
-  timeOf, weekdayIndex, type Availability, type DaySpan, type Interval,
+  availableSpans, clockOf, dayOf, dayOff, exceptionsOn, formatDayLong, formatDayShort, layoutLanes, MEETING_PROVIDERS, meetingProvider, mergeIntervals, minutesOn,
+  monthOf, monthWeeks, subtractSpans, timeOf, weekdayIndex, type Availability, type DaySpan, type Interval,
 } from "@/lib/hub-calendar/rules";
+import { JoinButton, MeetingMark } from "../meeting";
 import type { HubAppointment } from "@/lib/hub-calendar/types";
 import { STATUS_NAMES } from "@/lib/hub-tasks/rules";
 import { CustomerSign } from "./customer-sign";
@@ -102,6 +104,7 @@ function ApptChip({ item, admin, showCompany, note = false, onOpen }: { item: Vi
       data-tip-sub={`${timeOf(item.start)}–${timeOf(item.end)} Uhr${admin ? ` · ${who}` : ""}${item.status === "requested" ? " · angefragt" : ""}${note ? " · mit Besprechungsnotiz" : ""}`} onClick={() => onOpen({ kind: "appointment", id: item.id })}>
       <span className="cal-chip-time numeric">{timeOf(item.start)}</span><span className="cal-chip-text">{admin && showCompany && item.customer ? item.customer.company : item.title}</span>
       {note && <span className="cal-chip-note"><NotebookPen size={11} aria-hidden="true" /></span>}
+      {item.status === "confirmed" && meetingProvider(item.teamsUrl) && <span className="cal-chip-meet"><MeetingMark provider={meetingProvider(item.teamsUrl)!} size={12} /></span>}
     </button>
   );
 }
@@ -255,17 +258,29 @@ export function WeekView(props: CalendarViewProps) {
                 const past = item.end <= now;
                 // While the availability is edited, appointments stay where they are.
                 const canDrag = admin && !editing && item.status === "confirmed" && !past;
+                // A confirmed, coming appointment with a meeting link gets the join button at its top right corner; a
+                // running one takes the accent. The button is a sibling of the event (no link inside a button).
+                const meeting = item.status === "confirmed" && !past && !item.faded && meetingProvider(item.teamsUrl) ? item.teamsUrl : null;
+                const live = Boolean(meeting) && item.start <= now;
+                const laneLeft = (item.lane / item.lanes) * 100;
+                const laneRight = ((item.lane + 1) / item.lanes) * 100;
                 return (
-                  <button key={item.id} type="button"
-                    className={`cal-ev is-${item.status}${item.faded ? " is-faded" : ""}${item.customer ? "" : " is-internal"}${past ? " is-past" : ""}${h < 36 ? " is-short" : h < 66 ? " is-compact" : ""}`}
-                    style={{ top: top + 1, height: h - 2, left: `calc(${(item.lane / item.lanes) * 100}% + 3px)`, width: `calc(${100 / item.lanes}% - 6px)` }}
-                    data-drag={canDrag ? `appt:${item.id}` : undefined} data-length={Math.round((item.end - item.start) / 60_000)} data-tip={item.title} data-tip-sub={`${meta}${item.status === "requested" ? " · angefragt" : ""}${hasNote?.(item.id) ? " · mit Besprechungsnotiz" : ""}`}
-                    onClick={() => onOpen({ kind: "appointment", id: item.id })}>
-                    {h < 36
-                      ? <span className="cal-ev-line"><span className="cal-ev-time numeric">{timeOf(item.start)}</span> {item.title}</span>
-                      : <><span className="cal-ev-title">{item.status === "requested" && <span className="cal-ev-tag">Anfrage</span>}{hasNote?.(item.id) && <NotebookPen className="cal-ev-note" size={12} aria-label="Mit Besprechungsnotiz" />}{item.title}</span><span className="cal-ev-meta numeric">{meta}</span></>}
-                    {item.teamsUrl && item.status === "confirmed" && h >= 52 && <span className="cal-ev-teams"><Video size={12} aria-hidden="true" />Teams</span>}
-                  </button>
+                  <Fragment key={item.id}>
+                    <button type="button"
+                      className={`cal-ev is-${item.status}${item.faded ? " is-faded" : ""}${item.customer ? "" : " is-internal"}${past ? " is-past" : ""}${h < 36 ? " is-short" : h < 66 ? " is-compact" : ""}${meeting ? " has-join" : ""}${live ? " is-live" : ""}`}
+                      style={{ top: top + 1, height: h - 2, left: `calc(${laneLeft}% + 3px)`, width: `calc(${100 / item.lanes}% - 6px)` }}
+                      data-drag={canDrag ? `appt:${item.id}` : undefined} data-length={Math.round((item.end - item.start) / 60_000)} data-tip={item.title} data-tip-sub={`${meta}${item.status === "requested" ? " · angefragt" : ""}${hasNote?.(item.id) ? " · mit Besprechungsnotiz" : ""}${meeting ? ` · ${MEETING_PROVIDERS[meetingProvider(meeting)!].short}` : ""}`}
+                      onClick={() => onOpen({ kind: "appointment", id: item.id })}>
+                      {h < 36
+                        ? <span className="cal-ev-line"><span className="cal-ev-time numeric">{timeOf(item.start)}</span> {item.title}</span>
+                        : <><span className="cal-ev-title">{item.status === "requested" && <span className="cal-ev-tag">Anfrage</span>}{hasNote?.(item.id) && <NotebookPen className="cal-ev-note" size={12} aria-label="Mit Besprechungsnotiz" />}{item.title}</span><span className="cal-ev-meta numeric">{live && <span className="cal-ev-live">● Läuft · </span>}{meta}</span></>}
+                    </button>
+                    {meeting && (
+                      <span className={`cal-ev-join${h < 36 ? " is-short" : ""}`} style={{ top: h < 36 ? top + 1 + (h - 2) / 2 - 11 : top + 5, left: `calc(${laneRight}% - ${h < 36 ? 29 : 33}px)` }}>
+                        <JoinButton url={meeting} variant="icon" live={live} sample={item.sample} />
+                      </span>
+                    )}
+                  </Fragment>
                 );
               })}
               {day === nowDay && nowMinutes >= from && nowMinutes <= to && <div className="cal-now" style={{ top: y(nowMinutes) }} aria-hidden="true" />}
@@ -321,7 +336,12 @@ const statusNames: Record<HubAppointment["status"], string> = { requested: "Anfr
 const statusTones: Record<HubAppointment["status"], string> = { requested: "todo", confirmed: "ok", declined: "bad", cancelled: "off" };
 const taskTones: Record<CalendarTask["status"], string> = { backlog: "off", todo: "info", progress: "ok", review: "todo", done: "off" };
 
-export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, notesOn, hasNote, overdue, onOpen, logoOf }: CalendarViewProps & { logoOf: (customerId: string) => Parameters<typeof CustomerSign>[0]["logo"] }) {
+/** A time in its own tinted field (27.11.2026): the list's times stand out, in the tone of the row. */
+const TimeChip = ({ children, tone = "" }: { children: React.ReactNode; tone?: "" | "live" | "req" | "allday" | "past" }) => (
+  <span className={`cal-time-chip numeric${tone ? ` is-${tone}` : ""}`}>{children}</span>
+);
+
+export function ListView({ days, today, now, admin, apptsOn, tasksOn, goalsOn, notesOn, hasNote, overdue, onOpen, logoOf }: CalendarViewProps & { logoOf: (customerId: string) => Parameters<typeof CustomerSign>[0]["logo"] }) {
   const columns = admin ? 5 : 4;
   const customerCell = (id: string | null, company: string) => !admin ? null : (
     <td className="cal-ag-cust">{id ? <><CustomerSign customer={{ id, company }} logo={logoOf(id)} size="xs" /><span>{company}</span></> : <span className="cell-none">Intern</span>}</td>
@@ -330,7 +350,7 @@ export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, notesO
     const late = Boolean(task.dueOn && task.dueOn < today && task.status !== "done");
     return (
       <tr key={`t-${task.id}`} className={`cal-ag-row${late ? " has-veil veil-none" : ""}${task.status === "done" ? " is-done" : ""}`} tabIndex={0} onClick={() => onOpen({ kind: "task", id: task.id })} onKeyDown={(event) => { if (event.key === "Enter") onOpen({ kind: "task", id: task.id }); }}>
-        <td className="cal-ag-time">{showDay && task.dueOn ? <><span className="numeric">{formatDayShort(task.dueOn)}</span><small className="is-overdue">überfällig</small></> : "ganztägig"}</td>
+        <td className="cal-ag-time">{showDay && task.dueOn ? <><span className="numeric">{formatDayShort(task.dueOn)}</span><small className="is-overdue">überfällig</small></> : <TimeChip tone="allday">ganztägig</TimeChip>}</td>
         <td className="cal-ag-title"><span className="cell-title"><TaskGlyph status={task.status} size={14} /><span>{admin && <span className="cal-chip-num numeric">#{task.number} </span>}{task.title}<small>{task.projectName}{task.customerTurn ? " · liegt beim Kunden" : ""}</small></span></span></td>
         {customerCell(task.customerId, task.company)}
         <td><span className={`chat-pill tone-${taskTones[task.status]}`}>{STATUS_NAMES[task.status]}</span></td>
@@ -349,7 +369,7 @@ export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, notesO
     const rows = [
       ...goalsOn(day).map((goal) => (
         <tr key={`g-${goal.id}`} className="cal-ag-row" tabIndex={0} onClick={() => onOpen({ kind: "goal", id: goal.id })} onKeyDown={(event) => { if (event.key === "Enter") onOpen({ kind: "goal", id: goal.id }); }}>
-          <td className="cal-ag-time">ganztägig</td>
+          <td className="cal-ag-time"><TimeChip tone="allday">ganztägig</TimeChip></td>
           <td className="cal-ag-title"><span className="cell-title"><Flag size={15} className="cal-ag-icon tone-bad" aria-hidden="true" /><span>Zieltermin: {goal.name}</span></span></td>
           {customerCell(goal.customerId, goal.company)}
           <td><span className="chat-pill tone-bad">Zieltermin</span></td>
@@ -358,7 +378,7 @@ export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, notesO
       )),
       ...(notesOn?.(day) ?? []).map((note) => (
         <tr key={`n-${note.id}`} className="cal-ag-row" tabIndex={0} onClick={() => onOpen({ kind: "note", id: note.id, customerId: note.customerId })} onKeyDown={(event) => { if (event.key === "Enter") onOpen({ kind: "note", id: note.id, customerId: note.customerId }); }}>
-          <td className="cal-ag-time">ganztägig</td>
+          <td className="cal-ag-time"><TimeChip tone="allday">ganztägig</TimeChip></td>
           <td className="cal-ag-title"><span className="cell-title"><NotebookPen size={15} className="cal-ag-icon" aria-hidden="true" /><span>Notiz: {note.title}</span></span></td>
           {customerCell(note.customerId, "")}
           <td><span className="chat-pill tone-info">Notiz</span></td>
@@ -366,15 +386,21 @@ export function ListView({ days, today, admin, apptsOn, tasksOn, goalsOn, notesO
         </tr>
       )),
       ...tasksOn(day).map((task) => taskRow(task, false)),
-      ...apptsOn(day).filter((item) => !item.faded).map((item) => (
-        <tr key={`a-${item.id}`} className={`cal-ag-row${item.status === "requested" ? " has-veil veil-open" : ""}${item.status === "cancelled" || item.status === "declined" ? " is-done" : ""}`} tabIndex={0} onClick={() => onOpen({ kind: "appointment", id: item.id })} onKeyDown={(event) => { if (event.key === "Enter") onOpen({ kind: "appointment", id: item.id }); }}>
-          <td className="cal-ag-time numeric">{timeOf(item.start)}–{timeOf(item.end)}</td>
-          <td className="cal-ag-title"><span className="cell-title"><span>{item.title}</span></span></td>
-          {customerCell(item.customer?.id ?? null, item.customer?.company ?? "")}
-          <td><span className={`chat-pill tone-${statusTones[item.status]}`}>{statusNames[item.status]}</span></td>
-          <td className="cal-ag-acts">{hasNote?.(item.id) ? <span className="row-action" data-tip="Mit Besprechungsnotiz"><NotebookPen size={15} aria-hidden="true" /></span> : null}{item.teamsUrl && item.status === "confirmed" ? <span className="row-action" data-tip="Teams-Meeting"><Video size={15} aria-hidden="true" /></span> : null}</td>
-        </tr>
-      )),
+      ...apptsOn(day).filter((item) => !item.faded).map((item) => {
+        const past = item.end <= now;
+        const meeting = item.status === "confirmed" && !past && meetingProvider(item.teamsUrl) ? item.teamsUrl : null;
+        const live = Boolean(meeting) && item.start <= now;
+        const tone = live ? "live" : item.status === "requested" ? "req" : past || item.status === "cancelled" || item.status === "declined" ? "past" : "";
+        return (
+          <tr key={`a-${item.id}`} className={`cal-ag-row${item.status === "requested" ? " has-veil veil-open" : ""}${item.status === "cancelled" || item.status === "declined" ? " is-done" : ""}${live ? " is-live" : ""}`} tabIndex={0} onClick={() => onOpen({ kind: "appointment", id: item.id })} onKeyDown={(event) => { if (event.key === "Enter") onOpen({ kind: "appointment", id: item.id }); }}>
+            <td className="cal-ag-time"><TimeChip tone={tone}>{timeOf(item.start)}–{timeOf(item.end)}</TimeChip></td>
+            <td className="cal-ag-title"><span className="cell-title"><span>{item.title}</span>{live && <span className="chat-pill tone-ok cal-ag-live">Läuft gerade</span>}</span></td>
+            {customerCell(item.customer?.id ?? null, item.customer?.company ?? "")}
+            <td><span className={`chat-pill tone-${statusTones[item.status]}`}>{statusNames[item.status]}</span></td>
+            <td className="cal-ag-acts">{hasNote?.(item.id) ? <span className="row-action" data-tip="Mit Besprechungsnotiz"><NotebookPen size={15} aria-hidden="true" /></span> : null}{meeting ? <JoinButton url={meeting} variant="list" live={live} sample={item.sample} /> : null}</td>
+          </tr>
+        );
+      }),
     ];
     if (!rows.length) continue;
     const label = `${formatDayLong(day)}${day === today ? " · heute" : ""}`;

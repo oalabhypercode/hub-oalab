@@ -68,7 +68,10 @@ export type AppointmentFacts = {
   title: string;
   startsAt: string;
   endsAt: string;
+  /** Whether the appointment has a meeting link (the name stays from the Teams-only days). */
   teams: boolean;
+  /** Which provider the link belongs to; cards written before 27.11.2026 have none and were Teams. */
+  meeting?: "teams" | "zoom" | "meet";
   /** The start before a move („Termin verschoben“). */
   before?: string | null;
   /** The reason for a cancellation or a declined request, as the customer reads it in the bell. */
@@ -136,6 +139,7 @@ export function readChatEvent(value: unknown): ChatEvent | null {
       v: 1, kind: kind as AppointmentEventKind,
       appointment: {
         id: a.id, title: oneLine(a.title, 200) || "Termin", startsAt: a.startsAt, endsAt: a.endsAt, teams: a.teams === true,
+        ...(a.meeting === "teams" || a.meeting === "zoom" || a.meeting === "meet" ? { meeting: a.meeting } : {}),
         ...(isTime(a.before) ? { before: a.before } : {}), ...(oneLine(a.note) ? { note: oneLine(a.note) } : {}),
       },
     };
@@ -189,9 +193,10 @@ const clock = new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, hour: "2-digit"
 
 /** „Di., 24. Nov., 10:00“: a start in one go, in German time. */
 export const shortWhen = (iso: string) => `${dayShort.format(new Date(iso))}, ${clock.format(new Date(iso))}`;
-/** „Di., 24. Nov. · 10:00–10:30“ (and „· Teams“ with a meeting link). */
-export const appointmentWhen = (facts: Pick<AppointmentFacts, "startsAt" | "endsAt" | "teams">) =>
-  `${dayShort.format(new Date(facts.startsAt))} · ${clock.format(new Date(facts.startsAt))}–${clock.format(new Date(facts.endsAt))}${facts.teams ? " · Teams" : ""}`;
+const MEETING_SHORT = { teams: "Teams", zoom: "Zoom", meet: "Google Meet" } as const;
+/** „Di., 24. Nov. · 10:00–10:30“ (and „· Teams“, „· Zoom“ or „· Google Meet“ with a meeting link). */
+export const appointmentWhen = (facts: Pick<AppointmentFacts, "startsAt" | "endsAt" | "teams" | "meeting">) =>
+  `${dayShort.format(new Date(facts.startsAt))} · ${clock.format(new Date(facts.startsAt))}–${clock.format(new Date(facts.endsAt))}${facts.teams ? ` · ${MEETING_SHORT[facts.meeting ?? "teams"]}` : ""}`;
 
 const CONTRACT_WORDS: Readonly<Record<ContractItem["what"], { new: string; changed: string }>> = {
   timeline: { new: "Neu im Verlauf", changed: "Verlauf geändert" },

@@ -5,8 +5,9 @@ import { Extension, Node, mergeAttributes, type Editor } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, ReactRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
-import { CalendarDays, CheckCircle2, Circle, ExternalLink, FolderOpen, Image as ImageIcon, Lock, SquareKanban, Video } from "lucide-react";
+import { CalendarDays, CheckCircle2, Circle, ExternalLink, FolderOpen, Image as ImageIcon, Lock, SquareKanban } from "lucide-react";
 import { filterTasks, isTaskFilter, TASK_FILTERS, type TaskFilter } from "@/lib/hub-notes/rules";
+import { JoinButton } from "../meeting";
 import type { NoteAppointmentView, NoteRefs, NoteTaskView, NoteViewer } from "@/lib/hub-notes/types";
 
 // Blocks that refer to the hub (plan 4, step 2): tasks of the board as rows in a box or as a mention in the text, a
@@ -183,7 +184,7 @@ const apptDay = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numer
 const apptTime = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const berlinDay = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Berlin" });
 
-/** „/Termin“ (step 3): day, time and status from the calendar, the Teams link while it is confirmed and ahead. */
+/** „/Termin“ (step 3): day, time and status from the calendar, the meeting link while it is confirmed and ahead. */
 function AppointmentView({ node }: ReactNodeViewProps) {
   const ui = useContext(NoteRefsContext);
   const appointment = ui?.refs.appointments[String(node.attrs.refId ?? "")];
@@ -191,7 +192,7 @@ function AppointmentView({ node }: ReactNodeViewProps) {
   const start = new Date(appointment.start);
   const end = new Date(appointment.end);
   const status = APPOINTMENT_STATUS[appointment.status];
-  // The Teams link stays until the appointment's day is over (the page renders without a clock of its own).
+  // The meeting link stays until the appointment's day is over (the page renders without a clock of its own).
   const ahead = berlinDay.format(end) >= ui.today;
   return (
     <NodeViewWrapper className={`nz-appt is-${appointment.status}`} contentEditable={false}>
@@ -200,7 +201,7 @@ function AppointmentView({ node }: ReactNodeViewProps) {
         <span className="nz-appt-text"><strong>{appointment.title}</strong><span>{apptDay.format(start)} · {apptTime.format(start)}–{apptTime.format(end)} Uhr</span></span>
         <span className={`nz-appt-status tone-${status.tone}`}>{status.label}</span>
       </a>
-      {appointment.teamsUrl && ahead && <a className="nz-appt-teams" href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer"><Video size={15} aria-hidden="true" />Teams-Meeting beitreten</a>}
+      {appointment.teamsUrl && ahead && <JoinButton url={appointment.teamsUrl} variant="list" className="nz-appt-join" />}
     </NodeViewWrapper>
   );
 }

@@ -65,12 +65,28 @@ export const clip = (value: string, length: number) => value.length > length ? `
 /** Notes stay short enough for the address of the Google and Outlook links; the whole text is in the hub. */
 const NOTE_LENGTH = 1000;
 
-/** What lands in the private calendar: title with "oalab", the time, the Teams link and the way back into the hub. */
+/**
+ * The provider of a meeting link for the calendar entry, by its host (the hosts the calendar's rules allow; kept here
+ * so this file stays self-contained). Links of before 27.11.2026 were all Teams.
+ */
+export function meetingName(link: string): { name: string; meeting: string } {
+  let host = "";
+  try {
+    host = new URL(link).hostname;
+  } catch {
+    host = "";
+  }
+  if (host === "meet.google.com") return { name: "Google Meet", meeting: "Google Meet" };
+  if (/(^|\.)(zoom\.us|zoom\.com|zoomgov\.com)$/.test(host)) return { name: "Zoom", meeting: "Zoom-Meeting" };
+  return { name: "Microsoft Teams", meeting: "Teams-Besprechung" };
+}
+
+/** What lands in the private calendar: title with "oalab", the time, the meeting link and the way back into the hub. */
 export function calendarEvent(appointment: CalendarAppointment, origin: string, now: Date): CalendarEvent {
   // The calendar under Projekte (CALENDAR_PATH in paths.ts; kept here as text so this file stays self-contained).
   const url = `${origin}/dashboard/projects/calendar`;
   const notes = [
-    appointment.teams_url ? `Teams-Besprechung beitreten:\n${appointment.teams_url}` : "",
+    appointment.teams_url ? `${meetingName(appointment.teams_url).meeting} beitreten:\n${appointment.teams_url}` : "",
     clip(appointment.description.trim(), NOTE_LENGTH),
     `Termin im oalab Client Hub:\n${url}`,
   ];
@@ -80,7 +96,7 @@ export function calendarEvent(appointment: CalendarAppointment, origin: string, 
     uid: `${appointment.id}@hub.oalab.de`,
     summary: `${appointment.title} · oalab`,
     description: notes.filter(Boolean).join("\n\n"),
-    location: appointment.teams_url ? "Microsoft Teams" : "",
+    location: appointment.teams_url ? meetingName(appointment.teams_url).name : "",
     start: utc(appointment.starts_at),
     end: utc(appointment.ends_at),
     url,

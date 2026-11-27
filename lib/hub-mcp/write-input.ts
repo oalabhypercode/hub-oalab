@@ -23,7 +23,7 @@ export function readNewAppointment(args: Json): Read<AppointmentInput> {
   if (typeof args.title !== "string" || !args.title.trim()) return { ok: false, error: "Bitte einen Titel angeben." };
   if (!isDay(args.day)) return { ok: false, error: "Bitte den Tag als JJJJ-MM-TT angeben." };
   if (typeof args.start !== "string") return { ok: false, error: "Bitte den Beginn als HH:MM angeben." };
-  for (const key of ["customer_id", "description", "teams_link"]) if (given(args, key) && typeof args[key] !== "string") return notText(key);
+  for (const key of ["customer_id", "description", "meeting_link", "teams_link"]) if (given(args, key) && typeof args[key] !== "string") return notText(key);
   return {
     ok: true,
     value: {
@@ -33,14 +33,17 @@ export function readNewAppointment(args: Json): Read<AppointmentInput> {
       day: args.day,
       start: args.start,
       minutes: given(args, "minutes") ? Number(args.minutes) : 60,
-      teamsUrl: (args.teams_link as string | undefined) ?? "",
+      teamsUrl: meetingLinkOf(args) ?? "",
     },
   };
 }
 
+/** The meeting link of a call; `teams_link` is its name from before 27.11.2026 and still understood. */
+const meetingLinkOf = (args: Json) => (args.meeting_link as string | undefined) ?? (args.teams_link as string | undefined);
+
 /** An appointment as it is stored, for a change. */
 export type StoredAppointment = { title: string; description: string; start: number; end: number; status: string; teamsUrl: string | null; customerId: string | null };
-const CHANGEABLE = ["title", "day", "start", "minutes", "customer_id", "description", "teams_link"] as const;
+const CHANGEABLE = ["title", "day", "start", "minutes", "customer_id", "description", "meeting_link", "teams_link"] as const;
 
 /**
  * update_appointment: the stored appointment with the given fields over it, all fields at once, as the window saves.
@@ -49,7 +52,7 @@ const CHANGEABLE = ["title", "day", "start", "minutes", "customer_id", "descript
 export function mergeAppointment(stored: StoredAppointment, args: Json): Read<AppointmentInput> {
   if (stored.status === "declined" || stored.status === "cancelled") return { ok: false, error: "Dieser Termin ist abgesagt oder abgelehnt und lässt sich nicht mehr ändern." };
   if (!CHANGEABLE.some((key) => given(args, key))) return { ok: false, error: "Es gibt nichts zu ändern." };
-  for (const key of ["title", "day", "start", "description", "teams_link"]) if (given(args, key) && typeof args[key] !== "string") return notText(key);
+  for (const key of ["title", "day", "start", "description", "meeting_link", "teams_link"]) if (given(args, key) && typeof args[key] !== "string") return notText(key);
   if (given(args, "customer_id") && args.customer_id !== null && typeof args.customer_id !== "string") return { ok: false, error: "Unbekannter Kunde." };
   return {
     ok: true,
@@ -60,7 +63,7 @@ export function mergeAppointment(stored: StoredAppointment, args: Json): Read<Ap
       day: (args.day as string | undefined) ?? dayOf(stored.start),
       start: (args.start as string | undefined) ?? timeOf(stored.start),
       minutes: given(args, "minutes") ? Number(args.minutes) : Math.round((stored.end - stored.start) / 60_000),
-      teamsUrl: (args.teams_link as string | undefined) ?? stored.teamsUrl ?? "",
+      teamsUrl: meetingLinkOf(args) ?? stored.teamsUrl ?? "",
     },
   };
 }
@@ -91,7 +94,7 @@ export function appointmentSavedText(input: {
   const sameCustomer = input.before && input.before.customerId === input.customerId ? { status: input.before.status, startsAt: input.before.startsAt } : null;
   const notice = input.customerId ? appointmentNotice({ id: input.id, title, startsAt, before: sameCustomer, status: "confirmed" }) : null;
   const who = input.company ?? "Der Kunde";
-  if (notice?.kind === "appointment.confirmed") return `Bestätigt: „${title}“ am ${formatDayShort(input.day)}, ${input.start}. ${who} bekommt eine Meldung${input.teams ? " mit Teams-Link" : ""} und Kalenderknöpfen.`;
+  if (notice?.kind === "appointment.confirmed") return `Bestätigt: „${title}“ am ${formatDayShort(input.day)}, ${input.start}. ${who} bekommt eine Meldung${input.teams ? " mit Meeting-Link" : ""} und Kalenderknöpfen.`;
   const saved = input.before ? `„${title}“ gespeichert.` : `„${title}“ steht am ${formatDayShort(input.day)} um ${input.start} im Kalender.`;
   if (notice?.kind === "appointment.changed") return `${saved} ${who} bekommt eine Meldung zur neuen Zeit.`;
   if (notice) return `${saved} ${who} bekommt eine Meldung.`;

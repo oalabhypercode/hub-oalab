@@ -10,8 +10,8 @@
  * instructions of the server tell Claude so.
  */
 import {
-  appointmentStatuses, checkAvailabilityRequest, customerFree, dayOf, formatNotice, isDay, lastRequestDay, MAX_OPEN_REQUESTS, overlaps, startsIn, timeOf,
-  wallTimeToUtc, addDays, WEEKDAY_LONG, weekdayIndex, type AppointmentStatus, type Availability, type Interval,
+  appointmentStatuses, checkAvailabilityRequest, customerFree, dayOf, formatNotice, isDay, lastRequestDay, MAX_OPEN_REQUESTS, meetingLabel, overlaps,
+  startsIn, timeOf, wallTimeToUtc, addDays, WEEKDAY_LONG, weekdayIndex, type AppointmentStatus, type Availability, type Interval,
 } from "../hub-calendar/rules";
 import { isStudioStatus, studioStatuses } from "../hub-projects/desk";
 import { MAX_TITLE, PRIORITY_NAMES, STATUS_NAMES } from "../hub-tasks/rules";
@@ -132,7 +132,7 @@ const tools: FreelancerTool[] = [
   {
     name: "list_appointments",
     title: "Deine Termine und Anfragen",
-    description: "Deine Terminanfragen bei oalab und deine Termine mit dem oalab-Team für einen Zeitraum (höchstens 62 Tage; ohne Angabe heute und die nächsten 6 Tage), mit Uhrzeit, Status, Antwort von oalab, Teams-Link und Link in den Hub. Termine anderer siehst du nicht. Ohne Angabe bestätigte Termine und offene Anfragen.",
+    description: "Deine Terminanfragen bei oalab und deine Termine mit dem oalab-Team für einen Zeitraum (höchstens 62 Tage; ohne Angabe heute und die nächsten 6 Tage), mit Uhrzeit, Status, Antwort von oalab, Meeting-Link (Teams, Zoom oder Google Meet) und Link in den Hub. Termine anderer siehst du nicht. Ohne Angabe bestätigte Termine und offene Anfragen.",
     inputSchema: {
       type: "object",
       properties: {
@@ -525,7 +525,8 @@ function appointmentJson(item: FreelancerAppointment, origin: string) {
     minutes: Math.round((item.end - item.start) / 60_000),
     description: item.description || null,
     answer_from_oalab: item.responseNote || null,
-    teams_link: item.status === "confirmed" ? item.teamsUrl : null,
+    meeting_link: item.status === "confirmed" ? item.teamsUrl : null,
+    meeting: item.status === "confirmed" ? meetingLabel(item.teamsUrl) : null,
     link: freelancerLinks(origin).appointment(item.id),
   };
 }

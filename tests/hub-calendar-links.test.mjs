@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  ICS_FILE, calendarEvent, calendarLinks, calendarSignature, calendarTarget, googleCalendarUrl, icsCalendar, outlookCalendarUrl, validCalendarSignature,
+  ICS_FILE, calendarEvent, calendarLinks, calendarSignature, calendarTarget, googleCalendarUrl, icsCalendar, meetingName, outlookCalendarUrl, validCalendarSignature,
 } from "../lib/hub-calendar/links.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -98,4 +98,17 @@ test("the calendar route checks the signature, reads the appointment fresh and s
   assert.match(route, /"Content-Type": "text\/calendar; charset=utf-8"/);
   assert.match(route, /"Cache-Control": "no-store"/);
   assert.match(await source("lib/supabase/proxy.ts"), /\|\| pathname\.startsWith\("\/api\/calendar\/"\);/);
+});
+
+test("a Zoom or Google Meet link names its provider in the calendar entry (27.11.2026)", () => {
+  assert.deepEqual(meetingName("https://teams.microsoft.com/l/meetup-join/x"), { name: "Microsoft Teams", meeting: "Teams-Besprechung" });
+  assert.deepEqual(meetingName("https://us02web.zoom.us/j/1"), { name: "Zoom", meeting: "Zoom-Meeting" });
+  assert.deepEqual(meetingName("https://meet.google.com/abc-defg-hij"), { name: "Google Meet", meeting: "Google Meet" });
+  const now = new Date("2026-10-30T13:12:05Z");
+  const zoom = calendarEvent(appointment({ teams_url: "https://us02web.zoom.us/j/84122345567" }), "https://hub.oalab.de", now);
+  assert.equal(zoom.location, "Zoom");
+  assert.match(zoom.description, /^Zoom-Meeting beitreten:\nhttps:\/\/us02web\.zoom\.us\/j\/84122345567/);
+  const meet = calendarEvent(appointment({ teams_url: "https://meet.google.com/kpr-xnow-tzb" }), "https://hub.oalab.de", now);
+  assert.equal(meet.location, "Google Meet");
+  assert.match(meet.description, /^Google Meet beitreten:\nhttps:\/\/meet\.google\.com\/kpr-xnow-tzb/);
 });

@@ -6,7 +6,7 @@ import { siteOrigin } from "@/lib/site-origin";
 import { appointmentNotice } from "@/lib/hub-notify/rules";
 import { notifyAppointmentRequest, notifyCustomers, notifyRequestWithdrawn, settleAppointmentRequest } from "@/lib/hub-notify/server";
 import type { AppointmentEventKind, AppointmentFacts } from "@/lib/hub-chat-events/rules";
-import { cleanNote, dayOf, isDay, MAX_OPEN_REQUESTS, readAppointmentInput, readAvailabilityRequest, readException, wallMinuteToUtc, type ExceptionInput } from "./rules";
+import { cleanNote, dayOf, isDay, MAX_OPEN_REQUESTS, meetingProvider, readAppointmentInput, readAvailabilityRequest, readException, wallMinuteToUtc, type ExceptionInput } from "./rules";
 import { loadAvailability } from "./server";
 import type { AppointmentInput, CalendarActionResult, RequestInput } from "./types";
 
@@ -22,7 +22,11 @@ export const unknownAppointment = { ok: false as const, error: "Unbekannter Term
 
 /** What a chat card keeps of an appointment row (lib/hub-chat-events). */
 const factsOf = (row: { id: string; title: string; starts_at: string; ends_at: string; teams_url: string | null }, extra: Partial<AppointmentFacts> = {}): AppointmentFacts =>
-  ({ id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at, teams: Boolean(row.teams_url), ...extra });
+  ({ id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at, teams: Boolean(row.teams_url), ...meetingOf(row.teams_url), ...extra });
+const meetingOf = (url: string | null) => {
+  const meeting = meetingProvider(url);
+  return meeting ? { meeting } : {};
+};
 
 /** The hub's own address for links in Telegram; read while the request is still there. */
 async function originNow() {

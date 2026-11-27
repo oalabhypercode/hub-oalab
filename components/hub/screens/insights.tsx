@@ -23,6 +23,7 @@ import { LargeTitleHeader } from "../large-title-header";
 import { sectionIcons } from "../navigation";
 import { noticeSymbol, noticeWhen } from "../notice-symbols";
 import { StatusGlyph, type GlyphKind } from "../sheet";
+import { JoinButton } from "../meeting";
 import { useHubShell } from "../shell-context";
 import { CustomerSign } from "./customer-sign";
 import { FileIcon } from "./files-parts";
@@ -155,7 +156,7 @@ function CustomerInsights({ preview, projects, data, notices }: { preview: boole
     })}</ul>
     : <Empty glyph="active" title="Gerade nichts zu tun" text="Sobald du etwas freigeben oder liefern kannst, steht es hier, und du bekommst eine Nachricht." />;
 
-  const appointmentBody = <NextAppointment appointment={appointment} preview={preview} emptyText="Such dir eine freie Zeit für ein Gespräch aus." />;
+  const appointmentBody = <NextAppointment appointment={appointment} now={data.now} preview={preview} emptyText="Such dir eine freie Zeit für ein Gespräch aus." />;
 
   const messagesBody = reply || unreadConversations
     ? <>
@@ -284,7 +285,7 @@ function AdminInsights({ preview, projects, data, notices }: { preview: boolean;
 
 // ---------- the next appointment (customers and freelancers) ----------
 
-function NextAppointment({ appointment, preview, emptyText }: { appointment?: HubAppointment; preview: boolean; emptyText: string }) {
+function NextAppointment({ appointment, now, preview, emptyText }: { appointment?: HubAppointment; now: number; preview: boolean; emptyText: string }) {
   return appointment
     ? <div className="in-appt">
       <span className="in-date" aria-hidden="true"><small>{monthShort.format(appointment.start).replace(".", "")}</small><b>{dayNumber(appointment.start)}</b></span>
@@ -292,7 +293,7 @@ function NextAppointment({ appointment, preview, emptyText }: { appointment?: Hu
         <strong>{appointment.title}</strong>
         <span>{formatDayShort(dayOf(appointment.start))} · {formatTimeRange(appointment)}</span>
         {appointment.status === "requested" && <span className="chat-pill tone-todo">Angefragt</span>}
-        {appointment.teamsUrl && <a className="sheet-action" href={appointment.teamsUrl} target="_blank" rel="noopener noreferrer">Teams-Link<ArrowUpRight size={13} aria-hidden="true" /></a>}
+        {appointment.status === "confirmed" && appointment.teamsUrl && <JoinButton url={appointment.teamsUrl} variant="list" live={appointment.start <= now} sample={appointment.sample} />}
       </span>
     </div>
     : <Empty title="Kein Termin geplant" text={emptyText}><Link className="sheet-action is-primary" href={hubHref(preview, "calendar")}>Termin anfragen</Link></Empty>;
@@ -393,7 +394,7 @@ export function FreelancerInsights({ preview, data, board, cards, notices, fileS
   return (
     <div className="in-grid is-customer section-first">
       <Tile title="Deine Aufgaben" icon={SquareKanban} wide link={{ href: boardHref, label: "Board" }}>{tasksBody}</Tile>
-      <Tile title="Nächster Termin" icon={CalendarDays} link={{ href: hubHref(preview, "calendar"), label: "Kalender" }}><NextAppointment appointment={data.appointments[0]} preview={preview} emptyText="Brauchst du eine Abstimmung mit dem Team? Such dir eine freie Zeit aus." /></Tile>
+      <Tile title="Nächster Termin" icon={CalendarDays} link={{ href: hubHref(preview, "calendar"), label: "Kalender" }}><NextAppointment appointment={data.appointments[0]} now={data.now} preview={preview} emptyText="Brauchst du eine Abstimmung mit dem Team? Such dir eine freie Zeit aus." /></Tile>
       <Tile title="Deine Kunden" icon={Building2} wide link={{ href: customersHref, label: "Kunden" }}>{customersBody}</Tile>
       <Tile title="Neu für dich" icon={Bell} link={{ href: hubHref(preview), label: "Übersicht" }}>{fresh.length ? <NoticeRows items={fresh} /> : <Empty title="Noch nichts Neues" text="Neue Aufgaben, Dateien, Freigaben und Termine erscheinen hier und in der Glocke." />}</Tile>
       <Tile title="Deine Projekte" icon={FolderOpen} wide link={{ href: boardHref, label: "Board" }}>{projectsBody}</Tile>

@@ -14,7 +14,7 @@
 import { runAssistantTool, type AssistantData } from "../hub-assistant/tools";
 import {
   addDays, adminFree, APPOINTMENT_DURATIONS, appointmentStatuses, availableIntervals, checkAppointmentSlot, dayOf, isDay,
-  overlaps, startsIn, timeOf, wallTimeToUtc, WEEKDAY_LONG, weekdayIndex, type AppointmentStatus, type Availability,
+  meetingLabel, overlaps, startsIn, timeOf, wallTimeToUtc, WEEKDAY_LONG, weekdayIndex, type AppointmentStatus, type Availability,
 } from "../hub-calendar/rules";
 import { studioStatusOrder, studioStatuses } from "../hub-projects/desk";
 import { MAX_DESCRIPTION, MAX_MILESTONES, MAX_NAME } from "../hub-projects/edit";
@@ -144,7 +144,7 @@ const tools: HubTool[] = [
   {
     name: "list_appointments",
     title: "Termine auflisten",
-    description: "Termine im Kalender des Hubs für einen Zeitraum (höchstens 62 Tage; ohne Angabe heute und die nächsten 6 Tage), mit Uhrzeit, Kunde oder „intern“, Status, Teams-Link und Link in den Hub. Ohne Angabe bestätigte Termine und offene Anfragen.",
+    description: "Termine im Kalender des Hubs für einen Zeitraum (höchstens 62 Tage; ohne Angabe heute und die nächsten 6 Tage), mit Uhrzeit, Kunde oder „intern“, Status, Meeting-Link (Teams, Zoom oder Google Meet) und Link in den Hub. Ohne Angabe bestätigte Termine und offene Anfragen.",
     inputSchema: {
       type: "object",
       properties: {
@@ -232,7 +232,7 @@ const tools: HubTool[] = [
         minutes: MINUTES,
         customer_id: id("Kunde (ID aus search); ohne Kunde ist der Termin intern."),
         description: { type: "string", maxLength: 2000, description: "Beschreibung; der Kunde sieht sie in seinem Termin." },
-        teams_link: { type: "string", maxLength: 2000, description: "Link zu einem Microsoft-Teams-Meeting (nur Teams-Adressen)." },
+        meeting_link: { type: "string", maxLength: 2000, description: "Link zum Meeting in Microsoft Teams, Zoom oder Google Meet (https). Der Kunde sieht im Kalender einen Beitreten-Knopf mit dem Logo des Anbieters." },
       },
       required: ["title", "day", "start"],
       additionalProperties: false,
@@ -244,7 +244,7 @@ const tools: HubTool[] = [
   {
     name: "update_appointment",
     title: "Termin ändern",
-    description: "Ändert einen Termin wie das Terminfenster des Hubs: Titel, Tag, Beginn, Dauer, Kunde, Beschreibung oder Teams-Link; was du weglässt, bleibt. Eine offene Anfrage ist danach bestätigt, wie mit „Bestätigen“ im Hub. Verschiebst du die Zeit, bekommt der Kunde eine Meldung zur neuen Zeit. Prüfe eine neue Zeit vorher mit check_appointment_time (mit appointment_id). Abgesagte und abgelehnte Termine lassen sich nicht mehr ändern.",
+    description: "Ändert einen Termin wie das Terminfenster des Hubs: Titel, Tag, Beginn, Dauer, Kunde, Beschreibung oder Meeting-Link; was du weglässt, bleibt. Eine offene Anfrage ist danach bestätigt, wie mit „Bestätigen“ im Hub. Verschiebst du die Zeit, bekommt der Kunde eine Meldung zur neuen Zeit. Prüfe eine neue Zeit vorher mit check_appointment_time (mit appointment_id). Abgesagte und abgelehnte Termine lassen sich nicht mehr ändern.",
     inputSchema: {
       type: "object",
       properties: {
@@ -255,7 +255,7 @@ const tools: HubTool[] = [
         minutes: { type: "integer", enum: [...APPOINTMENT_DURATIONS], description: "Neue Dauer in Minuten." },
         customer_id: { type: ["string", "null"], pattern: uuidPattern, description: "Anderer Kunde (ID aus search); null macht den Termin intern." },
         description: { type: "string", maxLength: 2000, description: "Neue Beschreibung; leer nimmt sie weg." },
-        teams_link: { type: "string", maxLength: 2000, description: "Neuer Teams-Link; leer nimmt ihn weg." },
+        meeting_link: { type: "string", maxLength: 2000, description: "Neuer Meeting-Link aus Microsoft Teams, Zoom oder Google Meet; leer nimmt ihn weg." },
       },
       required: ["appointment_id"],
       additionalProperties: false,
@@ -633,7 +633,8 @@ function appointmentJson(item: CalendarAppointment, origin: string) {
     minutes: Math.round((item.end - item.start) / 60_000),
     customer: item.customer ? { customer_id: item.customer.id, company: item.customer.company, customer_number: item.customer.customerNumber } : null,
     internal: !item.customer,
-    teams_link: item.teamsUrl,
+    meeting_link: item.teamsUrl,
+    meeting: meetingLabel(item.teamsUrl),
     description: item.description || null,
     link: links(origin).appointment(item.id),
   };

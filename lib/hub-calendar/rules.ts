@@ -1,6 +1,6 @@
 /**
  * Shared rules for the hub calendar: time zone math, the availability oalab sets (weekly plan, exceptions, rules),
- * free times and Teams links. Self-contained (no imports) so client, server and tests use the same rules; the database
+ * free times and meeting links. Self-contained (no imports) so client, server and tests use the same rules; the database
  * checks requests with the same rules again (service-oalab, hub_calendar_request_allowed).
  * Days are "YYYY-MM-DD" and times "HH:MM" in Europe/Berlin; instants are epoch milliseconds.
  */
@@ -121,25 +121,54 @@ export function mergeIntervals(intervals: Interval[], from = -Infinity, to = Inf
 
 export const overlaps = (a: Interval, b: Interval) => a.start < b.end && b.start < a.end;
 
+/*
+ * Meeting links (27.11.2026): an appointment carries a link to Microsoft Teams, Zoom or Google Meet. The link decides
+ * the provider, its mark and the name on the join button. The database allows the same hosts
+ * (service-oalab 202611270004_hub_meeting_links); the field keeps its first name `teamsUrl` / `teams_url`.
+ */
+export type MeetingProvider = "teams" | "zoom" | "meet";
+export const MEETING_PROVIDERS: Record<MeetingProvider, { name: string; short: string; meeting: string }> = {
+  teams: { name: "Microsoft Teams", short: "Teams", meeting: "Teams-Meeting" },
+  zoom: { name: "Zoom", short: "Zoom", meeting: "Zoom-Meeting" },
+  meet: { name: "Google Meet", short: "Meet", meeting: "Google Meet" },
+};
+
 /** Hosts of Microsoft Teams meeting links (work, personal, new cloud domain, US government clouds). */
 export const teamsHosts = ["teams.microsoft.com", "teams.live.com", "teams.cloud.microsoft", "gov.teams.microsoft.us", "dod.teams.microsoft.us"] as const;
-export const MAX_TEAMS_URL_LENGTH = 2048;
+/** Zoom's domains; meetings come from any subdomain of them (us02web.zoom.us, firma.zoom.us …). */
+export const zoomDomains = ["zoom.us", "zoom.com", "zoomgov.com"] as const;
+export const meetHosts = ["meet.google.com"] as const;
+export const MAX_MEETING_URL_LENGTH = 2048;
 
-export function isTeamsUrl(value: string) {
-  if (value.length > MAX_TEAMS_URL_LENGTH) return false;
+/** The provider of a meeting link: https only, a known host, no login or port, and a path behind the host. */
+export function meetingProvider(value: string | null | undefined): MeetingProvider | null {
+  if (!value || value.length > MAX_MEETING_URL_LENGTH) return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && !url.username && !url.password && !url.port && (teamsHosts as readonly string[]).includes(url.hostname) && url.pathname.length > 1;
+    if (url.protocol !== "https:" || url.username || url.password || url.port || url.pathname.length <= 1) return null;
+    const host = url.hostname;
+    if ((teamsHosts as readonly string[]).includes(host)) return "teams";
+    if (zoomDomains.some((domain) => host === domain || host.endsWith(`.${domain}`))) return "zoom";
+    if ((meetHosts as readonly string[]).includes(host)) return "meet";
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-/** Empty input clears the link; anything else must be a Teams meeting link. */
-export function cleanTeamsUrl(value: unknown): { ok: true; url: string | null } | { ok: false; error: string } {
+export const isMeetingUrl = (value: string) => meetingProvider(value) !== null;
+
+/** The provider's name for a link („Zoom“), or null without a known link. */
+export function meetingLabel(value: string | null | undefined) {
+  const provider = meetingProvider(value);
+  return provider ? MEETING_PROVIDERS[provider].name : null;
+}
+
+/** Empty input clears the link; anything else must be a meeting link of Teams, Zoom or Google Meet. */
+export function cleanMeetingUrl(value: unknown): { ok: true; url: string | null } | { ok: false; error: string } {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return { ok: true, url: null };
-  return isTeamsUrl(text) ? { ok: true, url: text } : { ok: false, error: "Bitte einen Microsoft-Teams-Link einfügen (https://teams.microsoft.com/…)." };
+  return meetingProvider(text) ? { ok: true, url: text } : { ok: false, error: "Bitte einen Meeting-Link aus Microsoft Teams, Zoom oder Google Meet einfügen (https://…)." };
 }
 
 export type SlotInput = { day: unknown; start: unknown; minutes: unknown };
@@ -164,13 +193,13 @@ export type AppointmentFields = { title: string; description: string; customerId
 export type FieldsCheck = { ok: true; value: AppointmentFields } | { ok: false; error: string };
 type FormInput = { title?: unknown; description?: unknown; customerId?: unknown; day?: unknown; start?: unknown; minutes?: unknown; teamsUrl?: unknown };
 
-/** Admin appointment form: title, slot, optional customer and Teams link. */
+/** Admin appointment form: title, slot, optional customer and meeting link. */
 export function readAppointmentInput(input: FormInput): FieldsCheck {
   const title = text(input?.title, 200);
   if (!title) return { ok: false, error: "Bitte einen Titel angeben." };
   const slot = checkAppointmentSlot({ day: input?.day, start: input?.start, minutes: input?.minutes });
   if (!slot.ok) return slot;
-  const teams = cleanTeamsUrl(input?.teamsUrl);
+  const teams = cleanMeetingUrl(input?.teamsUrl);
   if (!teams.ok) return teams;
   const customerId = typeof input?.customerId === "string" && input.customerId ? input.customerId : null;
   return { ok: true, value: { title, description: text(input?.description, 2000), customerId, interval: slot.interval, teamsUrl: teams.url } };

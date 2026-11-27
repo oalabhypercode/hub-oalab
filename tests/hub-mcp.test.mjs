@@ -432,13 +432,13 @@ test("writing: the answers say what the hub's own windows say", async () => {
   assert.equal(saved({ before }), "„Abstimmung“ gespeichert. ABC GmbH bekommt eine Meldung zur neuen Zeit.");
   assert.equal(saved({ before: { ...before, startsAt: new Date(at("2026-11-18", "10:00")).toISOString() } }), "„Abstimmung“ gespeichert.", "same time: no notice");
   assert.equal(saved({ before: { ...before, customerId: ids.mueller } }), "„Abstimmung“ gespeichert. ABC GmbH bekommt eine Meldung.", "another customer hears of a new appointment");
-  assert.equal(saved({ before: { ...before, status: "requested" }, teams: true }), `Bestätigt: „Abstimmung“ am ${day}, 10:00. ABC GmbH bekommt eine Meldung mit Teams-Link und Kalenderknöpfen.`);
+  assert.equal(saved({ before: { ...before, status: "requested" }, teams: true }), `Bestätigt: „Abstimmung“ am ${day}, 10:00. ABC GmbH bekommt eine Meldung mit Meeting-Link und Kalenderknöpfen.`);
   assert.equal(input.appointmentClosedText("cancelled", "Abstimmung", "ABC GmbH", ""), "„Abstimmung“ abgesagt. ABC GmbH bekommt eine Meldung.");
   assert.equal(input.appointmentClosedText("cancelled", "Intern", null, ""), "„Intern“ abgesagt.");
   assert.equal(input.appointmentClosedText("declined", "Anfrage Logo", null, "Urlaub"), "Anfrage „Anfrage Logo“ abgelehnt. Der Kunde bekommt eine Meldung mit deinem Grund.");
   // Same words as the window: if it changes its texts, this test points here.
   const panels = await source("components/hub/screens/calendar-panels.tsx");
-  for (const words of ["“ steht am ${formatDayShort(day)} um ${start} im Kalender.", " bekommt eine Meldung zur neuen Zeit.", "Bestätigt: „", " mit Teams-Link", " und Kalenderknöpfen.", "“ abgesagt.", "Anfrage „", " mit deinem Grund"]) {
+  for (const words of ["“ steht am ${formatDayShort(day)} um ${start} im Kalender.", " bekommt eine Meldung zur neuen Zeit.", "Bestätigt: „", " mit Meeting-Link", " und Kalenderknöpfen.", "“ abgesagt.", "Anfrage „", " mit deinem Grund"]) {
     assert.ok(panels.includes(words), words);
   }
 });
@@ -665,10 +665,10 @@ test("freelancers: free times and checks exactly as the request window, only the
   assert.match(check("10:00", "2026-11-21").text, /bietet oalab keine Termine an/);
 
   const listed = flCall("list_appointments", {}, { calendar }).value;
-  assert.deepEqual(listed.appointments.map((item) => [item.title, item.status, item.teams_link]), [["Abstimmung", "Angefragt", null], ["Kickoff", "Bestätigt", "https://teams.microsoft.com/l/x"]]);
+  assert.deepEqual(listed.appointments.map((item) => [item.title, item.status, item.meeting_link, item.meeting]), [["Abstimmung", "Angefragt", null, null], ["Kickoff", "Bestätigt", "https://teams.microsoft.com/l/x", "Microsoft Teams"]]);
   assert.equal(listed.appointments[0].link, `${origin}/dashboard/projects/calendar?appointment=a1`);
   const declined = flCall("list_appointments", { status: "all" }, { calendar }).value.appointments.find((item) => item.title === "Alt");
-  assert.deepEqual([declined.answer_from_oalab, declined.teams_link], ["Da sind wir nicht da.", null], "the answer of oalab; a Teams link only for a confirmed appointment");
+  assert.deepEqual([declined.answer_from_oalab, declined.meeting_link], ["Da sind wir nicht da.", null], "the answer of oalab; a meeting link only for a confirmed appointment");
   assert.equal(flCall("list_appointments", {}).isError, true, "no calendar, no answer");
 
   assert.deepEqual(freelancerTools.freelancerCalendarRange("check_request_time", { day: "2026-11-20" }, "2026-11-20"), { ok: true, from: "2026-11-20", to: "2026-11-20" });

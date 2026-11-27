@@ -1966,12 +1966,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .appointment-status-confirmed { color: var(--tone-ok); background: var(--tone-ok-bg); }
 .appointment-status-declined { color: var(--tone-bad); background: var(--tone-bad-bg); }
 .appointment-status-cancelled { color: var(--tone-off); background: var(--tone-off-bg); }
-.teams-join { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; background: #4b53bc; color: #ffffff; font-size: 15px; font-weight: 600; white-space: nowrap; transition: background 150ms ease, transform var(--duration) var(--ease-spring); }
-a.teams-join:hover { background: #3d4399; }
-a.teams-join:active { transform: scale(0.97); }
-.teams-join.is-compact { min-height: 36px; padding: 0 12px; font-size: 13px; flex: 0 0 auto; }
-.teams-join.is-sample { background: var(--fill-tertiary); color: var(--label-secondary); cursor: default; }
-.teams-join small { font-size: 12px; font-weight: 500; }
 .appointment-detail-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 2px 0 4px; font-size: 15px; line-height: 20px; color: var(--label-body); }
 .appointment-note { margin: -6px 0 14px; }
 .appointment-close { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
@@ -2002,8 +1996,6 @@ a.teams-join:active { transform: scale(0.97); }
   .appointment-time-fields > :first-child { grid-column: 1 / -1; }
   .appointment-open { gap: 10px; padding-left: 12px; }
   .appointment-list .list-item + .list-item::before { left: 66px; }
-  .teams-join.is-compact { width: 36px; padding: 0; }
-  .teams-join.is-compact .teams-join-label { display: none; }
 }
 
 /* Project and file dialogs */
