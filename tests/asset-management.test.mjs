@@ -84,7 +84,7 @@ test("everyone gets the Asset Management: admins with the customers first, custo
   const files = await source("components/hub/screens/files.tsx");
   // Freelancers work in the same Asset Management, read only (4.11.2026); customers too since 27.11.2026, so their
   // „Dateien“ have the same four views instead of a table of their own.
-  assert.match(files, /export function FilesScreen\(props: ScreenProps\) \{\n {2}return <AssetManagement \{\.\.\.props\} \/>;\n\}/);
+  assert.match(files, /export function FilesScreen\(props: ScreenProps & \{ uploads\?: HubUploadsState \}\) \{\n {2}return <AssetManagement \{\.\.\.props\} \/>;\n\}/);
   assert.doesNotMatch(files, /CustomerFiles/);
   const screen = await source("components/hub/screens/asset-management.tsx");
   // The switch and the setting under Darstellung are one value.

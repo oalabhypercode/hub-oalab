@@ -5,6 +5,7 @@ import { runNotificationSweep } from "@/lib/hub-notify/server";
 import { sweepNoteImagesOnSchedule } from "@/lib/hub-notes/sweep";
 import { usesOwnPlatform } from "@/lib/platform/config";
 import { sweepAbandonedUploads } from "@/lib/platform/storage";
+import { sweepExpiredUploads } from "@/lib/hub-uploads/sweep";
 
 // The schedule for notifications: pg_cron in the database calls this every five minutes with the token from Vault
 // (migration hub_notifications). Without HUB_NOTIFY_TOKEN, or with another token, nothing happens. A run only does
@@ -33,6 +34,11 @@ export async function POST(request: Request) {
     await sweepAbandonedUploads().then(
       (removed) => { if (removed) console.info(`[hub-storage] removed ${removed} abandoned upload rows`); },
       (error: unknown) => console.error("[hub-storage] sweep failed", error instanceof Error ? error.message : "unknown"),
+    );
+    // The customers' upload area (28.11.2026): files after their 7 days, unfinished uploads, bytes without a row.
+    await sweepExpiredUploads().then(
+      (done) => { if (done.expired || done.orphans) console.info(`[hub-uploads] removed ${done.expired} expired uploads, ${done.orphans} lost objects`); },
+      (error: unknown) => console.error("[hub-uploads] sweep failed", error instanceof Error ? error.message : "unknown"),
     );
     await sweepNoteImagesOnSchedule();
   });

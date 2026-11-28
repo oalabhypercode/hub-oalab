@@ -14,6 +14,7 @@ import { postChatEvent, postChatEvents, type ChatPost } from "@/lib/hub-chat-eve
 import { contractItemLine, eventKey, type AppointmentFacts, type ChatEvent, type ContractItem } from "@/lib/hub-chat-events/rules";
 import { requestReference } from "@/lib/hub-conversations/rules";
 import { collectServiceApprovals } from "./service-approvals";
+import { collectUploadNotices } from "@/lib/hub-uploads/notices";
 import {
   CURSOR, INBOX_LATEST, INBOX_UNREAD, MAIL_ITEMS, STUDIO_EVENTS, TASK_NOTICE_KINDS, appointmentHref, appointmentRequestNotice, calendarRows, chatHref, chatNotice, contractNotice, detectStudioNotices, dueDigests,
   fileNotice, fileNoticeLine, fileNoticeName, formatMoment, hasTaskChange, mailsWanted, mergeContractNotice, mergeFileNotice,
@@ -784,8 +785,13 @@ export async function runNotificationSweep(origin: string, now = new Date()) {
     admins: () => activeAdminLogins(db),
     insert: (userIds, notice) => insertNotices(db, userIds, notice),
   }).catch(() => ({ error: "approvals" }));
+  // The customers' upload area (28.11.2026): a new file, and a day before one goes.
+  const uploads = await collectUploadNotices(db, origin, {
+    admins: () => activeAdminLogins(db),
+    insert: (userIds, notice) => insertNotices(db, userIds, notice),
+  }, now.getTime()).catch(() => ({ error: "uploads" }));
   const mails = await sendDueMails(db, origin, now);
-  return { ok: true as const, studio, service, approvals, mails };
+  return { ok: true as const, studio, service, approvals, uploads, mails };
 }
 
 type InboxRow = { id: number; kind: string; title: string; body: string; href: string; created_at: string; read_at: string | null };

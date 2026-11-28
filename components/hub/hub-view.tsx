@@ -7,6 +7,7 @@ import { ArrowUpRight, Globe, Sparkles } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { formatDeadline, hubHref, previewAccount, previewFiles, previewProjects, sampleFolders, type HubSection, type Project, type ProjectTask } from "@/lib/hub-data";
 import type { HubFilesState } from "@/lib/hub-files/types";
+import type { HubUploadsState } from "@/lib/hub-uploads/types";
 import { calendarFixtures } from "@/lib/hub-calendar/fixtures";
 import type { HubCalendarState } from "@/lib/hub-calendar/types";
 import { buildHubModel, isMetricId } from "@/lib/hub-metrics";
@@ -60,6 +61,8 @@ type HubViewProps = {
   asOf: string;
   /** Real files for signed-in users; absent for the preview. */
   filesState?: HubFilesState;
+  /** The customers' upload area on the files page (28.11.2026); absent for the preview. */
+  uploads?: HubUploadsState;
   /** Real calendar on the calendar page (under Projekte); absent for the preview. */
   calendarState?: HubCalendarState;
   /** Role of the login from the user management. */
@@ -96,7 +99,7 @@ type HubViewProps = {
   calendarNotes?: CalendarNotes;
 };
 
-export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts, overviewWidgets, notes, calendarNotes }: HubViewProps) {
+export function HubView({ section = "overview", detail, preview = false, email = "", userKey, asOf, filesState, uploads, calendarState, role = null, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, taskBoard, freelancerCustomers, insights, overviewFacts, overviewWidgets, notes, calendarNotes }: HubViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -150,7 +153,7 @@ export function HubView({ section = "overview", detail, preview = false, email =
         : section === "insights" ? <InsightsScreen {...screen} insights={preview ? undefined : insights} board={preview ? undefined : taskBoard} cards={preview ? undefined : freelancerCustomers} />
         : section === "discover" ? <DiscoverScreen {...screen} />
         : section === "projects" ? <ProjectsScreen {...screen} desk={preview ? undefined : projectDesk} />
-        : section === "files" ? <FilesScreen {...screen} />
+        : section === "files" ? <FilesScreen {...screen} uploads={preview ? undefined : uploads} />
         : section === "contracts" ? <ContractsScreen {...screen} state={contractState} />
         : section === "customers" ? <FreelancerCustomersScreen {...screen} state={freelancerCustomers} board={taskBoard} />
         : section === "messages" ? <ConversationsScreen {...screen} conversations={populated ? undefined : conversations} privateChats={populated ? undefined : privateChats} />

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutGrid, LayoutList, List, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Check, ChevronDown, ChevronLeft, CloudUpload, Download, Files, FileType, Folder, FolderInput, FolderPlus, Handshake, ImagePlus, Inbox, LayoutGrid, LayoutList, List, ListFilter, Pencil, PenLine, Plus, Rows3, Search, SlidersHorizontal, Table2, Tag, Trash2, Upload, UserPlus, Users, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import type { ListView } from "@/lib/appearance";
 import { categoryLabel } from "@/lib/categories";
@@ -36,11 +36,15 @@ import { CategoryDot, FileIcon } from "./files-parts";
 import { useFilesStore } from "./files-store";
 import type { ScreenProps } from "./types";
 import { INTERNAL_TAG, TEAM_SIGHT_LABELS, teamSightOfFile } from "@/lib/hub-team/rules";
+import type { HubUploadsState } from "@/lib/hub-uploads/types";
+import { CustomerUploadArea } from "../uploads/customer-upload-area";
+import { UploadsPane, uploadsPill, uploadsSummary } from "../uploads/uploads-pane";
 
 const ALL = "all";
 const NO_FOLDER = "none";
 
-type View = { kind: "customer"; id: string } | { kind: "all" } | { kind: "inbox" };
+/** `uploads`: the customers' upload area (admins, 28.11.2026). */
+type View = { kind: "customer"; id: string } | { kind: "all" } | { kind: "inbox" } | { kind: "uploads" };
 /**
  * The panel over the files: the upload, one file's details, „Umbenennen“ for the ticked files, or „Zuordnen“ for some
  * files to one customer (`key` starts it afresh for every new request).
@@ -77,7 +81,7 @@ function DensitySwitch({ view, onChange }: { view: ListView; onChange: (view: Li
  * Customers (27.11.2026) get it for their own files, with folders and moves as before: one company fills the page
  * without the list on the left; a login that belongs to several companies picks them there.
  */
-export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenProps) {
+export function AssetManagement({ asOf, fileState, admin, freelancer, uploads }: ScreenProps & { uploads?: HubUploadsState }) {
   const store = useFilesStore(fileState);
   const { files, folders } = store;
   const { customers, canManage, source } = fileState;
@@ -113,10 +117,15 @@ export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenPr
   const params = useSearchParams();
   const linkedFile = params.get("file");
   const linkedCustomer = customers.some((customer) => customer.id === params.get("customer")) ? params.get("customer") : null;
+  // The upload area (28.11.2026): admins open it from the list, the bell links it (/files?uploads=1).
+  const uploadsShown = canManage && Boolean(uploads?.ready);
+  const linkedUploads = uploadsShown && params.has("uploads");
+  const uploadArea = customerView && source === "supabase" && Boolean(uploads?.ready && uploads.customerId);
   const [panel, setPanel] = useState<Panel | null>(() => linkedFile && files.some((file) => file.id === linkedFile) ? { kind: "file", id: linkedFile, assign: false } : null);
   const [view, setView] = useState<View>(() => {
     // A customer with one company always looks at it.
     if (single && customers[0]) return { kind: "customer", id: customers[0].id };
+    if (linkedUploads) return { kind: "uploads" };
     const linked = files.find((file) => file.id === linkedFile);
     if (linked) return linked.customers[0] ? { kind: "customer", id: linked.customers[0].id } : { kind: "inbox" };
     if (linkedCustomer) return { kind: "customer", id: linkedCustomer };
@@ -125,7 +134,7 @@ export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenPr
     return ownId ? { kind: "customer", id: ownId } : { kind: "all" };
   });
   // Narrow screens show one side at a time: the customers first, unless a link opened a file or a customer.
-  const [paneOpen, setPaneOpen] = useState(Boolean(linkedFile || linkedCustomer));
+  const [paneOpen, setPaneOpen] = useState(Boolean(linkedFile || linkedCustomer || linkedUploads));
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerOrder, setCustomerOrder] = useState<"recent" | "az">("recent");
   const [query, setQuery] = useState("");
@@ -686,7 +695,7 @@ export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenPr
     const active = view.kind === target.kind && (target.kind !== "customer" || (view.kind === "customer" && view.id === target.id));
     // While files are dragged, the customers (and, for files from the computer, the Ablage) take them; the rest steps back.
     const dropId = target.kind === "customer" ? target.id : target.kind;
-    const takes = (canAssign || canDrop) && dropId !== "all";
+    const takes = (canAssign || canDrop) && dropId !== "all" && dropId !== "uploads";
     return (
       <li key={target.kind === "customer" ? target.id : target.kind}>
         <button type="button" className={`chat-conv${compact ? " am-min-conv" : ""}${target.kind === "customer" && flash === target.id ? " is-flash" : ""}${isDropTarget(dropId) ? " is-drop-target" : ""}`} aria-current={active ? "true" : undefined} onClick={() => choose(target)}
@@ -724,6 +733,7 @@ export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenPr
       <ul className="chat-convs" role="list">
         {!term && pinned({ kind: "all" }, <span className={`am-tile${compact ? " is-md" : ""}`}><Files size={compact ? 16 : 20} aria-hidden="true" /></span>, "Alle Dateien", `${plural(customerCount, word.one, word.many)} · ${totalSize(files)}`, <span className="am-count">{files.length}</span>)}
         {!term && !freelancerView && !customerView && pinned({ kind: "inbox" }, <span className={`am-tile is-inbox${compact ? " is-md" : ""}`}><Inbox size={compact ? 16 : 20} aria-hidden="true" /></span>, "Ablage", "Noch keinem Kunden zugeordnet", inbox.length ? <span className="chat-pill tone-todo">{inbox.length}</span> : <span className="am-count">0</span>)}
+        {!term && uploadsShown && uploads && pinned({ kind: "uploads" }, <span className={`am-tile is-upload${compact ? " is-md" : ""}`}><CloudUpload size={compact ? 16 : 20} aria-hidden="true" /></span>, "Upload-Bereich", uploadsSummary(uploads.uploads), uploadsPill(uploads.uploads))}
         {!term && ownRow && pinned({ kind: "customer", id: ownRow.customer.id }, <CustomerSign customer={ownRow.customer} logo={ownRow.customer.logo} size={compact ? "md" : undefined} />, "Meine Dateien", `Von oalab für dich · ${ownRow.files.length ? plural(ownRow.files.length, "Datei", "Dateien") : "noch keine Dateien"}`, compact ? <span className="am-count">{ownRow.files.length || ""}</span> : ownRow.last ? <time>{formatFileDay(ownRow.last, asOf)}</time> : null)}
         {listedTeam.length > 0 && <>
           <li className="am-list-label">{INTERNAL_TAG}</li>
@@ -757,11 +767,14 @@ export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenPr
         </p>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {/* Customers send large files to oalab here (28.11.2026); they wait at most 7 days until oalab takes them over. */}
+      {uploadArea && <CustomerUploadArea uploads={uploads!} />}
 
       {!fileState.error && (
-        <div ref={sheet} className={`sheet section-first am${compact ? " is-minimal" : ""}${finder ? " is-list" : ""}${tiles ? " is-tiles" : ""}${single ? " is-single" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen || single ? "" : undefined} {...guardSheet}>
+        <div ref={sheet} className={`sheet${uploadArea ? "" : " section-first"} am${compact ? " is-minimal" : ""}${finder ? " is-list" : ""}${tiles ? " is-tiles" : ""}${single ? " is-single" : ""}${rowDrag ? " is-dragging" : ""}`} data-open={paneOpen || single ? "" : undefined} {...guardSheet}>
           <div className="am-grid">
             {!single && customerList}
+            {view.kind === "uploads" && uploads ? <UploadsPane uploads={uploads} customers={customers} folders={folders} onBack={() => setPaneOpen(false)} onNotice={setNotice} /> : (
             <section className={`am-pane${panel && (panel.kind !== "rename" || renaming) ? " has-panel" : ""}`} aria-label={current ? current.company : view.kind === "inbox" ? "Ablage" : "Alle Dateien"} {...dropHandlers}>
               {head}
               {/* The selection bar takes the place of the search line instead of pushing the files down, so nothing moves
@@ -827,6 +840,7 @@ export function AssetManagement({ asOf, fileState, admin, freelancer }: ScreenPr
                   onMove={(customerId, folderId) => store.move([openFile.id], customerId, folderId)} onDelete={() => setDeleting([openFile])} />
               )}
             </section>
+            )}
           </div>
         </div>
       )}
