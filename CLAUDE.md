@@ -18,3 +18,8 @@
 - Jeder Eintrag ist eine von Neu, Verbessert, Behoben oder Sicherheit, mit kurzem Titel und zwei, drei verständlichen Sätzen auf Deutsch: was sich ändert und was man davon merkt. Keine Namen, E-Mail-Adressen, Links, Schlüssel oder Infrastruktur-Details.
 - Jeder Eintrag nennt mit `area` einen der sechs Bereiche (`start` Übersicht & Insights, `projects` Projekte & Kalender, `files` Dateien, `customers` Kunden & Verträge, `messages` Chat & Benachrichtigungen, `hub` Hub & Konto) und mit `place` die genaue Stelle im Hub, Ebenen mit „ › “ getrennt (etwa „Kalender › Freie Zeiten“); berührt er weitere Bereiche, stehen sie in `also`.
 - `customers: true` nur für Einträge, die Kunden selbst im Hub sehen oder nutzen, `freelancers: true` entsprechend für Freelancer; alles andere sehen nur Admins (mit „Intern“). Kunden- und Freelancertexte sprechen die Rolle mit „du“ an und nennen nur, was sie selbst sieht: nie Admins, andere Rollen, Technik, Tests oder interne Werkzeuge (ein Test prüft die Wörter). Was nur Admins brauchen, steht in einem eigenen internen Eintrag. Reine Doku- und Werkzeug-Änderungen ohne Wirkung auf den Hub brauchen keinen Eintrag.
+
+## Design
+
+- Vor jeder Arbeit an der Oberfläche `DESIGN.md` lesen und einhalten (Seitenleiste, Liste links und Kunde rechts, Auswahllisten, Hover-Hinweise, Kontur und Auswahl, Kacheln als Ausnahme). Vorschauen folgen denselben Regeln.
+- Neue Muster, die live gehen, im selben PR in `DESIGN.md` nachtragen.
