@@ -9,7 +9,8 @@ und `app/glass.css`. Neue Ansichten bauen aus diesen Bausteinen, nicht aus eigen
 ## Grundsätze
 
 1. **Glas außen, Tabellen innen.** Seitenleiste, Kopf und schwebende Knöpfe sind Glas; Inhalte stehen auf dem weißen
-   Blatt `.sheet` (Tokens `--sheet-*`), in Zeilen statt Kacheln.
+   Blatt `.sheet` (Tokens `--sheet-*`), in Zeilen statt Kacheln. Kacheln gibt es nur als zweite Ansicht neben einer
+   Liste, auf ausdrücklichen Wunsch des Nutzers (siehe „Kacheln: die Ausnahme“).
 2. **Ein Akzent** (`--accent-text`, `--accent-rgb`) für Hauptaktion, Auswahl, Fokus und Kontur. Zustände nur über die
    Töne `--tone-ok | todo | info | bad | off` (je mit `-bg` und `-bar`) und `StatusGlyph`.
 3. **Hell und dunkel nur über Tokens** (`:root[data-theme]`); keine festen Farben in Bausteinen.
@@ -84,6 +85,52 @@ Projekts. **Die Zeile trägt die Farbe, nicht ein Knopf.**
 - **Knöpfe in markierten Zeilen bleiben klein und ruhig:** z. B. ein Status-Auswahlfeld 24 px hoch, weiße Fläche mit
   Haarlinie, Text 12 px; nur das Zustandszeichen trägt die Farbe. Es öffnet die Hub-Liste und trägt offen die
   Akzent-Kontur.
+
+## Kacheln: die Ausnahme
+
+Zeilen bleiben die Regel. Kacheln gibt es nur dort, wo der Nutzer sie ausdrücklich wollte, und immer als zweite
+Ansicht neben einer Liste:
+
+- im Asset Management (Minimal, Liste, Kacheln, Detail, seit 23.11.2026)
+- unter Projekte › Alle Projekte (Liste oder Kacheln, seit 28.11.2026, `components/hub/screens/projects-tiles.tsx`)
+
+**Umschalter und Größe**
+
+- Der Umschalter ist ein `segmented-control` mit Symbol und Wort, rechts in der `sheet-toolbar`.
+- Die Größe (klein, mittel, groß) stellt `TileSizeSwitch` ein: unten rechts im Fuß, auf schmalen Schirmen in der
+  Toolbar, am Handy gar nicht.
+- Wahl und Größe merkt sich jedes Gerät in `appearance` (Projekte: `projectView`, `projectTileSize`), jede Seite für sich.
+
+**Kunde als Kachel**
+
+- Eine ruhige Ablage (`--pj-tray`, eine Mischung aus `--sheet-seg` und `--sheet`) mit Radius 18 px und Haarlinie.
+- Kopf: Kundenzeichen, Name fett 14,5 px und daneben höchstens eine Pille, darunter Kundennummer und Paket.
+- Ein Klick auf den Kopf öffnet den Kunden. Aktionen („+“, ↗) erscheinen beim Darüberfahren und am Handy immer.
+
+**Projekt als Karte**
+
+- Weiße Karte (`--pj-card`) mit Radius 12 px, Haarlinie und leichtem Schatten.
+- Sie trägt den Zustand wie eine Zeile: Schleier links voll, nach rechts auslaufend, runder 4-px-Balken links.
+- Das Status-Feld ist dasselbe ruhige 24-px-Feld wie in den Zeilen.
+- Der Name ist der Knopf und deckt die ganze Karte als Klickfläche ab; Status, Domains und Hinweise liegen darüber.
+- Hover: Schatten und Name in Akzent.
+- Geöffnet: Tönung in Akzent (7 %), Akzent-Balken und Akzent-Kontur.
+
+**Raster ohne Lücken**
+
+- CSS-Grid mit 4-px-Reihen. Jede Kachel wird gemessen und spannt so viele Reihen, wie sie hoch ist (`ResizeObserver`).
+- So bleibt die Lesefolge links nach rechts; kein CSS-`columns`, das von oben nach unten ordnet.
+
+**Abschnitte und Panel**
+
+- Abschnitte sehen aus wie `TableGroup`: Pfeil, Zeichen, Name, Anzahl, rechts gedämpft ein Hinweis, darunter eine Linie.
+- Öffnet eine Karte ihr Panel am rechten Rand, rücken die Kacheln zur Seite, damit die offene Karte sichtbar bleibt.
+  Ist daneben zu wenig Platz, schwebt das Panel darüber wie über einer Liste.
+
+**Handy**
+
+- Eine Kachel unter der anderen, jedes Projekt eine Zeile (Name, Restzeit, Prozent), 44 px hoch.
+- Die Farbe der Zeile zeigt den Status, es gibt kein Etikett und keine gestapelten Karten.
 
 ## Panels zum Ansehen und Bearbeiten
 
