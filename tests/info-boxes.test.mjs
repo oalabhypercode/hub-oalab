@@ -77,6 +77,8 @@ const places = [
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Projektstatus"', button: /label="Projekte"[^]*?actions=\{statusInfo\.button\}/, box: "{statusInfo.box}" },
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Domains & Links"', button: /label="Domains & Links"[^]*?\{linksInfo\.button\}<\/>\}/, box: "{linksInfo.box}" },
   { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Service"', button: /label="Service"[^]*?actions=\{serviceInfo\.button\}/, box: "{serviceInfo.box}" },
+  // „Kacheln“ of Alle Projekte (since 27.11.2026): in the sheet's footer, beside the size of the tiles.
+  { file: "components/hub/screens/projects-overview.tsx", call: 'useInfo("Kacheln"', button: /trailing=\{<>\{tilesInfo\.button\}<TileSizeSwitch/, box: "{tilesInfo.box}" },
   { file: "components/hub/screens/projects-new-panel.tsx", call: 'useInfo("Neues Projekt"', button: /closeDisabled=\{saving\} footer=\{footer\} actions=\{info\.button\}/, box: "{info.box}" },
   // Dictation in the assistant chat (since 16.11.2026, admins): in the bar „Hört zu …“ and in „Mikrofon wählen“.
   { file: "components/hub/dictation-bar.tsx", call: 'useInfo("Diktieren"', button: /<strong>\{listening \? "Hört zu …" : "Mikrofon startet …"\}<\/strong>[^]*?\{info\.button\}/, box: "{info.box}" },
