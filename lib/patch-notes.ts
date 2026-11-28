@@ -73,9 +73,15 @@ export const patchKindLabels: Record<PatchChangeKind, string> = {
 export const patchDays: PatchDay[] = [
   {
     patch: "1.1",
-    date: "2026-11-27",
+    date: "2026-11-28",
     changes: [
       { kind: "new", area: "projects", place: "Projekte › Alle Projekte › Kacheln", title: "Alle Projekte als Kacheln", text: "Oben rechts schaltest du zwischen Liste und Kacheln um. Jeder Kunde ist eine Kachel mit seinen Projekten als Karten; die Farbe zeigt den Status, gefährdete Kunden stehen oben, und die Pille ändert den Status sofort. Ein Klick auf eine Karte öffnet rechts alle Angaben, unten rechts wählst du klein, mittel oder groß mit Zeitleiste." },
+    ],
+  },
+  {
+    patch: "1.1",
+    date: "2026-11-27",
+    changes: [
       { kind: "new", area: "projects", place: "Kalender › Termin", also: ["start"], customers: true, freelancers: true, title: "Beitreten mit einem Klick", text: "Hat ein Termin einen Meeting-Link, steht im Kalender ein Knopf mit dem Logo von Microsoft Teams, Zoom oder Google Meet: in der Woche oben rechts im Termin, in der Liste rechts in der Zeile, im Fenster des Termins groß mit „Link kopieren“ und in der Übersicht beim nächsten Termin. Läuft das Meeting gerade, heißt der Knopf „Jetzt beitreten“ und ist farbig hervorgehoben." },
       { kind: "improved", area: "projects", place: "Kalender › Liste", customers: true, freelancers: true, title: "Uhrzeiten auf einen Blick", text: "In der Liste steht jede Uhrzeit in einem eigenen farbigen Feld: grün, wenn das Meeting gerade läuft, orange bei einer Anfrage. Die Beitreten-Knöpfe sind dort alle gleich breit." },
       { kind: "new", area: "projects", place: "Kalender › Termin › Meeting-Link", also: ["hub"], title: "Meeting-Links von Teams, Zoom und Google Meet", text: "Im Termin heißt das Feld jetzt „Meeting-Link“ und nimmt Links von Microsoft Teams, Zoom und Google Meet an. Der Hub erkennt den Anbieter am Link, zeigt sein Logo und sagt, welchen Knopf der Kunde sieht. Auch Claude trägt Links aller drei Anbieter ein, und Kalender-Abo und Kalenderdateien nennen den richtigen Anbieter." },
