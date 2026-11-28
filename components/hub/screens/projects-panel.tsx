@@ -3,18 +3,19 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleDot, ExternalLink, EyeOff, FlaskConical, FolderOpen, Gauge, Globe, LayoutGrid, LifeBuoy, Lock, MessageSquare, Pencil, Plus, Search, Trash2, Unplug } from "lucide-react";
+import { ArrowUpRight, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleDot, ExternalLink, EyeOff, FlaskConical, FolderOpen, Gauge, Globe, LayoutGrid, LifeBuoy, Lock, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Search, Trash2, Unplug } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { confirmSessionHref } from "@/lib/auth-redirect";
 import { formatDay } from "@/lib/hub-contracts/rules";
 import { domainStatuses, isDomainStatus } from "@/lib/hub-domains/rules";
 import { formatDeadline, hubHref, type Project, type StudioProjectStatus } from "@/lib/hub-data";
 import { packageCatalog, serviceRequestLimit } from "@/lib/service-packages";
-import { byUrgency, customerState, isRunning, isWaiting, mainLinks, nextMilestone, statusOf, studioStatuses, withStudio, type DeskCustomer, type ProjectDesk, type StudioSaved } from "@/lib/hub-projects/desk";
+import { byUrgency, customerState, isRunning, isWaiting, mainLinks, nextMilestone, statusOf, studioStatuses, withStudio, type DeskCustomer, type DeskEntry, type ProjectDesk, type StudioSaved } from "@/lib/hub-projects/desk";
 import { readProjectUrl } from "@/lib/hub-projects/edit";
 import { INTERNAL_TAG } from "@/lib/hub-team/rules";
 import { shortUrl } from "@/lib/hub-projects/map";
 import { saveProjectDetails, saveProjectUrls, setProjectStatus } from "@/lib/hub-projects/actions";
+import { useAppearance } from "../appearance-provider";
 import { useInfo } from "../info-box";
 import { quickLinks, taskBoardHref } from "../project-links";
 import { Select } from "../select";
@@ -30,7 +31,7 @@ import { ProjectSidePanel } from "./projects-side-panel";
 import type { ScreenProps } from "./types";
 
 /** One entry of the customer list: a hub customer (or, for a project without one, its organization) with its projects. */
-type Entry = { key: string; company: string; customer: DeskCustomer | null; projects: Project[] };
+type Entry = DeskEntry;
 type Show = "all" | "running" | "idle";
 type LinkKind = "live" | "test";
 type LinkEdit = { mode: "add" | "edit"; projectId: string; kind: LinkKind; url: string; error: string };
@@ -65,6 +66,10 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
   const [edit, setEdit] = useState<LinkEdit | null>(null);
   const [saving, setSaving] = useState(false);
   const [domainFor, setDomainFor] = useState<DeskCustomer | null>(null);
+  // „Kacheln“ (27.11.2026): list or tiles and their size per device; in the tiles the customer list folds away until asked for.
+  const { appearance, update } = useAppearance();
+  const tilesView = appearance.projectView === "tiles";
+  const [showList, setShowList] = useState(false);
 
   const statusInfo = useInfo("Projektstatus", {
     steps: [
@@ -166,6 +171,16 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
     if (creating || locked || !leave()) return;
     if (entry) navigate({ customer: entry.key });
     setNotice(null);
+    setCreating(true);
+  };
+  /** „Neues Projekt“ from a tile: the customer opens with the new project's panel, as „Projekt“ in its head does. */
+  const createFor = (key: string) => {
+    if (locked || !leave()) return;
+    navigate({ customer: key });
+    setOverviewPanel(null);
+    setEdit(null);
+    setNotice(null);
+    setPaneOpen(true);
     setCreating(true);
   };
 
@@ -332,17 +347,26 @@ export function ProjectsPanel({ projects, desk, asOf, preview, fileState }: Scre
     return (
       <>
         {noticeLine}
-        <div className="sheet section-first am pp pj" data-open={paneOpen ? "" : undefined}>
+        <div className={`sheet section-first am pp pj${tilesView && !showList ? " pj-wide" : ""}`} data-open={paneOpen ? "" : undefined}>
           <div className="am-grid">
             {list}
             <section className="am-pane" aria-label="Alle Projekte">
               <header className="am-pane-head">
                 {back}
+                {tilesView && (
+                  <button type="button" className="am-icon-btn pj-list-toggle" onClick={() => setShowList((now) => !now)} aria-pressed={showList}
+                    aria-label={showList ? "Kundenliste ausblenden" : "Kundenliste einblenden"} data-tip={showList ? "Kundenliste ausblenden" : "Kundenliste einblenden"} data-tip-sub={showList ? "mehr Platz für die Kacheln" : undefined}>
+                    {showList ? <PanelLeftClose size={18} aria-hidden="true" /> : <PanelLeftOpen size={18} aria-hidden="true" />}
+                  </button>
+                )}
                 <span className="am-tile is-lg pp-tile-icon"><LayoutGrid size={22} aria-hidden="true" /></span>
                 <div className="am-pane-title"><strong>Alle Projekte</strong><span>{[plural(view.length, "Projekt", "Projekte"), `${runningProjects} laufen`, `${count("hold")} pausiert`, `${count("complete")} fertig`].join(" · ")}</span></div>
               </header>
-              {view.length
-                ? <ProjectsOverview projects={view} keyOf={entryKey} logos={logos} asOf={asOf} current={panelProject?.id ?? null} busy={busy} locked={locked} onOpen={openProject} onCustomer={chooseCustomer} onStatus={changeStatus} />
+              {view.length || tilesView
+                ? <ProjectsOverview projects={view} entries={entries} keyOf={entryKey} logos={logos} asOf={asOf} current={panelProject?.id ?? null} busy={busy} locked={locked} lockHint={locked ? codeFirst : null}
+                  view={appearance.projectView} tileSize={appearance.projectTileSize} panelOpen={Boolean(panelProject)}
+                  onView={(projectView) => update({ projectView })} onTileSize={(projectTileSize) => update({ projectTileSize })}
+                  onOpen={openProject} onCustomer={chooseCustomer} onCreate={createFor} onStatus={changeStatus} />
                 : <div className="sheet-empty"><p>Noch keine Projekte. Wähle links einen Kunden; dort legst du mit „Projekt“ das erste an.</p></div>}
             </section>
           </div>

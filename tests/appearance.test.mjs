@@ -281,3 +281,15 @@ test("Sidebar: collapsed, the profile sign wears the gear's teeth, reads „Eins
   assert.match(css, /:root\[data-sidebar="collapsed"\] \.sidebar-account-text \{ max-height: 0;/, "the sign stays a circle of 48 px");
   assert.match(css, /:root\[data-reduce-motion="true"\] :is\(\.sidebar-gear-ring, /);
 });
+
+test("Alle Projekte as list or tiles: the list unless chosen, per device, apart from the Asset Management (27.11.2026)", () => {
+  assert.equal(defaultAppearance.projectView, "list");
+  assert.equal(defaultAppearance.projectTileSize, "medium");
+  // An appearance stored before the tiles existed keeps the table.
+  assert.equal(normalizeAppearance({ listView: "tiles", tileSize: "large" }).projectView, "list");
+  assert.equal(normalizeAppearance({ listView: "tiles", tileSize: "large" }).projectTileSize, "medium");
+  assert.equal(normalizeAppearance({ projectView: "tiles", projectTileSize: "small" }).projectView, "tiles");
+  assert.equal(normalizeAppearance({ projectView: "tiles", projectTileSize: "small" }).projectTileSize, "small");
+  assert.equal(normalizeAppearance({ projectView: "board", projectTileSize: "huge" }).projectView, "list");
+  assert.equal(normalizeAppearance({ projectView: "board", projectTileSize: "huge" }).projectTileSize, "medium");
+});

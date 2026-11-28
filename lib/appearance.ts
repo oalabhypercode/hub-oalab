@@ -20,6 +20,12 @@ export type ListView = "minimal" | "list" | "tiles" | "detail";
 export type TileSize = "small" | "medium" | "large";
 
 /**
+ * „Alle Projekte“ for admins (27.11.2026): the table as before, or a tile per customer with its projects as cards. Per
+ * device and apart from the Asset Management's „Listen“, with its own tile size.
+ */
+export type ProjectView = "list" | "tiles";
+
+/**
  * Breite: Standard uses the whole width beside the sidebar and grows with the screen (since 22.11.2026; before, the
  * content stopped at 1040 px), XL moves the sheets almost to the window's edge like an IDE.
  */
@@ -51,6 +57,8 @@ export type Appearance = {
   sidebar: SidebarState;
   listView: ListView;
   tileSize: TileSize;
+  projectView: ProjectView;
+  projectTileSize: TileSize;
   pageWidth: PageWidth;
   notesTextSize: NotesTextSize;
 };
@@ -81,6 +89,8 @@ export const defaultAppearance: Appearance = {
   sidebar: "expanded",
   listView: "minimal",
   tileSize: "medium",
+  projectView: "list",
+  projectTileSize: "medium",
   pageWidth: "standard",
   notesTextSize: "medium",
 };
@@ -159,6 +169,8 @@ export function normalizeAppearance(stored: unknown, systemReducedTransparency =
     sidebar: input.sidebar === "collapsed" ? "collapsed" : "expanded",
     listView: input.listView === "detail" || input.listView === "list" || input.listView === "tiles" ? input.listView : "minimal",
     tileSize: input.tileSize === "small" || input.tileSize === "large" ? input.tileSize : "medium",
+    projectView: input.projectView === "tiles" ? "tiles" : "list",
+    projectTileSize: input.projectTileSize === "small" || input.projectTileSize === "large" ? input.projectTileSize : "medium",
     pageWidth: input.pageWidth === "xl" ? "xl" : "standard",
     notesTextSize: input.notesTextSize === "small" || input.notesTextSize === "large" ? input.notesTextSize : "medium",
   };
