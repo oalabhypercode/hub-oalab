@@ -19,7 +19,8 @@ export type NoticeKind =
   | "note.shared" | "note.changed" | "note.edited"
   | "service.message" | "service.approved"
   | "appointment.requested" | "contract.changed"
-  | "note.team";
+  | "note.team"
+  | "upload.received" | "upload.expiring";
 
 export type Notice = { kind: NoticeKind; title: string; body: string; href: string };
 
@@ -172,7 +173,7 @@ export const isChatKind = (kind: string) => kind === "chat.message" || kind === 
  * a page a customer or freelancer wrote on, (24.11.2026) a customer's request for an appointment and a colleague's
  * „Team informieren“ on one of oalab's own pages. Seen in the hub, they need no mail.
  */
-export const isReadInHub = (kind: string) => isChatKind(kind) || isServiceKind(kind) || kind === "note.edited" || kind === "appointment.requested" || kind === "note.team";
+export const isReadInHub = (kind: string) => isChatKind(kind) || isServiceKind(kind) || kind === "note.edited" || kind === "appointment.requested" || kind === "note.team" || kind.startsWith("upload.");
 /** The team's lines about a request on the service platform: a customer's message and (27.11.2026) a „Gefällt mir“. */
 export const SERVICE_KINDS = ["service.message", "service.approved"] as const;
 export const isServiceKind = (kind: string) => (SERVICE_KINDS as readonly string[]).includes(kind);
@@ -397,6 +398,34 @@ export function serviceApprovalNotice(input: { requestId: string; reference: str
   };
 }
 export const SERVICE_APPROVAL_LEAD = "Gefällt mir von ";
+
+/** Where the admins find the customers' upload area (Asset Management › Upload-Bereich). */
+export const UPLOADS_HREF = "/dashboard/files?uploads=1";
+export const UPLOAD_LEAD = "Neuer Upload von ";
+export const UPLOAD_EXPIRING_LEAD = "Upload läuft bald ab";
+
+/**
+ * The admins' line when a customer finished an upload (28.11.2026): „Neuer Upload von Nordlicht Studio: Imagefilm.mp4“
+ * with "1,9 GB · Jana Sommer". One line per file; it leads to the upload area.
+ */
+export function uploadReceivedNotice(input: { fileName: string; company: string; size: string; uploader: string }): Notice {
+  return {
+    kind: "upload.received",
+    title: clip(`${UPLOAD_LEAD}${oneLine(input.company) || "einem Kunden"}: ${oneLine(input.fileName)}`, 200),
+    body: clip([input.size, oneLine(input.uploader)].filter(Boolean).join(" · "), 300),
+    href: UPLOADS_HREF,
+  };
+}
+
+/** A day before an upload goes: „Upload läuft bald ab: Imagefilm.mp4“ with "Nordlicht Studio · gelöscht am Fr., 5. Dez., 14:10 Uhr". */
+export function uploadExpiringNotice(input: { fileName: string; company: string; when: string }): Notice {
+  return {
+    kind: "upload.expiring",
+    title: clip(`${UPLOAD_EXPIRING_LEAD}: ${oneLine(input.fileName)}`, 200),
+    body: clip([oneLine(input.company) || "Kunde", `ohne Übernahme gelöscht am ${input.when}`].join(" · "), 300),
+    href: UPLOADS_HREF,
+  };
+}
 
 /** A file shared with the customer; the link opens it in the files page. */
 export const fileNotice = (fileName: string, fileId: string): Notice => ({ kind: "file.shared", title: clip(`Neue Datei: ${fileName}`, 200), body: "Im Bereich Dateien", href: `/dashboard/files?file=${encodeURIComponent(fileId)}` });

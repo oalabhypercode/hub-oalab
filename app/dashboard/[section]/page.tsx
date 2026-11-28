@@ -6,6 +6,7 @@ import { adminSections, hubHref, hubSections } from "@/lib/hub-data";
 import { parseHubSection, todayIso } from "@/lib/hub-routes";
 import { getWorkspaceIdentity } from "@/lib/hub-session";
 import { loadHubFiles } from "@/lib/hub-files/server";
+import { loadHubUploads } from "@/lib/hub-uploads/server";
 import { loadUserManagement } from "@/lib/hub-users/server";
 import { loadLiveProjects, loadProjectDesk } from "@/lib/hub-projects/server";
 import { loadAssistantLog } from "@/lib/hub-assistant/log";
@@ -37,8 +38,10 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
   if (validSection === "customers" && identity.account?.role !== "oalab_freelancer") notFound();
   // Freelancers have no projects page: „Projekte“ is the task board of the projects they work on (16.11.2026).
   if (validSection === "projects" && identity.account?.role === "oalab_freelancer") redirect(`${hubHref(false, "projects")}/tasks`);
-  const [filesState, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, freelancerCustomers, taskBoard, insights, overviewFacts, overviewWidgets] = await Promise.all([
+  const [filesState, uploads, userManagement, liveProjects, assistantLog, conversations, privateChats, contracts, keychain, projectDesk, freelancerCustomers, taskBoard, insights, overviewFacts, overviewWidgets] = await Promise.all([
     loadHubFiles(),
+    // The customers' upload area (28.11.2026): on the files page, for admins and customers.
+    validSection === "files" ? loadHubUploads() : undefined,
     validSection === "users" ? loadUserManagement() : undefined,
     loadLiveProjects(),
     validSection === "ai-log" ? loadAssistantLog() : undefined,
@@ -63,7 +66,7 @@ async function WorkspaceSection({ params }: { params: Promise<{ section: string 
     validSection === "overview" ? loadOverviewFacts(identity.account?.role ?? null) : undefined,
     validSection === "overview" ? loadOverviewWidgets(identity.account?.role ?? null) : undefined,
   ]);
-  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} projectDesk={projectDesk} freelancerCustomers={freelancerCustomers} taskBoard={taskBoard} insights={insights} overviewFacts={overviewFacts} overviewWidgets={overviewWidgets} />;
+  return <HubView section={validSection} email={identity.email} role={identity.account?.role ?? null} userKey={identity.userId} asOf={todayIso()} filesState={filesState} uploads={uploads} userManagement={userManagement} liveProjects={liveProjects} assistantLog={assistantLog} conversations={conversations} privateChats={privateChats} contracts={contracts} keychain={keychain} projectDesk={projectDesk} freelancerCustomers={freelancerCustomers} taskBoard={taskBoard} insights={insights} overviewFacts={overviewFacts} overviewWidgets={overviewWidgets} />;
 }
 
 export default function Page(props: { params: Promise<{ section: string }> }) {

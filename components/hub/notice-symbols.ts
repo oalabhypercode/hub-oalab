@@ -1,4 +1,4 @@
-import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CalendarX, FileBadge, Files, Flag, FolderOpen, Hourglass, LifeBuoy, ListTodo, MessageSquare, NotebookPen, SquareKanban, ThumbsUp, TriangleAlert, UserCheck, type LucideIcon } from "lucide-react";
+import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CalendarX, CloudUpload, FileBadge, Files, Flag, FolderOpen, Hourglass, LifeBuoy, ListTodo, MessageSquare, NotebookPen, SquareKanban, ThumbsUp, TriangleAlert, UserCheck, type LucideIcon } from "lucide-react";
 import { categories } from "@/lib/categories";
 
 /** The area a notice of the bell belongs to, with its symbol and colour (the colour of the hub's category). */
@@ -16,6 +16,9 @@ export function noticeSymbol(kind: string): NoticeSymbol {
   if (kind === "service.message") return { icon: LifeBuoy, color: "#30B0C7", area: "Serviceplattform" };
   // A customer's „Gefällt mir“ on a result (27.11.2026): the change can go live.
   if (kind === "service.approved") return { icon: ThumbsUp, color: "#30B0C7", area: "Serviceplattform" };
+  // The customers' upload area (28.11.2026), to the team: a new file, and a day before one goes.
+  if (kind === "upload.received") return { icon: CloudUpload, color: categories.files.fill, area: "Upload-Bereich" };
+  if (kind === "upload.expiring") return { icon: Hourglass, color: categories.files.fill, area: "Upload-Bereich" };
   // What waits for admins (derived on the Übersicht, components/hub/admin-notices.ts).
   if (kind === "todo.registrations") return { icon: UserCheck, color: "var(--accent-text)", area: "User Management" };
   if (kind === "todo.request") return { icon: CalendarClock, color: categories.calendar.fill, area: "Kalender" };

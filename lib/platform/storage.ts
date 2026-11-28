@@ -67,8 +67,67 @@ class Store {
     return `${origin}/${encodeURIComponent(this.#config.bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
   }
 
-  async #fetch(method: string, bucketId: string, name: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
-    return this.#client.fetch(this.#url(this.#config.internal, this.#key(bucketId, name)), { method, ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  async #fetch(method: string, bucketId: string, name: string, init: { body?: BodyInit; headers?: Record<string, string>; query?: Record<string, string> } = {}) {
+    const { query, ...rest } = init;
+    const url = new URL(this.#url(this.#config.internal, this.#key(bucketId, name)));
+    for (const [key, value] of Object.entries(query ?? {})) url.searchParams.set(key, value);
+    return this.#client.fetch(url.toString(), { method, ...rest, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  }
+
+  /* S3 multipart for the customers' large uploads: the browser sends parts straight to Garage through short PUT links,
+     each below Cloudflare's 100 MB per request; the server starts, completes or aborts the upload. */
+  async startMultipart(bucketId: string, name: string, contentType: string) {
+    const response = await this.#fetch("POST", bucketId, name, { query: { uploads: "" }, headers: { "content-type": contentType } });
+    const text = await response.text().catch(() => "");
+    const uploadId = /<UploadId>([^<]+)<\/UploadId>/u.exec(text)?.[1];
+    if (!response.ok || !uploadId) throw new Error(`Object storage multipart start failed with HTTP ${response.status}.`);
+    return uploadId;
+  }
+
+  /** The parts Garage holds for an upload, in order (paged by 1000 like S3). */
+  async listParts(bucketId: string, name: string, uploadId: string) {
+    const parts: { number: number; etag: string; size: number }[] = [];
+    let marker = "0";
+    for (let page = 0; page < 20; page += 1) {
+      const response = await this.#fetch("GET", bucketId, name, { query: { uploadId, "part-number-marker": marker, "max-parts": "1000" } });
+      const text = await response.text().catch(() => "");
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`Object storage list parts failed with HTTP ${response.status}.`);
+      for (const block of text.match(/<Part>[\s\S]*?<\/Part>/gu) ?? []) {
+        const number = Number(/<PartNumber>(\d+)<\/PartNumber>/u.exec(block)?.[1]);
+        const etag = /<ETag>([^<]+)<\/ETag>/u.exec(block)?.[1]?.replaceAll("&quot;", "\"") ?? "";
+        const size = Number(/<Size>(\d+)<\/Size>/u.exec(block)?.[1]);
+        if (Number.isInteger(number) && etag) parts.push({ number, etag, size });
+      }
+      if (!/<IsTruncated>true<\/IsTruncated>/u.test(text)) break;
+      marker = /<NextPartNumberMarker>(\d+)<\/NextPartNumberMarker>/u.exec(text)?.[1] ?? "";
+      if (!marker) break;
+    }
+    return parts.sort((a, b) => a.number - b.number);
+  }
+
+  async completeMultipart(bucketId: string, name: string, uploadId: string, parts: { number: number; etag: string }[]) {
+    const xml = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;");
+    const body = `<CompleteMultipartUpload>${parts.map((part) => `<Part><PartNumber>${part.number}</PartNumber><ETag>${xml(part.etag)}</ETag></Part>`).join("")}</CompleteMultipartUpload>`;
+    const response = await this.#fetch("POST", bucketId, name, { query: { uploadId }, body, headers: { "content-type": "application/xml" } });
+    const text = await response.text().catch(() => "");
+    if (!response.ok || text.includes("<Error>")) throw new Error(`Object storage multipart completion failed with HTTP ${response.status}.`);
+  }
+
+  async abortMultipart(bucketId: string, name: string, uploadId: string) {
+    const response = await this.#fetch("DELETE", bucketId, name, { query: { uploadId } });
+    await response.arrayBuffer().catch(() => undefined);
+    if (!response.ok && response.status !== 404) throw new Error(`Object storage multipart abort failed with HTTP ${response.status}.`);
+  }
+
+  /** A short PUT link for one part of a multipart upload. */
+  async signPart(bucketId: string, name: string, uploadId: string, partNumber: number, seconds: number) {
+    const url = new URL(this.#url(this.#config.endpoint, this.#key(bucketId, name)));
+    url.searchParams.set("partNumber", String(partNumber));
+    url.searchParams.set("uploadId", uploadId);
+    url.searchParams.set("X-Amz-Expires", String(Math.min(Math.max(Math.trunc(seconds), 1), 7 * 24 * 60 * 60)));
+    const signer = new AwsV4Signer({ accessKeyId: this.#config.accessKeyId, secretAccessKey: this.#config.secretAccessKey, region: this.#config.region, service: "s3", method: "PUT", url: url.toString(), signQuery: true });
+    return (await signer.sign()).url.toString();
   }
 
   async put(bucketId: string, name: string, bytes: Uint8Array, contentType: string, cacheControl?: string) {
@@ -296,6 +355,20 @@ function catalogError(error: unknown): StorageErrorShape {
 export function ownStorage(scope: Scope) {
   return { from: (bucket: string) => new OwnBucket(bucket, scope) };
 }
+
+/**
+ * Multipart uploads of the customers' upload area (lib/hub-uploads). No catalog check here: only server code that has
+ * already asked the database (hub_upload_begin, an upload row the caller may read) calls these.
+ */
+export const multipart = {
+  start: (bucket: string, name: string, contentType: string) => store().startMultipart(bucket, name, contentType),
+  partUrl: (bucket: string, name: string, uploadId: string, partNumber: number) => store().signPart(bucket, name, uploadId, partNumber, UPLOAD_SECONDS),
+  parts: (bucket: string, name: string, uploadId: string) => store().listParts(bucket, name, uploadId),
+  complete: (bucket: string, name: string, uploadId: string, parts: { number: number; etag: string }[]) => store().completeMultipart(bucket, name, uploadId, parts),
+  abort: (bucket: string, name: string, uploadId: string) => store().abortMultipart(bucket, name, uploadId),
+  head: (bucket: string, name: string) => store().head(bucket, name),
+  remove: (bucket: string, name: string) => store().delete(bucket, name),
+};
 
 const ABANDONED_AFTER_HOURS = UPLOAD_SECONDS / 3600 + 1;
 const ABANDONED_BATCH = 100;

@@ -63,6 +63,9 @@ const places = [
   { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Anfrage beantworten"', button: /title=\{appointment\.title\} subtitle=\{`Anfrage von [^\n]*actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin und Meeting-Link"', button: /title=\{appointment \? appointment\.title : "Neuer Termin"\}[^]*?actions=\{info\.button\} footer=\{footer\}>/, box: "{info.box}" },
   { file: "components/hub/screens/calendar.tsx", call: 'useInfo("Aufgaben im Kalender"', button: /tasksInfo: admin \? tasksInfo\.button : undefined/, box: "{tasksInfo.box}" },
+  // The customers' upload area (28.11.2026): in the head of the customers' sheet and of the admins' pane.
+  { file: "components/hub/uploads/customer-upload-area.tsx", call: 'useInfo("Upload-Bereich"', button: /<div className="am-pane-actions">\{info\.button\}\{pickButton\}<\/div>/, box: "{info.box}" },
+  { file: "components/hub/uploads/uploads-pane.tsx", call: 'useInfo("Upload-Bereich der Kunden"', button: /<div className="am-pane-actions">\n\s*\{info\.button\}/, box: "{info.box}" },
   // The availability (since 16.11.2026): at the weekly plan of its panel.
   { file: "components/hub/screens/calendar-availability.tsx", call: 'useInfo("Verfügbarkeit"', button: /<PanelSection title="Wochenplan" info=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Vertragsgenerator"', button: /<Modal title="Vertrag erstellen"[^>]*actions=\{generatorInfo\.button\}/, box: "{generatorInfo.box}" },

@@ -71,6 +71,15 @@ export function telegramAppointmentRequest(input: { company: string; author: str
   return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.title, 200)}\n${oneLine(input.when, 120)}`, url: input.url });
 }
 
+/**
+ * A customer's file in the upload area for the group (28.11.2026): „Neuer Upload · Firma · Name“ in bold, then the file
+ * with its size, and a button into Asset Management › Upload-Bereich.
+ */
+export function telegramUploadReceived(input: { company: string; uploader: string; fileName: string; size: string; url: string }) {
+  const head = ["Neuer Upload", oneLine(input.company, 120) || "Kunde", oneLine(input.uploader, 120)].filter(Boolean).join(" · ");
+  return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.fileName, 200)}\n${oneLine(input.size, 40)} · wartet bis zu 7 Tage im Upload-Bereich`, url: input.url });
+}
+
 export const telegramTestMessage = () => ({
   text: "Testmeldung aus dem oalab Client Hub: Telegram ist eingerichtet. Schreibt ein Kunde im privaten Chat, kommt seine Nachricht hier an.",
 });

@@ -38,12 +38,14 @@ function areaOf(kind: string) {
   if (kind.startsWith("chat.") || kind.startsWith("service.")) return "Nachrichten";
   if (kind.startsWith("appointment.")) return "Kalender";
   if (kind === "contract.changed") return "Vertrag & Domain";
+  if (kind.startsWith("upload.")) return "Upload-Bereich";
   return "Hub";
 }
 
 const CHAT_LEADS = ["Neue Nachrichten von ", "Neue Nachricht von "];
 const SERVICE_LEADS = ["Neue Nachrichten von ", "Neue Nachricht von ", "Neue Anfrage von ", "Gefällt mir von "];
 const FREELANCER_MARK = " (Freelancer)";
+const UPLOAD_LEAD = "Neuer Upload von ";
 const SHARE_LEAD = "Neu freigegeben bei ";
 
 export function noticeColumns(notice: { kind: string; title: string; body: string }, viewer: NoticeViewer): NoticeColumns {
@@ -178,6 +180,19 @@ export function noticeColumns(notice: { kind: string; title: string; body: strin
 
   // To the customer (24.11.2026): „Neu unter Vertrag & Domain“ with "Domain eingetragen: nordlicht.de".
   if (kind === "contract.changed") return { where: fallback, path: "", title, body, ...OALAB };
+
+  // To the team (28.11.2026): „Neuer Upload von Nordlicht Studio: Imagefilm.mp4“ with "1,9 GB · Jana Sommer", and
+  // „Upload läuft bald ab: Imagefilm.mp4“ with "Nordlicht Studio · ohne Übernahme gelöscht am …".
+  if (kind === "upload.received") {
+    const company = event.startsWith(UPLOAD_LEAD) ? event.slice(UPLOAD_LEAD.length) : "";
+    const parts = body.split(SEP);
+    const who = parts.length > 1 ? parts[parts.length - 1] : "";
+    return { where: company || fallback, path: subject ? `Upload-Bereich › ${subject}` : "Upload-Bereich", title: "Neuer Upload", body: (who ? parts.slice(0, -1) : parts).join(SEP), from: who || company, fromDetail: "Kunde" };
+  }
+  if (kind === "upload.expiring") {
+    const [company, ...rest] = body.split(SEP);
+    return { where: company || fallback, path: subject ? `Upload-Bereich › ${subject}` : "Upload-Bereich", title: "Läuft bald ab", body: rest.join(SEP), ...OALAB };
+  }
 
   return { where: fallback, path: "", title, body, from: "", fromDetail: "" };
 }

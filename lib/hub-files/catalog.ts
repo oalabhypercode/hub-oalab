@@ -96,11 +96,14 @@ export function uploadType(fileName: string, browserType: string) {
 
 export type UploadCheck = { ok: true } | { ok: false; error: string };
 
+/** Programs and scripts: refused in every upload of the hub (also in the customers' upload area). */
+export const isBlockedFile = (fileName: string) => blockedExtensions.includes(fileExtension(fileName));
+
 export function checkUpload(fileName: string, sizeBytes: number): UploadCheck {
   if (!fileName.trim() || fileName.length > 255) return { ok: false, error: "Der Dateiname ist leer oder zu lang." };
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) return { ok: false, error: "Die Datei ist leer." };
   if (sizeBytes > MAX_FILE_BYTES) return { ok: false, error: "Die Datei ist größer als 50 MB." };
-  if (blockedExtensions.includes(fileExtension(fileName))) return { ok: false, error: "Ausführbare Dateien und Skripte können nicht hochgeladen werden." };
+  if (isBlockedFile(fileName)) return { ok: false, error: "Ausführbare Dateien und Skripte können nicht hochgeladen werden." };
   return { ok: true };
 }
 
