@@ -18,7 +18,11 @@ import { Select } from "../select";
 import { customerOption } from "../select-options";
 import { StatusGlyph, type GlyphKind } from "../sheet";
 import { AssetPanel } from "./asset-panel";
-import { EntryChips, EntryNav, Field, FieldGrid, HistoryList, PanelSection, PanelTabs, ReadonlyField, Row, RowIcon, RowList, SaveStatus, Segmented, useDirtyReport } from "./users-panel";
+import { EntryChips, EntryNav, Field, FieldGrid, HistoryList, PanelSection, PanelTabs, Row, RowIcon, RowList, SaveStatus, Segmented, useDirtyReport } from "./users-panel";
+import { useEntryRemoval } from "./users-removal";
+import { ClaudeLoginRow } from "./users-claude";
+import { TeamRoleRow } from "./users-team";
+import { LoginEmailField } from "./users-email";
 
 /*
  * The User Management's panels: a login, a registration, a customer and a freelancer, each new or existing. They open at
@@ -228,9 +232,11 @@ const choicePayload = (role: HubRole, choices: Choices, person: Person) => {
 const roleHints: Record<HubRole, string> = {
   oalab_customer: "Sieht nur die Daten des zugeordneten Kunden.",
   oalab_freelancer: "Sieht seine eigenen Dateien und die Dateien seiner Kunden, nur lesend. Kein Zugang zur Serviceplattform.",
-  oalab_admin: "Sieht alle Kunden und verwaltet Zugänge, Dateien und Termine.",
+  oalab_admin: "Sieht alle Kunden und verwaltet Zugänge, Dateien und Termine. Gehört zum oalab-Team, nicht zu einem Kunden.",
 };
 const roleIcons: Record<HubRole, LucideIcon> = { oalab_customer: UserRound, oalab_freelancer: Handshake, oalab_admin: ShieldCheck };
+/** Only a customer login picks a customer; admins and freelancers pick none, so their section is just the role. */
+const roleSection = (role: HubRole) => role === "oalab_customer" ? "Rolle und Kunde" : "Rolle";
 
 /**
  * Role and, for customers, the customer they belong to: an existing one or a new one created on the spot. A freelancer
@@ -415,7 +421,7 @@ export function ReviewPanel({ user, customers, nextNumber, nextFreelancerNumber,
         </PanelSection>
       ) : (
         <form ref={formRef} className="um-form" onSubmit={(event) => { event.preventDefault(); approve(); }}>
-          <PanelSection title="Rolle und Kunde">
+          <PanelSection title={roleSection(decision.role)}>
             <RoleAndCustomer role={decision.role} onRole={(role) => setDecision((current) => ({ ...current, role }))} choices={decision.choices} onChoices={(choices) => setDecision((current) => ({ ...current, choices }))} customers={customers} disabled={busy !== null} freelancers={freelancers} person={person} />
             {!user.emailConfirmed && <p className="am-help">Die E-Mail-Adresse ist noch nicht bestätigt. Anmelden kann sich die Person erst nach der Bestätigung.</p>}
             {error && <p className="form-error" role="alert">{error}</p>}
@@ -467,6 +473,8 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   const [tab, setTab] = useState<UserTab>("profile");
   // New logins get their activation link by mail unless the admin unticks it (or mail is not set up).
   const [mailLink, setMailLink] = useState(mailConfigured);
+  // A new admin works on projects and tasks unless unticked (plan „oalab als Unternehmen“, decision 4).
+  const [teamRole, setTeamRole] = useState(true);
   const [link, setLink] = useState<{ link: string | null; activation: boolean; mail: MailStatus | null } | null>(null);
   const [confirming, setConfirming] = useState<"deactivate" | "delete" | null>(null);
   const [confirmEmail, setConfirmEmail] = useState("");
@@ -501,7 +509,10 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
 
   const save = () => user
     ? run("save", () => updateHubUser({ userId: user.id, firstName: person.firstName, lastName: person.lastName, phone: person.phone, position: person.position, role, customer: choicePayload(role, choices, who) }), () => { setSaved(true); setBase(JSON.stringify(draft)); onNotice(`Änderungen an ${fullName({ ...user, ...person })} gespeichert.`); })
-    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choices, who), mailLink: mailConfigured && mailLink }), (data) => { setLink({ link: data.link, activation: true, mail: data.mail }); onNotice(`Zugang für ${name} angelegt.`); });
+    : run("save", () => createHubUser({ ...person, role, customer: choicePayload(role, choices, who), mailLink: mailConfigured && mailLink, teamRole: role === "oalab_admin" && teamRole }), (data) => {
+      setLink({ link: data.link, activation: true, mail: data.mail });
+      onNotice(data.teamRole ? `Zugang für ${name} angelegt. ${data.teamRole} Unter „Sicherheit“ lässt sich „Projekte und Aufgaben“ später einschalten.` : `Zugang für ${name} angelegt.`);
+    });
 
   if (created && link?.link) {
     return (
@@ -574,15 +585,21 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
         <FieldGrid>
           <Field label="Vorname"><input className="am-input" value={person.firstName} onChange={set("firstName")} maxLength={80} required disabled={disabled} autoComplete="off" /></Field>
           <Field label="Nachname"><input className="am-input" value={person.lastName} onChange={set("lastName")} maxLength={80} required disabled={disabled} autoComplete="off" /></Field>
-          {user ? <ReadonlyField label="E-Mail-Adresse" note="der Login" value={user.email} copyLabel={`E-Mail-Adresse von ${fullName(user)} kopieren`} />
+          {user ? <LoginEmailField user={user} name={fullName(user)} mailConfigured={mailConfigured} locked={user.self} disabled={disabled} onNotice={onNotice} />
             : <Field label="E-Mail-Adresse" wide><input className="am-input" type="email" value={person.email} onChange={set("email")} maxLength={254} required disabled={disabled} autoComplete="off" /></Field>}
           <Field label="Telefon"><input className="am-input" type="tel" value={person.phone} onChange={set("phone")} maxLength={40} disabled={disabled} autoComplete="off" placeholder="+49 …" /></Field>
           <Field label="Position"><input className="am-input" value={person.position} onChange={set("position")} maxLength={80} disabled={disabled} autoComplete="off" placeholder="z. B. Geschäftsführung" /></Field>
         </FieldGrid>
       </PanelSection>
-      <PanelSection title="Rolle und Kunde">
+      <PanelSection title={roleSection(role)}>
         <RoleAndCustomer role={role} onRole={(next) => change({ role: next })} choices={choices} onChoices={(next) => change({ choices: next })} customers={customers} disabled={disabled} roleLocked={Boolean(user?.self)} freelancers={freelancers} person={who} />
       </PanelSection>
+      {!user && role === "oalab_admin" && (
+        <PanelSection title="Team">
+          <label className="um-check"><input type="checkbox" checked={teamRole} onChange={(event) => setTeamRole(event.target.checked)} disabled={disabled} />Darf Projekte und Aufgaben bearbeiten</label>
+          <p className="am-help">Gibt die Team-Rolle „Operator“ im Studio. Damit legt die Person Projekte und Aufgaben an und übernimmt sie, auch für oalab selbst, und arbeitet auf der Serviceplattform an Anfragen der Kunden mit. Ohne Häkchen schreibt sie Notizen und alles andere, aber keine Projekte und Aufgaben.</p>
+        </PanelSection>
+      )}
       {!user && (
         <PanelSection title="Aktivierung">
           <label className="um-check"><input type="checkbox" checked={mailConfigured && mailLink} onChange={(event) => setMailLink(event.target.checked)} disabled={disabled || !mailConfigured} />Aktivierungslink per E-Mail an die Person senden</label>
@@ -615,6 +632,10 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
             <ChevronDown size={14} aria-hidden="true" />
           </span>
         </Row>
+        {/* Claude with the freelancer's own rights (since 19.11.2026): the admin's switch per login. */}
+        {freelancerLogin && user.status !== "rejected" && <ClaudeLoginRow user={user} name={fullName(user)} onNotice={onNotice} />}
+        {/* Studio's team role of an admin: projects and tasks, also oalab's own (plan „oalab als Unternehmen“). */}
+        {user.role === "oalab_admin" && user.status !== "rejected" && <TeamRoleRow user={user} name={fullName(user)} onNotice={onNotice} />}
         {user.status === "active" && (
           <Row lead={<RowIcon icon={KeyRound} />} title={user.lastSignInAt ? "Passwort-Link" : "Aktivierungslink"} text="Gilt einmal und läuft ab."
             below={linkOutcome}>
@@ -675,7 +696,7 @@ export function UserPanel({ user, customers, nextNumber, nextFreelancerNumber, f
   return (
     <AssetPanel className="um-panel" label={user ? `Zugang von ${fullName(user)}` : "Zugang anlegen"}
       icon={user ? <span className="avatar" aria-hidden="true">{initialsOf(user)}</span> : <span className="am-tile"><UserPlus size={20} aria-hidden="true" /></span>}
-      title={user ? fullName(user) : "Zugang anlegen"} subtitle={user ? <UserLine user={user} /> : presetEntry ? <><span className="um-clip">Für {presetEntry.company}</span><span className="um-dot" aria-hidden="true">·</span><span className="numeric">{presetEntry.customerNumber}</span></> : "Mit Aktivierungslink zum Passwort-Setzen"}
+      title={user ? fullName(user) : "Zugang anlegen"} subtitle={user ? <UserLine user={user} /> : role === "oalab_admin" ? "Admin für das oalab-Team, mit Aktivierungslink" : presetEntry ?<><span className="um-clip">Für {presetEntry.company}</span><span className="um-dot" aria-hidden="true">·</span><span className="numeric">{presetEntry.customerNumber}</span></> : "Mit Aktivierungslink zum Passwort-Setzen"}
       actions={user ? <EntryNav onPrev={onPrev} onNext={onNext} /> : info.button}
       bar={user && <PanelTabs value={tab} onChange={showTab} options={[{ id: "profile", label: "Profil" }, { id: "access", label: "Sicherheit" }, { id: "history", label: <>Verlauf <Count value={events.length} /></> }]} />}
       onClose={() => onClose()} footer={footer}>
@@ -736,7 +757,10 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
     ask: "Wie funktioniert der Kundenstamm?",
   });
   useDirtyReport(entry.dirty, onDirty);
-  const members = customer ? users.filter((user) => customer.memberIds.includes(user.id)) : [];
+  const removal = useEntryRemoval({ entry: customer, users, onNotice, onClose });
+  // An archived customer's logins: the members, and those its archive blocked (Service's sync took them off the customer).
+  const members = customer ? users.filter((user) => customer.memberIds.includes(user.id) || customer.archivedLoginIds.includes(user.id)) : [];
+  const archived = Boolean(customer?.archivedAt);
   const { draft } = entry;
   const save = () => run("save", () => saveCustomer({ ...draft, id: customer?.id, freelancerIds: freelancersEnabled ? entry.linked : undefined }), (data) => {
     onNotice(customer ? `${draft.company} gespeichert.` : `Kunde ${draft.company} angelegt.`);
@@ -746,7 +770,8 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
   });
 
   const dataTab = <>
-    {customer && !members.length && <NoLoginNotice entry={customer} onNewUser={onNewUser} />}
+    {removal.notice}
+    {customer && !archived && !members.length && <NoLoginNotice entry={customer} onNewUser={onNewUser} />}
     {customer && (
       <PanelSection title="Logo und Pakete">
         <RowList>
@@ -779,6 +804,7 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
+    {removal.section}
   </>;
 
   const footer = <>
@@ -797,8 +823,8 @@ export function CustomerPanel({ customer, users, nextNumber, events, freelancers
       onClose={() => onClose()} footer={footer}>
       {!customer || tab === "data" ? dataTab
         : tab === "logins" ? (
-          <PanelSection title="Zugänge" action={<button type="button" className="sheet-action" onClick={() => onNewUser(customer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
-            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">Noch kein Zugang: Niemand kann sich für diesen Kunden anmelden. „Zugang anlegen“ legt einen an; er gilt auch in Service.</p>}
+          <PanelSection title="Zugänge" action={!archived && <button type="button" className="sheet-action" onClick={() => onNewUser(customer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
+            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">{archived ? "Der Kunde ist archiviert und hat keinen Zugang." : "Noch kein Zugang: Niemand kann sich für diesen Kunden anmelden. „Zugang anlegen“ legt einen an; er gilt auch in Service."}</p>}
           </PanelSection>
         ) : <PanelSection title="Verlauf"><HistoryList events={events} /></PanelSection>}
     </AssetPanel>
@@ -833,7 +859,9 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
     ask: "Wie funktioniert ein Freelancer im Hub?",
   });
   useDirtyReport(entry.dirty, onDirty);
-  const members = freelancer ? users.filter((user) => freelancer.memberIds.includes(user.id)) : [];
+  const removal = useEntryRemoval({ entry: freelancer, users, onNotice, onClose });
+  const members = freelancer ? users.filter((user) => freelancer.memberIds.includes(user.id) || freelancer.archivedLoginIds.includes(user.id)) : [];
+  const archived = Boolean(freelancer?.archivedAt);
   const { draft } = entry;
   const save = () => run("save", () => saveFreelancer({ ...draft, id: freelancer?.id, customerIds: entry.linked }), (data) => {
     onNotice(freelancer ? `${draft.company} gespeichert.` : `Freelancer ${draft.company} angelegt.`);
@@ -843,7 +871,8 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
   });
 
   const dataTab = <>
-    {freelancer && !members.length && <NoLoginNotice entry={freelancer} onNewUser={onNewUser} />}
+    {removal.notice}
+    {freelancer && !archived && !members.length && <NoLoginNotice entry={freelancer} onNewUser={onNewUser} />}
     {freelancer && (
       <PanelSection title="Logo">
         <RowList>
@@ -867,6 +896,7 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
       </PanelSection>
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
+    {removal.section}
   </>;
 
   const footer = <>
@@ -886,8 +916,8 @@ export function FreelancerPanel({ freelancer, customers, users, nextNumber, even
       {info.box}
       {!freelancer || tab === "data" ? dataTab
         : tab === "logins" ? (
-          <PanelSection title="Zugänge" action={<button type="button" className="sheet-action" onClick={() => onNewUser(freelancer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
-            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">Noch kein Zugang: Der Freelancer kann sich nicht anmelden. „Zugang anlegen“ legt einen mit der Rolle Freelancer an.</p>}
+          <PanelSection title="Zugänge" action={!archived && <button type="button" className="sheet-action" onClick={() => onNewUser(freelancer.id)}><UserPlus size={14} aria-hidden="true" />Zugang anlegen</button>}>
+            {members.length ? <MemberRows members={members} onOpenUser={onOpenUser} /> : <p className="am-help">{archived ? "Der Freelancer ist archiviert und hat keinen Zugang." : "Noch kein Zugang: Der Freelancer kann sich nicht anmelden. „Zugang anlegen“ legt einen mit der Rolle Freelancer an."}</p>}
           </PanelSection>
         ) : <PanelSection title="Verlauf"><HistoryList events={events} /></PanelSection>}
     </AssetPanel>

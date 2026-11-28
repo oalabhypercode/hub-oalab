@@ -1,17 +1,24 @@
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { PageWaterfall } from "@/components/page-waterfall";
 import { appearanceInlineScript } from "@/lib/appearance";
 import { greetingInlineScript } from "@/lib/greeting";
+import { WEB_APP_COLOR } from "@/lib/web-app/rules";
 import "./globals.css";
 import "./brand.css";
 import "./hub.css";
 import "./glass.css";
 import "./welcome-host.css";
+import "./sidebar.css";
 import "./loader.css";
 import "./motion.css";
+import "./tasks.css";
+import "./calendar.css";
+import "./notes.css";
+import "./web-app.css";
+import "./overview.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -22,7 +29,17 @@ export const metadata: Metadata = {
   title: { default: "oalab — Dein Client Hub", template: "%s · oalab" },
   description: "Dein Ort für gute Zusammenarbeit. Projekte, nächste Schritte und gemeinsame Ergebnisse im oalab Client Hub.",
   applicationName: "oalab Client Hub",
-  icons: { icon: "/brand/oalab-icon.png", shortcut: "/brand/oalab-icon.png", apple: "/brand/oalab-icon.png" },
+  // The home screen icon (app/manifest.ts, scripts/app-icons.mjs): edge to edge, the phone rounds it itself.
+  icons: { icon: "/brand/oalab-icon.png", shortcut: "/brand/oalab-icon.png", apple: "/app-icons/apple-touch-icon.png" },
+  // Installed on an iPhone: the name under the icon, the status bar over the hub's background (app/web-app.css).
+  appleWebApp: { capable: true, title: "oalab Hub", statusBarStyle: "black-translucent" },
+};
+
+export const viewport: Viewport = {
+  // The page reaches under status bar, notch and home bar; the safe-area insets in the CSS keep content clear of them.
+  // In the browser the insets stay 0, so nothing moves there.
+  viewportFit: "cover",
+  themeColor: WEB_APP_COLOR,
 };
 
 const inter = Inter({

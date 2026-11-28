@@ -12,11 +12,20 @@ type LogoRow = { id: string; logo_path: string | null; logo_background: string |
  * failed read or a failed signature leaves the initials instead of failing the page.
  */
 export async function loadCustomerLogos(supabase: SupabaseClient, ids?: string[]): Promise<Map<string, CustomerLogo>> {
-  const logos = new Map<string, CustomerLogo>();
-  if (ids && !ids.length) return logos;
+  if (ids && !ids.length) return new Map<string, CustomerLogo>();
   const base = supabase.from("hub_customers").select("id, logo_path, logo_background, logo_color").not("logo_path", "is", null);
   const { data, error } = await (ids ? base.in("id", ids) : base).returns<LogoRow[]>();
-  const rows = error ? [] : (data ?? []).filter((row): row is LogoRow & { logo_path: string } => Boolean(row.logo_path));
+  return signCustomerLogos(supabase, error ? [] : data ?? []);
+}
+
+/**
+ * Signs the logos of rows read elsewhere in one call, with the session's own storage rights; rows without a logo, and
+ * every row when the signature fails, keep their initials. Freelancers' rows come from hub_freelancer_customer_list()
+ * (lib/hub-freelancer-customers/list.ts), since they no longer read their customers in hub_customers.
+ */
+export async function signCustomerLogos(supabase: SupabaseClient, found: readonly LogoRow[]): Promise<Map<string, CustomerLogo>> {
+  const logos = new Map<string, CustomerLogo>();
+  const rows = found.filter((row): row is LogoRow & { logo_path: string } => Boolean(row.logo_path));
   if (!rows.length) return logos;
   const signed = await supabase.storage.from(LOGO_BUCKET).createSignedUrls(rows.map((row) => row.logo_path), LOGO_URL_SECONDS);
   if (signed.error || !signed.data) return logos;

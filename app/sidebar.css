@@ -1,0 +1,222 @@
+/* Sidebar einklappen und klares Liquid Glass (22.11.2026, freigegebene Vorschau V3).
+   Ab 1024 px klappt die Sidebar mit dem runden Griff an ihrem Rand oder ⌘ . (Strg + .) auf ihre Symbole ein, 72 statt
+   272 px; lib/appearance.ts merkt sich das je Gerät und setzt data-sidebar an <html> schon vor dem ersten Bild. Auswahl,
+   Tropfen und runde Knöpfe sind klares Glas wie bei Apple: ein feiner Lichtrand, Brechung nur in einem schmalen Band am
+   Rand (SVG-Filter #lg-warp aus components/hub/liquid-glass.tsx, Chrome und Edge; Safari und Firefox ohne Brechung),
+   ein weicher Schatten. Darunter bleibt alles klar lesbar. */
+
+:root {
+  --sidebar-w: 272px;
+  /* Gedämpfte Federn, als linear() abgetastet: Ausklappen schwingt etwa 9 % über, Einklappen 6 %, Einträge kaum, der
+     Tropfen 16 %, runde Knöpfe 23 % ihrer Größenänderung. */
+  --sp-open: linear(0, 0.0183, 0.0673, 0.1387, 0.2253, 0.3207, 0.4197, 0.5181, 0.6126, 0.7006, 0.7804, 0.851, 0.9118, 0.9628, 1.0042, 1.0367, 1.061, 1.0779, 1.0886, 1.0938, 1.0946, 1.0919, 1.0866, 1.0793, 1.0708, 1.0616, 1.0522, 1.043, 1.0342, 1.026, 1.0187, 1.0123, 1.0068, 1.0023, 0.9986, 0.9958, 0.9937, 0.9923, 0.9914, 0.991, 0.9911, 0.9914, 0.992, 0.9927, 0.9935, 0.9944, 0.9953, 0.9962, 1);
+  --sp-close: linear(0, 0.017, 0.0621, 0.1277, 0.207, 0.2944, 0.3851, 0.4755, 0.5627, 0.6446, 0.7197, 0.7871, 0.8464, 0.8973, 0.9402, 0.9754, 1.0035, 1.0252, 1.0412, 1.0523, 1.0592, 1.0626, 1.0632, 1.0616, 1.0584, 1.054, 1.0488, 1.0432, 1.0374, 1.0318, 1.0263, 1.0212, 1.0166, 1.0125, 1.0089, 1.0058, 1.0032, 1.0011, 0.9994, 0.9981, 0.9972, 0.9966, 0.9962, 0.996, 0.996, 0.9961, 0.9964, 0.9967, 1);
+  --sp-item: linear(0, 0.0114, 0.0416, 0.0856, 0.1392, 0.1989, 0.262, 0.3263, 0.3902, 0.4523, 0.5118, 0.5679, 0.6202, 0.6685, 0.7126, 0.7526, 0.7886, 0.8208, 0.8492, 0.8743, 0.8962, 0.9152, 0.9316, 0.9456, 0.9575, 0.9676, 0.9759, 0.9829, 0.9886, 0.9931, 0.9968, 0.9997, 1.0019, 1.0035, 1.0047, 1.0055, 1.006, 1.0062, 1.0063, 1.0062, 1.006, 1.0057, 1.0053, 1.005, 1.0046, 1.0042, 1.0038, 1.0034, 1);
+  --sp-drop: linear(0, 0.0278, 0.1016, 0.2073, 0.3324, 0.4658, 0.5987, 0.7241, 0.8368, 0.9337, 1.0129, 1.0742, 1.1181, 1.1462, 1.1602, 1.1627, 1.1559, 1.1422, 1.124, 1.103, 1.0812, 1.0597, 1.0398, 1.0221, 1.007, 0.9949, 0.9857, 0.9793, 0.9753, 0.9736, 0.9736, 0.9751, 0.9776, 0.9807, 0.9842, 0.9877, 0.9912, 0.9943, 0.9971, 0.9994, 1.0013, 1.0027, 1.0036, 1.0041, 1.0043, 1.0043, 1.004, 1.0035, 1);
+  --sp-pop: linear(0, 0.0295, 0.1085, 0.2233, 0.3603, 0.5076, 0.6549, 0.7937, 0.9177, 1.0228, 1.1065, 1.1682, 1.2086, 1.2294, 1.2332, 1.2229, 1.202, 1.1735, 1.1406, 1.106, 1.0719, 1.0403, 1.0124, 0.9891, 0.9709, 0.9578, 0.9496, 0.9458, 0.9459, 0.949, 0.9544, 0.9614, 0.9692, 0.9773, 0.9852, 0.9924, 0.9986, 1.0038, 1.0077, 1.0105, 1.0121, 1.0127, 1.0125, 1.0116, 1.0103, 1.0086, 1.0067, 1.0048, 1);
+  --badge-ring: #ffffff;
+  --drop-tint: rgb(255 255 255 / 0.03);
+  --lg-body: rgb(255 255 255 / 0.32);
+  --lg-glow: rgb(255 255 255 / 0.2);
+  --lg-ring: conic-gradient(from 0deg, rgb(255 255 255 / 0.95) 0deg, rgb(255 255 255 / 0.6) 45deg, rgb(120 70 100 / 0.16) 100deg, rgb(255 255 255 / 0.7) 140deg, rgb(120 70 100 / 0.13) 200deg, rgb(120 70 100 / 0.17) 240deg, rgb(255 255 255 / 0.6) 290deg, rgb(255 255 255 / 1) 320deg, rgb(255 255 255 / 0.95) 360deg);
+  --lg-ring-sel: conic-gradient(from 0deg, rgb(255 255 255 / 0.95) 0deg, rgb(255 255 255 / 0.6) 45deg, rgb(120 70 100 / 0.16) 100deg, rgb(255 255 255 / 0.7) 140deg, rgb(120 70 100 / 0.13) 200deg, rgb(120 70 100 / 0.17) 240deg, rgb(255 255 255 / 0.6) 290deg, rgb(255 255 255 / 1) 320deg, rgb(255 255 255 / 0.95) 360deg);
+  --lg-shadow: 0 6px 16px -8px rgb(60 10 40 / 0.28), 0 1px 3px rgb(60 10 40 / 0.08);
+  --lg-shadow-btn: 0 6px 16px -8px rgb(40 0 20 / 0.35), 0 1px 2px rgb(40 0 20 / 0.12);
+  --lg-sel: rgb(255 255 255 / 0.62);
+  --lg-sel-shadow: 0 4px 12px -6px rgb(60 10 40 / 0.22);
+}
+:root[data-theme="dark"] {
+  --badge-ring: #221d20;
+  --drop-tint: rgb(255 255 255 / 0.025);
+  --lg-body: rgb(30 25 28 / 0.3);
+  --lg-glow: rgb(255 255 255 / 0.1);
+  --lg-ring: conic-gradient(from 0deg, rgb(255 255 255 / 0.5) 0deg, rgb(255 255 255 / 0.22) 45deg, rgb(255 255 255 / 0.06) 95deg, rgb(255 255 255 / 0.26) 140deg, rgb(255 255 255 / 0.07) 190deg, rgb(255 255 255 / 0.04) 230deg, rgb(255 255 255 / 0.2) 275deg, rgb(255 255 255 / 0.62) 318deg, rgb(255 255 255 / 0.5) 360deg);
+  --lg-ring-sel: conic-gradient(from 0deg, rgb(255 255 255 / 0.36) 0deg, rgb(255 255 255 / 0.15) 45deg, rgb(255 255 255 / 0.04) 95deg, rgb(255 255 255 / 0.18) 140deg, rgb(255 255 255 / 0.05) 190deg, rgb(255 255 255 / 0.03) 230deg, rgb(255 255 255 / 0.13) 275deg, rgb(255 255 255 / 0.44) 318deg, rgb(255 255 255 / 0.36) 360deg);
+  --lg-shadow: 0 6px 18px -10px rgb(0 0 0 / 0.55);
+  --lg-shadow-btn: 0 6px 18px -8px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.25);
+  --lg-sel: rgb(var(--accent-rgb) / 0.1);
+  --lg-sel-shadow: 0 4px 14px -10px rgb(0 0 0 / 0.6);
+}
+.lg-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+/* Hints beside the collapsed sidebar (components/hub/tooltip.tsx, data-tip-side="right"): the arrow points left. */
+.hub-tip[data-side="right"]::after { left: -4px; top: var(--tip-arrow, 50%); bottom: auto; border-radius: 0 0 0 2px; transform: translateY(-50%) rotate(45deg); }
+
+/* ---------- Runde Knöpfe aus klarem Glas: Glocke, Assistent, Griff, Zahnrad (V3) ---------- */
+.lg, .sidebar-account-gear {
+  isolation: isolate;
+  border: 0; border-radius: 999px; background: transparent;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: var(--lg-shadow-btn);
+  transition: scale 560ms var(--sp-pop), box-shadow 300ms ease, color 200ms ease;
+}
+.lg > svg, .sidebar-account-gear > svg { position: relative; z-index: 2; }
+.lg .glass-button-badge { z-index: 3; }
+.lg-clip { position: absolute; inset: 0; z-index: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.lg-fx {
+  position: absolute; inset: 0; border-radius: inherit;
+  background: var(--lg-body);
+  -webkit-backdrop-filter: blur(5px) saturate(160%) brightness(1.04);
+  backdrop-filter: blur(5px) saturate(160%) brightness(1.04);
+  filter: url(#lg-warp);
+}
+.lg-shine { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(70% 70% at var(--lg-x, 32%) var(--lg-y, 24%), var(--lg-glow), transparent 72%); }
+/* Der Lichtrand: ein Haar breiter Ring mit Verlauf, hell oben links und unten rechts, an den Seiten fast unsichtbar. */
+.lg-rim {
+  position: absolute; inset: 0; border-radius: inherit;
+  padding: 1px; background: var(--lg-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.lg:hover, .lg:focus-visible, .sidebar-account-gear:hover, .sidebar-account-gear:focus-visible { scale: 1.08; }
+.lg:active, .sidebar-account-gear:active { scale: 0.93; transition-duration: 140ms; }
+.glass-button.lg:active { transform: none; }
+:root[data-theme="dark"] .sidebar-account-gear, :root[data-theme="dark"] .sidebar-account-gear:is(:hover, :focus-visible, [aria-expanded="true"]) { background: transparent; box-shadow: var(--lg-shadow-btn); }
+.sidebar-account-gear:hover, .sidebar-account-gear:focus-visible, .sidebar-account-gear[aria-expanded="true"] { background: transparent; }
+
+/* ---------- Sidebar ab 1024 px ---------- */
+.sidebar-toggle, .sidebar-drop, .sidebar-gear-ring { display: none; }
+@media (min-width: 1024px) {
+  :root[data-sidebar="collapsed"] { --sidebar-w: 72px; }
+  .glass-sidebar { width: var(--sidebar-w); overflow: visible; transition: width 860ms var(--sp-open); }
+  :root[data-sidebar="collapsed"] .glass-sidebar { transition: width 780ms var(--sp-close); }
+  /* Der Inhalt zieht weich mit, ohne nachzufedern; die kompakte Titelleiste ebenso. */
+  .hub-main { transition: padding-left 780ms cubic-bezier(0.2, 0.9, 0.25, 1); }
+  .compact-nav { transition: opacity 250ms var(--ease-spring), transform 250ms var(--ease-spring), left 780ms cubic-bezier(0.2, 0.9, 0.25, 1); }
+
+  /* Logo: eingeklappt nur die Kachel, mit Platz drumherum. */
+  .sidebar-brand { flex: none; height: 44px; transition: padding 760ms var(--sp-item); }
+  .sidebar-brand-text { max-width: 170px; overflow: hidden; white-space: nowrap; transition: opacity 280ms ease 150ms, max-width 760ms var(--sp-item); }
+  :root[data-sidebar="collapsed"] .sidebar-brand { padding: 0 4px; }
+  :root[data-sidebar="collapsed"] .sidebar-brand-text { max-width: 0; opacity: 0; transition: opacity 110ms ease, max-width 760ms var(--sp-item); }
+
+  /* Der Griff am Rand, in der Fuge zwischen Suche und Einträgen: halb auf der Sidebar, halb daneben; er fährt mit dem
+     Rand mit, auch beim Nachfedern. */
+  .sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; position: absolute; z-index: 3; top: 109px; left: calc(100% - 13px); width: 28px; height: 28px; padding: 0; color: var(--label-secondary); cursor: pointer; }
+  .sidebar-toggle:hover, .sidebar-toggle:focus-visible { color: var(--accent-text); }
+  .sidebar-toggle > svg { transition: rotate 680ms var(--sp-pop); }
+  :root[data-sidebar="collapsed"] .sidebar-toggle > svg { rotate: 180deg; }
+
+  /* Suche: ausgeklappt eine Kapsel, eingeklappt ein Kreis. */
+  .sidebar-search { flex: none; position: relative; width: 100%; height: 40px; margin: 0; padding: 0 14px 0 12px; border-radius: 999px; transition: width 760ms var(--sp-item), margin-left 760ms var(--sp-item); }
+  .sidebar-search > svg { flex: none; transition: scale 560ms var(--sp-pop); }
+  .sidebar-search:hover > svg { scale: 1.16; }
+  .sidebar-search > [data-tip-label] { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; transition: opacity 280ms ease 150ms; }
+  :root[data-sidebar="collapsed"] .sidebar-search { width: 40px; margin-left: 4px; }
+  :root[data-sidebar="collapsed"] .sidebar-search > [data-tip-label] { opacity: 0; transition: opacity 100ms ease; }
+  :root[data-sidebar="collapsed"] .sidebar-search kbd { display: none; }
+
+  /* Nur die Einträge rollen, wenn das Fenster niedrig ist; Logo, Suche und Konto bleiben stehen. */
+  .sidebar-nav { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .sidebar-caption { position: relative; white-space: nowrap; transition: color 200ms ease; }
+  .sidebar-caption::after { content: ""; position: absolute; left: 14px; top: 50%; width: 20px; height: 1px; background: var(--separator); opacity: 0; transition: opacity 200ms ease; }
+  :root[data-sidebar="collapsed"] .sidebar-caption { color: transparent; }
+  :root[data-sidebar="collapsed"] .sidebar-caption::after { opacity: 1; transition: opacity 300ms ease 220ms; }
+
+  /* Einträge: Kapseln, eingeklappt Kreise; das Symbol bleibt in beiden an derselben Stelle. */
+  .sidebar-item { position: relative; isolation: isolate; width: 100%; height: 40px; padding: 0 12px 0 10.5px; border-radius: 999px; background: transparent; transition: width 760ms var(--sp-item), margin-left 760ms var(--sp-item), color 200ms ease; }
+  .sidebar-item:hover, .sidebar-item.is-active { background: transparent; box-shadow: none; }
+  .sidebar-item > [data-tip-label] { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity 280ms ease 150ms, translate 560ms var(--sp-item) 90ms; }
+  .sidebar-accent-icon { flex: none; transition: scale 560ms var(--sp-pop); }
+  .sidebar-item:hover .sidebar-accent-icon, .sidebar-item:focus-visible .sidebar-accent-icon { scale: 1.16; }
+  .sidebar-item:active .sidebar-accent-icon { scale: 0.9; transition-duration: 160ms; }
+  .sidebar-count { transition: opacity 280ms ease 150ms; }
+  :root[data-sidebar="collapsed"] .sidebar-item { width: 40px; margin-left: 4px; padding: 0 0 0 10.5px; }
+  :root[data-sidebar="collapsed"] .sidebar-item > [data-tip-label] { opacity: 0; translate: -6px 0; transition: opacity 100ms ease, translate 220ms ease; }
+  :root[data-sidebar="collapsed"] .sidebar-count:not(.sidebar-count-alert) { display: none; }
+  :root[data-sidebar="collapsed"] .sidebar-count-alert { position: absolute; top: 0; left: 24px; min-width: 17px; height: 17px; margin: 0; padding: 0 4px; font-size: 10.5px; box-shadow: 0 0 0 2px var(--badge-ring); }
+
+  /* Unterpunkte von Projekte: nach rechts versetzt, mit Verbindungslinie, auch eingeklappt. */
+  .sidebar-item.sidebar-sub { height: 34px; margin-top: 0; margin-left: 30px; width: calc(100% - 30px); padding-left: 8.5px; font-size: 14.5px; }
+  .sidebar-line { position: absolute; left: -10.5px; top: -10px; width: 10.5px; height: 27px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; border-bottom-left-radius: 9px; opacity: 0.26; pointer-events: none; transition: left 760ms var(--sp-item), width 760ms var(--sp-item), border-radius 760ms var(--sp-item), opacity 200ms ease; }
+  .sidebar-sub + .sidebar-sub .sidebar-line { top: -19px; height: 36px; }
+  .sidebar-sub.is-active .sidebar-line { opacity: 0.5; }
+  :root[data-sidebar="collapsed"] .sidebar-item.sidebar-sub { width: 34px; margin-left: 15px; padding-left: 8.5px; }
+  :root[data-sidebar="collapsed"] .sidebar-sub .sidebar-line { left: -8px; width: 8px; border-bottom-left-radius: 7px; }
+
+  /* Auswahl: ruhendes, klares Glas unter dem Symbol, mit einem Hauch Akzentfarbe und feinem Lichtrand. */
+  .sidebar-item.is-active::before, .sidebar-account-link.is-active::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 999px;
+    background: var(--lg-sel); box-shadow: var(--lg-sel-shadow);
+    animation: sidebar-sel-in 620ms var(--sp-drop) both;
+  }
+  .sidebar-item.is-active::after, .sidebar-account-link.is-active::after {
+    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 999px; pointer-events: none;
+    padding: 1px; background: var(--lg-ring-sel);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    animation: sidebar-sel-in 620ms var(--sp-drop) both;
+  }
+  @keyframes sidebar-sel-in { from { transform: scale(0.55); opacity: 0; } }
+
+  /* Konto-Ecke: eingeklappt nur das Zeichen mit den Zacken des Zahnrads; ein Klick öffnet das Menü rechts neben der
+     Sidebar. Das Zahnrad selbst ist dann weg, auch für die Tastatur. */
+  .sidebar-account { flex: none; }
+  .sidebar-account-link { position: relative; isolation: isolate; border-radius: 999px; transition: width 760ms var(--sp-item), padding 760ms var(--sp-item), min-height 760ms var(--sp-item); }
+  .sidebar-account-link:hover, .sidebar-account-link.is-active { background: transparent; box-shadow: none; }
+  .sidebar-account-link .avatar { transition: scale 560ms var(--sp-pop); }
+  .sidebar-account-link:hover .avatar { scale: 1.07; }
+  /* Eingeklappt gibt der Name seine Höhe ab, damit das Zeichen ein runder Kreis von 48 px bleibt; das geht weich. */
+  .sidebar-account-text { max-height: 72px; transition: opacity 280ms ease 150ms, max-height 760ms var(--sp-item); }
+  .sidebar-account-gear { transition: opacity 260ms ease 140ms, scale 560ms var(--sp-pop), color 200ms ease; }
+  :root[data-sidebar="collapsed"] .sidebar-account-link { flex: none; width: 48px; min-height: 48px; padding: 7px; }
+  :root[data-sidebar="collapsed"] .sidebar-account-text { max-height: 0; opacity: 0; transition: opacity 100ms ease, max-height 760ms var(--sp-item); }
+  :root[data-sidebar="collapsed"] .sidebar-account-gear { position: absolute; right: 0; opacity: 0; scale: 0.5; visibility: hidden; pointer-events: none; transition: opacity 120ms ease, scale 300ms ease, visibility 0s linear 120ms; }
+  /* Die Zacken des Zahnrads um das Zeichen (Wunsch vom 22.11.2026, Vorschau V4): acht runde Zacken auf einem feinen Ring,
+     mit etwas Luft zum Zeichen, in der Farbe des Nebentexts. Darüberfahren, Fokus und offenes Menü drehen das Zahnrad
+     federnd um einen Zacken weiter, in der Akzentfarbe. Ein Logo sitzt rund darin. */
+  :root[data-sidebar="collapsed"] .sidebar-account-link .avatar { width: 34px; height: 34px; }
+  :root[data-sidebar="collapsed"] .sidebar-account-link .avatar.has-logo { border-radius: 50%; }
+  :root[data-sidebar="collapsed"] .sidebar-gear-ring {
+    display: block; position: absolute; left: 0; top: 0; bottom: 0; width: 48px; height: 48px; margin: auto 0;
+    overflow: visible; pointer-events: none;
+    fill: none; stroke: currentColor; stroke-width: 1.5; color: var(--label-secondary);
+    transition: rotate 640ms var(--sp-pop), color 200ms ease;
+    animation: sidebar-gear-in 560ms var(--sp-pop) 120ms backwards;
+  }
+  .sidebar-gear-teeth { stroke-width: 4; stroke-linecap: round; stroke-dasharray: 5.5 11.386; stroke-dashoffset: 2.75; }
+  :root[data-sidebar="collapsed"] .sidebar-account-link:is(:hover, :focus-visible, [aria-expanded="true"]) .sidebar-gear-ring { rotate: 45deg; color: var(--accent-text); }
+  @keyframes sidebar-gear-in { from { scale: 0.6; opacity: 0; } }
+  :root[data-sidebar="collapsed"] .sidebar-account-menu { left: calc(100% + 22px); right: auto; bottom: 0; min-width: 240px; }
+  .sidebar-account-who { display: none; }
+  :root[data-sidebar="collapsed"] .sidebar-account-who { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px 4px; }
+  .sidebar-account-who strong { font-size: 14px; line-height: 19px; color: var(--label); }
+  .sidebar-account-who span { font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--accent-text); }
+
+  /* Der Tropfen: ein Stück klares Glas, das beim Darüberfahren von Eintrag zu Eintrag gleitet, sich dabei dehnt, beim
+     Ankommen nachfedert und zerfließt, wenn die Maus die Sidebar verlässt (components/hub/glass-sidebar.tsx). */
+  .sidebar-drop {
+    display: block; position: absolute; z-index: 2; left: 0; top: 0;
+    width: var(--drop-w, 40px); height: var(--drop-h, 40px);
+    transform: translate(var(--drop-x, 0px), var(--drop-y, 0px));
+    pointer-events: none;
+    transition: transform 660ms var(--sp-drop), width 540ms var(--sp-drop), height 540ms var(--sp-drop);
+  }
+  .glass-sidebar[data-drop="in"] .sidebar-drop { transition: none; }
+  .sidebar-drop-body { position: absolute; inset: 0; border-radius: 999px; overflow: hidden; transform: scale(0.3); box-shadow: 0 0 0 0 transparent; transition: transform 580ms var(--sp-drop), box-shadow 300ms ease; }
+  .glass-sidebar:is([data-drop="in"], [data-drop="down"], [data-drop="up"]) .sidebar-drop-body { transform: scale(1); box-shadow: var(--lg-shadow); }
+  .glass-sidebar[data-pulse="a"] .sidebar-drop-body { animation: sidebar-drop-a 720ms cubic-bezier(0.3, 0.7, 0.4, 1); }
+  .glass-sidebar[data-pulse="b"] .sidebar-drop-body { animation: sidebar-drop-b 720ms cubic-bezier(0.3, 0.7, 0.4, 1); }
+  .sidebar-drop-body > span { position: absolute; inset: 0; border-radius: inherit; opacity: 0; transition: opacity 200ms ease; }
+  .glass-sidebar:is([data-drop="in"], [data-drop="down"], [data-drop="up"]) .sidebar-drop-body > span { opacity: 1; }
+  /* Gebrochen wird nur ein schmales Band am Rand; die Mitte bleibt glasklar, Symbol und Name scharf. */
+  .sidebar-drop .lg-fx {
+    background: var(--drop-tint);
+    -webkit-backdrop-filter: saturate(140%) brightness(1.05);
+    backdrop-filter: saturate(140%) brightness(1.05);
+    -webkit-mask-image: linear-gradient(90deg, #000 0, transparent 9px, transparent calc(100% - 9px), #000 100%), linear-gradient(180deg, #000 0, transparent 8px, transparent calc(100% - 8px), #000 100%);
+    mask-image: linear-gradient(90deg, #000 0, transparent 9px, transparent calc(100% - 9px), #000 100%), linear-gradient(180deg, #000 0, transparent 8px, transparent calc(100% - 8px), #000 100%);
+  }
+  .sidebar-drop .lg-shine { background: radial-gradient(70% 55% at var(--drop-light, 30%) 0%, var(--lg-glow), transparent 72%); }
+}
+@keyframes sidebar-drop-a { 0% { scale: 1 1; } 20% { scale: 0.92 1.14; } 44% { scale: 1.06 0.94; } 66% { scale: 0.98 1.02; } 84% { scale: 1.01 0.995; } 100% { scale: 1 1; } }
+@keyframes sidebar-drop-b { 0% { scale: 1 1; } 20% { scale: 0.92 1.14; } 44% { scale: 1.06 0.94; } 66% { scale: 0.98 1.02; } 84% { scale: 1.01 0.995; } 100% { scale: 1 1; } }
+
+/* „Transparenz reduzieren“: deckendes Glas ohne Brechung; der Tropfen liegt dann unter dem Eintrag wie eine Fläche. */
+:root[data-reduce-transparency="true"] .lg-fx { -webkit-backdrop-filter: none; backdrop-filter: none; filter: none; background: var(--glass-solid); }
+:root[data-reduce-transparency="true"] .sidebar-drop { z-index: -1; }
+:root[data-reduce-transparency="true"] .sidebar-drop .lg-fx { -webkit-mask-image: none; mask-image: none; background: var(--selected-pill); }
+/* „Bewegung reduzieren“: ein- und ausklappen ohne Federn, der Tropfen ohne Gleiten und Nachfedern. */
+:root[data-reduce-motion="true"] :is(.glass-sidebar, .hub-main, .compact-nav, .sidebar-brand, .sidebar-brand-text, .sidebar-search, .sidebar-item, .sidebar-item > [data-tip-label], .sidebar-line, .sidebar-account-link, .sidebar-account-text, .sidebar-account-gear, .sidebar-gear-ring, .sidebar-toggle > svg, .sidebar-drop, .sidebar-drop-body, .lg, .sidebar-accent-icon) { transition: none !important; }
+:root[data-reduce-motion="true"] :is(.sidebar-gear-ring, .sidebar-drop-body, .sidebar-item.is-active::before, .sidebar-item.is-active::after, .sidebar-account-link.is-active::before, .sidebar-account-link.is-active::after) { animation: none !important; }

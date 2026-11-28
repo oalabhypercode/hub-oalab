@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Check, CircleAlert, Folder, Inbox, Upload, X } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { createClient } from "@/lib/supabase/client";
-import { checkUpload, fileFormat, formatBytes, HUB_FILES_BUCKET, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, type FileCategory } from "@/lib/hub-files/catalog";
+import { checkUpload, fileFormat, formatBytes, HUB_FILES_BUCKET, MAX_FILE_BYTES, MAX_UPLOAD_BATCH, uploadType, type FileCategory } from "@/lib/hub-files/catalog";
 import { finalizeUpload, prepareUpload } from "@/lib/hub-files/actions";
 import type { HubFileCustomer, HubFolder } from "@/lib/hub-files/types";
 import { GlassCard } from "../glass";
@@ -37,10 +37,12 @@ export async function sendUpload(file: File, meta: UploadMeta, onStep: (message:
   onStep("Wird hochgeladen …");
   const prepared = await prepareUpload(file.name, file.size);
   if (!prepared.ok) throw new Error(prepared.error);
-  const uploaded = await createClient().storage.from(HUB_FILES_BUCKET).uploadToSignedUrl(prepared.data.path, prepared.data.token, file, { contentType: file.type || "application/octet-stream" });
+  // Without a type from the browser the file's name gives it, so an SVG logo is stored as one and gets its preview.
+  const type = uploadType(file.name, file.type);
+  const uploaded = await createClient().storage.from(HUB_FILES_BUCKET).uploadToSignedUrl(prepared.data.path, prepared.data.token, file, { contentType: type });
   if (uploaded.error) throw new Error("Die Datei konnte nicht hochgeladen werden.");
   onStep("Wird gespeichert …");
-  const saved = await finalizeUpload({ path: prepared.data.path, fileName: meta.fileName ?? file.name, title: meta.title, category: meta.category, description: meta.description, mimeType: file.type, sha256, customerIds: meta.customerIds, folderId: meta.folderId });
+  const saved = await finalizeUpload({ path: prepared.data.path, fileName: meta.fileName ?? file.name, title: meta.title, category: meta.category, description: meta.description, mimeType: type, sha256, customerIds: meta.customerIds, folderId: meta.folderId });
   if (!saved.ok) throw new Error(saved.error);
   return saved.data.id;
 }

@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  ANNOUNCE_DAYS_AHEAD, announceDays, berlinDayKey, checkLogins, customerLoginState, INVITE_BATCH, isAnnounceable, isFirstAnnouncement, isFirstInvitation, isInvitable,
-  LOGIN_BATCH, loginDrafts, loginStateLabels, readAnnounceDay,
+  ANNOUNCE_DAYS_AHEAD, announceDays, berlinDayKey, checkLogins, customerLoginState, INVITE_BATCH, isAnnounceable, isFirstAnnouncement, isFirstInvitation, isFirstReminder, isInvitable,
+  isRemindable, LAUNCH_DAY, launchDays, LOGIN_BATCH, loginDrafts, loginStateLabels, readAnnounceDay, readLaunchDay,
+  isFirstStartMail, isStartMailKind, START_MAILS, startMailAction, suggestedStartMail,
 } from "../lib/hub-invitations/rules.ts";
 import { guessMapping, parseCsv, readContacts } from "../lib/hub-customer-import/rules.ts";
 import { cleanEmail, normalizeCompany, readPerson } from "../lib/hub-users/rules.ts";
@@ -114,6 +115,50 @@ test("the announcement goes to customer logins without sign-in, for a day within
   assert.deepEqual(announceDays(new Date("2026-11-28T10:00:00Z")), { min: "2026-11-28", max: "2026-12-04", suggested: "2026-11-29" });
 });
 
+test("the reminder before the start goes to every customer login, signed in or not yet, for a day from tomorrow on", () => {
+  const login = (extra = {}) => ({ id: "a", displayStatus: "active", invitedAt: null, role: "oalab_customer", remindedAt: null, ...extra });
+  assert.ok(isRemindable(login()), "signed in already");
+  assert.ok(isRemindable(login({ displayStatus: "invited" })), "still waiting for the first sign-in");
+  for (const displayStatus of ["pending", "disabled", "rejected"]) assert.ok(!isRemindable(login({ displayStatus })), displayStatus);
+  for (const role of ["oalab_freelancer", "oalab_admin", null]) assert.ok(!isRemindable(login({ role })), String(role));
+  assert.ok(isFirstReminder(login()));
+  assert.ok(!isFirstReminder(login({ remindedAt: "2026-11-23T15:00:00Z" })), "a second reminder is ticked on purpose");
+
+  // Monday, 23 November 2026: the start on Wednesday lies ahead and is suggested; today is never the day of the start.
+  const monday = new Date("2026-11-23T15:00:00Z");
+  assert.equal(LAUNCH_DAY, "2026-11-25");
+  assert.deepEqual(launchDays(monday), { min: "2026-11-24", max: "2026-11-29", suggested: "2026-11-25" });
+  assert.equal(readLaunchDay("2026-11-25", monday)?.toISOString(), "2026-11-25T12:00:00.000Z");
+  for (const bad of ["2026-11-23", "2026-11-30", "25.11.2026", "2026-11-2", "", null]) assert.equal(readLaunchDay(bad, monday), null, String(bad));
+  // 23:30 UTC on Monday is Tuesday in Berlin; from the day of the start on, tomorrow is suggested.
+  assert.deepEqual(launchDays(new Date("2026-11-23T23:30:00Z")), { min: "2026-11-25", max: "2026-11-30", suggested: "2026-11-25" });
+  assert.deepEqual(launchDays(new Date("2026-11-25T08:00:00Z")), { min: "2026-11-26", max: "2026-12-01", suggested: "2026-11-26" });
+});
+
+test("the start mails go one at a time to customer logins that still want info mails", () => {
+  assert.deepEqual(START_MAILS.map((mail) => [mail.kind, mail.day]), [["launch", "2026-11-26"], ["service", "2026-12-04"], ["hub", "2026-12-11"], ["outlook", "2026-12-18"]]);
+  assert.ok(START_MAILS.every((mail) => isStartMailKind(mail.kind)));
+  for (const bad of ["", "Start", "reminder", null, undefined, 1]) assert.ok(!isStartMailKind(bad), String(bad));
+  assert.equal(startMailAction("service"), "user.start_mail.service");
+
+  // The window opens on the newest mail whose day has come, in Berlin time.
+  assert.equal(suggestedStartMail(new Date("2026-11-26T09:00:00Z")), "launch");
+  assert.equal(suggestedStartMail(new Date("2026-12-03T22:59:00Z")), "launch", "still Thursday in Berlin");
+  assert.equal(suggestedStartMail(new Date("2026-12-03T23:30:00Z")), "service", "Friday has begun in Berlin");
+  assert.equal(suggestedStartMail(new Date("2026-12-11T10:00:00Z")), "hub");
+  assert.equal(suggestedStartMail(new Date("2027-01-20T10:00:00Z")), "outlook");
+  assert.equal(suggestedStartMail(new Date("2026-11-20T10:00:00Z")), "launch", "before the start the launch mail");
+
+  const login = (extra = {}) => ({ id: "a", displayStatus: "active", invitedAt: null, role: "oalab_customer", remindedAt: null, startMails: {}, infoMails: true, ...extra });
+  assert.ok(isFirstStartMail(login(), "launch"));
+  assert.ok(isFirstStartMail(login({ displayStatus: "invited" }), "launch"), "not activated yet gets it too");
+  assert.ok(!isFirstStartMail(login({ startMails: { launch: "2026-11-26T10:00:00Z" } }), "launch"), "has it already");
+  assert.ok(isFirstStartMail(login({ startMails: { launch: "2026-11-26T10:00:00Z" } }), "service"), "the next one is still due");
+  assert.ok(!isFirstStartMail(login({ infoMails: false }), "launch"), "stopped the info mails");
+  assert.ok(!isFirstStartMail(login({ role: "oalab_freelancer" }), "launch"), "customers only");
+  assert.ok(!isFirstStartMail(login({ displayStatus: "disabled" }), "launch"), "never deactivated logins");
+});
+
 test("an activation link lives a week, a reset a day, and the mail says until when", () => {
   assert.equal(ACTIVATION_LINK_HOURS, 168);
   assert.equal(LINK_HOURS, 24);
@@ -153,8 +198,38 @@ test("the platform and the actions use these rules", async () => {
   assert.match(body("createHubUser"), /const added = await addLogin\(ctx, \{ email: email\.value, person: person\.value, role, customer: input\.customer, withLink: true \}\);/);
   assert.match(actions, /const activationUntil = \(\) => usesOwnPlatform\(\) \? new Date\(Date\.now\(\) \+ ACTIVATION_LINK_HOURS \* 60 \* 60 \* 1000\) : null;/);
 
+  // „Erinnerung senden“: admins only, customer logins that are active, the version by the first sign-in, in the admin log.
+  const remind = body("sendLaunchReminders");
+  assert.match(remind, /const ctx = await context\(\);\s*if \(!ctx\) return denied;/, "admins only");
+  assert.match(remind, /if \(!mailSettings\(\)\.configured\) return failed\(/, "nothing starts without a mail server");
+  assert.match(remind, /ids\.length > INVITE_BATCH/);
+  assert.match(remind, /if \(roleOf\(user\) !== "oalab_customer"\) \{ results\.push\(\{ userId, outcome: "skipped"/, "customer logins only");
+  assert.match(remind, /if \(await profileStatus\(ctx, user\.id\) !== "active"\) \{ results\.push\(\{ userId, outcome: "skipped"/, "never deactivated, rejected or waiting ones");
+  assert.match(remind, /mailLaunchReminder\(user\.email, \{ \.\.\.reminder, active: Boolean\(user\.last_sign_in_at\) \}\)/, "the version follows the first sign-in");
+  assert.match(remind, /mail === "sent" \? "user\.launch_reminder" : "user\.launch_reminder_failed"/);
+  assert.match(body("sendLaunchReminderTest"), /for \(const active of \[true, false\]\) \{\s*const mail = await mailLaunchReminder\(admin\.email, \{ \.\.\.reminder, active, test: true \}\);/, "the admin gets both versions");
+
   const server = await source("lib/hub-users/server.ts");
   assert.match(server, /\.eq\("kind", "user\.activation"\)\.eq\("status", "sent"\)/, "invited means a mail really went out");
+  assert.match(server, /\.in\("action", \["user\.announcement", "user\.launch_reminder", \.\.\.START_MAIL_ACTIONS\]\)/, "announced, reminded and the start mails come from the admin log");
+  assert.match(server, /const seen = row\.action === "user\.launch_reminder" \? remindedAt : announcedAt;/);
+  assert.match(server, /const START_MAIL_ACTIONS = START_MAILS\.map\(\(mail\) => startMailAction\(mail\.kind\)\);/);
+  assert.match(server, /startMails: startMails\.get\(user\.id\) \?\? \{\},\n\s*infoMails: infoMailsWanted\(user\.user_metadata\),/);
+
+  // „Startmails senden“: admins only, a mail server and the key for the opt-out links, customer logins that are active
+  // and still want info mails, the version by the first sign-in, in the admin log under its own kind.
+  const start = body("sendStartMails");
+  assert.match(start, /const ctx = await context\(\);\s*if \(!ctx\) return denied;/, "admins only");
+  assert.match(start, /if \(!mailSettings\(\)\.configured\) return failed\(/, "nothing starts without a mail server");
+  assert.match(start, /const setup = await startMailInput\(input\?\.kind\);\s*if \(!setup\.ok\) return setup;/);
+  assert.match(start, /ids\.length > INVITE_BATCH/);
+  assert.match(start, /if \(roleOf\(user\) !== "oalab_customer"\) \{ results\.push\(\{ userId, outcome: "skipped"/, "customer logins only");
+  assert.match(start, /if \(await profileStatus\(ctx, user\.id\) !== "active"\) \{ results\.push\(\{ userId, outcome: "skipped"/);
+  assert.match(start, /if \(!infoMailsWanted\(user\.user_metadata\)\) \{ results\.push\(\{ userId, outcome: "skipped", error: "Hat die Infomails abbestellt\." \}\); continue; \}/, "who stopped them gets none");
+  assert.match(start, /mailStartSeries\(user\.email, \{ \.\.\.setup\.data, userId: user\.id, active: Boolean\(user\.last_sign_in_at\) \}\)/, "each login gets its own link, the version follows the first sign-in");
+  assert.match(start, /mail === "sent" \? startMailAction\(kind\) : "user\.start_mail_failed"/);
+  assert.match(actions, /if \(!secret\) return failed\("Der Schlüssel für die Abmelde-Links fehlt auf dem Server \(HUB_NOTIFY_TOKEN\)\. Ohne ihn geht keine Infomail raus\."\);/, "no info mail without its way to object");
+  assert.match(body("sendStartMailTest"), /for \(const active of \[true, false\]\) \{\s*const mail = await mailStartSeries\(admin\.email, \{ \.\.\.setup\.data, userId: admin\.id, active, test: true \}\);/, "the admin gets both versions");
 });
 
 test("the User Management shows roles, states and the two bulk windows", async () => {
@@ -170,6 +245,10 @@ test("the User Management shows roles, states and the two bulk windows", async (
   assert.match(dialogs, /sendInvitations\(\{ userIds: batch \}\)/);
   assert.match(dialogs, /disabled=\{!selected\.length \|\| running \|\| !mailConfigured\}/, "no sending without a mail server");
   assert.match(dialogs, /new Set\(users\.filter\(isFirstInvitation\)\.map\(\(user\) => user\.id\)\)/, "the never invited start ticked");
+  assert.match(screen, /dialog\?\.kind === "remind" && <LaunchRemindersDialog users=\{users\} customers=\{entries\} mailConfigured=\{state\.mailConfigured\}/);
+  assert.match(dialogs, /sendLaunchReminders\(\{ userIds: batch, day \}\)/);
+  assert.match(dialogs, /new Set\(users\.filter\(isFirstReminder\)\.map\(\(user\) => user\.id\)\)/, "the ones without a reminder start ticked");
+  assert.match(dialogs, /const range = useMemo\(\(\) => launchDays\(new Date\(\)\), \[\]\);/);
   const knowledge = await source("lib/hub-assistant/knowledge.ts");
   for (const title of ["Zugänge anlegen", "Einladungen", "Zugänge, Kunden und Freelancer"]) assert.match(knowledge, new RegExp(`^- ${title} \\(nur Admin\\): `, "m"), title);
 });

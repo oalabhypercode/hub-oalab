@@ -24,10 +24,18 @@ const copy = {
 /**
  * Code page only: the login's method, the (masked) address an e-mail code goes to, whether one for this session is
  * already on its way and from which mail (`times`), and whether the login works in the hub only (freelancers).
+ * `confirmOnly`: the login itself signs in without a code, the code confirms just this session. `back`: the session
+ * asked for the code itself („Mit Code bestätigen“) and may return to this hub page without one.
  */
-type SecondFactorState = { method: "email" | "totp"; email: string; codeSent: boolean; times?: CodeTimes | null; hubOnly?: boolean };
+type SecondFactorState = { method: "email" | "totp"; email: string; codeSent: boolean; times?: CodeTimes | null; hubOnly?: boolean; confirmOnly?: boolean; back?: string | null };
 
-export function AuthForm({ mode, secondFactor, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode; secondFactor?: SecondFactorState }) {
+/**
+ * New password only: `linkToken` is the password link the page opened without using it; „Passwort speichern“ redeems it,
+ * and once it is redeemed a retry goes on with the session it opened. `account` is the login's address, shown read-only
+ * so password managers save the new password under it.
+ */
+export function AuthForm({ mode, secondFactor, linkToken, account, className, children, ...props }: React.ComponentPropsWithoutRef<"div"> & { mode: AuthMode; secondFactor?: SecondFactorState; linkToken?: string; account?: string }) {
+  const [token, setToken] = useState(linkToken ?? null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
@@ -47,10 +55,12 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
   const codeTo = secondFactor?.email ? ` an ${secondFactor.email}` : "";
   // Freelancers work in the hub only; everyone else is signed in on the service platform as well.
   const place = secondFactor?.hubOnly ? "im Hub" : "im Hub und auf der Serviceplattform";
+  // After the code: signed in (a login), or back to the page that asked for it, which then allows editing.
+  const then = secondFactor?.back ? "Danach geht es zurück, und du kannst bearbeiten." : `Danach bist du ${place} angemeldet.`;
   const description = mode !== "mfa" ? content.description
-    : byApp ? `Gib den sechsstelligen Code aus deiner Authenticator-App ein. Danach bist du ${place} angemeldet.`
-    : codeSent && times ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Nimm den aus der Mail von ${times.sentAt} Uhr, er gilt bis ${times.until} Uhr. Danach bist du ${place} angemeldet.`
-    : codeSent ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Gib ihn hier ein; danach bist du ${place} angemeldet.`
+    : byApp ? `Gib den sechsstelligen Code aus deiner Authenticator-App ein. ${then}`
+    : codeSent && times ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Nimm den aus der Mail von ${times.sentAt} Uhr, er gilt bis ${times.until} Uhr. ${then}`
+    : codeSent ? `Wir haben dir einen sechsstelligen Code${codeTo} geschickt. Gib ihn hier ein. ${then}`
     : `Wir schicken dir einen sechsstelligen Code${codeTo}. Damit bestätigst du deine Anmeldung ${place}.`;
   const action = mode === "mfa" && !codeSent ? { label: "Code per E-Mail senden", loading: "Code wird gesendet …" } : { label: content.action, loading: content.loading };
   const field =(key: keyof typeof registration) => ({
@@ -82,14 +92,19 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
       } else if (mode === "forgot") {
         result = await requestPasswordResetAction({ email: email.trim() });
       } else {
-        result = await updatePasswordAction({ password });
+        result = await updatePasswordAction({ password, token });
       }
-      if (!result.ok) { setError(result.error); return; }
+      if (!result.ok) {
+        if (result.redeemed) setToken(null);
+        setError(result.error);
+        return;
+      }
       if (mode === "forgot") { setSuccess(true); return; }
       // A fresh document: no client router cache or UI state from a previous account survives the auth boundary.
       if (result.redirect) {
         // A sign-in that opens the hub is greeted there; the button keeps its busy state until the page changes.
-        if ((mode === "login" || mode === "mfa") && greetsAt(result.redirect)) noteGreeting(result.greeting ?? "");
+        // A session that only confirmed its code („Mit Code bestätigen“) returns to its page without a greeting.
+        if ((mode === "login" || (mode === "mfa" && !secondFactor?.back)) && greetsAt(result.redirect)) noteGreeting(result.greeting ?? "");
         leaving = true;
         window.location.replace(result.redirect);
       }
@@ -150,6 +165,7 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
         {mode === "mfa" && codeSent && <div className="auth-field"><label htmlFor="code">{byApp ? "Code aus deiner Authenticator-App" : "Code aus deiner E-Mail"}</label><input id="code" name="one-time-code" className="auth-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="______" required autoFocus value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} disabled={loading} /></div>}
         {notice && <p className="code-notice" role="status">{notice}</p>}
         {mode !== "update" && mode !== "mfa" && <div className="auth-field"><label htmlFor="email">E-Mail-Adresse</label><input id="email" name="email" type="email" autoComplete="email" placeholder="du@unternehmen.de" required value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} /></div>}
+        {mode === "update" && account && <div className="auth-field"><label htmlFor="email">Anmeldung mit</label><input id="email" name="email" type="email" autoComplete="username" value={account} readOnly /></div>}
         {mode !== "forgot" && mode !== "mfa" && <div className="auth-field"><div className="auth-label-row"><label htmlFor="password">{mode === "update" ? "Neues Passwort" : "Passwort"}</label>{mode === "login" && <Link href="/auth/forgot-password">Passwort vergessen?</Link>}</div><div className="password-field"><input id="password" name="password" type={visible ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder={mode === "login" ? "Dein Passwort" : "Mindestens 8 Zeichen"} required minLength={mode === "login" ? undefined : 8} value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} /><button type="button" aria-label={visible ? "Passwort verbergen" : "Passwort anzeigen"} aria-pressed={visible} onClick={() => setVisible((value) => !value)}>{visible ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}</button></div></div>}
         {(mode === "signup" || mode === "update") && <div className="auth-field"><label htmlFor="repeat-password">Passwort wiederholen</label><input id="repeat-password" name="repeat-password" type={visible ? "text" : "password"} autoComplete="new-password" required minLength={8} placeholder="Noch einmal zur Sicherheit" value={repeatPassword} onChange={(event) => setRepeatPassword(event.target.value)} disabled={loading} /></div>}
         {mode === "signup" && <>
@@ -168,9 +184,10 @@ export function AuthForm({ mode, secondFactor, className, children, ...props }: 
         <button className="button-primary auth-submit" type="submit" disabled={loading}>{loading ? <><MiniLoader size={18} />{action.loading}</> : <>{action.label}<ArrowRight size={18} aria-hidden="true" /></>}</button>
       </form>
       {mode === "mfa" && codeSent && !byApp && <button type="button" className="auth-back-link" onClick={sendCode} disabled={loading}><RotateCcw size={18} aria-hidden="true" />Neuen Code senden</button>}
-      {mode === "mfa" ? <button type="button" className="auth-back-link" onClick={leave} disabled={loading}><LogOut size={18} aria-hidden="true" />Mit einem anderen Konto anmelden</button>
+      {mode === "mfa" && secondFactor?.back ? <Link className="auth-back-link" href={secondFactor.back}><ArrowLeft size={18} aria-hidden="true" />Zurück ohne Code</Link>
+        : mode === "mfa" ? <button type="button" className="auth-back-link" onClick={leave} disabled={loading}><LogOut size={18} aria-hidden="true" />Mit einem anderen Konto anmelden</button>
         : mode === "login" ? <p className="auth-bottom-note">Noch kein Konto? <Link href="/auth/sign-up">Jetzt registrieren</Link></p> :<Link className="auth-back-link" href="/auth/login"><ArrowLeft size={18} aria-hidden="true" />Zurück zur Anmeldung</Link>}
-      {mode === "mfa" && <p className="auth-security-note"><ShieldCheck size={14} aria-hidden="true" />{byApp ? "Dein Konto ist mit einer Authenticator-App geschützt." : "Dein Konto ist mit einem Code per E-Mail geschützt."}</p>}
+      {mode === "mfa" && <p className="auth-security-note"><ShieldCheck size={14} aria-hidden="true" />{byApp ? "Dein Konto ist mit einer Authenticator-App geschützt." : secondFactor?.confirmOnly ? "Der Code bestätigt diese Anmeldung, bis du dich abmeldest." : "Dein Konto ist mit einem Code per E-Mail geschützt."}</p>}
       {mode === "update" && <p className="auth-security-note"><Check size={14} aria-hidden="true" />Dein Passwort wird verschlüsselt übertragen.</p>}
     </div>
   );

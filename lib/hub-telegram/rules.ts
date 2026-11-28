@@ -41,6 +41,36 @@ export function telegramChatMessage(input: { company: string; author: string; bo
   };
 }
 
+/**
+ * A customer's message on the service platform for the group (23.11.2026): „Neue Anfrage OA-12 · Firma · Name“ or
+ * „OA-12 · Firma · Name“ in bold, then the request's title and the text, and a button into Nachrichten › Service.
+ */
+export function telegramServiceMessage(input: { company: string; author: string; reference: string; title: string; body: string; url: string; first: boolean }) {
+  const company = oneLine(input.company, 120) || "Kunde";
+  const author = oneLine(input.author, 120);
+  const head = [`${input.first ? "Neue Anfrage " : ""}${oneLine(input.reference, 20)}`, company, author].filter(Boolean).join(" · ");
+  return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.title, 200)}\n${input.body}`, url: input.url });
+}
+
+/**
+ * A customer's „Gefällt mir“ on a result for the group (27.11.2026): „Gefällt mir · OA-12 · Firma · Name“ in bold,
+ * then the request's title and what it means, and a button into Nachrichten › Service.
+ */
+export function telegramServiceApproval(input: { company: string; author: string; reference: string; title: string; url: string }) {
+  const head = ["Gefällt mir", oneLine(input.reference, 20), oneLine(input.company, 120) || "Kunde", oneLine(input.author, 120)].filter(Boolean).join(" · ");
+  return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.title, 200)}\nÄnderung auf der Testseite passt, bereit für live.`, url: input.url });
+}
+
+/**
+ * A request for an appointment for the group (24.11.2026, decision 9 of the chat plan): „Neue Terminanfrage · Firma ·
+ * Name“ in bold, then title and time, and a button into the calendar. Answered in the hub, in the calendar or the chat.
+ */
+export function telegramAppointmentRequest(input: { company: string; author: string; title: string; when: string; url: string; freelancer?: boolean }) {
+  const company = oneLine(input.company, 120) || (input.freelancer ? "Freelancer" : "Kunde");
+  const head = ["Neue Terminanfrage", input.freelancer && input.company ? `${company} (Freelancer)` : company, oneLine(input.author, 120)].filter(Boolean).join(" · ");
+  return telegramChatMessage({ company: head, author: "", body: `${oneLine(input.title, 200)}\n${oneLine(input.when, 120)}`, url: input.url });
+}
+
 export const telegramTestMessage = () => ({
   text: "Testmeldung aus dem oalab Client Hub: Telegram ist eingerichtet. Schreibt ein Kunde im privaten Chat, kommt seine Nachricht hier an.",
 });

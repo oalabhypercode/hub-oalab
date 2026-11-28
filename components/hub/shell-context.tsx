@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 import type { PackageId } from "@/lib/service-packages";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import type { InboxState } from "@/lib/hub-notify/server";
 
 export type ShellPanel = "search" | "notifications" | "help";
 
@@ -45,6 +46,16 @@ export type ShellContextValue = {
   /** The assistant opens as a sidebar next to the page (a dialog on top of it would block that sidebar). */
   assistantDocked: boolean;
   unread: boolean;
+  /** Unread notices in the bell. */
+  unreadCount: number;
+  /** Something in the bell is newer than the last look into it: the bell rings (components/hub/app-shell.tsx). */
+  ringing: boolean;
+  /** Real logins: the notices behind the bell (null in the preview and before the migration), for Übersicht and Insights. */
+  inbox: InboxState | null;
+  /** Admins: registrations waiting for approval. */
+  pendingRegistrations: number;
+  /** Private chats with something unread (customers: from oalab, admins: from customers). */
+  unreadConversations: number;
   signOut: () => void;
   signingOut: boolean;
   logoutError: string;

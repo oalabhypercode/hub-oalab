@@ -4,7 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatFileDateTime } from "@/lib/hub-files/catalog";
 import type { OutgoingMail } from "./smtp";
 import { mailSettings, sendMail, type MailStatus } from "./send";
-import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, loginCodeMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, teamRegistrationMail, type MailContent } from "./templates";
+import { hasMailbox, maskEmail } from "@/lib/hub-auth/mail-code";
+import { SERVICE_PLATFORM_URL } from "@/lib/service-packages";
+import { accessAnnouncementMail, accessApprovedMail, keychainCodeMail, launchReminderMail, loginCodeMail, loginEmailChangedMail, passwordLinkMail, registrationConfirmationMail, registrationReceivedMail, registrationRejectedMail, startSeriesMail, teamRegistrationMail, type MailContent, type StartSeriesKind } from "./templates";
+import { infoMailOptOut } from "./opt-out";
 
 // Every mail the hub sends on its own. Each attempt lands in hub_notifications (kind and outcome only);
 // the registration mails go out once per login. Nothing here throws: a mail problem never breaks an action.
@@ -102,6 +105,23 @@ export async function mailKeychainCode(to: string, input: { firstName: string; c
   return result.status;
 }
 
+/**
+ * After an admin changed a login's address (lib/hub-users/actions.ts, changeHubUserEmail): one mail to the new address,
+ * one to the old (loginEmailChangedMail), the old one sees the new address only shortened. An address without a mailbox
+ * (test domains) gets none (null). Not in the mail log, whose kinds are fixed by migration: the action writes both
+ * outcomes into the admin log instead.
+ */
+export async function mailLoginEmailChanged(input: { firstName: string; email: string; previous: string; activated: boolean; serviceToo: boolean; hubUrl: string }) {
+  const settings = mailSettings();
+  const common = { firstName: input.firstName, previous: input.previous, activated: input.activated, serviceToo: input.serviceToo, hubUrl: input.hubUrl };
+  const send = async (to: string, content: MailContent, kind: string): Promise<MailStatus | null> => hasMailbox(to) ? (await sendMail(mailOf([to], content, { kind }))).status : null;
+  const [toNew, toOld] = await Promise.all([
+    send(input.email, loginEmailChangedMail({ ...common, to: "new", email: input.email }, settings.legal), "user.email_changed"),
+    send(input.previous, loginEmailChangedMail({ ...common, to: "old", email: maskEmail(input.email) }, settings.legal), "user.email_changed_notice"),
+  ]);
+  return { toNew, toOld };
+}
+
 /** The plain address of a sender like „oalab Client Hub <hub@oalab.de>“. */
 const senderAddress = (from: string) => /<([^<>\s]+@[^<>\s]+)>/.exec(from)?.[1] ?? from.trim();
 
@@ -114,6 +134,36 @@ export async function mailAnnouncement(to: string, input: { day: Date; days: num
   const settings = mailSettings();
   const content = accessAnnouncementMail({ day: input.day, sender: senderAddress(settings.from), days: input.days, hubUrl: input.hubUrl }, settings.legal);
   const result = await sendMail(mailOf([to], input.test ? { ...content, subject: `[Test] ${content.subject}` } : content, { kind: "user.announcement" }));
+  return result.status;
+}
+
+/**
+ * The reminder before the start of hub and service platform (User Management → „Erinnerung senden“), to one login:
+ * `active` when somebody has signed in with it, else the version with the way in. Like the announcement it is recorded
+ * in the admin log. `test` names the version in the subject, as the admin gets both.
+ */
+export async function mailLaunchReminder(to: string, input: { day: Date; active: boolean; hubUrl: string; test?: boolean }): Promise<MailStatus> {
+  const settings = mailSettings();
+  const content = launchReminderMail({ day: input.day, email: to, active: input.active, sender: senderAddress(settings.from), hubUrl: input.hubUrl, serviceUrl: SERVICE_PLATFORM_URL }, settings.legal);
+  const subject = input.test ? `[Test: ${input.active ? "aktiv" : "noch nicht aktiviert"}] ${content.subject}` : content.subject;
+  const result = await sendMail(mailOf([to], { ...content, subject }, { kind: "user.launch_reminder" }));
+  return result.status;
+}
+
+/**
+ * One mail of the start series (User Management → „Startmails senden“, 26.11.2026) to one login: `active` when somebody
+ * has signed in with it, else the version with the way in. Every mail carries the login's own signed link to stop the
+ * info mails, at the foot and in the List-Unsubscribe header; `hubUrl` is the hub's origin for those links and `secret`
+ * the key that signs them. Like the reminder it is recorded in the admin log; `test` names the version in the subject.
+ */
+export async function mailStartSeries(to: string, input: { kind: StartSeriesKind; userId: string; active: boolean; hubUrl: string; secret: string; test?: boolean }): Promise<MailStatus> {
+  const settings = mailSettings();
+  const content = startSeriesMail(input.kind, {
+    email: to, active: input.active, sender: senderAddress(settings.from), hubUrl: input.hubUrl, serviceUrl: SERVICE_PLATFORM_URL,
+    optOut: infoMailOptOut(input.hubUrl, input.userId, input.secret),
+  }, settings.legal);
+  const subject = input.test ? `[Test: ${input.active ? "aktiv" : "noch nicht aktiviert"}] ${content.subject}` : content.subject;
+  const result = await sendMail(mailOf([to], { ...content, subject }, { kind: `user.start_mail.${input.kind}` }));
   return result.status;
 }
 

@@ -10,6 +10,11 @@ export function InsetGroupedList({ children, label, className = "" }: { children
 
 type RowContent = { icon?: React.ReactNode; title: React.ReactNode; subtitle?: React.ReactNode; trailing?: React.ReactNode; chevron?: boolean };
 
+/** The inside of a row, for a row whose button comes from elsewhere (the trigger of an ⓘ card in Profil). */
+export function ListRowContent(content: RowContent) {
+  return <Content {...content} />;
+}
+
 function Content({ icon, title, subtitle, trailing, chevron = true }: RowContent) {
   return <>
     {icon && <span className="list-row-icon">{icon}</span>}

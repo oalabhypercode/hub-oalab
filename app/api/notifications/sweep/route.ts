@@ -2,12 +2,14 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { siteOrigin } from "@/lib/site-origin";
 import { runNotificationSweep } from "@/lib/hub-notify/server";
+import { sweepNoteImagesOnSchedule } from "@/lib/hub-notes/sweep";
 import { usesOwnPlatform } from "@/lib/platform/config";
 import { sweepAbandonedUploads } from "@/lib/platform/storage";
 
 // The schedule for notifications: pg_cron in the database calls this every five minutes with the token from Vault
 // (migration hub_notifications). Without HUB_NOTIFY_TOKEN, or with another token, nothing happens. A run only does
-// what is due, so an extra call never sends twice. On the own platform it also clears abandoned uploads.
+// what is due, so an extra call never sends twice. On the own platform it also clears abandoned uploads and, every
+// six hours, the images of the notes that nothing names any more.
 
 // Room for the mails that run after the response.
 export const maxDuration = 60;
@@ -32,6 +34,7 @@ export async function POST(request: Request) {
       (removed) => { if (removed) console.info(`[hub-storage] removed ${removed} abandoned upload rows`); },
       (error: unknown) => console.error("[hub-storage] sweep failed", error instanceof Error ? error.message : "unknown"),
     );
+    await sweepNoteImagesOnSchedule();
   });
   return new Response(null, { status: 202 });
 }

@@ -1,9 +1,11 @@
 import type { HubFileCustomer, HubFolder, HubStoredFile } from "./hub-files/types";
 import type { PackageId } from "./service-packages";
 
-export const hubSections = ["projects", "files", "contracts", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "keychain", "patch-notes"] as const;
+export const hubSections = ["projects", "files", "contracts", "customers", "messages", "calendar", "settings", "insights", "discover", "users", "ai-log", "keychain", "patch-notes"] as const;
 /** Sections only admins may open. */
 export const adminSections: readonly HubSection[] = ["users", "ai-log", "keychain"];
+/** Sections only freelancers may open: „Kunden“ with what oalab released of each customer (18.11.2026). */
+export const freelancerSections: readonly HubSection[] = ["customers"];
 export type HubSection = "overview" | (typeof hubSections)[number];
 
 export const sectionLabels: Record<HubSection, string> = {
@@ -11,6 +13,7 @@ export const sectionLabels: Record<HubSection, string> = {
   projects: "Projekte",
   files: "Dateien",
   contracts: "Vertrag & Domain",
+  customers: "Kunden",
   messages: "Nachrichten",
   calendar: "Kalender",
   settings: "Profil",
@@ -68,14 +71,29 @@ export type Project = {
   company?: string;
   /** Studio projects: the customer organization, to find the hub customer it belongs to. */
   organizationId?: string;
+  /** Studio projects: the hub customer of that organization, so the project dialog can jump to its chat, files and contract. */
+  customerId?: string;
+  /** Studio projects: the customer's website from the user management, as a full https URL. */
+  website?: string;
+  /**
+   * Studio projects of oalab itself (plan „oalab als Unternehmen“): on the oalab organization, whose hub entry is of the
+   * kind team. No customer ever sees them; the hub tags them „Intern“.
+   */
+  internal?: boolean;
+  /** Studio projects: where the finished site runs (branch main) and where every change is previewed first (branch test). */
+  liveUrl?: string;
+  testUrl?: string;
   /** ISO dates; fixtures always have both, Studio projects may have neither. */
   startedOn: string | null;
   dueOn: string | null;
   milestones: Milestone[];
   /** Real projects from OALab Studio carry their tasks; fixtures have none. */
   tasks?: ProjectTask[];
-  /** Studio projects: their Studio status and the version of their details row (null while Studio has none). */
-  studio?: { status: StudioProjectStatus; version: number | null };
+  /**
+   * Studio projects: their Studio status and the version of their details row (null while Studio has none); for admins
+   * also whether the customer sees the project at all (client_visible), which customers never learn.
+   */
+  studio?: { status: StudioProjectStatus; version: number | null; visible?: boolean };
   /** Studio projects: what the progress is the share of; without tasks Studio counts finished requests. */
   progressBasis?: "tasks" | "requests" | "none";
   /** Studio projects: open and finished requests (Anfragen) on the service platform. */
@@ -209,9 +227,13 @@ export function currentMilestone(project: Project, asOf: string): Milestone | un
   return project.milestones.filter((item) => item.at.slice(0, 10) <= asOf).at(-1) ?? project.milestones[0];
 }
 
+/**
+ * The address of a section. The calendar hangs under Projekte next to the task board (decision of 16.11.2026), so it
+ * lives at /projects/calendar; the old address /calendar forwards there (lib/supabase/proxy.ts).
+ */
 export function hubHref(preview: boolean, section: HubSection = "overview") {
   const base = preview ? "/preview" : "/dashboard";
-  return section === "overview" ? base : `${base}/${section}`;
+  return section === "overview" ? base : section === "calendar" ? `${base}/projects/calendar` : `${base}/${section}`;
 }
 
 export function metricHref(preview: boolean, metric: string) {

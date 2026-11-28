@@ -1,4 +1,5 @@
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
+import type { AppointmentNow, ChatArea, ChatEvent } from "@/lib/hub-chat-events/rules";
 import type { ChatSide } from "./rules";
 
 /** One message of a private chat as the reader sees it. */
@@ -12,6 +13,8 @@ export interface PrivateChatMessage {
   readonly at: string;
   /** For messages of the reader's side: someone of the other side has looked at the chat since. */
   readonly read: boolean;
+  /** A card for a change (24.11.2026, lib/hub-chat-events) or a grey line; null for a message people wrote. */
+  readonly event: ChatEvent | null;
 }
 
 /** A customer's private chat in the list: the company, its logo and the newest message. */
@@ -23,7 +26,7 @@ export interface PrivateChatSummary {
   /** The logo set in the Asset Management, shown to admins instead of the initials; null without one. */
   readonly logo: CustomerLogo | null;
   readonly lastAt: string | null;
-  readonly last: { readonly body: string; readonly side: ChatSide; readonly own: boolean; readonly name: string | null } | null;
+  readonly last: { readonly body: string; readonly side: ChatSide; readonly own: boolean; readonly name: string | null; readonly event: ChatEvent | null } | null;
   readonly unread: boolean;
 }
 
@@ -32,6 +35,12 @@ export interface PrivateChatThread {
   readonly messages: readonly PrivateChatMessage[];
   /** For admins: the active logins of the company, who see an answer and get a notice. */
   readonly people: readonly string[];
+  /** The switches under „Abos“ (customer chats); null where the chat has none, as for freelancers or before the migration. */
+  readonly subscriptions: Readonly<Record<ChatArea, boolean>> | null;
+  /** Today's state of the appointments the cards name, for their badges and buttons; null when one is gone. */
+  readonly appointments: Readonly<Record<string, Exclude<AppointmentNow, undefined>>>;
+  /** Signed links into the own calendar app (customers, upcoming confirmed appointments, only with the key). */
+  readonly calendarLinks: Readonly<Record<string, { readonly ics: string; readonly google: string; readonly outlook: string }>>;
 }
 
 export interface PrivateChatState {

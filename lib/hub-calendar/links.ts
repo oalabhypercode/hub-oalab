@@ -60,16 +60,33 @@ export function calendarLinks(origin: string, appointmentId: string, secret: str
   return { ics: `${base}/${ICS_FILE}${query}`, google: `${base}/google${query}`, outlook: `${base}/outlook${query}` };
 }
 
-const utc = (value: string) => new Date(value).toISOString().replace(/\.\d{3}Z$/, "Z");
-const clip = (value: string, length: number) => value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value;
+export const utc = (value: string) => new Date(value).toISOString().replace(/\.\d{3}Z$/, "Z");
+export const clip = (value: string, length: number) => value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value;
 /** Notes stay short enough for the address of the Google and Outlook links; the whole text is in the hub. */
 const NOTE_LENGTH = 1000;
 
-/** What lands in the private calendar: title with "oalab", the time, the Teams link and the way back into the hub. */
+/**
+ * The provider of a meeting link for the calendar entry, by its host (the hosts the calendar's rules allow; kept here
+ * so this file stays self-contained). Links of before 27.11.2026 were all Teams.
+ */
+export function meetingName(link: string): { name: string; meeting: string } {
+  let host = "";
+  try {
+    host = new URL(link).hostname;
+  } catch {
+    host = "";
+  }
+  if (host === "meet.google.com") return { name: "Google Meet", meeting: "Google Meet" };
+  if (/(^|\.)(zoom\.us|zoom\.com|zoomgov\.com)$/.test(host)) return { name: "Zoom", meeting: "Zoom-Meeting" };
+  return { name: "Microsoft Teams", meeting: "Teams-Besprechung" };
+}
+
+/** What lands in the private calendar: title with "oalab", the time, the meeting link and the way back into the hub. */
 export function calendarEvent(appointment: CalendarAppointment, origin: string, now: Date): CalendarEvent {
-  const url = `${origin}/dashboard/calendar`;
+  // The calendar under Projekte (CALENDAR_PATH in paths.ts; kept here as text so this file stays self-contained).
+  const url = `${origin}/dashboard/projects/calendar`;
   const notes = [
-    appointment.teams_url ? `Teams-Besprechung beitreten:\n${appointment.teams_url}` : "",
+    appointment.teams_url ? `${meetingName(appointment.teams_url).meeting} beitreten:\n${appointment.teams_url}` : "",
     clip(appointment.description.trim(), NOTE_LENGTH),
     `Termin im oalab Client Hub:\n${url}`,
   ];
@@ -79,7 +96,7 @@ export function calendarEvent(appointment: CalendarAppointment, origin: string, 
     uid: `${appointment.id}@hub.oalab.de`,
     summary: `${appointment.title} · oalab`,
     description: notes.filter(Boolean).join("\n\n"),
-    location: appointment.teams_url ? "Microsoft Teams" : "",
+    location: appointment.teams_url ? meetingName(appointment.teams_url).name : "",
     start: utc(appointment.starts_at),
     end: utc(appointment.ends_at),
     url,
@@ -89,7 +106,7 @@ export function calendarEvent(appointment: CalendarAppointment, origin: string, 
 }
 
 /** 2026-11-06T10:00:00Z → 20261106T100000Z */
-const compact = (value: string) => value.replace(/[-:]/g, "");
+export const compact = (value: string) => value.replace(/[-:]/g, "");
 
 export function googleCalendarUrl(event: CalendarEvent) {
   const query = [
@@ -110,10 +127,10 @@ export function outlookCalendarUrl(event: CalendarEvent) {
 }
 
 /** Text values of an .ics file: backslash, semicolon, comma and line breaks are escaped. */
-const icsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+export const icsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
 /** Lines longer than 75 bytes continue on the next line after a space (RFC 5545), never inside a character. */
-function fold(line: string) {
+export function fold(line: string) {
   const parts: string[] = [];
   let current = "";
   let size = 0;

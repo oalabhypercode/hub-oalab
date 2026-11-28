@@ -60,6 +60,8 @@
   --cal-confirmed-bg: #ffe0de; --cal-requested-bg: #fff0d9;
   /* Switches and ticks use the accent like every other choice; green stays for "done" and "active". */
   --switch-on: var(--accent-text);
+  /* The Schlüsselbund's lock switch while open. */
+  --lock-open: #34c759;
   /* Tones of the hub mails: to do, for information, done, off, problem. Background, text, and the bar of a note. */
   --tone-todo-bg: #fff0e3; --tone-todo: #9a3a00; --tone-todo-bar: #f37222;
   --tone-info-bg: #e6f0ff; --tone-info: #004285; --tone-info-bar: #2f6fd0;
@@ -69,6 +71,8 @@
   /* Rows of customers and freelancers: red without a Zugang, yellow while nobody signed in yet. */
   --veil-none: rgb(217 58 47 / 0.09); --veil-none-bar: #d93a2f;
   --veil-open: rgb(234 179 8 / 0.17); --veil-open-bar: #d9a300;
+  /* Projects in work and in planning (Projekte, 16.11.2026): a softer green and blue veil. */
+  --veil-ok: rgb(46 155 75 / 0.08); --veil-info: rgb(47 111 208 / 0.07);
   --danger: #b3261e;
   --danger-fill: #b3261e;
   --track-neutral: rgba(60, 60, 67, 0.28);
@@ -151,6 +155,29 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .glass-button-text { padding: 0 18px; color: var(--accent-text); }
 .glass-button:active { transform: scale(0.96); }
 .glass-button-badge { position: absolute; top: 9px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); border: 1.5px solid var(--surface); }
+/* A number instead of the dot (the bell's unread notices), on the button's edge. */
+.glass-button-badge.has-count { z-index: 1; top: -3px; right: -3px; width: auto; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--accent-text); color: var(--on-accent); font-family: var(--font-rounded); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+/* The bell with news (wish of 17.11.2026): it turns to the accent colour, a glowing ring pulses out of it and the bell
+   swings now and then, until the bell was opened (components/hub/app-shell.tsx); the number stays until the notices
+   are read. With „Bewegung reduzieren“ a still ring marks it instead. The ring sits on the page's background, so it
+   takes the colour of text on the background (--on-bg), which stands out on every background and theme. */
+.bell-button.is-ringing { color: var(--accent-text); }
+.bell-button.is-ringing::after { content: ""; position: absolute; inset: -2px; border-radius: inherit; border: 2px solid var(--on-bg); box-shadow: 0 0 14px color-mix(in srgb, var(--on-bg) 55%, transparent); opacity: 0; pointer-events: none; animation: bell-halo 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+.bell-button.is-ringing > svg { transform-origin: 50% 8%; animation: bell-swing 4.8s ease-in-out infinite; }
+@keyframes bell-halo {
+  0% { opacity: 0.7; transform: scale(0.94); }
+  70%, 100% { opacity: 0; transform: scale(1.45); }
+}
+@keyframes bell-swing {
+  0%, 74%, 100% { rotate: 0deg; }
+  78% { rotate: 16deg; }
+  82% { rotate: -13deg; }
+  86% { rotate: 9deg; }
+  90% { rotate: -5deg; }
+  94% { rotate: 2deg; }
+}
+:root[data-reduce-motion="true"] .bell-button.is-ringing::after { animation: none; opacity: 0.8; transform: none; }
+:root[data-reduce-motion="true"] .bell-button.is-ringing > svg { animation: none; }
 .pressable { transition: transform var(--duration) var(--ease-spring); }
 .pressable:active { transform: scale(0.98); }
 .on-bg-link { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; color: var(--on-bg); font-size: 17px; font-weight: 500; }
@@ -170,12 +197,14 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .skeleton-bar { display: block; height: 12px; border-radius: 6px; background: var(--fill-tertiary); }
 
 /* ---------- App shell ---------- */
-.hub-main { min-height: 100dvh; padding: 20px 28px 64px calc(272px + 12px + 28px); }
-.hub-content { width: 100%; max-width: 1040px; margin: 0 auto; }
+/* Every page uses the whole width beside the sidebar (22.11.2026; before, 1040 px, tables 1240 px); --sidebar-w is 272 px,
+   72 px with the sidebar collapsed (app/sidebar.css). */
+.hub-main { min-height: 100dvh; padding: 20px 28px 64px calc(var(--sidebar-w) + 12px + 28px); }
+.hub-content { width: 100%; margin: 0 auto; }
 .hub-app .skip-link { border-radius: 999px; background: var(--surface); color: var(--label); }
 
 /* Design preview notice (/preview only): marks the fictional content. */
-.hub-notice { max-width: 1040px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; min-height: 36px; border-radius: 999px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.hub-notice { margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; min-height: 36px; border-radius: 999px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .hub-notice > span:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--label-body); font-weight: 600; }
 .hub-notice-detail { font-weight: 400; color: var(--label-secondary); }
 .hub-notice i { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex: 0 0 auto; }
@@ -251,9 +280,8 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .large-title-date { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--on-bg-soft); margin-bottom: 2px; }
 .large-title-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .title-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--surface); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
-.compact-nav { position: fixed; z-index: 35; top: 12px; left: calc(272px + 24px + 28px); right: 28px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--label); font-size: 17px; font-weight: 600; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity 250ms var(--ease-spring), transform 250ms var(--ease-spring); }
+.compact-nav { position: fixed; z-index: 35; top: 12px; left: calc(var(--sidebar-w) + 24px + 28px); right: 28px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--label); font-size: 17px; font-weight: 600; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity 250ms var(--ease-spring), transform 250ms var(--ease-spring); }
 .compact-nav.is-visible { opacity: 1; transform: none; }
-@media (min-width: 1404px) { .compact-nav { left: calc(272px + 24px + 28px + (100vw - 272px - 24px - 56px - 1040px) / 2); right: auto; width: 1040px; } }
 
 /* Dialogs as glass sheets */
 .hub-modal.glass { padding: 24px; border-radius: 26px; width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; color: var(--label-body); box-shadow: var(--glass-shadow-float); }
@@ -271,20 +299,57 @@ body:has(.hub-app) { background: transparent; color: var(--on-bg); -webkit-font-
 .hub-modal .search-results small { display: block; font-size: 13px; color: var(--label-secondary); }
 .hub-modal .search-results a > svg:last-child { color: var(--label-tertiary); }
 .hub-modal .search-results p { padding: 16px 4px; }
-.notification-item { display: flex; align-items: flex-start; gap: 14px; padding: 8px 0 20px; }
 .notification-symbol { display: inline-flex; padding: 10px; border-radius: 50%; background: rgba(0, 122, 255, 0.14); }
-.notification-item strong { font-size: 17px; font-weight: 600; color: var(--label); }
-.notification-item p { font-size: 15px; line-height: 20px; margin-top: 4px; color: var(--label-secondary); }
-.notification-item div > span { display: block; margin-top: 6px; font-size: 13px; color: var(--label-secondary); }
-.notice-list { list-style: none; margin: 0 0 16px; padding: 0; max-height: min(60vh, 520px); overflow-y: auto; }
-.notice-row { display: flex; align-items: flex-start; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--separator); color: var(--label-body); }
-.notice-list li:last-child .notice-row { border-bottom: 0; }
+.notice-list { list-style: none; margin: 0 0 16px; padding: 0; overflow-y: auto; }
+/* The bell (design „Glocke V3“, 22.11.2026; stage 1 of the plan chat-ereignisse-und-glocke, 23.11.2026): only unread
+   lines, in columns without headings: the time left of the symbol, where, the message, from whom, and a round tick
+   that marks a line read. The window keeps its glass and type and grows with the screen, about 62 % of the width
+   between 760 and 1280 px and as tall as the screen allows; only the list scrolls, title and button stay in place.
+   On phones the columns stack right of the time. */
+.hub-modal.notifications-modal { width: min(calc(100% - 32px), clamp(760px, 62vw, 1280px)); max-height: calc(100dvh - 64px); }
+/* clip, not hidden: the window itself never scrolls, so focus deep in a long list cannot push the title away */
+.hub-modal.notifications-modal[open] { display: flex; flex-direction: column; overflow: clip; }
+.notifications-modal > * { flex: none; }
+.notifications-modal > .notice-list { flex: 1 1 auto; min-height: 0; margin-bottom: 12px; overscroll-behavior: contain; }
+.notice-item { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--separator); transition: opacity 220ms ease, transform 220ms ease; }
+.notice-list > .notice-item:last-child { border-bottom: 0; }
+.notice-item.is-leaving { opacity: 0; transform: translateX(24px); pointer-events: none; }
+:root[data-reduce-motion="true"] .notice-item { transition: none; }
+.notice-row { flex: 1; min-width: 0; display: grid; grid-template-columns: 60px minmax(0, clamp(190px, 24%, 300px)) minmax(0, 1fr) minmax(0, clamp(110px, 14%, 180px)); column-gap: 14px; align-items: start; padding: 12px 4px; color: var(--label-body); }
+.notice-time { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding-top: 2px; text-align: right; white-space: nowrap; font-size: 13px; line-height: 17px; font-variant-numeric: tabular-nums; color: var(--label-secondary); }
+.notice-day { font-weight: 600; }
+.notice-where { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.notice-where .notification-symbol { flex: 0 0 auto; }
+.notice-place, .notice-from { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-top: 1px; }
+.notice-place strong, .notice-from strong { font-size: 14px; line-height: 19px; color: var(--label); overflow-wrap: anywhere; }
+.notice-place strong { font-weight: 600; }
+.notice-from strong { font-weight: 500; }
+.notice-place span, .notice-from > span { font-size: 13px; line-height: 18px; color: var(--label-secondary); overflow-wrap: anywhere; }
 .notice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .notice-text strong { font-size: 16px; line-height: 21px; font-weight: 500; color: var(--label); overflow-wrap: anywhere; }
 .notice-row.is-unread .notice-text strong { font-weight: 700; }
 .notice-text > span { font-size: 14px; line-height: 19px; color: var(--label-secondary); overflow-wrap: anywhere; }
-.notice-text time { font-size: 13px; color: var(--label-tertiary); }
-.notice-row.is-unread .notice-text time { color: var(--accent-text); }
+/* The tick shows on hover and with the keyboard, like × in the overview; on touch screens always. */
+.notice-check { flex: none; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--label-secondary); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.notice-item:hover > .notice-check, .notice-item:focus-within > .notice-check { opacity: 1; }
+.notice-check:hover { color: var(--accent-text); }
+@media (hover: none) { .notice-check { opacity: 1; } }
+.notice-more { margin: -4px 0 12px; font-size: 14px; line-height: 20px; text-align: center; color: var(--label-secondary); }
+.notice-undo { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; line-height: 20px; color: var(--label-body); }
+.notice-undo:not(:empty) { min-height: 44px; margin-bottom: 12px; padding: 0 6px 0 16px; border-radius: 999px; background: var(--fill-tertiary); }
+.notice-undo button { min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--accent-text); }
+.notice-undo button:hover { background: var(--fill-tertiary); }
+.modal-empty .notice-earlier { margin-top: 6px; font-size: 15px; }
+@media (max-width: 640px) {
+  .hub-modal.notifications-modal { max-height: calc(100dvh - 32px); }
+  .notice-item { position: relative; }
+  .notice-row { grid-template-columns: 50px minmax(0, 1fr); column-gap: 10px; row-gap: 6px; }
+  .notice-row > .notice-time { grid-row: span 3; }
+  .notice-row > :is(.notice-where, .notice-text, .notice-from) { grid-column: 2; }
+  .notice-row > .notice-where { padding-right: 40px; }
+  .notice-from { flex-direction: row; flex-wrap: wrap; gap: 0 6px; }
+  .notice-check { position: absolute; top: 14px; right: 0; }
+}
 .text-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: 17px; font-weight: 500; color: var(--accent-text); }
 .sheet-button { width: 100%; min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; background: var(--fill-tertiary); color: var(--accent-text); font-size: 17px; font-weight: 600; }
 .sheet-button-primary { background: var(--accent-gradient); color: #ffffff; box-shadow: var(--accent-shadow); }
@@ -617,6 +682,102 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .chat-tabs svg { flex: 0 0 auto; }
 .chat-tab-count { min-width: 18px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-text); color: var(--on-accent); font-size: 11px; font-weight: 700; line-height: 1; }
 .chat-tab-note { margin: -4px 20px 10px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+/* Service requests (Nachrichten › Service): the number as a quiet chip, the filters across the list, and the team's
+   field – write for the customer or as oalab, give a paused request back. A message written for the customer sits on
+   the customer's side with a dashed edge: it counts as theirs, but somebody of oalab wrote it. */
+.chat-filter.is-wide { display: flex; align-self: stretch; margin-right: 14px; overflow-x: auto; scrollbar-width: none; }
+.chat-filter.is-wide::-webkit-scrollbar { display: none; }
+.chat-filter.is-wide button { flex: 1 0 auto; justify-content: center; gap: 5px; padding: 0 7px; white-space: nowrap; }
+.chat-filter.is-wide button span { color: var(--sheet-muted); font-variant-numeric: tabular-nums; }
+.chat-filter.is-wide button[aria-pressed="true"] span { color: var(--accent-text); }
+.chat-conv-company { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.chat-conv-company > span:not(.chat-ref) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-ref { flex: 0 0 auto; padding: 0 5px; border-radius: 5px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 11px; line-height: 16px; font-weight: 600; color: var(--label); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.chat-conv-sub .chat-badge { margin-left: -2px; }
+.chat-msg.is-in.is-proxy .chat-bubble { padding: 5.5px 10.5px; border: 1.5px dashed color-mix(in srgb, var(--accent-text) 42%, var(--sheet-line)); background: color-mix(in srgb, var(--sheet) 88%, rgb(var(--accent-rgb)) 4%); box-shadow: none; }
+.chat-msg.is-proxy .chat-who { color: var(--accent-text); }
+.chat-mode { align-self: flex-start; max-width: 100%; margin: 0; }
+.chat-mode button { min-width: 0; }
+.chat-mode button > span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; font-weight: inherit; }
+.chat-composer.is-proxy .chat-compose-row textarea { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 38%, var(--sheet-line)); }
+.chat-composer.is-proxy .chat-compose-row textarea:focus { box-shadow: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k))); }
+.chat-hint.is-done { display: flex; align-items: center; gap: 6px; color: var(--tone-ok); font-weight: 600; animation: chat-step-in 360ms var(--ease-spring) backwards; }
+.chat-hint.is-done svg { flex: 0 0 auto; }
+.chat-handback { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 10px 10px 12px; border-radius: 16px; background: var(--tone-todo-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-todo) 16%, transparent); animation: chat-step-in 380ms var(--ease-spring) backwards; }
+.chat-handback[data-state="closed"] { animation: chat-step-out 200ms cubic-bezier(0.5, 0, 0.75, 0) forwards; pointer-events: none; }
+.chat-handback-icon { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--tone-todo) 14%, transparent); color: var(--tone-todo); }
+.chat-handback-text { min-width: 0; }
+.chat-handback-text strong { display: block; font-size: 13.5px; line-height: 18px; font-weight: 700; color: var(--tone-todo); }
+.chat-handback-text p { margin: 1px 0 0; font-size: 12.5px; line-height: 17px; color: var(--label-body); }
+.chat-handback .chat-card-action { white-space: nowrap; }
+@keyframes chat-step-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes chat-step-out { to { opacity: 0; transform: translateY(6px) scale(0.98); } }
+:root[data-reduce-motion="true"] :is(.chat-handback, .chat-hint.is-done) { animation-duration: 1ms; }
+/* The field measures itself (phones have no sheet container): narrow, the button goes under the text. */
+.chat-composer { container: composer / inline-size; }
+@container composer (max-width: 560px) {
+  .chat-handback { grid-template-columns: 32px minmax(0, 1fr); }
+  .chat-handback .chat-card-action { grid-column: 2; justify-self: start; }
+}
+/* Reports of the team („NoteTree-Verbesserung“): „NoteTree-Problem melden“ beside the list's heading (under it where the
+   list is narrow) with its window, an own sign in list and head, and a quiet bar above the field – open in the accent,
+   done in green, never the orange of a paused AI. The button is as high as the pen button of the tab „Privat“, so the
+   tabs stay in place when switching. */
+.chat-list-head.has-report { flex-wrap: wrap; padding-right: 14px; }
+.sheet-action.chat-report-open { height: 34px; gap: 5px; padding: 0 9px; }
+.chat-avatar.am-avatar.is-issue { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / calc(0.2 * var(--tint-k))); color: var(--accent-text); }
+.chat-handback.is-issue { background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.chat-handback.is-issue .chat-handback-icon { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); color: var(--accent-text); }
+.chat-handback.is-issue .chat-handback-text strong { color: var(--label); }
+.chat-handback.is-issue.is-done .chat-handback-icon { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.chat-report form { display: grid; gap: 12px; }
+.chat-report .am-textarea { min-height: 132px; padding: 10px 12px; font-size: 15px; line-height: 21px; }
+.chat-report .am-textarea::placeholder { color: var(--sheet-muted); }
+.chat-report .field-hint { margin: -4px 0 0; }
+.hub-modal.chat-report .form-error { margin: 0; }
+.chat-report .um-actions .sheet-action { height: 36px; padding: 0 16px; }
+@media (max-width: 767px) {
+  .sheet-action.chat-report-open { height: 36px; }
+  .chat-report .am-textarea { font-size: 16px; }
+  .chat-report .um-actions .sheet-action { flex: 1 1 0; justify-content: center; height: 44px; }
+}
+/* Testansicht (26.11.2026): the test site with the date of its last change in the head of a service conversation, the
+   bubble whose lines take turns while the AI works, „Neue Testansicht bereit“ after each result and the line when the
+   site changed before the AI said a word. */
+.chat-pane-title .chat-pane-sub { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.chat-pane-sub > span { min-width: 0; }
+.chat-site { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 5px; min-width: 0; color: var(--sheet-muted); font-size: 12.5px; line-height: 17px; text-decoration: none; }
+.chat-site b { flex: 0 0 auto; color: var(--label); font-weight: 600; }
+.chat-site:hover b { text-decoration: underline; text-underline-offset: 2px; }
+.chat-pane-title .chat-site-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--tone-todo); }
+.chat-msg.is-working .chat-bubble { background: var(--sheet); color: var(--label-body); box-shadow: 0 0 0 1px var(--sheet-line); }
+.chat-quip { display: flex; align-items: center; gap: 9px; }
+.chat-quip-t { transition: opacity 320ms ease, transform 320ms ease; }
+.chat-quip-t.is-out { opacity: 0; transform: translateY(5px); }
+.chat-quip-dots { display: inline-flex; flex: 0 0 auto; gap: 4px; }
+.chat-quip-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-text); opacity: 0.35; animation: chat-quip-dot 1.2s ease infinite; }
+.chat-quip-dots i:nth-child(2) { animation-delay: 0.16s; }
+.chat-quip-dots i:nth-child(3) { animation-delay: 0.32s; }
+.chat-quip.is-slow .chat-quip-dots i { background: var(--tone-todo); animation-duration: 2.4s; }
+@keyframes chat-quip-dot { 0%, 70%, 100% { opacity: 0.3; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
+:root[data-reduce-motion="true"] .chat-quip-dots i { animation: none; opacity: 0.7; }
+:root[data-reduce-motion="true"] .chat-quip-t { transition: none; }
+.chat-system.is-fresh, .chat-system.is-site { color: var(--label-secondary); }
+.chat-system.is-fresh b, .chat-system.is-site b { color: var(--label); font-weight: 600; }
+/* „Gefällt dem Kunden“ under an approved result (27.11.2026): the ok tone on the symbol and the words, the rest calm. */
+.chat-system.is-approved { color: var(--label-secondary); }
+.chat-system.is-approved svg, .chat-system.is-approved b { color: var(--tone-ok); }
+.chat-system.is-approved b { font-weight: 600; }
+/* Phones: the test site gets its own line under number and company, and the state moves under them, so the date stays
+   readable. */
+@media (max-width: 767px) {
+  .chat-pane-title .chat-pane-sub { flex-direction: column; align-items: flex-start; gap: 0; }
+  .chat-pane-sub > span, .chat-site { max-width: 100%; }
+  .chat-pane-head:has(.chat-site) { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px; }
+  .chat-pane-head:has(.chat-site) > :is(.chat-back, .chat-avatar, .chat-icon-button) { grid-row: 1 / span 2; }
+  .chat-pane-head:has(.chat-site) > .chat-pane-title { grid-column: 3; grid-row: 1; }
+  .chat-pane-head:has(.chat-site) > .chat-pill { grid-column: 3; grid-row: 2; justify-self: start; }
+}
 /* Customers have one chat: it sits on top, the way to the service platform right below, Ali at the bottom. */
 .chat-list.is-single .chat-convs { flex: none; }
 .chat-list.is-single .chat-think { margin-top: auto; }
@@ -639,6 +800,66 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .chat-pick button > span:not(.chat-avatar) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .chat-pick strong { font-size: 16px; font-weight: 600; color: var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-pick small { font-size: 13px; color: var(--label-secondary); }
+/* Cards in the chat (24.11.2026, plan „Änderungen im Chat mitteilen“ 3.4): a change as a card, neutral on both sides
+   like an incoming message, with the symbol and colour its area has in the bell; grey lines for subscriptions. */
+.chat-msg.is-card { max-width: min(78%, 440px); }
+.chat-bubble.is-card, .chat-msg.is-out .chat-bubble.is-card { padding: 12px 14px 9px; background: var(--sheet); color: var(--label-body); box-shadow: 0 0 0 1px var(--sheet-line), 0 1px 2px rgba(30, 25, 28, 0.06); }
+.chat-msg.is-out .chat-bubble.is-card .chat-meta { color: var(--sheet-muted); }
+.chat-card { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: start; }
+.chat-card-symbol { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
+.chat-card-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; }
+.chat-card-head strong { font-size: 14.5px; line-height: 20px; font-weight: 700; color: var(--label); }
+.chat-card-subject { margin: 0; font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); overflow-wrap: anywhere; }
+.chat-card-line { margin: 0; font-size: 13px; line-height: 18px; color: var(--sheet-muted); overflow-wrap: anywhere; }
+.chat-card-actions, .chat-card-calendar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chat-card-action { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 13px; border-radius: 999px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font-size: 13px; font-weight: 600; text-decoration: none; transition: transform var(--duration) var(--ease-spring), background 150ms ease; }
+.chat-card-action:hover { background: var(--sheet-hover); }
+.chat-card-action:active { transform: scale(0.96); }
+.chat-card-action.is-primary { background: var(--accent-text); box-shadow: none; color: var(--on-accent); }
+.chat-card-action.is-primary:hover { background: var(--accent-text); filter: brightness(1.08); }
+.chat-card-action:disabled { opacity: 0.55; cursor: default; }
+.chat-card-action[aria-expanded="true"] { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); color: var(--accent-text); }
+.chat-system.is-event { gap: 8px; color: var(--sheet-muted); }
+.chat-system.is-event time { font-variant-numeric: tabular-nums; }
+.chat-system.is-event time::before { content: "· "; }
+/* „Abos“ (24.11.2026, plan 3.5): a round button left of „Privat“ and its window „Im Chat mitteilen“ in glass, like the
+   bell's; on phones a sheet from the bottom. */
+.chat-pane-head { position: relative; }
+.chat-abo-button { width: 36px; height: 36px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); transition: transform var(--duration) var(--ease-spring), background 150ms ease; }
+.chat-abo-button:hover { background: var(--sheet-hover); transform: scale(1.06); }
+.chat-abo-button:active { transform: scale(0.94); }
+.chat-abo-button[aria-expanded="true"] { background: rgb(var(--accent-rgb) / calc(0.12 * var(--tint-k))); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.25); color: var(--accent-text); }
+.chat-abos { width: min(396px, calc(100vw - 16px)); padding: 14px 16px 12px; border-radius: 26px; font-size: 14px; text-align: left; }
+.chat-abos[popover] { position: fixed; inset: auto; margin: 0; overflow: visible; }
+.chat-abos[popover]:popover-open { animation: chat-abos-in 0.5s var(--ease-spring); transform-origin: var(--abos-origin, 90%) -8px; }
+@keyframes chat-abos-in { from { opacity: 0; transform: translateY(-6px) scale(0.94); } }
+.chat-abos.is-inline { position: absolute; z-index: 40; top: calc(100% + 8px); right: 12px; }
+.chat-abos-grab { display: none; }
+.chat-abos-head { display: flex; align-items: center; gap: 8px; }
+.chat-abos-head strong { flex: 1; font-size: 16px; line-height: 21px; font-weight: 700; color: var(--label); }
+.chat-abos-close { width: 30px; height: 30px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--label-secondary); }
+.chat-abos-close:hover { background: var(--fill-tertiary); color: var(--label); }
+.chat-abos-intro { margin: 2px 0 6px; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.chat-abos-list { margin: 0; padding: 0; list-style: none; }
+.chat-abos-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; }
+.chat-abos-row + .chat-abos-row { border-top: 1px solid var(--separator); }
+.chat-abos-text { min-width: 0; display: flex; flex-direction: column; }
+.chat-abos-text strong { font-size: 14px; line-height: 19px; font-weight: 600; color: var(--label); }
+.chat-abos-text small { font-size: 12.5px; line-height: 17px; color: var(--label-secondary); }
+.chat-abos-error { margin: 6px 0 0; }
+.chat-abos-foot { margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--separator); font-size: 12px; line-height: 16px; color: var(--label-secondary); }
+@keyframes chat-abos-sheet { from { opacity: 0; transform: translateY(24px); } }
+:root[data-reduce-motion="true"] .chat-abos[popover]:popover-open { animation: none; }
+:root[data-reduce-motion="true"] :is(.chat-abo-button, .chat-card-action) { transition: none; }
+@media (max-width: 767px) {
+  .chat-msg.is-card { max-width: 92%; }
+  .chat-abos[popover] { top: auto; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); left: 8px; width: auto; padding: 8px 18px 16px; border-radius: 32px; }
+  .chat-abos[popover]:popover-open { animation-name: chat-abos-sheet; transform-origin: 50% 100%; }
+  .chat-abos[popover]::backdrop { background: rgba(0, 0, 0, 0.38); }
+  .chat-abos-grab { display: block; width: 38px; height: 5px; margin: 0 auto 10px; border-radius: 999px; background: rgba(120, 120, 128, 0.32); }
+  .chat-abos-row { padding: 11px 0; }
+}
 /* Narrow sheets (tablets, small windows): list or conversation, with "Zurück" in between. */
 @container sheet (max-width: 720px) {
   .chat-grid { grid-template-columns: minmax(0, 1fr); }
@@ -668,6 +889,9 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .settings-label { font-size: 13px; font-weight: 600; color: var(--label-secondary); margin-top: 6px; }
 .settings-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
 .settings-switch-row label { font-size: 17px; color: var(--label); }
+/* A second switch in the same card (Neue Testansicht per E-Mail, 26.11.2026), new ones marked for a few weeks. */
+.settings-divider { height: 1px; margin: 6px 0; border: 0; background: var(--separator); }
+.settings-new { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: rgb(var(--accent-rgb) / calc(0.12 * var(--tint-k))); color: var(--accent-text); font-size: 12px; font-weight: 600; line-height: 18px; vertical-align: 2px; }
 .account-input { height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--fill-tertiary); font-size: 17px; color: var(--label); width: 100%; }
 
 /* Detail page */
@@ -709,6 +933,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .switch[aria-checked="true"] { background: var(--switch-on); }
 .switch-knob { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #ffffff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0, 0, 0, 0.16); transition: transform 250ms var(--ease-spring); }
 .switch[aria-checked="true"] .switch-knob { transform: translateX(20px); }
+/* The small switch in table rows (18.11.2026, the freelancers' releases): 34 × 20 and a calmer colour. */
+.switch.is-sm { width: 34px; height: 20px; flex: 0 0 34px; background: var(--switch-off-calm); }
+.switch.is-sm[aria-checked="true"] { background: var(--switch-on-calm); }
+.switch.is-sm .switch-knob { width: 16px; height: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); }
+.switch.is-sm[aria-checked="true"] .switch-knob { transform: translateX(14px); }
 .slider-row { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 6px; }
 .slider-label { display: flex; justify-content: space-between; font-size: 17px; color: var(--label-body); }
 .slider-label output { color: var(--label-secondary); font-weight: 600; }
@@ -728,6 +957,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 
 /* Appearance */
 .appearance-stack { display: flex; flex-direction: column; gap: var(--grid-gap); max-width: 640px; }
+/* From 1024 px the cards of Darstellung stand side by side in columns of at least 460 px (22.11.2026). */
+@media (min-width: 1024px) {
+  .appearance-stack { display: block; max-width: none; columns: 460px; column-gap: var(--grid-gap); }
+  .appearance-stack > * { break-inside: avoid; margin-bottom: var(--grid-gap); }
+}
 .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 14px 10px; margin-top: 14px; }
 .swatch-grid + p { margin-top: 12px; }
 .background-swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0; }
@@ -777,15 +1011,46 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   --menu-selected: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k)));
   --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(20, 4, 14, 0.06), 0 14px 34px rgba(20, 4, 14, 0.16);
   --select-open-ring: inset 0 0 0 1px var(--accent-text), 0 0 0 3px rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k)));
+  /* Today and chosen dates in the calendar (18.11.2026): a calm tint with accent text instead of a full accent plate. */
+  --date-mark: rgb(var(--accent-rgb) / 0.1); --date-mark-ring: rgb(var(--accent-rgb) / 0.3);
+  /* The small switch in table rows: calmer than the settings' switch. */
+  --switch-on-calm: rgb(var(--accent-rgb) / 0.62); --switch-off-calm: rgba(120, 120, 128, 0.2);
   /* Hover hints: a small dark label with an arrow. */
   --tip-bg: #252027; --tip-shadow: 0 6px 18px rgba(20, 4, 14, 0.26);
 }
 .sheet { border-radius: 16px; background: var(--sheet); box-shadow: var(--sheet-shadow); color: var(--label-body); }
-/* Pages with a table may use more of the width, like Studio: up to 1240 px instead of 1040 px. */
-.hub-content:has(> .sheet) { max-width: 1240px; }
 /* From tablet width on, a sheet measures itself, so its table can drop details before it has to scroll (see below). */
 @media (min-width: 768px) {
   .sheet { container: sheet / inline-size; }
+}
+/* Every table page reaches as far down as the panels of „Vertrag & Domain“ (.am), however few rows it has or what
+   stands above it: the page is a column and the sheet takes the rest, its footer at the bottom. Phones keep the
+   natural height. (Block flow collapses the title's 4 px into the sheet's 20 px; the column would add them.) */
+@media (min-width: 768px) {
+  .sheet-fill { display: flex; flex-direction: column; }
+  .sheet-fill > .sheet-footer { margin-top: auto; border-top: 1px solid var(--sheet-line); }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sheet-fill { min-height: calc(100dvh - 280px); }
+}
+@media (min-width: 1024px) {
+  .hub-content:has(> .sheet-fill) { display: flex; flex-direction: column; min-height: calc(100dvh - 20px - 64px); }
+  .hub-app:has(.hub-notice) .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 20px - 64px - 52px); }
+  .hub-content:has(> .sheet-fill) > .large-title-header { margin-bottom: 0; }
+  .sheet-fill { flex: 1 0 auto; }
+}
+/* Darstellung › Breite „Breit (XL)“, from 1024 px on: like an IDE in full screen – 12 px to the sidebar, the window's
+   edge and the bottom, the sheet down to 12 px above the bottom on every page (whatever stands above it). Standard and XL
+   both use the whole width since 22.11.2026; XL keeps the narrower gaps. */
+@media (min-width: 1024px) {
+  :root[data-width="xl"] .hub-main { padding: 14px 12px 12px calc(var(--sidebar-w) + 12px + 12px); }
+  :root[data-width="xl"] .hub-app.has-assistant-dock .hub-main { padding-right: calc(var(--assistant-dock) + 12px + 12px); }
+  :root[data-width="xl"] .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px); }
+  :root[data-width="xl"] .hub-content:has(> :is(.am, .chat)) { display: flex; flex-direction: column; height: calc(100dvh - 14px - 12px); }
+  :root[data-width="xl"] .hub-app:has(.hub-notice) .hub-content:has(> .sheet-fill) { min-height: calc(100dvh - 14px - 12px - 52px); }
+  :root[data-width="xl"] .hub-app:has(.hub-notice) .hub-content:has(> :is(.am, .chat)) { height: calc(100dvh - 14px - 12px - 52px); }
+  :root[data-width="xl"] .hub-content:has(> :is(.am, .chat)) > .large-title-header { margin-bottom: 0; }
+  :root[data-width="xl"] .hub-content > :is(.am, .chat) { flex: 1 1 0; height: auto; min-height: 460px; }
 }
 .sheet-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; min-height: 52px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--sheet-line); }
 .sheet-search { display: inline-flex; align-items: center; gap: 7px; flex: 0 1 260px; min-width: 170px; height: 32px; margin-right: 6px; padding: 0 10px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
@@ -836,6 +1101,14 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .sheet-action-text { display: flex; flex-direction: column; min-width: 0; }
 .sheet-action-text strong { font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
 .sheet-action-text small { font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+/* A shortcut at the end of an action, a choice below the actions (the task board's view). */
+.sheet-action-key { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line), 0 1px 0 var(--sheet-line); color: var(--label-secondary); font: 600 11px/1 var(--font-text); }
+.sheet-action-sep { margin: 4px 2px; border: 0; border-top: 1px solid var(--sheet-line); }
+.sheet-action-caption { padding: 6px 10px 4px; color: var(--sheet-muted); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.sheet-action-pop .sheet-choice { width: 100%; }
+.sheet-choice-icon { flex: 0 0 auto; color: var(--sheet-icon); }
+.sheet-choice[aria-checked="true"] .sheet-choice-icon { color: inherit; }
+@media (hover: none), (pointer: coarse) { .sheet-action-key { display: none; } }
 .sheet-action:disabled { opacity: 0.55; cursor: not-allowed; }
 .sheet-hint { padding: 10px 20px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; color: var(--sheet-muted); }
 .sheet-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px 8px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-select); }
@@ -889,6 +1162,36 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .file-table .table-add-row td { padding-left: 54px; }
 /* Logins: the avatar leads, the group symbol takes its width. */
 .user-table .table-group-glyph { width: 24px; }
+/* Details after a group's count (a company's number and kind), and a group's own way to add a row on the right. */
+.table-group-sub { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: 8px; color: var(--sheet-muted); font-size: 12px; font-weight: 500; }
+.table-group-add { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 7px; color: var(--accent-text); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.table-group-add:hover { background: rgb(var(--accent-rgb) / calc(0.08 * var(--tint-k))); }
+/* Logins by company (user 21.11.2026): a long company name gives way before its number and „Zugang“; a registration's
+   own company stands quietly after the name, since this view has no company column. */
+.user-table .table-group-toggle { min-width: 0; }
+.user-table .table-group-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.user-table .company-hint { display: inline-block; max-width: 160px; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; color: var(--sheet-muted); font-size: 12.5px; }
+/* A group heading in the table's own columns (TableGroup with cells; logins by company, user 22.11.2026): a row like the
+   customers' rows, the name over the names and its details in their columns, a click anywhere folds it. Folded groups
+   follow each other like rows; an open group keeps the space above and below it. */
+.table-group-body.is-columns > .table-group { cursor: pointer; }
+.table-group-body.is-columns > .table-group > :is(th, td) { height: 40px; padding: 0 10px; border-bottom: 1px solid var(--sheet-divider); background-clip: padding-box; color: var(--label); font-size: 13px; font-weight: 600; line-height: 18px; text-align: left; white-space: nowrap; vertical-align: middle; transition: background-color 120ms ease; }
+.table-group-body.is-columns > .table-group > th { padding-left: 4px; }
+.table-group-body.is-columns > .table-group > td:last-child { padding-right: 16px; }
+.table-group-body.is-columns > .table-group > .cell-action { text-align: right; }
+.table-group-body.is-columns > .table-group:hover > * { background-color: var(--sheet-hover); }
+.table-group-body.is-columns.is-open > .table-group > * { border-bottom-color: var(--sheet-line); }
+.table-group-body.is-columns + .table-group-body.is-columns > .table-group > th { border-top: 0; }
+.table-group-body.is-columns + .table-group-body.is-columns.is-open > .table-group > *,
+.table-group-body.is-columns.is-open + .table-group-body.is-columns > .table-group > * { border-top: 12px solid transparent; }
+.table-group-body.is-columns .table-group-label { display: inline-block; vertical-align: middle; }
+.table-group-body.is-columns > .table-group > .cell-login { color: var(--sheet-muted); font-weight: 500; }
+.table-group-body.is-columns .cell-status .status-cell { color: var(--label-body); font-weight: 500; }
+.table-group-body.is-columns .table-group-actions { justify-content: flex-end; margin-left: 0; }
+/* The company's name gets room; while a group is open, narrower sheets shorten it (below), so the table never scrolls
+   sideways. The number column is the company's; its logins leave it empty. */
+.user-table .table-group-body.is-columns .table-group-label { max-width: 250px; }
+.user-table .col-entry-number { white-space: nowrap; }
 
 /* User management (admins): logins and customers on one sheet; dialogs below. */
 .confirm-badge { flex: 0 0 auto; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--tone-ok-bg); color: var(--tone-ok); font-size: 12px; line-height: 18px; font-weight: 600; }
@@ -1050,6 +1353,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .um-readonly > svg { flex: 0 0 auto; color: var(--sheet-icon); }
 .um-readonly button { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: var(--sheet-muted); }
 .um-readonly button:hover { background: var(--sheet-hover); color: var(--accent-text); }
+/* „E-Mail-Adresse ändern“: old and new address side by side before the admin confirms. */
+.um-email-swap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; padding: 10px 12px; border-radius: 9px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 13.5px; line-height: 20px; }
+.um-email-swap dt { font-size: 12px; font-weight: 600; color: var(--sheet-muted); }
+.um-email-swap dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--label-body); }
+.um-email-swap dd strong { font-weight: 600; color: var(--label); }
 /* The role and the tabs: the sheet's segmented control. */
 .um-seg { display: flex; width: 100%; height: 34px; padding: 2px; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); }
 .um-seg button { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; padding: 0 10px; border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--sheet-muted); white-space: nowrap; }
@@ -1096,6 +1404,13 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .um-invite-text small { font-size: 12px; line-height: 16px; color: var(--label-body); }
 .um-invite > :is(.um-actions, .um-link, .am-note) { grid-column: 2; }
 .um-invite .um-actions { justify-content: flex-start; }
+/* An archived customer or freelancer (17.11.2026): the same notice in the calm grey of things that are off. */
+.um-invite.is-archived { background: var(--tone-off-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-off) 22%, transparent); }
+.um-invite.is-archived .um-invite-icon { color: var(--tone-off); }
+.um-removal { display: grid; gap: 6px; }
+.um-removal strong { color: var(--label); font-weight: 650; }
+.um-loading { display: inline-flex; align-items: center; gap: 8px; }
+.archived-tag { margin-left: 6px; }
 .um-check { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px; color: var(--label-body); cursor: pointer; }
 .um-check input { flex: 0 0 auto; width: 16px; height: 16px; accent-color: var(--accent-text); }
 .um-check:has(input:disabled) { cursor: default; opacity: 0.6; }
@@ -1266,13 +1581,32 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
    ("Seit …" and "Prüfen" for open registrations), so their customer number goes first; the account dialog still shows it. */
 @container sheet (max-width: 1200px) {
   .user-table .col-number { display: none; }
+  /* By company, its own number stays (from 900 px down it goes, below); while a group is open its name gets shorter. */
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 180px; }
+}
+@container sheet (min-width: 901px) and (max-width: 1200px) {
+  .user-table.is-by-company .mail-cell { max-width: 180px; }
+}
+/* By company, „Zugang“ in a company's row keeps its symbol and hint when room gets short. */
+@container sheet (max-width: 1080px) {
+  .user-table .table-group-body.is-columns .table-group-add { gap: 0; padding: 0 7px; font-size: 0; }
 }
 /* Then the start date and the last login go and descriptions and e-mail addresses get less room, then the details. */
+/* Wide sheets (22.11.2026): names, addresses, companies and descriptions get more room before they are shortened. */
+@container sheet (min-width: 1400px) {
+  .cell-milestone { max-width: 420px; }
+  .cell-file { max-width: 520px; }
+  .cell-description { max-width: 560px; }
+  .mail-cell { max-width: 320px; }
+  .data-table .company-name, .user-table .company-hint, .user-table .row-open strong { max-width: 280px; }
+  .user-table .table-group-body.is-columns .table-group-label { max-width: 300px; }
+}
 @container sheet (max-width: 1040px) {
   .sheet-search { flex-basis: 200px; }
   .project-table .col-start { display: none; }
   .user-table .col-login { display: none; }
   .user-table .mail-cell { max-width: 180px; }
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 160px; }
   .cell-description { max-width: 200px; }
 }
 @container sheet (max-width: 900px) {
@@ -1280,6 +1614,7 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
   .file-table .col-description { display: none; }
   .cell-deadline small { display: none; }
   .user-table .mail-cell { max-width: 160px; }
+  .user-table :is(.col-entry-number, .cell-entry-number) { display: none; }
   /* The symbol before the title and the groups already tell the status. */
   .project-table .col-status { display: none; }
 }
@@ -1287,6 +1622,25 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
    project dialog, and the area in the filter menu. */
 @container sheet (max-width: 760px) {
   .project-table .col-area { display: none; }
+  .user-table.is-by-company .mail-cell { max-width: 130px; }
+  .user-table .table-group-body.is-columns .table-group-label { max-width: 180px; }
+  .user-table:has(.table-group-body.is-open) .table-group-body.is-columns .table-group-label { max-width: 120px; }
+}
+/* Phones: a company's row of the logins keeps name, logins and actions on one line; number, kind and last login stay in
+   its data, as before (rules stronger than the card rules below, so their order does not matter). */
+@media (max-width: 767px) {
+  .sheet .user-table .table-group-body.is-columns > .table-group { display: flex; align-items: center; gap: 10px; padding: 4px 14px 4px 0; border-bottom: 1px solid var(--sheet-divider); }
+  .sheet .user-table .table-group-body.is-columns > .table-group::after { content: none; }
+  .sheet .user-table .table-group-body.is-columns > .table-group:hover { background-color: var(--sheet-hover); }
+  .sheet .user-table .table-group-body.is-columns > .table-group:hover > * { background-color: transparent; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > * { display: block; height: auto; padding: 0; border: 0; font-size: 13px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > th { order: 0; flex: 1 1 0; min-width: 0; padding: 4px 0 4px 4px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > .cell-status { order: 1; font-size: 12.5px; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > .cell-action { order: 2; }
+  .sheet .user-table .table-group-body.is-columns > .table-group > :is(.cell-entry-number, .cell-role, .cell-mail, .cell-login) { display: none; }
+  .sheet .user-table .table-group-body.is-columns .table-group-label { max-width: none; }
+  .sheet .user-table .table-group-body.is-columns .table-group-add { gap: 0; padding: 0 7px; font-size: 0; }
+  .sheet .user-table .cell-entry-number { display: none; }
 }
 /* Phones: the tables become lists on the same sheet; groups stay as headings, the toolbar wraps, menus open at the bottom. */
 @media (max-width: 767px) {
@@ -1383,6 +1737,43 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .assistant-input textarea::placeholder { color: var(--label-secondary); }
 .assistant-send { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--accent-gradient); color: #ffffff; }
 .assistant-send:disabled { opacity: 0.4; cursor: default; }
+/* Dictation (admins, since 16.11.2026): the microphone next to "Senden", above the field the bar „Hört zu …“ */
+.assistant-mic { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--fill-tertiary); color: var(--accent-text); }
+.assistant-mic:not(.is-listening, :disabled):hover { background: rgb(var(--accent-rgb) / calc(0.14 * var(--tint-k))); }
+.assistant-mic:disabled { opacity: 0.4; cursor: default; }
+.assistant-mic.is-listening { background: var(--tone-bad-bar); color: #ffffff; animation: assistant-mic-pulse 1.6s ease-out infinite; }
+@keyframes assistant-mic-pulse { 0% { box-shadow: 0 0 0 0 rgb(217 58 47 / 0.45); } 100% { box-shadow: 0 0 0 10px rgb(217 58 47 / 0); } }
+.assistant-dictation { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; padding: 7px 8px 7px 12px; border-radius: 16px; background: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / calc(0.16 * var(--tint-k))); font-size: 13px; line-height: 18px; color: var(--label); }
+.assistant-dictation strong { font-weight: 650; }
+.assistant-dictation .info-button { width: 22px; height: 22px; }
+.assistant-dictation-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--label-secondary); }
+.assistant-dictation.is-listening .assistant-dictation-dot { background: var(--tone-bad-bar); animation: assistant-dictation-blink 1.2s ease-in-out infinite; }
+@keyframes assistant-dictation-blink { 50% { opacity: 0.3; } }
+/* Level: the page writes --level (0–1) from the microphone; without a measurement (Safari, phones) the bars breathe calmly. */
+.assistant-dictation-level { --level: 0; display: inline-flex; align-items: center; gap: 2px; height: 16px; }
+.assistant-dictation-level i { width: 3px; height: 16px; border-radius: 2px; background: var(--accent-text); transform: scaleY(min(1, calc(0.18 + var(--level) * var(--k, 1)))); transition: transform 0.08s linear; }
+.assistant-dictation-level i:nth-child(1), .assistant-dictation-level i:nth-child(5) { --k: 0.5; }
+.assistant-dictation-level i:nth-child(2), .assistant-dictation-level i:nth-child(4) { --k: 0.8; }
+.assistant-dictation-level.is-calm i { animation: assistant-dictation-calm 1.1s ease-in-out infinite; }
+.assistant-dictation-level.is-calm i:nth-child(2n) { animation-delay: 0.2s; }
+.assistant-dictation-level.is-calm i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes assistant-dictation-calm { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(0.75); } }
+.assistant-dictation-time { color: var(--label-secondary); font-size: 12.5px; }
+.assistant-dictation-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.assistant-dictation-chip { max-width: 190px; height: 26px; padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 999px; background: rgb(255 255 255 / calc(0.75 * var(--raise-k))); box-shadow: inset 0 0 0 1px var(--separator); font-size: 12px; font-weight: 600; color: var(--label-secondary); }
+.assistant-dictation-done { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 11px 0 9px; border-radius: 999px; background: var(--accent-text); color: var(--on-accent); font-size: 12.5px; font-weight: 650; }
+.assistant-dictation-interim { flex: 1 0 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--label-secondary); font-style: italic; }
+.assistant-mics { display: grid; gap: 2px; margin: 0 0 8px; padding: var(--menu-pad); border-radius: var(--menu-radius); background: var(--menu-bg); box-shadow: var(--sheet-shadow); }
+.assistant-mics-head { display: flex; align-items: center; gap: 6px; padding: 4px 2px 6px 8px; font-size: 13.5px; color: var(--label); }
+.assistant-mics-head .info-button { width: 22px; height: 22px; }
+.assistant-mics-close { margin-left: auto; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--label-secondary); }
+.assistant-mics-close:hover { background: var(--menu-hover); }
+.assistant-mics-note { padding: 4px 8px 2px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.assistant-dictation-error { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; padding: 8px 6px 8px 12px; border-radius: 14px; background: var(--tone-bad-bg); color: var(--tone-bad); font-size: 13px; line-height: 18px; }
+.assistant-dictation-error span { flex: 1; }
+.assistant-dictation-error button { flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: inherit; }
+/* "Bewegung reduzieren": nothing pulses or breathes; the red button and the level still show that it listens. */
+:root[data-reduce-motion="true"] :is(.assistant-mic.is-listening, .assistant-dictation-dot, .assistant-dictation-level i) { animation: none !important; }
 .assistant-footer { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; line-height: 16px; color: var(--label-secondary); }
 .assistant-footer button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-weight: 600; color: var(--accent-text); }
 @media (max-width: 767px) {
@@ -1438,6 +1829,30 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .factor-secret { padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); font-size: 15px; line-height: 20px; letter-spacing: 0.06em; text-align: center; word-break: break-all; color: var(--label); }
 .factor-notice { color: var(--label); }
 
+/* Claude connector (lib/hub-mcp): the consent page and the profile card „Verbundene Apps“. */
+.claude-consent { max-width: 560px; }
+.claude-consent-label { margin: 4px 0 0; color: var(--label); font-weight: 600; }
+.claude-consent-scopes { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.claude-consent-scopes li { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); font-size: 15px; line-height: 20px; color: var(--label); }
+.claude-consent-scopes svg { flex: 0 0 auto; margin-top: 2px; color: var(--tone-ok); }
+.claude-consent-warn { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--tone-todo-bg); color: var(--tone-todo); font-weight: 550; }
+.claude-consent-warn svg { flex: 0 0 auto; margin-top: 1px; }
+.claude-consent-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.claude-consent-actions a { text-decoration: none; }
+.connected-apps-address { display: flex; align-items: center; gap: 8px; }
+.connected-apps-address .account-input { flex: 1 1 auto; min-width: 0; font-size: 15px; }
+.connected-apps-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+.connected-apps-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--fill-tertiary); }
+.connected-apps-list li > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.connected-apps-list strong { font-size: 16px; line-height: 21px; color: var(--label); }
+.connected-apps-list small { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+/* A freelancer's Claude connections in the user management (row „Claude“ of the login's panel), in the panel's sizes. */
+.um-claude-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.um-claude-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--fill-tertiary); }
+.um-claude-list li > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.um-claude-list strong { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--label); }
+.um-claude-list small { font-size: 12px; line-height: 16px; color: var(--sheet-muted); overflow-wrap: anywhere; }
+
 /* Calendar: month grid with the occupancy of every working day, day timeline, requests and appointments */
 .calendar-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin: 20px 0 14px; }
 .calendar-month-nav { display: inline-flex; align-items: center; gap: 2px; height: 44px; padding: 0 4px; border-radius: 999px; }
@@ -1450,6 +1865,11 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .calendar-primary:active { transform: scale(0.98); }
 .calendar-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 16px 10px 18px; border-radius: 16px; background: var(--tone-ok-bg); color: var(--tone-ok); box-shadow: inset 3px 0 0 var(--tone-ok-bar), var(--glass-shadow); font-size: 15px; line-height: 20px; font-weight: 600; }
 .calendar-notice svg { flex: 0 0 auto; }
+/* A notice that leads somewhere ("Café Morgenrot ansehen", Asset Management 19.11.2026): the way there sits at its end. */
+.calendar-notice-text { flex: 1 1 auto; min-width: 0; }
+.calendar-notice-action { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; margin: -5px -8px -5px 8px; padding: 0 12px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--tone-ok) 12%, transparent); color: inherit; font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.calendar-notice-action:hover { background: color-mix(in srgb, var(--tone-ok) 20%, transparent); }
+.calendar-notice-action:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
 .calendar-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: var(--grid-gap); align-items: start; }
 .calendar-month-card { padding: 12px; }
 .calendar-weekdays, .calendar-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
@@ -1546,12 +1966,6 @@ a.list-row:hover, button.list-row:hover { background: rgb(255 255 255 / calc(0.4
 .appointment-status-confirmed { color: var(--tone-ok); background: var(--tone-ok-bg); }
 .appointment-status-declined { color: var(--tone-bad); background: var(--tone-bad-bg); }
 .appointment-status-cancelled { color: var(--tone-off); background: var(--tone-off-bg); }
-.teams-join { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; background: #4b53bc; color: #ffffff; font-size: 15px; font-weight: 600; white-space: nowrap; transition: background 150ms ease, transform var(--duration) var(--ease-spring); }
-a.teams-join:hover { background: #3d4399; }
-a.teams-join:active { transform: scale(0.97); }
-.teams-join.is-compact { min-height: 36px; padding: 0 12px; font-size: 13px; flex: 0 0 auto; }
-.teams-join.is-sample { background: var(--fill-tertiary); color: var(--label-secondary); cursor: default; }
-.teams-join small { font-size: 12px; font-weight: 500; }
 .appointment-detail-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 2px 0 4px; font-size: 15px; line-height: 20px; color: var(--label-body); }
 .appointment-note { margin: -6px 0 14px; }
 .appointment-close { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
@@ -1582,8 +1996,6 @@ a.teams-join:active { transform: scale(0.97); }
   .appointment-time-fields > :first-child { grid-column: 1 / -1; }
   .appointment-open { gap: 10px; padding-left: 12px; }
   .appointment-list .list-item + .list-item::before { left: 66px; }
-  .teams-join.is-compact { width: 36px; padding: 0; }
-  .teams-join.is-compact .teams-join-label { display: none; }
 }
 
 /* Project and file dialogs */
@@ -1614,23 +2026,83 @@ a.teams-join:active { transform: scale(0.97); }
 .load-error { display: grid; gap: 12px; justify-items: start; }
 .load-error .button-primary { margin-top: 8px; }
 
-/* Patch notes: one glass card per package, each change with its kind as a pill */
-/* The intro sits on the background, not on glass, so it takes the background's text colour like the large title. */
-.patch-intro { max-width: 680px; font-weight: 600; color: var(--on-bg-soft); }
-.patch-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 4px; font-weight: 600; }
-.patch-summary { margin-top: 6px; max-width: 680px; }
-.patch-changes { display: grid; gap: 14px; margin: 16px 0 0; padding: 0; list-style: none; }
-.patch-changes li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 12px; align-items: start; }
-.patch-changes li p + p { margin-top: 2px; }
-.patch-kind { justify-content: center; margin-top: 1px; }
-.patch-kind-new { color: var(--tone-info); background: var(--tone-info-bg); }
-.patch-kind-improved { color: var(--tone-ok); background: var(--tone-ok-bg); }
-.patch-kind-fixed { color: var(--tone-todo); background: var(--tone-todo-bg); }
-.patch-kind-security { color: var(--tone-bad); background: var(--tone-bad-bg); }
-.patch-internal { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 16px; font-weight: 600; vertical-align: 2px; color: var(--label-secondary); background: var(--fill-tertiary); }
-@media (max-width: 520px) {
-  .patch-changes li { grid-template-columns: minmax(0, 1fr); }
-  .patch-kind { justify-self: start; }
+/* Patch notes (user 27.11.2026): patch blocks (1, 1.1, 1.2 …; a big step makes 2) as a quiet list after the Asset
+   Management's „Liste“ (fl-*): Art · Bereich · Stelle · Änderung · Datum; a click opens the text below the line across
+   the whole width. Narrower lists fold Stelle, then Bereich into the opened text; phones keep a dot in the area's
+   colour, the title and the day. */
+.pn-sheet .sheet-toolbar .segment { flex: 0 0 auto; }
+/* A switch wider than the phone scrolls sideways instead of running out of the sheet. */
+.pn-sheet .sheet-toolbar .segmented-control { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pn-sheet .sheet-toolbar .segmented-control::-webkit-scrollbar { display: none; }
+.pn-toolbar-label { margin: 0 2px 0 8px; font-size: 12.5px; color: var(--sheet-muted); white-space: nowrap; }
+/* The area filter: the hub's own list behind a quiet field, like „Verschieben“ in the selection bar. */
+.pn-filter { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; height: 32px; max-width: 230px; padding: 0 8px 0 10px; border-radius: 8px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
+.pn-filter.is-set { color: var(--accent-text); }
+.pn-filter .hub-select-trigger { gap: 7px; min-width: 0; height: 30px; color: var(--label); font-size: 13px; font-weight: 500; }
+.pn-filter .hub-select-trigger:focus-visible { outline: 0; }
+.pn-filter:has(.hub-select-trigger[aria-expanded="true"]), .pn-filter:has(.hub-select-trigger:focus-visible) { box-shadow: var(--select-open-ring); }
+.pn-dot-mark { display: inline-block; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.pn-hint b { font-weight: 600; color: var(--label); }
+.pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 132px 218px minmax(0, 0.8fr) minmax(0, 1.4fr) 100px; }
+.pn-list .fl-head .pn-kind { padding-left: 34px; }
+.pn-list .fl-head .pn-date { justify-content: flex-end; }
+.pn-list .fl-row { cursor: pointer; }
+.pn-list .fl-row:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.pn-list .fl-row.pn-patch { display: flex; align-items: center; }
+.pn-patch-cell { flex: 1; padding-left: 4px; color: var(--label); }
+.pn-patch .fl-icon { color: var(--accent-text); }
+.pn-patch :is(.pn-count, .pn-span) { color: var(--sheet-muted); }
+.pn-patch .pn-span { margin-left: auto; }
+.pn-line .pn-kind { padding-left: 24px; color: var(--sheet-muted); }
+.pn-line .pn-place-col { color: var(--sheet-muted); }
+.pn-line .pn-change { color: var(--label); }
+.pn-line .pn-change .fl-title { font-weight: 500; }
+.pn-line .pn-date { justify-content: flex-end; }
+/* The kind as a dot in its tone, like the Finder's tags; the area as a tag with a dot in its colour. */
+.pn-dot { display: inline-grid; place-items: center; flex: 0 0 auto; width: 10px; }
+.pn-dot i { width: 8px; height: 8px; border-radius: 50%; background: var(--sheet-icon); }
+.pn-dot-new i { background: var(--tone-info-bar); }
+.pn-dot-improved i { background: var(--tone-ok-bar); }
+.pn-dot-fixed i { background: var(--tone-todo-bar); }
+.pn-dot-security i { background: var(--tone-bad-bar); }
+.pn-area { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 500; }
+.pn-area i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.pn-area span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pn-main { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+/* Admins: who sees an entry, as small dots after the title (blue customers, purple freelancers, grey internal). */
+.pn-tags { display: inline-flex; flex: 0 0 auto; gap: 3px; margin-left: 2px; }
+.pn-tags i { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--sheet); }
+.pn-area-dot, .pn-meta-kind, .pn-date-short, .pn-detail-meta { display: none; }
+.pn-area-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.pn-line[aria-expanded="true"] { border-radius: 6px 6px 0 0; }
+.pn-line[aria-expanded="true"] .pn-change { padding-block: 6px; white-space: normal; }
+.pn-line[aria-expanded="true"] .pn-change .fl-title { white-space: normal; }
+.pn-detail { display: grid; padding: 0 0 12px; border-radius: 0 0 6px 6px; }
+.pn-detail.is-alt { background: color-mix(in srgb, var(--label) 3.5%, transparent); }
+.pn-detail-body { grid-column: 1 / -1; padding: 0 16px 0 48px; }
+.pn-detail-meta { margin-bottom: 3px; font-size: 12px; line-height: 17px; color: var(--sheet-muted); }
+.pn-detail p { font-size: 13px; line-height: 19px; color: var(--label-secondary); }
+@container fl (max-width: 900px) {
+  .pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 128px 210px minmax(0, 1fr) 96px; }
+  .pn-list .pn-place-col { display: none; }
+  .pn-detail-meta { display: block; }
+}
+@container fl (max-width: 640px) {
+  .pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 44px minmax(0, 1fr) 84px; }
+  .pn-list .pn-area-col { display: none; }
+  .pn-line .pn-kind { padding-left: 4px; padding-right: 0; gap: 4px; }
+  .pn-line :is(.pn-dot, .pn-kind-label), .pn-list .fl-head .pn-kind span { display: none; }
+  .pn-area-dot { display: inline-block; }
+  .pn-meta-kind { display: inline; }
+  .pn-detail-body { padding-left: 26px; padding-right: 10px; }
+}
+@container fl (max-width: 440px) {
+  .pn-list :is(.fl-head, .fl-row.pn-line, .pn-detail) { grid-template-columns: 44px minmax(0, 1fr) 62px; }
+  .pn-patch .pn-span, .pn-date-long { display: none; }
+  .pn-date-short { display: inline; }
+}
+@media (max-width: 767px) {
+  .pn-filter { max-width: 160px; }
 }
 
 /* Tasks of a Studio project in the project dialog */
@@ -1641,6 +2113,54 @@ a.teams-join:active { transform: scale(0.97); }
 .project-task-meta { font-size: 13px; line-height: 18px; color: var(--label-secondary); }
 .project-tasks li.is-done .project-task-title { color: var(--label-secondary); text-decoration: line-through; }
 .project-ask { margin-top: 16px; }
+/* Shortcuts of the project dialog: everything around the customer one click (or digit) away. A quiet grid of equal
+   tiles, three across in the dialog and two on phones; the digit sits right, only where there is a keyboard. They
+   follow the dialog in a short cascade (30 ms apart), then stand still; hover lifts the tint, pressing gives way. */
+.project-quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 18px 0 4px; }
+.project-quick-link { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 0 10px 0 12px; border-radius: 12px; background: var(--fill-tertiary); color: var(--label); font-size: 15px; font-weight: 600; text-decoration: none;
+  animation: project-quick-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: calc(60ms + var(--i, 0) * 30ms);
+  transition: background-color 160ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.project-quick-link > svg { flex: 0 0 auto; }
+.project-quick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-quick-link kbd { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--separator); font: 600 11px/1 var(--font-text); color: var(--label-secondary); }
+.project-quick-link:hover { background: color-mix(in srgb, var(--label) 12%, transparent); }
+.project-quick-link:active { transform: scale(0.97); transition-duration: 80ms; }
+.project-quick-link:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+@keyframes project-quick-in { from { opacity: 0; filter: blur(6px); translate: 0 -6px; } }
+@media (hover: none), (pointer: coarse) { .project-quick-link kbd { display: none; } }
+/* The website comes last; standing alone in its row it takes the whole row, so its address reads in full. */
+.project-quick-link.is-site:nth-child(3n + 1):last-child { grid-column: 1 / -1; }
+@media (max-width: 480px) {
+  .project-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-quick-link kbd { display: none; }
+  .project-quick-link.is-site:nth-child(3n + 1):last-child { grid-column: auto; }
+  .project-quick-link.is-site:nth-child(2n + 1):last-child { grid-column: 1 / -1; }
+}
+.project-quick + .project-tasks { margin-top: 14px; }
+.hub-modal .project-tasks-empty { margin-top: 14px; }
+/* The website first (customers' project window): live and test address, each a line that opens the site. */
+.project-sites { display: grid; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+.project-sites li { animation: project-quick-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: calc(40ms + var(--i, 0) * 50ms); }
+.project-site { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 8px 14px 8px 10px; border-radius: 14px; background: var(--fill-tertiary); color: var(--label); text-decoration: none; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.project-site:hover { background: color-mix(in srgb, var(--label) 12%, transparent); }
+.project-site:active { transform: scale(0.985); transition-duration: 80ms; }
+.project-site:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+.project-site-icon { width: 40px; height: 40px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; background: rgb(52 199 89 / 0.14); color: rgb(31, 157, 72); }
+.project-site.is-test .project-site-icon { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+.project-site.is-website .project-site-icon { background: var(--fill-tertiary); color: var(--label-secondary); }
+.project-site-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.project-site-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; line-height: 22px; font-weight: 600; }
+.project-site-text small { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; color: var(--label-secondary); }
+.project-site-text small i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 2.5px; background: var(--tone-ok-bar); }
+.project-site.is-test small i { background: var(--tone-todo-bar); }
+.project-site.is-website small i { background: var(--system-gray); }
+.project-site-go { flex: 0 0 auto; color: var(--label-secondary); transition: transform 180ms cubic-bezier(0.3, 1.4, 0.5, 1), color 150ms ease; }
+.project-site:hover .project-site-go { transform: translate(2px, -2px); color: var(--accent-text); }
+.project-site:hover .project-site-text strong { color: var(--accent-text); }
+:root[data-theme="dark"] .project-site-icon { background: rgb(48 209 88 / 0.16); color: rgb(48, 209, 88); }
+:root[data-theme="dark"] .project-site.is-test .project-site-icon { background: var(--tone-todo-bg); color: var(--tone-todo-bar); }
+:root[data-theme="dark"] .project-site.is-website .project-site-icon { background: var(--fill-tertiary); color: var(--label-secondary); }
+.project-sites + .project-modal-progress { margin-top: 0; }
 
 /* Task proposals of the assistant: a preview the admin checks before anything is saved */
 .proposal-card { margin-top: 10px; padding: 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--separator); }
@@ -1743,10 +2263,12 @@ a.teams-join:active { transform: scale(0.97); }
   --tone-todo-bg: #3a2614; --tone-todo: #ffbe8a;
   --tone-info-bg: #14263f; --tone-info: #9cc7ff;
   --tone-ok-bg: #16301d; --tone-ok: #9ee2ae;
+  --lock-open: #30d158;
   --tone-off-bg: #2c262a; --tone-off: #c2b7bd; --tone-off-bar: #7d7278;
   --tone-bad-bg: #3d1a18; --tone-bad: #ffb1aa;
   --veil-none: rgb(255 107 96 / 0.14); --veil-none-bar: #ff6b60;
   --veil-open: rgb(250 204 21 / 0.13); --veil-open-bar: #facc15;
+  --veil-ok: rgb(110 220 140 / 0.09); --veil-info: rgb(120 170 255 / 0.09);
   --danger: #ffb1aa;
   --track-neutral: rgba(255, 255, 255, 0.14);
   --selected-pill: rgba(255, 255, 255, 0.12);
@@ -1757,6 +2279,8 @@ a.teams-join:active { transform: scale(0.97); }
   --sheet-muted: #a1959b; --sheet-icon: #6e6268; --sheet-seg: #231e21; --sheet-seg-on: #332b30; --sheet-select: rgba(244, 166, 201, 0.08);
   --sheet-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 36px rgba(0, 0, 0, 0.45);
   --menu-selected: rgb(var(--accent-rgb) / 0.1);
+  --date-mark: rgb(var(--accent-rgb) / 0.16);
+  --switch-on-calm: rgb(var(--accent-rgb) / 0.55); --switch-off-calm: rgba(235, 235, 245, 0.16);
   --menu-shadow: 0 0 0 1px var(--sheet-line), 0 2px 6px rgba(0, 0, 0, 0.35), 0 16px 38px rgba(0, 0, 0, 0.55);
   --tip-bg: #3a3136; --tip-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 22px rgba(0, 0, 0, 0.55);
 }
@@ -1782,6 +2306,8 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am { height: calc(100dvh - 148px); min-height: 560px; overflow: hidden; }
 .hub-app:has(.hub-notice) .am { height: calc(100dvh - 200px); }
 .am-grid { height: 100%; display: grid; grid-template-columns: minmax(264px, 316px) minmax(0, 1fr); }
+/* A customer with one company (Dateien, 27.11.2026): their files fill the sheet, without the list on the left. */
+.am.is-single .am-grid { grid-template-columns: minmax(0, 1fr); }
 .am .chat-list { background: var(--sheet); }
 .am .chat-list-head h2 span { margin-left: 6px; font-size: 14px; font-weight: 500; color: var(--sheet-muted); }
 .am .chat-convs { padding-bottom: 8px; }
@@ -1905,6 +2431,22 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .list-preview-detail i { height: 11px; padding-bottom: 1px; border-bottom: 1px solid var(--sheet-divider); }
 .list-preview-detail i::before { width: 5px; height: 5px; border-radius: 2px; }
 .list-preview-detail i::after { height: 3px; background: repeating-linear-gradient(90deg, var(--sheet-line) 0 14px, transparent 14px 18px); }
+/* „Kacheln“: four small cards. */
+.list-preview-tiles { display: grid; grid-template-columns: 1fr 1fr; align-content: center; gap: 6px; padding: 0 16px; }
+.list-preview-tiles i { display: block; height: auto; aspect-ratio: 4 / 3; border-radius: 3px; background: color-mix(in srgb, var(--accent-text) 18%, var(--sheet)); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.list-preview-tiles i::before, .list-preview-tiles i::after { display: none; }
+/* „Liste“: striped low lines, two of them inside an opened folder, like the Finder's list view. */
+.list-preview-list { justify-content: flex-start; gap: 0; padding: 9px 7px 0; }
+.list-preview-list i { height: 10px; padding: 0 4px; border-radius: 2px; }
+.list-preview-list i:nth-child(even) { background: var(--sheet-hover); }
+.list-preview-list i:nth-child(2), .list-preview-list i:nth-child(3) { padding-left: 11px; }
+.list-preview-list i::before { width: 6px; height: 5px; border-radius: 1px; }
+.list-preview-list i::after { height: 3px; background: repeating-linear-gradient(90deg, var(--sheet-line) 0 22px, transparent 22px 26px); }
+/* Profil › Darstellung › Breite: a small window – sidebar on the left, the page's sheet with margins or edge to edge. */
+.width-preview { position: relative; width: 88px; overflow: hidden; background: radial-gradient(circle at 20% 15%, var(--bg-orb-1) 0%, transparent 70%), var(--bg-base); }
+.width-preview i { position: absolute; top: 5px; bottom: 5px; left: 5px; width: 15px; border-radius: 5px; background: rgb(255 255 255 / 0.2); }
+.width-preview b { position: absolute; top: 16px; right: 13px; bottom: 15px; left: 33px; border-radius: 4px; background: var(--sheet) repeating-linear-gradient(180deg, transparent 0 7px, var(--sheet-line) 7px 8px) 0 6px / 100% calc(100% - 6px) no-repeat; transition: inset 260ms cubic-bezier(0.3, 1.3, 0.5, 1); }
+.width-preview-xl b { top: 9px; right: 4px; bottom: 4px; left: 24px; }
 
 /* Freelancers (4.11.2026): who sees a file at a customer, and who looks after a customer. */
 .am-audience-tag { flex: 0 0 auto; display: inline-flex; align-items: center; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: var(--sheet-seg); font-size: 11.5px; line-height: 18px; font-weight: 600; color: var(--sheet-muted); white-space: nowrap; vertical-align: 1px; }
@@ -1965,7 +2507,13 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .table-group th:has(> .table-group-in.has-select) { padding-left: 20px; }
 .table-group-in.has-select { gap: 10px; }
 
-/* The selection bar: the count on the left, every action on the right, × at the end. */
+/* The selection bar: the count on the left, every action on the right, × at the end. It lies over the search line in
+   the same cell, which keeps the larger of the two heights, so the files below never move (23.11.2026: the first click
+   of a double click used to push the list down). Phones keep it below the search, sticking under the title. */
+.am-bars { display: grid; min-width: 0; }
+.am-bars > * { grid-area: 1 / 1; min-width: 0; }
+.am-bars > .am-selection { z-index: 6; background: linear-gradient(var(--sheet-select), var(--sheet-select)), var(--sheet); }
+.am-bars:has(> .am-selection) > .sheet-toolbar { visibility: hidden; }
 .am-selection { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .am-selection > strong { margin-right: 0; white-space: nowrap; }
 .am-sel-acts { justify-self: end; display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -1976,8 +2524,9 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am .sheet-move .hub-select-trigger { height: 32px; gap: 6px; }
 .sheet-move-icon { display: none; }
 /* Narrower panes of the Asset Management (its bar holds the most): first a shorter count and the bin as a symbol, then
-   two rows (count and × on top, actions below). The customers' „Dateien“ have room for one row. */
-@container sheet (max-width: 1079px) {
+   two rows (count and × on top, actions below). The customers' „Dateien“ have room for one row. The sheet includes the
+   customer list, so the bar is about 320 px narrower than the query says (at 1440 px „1 Datei ausgewählt“ was cut). */
+@container sheet (max-width: 1179px) {
   .am .am-sel-long { display: none; }
   .am .am-selection .sheet-action.is-danger { width: 32px; padding: 0; justify-content: center; }
   .am .am-selection .sheet-action.is-danger .am-btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -2005,6 +2554,8 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 @media (max-width: 767px) {
   /* Phones: every selection action as a symbol (the words stay for screen readers), one row. The bar stays under the
      title while the list scrolls, so a folder ticked far down still has its actions in view. */
+  .am-bars { display: contents; }
+  .am-bars:has(> .am-selection) > .sheet-toolbar { visibility: visible; }
   .am-selection { position: sticky; z-index: 6; top: calc(64px + env(safe-area-inset-top)); background: linear-gradient(var(--sheet-select), var(--sheet-select)), var(--sheet); }
   .am-sel-long { display: none; }
   .am-sel-acts { gap: 6px; }
@@ -2184,6 +2735,108 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .am-upload-state { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-muted); }
 .am-upload-state.is-done { color: var(--tone-ok); }
 .am-upload .am-icon-btn { width: 26px; height: 26px; }
+/* „Zuordnen“ (19.11.2026): the files in the panel, read only, and the switch for the customer they come from. */
+.am-assign-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; line-height: 20px; font-weight: 600; color: var(--label); }
+.am-assign-there { font-weight: 600; color: var(--tone-ok); }
+.am-assign-to .hub-select-lead { margin-right: 2px; }
+.am-panel .segmented-control.am-assign-mode { width: 100%; height: 34px; padding: 2px; border: 0; border-radius: 9px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.am-assign-mode .segment { color: var(--sheet-muted); border-radius: 7px; padding: 0 8px; font-size: 13px; font-weight: 500; }
+.am-assign-mode .segment[aria-pressed="true"] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); }
+/* Dragging files (19.11.2026): the stack under the pointer, the rows it carries, the customers and folders that take it. */
+html.am-dragging, html.am-dragging * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
+html.am-dragging .hub-tip { display: none !important; }
+:is(.am-min-row, .file-row).is-lifting { background: var(--sheet-hover); }
+:is(.am-min-row, .file-row).is-dragged { opacity: 0.42; }
+.am-ghost { position: fixed; z-index: 200; top: 0; left: 0; pointer-events: none; will-change: transform; }
+.am-ghost-stack { position: relative; }
+.am-ghost-card { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; width: 264px; padding: 7px 14px 7px 7px; border-radius: 12px; background: var(--sheet); color: var(--label); box-shadow: 0 0 0 1px var(--sheet-line), 0 18px 40px rgba(20, 4, 14, 0.25), 0 4px 10px rgba(20, 4, 14, 0.12); font-size: 14.5px; font-weight: 600; }
+.am-ghost-card .am-min-lead { flex: 0 0 auto; }
+.am-ghost-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.am-ghost-stack.is-many::before, .am-ghost-stack.is-many::after { content: ""; position: absolute; inset: 0; border-radius: 12px; background: var(--sheet); box-shadow: 0 0 0 1px var(--sheet-line), 0 8px 20px rgba(20, 4, 14, 0.14); }
+.am-ghost-stack.is-many::before { z-index: 1; transform: translate(6px, 6px) rotate(2.2deg); }
+.am-ghost-stack.is-many::after { z-index: 0; transform: translate(11px, 11px) rotate(4deg); opacity: 0.85; }
+.am-ghost-count { position: absolute; z-index: 3; top: -9px; right: -10px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center; background: var(--accent-gradient); color: #ffffff; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--sheet), 0 4px 10px rgba(20, 4, 14, 0.25); }
+.am-ghost-tag { position: absolute; left: 10px; top: calc(100% + 12px); max-width: 320px; padding: 6px 11px; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; background: var(--sheet); color: var(--sheet-muted); box-shadow: 0 0 0 1px var(--sheet-line), 0 6px 16px rgba(20, 4, 14, 0.16); }
+.am-ghost-tag.is-on { background: var(--accent-gradient); color: #ffffff; box-shadow: 0 6px 16px rgba(20, 4, 14, 0.24); }
+.am-ghost.is-returning { opacity: 0; transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 180ms; }
+.am-ghost.is-landing { opacity: 0; scale: 0.6; transition: opacity 160ms 40ms, scale 160ms; }
+.chat-conv[data-drop-state="off"] { opacity: 0.36; }
+.chat-conv.is-drop-target { background: rgb(var(--accent-rgb) / calc(0.12 * var(--tint-k))); box-shadow: inset 0 0 0 2px var(--accent-text); }
+.chat-conv.is-drop-target :is(.am-min-conv-name, .chat-conv-top strong) { color: var(--accent-text); }
+.am .chat-list { position: relative; }
+.am-drop-pill.is-list { bottom: 16px; max-width: calc(100% - 24px); }
+/* „Liste“ (19.11.2026): the Finder's list view on the sheet. Low striped lines with columns, the category as a tag dot,
+   folders that open in place with a triangle, the selection in the accent while the list has the focus (grey without). */
+.fl { container: fl / inline-size; position: relative; padding: 0 8px 10px; font-size: 13px; line-height: 18px; color: var(--label); outline: 0; }
+.fl-head, .fl-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px 92px 148px; align-items: center; }
+.fl.has-customer :is(.fl-head, .fl-row) { grid-template-columns: minmax(0, 1fr) 168px 150px 84px 128px; }
+.fl-head { position: sticky; z-index: 2; top: 0; height: 30px; margin: 0 -8px 3px; padding: 0 8px; background: var(--sheet); border-bottom: 1px solid var(--sheet-line); font-size: 12px; font-weight: 500; color: var(--sheet-muted); }
+.fl-col { display: flex; align-items: center; min-width: 0; height: 100%; padding: 0 10px; }
+.fl-col + .fl-col { box-shadow: inset 1px 0 0 var(--sheet-divider); }
+.fl-head .fl-name { padding-left: 30px; }
+.fl-sort { display: flex; align-items: center; gap: 4px; width: 100%; height: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.fl-sort span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-sort svg { flex: 0 0 auto; margin-left: auto; }
+.fl-sort:hover, .fl-sort.is-active { color: var(--label); }
+.fl-sort.is-active { font-weight: 600; }
+.fl-sort:focus-visible { outline: 0; border-radius: 4px; box-shadow: 0 0 0 2px var(--accent-text); }
+.fl-head .fl-size .fl-sort { justify-content: flex-end; }
+.fl-head .fl-size .fl-sort svg { margin-left: 0; order: -1; }
+.fl-body { display: grid; border-radius: 8px; }
+.fl-body.is-drop { box-shadow: inset 0 0 0 2px var(--accent-text); background: rgb(var(--accent-rgb) / calc(0.04 * var(--tint-k))); }
+.fl-row { min-height: 30px; border-radius: 6px; cursor: default; -webkit-user-select: none; user-select: none; }
+.fl-row.is-alt { background: color-mix(in srgb, var(--label) 3.5%, transparent); }
+.fl-row:hover { background: var(--sheet-hover); }
+.fl-cell { display: flex; align-items: center; gap: 6px; min-width: 0; height: 100%; padding: 0 10px; overflow: hidden; white-space: nowrap; color: var(--sheet-muted); font-variant-numeric: tabular-nums; }
+.fl-cell.fl-name { padding-left: 4px; color: var(--label); }
+.fl-cell.fl-name.is-inner { padding-left: 24px; }
+.fl-cell.fl-size { justify-content: flex-end; }
+.fl-twist { flex: 0 0 auto; display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--sheet-muted); cursor: pointer; }
+.fl-twist svg { transition: transform 0.15s ease; }
+.fl-row[aria-expanded="true"] .fl-twist svg { transform: rotate(90deg); }
+.fl-twist.is-none { visibility: hidden; cursor: default; }
+.fl-icon { flex: 0 0 auto; display: inline-grid; place-items: center; width: 18px; color: var(--cat, var(--sheet-icon)); }
+.fl-icon.is-folder { color: var(--cat-files-text); }
+.fl-icon.is-folder svg { fill: color-mix(in srgb, currentColor 22%, transparent); }
+.fl-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-row.is-folder .fl-title { font-weight: 600; }
+.fl-tag { flex: 0 0 auto; }
+.fl-tag i { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--sheet); }
+.fl-acts { display: inline-flex; gap: 2px; margin-left: auto; opacity: 0; }
+.fl-row:hover .fl-acts, .fl-row:focus-within .fl-acts { opacity: 1; }
+.fl-open { display: none; }
+.fl-row.is-selected, .fl-row.is-selected:hover { background: var(--sheet-select); }
+.fl:focus-within .fl-row.is-selected { background: var(--accent-gradient); }
+.fl:focus-within .fl-row.is-selected :is(.fl-cell, .fl-icon, .fl-twist) { color: #ffffff; }
+.fl:focus-within .fl-row.is-selected .fl-tag i { box-shadow: 0 0 0 1.5px #ffffff; }
+.hub-app .fl:focus-visible { outline: 0; box-shadow: none; }
+.fl[data-keys]:focus-within .fl-row.is-active { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.fl[data-keys]:focus-within .fl-row.is-selected.is-active { box-shadow: inset 0 0 0 2px color-mix(in srgb, #ffffff 55%, transparent); }
+.fl-row.is-fresh { background: color-mix(in srgb, var(--tone-ok-bg) 80%, transparent); }
+.fl-row.is-lifting { background: var(--sheet-hover); }
+.fl-row.is-dragged { opacity: 0.42; }
+.fl-row.is-folder.is-drop { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); box-shadow: inset 0 0 0 2px var(--accent-text); }
+/* Touch: taller lines, a tap selects, the arrow at the end opens the file. */
+@media (hover: none) {
+  .fl-row { min-height: 44px; }
+  .fl-acts { opacity: 1; }
+  .fl-open { display: inline-grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; margin-left: auto; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--sheet-muted); }
+}
+/* Narrower lists drop the quieter columns, like a narrow Finder window. */
+@container fl (max-width: 720px) {
+  .fl-head, .fl-row { grid-template-columns: minmax(0, 1fr) 150px 84px; }
+  .fl.has-customer :is(.fl-head, .fl-row) { grid-template-columns: minmax(0, 1fr) 150px 140px; }
+  .fl :is(.fl-kind) { display: none; }
+  .fl.has-customer .fl-size { display: none; }
+}
+@container fl (max-width: 500px) {
+  .fl-head, .fl-row, .fl.has-customer :is(.fl-head, .fl-row) { grid-template-columns: minmax(0, 1fr) 136px; }
+  .fl-cell, .fl-col { padding: 0 8px; }
+  .fl :is(.fl-size, .fl-kind, .fl-customer) { display: none; }
+}
+/* The customer that just got files lights up in the list for a moment. */
+@keyframes am-flash { 0%, 100% { background-color: transparent; } 30% { background-color: color-mix(in srgb, var(--tone-ok-bg) 90%, transparent); } }
+.chat-conv.is-flash { animation: am-flash 1.6s ease-out 2; }
 .am-textarea { width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font: inherit; font-size: 13.5px; line-height: 19px; resize: vertical; }
 .am-textarea:focus { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-text); }
 
@@ -2272,14 +2925,113 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .rn-part { grid-template-columns: 22px 120px minmax(0, 1fr) 26px; }
 }
 
+/* „Kacheln“ (user 23.11.2026): every file as a card with a picture, so logos and images are recognised at a glance
+   (asset-tiles.tsx). Photos fill the picture; see-through images stand whole on the ground that fits them, in both
+   themes; other files show their symbol in their category's colour. */
+.at { --at-min: 172px; padding: 2px 12px 18px; }
+.at.is-small { --at-min: 132px; }
+.at.is-large { --at-min: 236px; }
+.at-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--at-min), 100%), 1fr)); gap: 12px 10px; padding: 6px 0 8px; }
+.at-empty { margin: 4px 0 10px; padding: 14px 16px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 13px; }
+.at-card { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 6px 6px 8px; border-radius: 14px; cursor: pointer; transition: background-color 120ms ease, box-shadow 120ms ease; }
+.at-card:hover { background: var(--sheet-hover); }
+.at-card.is-selected { background: var(--sheet-select); box-shadow: inset 0 0 0 2px var(--accent-text); }
+.at-card.is-open { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-text) 45%, transparent); }
+.at-card.is-fresh { background: color-mix(in srgb, var(--tone-ok-bg) 80%, transparent); }
+.at-card.is-lifting { background: var(--sheet-hover); }
+.at-card.is-dragged { opacity: 0.42; }
+.at-open { display: block; width: 100%; padding: 0; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.at-open:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.at-thumb { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px; background: var(--sheet-sunken); }
+.at-thumb::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.07); pointer-events: none; }
+:root[data-theme="dark"] .at-thumb::after { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.09); }
+.at-thumb img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; -webkit-user-drag: none; }
+.at-thumb.is-photo img { object-fit: cover; }
+.at-thumb:is(.is-clear, .is-dark) { padding: 9%; }
+.at-thumb.is-clear { background: repeating-conic-gradient(#ece6e9 0% 25%, #f8f5f6 0% 50%) 50% / 14px 14px; }
+:root[data-theme="dark"] .at-thumb.is-clear { background: repeating-conic-gradient(#d6d0d3 0% 25%, #e8e3e6 0% 50%) 50% / 14px 14px; }
+.at-thumb.is-dark { background: repeating-conic-gradient(#2b2428 0% 25%, #211b1e 0% 50%) 50% / 14px 14px; }
+.at-thumb.is-loading::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--sheet) 70%, transparent) 50%, transparent 80%) 0 0 / 200% 100%; animation: am-preview-shimmer 1.1s linear infinite; }
+.at-thumb.is-doc { background: color-mix(in srgb, var(--cat) 9%, var(--sheet-sunken)); }
+.at-doc { display: grid; justify-items: center; gap: 7px; padding: 8px; color: var(--cat); text-align: center; }
+.at-doc b { padding: 2px 8px; border-radius: 6px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 11px; line-height: 16px; letter-spacing: 0.04em; color: var(--sheet-muted); }
+.at-doc small { font-size: 11.5px; line-height: 15px; color: var(--sheet-muted); }
+.at.is-small .at-doc svg { width: 26px; height: 26px; }
+.at-format { position: absolute; left: 7px; bottom: 7px; padding: 1px 6px; border-radius: 6px; background: rgb(255 255 255 / 0.9); color: #4a3f45; font-size: 10.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.04em; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.07); pointer-events: none; }
+:root[data-theme="dark"] .at-format { background: rgb(28 22 26 / 0.86); color: #e9dfe4; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1); }
+.at.is-small .at-format { display: none; }
+/* The tick and the actions on the picture: on hover, and the ticks always once something is ticked (or on touch). */
+.at-check { position: absolute; z-index: 2; left: 13px; top: 13px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: rgb(255 255 255 / 0.94); box-shadow: 0 1px 3px rgb(0 0 0 / 0.2), 0 0 0 1px rgb(0 0 0 / 0.06); opacity: 0; transition: opacity 120ms ease; cursor: pointer; }
+:root[data-theme="dark"] .at-check { background: rgb(36 28 33 / 0.94); box-shadow: 0 1px 3px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.12); }
+.at-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent-text); cursor: pointer; }
+.at-card:is(:hover, :focus-within, .is-selected) .at-check, .at.is-selecting .at-check { opacity: 1; }
+.at-acts { position: absolute; z-index: 2; right: 13px; top: 13px; display: flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
+.at-card:is(:hover, :focus-within) .at-acts { opacity: 1; }
+.at-acts .am-icon-btn { width: 28px; height: 28px; background: rgb(255 255 255 / 0.94); box-shadow: 0 1px 3px rgb(0 0 0 / 0.2), 0 0 0 1px rgb(0 0 0 / 0.06); }
+:root[data-theme="dark"] .at-acts .am-icon-btn { background: rgb(36 28 33 / 0.94); box-shadow: 0 1px 3px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.12); }
+@media (hover: none) {
+  .at-check { opacity: 1; }
+  .at-acts { display: none; }
+}
+.at-meta { display: grid; gap: 2px; min-width: 0; padding: 0 4px; }
+.at-title { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
+.at-title .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-card:hover .at-title .t { color: var(--accent-text); }
+.at-title :is(.file-dot, .am-audience-tag) { flex: 0 0 auto; margin-left: 0; }
+.at-sub { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; line-height: 16px; color: var(--sheet-muted); white-space: nowrap; }
+.at-sub > span:not(.am-min-shared) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.at.is-small .at-title { font-size: 12.5px; }
+.at.is-small .at-sub { font-size: 11.5px; }
+/* With a file's details open beside them, the cards move over and get smaller instead of hiding under the panel. */
+@media (min-width: 768px) {
+  .am-pane.has-panel .at { padding-right: calc(min(420px, 100%) + 10px); --at-min: 132px; }
+  .am-pane.has-panel .at.is-small { --at-min: 100px; }
+  .am-pane.has-panel .at.is-large { --at-min: 150px; }
+}
+/* Phones: klein, mittel, groß = three, two, one card per row. */
+@media (max-width: 767px) {
+  .at { --at-min: 138px; padding: 2px 8px 18px; }
+  .at.is-small { --at-min: 96px; }
+  .at.is-large { --at-min: 220px; }
+}
+/* The size of the cards, like the size slider at the bottom right of the Finder: in the list's footer while that stays
+   in sight (with the sidebar, from 1024 × 560 px), else next to the view switch, on phones right of „Filter“. */
+.at-size-wrap { display: inline-flex; align-items: center; gap: 8px; }
+.at-size-label { font-size: 12px; color: var(--sheet-muted); }
+.sheet-footer-end { display: inline-flex; align-items: center; gap: 16px; min-width: 0; }
+.at-size.segmented-control { width: auto; height: 26px; padding: 2px; border: 0; border-radius: 7px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.at-size .segment { flex: 0 0 auto; width: 30px; padding: 0; border-radius: 5px; color: var(--sheet-muted); }
+.at-size .segment:hover { color: var(--label); }
+.at-size .segment[aria-pressed="true"] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px rgb(0 0 0 / 0.1), 0 0 0 1px var(--sheet-line); }
+.sheet-toolbar .at-size.segmented-control { height: 30px; border-radius: 8px; }
+.sheet-toolbar .at-size .segment { width: 32px; border-radius: 6px; }
+.sheet-toolbar .at-size-wrap { margin-right: 6px; }
+@media (min-width: 1024px) and (min-height: 560px) { .at-size-wrap.is-top { display: none; } }
+@media (max-width: 1023px), (max-height: 559px) { .at-size-wrap.is-bottom { display: none; } }
+@media (max-width: 1499px) { .am.is-tiles .sheet-footer-hint { display: none; } }
+/* With a file's details open, the footer ends left of the panel, so the switch stays in reach. */
+@media (min-width: 768px) { .am.is-tiles .am-pane.has-panel .sheet-footer { padding-right: calc(min(420px, 100%) + 16px); } }
+@media (max-width: 767px) { .sheet-toolbar .at-size-wrap { margin-left: auto; margin-right: 0; } }
+
 /* Details: a quiet preview, download and link, the one-click logo, who has the file and in which folder, the facts. */
-.am-preview { display: grid; place-items: center; height: 156px; overflow: hidden; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
-.am-preview.is-image { background: repeating-conic-gradient(#e6e0e3 0% 25%, #f7f4f5 0% 50%) 50% / 14px 14px; }
-:root[data-theme="dark"] .am-preview.is-image { background: repeating-conic-gradient(#3a3237 0% 25%, #2a2428 0% 50%) 50% / 14px 14px; }
-.am-preview img { display: block; max-width: calc(100% - 24px); max-height: calc(100% - 24px); object-fit: contain; }
-.am-preview-doc { display: grid; justify-items: center; gap: 8px; color: #5856d6; }
+.am-preview { position: relative; display: grid; place-items: center; min-height: 156px; padding: 14px; overflow: hidden; border-radius: 12px; background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+/* An image (23.11.2026): the box takes its shape, between 4:3 upright and 12:5 wide and at most 300 px high. The ground
+   follows the image, not the theme: see-through formats on a light chequer (dimmed in the dark theme), a light logo on a
+   dark one, photos on the plain sheet. */
+.am-preview.is-image { display: block; min-height: 0; padding: 0; }
+.am-preview-frame { display: grid; place-items: center; width: 100%; aspect-ratio: var(--ar, 4 / 3); max-height: 300px; padding: 10px; }
+.am-preview.is-photo .am-preview-frame { padding: 0; }
+.am-preview-frame img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.am-preview.is-clear { background: repeating-conic-gradient(#e6e0e3 0% 25%, #f7f4f5 0% 50%) 50% / 14px 14px; }
+:root[data-theme="dark"] .am-preview.is-clear { background: repeating-conic-gradient(#d6d0d3 0% 25%, #e8e3e6 0% 50%) 50% / 14px 14px; }
+.am-preview.is-dark { background: repeating-conic-gradient(#2b2428 0% 25%, #211b1e 0% 50%) 50% / 14px 14px; }
+/* While the preview loads, the box shimmers in its place (motion.css keeps it still for „Bewegung reduzieren“). */
+.am-preview.is-loading::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--sheet) 70%, transparent) 50%, transparent 80%) 0 0 / 200% 100%; animation: am-preview-shimmer 1.1s linear infinite; }
+@keyframes am-preview-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.am-preview-doc { display: grid; justify-items: center; gap: 8px; color: #5856d6; text-align: center; }
 :root[data-theme="dark"] .am-preview-doc { color: #a9a7ff; }
 .am-preview-doc b { padding: 2px 8px; border-radius: 6px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); font-size: 11.5px; letter-spacing: 0.04em; color: var(--sheet-muted); }
+.am-preview-doc small { max-width: 32ch; font-size: 12.5px; line-height: 17px; color: var(--sheet-muted); }
 .am-panel-actions { display: flex; gap: 8px; }
 .am-panel-actions .sheet-action { flex: 1; justify-content: center; height: 36px; }
 .am-panel-actions .sheet-action svg { width: 15px; height: 15px; }
@@ -2544,6 +3296,451 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
   .cdm-admin-table .cell-date small { margin-left: 4px; }
 }
 
+/* Projekte (admins, Projekte V2 since 16.11.2026): every customer on the left like „Vertrag & Domain“, on the right the
+   chosen one with all projects (status in the row, its colour over the row), domains and links, Service and the
+   finished projects; a project opens its panel at the right edge. */
+.pp-tile-icon { color: var(--cat-projects-text); }
+.pp-jumps { flex: 0 0 auto; gap: 2px; }
+.pp-jump { width: 36px; height: 36px; border-radius: 10px; transition: background-color 120ms ease, transform 160ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.pp-jump:active { transform: scale(0.92); transition-duration: 80ms; }
+.pp-jump:focus-visible, .pj-open:focus-visible, .pj-chip:focus-visible, .pj-link-btn:focus-visible, .pj-host:focus-visible, .pj-customer-link:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-gap), 0 0 0 4px var(--accent-text); }
+.pj .am-pane { container: pjpane / inline-size; }
+.chat-pill.tone-bad { background: var(--tone-bad-bg); color: var(--tone-bad); }
+
+/* The list: one line per customer with the state of its projects. */
+.pj .chat-conv-top { gap: 8px; }
+.pj-list-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; vertical-align: 1px; background: var(--tone-off-bar); }
+.pj-list-dot.tone-ok { background: var(--tone-ok-bar); }
+.pj-list-dot.tone-bad { background: var(--tone-bad-bar); }
+.pj-list-dot.tone-todo { background: var(--tone-todo-bar); }
+.pj-list-dot.tone-info { background: var(--tone-info-bar); }
+
+/* The head: the customer's live and test domain as chips, always one click away. */
+.pj-head-links { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }
+.pj-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 250px; height: 32px; padding: 0 10px 0 9px; border-radius: 999px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label); font-size: 12.5px; font-weight: 600; white-space: nowrap; text-decoration: none; }
+.pj-chip:hover { background: var(--sheet-hover); color: var(--accent-text); }
+.pj-chip > svg { flex: 0 0 auto; }
+.pj-chip .pj-chip-text { overflow: hidden; text-overflow: ellipsis; }
+.pj-chip .pj-chip-arrow { color: var(--sheet-icon); }
+.pj-chip.is-live > svg:first-child { color: var(--tone-ok); }
+.pj-chip.is-test > svg:first-child { color: var(--tone-todo); }
+/* Next to the shortcuts the name keeps its room: below this width the chips show only their sign. */
+@container pjpane (max-width: 980px) {
+  .pj-chip .pj-chip-text, .pj-chip .pj-chip-arrow { display: none; }
+  .pj-chip { width: 32px; padding: 0; justify-content: center; }
+}
+/* „+ Projekt“ at the end of the head; in a narrow pane only its plus, named by the hint. */
+.pj .am-pane-head .pj-new { flex: 0 0 auto; }
+@container pjpane (max-width: 760px) {
+  .pj .pj-new-label { display: none; }
+  .pj .am-pane-head .pj-new { width: 30px; padding: 0; justify-content: center; }
+}
+
+/* The groups on the right, one table each. */
+.pj-scroll { padding-bottom: 20px; }
+.pj-scroll > .pj-table + .pj-table { margin-top: 14px; }
+.pj-table { table-layout: auto; }
+.pj-table td { height: 52px; }
+.pj-table .table-group-actions { gap: 4px; }
+.pj-table .table-add-row td { height: 44px; }
+.pj-table .table-empty-row td { height: 46px; padding-left: 64px; }
+.pj-row { cursor: pointer; }
+
+/* The row veil (user 15.11.2026, like User Management › Zugänge since 9.11.2026): the status colours the whole row, full
+   on the left half and fading out to the right, with a rounded bar on the left; the open row wears the accent. */
+.pj tr.veil-risk { --row-veil: var(--veil-none); --row-mark: var(--veil-none-bar); }
+.pj tr.veil-hold { --row-veil: var(--veil-open); --row-mark: var(--veil-open-bar); }
+.pj tr.veil-active { --row-veil: var(--veil-ok); --row-mark: var(--tone-ok-bar); }
+.pj tr.veil-planning { --row-veil: var(--veil-info); --row-mark: var(--tone-info-bar); }
+.pj tr.has-veil { background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 50%, transparent 100%); }
+.pj tr.is-current { --row-mark: var(--accent-text); background-color: rgb(var(--accent-rgb) / calc(0.07 * var(--tint-k))); }
+.pj tr:is(.has-veil, .is-current) > td:first-child { position: relative; }
+.pj tr:is(.has-veil, .is-current) > td:first-child::before { content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 4px; background: var(--row-mark); }
+/* Hover and the open row colour the row under its veil instead of the cells, which would cover it. */
+.pj tbody tr:is(.has-veil, .is-current) > td, .pj tbody tr:is(.has-veil, .is-current):hover > td { background-color: transparent !important; }
+.pj tbody tr.has-veil:hover { background-color: var(--sheet-hover); }
+.pj tbody tr.is-current:hover { background-color: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); }
+.veil-dot.is-ok { background: var(--tone-ok-bar); }
+.veil-dot.is-info { background: var(--tone-info-bar); }
+
+/* A project: its sign on a calm tile, name and next milestone, the status, the target day, progress and domains. */
+.pj-glyph { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; background: var(--tone-off-bg); }
+.pj-glyph .status-glyph { width: 16px; height: 16px; }
+.pj-glyph.tone-ok { background: var(--tone-ok-bg); }
+.pj-glyph.tone-bad { background: var(--tone-bad-bg); }
+.pj-glyph.tone-todo { background: var(--tone-todo-bg); }
+.pj-glyph.tone-info { background: var(--tone-info-bg); }
+/* In a row the row carries the colour: the tile stays white, the sign keeps its colour. */
+.pj-row .pj-glyph { background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.pj-glyph.is-lg { width: 40px; height: 40px; border-radius: 11px; }
+.pj-glyph.is-lg .status-glyph { width: 18px; height: 18px; }
+.pj-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pj-open { display: inline-flex; min-width: 0; max-width: 100%; padding: 0; border: 0; border-radius: 4px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.pj-open strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-row:hover .pj-open strong { color: var(--accent-text); }
+.pj-hidden { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; color: var(--sheet-muted); font-size: 11.5px; font-weight: 600; }
+.pj-name .chat-pill, .pj-name .pj-hidden { flex: 0 0 auto; }
+/* The first cell takes the room that is left and cuts long names; the others keep their width. */
+@media (min-width: 768px) {
+  .pj-table tr.file-row > td:first-child { width: 100%; max-width: 0; }
+}
+.pj-table .am-file { width: 100%; }
+.pj-table .am-file-text { flex: 1 1 auto; min-width: 0; }
+.pj-cell-status, .pj-cell-due, .pj-cell-progress, .pj-cell-links, .pj-cell-open, .pj-cell-acts, .pj-cell-date { width: 1%; white-space: nowrap; }
+.pj-cell-due .numeric { display: block; color: var(--label-body); }
+.pj-cell-due small { display: block; color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+.pj-cell-due small.is-overdue { color: var(--tone-bad); font-weight: 600; }
+.pj-cell-open { color: var(--sheet-icon); padding-left: 0 !important; }
+.pj-cell-open svg { display: block; }
+.pj-cell-acts { text-align: right; }
+.pj-cell-acts .row-action { width: 32px; height: 32px; }
+.pj-cell-date { color: var(--sheet-muted); font-variant-numeric: tabular-nums; }
+.pj-none { color: var(--sheet-icon); }
+
+/* The status: a small, calm choice field (the row carries the colour) that opens the hub's list with Studio's five
+   statuses; hover lightens it, and while the list is open it wears the accent ring of the search fields. */
+.pj-status-wrap { display: inline-flex; }
+.hub-select-trigger.pj-status { gap: 5px; height: 24px; padding: 0 5px 0 7px; border-radius: 999px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 500; line-height: 16px; white-space: nowrap; transition: box-shadow 0.12s ease, background-color 0.12s ease; }
+.pj-status .hub-select-lead { min-width: 0; }
+.pj-status .status-glyph { width: 12px; height: 12px; }
+.pj-status .hub-select-chevron { width: 12px; height: 12px; color: var(--sheet-icon); }
+.pj-status:hover:not(:disabled) { background-color: var(--sheet-hover); }
+.pj-status:hover:not(:disabled) .hub-select-chevron { color: var(--sheet-muted); }
+.pj-status[aria-expanded="true"] { background-color: var(--sheet); box-shadow: var(--select-open-ring); }
+.pj-status[aria-expanded="true"] .hub-select-chevron { color: var(--accent-text); }
+.pj-status:focus-visible { outline: 0; box-shadow: var(--select-open-ring); }
+.hub-select-trigger.pj-status:disabled { opacity: 0.6; cursor: progress; }
+
+/* The domains of a project right in its row. */
+.pj-link-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: var(--sheet-muted); }
+.pj-link-btn:hover { background: var(--sheet-hover); }
+.pj-link-btn.is-live { color: var(--tone-ok); }
+.pj-link-btn.is-test { color: var(--tone-todo); }
+.pj-link-btn.is-empty { color: var(--sheet-icon); opacity: 0.4; }
+
+/* Domains & links: the projects' live and test domains, then the domains of „Vertrag & Domain“. */
+.pj-kind { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; }
+.pj-kind.is-live { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.pj-kind.is-test { background: var(--tone-todo-bg); color: var(--tone-todo); }
+.pj-kind.is-domain { background: var(--tone-info-bg); color: var(--tone-info); }
+.pj-host { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; border-radius: 4px; color: var(--accent-text); font-size: 13.5px; font-weight: 600; line-height: 18px; text-decoration: none; }
+.pj-host span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-host svg { flex: 0 0 auto; opacity: 0.7; }
+.pj-host:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.pj-kind-label { display: inline-flex; align-items: center; gap: 8px; }
+/* The form to add or change a domain, right in the list. */
+.pj-table tr.pj-inline td { height: auto; padding-top: 14px; padding-bottom: 14px; background: var(--sheet-sunken); }
+.pj-table tr.pj-inline:hover td { background: var(--sheet-sunken); }
+.pj-form { display: grid; gap: 10px; max-width: 760px; }
+.pj-form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pj-form-row > .am-label { min-width: 74px; }
+.pj-form .chat-filter.pj-kind-filter { margin: 0; align-self: center; }
+.pj-url { display: flex; align-items: center; gap: 8px; flex: 1 1 280px; min-width: 0; height: 38px; padding: 0 4px 0 11px; border-radius: 9px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.pj-url:focus-within { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.pj-url > svg { flex: 0 0 auto; color: var(--sheet-muted); }
+.pj-url.is-live > svg:first-child { color: var(--tone-ok); }
+.pj-url.is-test > svg:first-child { color: var(--tone-todo); }
+.pj-url input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--label); font: inherit; font-size: 13.5px; }
+.pj-url input::placeholder { color: var(--sheet-icon); }
+/* The box shows the focus (accent inside), so the field itself draws no second ring. */
+.pj-url input:focus-visible { outline: 0; box-shadow: none; }
+.pj-url .row-action { width: 30px; height: 30px; flex: 0 0 auto; }
+.pj-form-pick { flex: 0 1 300px; min-width: 200px; }
+.pj-mark { color: var(--sheet-muted); }
+.pj-mark .status-glyph { width: 13px; height: 13px; }
+.pj-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pj-form-actions .pj-spacer { flex: 1 1 auto; }
+.pj-form-hint { color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+.pj-form-error { color: var(--tone-bad); font-size: 12.5px; font-weight: 600; }
+
+/* Service: package, this month's count, the open requests and what is done. */
+.pj-meter { justify-content: flex-end; }
+.pj-meter .cdm-meter { width: 160px; flex: 0 0 auto; }
+.pj-table .am-file-text small .chat-pill { padding: 0 7px; font-size: 11px; line-height: 16px; }
+.pj-table .am-file-text small b { color: var(--label-body); font-weight: 600; }
+
+/* A narrow pane (laptop with the list, tablet): columns step back. */
+@media (min-width: 768px) {
+  @container pjpane (max-width: 720px) {
+    .pj-cell-progress { display: none; }
+    .pj-meter .cdm-meter { width: 110px; }
+  }
+  @container pjpane (max-width: 600px) {
+    .pj-cell-links, .pj-cell-open { display: none; }
+  }
+}
+
+/* Phones: each row in two lines, like the hub's other tables. */
+@media (max-width: 767px) {
+  .pp .am-pane-head { flex-wrap: wrap; row-gap: 10px; }
+  .pp-jumps { order: 3; flex-basis: 100%; justify-content: space-between; }
+  .pj-head-links { order: 5; flex: 1 0 100%; }
+  .pj-head-links .pj-chip { flex: 1 1 0; width: auto; max-width: none; padding: 0 10px 0 9px; justify-content: center; }
+  .pj-head-links .pj-chip .pj-chip-text { display: inline; }
+  .pj-head-links .pj-chip .pj-chip-arrow { display: block; }
+  /* Line 1: sign, name and the arrow; line 2 under the name: status, how much time is left, the domains. */
+  .sheet .pj-table tbody tr.file-row { gap: 8px 10px; }
+  .sheet .pj-table tbody tr.file-row > td:first-child { order: 1; flex: 1 1 0px; min-width: 0; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-open, .pj-cell-acts) { order: 2; width: auto; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-status, .pj-cell-due, .pj-cell-links, .pj-cell-meter) { order: 4; width: auto; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-status, .pj-cell-meter) { margin-left: 42px; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-due { display: flex; align-items: center; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-due .numeric { display: none; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-due small { display: inline; font-size: 12.5px; }
+  .sheet .pj-table tbody tr.file-row > td.pj-cell-links { margin-left: auto; }
+  .sheet .pj-table tbody tr.file-row > td:is(.pj-cell-progress, .pj-cell-date:not(.pj-cell-meter)) { display: none; }
+  .pj-meter { justify-content: flex-start; }
+  .pj-form-row > .am-label { min-width: 0; }
+  .sheet .pj-table tbody tr.pj-inline { display: block; }
+  .sheet .pj-table tbody tr.pj-inline > td { display: block; padding: 14px; }
+  .pj-link-btn.is-empty { display: none; }
+  /* Rows become cards here: the bar runs along the whole card instead of the first cell. */
+  .pj tr:is(.has-veil, .is-current) > td:first-child::before { display: none; }
+  .pj tbody tr:is(.has-veil, .is-current) { box-shadow: inset 4px 0 0 var(--row-mark); }
+}
+
+/* Alle Projekte: every project of every customer, the customer leading. */
+.pj-ov .project-table td { height: 44px; }
+.pj-ov .cell-customer { width: 1%; white-space: nowrap; }
+.pj-ov .cell-project .cell-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.pj-ov .project-card { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); font-weight: 500; }
+.pj-ov .project-card:hover { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.pj-ov .cell-title .status-glyph, .pj-turn { flex: 0 0 auto; }
+/* The project link stretches over the row (hub rule); the controls in it stay above that layer. */
+.pj-ov .project-row :is(.pj-customer-link, .pj-status-wrap, .pj-link-btn, .pj-turn) { position: relative; z-index: 1; }
+.pj-turn { display: inline-flex; color: var(--tone-todo); }
+.pj-ov .progress-line .list-progress { width: 40px; }
+.pj-ov .cell-milestone { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-ov :is(.pj-cell-status, .pj-col-due, .pj-col-progress, .pj-col-links) { width: 1%; white-space: nowrap; }
+.pj-customer-link { display: inline-flex; align-items: center; gap: 8px; max-width: 180px; border-radius: 6px; color: var(--label-body); font-weight: 500; }
+.pj-customer-link span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-customer-link:hover span:last-child { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.pj-customer-link .am-avatar, .pj-ov .table-group-glyph .am-avatar { width: 22px; height: 22px; border-radius: 6px; font-size: 9.5px; }
+@media (min-width: 768px) {
+  .pj-ov .cell-project { width: 100%; max-width: 0; overflow: hidden; }
+  @container pjpane (max-width: 860px) { .pj-ov .pj-col-ms { display: none; } }
+  @container pjpane (max-width: 640px) { .pj-ov .pj-col-links, .pj-ov .pj-col-progress { display: none; } }
+  @container pjpane (max-width: 520px) { .pj-ov .pj-col-due { display: none; } .pj-customer-link { max-width: 120px; } }
+}
+@media (max-width: 767px) {
+  .sheet .pj-ov .project-table tr.project-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "customer customer" "title status" "due links"; gap: 4px 12px; }
+  .sheet .pj-ov .cell-customer { grid-area: customer; }
+  .sheet .pj-ov .cell-project { grid-area: title; }
+  .sheet .pj-ov .pj-cell-status { grid-area: status; width: auto; }
+  .sheet .pj-ov .pj-col-due { grid-area: due; display: flex; align-items: baseline; gap: 6px; width: auto; padding-left: 22px; }
+  .sheet .pj-ov .pj-col-due .numeric, .sheet .pj-ov .pj-col-due small { display: inline; }
+  .sheet .pj-ov .pj-col-links { grid-area: links; justify-self: end; width: auto; }
+  .sheet .pj-ov :is(.pj-col-ms, .pj-col-progress) { display: none; }
+  .pj-ov .project-card { font-size: 15px; }
+}
+
+/* „Kacheln“ of Alle Projekte (user 27.11.2026): every customer a rounded tile, its projects inside as cards. In the tiles
+   the customer list folds away (the symbol in the head brings it back) so more customers fit side by side. */
+@container sheet (min-width: 821px) {
+  .pj.pj-wide .am-grid { grid-template-columns: minmax(0, 1fr); }
+  .pj.pj-wide .am-grid > .chat-list { display: none; }
+}
+@container sheet (max-width: 820px) { .pj .pj-list-toggle { display: none; } }
+.pj .pj-list-toggle { flex: 0 0 auto; margin: 0 -4px 0 -8px; }
+.sheet-toolbar .pj-view.segmented-control .segment { gap: 6px; padding: 0 11px; }
+.pj-view .segment svg { flex: 0 0 auto; }
+.pj-tiles {
+  --pj-tray: color-mix(in srgb, var(--sheet-seg) 70%, var(--sheet));
+  --pj-card: var(--sheet);
+  --pj-tile-min: 300px;
+  padding: 14px 16px 24px;
+}
+:root[data-theme="dark"] .pj-tiles { --pj-tray: color-mix(in srgb, var(--sheet-seg) 80%, var(--sheet)); --pj-card: color-mix(in srgb, var(--sheet-seg-on) 58%, var(--sheet-seg)); }
+.pj-tiles.is-small { --pj-tile-min: 270px; }
+.pj-tiles.is-large { --pj-tile-min: 370px; }
+/* A masonry: small rows, every tile spans as many as it is high (projects-tiles.tsx measures it). */
+.pj-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--pj-tile-min), 100%), 1fr)); grid-auto-rows: 4px; column-gap: 14px; align-items: start; }
+/* Sections by status, headed like the table groups. */
+.pj-tsec + .pj-tsec { margin-top: 8px; }
+.pj-tsec-head { display: flex; align-items: center; gap: 8px; height: 36px; margin-bottom: 12px; padding-left: 2px; border-bottom: 1px solid var(--sheet-line); font-size: 12.5px; font-weight: 600; color: var(--label); }
+.pj-tsec-head .table-group-glyph { margin-right: 6px; }
+.pj-tsec-hint { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--sheet-muted); }
+.pj-tsec:has(.table-group-toggle[aria-expanded="false"]) .pj-tsec-head { margin-bottom: 0; }
+
+/* A customer's tile: a calm tray, the head opens the customer. */
+.pj-tile { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 6px 6px 7px; border-radius: 18px; background: var(--pj-tray); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.pj-tile-head { position: relative; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 5px 5px 5px 7px; border-radius: 13px; transition: background-color 120ms ease; }
+.pj-tile-head:hover { background: rgb(var(--accent-rgb) / calc(0.045 * var(--tint-k))); }
+.pj-tile-head:has(.pj-tile-open:focus-visible) { box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+.pj-tile-name { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.pj-tile-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pj-tile-open { min-width: 0; padding: 0; border-radius: 4px; color: var(--label); text-align: left; }
+.pj-tile-open::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.pj-tile-open:focus-visible { outline: 0; }
+.pj-tile-open strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 20px; font-weight: 700; }
+.pj-tile-head:hover .pj-tile-open strong { color: var(--accent-text); }
+.pj-tile-top .chat-pill { position: relative; z-index: 1; flex: 0 0 auto; }
+.pj-tile-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.pj-tile-acts { position: relative; z-index: 1; flex: 0 0 auto; display: inline-flex; gap: 1px; }
+.pj-tile-acts .row-action { width: 28px; height: 28px; opacity: 0; transition: opacity 120ms ease; }
+.pj-tile:is(:hover, :focus-within) .pj-tile-acts .row-action { opacity: 1; }
+.pj-tile-body, .pj-tile-cards { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pj-tile-empty { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 6px 0 10px; font-size: 12.5px; color: var(--sheet-muted); }
+.pj-tile-empty .table-add { margin-left: auto; height: 30px; padding: 0 8px; font-size: 12.5px; }
+
+/* A project: a card that carries its status like the rows (veil and bar); the name stretches over it and opens the
+   panel, the status, the domains and the hints stay above that layer. */
+.pj-card { position: relative; display: grid; gap: 6px; min-width: 0; padding: 10px 10px 10px 19px; border-radius: 12px; background-color: var(--pj-card); box-shadow: 0 0 0 1px var(--sheet-line), 0 1px 2px rgb(0 0 0 / 0.035); cursor: pointer; transition: box-shadow 140ms ease, background-color 140ms ease; }
+.pj-card::before { content: ""; position: absolute; left: 6px; top: 10px; bottom: 10px; width: 4px; border-radius: 4px; background: var(--row-mark, transparent); }
+.pj-card.veil-risk { --row-veil: var(--veil-none); --row-mark: var(--veil-none-bar); }
+.pj-card.veil-hold { --row-veil: var(--veil-open); --row-mark: var(--veil-open-bar); }
+.pj-card.veil-active { --row-veil: var(--veil-ok); --row-mark: var(--tone-ok-bar); }
+.pj-card.veil-planning { --row-veil: var(--veil-info); --row-mark: var(--tone-info-bar); }
+.pj-card.has-veil { background-image: linear-gradient(to right, var(--row-veil) 0%, var(--row-veil) 50%, transparent 100%); }
+.pj-card:hover { background-color: color-mix(in srgb, var(--sheet-hover) 70%, var(--pj-card)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sheet-line) 60%, var(--sheet-muted)), 0 6px 16px rgb(0 0 0 / 0.07); }
+.pj-card.is-current { --row-mark: var(--accent-text); background-color: color-mix(in srgb, rgb(var(--accent-rgb)) 7%, var(--pj-card)); box-shadow: 0 0 0 1.5px rgb(var(--accent-rgb) / 0.5), 0 6px 16px rgb(0 0 0 / 0.06); }
+.pj-card:has(.pj-card-open:focus-visible) { box-shadow: 0 0 0 3px var(--focus-gap), 0 0 0 6px var(--accent-text); }
+.pj-card-open { min-width: 0; padding: 0; border-radius: 4px; text-align: left; }
+.pj-card-open::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
+.pj-card-open:focus-visible { outline: 0; }
+.pj-card :is(.pj-status-wrap, .pj-card-links, .pj-card-mark, .pj-card-due, .progress-line, .pj-none, .pj-tl-track, .pj-tl-row > b) { position: relative; z-index: 1; }
+.pj-card-top { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 24px; }
+.pj-card-top > .status-glyph { flex: 0 0 auto; }
+.pj-card-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; line-height: 18px; font-weight: 600; color: var(--label); }
+.pj-card:hover .pj-card-name { color: var(--accent-text); }
+.pj-card-mark { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px; color: var(--sheet-muted); font-size: 11.5px; font-weight: 600; }
+.pj-card-mark.is-turn { color: var(--tone-todo); }
+.pj-card .pj-gap { flex: 1 1 auto; }
+.pj-card-top .pj-status-wrap { flex: 0 0 auto; }
+.pj-card-line { display: flex; align-items: center; gap: 6px; min-width: 0; padding-left: 21px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); }
+.pj-card-line > svg { flex: 0 0 auto; color: var(--sheet-icon); }
+.pj-card-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-card-line b { font-weight: 600; color: var(--label-body); }
+.pj-card-foot { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 26px; padding-left: 21px; }
+.pj-card-progress { flex: 1 1 auto; display: flex; align-items: center; min-width: 0; }
+.pj-card-progress .progress-line { flex: 1 1 auto; display: flex; min-width: 0; gap: 8px; }
+.pj-card-progress .progress-line .list-progress { flex: 1 1 auto; width: auto; min-width: 36px; max-width: 170px; height: 5px; border-radius: 3px; }
+.pj-card-progress .progress-line .list-percent { flex: 0 0 auto; min-width: 0; font-size: 12px; font-weight: 600; }
+.pj-card-progress .pj-none { font-size: 12px; }
+.pj-card-due { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; color: var(--sheet-muted); white-space: nowrap; }
+.pj-card-due > svg { color: var(--sheet-icon); }
+.pj-card-due.is-overdue, .pj-card-due.is-overdue > svg { color: var(--tone-bad); font-weight: 600; }
+.pj-due-left { display: none; }
+.pj-card-links { flex: 0 0 auto; display: inline-flex; margin-right: -5px; }
+.pj-card-links .pj-link-btn { width: 26px; height: 26px; border-radius: 7px; }
+.pj-card-links .pj-link-btn svg { width: 15px; height: 15px; }
+.pj-card.is-done .pj-card-name { color: var(--sheet-muted); font-weight: 500; }
+/* Small: one line per project, the colour and the sign say the status. */
+.pj-card.is-sm { grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-height: 34px; padding: 5px 10px 5px 16px; border-radius: 10px; }
+.pj-card.is-sm::before { left: 5px; top: 8px; bottom: 8px; width: 3px; }
+.pj-card.is-sm .pj-card-open::after { border-radius: 10px; }
+.pj-card.is-sm .pj-card-name { font-size: 13px; }
+.pj-card-titleline { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pj-card.is-sm .pj-card-due { font-size: 11.5px; }
+.pj-card-pct { min-width: 34px; text-align: right; font-size: 11.5px; color: var(--sheet-muted); }
+/* Large: the done share over the time that has passed, with the milestones and today on the line. */
+.pj-card.is-lg { gap: 8px; padding: 12px 12px 12px 20px; }
+.pj-card.is-lg .pj-card-name { font-size: 14px; }
+.pj-tl { display: grid; gap: 6px; padding-left: 21px; }
+.pj-tl-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 38px; align-items: center; gap: 8px; font-size: 11.5px; line-height: 14px; color: var(--sheet-muted); }
+.pj-tl-row > b { font-weight: 600; text-align: right; color: var(--label-body); }
+.pj-tl-row > b.is-over { color: var(--tone-bad); }
+.pj-tl-none { color: var(--sheet-muted); }
+.pj-tl-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--sheet-line) 80%, transparent); }
+.pj-tl-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; }
+.pj-tl-fill.is-done { background: #FF9500; }
+.pj-tl-fill.is-time { background: color-mix(in srgb, var(--sheet-muted) 42%, transparent); }
+.pj-tl-fill.is-time.is-over { background: var(--tone-bad-bar); }
+.pj-tl-today { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--label-body); }
+.pj-tl-ms { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--pj-card); box-shadow: 0 0 0 1.5px var(--sheet-muted); }
+.pj-tl-ms.is-past { background: var(--sheet-muted); }
+.pj-tl-ms.is-feedback { box-shadow: 0 0 0 1.5px var(--tone-todo-bar); }
+.pj-tl-ms.is-feedback.is-past { background: var(--tone-todo-bar); }
+.pj-tl-ms.is-next { box-shadow: 0 0 0 2px var(--accent-text); }
+.pj-tl-dates { display: flex; justify-content: space-between; padding: 0 46px 0 60px; font-size: 11px; line-height: 13px; color: var(--sheet-icon); }
+/* Finished projects fold away at the end of a tile. */
+.pj-fold { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 30px; padding: 0 9px; border-radius: 9px; font-size: 12px; font-weight: 600; color: var(--sheet-muted); text-align: left; }
+.pj-fold:hover { background: rgb(var(--accent-rgb) / calc(0.045 * var(--tint-k))); color: var(--label); }
+.pj-fold .lucide-chevron-right { flex: 0 0 auto; transition: transform 160ms ease; }
+.pj-fold[aria-expanded="true"] .lucide-chevron-right { transform: rotate(90deg); }
+.pj-done-list { display: grid; gap: 1px; margin-top: -2px; }
+.pj-done-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 0 10px 0 9px; border-radius: 9px; font-size: 12.5px; color: var(--sheet-muted); text-align: left; }
+.pj-done-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-done-row small { font-size: 11.5px; color: var(--sheet-icon); }
+.pj-done-row:hover, .pj-done-row.is-current { background: var(--pj-card); color: var(--label); }
+.pj-done-row.is-current { box-shadow: inset 3px 0 0 var(--accent-text); }
+/* Phones: one tile under the other, each project one line with the time left and the done share. */
+@media (max-width: 767px) {
+  .pj .at-size-wrap, .pj-tsec-hint, .pj .pj-list-toggle { display: none; }
+  .pj-tiles { padding: 10px 10px 20px; }
+  .pj-tgrid { column-gap: 12px; }
+  .pj-tile { border-radius: 16px; padding: 5px 5px 6px; }
+  .pj-tile-head { min-height: 46px; padding: 4px 4px 4px 6px; }
+  .pj-tile-acts .row-action { opacity: 1; }
+  .pj-tile-acts .pj-tile-add { display: none; }
+  .pj-card.is-sm { min-height: 44px; padding: 6px 12px 6px 16px; gap: 10px; }
+  .pj-card.is-sm::before { top: 10px; bottom: 10px; }
+  .pj-card.is-sm .pj-card-name { font-size: 14px; }
+  .pj-card.is-sm :is(.pj-card-due, .pj-card-pct) { font-size: 12px; }
+  .pj-card.is-sm .pj-card-pct { min-width: 36px; }
+  .pj-due-day { display: none; }
+  .pj-due-left { display: inline; }
+  .pj-done-row, .pj-fold { min-height: 40px; font-size: 13px; }
+}
+
+/* The panel of a project: the status in five steps, its domains, its fields and milestones, and the open tasks. */
+.pj-panel .am-panel-title > span { display: block; }
+.pj-status-pick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.pj-pick { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 10px 2px 9px; border-radius: 10px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--label-body); font-size: 12px; font-weight: 600; line-height: 15px; }
+.pj-pick .status-glyph { width: 16px; height: 16px; }
+.pj-pick:hover:not(:disabled) { background: var(--sheet-hover); }
+.pj-pick:disabled { cursor: progress; }
+.pj-pick:focus-visible { outline: 0; box-shadow: var(--select-open-ring); }
+.pj-pick[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px currentColor; }
+.pj-pick.tone-ok[aria-pressed="true"] { background: var(--tone-ok-bg); color: var(--tone-ok); }
+.pj-pick.tone-bad[aria-pressed="true"] { background: var(--tone-bad-bg); color: var(--tone-bad); }
+.pj-pick.tone-todo[aria-pressed="true"] { background: var(--tone-todo-bg); color: var(--tone-todo); }
+.pj-pick.tone-info[aria-pressed="true"] { background: var(--tone-info-bg); color: var(--tone-info); }
+.pj-pick.tone-off[aria-pressed="true"] { background: var(--tone-off-bg); color: var(--tone-off); }
+.pj-pick-hint { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: var(--sheet-muted); font-size: 12.5px; line-height: 17px; }
+.pj-pick-hint > svg { flex: 0 0 auto; }
+.pj-pick-hint b { color: var(--label-body); font-weight: 600; }
+.pj-fields { display: grid; gap: 12px; }
+.pj-fields .pj-url { flex: none; }
+.pj-tasks { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.pj-ms-mark { display: inline-flex; align-items: center; justify-content: center; color: var(--sheet-icon); }
+.pj-tasks li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 36px; padding: 0 2px; border-bottom: 1px solid var(--sheet-divider); font-size: 13px; }
+.pj-tasks li:last-child { border-bottom: 0; }
+.pj-tasks li span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); }
+.pj-tasks li small { color: var(--sheet-muted); font-size: 12px; white-space: nowrap; }
+.pj-task-mark { display: inline-flex; color: var(--sheet-icon); }
+.pj-task-mark:has(.lucide-hand) { color: var(--tone-todo); }
+.pj-empty { color: var(--sheet-muted); font-size: 13px; line-height: 18px; }
+.pj-panel .am-panel-foot { display: flex; align-items: center; gap: 8px; }
+/* Editing in the panel and „Neues Projekt“ (Projekte V2 step 2): the visibility switch, milestone rows, error frames. */
+.pj-panel .pj-panel-error { margin: 14px 0 0; }
+/* Read-only without the code: the footer offers it, as in the task window (.kb-locked in tasks.css). */
+.pj-panel .am-panel-foot:has(.kb-locked) { display: block; padding: 10px 12px 12px; background: var(--sheet); }
+.pj-switch-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--sheet-sunken); }
+.pj-switch-text { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.pj-switch-text strong { color: var(--label); font-size: 13.5px; font-weight: 600; line-height: 18px; }
+.pj-switch-text small { color: var(--sheet-muted); font-size: 12px; line-height: 16px; }
+.pj-switch-busy { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 51px; height: 31px; }
+.switch:disabled { opacity: 0.5; cursor: default; }
+.pj-panel textarea.pj-desc { min-height: 84px; }
+.pj-ms-edit { display: grid; gap: 8px; }
+.pj-ms-row { display: grid; grid-template-columns: 22px 148px minmax(0, 1fr) 30px; gap: 8px; align-items: center; }
+.pj-ms-row .am-input { height: 36px; }
+.pj-ms-row.is-past .am-input { color: var(--sheet-muted); }
+.pj-ms-row.is-past .pj-ms-mark { color: var(--tone-ok); }
+.pj-ms-row.is-next .pj-ms-mark { color: var(--accent-text); }
+.pj-add-line { display: inline-flex; align-items: center; gap: 6px; justify-self: start; height: 30px; padding: 0 4px; border-radius: 6px; color: var(--accent-text); font-size: 13px; font-weight: 600; }
+.pj-add-line:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.pj-add-line:disabled { color: var(--sheet-muted); }
+.pj-panel :is(.am-input, .am-textarea)[aria-invalid="true"], .pj-panel .pj-url:has(input[aria-invalid="true"]) { box-shadow: inset 0 0 0 2px var(--danger); }
+@media (max-width: 767px) {
+  .pj-ms-row { grid-template-columns: 22px 136px minmax(0, 1fr) 30px; }
+  .pj-status-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pj-tasks li { grid-template-columns: 18px minmax(0, 1fr); }
+  .pj-tasks li small { grid-column: 2; white-space: normal; }
+  .pj-tasks li { padding: 6px 2px; row-gap: 2px; }
+}
+
 /* The customer's tabs (admins): package choice inside the row, a save bar only while something changed, the six domain
    checks as dots, release chips in the timeline and the vault's state as a bar above the table. */
 .cdm-savebar strong { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px; }
@@ -2572,6 +3769,19 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .cdm-release.is-on { background: var(--tone-ok-bg); box-shadow: none; color: var(--tone-ok); }
 .cdm-release:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--accent-text); }
 .cdm-release:disabled { cursor: default; }
+/* „Kunden“ for freelancers (18.11.2026): the page has no category colour, so its tiles take the accent. */
+.am-tile.fc-tile, :root[data-theme="dark"] .am-tile.fc-tile:not(.is-inbox) { color: var(--accent-text); }
+.file-table td.fc-note-cell { white-space: normal; padding-top: 10px; padding-bottom: 12px; }
+.fc-note { margin: 0; white-space: pre-line; font-size: 14px; line-height: 21px; color: var(--label-body); max-width: 68ch; }
+.fc-note-meta { display: block; margin-top: 6px; font-size: 12px; color: var(--sheet-muted); }
+.fc-empty { display: grid; justify-items: center; gap: 10px; padding: 56px 24px 64px; text-align: center; color: var(--sheet-muted); }
+.fc-empty strong { color: var(--label-body); font-size: 15px; }
+.fc-empty p { margin: 0; max-width: 42ch; font-size: 13.5px; line-height: 19px; }
+.fc-empty .sheet-action { margin-top: 6px; }
+.fc-muted { color: var(--sheet-muted); font-size: 13px; }
+/* The admins' tab „Freelancer“: the row that cannot be released stays quiet. */
+.file-row.fc-off .am-file-text strong { color: var(--sheet-muted); }
+.fc-lock { display: inline-flex; padding: 0 9px; color: var(--sheet-muted); }
 .cdm-lock { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px 10px 20px; border-bottom: 1px solid var(--sheet-line); background: var(--sheet-sunken); }
 .cdm-lock p { margin: 0; color: var(--label-body); font-size: 13px; line-height: 18px; }
 .cdm-lock svg { flex: 0 0 auto; margin-top: 1px; color: var(--sheet-muted); }
@@ -2801,19 +4011,18 @@ html[data-theme="dark"]:has(.hub-app), :root[data-theme="dark"] .background-laye
 .kc-nav-empty { padding: 8px 4px; color: var(--sheet-muted); font-size: 13px; }
 .kc-count { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 26px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .kc-nav-item[aria-current="true"] .kc-count { background: rgb(var(--accent-rgb) / calc(0.1 * var(--tint-k))); box-shadow: none; color: var(--accent-text); }
-/* ---------- Pane head: lock state and the one button that changes it ---------- */
-.kc-lock-ctl { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
-.kc-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-.kc-chip.is-locked { background: var(--sheet-sunken); box-shadow: inset 0 0 0 1px var(--sheet-line); color: var(--sheet-muted); }
-.kc-chip.is-open { background: var(--tone-ok-bg); color: var(--tone-ok); }
-.kc-chip.is-setup { background: var(--tone-todo-bg); color: var(--tone-todo); }
-.kc-chip b { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* ---------- Pane head: „+“, the lock as a switch, the gear on the far right (22.11.2026) ---------- */
+.kc-head-acts { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
 .kc .am-pane-head .sheet-action { height: 32px; }
-/* Phone: the lock state gets its own line under the name, so the name never disappears. */
-@media (max-width: 767px) {
-  .kc .am-pane-head { flex-wrap: wrap; row-gap: 10px; }
-  .kc-lock-ctl { order: 5; flex: 1 0 100%; justify-content: space-between; margin-left: 0; }
-}
+/* The lock: grey with the knob on the left while locked, green with the knob on the right while open; the knob
+   carries the lock, closed or open. Green here means „open“, unlike the accent of the hub's other switches. */
+.kc-lock-switch .switch-knob { display: inline-flex; align-items: center; justify-content: center; color: #8e8e93; transition: transform 250ms var(--ease-spring), color 250ms ease; }
+.kc-lock-switch[aria-checked="true"] { background: var(--lock-open); }
+.kc-lock-switch[aria-checked="true"] .switch-knob { color: var(--lock-open); }
+.kc-lock-switch.is-blocked .switch-knob { color: var(--tone-bad-bar); }
+.kc-lock-switch:hover:not(:disabled) { filter: brightness(0.96); }
+.kc-confirm-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.kc-confirm-acts > * { flex: 1 1 160px; }
 /* ---------- Bar above the table ---------- */
 .kc .cdm-lock { align-items: center; }
 .kc .cdm-lock p { flex: 1 1 auto; }
@@ -2945,7 +4154,7 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
 .kc-v4 .am-pane { container: kcpane / inline-size; }
 .kc-v4 .kc-scroll { background: var(--sheet); }
 .kc-ptable-wrap { min-width: 0; }
-.kc-head-new { flex: 0 0 auto; }
+.kc-head-new { flex: 0 0 auto; width: 32px; padding: 0; justify-content: center; }
 @container kcpane (max-width: 899px) {
   .kc-v4 .sheet-menu-value { display: none; }
   .kc-v4 .sheet-toolbar .segment-count { display: none; }
@@ -3153,11 +4362,6 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
   .sheet .kc-ctable tr.kc-orow { padding-left: 26px; }
   .sheet .kc-ctable .kc-nested tr.kc-row { padding-left: 49px; }
 }
-/* Phone: „+ Zugang“ and the gear as two small square buttons, so the title keeps its room. */
-@media (max-width: 767px) {
-  .kc-head-new { width: 32px; padding: 0; justify-content: center; }
-  .kc-head-new .kc-head-label { display: none; }
-}
 /* V5 angepasst, last step: the category row in the table's columns. Name under „Kunde“, the total under „Zugänge“ in
    line with the customers' counts below it, the rest of the row empty; a click anywhere on it folds the category. */
 .kc-ctable .kc-cgroup { cursor: pointer; }
@@ -3222,7 +4426,6 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
 @container kcpane (max-width: 899px) { .kc-v4 .kc-menu-set .sheet-menu-value { display: inline; } }
 .cdm-lock:has(.kc-bar-action) { align-items: center; }
 .cdm-lock .kc-bar-action { flex: 0 0 auto; height: 28px; padding: 0 10px; font-size: 12.5px; }
-.kc-chip.is-blocked { background: var(--tone-bad-bg); color: var(--tone-bad); }
 .kc-brand-tile .brand-logo { width: 100%; height: 100%; object-fit: contain; }
 .kc-pick > :is(.kc-brand-tile, .am-avatar) { position: absolute; left: 8px; pointer-events: none; }
 .kc-cat-row .am-file-icon { width: 30px; height: 30px; border-radius: 9px; }
@@ -3236,3 +4439,9 @@ textarea.am-input { height: 76px; padding: 9px 10px; resize: vertical; line-heig
 .kc-note.is-locked .am-label-action { margin-left: auto; }
 .kc-foot-note { margin: 0; }
 .kc-form-help { margin: 10px 0 0; }
+/* „Startmails senden“ (components/hub/screens/users-logins.tsx): the four mails as one switch in the sheet's look,
+   wrapping on narrow screens. */
+.users-modal .start-mail-pick { height: auto; min-height: 34px; flex-wrap: wrap; gap: 2px; padding: 2px; border: 0; border-radius: 10px; background: var(--sheet-seg); box-shadow: inset 0 0 0 1px var(--sheet-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.users-modal .start-mail-pick .segment { flex: 1 1 auto; min-height: 30px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--sheet-muted); }
+.users-modal .start-mail-pick .segment[aria-pressed="true"] { background: var(--sheet-seg-on); color: var(--label); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--sheet-line); }
+.users-modal .start-mail-pick .segment:disabled { opacity: 0.6; cursor: default; }

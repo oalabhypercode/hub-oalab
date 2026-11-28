@@ -7,16 +7,17 @@ import { LegalLinks } from "@/components/legal-links";
 /**
  * Imprint and privacy policy: the hub's background and top bar like the sign-in pages, the text on an opaque sheet
  * so long reading stays easy in light and dark. Public for everyone; "Zum Client Hub" leads signed-in logins to the
- * dashboard and everyone else to the sign-in (lib/auth-redirect.ts).
+ * dashboard and everyone else to the sign-in (lib/auth-redirect.ts). „Infomails abbestellen“ (app/abmelden) uses the
+ * same sheet with its own eyebrow.
  */
-export function LegalPage({ title, lead, stand, children }: { title: string; lead?: string; stand?: string; children: React.ReactNode }) {
+export function LegalPage({ title, lead, stand, eyebrow = "Rechtliches", children }: { title: string; lead?: string; stand?: string; eyebrow?: string; children: React.ReactNode }) {
   return (
     <main className="auth-page legal-page">
       <BackgroundLayer />
       <header className="auth-topbar"><Wordmark href="/" /></header>
       <article className="legal-sheet" aria-labelledby="legal-title">
         <Link className="legal-back" href="/"><ArrowLeft size={16} aria-hidden="true" />Zum Client Hub</Link>
-        <p className="legal-eyebrow">Rechtliches</p>
+        <p className="legal-eyebrow">{eyebrow}</p>
         <h1 id="legal-title">{title}</h1>
         {lead && <p className="legal-lead">{lead}</p>}
         {stand && <p className="legal-stand">Stand: {stand}</p>}

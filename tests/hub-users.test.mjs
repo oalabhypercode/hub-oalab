@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, normalizeCompany,
+  cleanCustomerNumber, cleanEmail, cleanLine, cleanPhone, cleanText, cleanWebsite, displayStatus, entriesWithoutActiveLogin, normalizeCompany,
   readCustomer, readPerson, readRegistration, serviceCustomerRefusal, suggestCustomer,
 } from "../lib/hub-users/rules.ts";
+import { entryOfLogin, groupLoginsByCompany } from "../lib/hub-users/company-groups.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -79,10 +80,13 @@ test("new customers start in Service, and Service customers keep company and num
   // and the import from the accounting write through the same function.
   const save = actions.slice(actions.indexOf("export async function saveCustomer"));
   assert.match(save, /const written = await writeCustomer\(ctx, id, current\.data\.organization_id, customer\.value\);/);
-  const write = actions.slice(actions.indexOf("async function writeCustomer"));
+  // The writing itself is shared with the Claude connector (lib/hub-users/customer-write.ts, 23.11.2026).
+  assert.match(actions, /async function writeCustomer\(ctx: Context, id: string, organizationId: string \| null, value: CustomerInput\): Promise<ActionResult<\{ id: string \}>> \{\n {2}return writeCustomerAs\(ctx\.db, ctx\.actorId, id, organizationId, value\);/);
+  const write = await source("lib/hub-users/customer-write.ts");
+  assert.match(write, /^import "server-only";/);
   assert.match(write, /from\("organizations"\)\.update\(\{ name: value\.company, customer_number: value\.customerNumber \}\)\.eq\("id", organizationId\)/);
   assert.match(write, /const row = organizationId \? customerDetails\(value\) : customerRow\(value\);/);
-  assert.match(write, /\.update\(\{ \.\.\.row, updated_by: ctx\.actorId \}\)/);
+  assert.match(write, /\.update\(\{ \.\.\.row, updated_by: actorId \}\)/);
   // Service's audit trail hears about a new customer only once the whole step worked.
   for (const flow of ["export async function approveRegistration", "export async function createHubUser"]) {
     const chunk = actions.slice(actions.indexOf(flow));
@@ -92,7 +96,8 @@ test("new customers start in Service, and Service customers keep company and num
   // Customers the assistant creates name their author too.
   assert.match(await source("lib/hub-assistant/actions.ts"), /update\(\{ \.\.\.contactColumns\(proposal\.contact\), updated_by: ctx\.userId \}\)/);
   // The suggested number follows the rule of 29.10.2026 and avoids numbers taken in Service.
-  assert.match(await source("lib/hub-users/server.ts"), /newCustomerNumber\(new Set\(\[\.\.\.customerRows, \.\.\.\(organizations\.data \?\? \[\]\)\]\.map\(\(row\) => row\.customer_number\)\)\)/);
+  // Every number counts as taken, oalab's own entry's too (it stands apart from the customers since 23.11.2026).
+  assert.match(await source("lib/hub-users/server.ts"), /newCustomerNumber\(new Set\(\[\.\.\.allRows, \.\.\.\(organizations\.data \?\? \[\]\)\]\.map\(\(row\) => row\.customer_number\)\)\)/);
 });
 
 test("a registration is matched to its customer by number first, then by company name", () => {
@@ -116,7 +121,7 @@ test("the hub no longer reads or writes the old package column; packages come fr
     assert.doesNotMatch(await source(path), /service_packages/, path);
   }
   const server = await source("lib/hub-users/server.ts");
-  assert.match(server, /readCustomerPackages\(db\),\n {4}\]\);/);
+  assert.match(server, /readCustomerPackages\(db\),\n/);
   // A customer login reads its packages with its own session (RLS: its own customers only).
   assert.match(server, /const packageRead = readCustomerPackages\(supabase\);/);
 });
@@ -197,6 +202,22 @@ test("waiting, rejected and deactivated logins never reach the hub, the assistan
   assert.match(route, /adminSections\.includes\(validSection\) && identity\.account\?\.role !== "oalab_admin"\) notFound\(\)/);
 });
 
+test("an entry whose every login is deactivated is no choice; one without any login still is", async () => {
+  const members = [
+    { customer_id: "fl-a", user_id: "u-1" }, { customer_id: "fl-a", user_id: "u-2" },
+    { customer_id: "fl-b", user_id: "u-3" },
+    { customer_id: "fl-c", user_id: "u-4" }, { customer_id: "fl-c", user_id: "u-5" },
+  ];
+  assert.deepEqual([...entriesWithoutActiveLogin(members, new Set(["u-1", "u-3", "u-4", "u-5"]))].sort(), ["fl-b", "fl-c"]);
+  assert.deepEqual([...entriesWithoutActiveLogin(members, new Set())], []);
+  assert.deepEqual([...entriesWithoutActiveLogin([], new Set(["u-1"]))], []);
+  // „Deaktiviert“ in the user management is hub_profiles.status „disabled“, the status the helpers read.
+  const actions = await source("lib/hub-users/actions.ts");
+  assert.match(actions, /status: active \? "active" : "disabled"/);
+  const deactivated = await source("lib/hub-users/deactivated.ts");
+  assert.match(deactivated, /from\("hub_profiles"\)\.select\("user_id"\)\.eq\("status", "disabled"\)/);
+});
+
 test("the registration form sends what the trigger reads and shows the privacy notice", async () => {
   const form = await source("components/auth-form.tsx");
   // The form hands its fields to the sign-up server action, which writes them as user_metadata.
@@ -268,10 +289,10 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   // „Zugänge“ instead of „Konten“ in the User Management.
   assert.match(page, /\{ id: "users", label: "Zugänge", count: users, name: `Zugänge: \$\{users\}` \}/);
   assert.doesNotMatch(page + panels, /Konto|Konten/);
-  // On top of the entry's data, and in the column „Zugänge“ of both tables.
-  assert.match(panels, /\{customer && !members\.length && <NoLoginNotice entry=\{customer\} onNewUser=\{onNewUser\} \/>\}/);
-  assert.match(panels, /\{freelancer && !members\.length && <NoLoginNotice entry=\{freelancer\} onNewUser=\{onNewUser\} \/>\}/);
-  assert.match(page, /\{freelancer\.memberIds\.length \|\| <AddLogin name=\{freelancer\.company\} onClick=\{\(\) => newLoginFor\(freelancer\.id\)\} \/>\}/);
+  // On top of the entry's data, and in the column „Zugänge“ of both tables (not for archived entries, 17.11.2026).
+  assert.match(panels, /\{customer && !archived && !members\.length && <NoLoginNotice entry=\{customer\} onNewUser=\{onNewUser\} \/>\}/);
+  assert.match(panels, /\{freelancer && !archived && !members\.length && <NoLoginNotice entry=\{freelancer\} onNewUser=\{onNewUser\} \/>\}/);
+  assert.match(page, / : freelancer\.memberIds\.length \|\| <AddLogin name=\{freelancer\.company\} onClick=\{\(\) => newLoginFor\(freelancer\.id\)\} \/>\}/);
   assert.match(page, /: <AddLogin name=\{customer\.company\} onClick=\{\(\) => newLoginFor\(customer\.id\)\} \/>\}/);
   // The new login starts with the entry, its role and its contact address; nothing is sent before „Zugang anlegen“.
   assert.match(page, /role: entry\.kind === "freelancer" \? "oalab_freelancer" : "oalab_customer"/);
@@ -283,8 +304,8 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   assert.match(page, /dialog\.userId \? Boolean\(editUser\) : !dialog\.customerId \|\| Boolean\(loginEntry\)/);
   // Their rows: red without a login, yellow while nobody signed in yet, plain once active; the footer says how many.
   assert.match(page, /const loginVeil: Record<LoginState, string> = \{ none: " is-no-login", created: " is-awaiting-login", invited: " is-awaiting-login", active: "" \};/);
-  assert.match(page, /className=\{`data-row\$\{loginVeil\[loginsOf\(freelancer\)\.state\]\}/);
-  assert.match(page, /className=\{`data-row\$\{loginVeil\[logins\.state\]\}/);
+  assert.match(page, /className=\{`data-row\$\{archived \? " is-muted" : loginVeil\[loginsOf\(freelancer\)\.state\]\}/);
+  assert.match(page, /className=\{`data-row\$\{archived \? " is-muted" : loginVeil\[logins\.state\]\}/);
   assert.match(page, /<VeilKey states=\{\(tab === "customers" \? customers : freelancers\)\.map\(\(entry\) => loginsOf\(entry\)\.state\)\} \/>/);
   const css = await source("app/glass.css");
   assert.match(css, /\.data-table tbody tr\.is-no-login \{ --row-veil: var\(--veil-none\);/);
@@ -295,7 +316,7 @@ test("a customer or freelancer without a login offers its Zugang in one click (u
   assert.match(css, /td:first-child::before \{ content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 4px; background: var\(--row-mark\); \}/);
   // One red gear per tab holds its actions; the rows open with a gear instead of a pencil.
   assert.match(page, /return <SheetActionMenu label=\{tab === "customers" \? "Kunden verwalten"/);
-  for (const label of ["Kunde anlegen", "Zugänge anlegen", "Importieren", "Freelancer anlegen", "Zugang anlegen", "Ankündigung senden", "Einladungen senden"]) assert.match(page, new RegExp(`label: "${label}"`), label);
+  for (const label of ["Kunde anlegen", "Zugänge anlegen", "Importieren", "Freelancer anlegen", "Zugang anlegen", "Ankündigung senden", "Erinnerung senden", "Startmails senden", "Einladungen senden"]) assert.match(page, new RegExp(`label: "${label}"`), label);
   assert.doesNotMatch(page, /Pencil/);
   assert.equal(page.split('<Settings size={16} aria-hidden="true" />').length - 1, 3, "gear in the rows of all three tabs");
   const sheet = await source("components/hub/sheet.tsx");
@@ -317,4 +338,77 @@ test("a freelancer login asks for no freelancer: it is the freelancer's own (use
   assert.equal(panels.split("choicePayload(").length - 1, 3, "registration, new and edited logins");
   assert.match(panels, /choicePayload\(decision\.role, decision\.choices, person\)/);
   assert.equal(panels.split(", who)").length - 1, 2, "new and edited logins pass the person");
+});
+
+test("„Zugänge“ stand under their company, the admins under oalab (user 21.11.2026)", async () => {
+  const entries = [
+    { id: "c-z", company: "Zeta GmbH", archivedAt: null, archivedLoginIds: [] },
+    { id: "c-a", company: "Äpfel & Co", archivedAt: null, archivedLoginIds: [] },
+    { id: "f-1", company: "Mia Berg", archivedAt: null, archivedLoginIds: [] },
+    { id: "c-old", company: "Alt AG", archivedAt: "2026-11-17T10:00:00Z", archivedLoginIds: ["u-archived"] },
+  ];
+  const login = (id, status, role, customerIds = []) => ({ id, status, role, customerIds });
+  const logins = [
+    login("u-1", "active", "oalab_customer", ["c-z"]),
+    login("u-2", "pending", null),
+    login("u-3", "active", "oalab_admin"),
+    login("u-4", "active", "oalab_customer", ["c-a"]),
+    login("u-5", "rejected", null),
+    login("u-6", "disabled", "oalab_freelancer", ["f-1"]),
+    login("u-archived", "disabled", "oalab_customer"),
+    login("u-lost", "active", "oalab_customer", ["gone"]),
+    login("u-7", "active", "oalab_customer", ["c-z"]),
+    login("u-8", "active", "oalab_admin", ["c-z"]),
+  ];
+  const groups = groupLoginsByCompany(logins, entries);
+  // Waiting registrations on top, then oalab, the companies A–Z (archived ones last), the rest; rows keep their order.
+  assert.deepEqual(groups.map((group) => [group.key, group.rows.map((row) => row.id)]), [
+    ["pending", ["u-2"]],
+    ["oalab", ["u-3", "u-8"]],
+    ["entry-c-a", ["u-4"]],
+    ["entry-f-1", ["u-6"]],
+    ["entry-c-z", ["u-1", "u-7"]],
+    ["entry-c-old", ["u-archived"]],
+    ["none", ["u-lost"]],
+    ["rejected", ["u-5"]],
+  ]);
+  assert.equal(groups.find((group) => group.key === "entry-c-z").entry, entries[0]);
+  // The fixed groups always come back, a company only with logins; an archive remembers whose login it took.
+  assert.deepEqual(groupLoginsByCompany([], entries).map((group) => group.key), ["pending", "oalab", "none", "rejected"]);
+  assert.equal(entryOfLogin(login("u-archived", "disabled", "oalab_customer"), entries), entries[3]);
+
+  const page = await source("components/hub/screens/users.tsx");
+  // By company is the first view, and the rows read their company the same way.
+  assert.match(page, /const \[grouping, setGrouping\] = useState<UserGrouping>\("company"\);/);
+  assert.match(page, /const customerOf = \(user: ManagedUser\) => entryOfLogin\(user, entries\);/);
+  assert.match(page, /const companyGroups = groupLoginsByCompany\(shownUsers, entries\)/);
+  // Since 22.11.2026 a company is a row in the table's columns, like a customer's row: its number, its kind, its logins
+  // with their state and its last login stand under their headings; its logins leave the number column empty.
+  assert.match(page, /\{byCompany && <th scope="col" className="col-entry-number">Kunden-Nr\.<\/th>\}/);
+  assert.match(page, /\{byCompany && <td className="cell-entry-number" \/>\}/);
+  assert.match(page, /<TableGroup key=\{group\.key\} colSpan=\{7\}[\s\S]*?cells=\{<>\n\s+<td className="cell-entry-number">\{head\.number\}<\/td>\n\s+<td className="cell-role">\{head\.kind\}<\/td>/);
+  assert.match(page, /<span className="role-tag">\{entry\.kind === "freelancer" \? "Freelancer" : "Kunde"\}<\/span>/);
+  // oalab: its own entry (kind team) with logo and number once it exists, the admins below (23.11.2026).
+  assert.match(page, /kind: <span className="role-tag">\{team \? "Team" : "Admin"\}<\/span>/);
+  assert.match(page, /const state = customerLoginState\(group\.rows\);/);
+  const sheet = await source("components/hub/sheet.tsx");
+  assert.match(sheet, /if \(cells\) \{/);
+  assert.match(sheet, /event\.target\.closest\("button, a, input"\)\)\) onToggle\(\);/, "a click anywhere on the row folds it");
+  const css = await source("app/glass.css");
+  assert.match(css, /\.table-group-body\.is-columns \+ \.table-group-body\.is-columns > \.table-group > th \{ border-top: 0; \}/, "folded companies touch");
+  assert.match(css, /@container sheet \(max-width: 900px\) \{\n(?: {2}[^\n]+\n)* {2}\.user-table :is\(\.col-entry-number, \.cell-entry-number\) \{ display: none; \}/);
+  // A company's heading adds one more login there and opens its data; oalab adds an admin, and so does the gear.
+  assert.match(page, /onClick=\{\(\) => newLoginFor\(entry\.id\)\} aria-label=\{`Zugang für \$\{entry\.company\} anlegen`\}/);
+  assert.match(page, /onClick=\{\(\) => open\(entryDialog\(entry\.kind, entry\.id\)\)\}/);
+  assert.match(page, /\{!entry\.archivedAt && <button type="button" className="table-group-add"/, "an archived company takes no new login");
+  assert.match(page, /const adminLogin: Dialog = \{ kind: "user", role: "oalab_admin" \};/);
+  assert.match(page, /onClick=\{\(\) => open\(adminLogin\)\} aria-label="Admin anlegen"/);
+  assert.match(page, /\{ icon: ShieldCheck, label: "Admin anlegen", hint: "[^"]+", onSelect: onAdmin \}/);
+  // A new admin and a new login are different panels, so the chosen role never sticks to the other one.
+  assert.match(page, /key=\{dialog\.userId \?\? `new-\$\{dialog\.customerId \?\? dialog\.role \?\? ""\}`\}/);
+  const panels = await source("components/hub/screens/users-dialogs.tsx");
+  assert.match(panels, /const roleSection = \(role: HubRole\) => role === "oalab_customer" \? "Rolle und Kunde" : "Rolle";/);
+  assert.equal(panels.split("<PanelSection title={roleSection(").length - 1, 2, "registration and login");
+  const knowledge = await source("lib/hub-assistant/knowledge.ts");
+  assert.match(knowledge, /„Admin anlegen“ im Zahnrad unter „Zugänge“/);
 });

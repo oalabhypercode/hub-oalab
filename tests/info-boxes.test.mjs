@@ -16,6 +16,8 @@ const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8"
  */
 const places = [
   { file: "components/hub/screens/asset-upload.tsx", call: 'useInfo("Hochladen"', button: /title="Hochladen" subtitle=\{subtitle\} actions=\{info\.button\}/, box: "{info.box}" },
+  // „Zuordnen“ for several files at once (since 19.11.2026): in the head of its panel.
+  { file: "components/hub/screens/asset-assign.tsx", call: 'useInfo("Zuordnen"', button: /title="Zuordnen" subtitle=\{assignSubtitle\(shown\.length, source\)\} actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/asset-details.tsx", call: 'useInfo("Freigabe und Sichtbarkeit"', button: /"Freigegeben für"\}\s*\{canAssign && shareInfo\.button\}/, box: "{canAssign && shareInfo.box}" },
   { file: "components/hub/screens/files-dialogs.tsx", call: 'useInfo("Ordner"', button: /<Modal title=\{title\} onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/customer-logo-dialog.tsx", call: 'useInfo("Kundenlogo"', button: /className="logo-window" actions=\{info\.button\}>/, box: "{info.box}" },
@@ -28,11 +30,22 @@ const places = [
   { file: "components/hub/screens/users.tsx", call: 'useInfo("Zugänge, Kunden und Freelancer"', button: /<TabSwitch [^\n]*\/>\{tabsInfo\.button\}\{tabsInfo\.box\}<\/span>/, box: "{tabsInfo.box}" },
   { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Zugänge anlegen"', button: /<Modal title="Zugänge anlegen" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Ankündigung"', button: /<Modal title="Ankündigung senden" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  // The reminder before the start of hub and service platform (since 23.11.2026), in the head of its window.
+  { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Erinnerung"', button: /<Modal title="Erinnerung senden" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
+  // The launch mail and the three info mails (since 26.11.2026), in the head of their window.
+  { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Startmails"', button: /<Modal title="Startmails senden" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-logins.tsx", call: 'useInfo("Einladungen"', button: /<Modal title="Einladungen senden" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-import.tsx", call: 'useInfo("Import aus Sevdesk"', button: /<Modal title="Kunden importieren" onClose=\{close\} className="users-modal import-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/users-dialogs.tsx", call: 'useInfo("Freelancer"', button: /title=\{freelancer \? freelancer\.company : "Freelancer anlegen"\}[^]*?actions=\{<>\{info\.button\}\{freelancer && <EntryNav/, box: "{info.box}" },
+  // Archive, restore and delete (since 17.11.2026): at the end of a customer's or freelancer's master data.
+  { file: "components/hub/screens/users-removal.tsx", call: 'useInfo("Archivieren oder löschen"', button: /<PanelSection title=\{title\} info=\{info\.button\}>/, box: "{info.box}" },
+  // Claude for a freelancer login (since 19.11.2026): at the row „Claude“ under „Anmeldung und Sicherheit“.
+  { file: "components/hub/screens/users-claude.tsx", call: 'useInfo("Claude für Freelancer"', button: /title=\{<>Claude\{info\.button\}<\/>\}/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Pakete"', button: /label="Pakete"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Freigabe im Verlauf"', button: /actions=\{index === 0 \? info\.button : undefined\}/, box: "{info.box}" },
+  // Freelancers' releases (18.11.2026): the admins' tab „Freelancer“ and what the freelancer reads under „Kunden“.
+  { file: "components/hub/screens/contracts-freelancers.tsx", call: 'useInfo("Freigabe für Freelancer"', button: /actions=\{index === 0 \? info\.button : undefined\}/, box: "{info.box}" },
+  { file: "components/hub/screens/freelancer-customers.tsx", call: 'useInfo("Vertrag & Domain"', button: /label="Hosting"[^\n]*actions=\{infoFor\("hosting"\)\}/, box: "{vdInfo.box}" },
   { file: "components/hub/screens/contracts-parts.tsx", call: 'useInfo("Verlauf"', button: /"Zeitpunkt eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-domains.tsx", call: 'useInfo("Domains"', button: /"Domain eintragen"\} onClose=\{onClose\} className="users-modal" actions=\{info\.button\}>/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-domains.tsx", call: 'useInfo("Mail-Server"', button: /label="Mail-Server"[^]*?actions=\{<>\{serverInfo\.button\}/, box: "{serverInfo.box}" },
@@ -45,9 +58,13 @@ const places = [
   { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Service-Anfragen"', button: /label=\{`Service-Anfragen\$\{month \? ` im \$\{month\.month\}` : ""\}`\}[^]*?actions=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/contracts-quota.tsx", call: 'useInfo("Deine Anfragen"', button: /<td className="cell-action">\{info\.button\}\{info\.box\}<\/td>/, box: "{info.box}" },
   { file: "components/hub/screens/private-chat.tsx", call: 'useInfo(admin ? "Private Chats" : "Chat"', button: /<h2>Gespräche\{info\.button\}<\/h2>/, box: "{info.box}" },
-  { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Termin anfragen"', button: /<Modal title="Termin anfragen" onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
-  { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Anfrage beantworten"', button: /<Modal title=\{appointment\.title\} onClose=\{onClose\} actions=\{answering \? info\.button : undefined\}>/, box: "{answering && info.box}" },
-  { file: "components/hub/screens/calendar-dialogs.tsx", call: 'useInfo("Termin und Teams-Link"', button: /"Neuer Termin"\} onClose=\{onClose\} actions=\{info\.button\}>/, box: "{info.box}" },
+  // The calendar under Projekte (since 16.11.2026): in the head of its panels; for admins at the week's row „ganztägig“.
+  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin anfragen"', button: /title="Termin anfragen" subtitle="bei oalab · nur freie Zeiten" actions=\{info\.button\}/, box: "{info.box}" },
+  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Anfrage beantworten"', button: /title=\{appointment\.title\} subtitle=\{`Anfrage von [^\n]*actions=\{info\.button\}/, box: "{info.box}" },
+  { file: "components/hub/screens/calendar-panels.tsx", call: 'useInfo("Termin und Meeting-Link"', button: /title=\{appointment \? appointment\.title : "Neuer Termin"\}[^]*?actions=\{info\.button\} footer=\{footer\}>/, box: "{info.box}" },
+  { file: "components/hub/screens/calendar.tsx", call: 'useInfo("Aufgaben im Kalender"', button: /tasksInfo: admin \? tasksInfo\.button : undefined/, box: "{tasksInfo.box}" },
+  // The availability (since 16.11.2026): at the weekly plan of its panel.
+  { file: "components/hub/screens/calendar-availability.tsx", call: 'useInfo("Verfügbarkeit"', button: /<PanelSection title="Wochenplan" info=\{info\.button\}/, box: "{info.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Vertragsgenerator"', button: /<Modal title="Vertrag erstellen"[^>]*actions=\{generatorInfo\.button\}/, box: "{generatorInfo.box}" },
   { file: "components/hub/screens/contract-generator.tsx", call: 'useInfo("Beim Kunden ablegen"', button: /<legend>Beim Kunden ablegen\{fileInfo\.button\}<\/legend>/, box: "{fileInfo.box}" },
   { file: "components/hub/screens/contract-template-versions.tsx", call: 'useInfo("Vertragsvorlagen"', button: /label="Vertragsvorlagen"[^\n]*actions=\{info\.button\}>/, box: "{info.box}" },
@@ -56,6 +73,24 @@ const places = [
   { file: "components/hub/assistant-panel.tsx", call: "useInfo(help.title, help.card)", button: /\{info\.button\}\s*<span className=\{`proposal-status/, box: "{info.box}" },
   { file: "components/hub/second-factor-card.tsx", call: 'useInfo("Zweiter Faktor"', button: /Zwei-Faktor-Schutz\{info\.button\}<\/h2>/, box: "{info.box}" },
   { file: "components/hub/whatsapp-card.tsx", call: 'useInfo("WhatsApp"', button: /WhatsApp verbinden\{usable && info\.button\}<\/h2>/, box: "{usable && info.box}" },
+  // Projekte for admins (since 16.11.2026): at the group each card is about.
+  { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Projektstatus"', button: /label="Projekte"[^]*?actions=\{statusInfo\.button\}/, box: "{statusInfo.box}" },
+  { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Domains & Links"', button: /label="Domains & Links"[^]*?\{linksInfo\.button\}<\/>\}/, box: "{linksInfo.box}" },
+  { file: "components/hub/screens/projects-panel.tsx", call: 'useInfo("Service"', button: /label="Service"[^]*?actions=\{serviceInfo\.button\}/, box: "{serviceInfo.box}" },
+  // „Kacheln“ of Alle Projekte (since 27.11.2026): in the sheet's footer, beside the size of the tiles.
+  { file: "components/hub/screens/projects-overview.tsx", call: 'useInfo("Kacheln"', button: /trailing=\{<>\{tilesInfo\.button\}<TileSizeSwitch/, box: "{tilesInfo.box}" },
+  { file: "components/hub/screens/projects-new-panel.tsx", call: 'useInfo("Neues Projekt"', button: /closeDisabled=\{saving\} footer=\{footer\} actions=\{info\.button\}/, box: "{info.box}" },
+  // Dictation in the assistant chat (since 16.11.2026, admins): in the bar „Hört zu …“ and in „Mikrofon wählen“.
+  { file: "components/hub/dictation-bar.tsx", call: 'useInfo("Diktieren"', button: /<strong>\{listening \? "Hört zu …" : "Mikrofon startet …"\}<\/strong>[^]*?\{info\.button\}/, box: "{info.box}" },
+  // The task board under Projekte (since 16.11.2026): at the end of the project's head (its lines per role); with the
+  // freelancers (step 3) in the head of „Beteiligte“ and next to the choice „Sichtbar für“ in a task's window.
+  { file: "components/hub/screens/tasks.tsx", call: 'useInfo("Aufgaben-Board"', button: /<ProjectPeople [^\n]*\/>\s+[^\n]*<div className="kb-stat">Zuständig[^\n]*\s+\{info\.button\}/, box: "{info.box}" },
+  { file: "components/hub/screens/tasks-people.tsx", call: 'useInfo("Beteiligte"', button: /<div className="kb-people-head"><strong>Beteiligte<\/strong>\{info\.button\}<\/div>/, box: "{info.box}" },
+  { file: "components/hub/screens/tasks-panel.tsx", call: 'useInfo("Sichtbar für"', button: /<AudienceChoice [^\n]*\/>\s+\{info\.button\}/, box: "{info.box}" },
+  // The Claude connector (since 16.11.2026): in the head of the admins' profile card „Verbundene Apps“.
+  { file: "components/hub/connected-apps-card.tsx", call: 'useInfo("Claude verbinden"', button: /Verbundene Apps\{info\.button\}<\/h2>/, box: "{info.box}" },
+  // The web app (since 16.11.2026): the button „App installieren“ left of the bell and the row „Als App installieren“ in Profil.
+  { file: "components/hub/web-app.tsx", call: 'useInfo("Als App installieren"', button: /label: "App installieren", content: <Download [^\n]*\/> \}\);\s*return <>\{guide\.button\}\{guide\.box\}<\/>;/, box: "{guide.box}" },
 ];
 
 /** The whole call `useInfo(…)`, brackets balanced. */
@@ -122,8 +157,12 @@ test("every card says it in at most three short lines and hands the rest to the 
 test("the cards and the assistant's details say what the code does", async () => {
   const upload = await source("components/hub/screens/asset-upload.tsx");
   assert.match(upload, /<b>Bis \{MAX_UPLOAD_BATCH\} Dateien,<\/b> je höchstens \{formatBytes\(MAX_FILE_BYTES\)\}/, "upload limits come from the catalog");
-  const calendar = await source("components/hub/screens/calendar-dialogs.tsx");
-  assert.match(calendar, /\{WORKDAY\.start\}–\{WORKDAY\.end\} Uhr/, "working hours come from the rules");
+  // Requests follow the availability oalab sets: the durations come from its rules, not from a fixed list.
+  const calendar = await source("components/hub/screens/calendar-panels.tsx");
+  assert.match(calendar, /const durations = availability\.rules\.durations;/, "durations come from the rules");
+  assert.match(calendar, /<b>Grün<\/b> sind die Zeiten, die oalab für Anfragen frei hat\./);
+  // The admins' card about tasks sits where the tasks are: at the week's row „ganztägig“.
+  assert.match(await source("components/hub/screens/calendar-views.tsx"), /<span>ganz&shy;tägig<\/span>\{tasksInfo\}/);
   const access = await source("components/hub/screens/contracts-access.tsx");
   assert.match(access, /\{REVEAL_SECONDS\} Sekunden<\/b>/, "reveal time comes from the rules");
   const whatsapp = await source("components/hub/whatsapp-card.tsx");

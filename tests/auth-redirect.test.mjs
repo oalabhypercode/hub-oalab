@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { safeAuthRedirect, secondFactorDestination, secondFactorPageRedirect, secondFactorRedirect, serviceDestination, serviceOrigin, signedInRedirect } from "../lib/auth-redirect.ts";
+import { confirmSessionHref, passwordLinkPage, readLinkToken, safeAuthRedirect, secondFactorDestination, secondFactorPageRedirect, secondFactorRedirect, serviceDestination, serviceOrigin, signedInRedirect } from "../lib/auth-redirect.ts";
 import { codeClock, codeTimes, hasMailbox, isMailCodeCheck, mailCodeHash, maskEmail, newMailCode, readMailCode } from "../lib/hub-auth/mail-code.ts";
 import { authMessage } from "../lib/hub-auth/messages.ts";
 import { chosenSecondFactor, codeMethod, hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../lib/hub-auth/second-factor.ts";
@@ -19,6 +19,45 @@ test("rejects external, malformed and unrelated destinations", () => {
   for (const path of [null, undefined, "", "https://example.com", "//example.com/dashboard", "/\\example.com/dashboard", "/auth/login", "/preview", "/dashboard-other", "/dashboard/../../auth/login", "/dashboard\n"]) {
     assert.equal(safeAuthRedirect(path), "/dashboard");
   }
+});
+
+test("a password link opens the page for the new password with its token unused; other links stay as they were", () => {
+  const token = "0123456789abcdef".repeat(4);
+  assert.equal(passwordLinkPage("recovery", token), `/auth/update-password?token_hash=${token}`);
+  // The page is an allowed destination, also on its way through the code page.
+  assert.equal(safeAuthRedirect(passwordLinkPage("recovery", token)), `/auth/update-password?token_hash=${token}`);
+  for (const type of ["signup", "magiclink", "email", "", null, undefined]) assert.equal(passwordLinkPage(type, token), null, String(type));
+  for (const bad of [null, undefined, "", "kurz", "x".repeat(257), "abc def ghi jkl mno", "../../dashboard?x=1234567", "token<script>12345"]) assert.equal(passwordLinkPage("recovery", bad), null, String(bad));
+  assert.equal(readLinkToken(["0123456789abcdef0123", "zweiter"]), "0123456789abcdef0123");
+  assert.equal(readLinkToken("A-b_c".repeat(4)), "A-b_cA-b_cA-b_cA-b_c");
+});
+
+test("opening a password link uses nothing up: the route forwards, the page only looks, saving redeems", async () => {
+  const read = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  // Mail scanners fetch every link (GET or HEAD, which Next.js answers with GET) before the person clicks.
+  const route = await read("app/auth/confirm/route.ts");
+  const forward = route.indexOf("if (passwordPage) redirect(passwordPage);");
+  assert.ok(forward > 0 && forward < route.indexOf("verifyOtp("), "password links leave the route before anything is redeemed");
+  const page = await read("app/auth/update-password/page.tsx");
+  assert.doesNotMatch(page, /verifyOtp|updateUser/);
+  assert.match(page, /const link = await passwordLinkState\(token\);\n\s+if \(!link\.usable\) return <LinkExpired \/>;/);
+  const platform = await read("lib/platform/auth.ts");
+  const peekStart = platform.indexOf("export async function peekLink");
+  const peek = platform.slice(peekStart, platform.indexOf("\n}\n", peekStart));
+  assert.match(peek, /select value from auth\.verifications where identifier = any\(\$1::text\[\]\) and expires_at > now\(\)/);
+  assert.doesNotMatch(peek, /\b(delete|update|insert)\b/i, "looking at a link never changes it");
+  // Saving redeems the link, and only after the password passed its own check.
+  const actions = await read("lib/hub-auth/actions.ts");
+  const updateStart = actions.indexOf("export async function updatePasswordAction");
+  const update = actions.slice(updateStart, actions.indexOf("\n}\n", updateStart));
+  assert.ok(update.indexOf("passwordOk(input.password, 8)") < update.indexOf("verifyOtp("), "a too short password leaves the link unused");
+  assert.ok(update.indexOf("verifyOtp(") < update.indexOf("updateUser("));
+  assert.match(update, /if \(error\) return error\.code === "user_banned" \? failure\("user_banned"\) : \{ ok: true, redirect: "\/auth\/error" \};/);
+  const form = await read("components/auth-form.tsx");
+  assert.match(form, /result = await updatePasswordAction\(\{ password, token \}\);/);
+  assert.match(form, /if \(result\.redeemed\) setToken\(null\);/);
+  // The login's address for password managers: read-only, as the username.
+  assert.match(form, /<input id="email" name="email" type="email" autoComplete="username" value=\{account\} readOnly \/>/);
 });
 
 test("sends a signed-in visitor from the sign-in pages into the hub", () => {
@@ -113,6 +152,19 @@ test("the code page keeps who owes a code, also for Service team pages, and send
   assert.equal(page({ signedIn: true, confirmed: false, wanted: false }, "/dashboard/calendar"), "/dashboard/calendar");
   assert.equal(page({ signedIn: true, confirmed: true, wanted: true }, "https://service.oalab.de/ops"), "https://service.oalab.de/ops");
   assert.equal(page({ signedIn: true, confirmed: true, wanted: true }, "https://example.com"), "/dashboard");
+});
+
+test("„Mit Code bestätigen“ keeps a login without a second factor on the code page and returns to its hub page", () => {
+  const page = (state, next, asked) => secondFactorPageRedirect(state, next, SERVICE, asked);
+  const off = { signedIn: true, confirmed: false, wanted: false };
+  assert.equal(page(off, "/dashboard/projects/tasks?project=p", true), null);
+  // Without asking, such a login is not held there (e.g. an old address after switching the code off).
+  assert.equal(page(off, "/dashboard/projects/tasks?project=p", false), "/dashboard/projects/tasks?project=p");
+  assert.equal(page({ signedIn: true, confirmed: true, wanted: false }, "/dashboard/projects/tasks", true), "/dashboard/projects/tasks");
+  assert.equal(page({ signedIn: false, confirmed: false, wanted: false }, "/dashboard/projects/tasks", true), "/auth/login");
+  assert.equal(confirmSessionHref("/dashboard/projects/tasks?project=p&task=3"), "/auth/mfa?next=%2Fdashboard%2Fprojects%2Ftasks%3Fproject%3Dp%26task%3D3&confirm=1");
+  // Hub pages only: anything else returns to the overview.
+  assert.equal(confirmSessionHref("https://evil.example/x"), "/auth/mfa?next=%2Fdashboard&confirm=1");
 });
 
 test("a password-only session of a login with the e-mail code goes to the code page first", () => {

@@ -18,6 +18,23 @@ export function safeAuthRedirect(value: string | null | undefined): string {
   }
 }
 
+/** A one-time link's token as it travels in the address (`token_hash`): letters, digits, `-` and `_` only, else null. */
+export function readLinkToken(value: string | readonly string[] | null | undefined): string | null {
+  const token = typeof value === "string" ? value : value?.[0];
+  return typeof token === "string" && /^[A-Za-z0-9_-]{16,256}$/.test(token) ? token : null;
+}
+
+/**
+ * Where a password link (`type=recovery`, activation or reset) leads: the page for the new password, with its token
+ * still unused. Only „Passwort speichern“ redeems it (updatePasswordAction), so a mail scanner that fetches every link,
+ * with GET or HEAD, no longer uses it up before the person comes, and nobody counts as signed in before a password
+ * exists. Null for other links, which app/auth/confirm redeems as before.
+ */
+export function passwordLinkPage(type: string | null | undefined, tokenHash: string | null | undefined): string | null {
+  const token = readLinkToken(tokenHash);
+  return type === "recovery" && token ? `/auth/update-password?token_hash=${encodeURIComponent(token)}` : null;
+}
+
 /** Pages that only ask for a login. Someone already signed in (e.g. coming from Service OALab) skips them. */
 const SIGN_IN_PAGES = new Set(["/", "/auth/login", "/auth/sign-up"]);
 
@@ -72,12 +89,21 @@ export function secondFactorRedirect(pathname: string, search: string, next: str
 
 /**
  * Who stays on the code page and where everyone else goes. Signed out → login; session already confirmed → its
- * destination. A login that wants the code stays, and so does every login Service OALab sent for its team pages,
- * even if the hub itself would not ask for the code.
+ * destination. A login that wants the code stays, and so does every login Service OALab sent for its team pages or
+ * that asked to confirm its session itself (`asked`, from „Mit Code bestätigen“), even if the hub would not ask.
  */
-export function secondFactorPageRedirect(state: { signedIn: boolean; confirmed: boolean; wanted: boolean }, next: string | null | undefined, origin: string): string | null {
+export function secondFactorPageRedirect(state: { signedIn: boolean; confirmed: boolean; wanted: boolean }, next: string | null | undefined, origin: string, asked = false): string | null {
   if (!state.signedIn) return "/auth/login";
   if (state.confirmed) return secondFactorDestination(next, origin);
-  if (state.wanted || serviceDestination(next, origin)) return null;
+  if (state.wanted || serviceDestination(next, origin) || asked) return null;
   return secondFactorDestination(next, origin);
+}
+
+/**
+ * „Mit Code bestätigen“: a login whose second factor is off signs in with the password alone. Pages that write with
+ * Studio's rights (the task board) need a confirmed session; this address asks for a code by e-mail once and then
+ * returns to `next`. The session stays confirmed until the user signs out.
+ */
+export function confirmSessionHref(next: string): string {
+  return `${SECOND_FACTOR_PAGE}?next=${encodeURIComponent(safeAuthRedirect(next))}&confirm=1`;
 }

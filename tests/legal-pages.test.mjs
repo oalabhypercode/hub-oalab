@@ -96,7 +96,8 @@ test("the privacy policy names every service the hub uses and carries its date",
 
 test("customers read at the chat that Telegram hears of new messages, with the way to the details", async () => {
   const chat = await source("components/hub/screens/private-chat.tsx");
-  assert.match(chat, /neue Nachrichten meldet der Hub unserem Team auch über Telegram\. <Link href=\{`\$\{LEGAL_PATHS\.privacy\}#nachrichten`\}>Mehr dazu<\/Link>/);
+  // Since 24.11.2026 requests for appointments go there too (decision 9 of the chat plan).
+  assert.match(chat, /neue Nachrichten und Terminanfragen meldet der Hub unserem Team auch über Telegram\.\{thread\.subscriptions \? " Was du abonniert hast, steht hier als Karte\." : ""\} <Link href=\{`\$\{LEGAL_PATHS\.privacy\}#nachrichten`\}>Mehr dazu<\/Link>/);
   // Since 12.11.2026 the text goes along, so the note no longer says it does not.
   assert.doesNotMatch(chat, /Telegram, ohne den Text/);
   assert.match(await source("components/legal/privacy-policy.tsx"), /\{ id: "nachrichten", title: /);

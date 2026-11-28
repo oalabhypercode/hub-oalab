@@ -3,28 +3,36 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, Check, FolderOpen, LayoutGrid, LogOut, MessageCircleQuestion, MessageSquare, Search } from "lucide-react";
+import { ArrowUpRight, Bell, FolderOpen, LayoutGrid, LogOut, MessageCircleQuestion, NotebookPen, Search } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { signOutAction } from "@/lib/hub-auth/actions";
 import { categories } from "@/lib/categories";
-import { adminSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubSection, type Project } from "@/lib/hub-data";
+import { adminSections, freelancerSections, hubHref, metricHref, previewAccount, previewFiles, previewProjects, sectionLabel, sectionLabels, type HubSection, type Project } from "@/lib/hub-data";
 import type { HubAccountData } from "@/lib/hub-users/types";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
+import { pathSection } from "@/lib/hub-routes";
+import { searchNotes } from "@/lib/hub-notes/actions";
+import type { NoteSearchHit } from "@/lib/hub-notes/types";
 import { AppearanceProvider } from "./appearance-provider";
 import { AssistantPanel, type AssistantMode, type ChatTurn } from "./assistant-panel";
 import { applyProposalStatus, chatKey, MODE_KEY, openProposalIds, parseChat, serializeChat } from "@/lib/hub-assistant/chat-storage";
 import { proposalStatuses } from "@/lib/hub-assistant/actions";
-import { NotificationsPanel } from "./notifications-panel";
+import { NotificationsPanel, previewNotices } from "./notifications-panel";
 import type { InboxState } from "@/lib/hub-notify/server";
+import { liveVersion } from "@/lib/hub-notify/rules";
+import { useLiveSync } from "./use-live-sync";
 import { BackgroundLayer } from "./background-layer";
 import { GlassSidebar } from "./glass-sidebar";
 import { GlassTabBar } from "./glass-tab-bar";
-import { CategoryIcon, GlassButton } from "./glass";
+import { CategoryIcon, GlassButton, GlassLayers } from "./glass";
+import { LiquidGlassLayer } from "./liquid-glass";
 import { Modal } from "./modal";
 import { BrandLogo } from "./wordmark";
 import { ShellContext, useHubShell, type HubAccount, type ShellContextValue, type ShellPanel } from "./shell-context";
 import { TooltipLayer } from "./tooltip";
+import { InstallButton, WebAppSetup } from "./web-app";
 import { accountDisplayName } from "@/lib/hub-users/display-name";
+import { useStoredValue } from "@/lib/use-stored-value";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { LogoImage, logoTileStyle, useShownLogo } from "./logo-mark";
 
@@ -60,7 +68,6 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const router = useRouter();
   const [panel, setPanel] = useState<ShellPanel | null>(null);
   const [query, setQuery] = useState("");
-  const [read, setRead] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   // The chat of a real login lives in this browser until "Neu starten" or signing out (lib/hub-assistant/chat-storage.ts).
@@ -72,8 +79,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
   const [assistantProject, setAssistantProject] = useState<{ id: string; name: string } | null>(null);
   /** A question an ⓘ hands over; the key tells the panel a new one arrived, also when the text repeats. */
   const [assistantQuestion, setAssistantQuestion] = useState<{ text: string; key: number } | null>(null);
-  const segment = pathname.split("/")[2] as HubSection | "metrics" | undefined;
-  const section: HubSection = segment && segment in sectionLabels ? segment as HubSection : "overview";
+  // The calendar under Projekte (/projects/calendar) keeps its own place in the tab bar and the sidebar.
+  const section: HubSection = pathSection(pathname);
   // Logins take their name, company and packages from the user management; the preview keeps its fixtures.
   const live = !preview ? hubAccount : null;
   const liveCustomer = live?.customers[0] ?? null;
@@ -95,7 +102,8 @@ export function AppShell({ children, preview = false, pending = false, email = "
     person: live ? { phone: live.phone, position: live.position } : null,
     customerDetails: liveCustomer ? { street: liveCustomer.street, postalCode: liveCustomer.postalCode, city: liveCustomer.city, country: liveCustomer.country, website: liveCustomer.website, phone: liveCustomer.phone, contactEmail: liveCustomer.contactEmail } : null,
   };
-  const counts = { projects: projects.length, files: preview ? previewFiles.length : fileCount ?? 0, messages: unreadConversations ?? (preview ? 1 : 0) };
+  // Freelancers' „Projekte“ is their task board; the customer projects counted here are none of theirs, so no count.
+  const counts = { projects: account.freelancer ? undefined : projects.length, files: preview ? previewFiles.length : fileCount ?? 0, messages: unreadConversations ?? (preview ? 1 : 0) };
   // Only a real customer login shows its company's logo; admins keep their initials.
   const logo = live && !account.admin ? accountLogo : null;
 
@@ -149,20 +157,50 @@ export function AppShell({ children, preview = false, pending = false, email = "
 
   const term = query.trim().toLowerCase();
   const closeSearch = () => { setPanel(null); setQuery(""); };
+  // The notes (since step 3 of the notes): pages the person sees, by title and text, asked a moment after typing.
+  const [noteHits, setNoteHits] = useState<{ term: string; hits: NoteSearchHit[] }>({ term: "", hits: [] });
+  useEffect(() => {
+    if (panel !== "search" || term.length < 2) return;
+    let live = true;
+    const timer = window.setTimeout(() => {
+      // The preview's examples load only in the preview, so the shell stays light everywhere else.
+      if (preview) { void import("@/lib/hub-notes/fixtures").then(({ previewNoteSearch }) => { if (live) setNoteHits({ term, hits: previewNoteSearch(term) }); }); return; }
+      void searchNotes({ query: term }).then((result) => { if (live) setNoteHits({ term, hits: result.ok ? result.data : [] }); }, () => undefined);
+    }, 220);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [panel, term, preview]);
+  const noteResults = term.length >= 2 && term.startsWith(noteHits.term) && noteHits.term ? noteHits.hits : [];
   // The user management needs an admin session; the preview never shows it.
   const manageUsers = account.admin && !preview;
   const signOutLabel = preview ? "Vorschau verlassen" : "Abmelden";
-  const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key)) && sectionLabel(key, account.admin || account.freelancer).toLowerCase().includes(term));
+  // Only what the login may open: admins' sections for admins, „Kunden“ for freelancers, who have no „Vertrag & Domain“.
+  const sectionResults = (Object.keys(sectionLabels) as HubSection[]).filter((key) => (manageUsers || !adminSections.includes(key))
+    && (account.freelancer ? key !== "contracts" : !freelancerSections.includes(key)) && sectionLabel(key, account.admin || account.freelancer).toLowerCase().includes(term));
   const metricResults = preview ? metricOrder.filter((id) => metricMeta[id].name.toLowerCase().includes(term)) : [];
   const projectResults = preview || liveProjects ? projects.filter((project) => `${project.name} ${project.category} ${project.company || ""}`.toLowerCase().includes(term)) : [];
   const assistantDocked = assistantOpen && assistantMode === "dock";
+  // The bell (17.11.2026): the number of unread notices, and it rings while one of them is newer than the last look
+  // into the bell. Opening it is that look; the number stays until the notices are read. Kept per login and browser.
+  const unreadCount = preview ? previewNotices.filter((item) => !item.read).length : inbox?.unread ?? 0;
+  const bellRole = account.admin ? "admin" : account.freelancer ? "freelancer" : "customer";
+  const newestUnread = preview ? 1 : (inbox?.items ?? []).reduce((latest, item) => item.read ? latest : Math.max(latest, Date.parse(item.createdAt) || 0), 0);
+  const [bellSeen, setBellSeen] = useStoredValue(`oalab-bell-seen:${userId ?? "preview"}`, "0");
+  const ringing = unreadCount > 0 && newestUnread > (Number(bellSeen) || 0);
+  // Real logins stay up to date without reloading: the tab compares the bell with the server every 15 seconds and
+  // when it comes back, and reads the page anew when something changed (components/hub/use-live-sync.ts).
+  useLiveSync(!preview && !pending && Boolean(userId) && inbox !== null, liveVersion({ unread: inbox?.unread ?? 0, items: inbox?.items ?? [], pending: pendingRegistrations }));
   const shell: ShellContextValue = {
     preview, pending, initials, logo, account, manageUsers,
-    openPanel: (next) => next === "help" ? setAssistantOpen(true) : setPanel(next),
+    openPanel: (next) => {
+      if (next === "help") { setAssistantOpen(true); return; }
+      if (next === "notifications" && newestUnread) setBellSeen(String(newestUnread));
+      setPanel(next);
+    },
     askAboutProject: (project) => { setAssistantProject(project); setAssistantOpen(true); },
     askAssistant: (question) => { setAssistantQuestion((current) => ({ text: question, key: (current?.key ?? 0) + 1 })); setAssistantOpen(true); },
     assistantDocked: assistantMode === "dock",
-    unread: preview ? !read : Boolean(inbox?.unread), signOut, signingOut, logoutError,
+    unread: unreadCount > 0, unreadCount, ringing, signOut, signingOut, logoutError,
+    inbox: preview ? null : inbox, pendingRegistrations, unreadConversations: counts.messages,
   };
   const changeAssistantMode = (mode: AssistantMode) => {
     setAssistantMode(mode);
@@ -182,7 +220,7 @@ export function AppShell({ children, preview = false, pending = false, email = "
               <Link href={hubHref(preview)} className="topbar-brand" aria-label="oalab Client Hub – Übersicht"><span className="brand-tile"><BrandLogo /></span><span className="topbar-brand-text" aria-hidden="true"><span className="topbar-brand-name">oalab</span><small>Client Hub</small></span></Link>
               {/* Below 1024 px bell, assistant and profile sit here, so the page title keeps the whole width. Tablets hide the
                   sidebar with its gear menu, so there signing out sits at the far right (wish of 5 November 2026). */}
-              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="glass glass-float glass-button topbar-signout" aria-label={signOutLabel} data-tip={signOutLabel} onClick={signOut} disabled={signingOut}>{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
+              <div className="topbar-actions"><HeaderActions /><MobileAvatar href={hubHref(preview, "settings")} initials={initials} logo={logo} /><button type="button" className="lg glass-button topbar-signout" aria-label={signOutLabel} data-tip={signOutLabel} onClick={signOut} disabled={signingOut}><GlassLayers />{signingOut ? <MiniLoader size={18} /> : <LogOut size={20} strokeWidth={2} aria-hidden="true" />}</button></div>
               {preview && <div className="hub-notice glass"><span><i aria-hidden="true" /> Designvorschau <span className="hub-notice-detail">– alle Inhalte sind fiktive Beispieldaten.</span></span><Link href="/auth/login">Zur Anmeldung <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
               {/* Profil shows its own message; on other pages a failed sign-out from the top row says so here. */}
               {logoutError && section !== "settings" && <p role="alert" className="form-error topbar-signout-error">{logoutError}</p>}
@@ -193,21 +231,20 @@ export function AppShell({ children, preview = false, pending = false, email = "
         </div>
         {panel === "search" && (
           <Modal title="Wonach suchst du?" onClose={closeSearch}>
-            <label className="search-field"><Search size={18} aria-hidden="true" /><input autoFocus aria-label="Suchbegriff" placeholder="Seiten, Kennzahlen und Projekte" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+            <label className="search-field"><Search size={18} aria-hidden="true" /><input data-autofocus aria-label="Suchbegriff" placeholder="Seiten, Projekte und Notizen" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
             <div className="search-results">
               {sectionResults.map((key) => <Link key={key} href={hubHref(preview, key)} onClick={closeSearch}><LayoutGrid size={18} aria-hidden="true" /><span>{sectionLabel(key, account.admin || account.freelancer)}</span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {metricResults.map((id) => <Link key={id} href={metricHref(preview, id)} onClick={closeSearch}><CategoryIcon category={metricMeta[id].category} size={18} /><span>{metricMeta[id].name}<small>Kennzahl</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
               {projectResults.map((project) => <Link key={project.id} href={`${hubHref(preview, "projects")}?project=${project.id}`} onClick={closeSearch}><FolderOpen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{project.category || project.name}<small>{project.company ? `${project.company} · ` : ""}{project.category ? project.name : "Projekt"}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
-              {term && !sectionResults.length && !metricResults.length && !projectResults.length && <p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p>}
+              {noteResults.map((hit) => <Link key={hit.id} href={`${hubHref(preview, "projects")}/notes?customer=${encodeURIComponent(hit.customerId)}&page=${encodeURIComponent(hit.id)}`} onClick={closeSearch}><NotebookPen size={18} color={categories.projects.fill} aria-hidden="true" /><span>{hit.title}<small>{hit.customer ? `${hit.customer} · ` : ""}Notiz{hit.snippet ? ` · ${hit.snippet}` : ""}</small></span><ArrowUpRight size={16} aria-hidden="true" /></Link>)}
+              {term && !sectionResults.length && !metricResults.length && !projectResults.length && !noteResults.length && <p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p>}
             </div>
           </Modal>
         )}
         {panel === "notifications" && (
-          <Modal title="Benachrichtigungen" onClose={() => setPanel(null)}>
-            {preview ? <>
-              <div className="notification-item"><span className="notification-symbol"><MessageSquare size={19} color={categories.messages.fill} aria-hidden="true" /></span><div><strong>Deine Meinung ist gefragt.</strong><p>Die erste Brand Direction ist bereit für dein Feedback.</p><span>Beispiel · 14. Oktober 2026</span><Link className="text-link" href={hubHref(preview, "messages")} onClick={() => setPanel(null)}>Nachricht ansehen <ArrowUpRight size={15} aria-hidden="true" /></Link></div></div>
-              <button className="sheet-button" onClick={() => setRead(true)}><Check size={17} aria-hidden="true" />{read ? "Alle als gelesen markiert" : "Alle als gelesen markieren"}</button>
-            </> : inbox ? <NotificationsPanel items={inbox.items} admin={account.admin} onClose={() => setPanel(null)} />
+          <Modal title="Benachrichtigungen" className="notifications-modal" onClose={() => setPanel(null)}>
+            {preview ? <NotificationsPanel items={previewNotices} unreadCount={unreadCount} role={bellRole} preview onClose={() => setPanel(null)} />
+              : inbox ? <NotificationsPanel items={inbox.items} unreadCount={inbox.unread} role={bellRole} onClose={() => setPanel(null)} />
               : <div className="modal-empty"><Bell size={30} aria-hidden="true" /><h3>Du bist auf dem neuesten Stand.</h3><p>Neue Benachrichtigungen findest du künftig hier.</p></div>}
           </Modal>
         )}
@@ -219,6 +256,10 @@ export function AppShell({ children, preview = false, pending = false, email = "
         )}
         {/* Hover hints of the whole hub (data-tip), in place of the browser's title tooltips. */}
         <TooltipLayer />
+        {/* The refraction filter and the pointer light of the hub's liquid glass (sidebar, round buttons). */}
+        <LiquidGlassLayer />
+        {/* The installed app's offline page (public/sw.js); importing the module also catches Chrome's install offer. */}
+        <WebAppSetup />
       </ShellContext.Provider>
     </AppearanceProvider>
   );
@@ -234,9 +275,12 @@ function MobileAvatar({ href, initials, logo }: { href: string; initials: string
 
 /** Notification and help buttons for page headers. */
 export function HeaderActions() {
-  const { openPanel, unread } = useHubShell();
+  const { openPanel, unreadCount, ringing } = useHubShell();
   return <>
-    <GlassButton icon={Bell} label="Benachrichtigungen" badge={unread} onClick={() => openPanel("notifications")} />
+    {/* Left of the bell on phones and tablets in the browser: the hub as an app (components/hub/web-app.tsx). */}
+    <InstallButton />
+    <GlassButton icon={Bell} label={unreadCount ? `Benachrichtigungen, ${unreadCount} ungelesen` : "Benachrichtigungen"} badge={unreadCount}
+      className={`bell-button${ringing ? " is-ringing" : ""}`} onClick={() => openPanel("notifications")} />
     <GlassButton icon={MessageCircleQuestion} label="Assistent & Hilfe" onClick={() => openPanel("help")} />
   </>;
 }

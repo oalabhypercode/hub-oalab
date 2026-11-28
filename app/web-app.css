@@ -1,0 +1,35 @@
+/* The hub as an installable web app (plan of 16.11.2026, stage 1). With viewport-fit=cover the page reaches under the
+   status bar, the notch and the home bar of the installed app; these rules keep the hub clear of them. In the browser the
+   insets are 0, so nothing moves there. */
+
+/* ---------- Safe areas ---------- */
+.hub-main { padding-top: calc(20px + env(safe-area-inset-top)); }
+.glass-sidebar { top: calc(12px + env(safe-area-inset-top)); }
+.compact-nav { top: calc(12px + env(safe-area-inset-top)); }
+.am-panel.um-panel { top: calc(12px + env(safe-area-inset-top)); bottom: calc(12px + env(safe-area-inset-bottom)); }
+.auth-page { padding-top: calc(20px + env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) {
+  :root[data-width="xl"] .hub-main { padding-top: calc(14px + env(safe-area-inset-top)); }
+}
+@media (max-width: 1023px) {
+  /* Phones turned sideways: clear of the notch on the left or right. */
+  .hub-main { padding-left: max(24px, env(safe-area-inset-left)); padding-right: max(24px, env(safe-area-inset-right)); }
+  .compact-nav { left: max(20px, env(safe-area-inset-left)); right: max(20px, env(safe-area-inset-right)); }
+  .tab-bar-wrap { left: max(20px, env(safe-area-inset-left)); right: max(20px, env(safe-area-inset-right)); }
+}
+@media (max-width: 767px) {
+  .hub-main { padding-top: calc(16px + env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  .compact-nav { top: calc(8px + env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); }
+  .auth-page { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 400px) {
+  .tab-bar-wrap { left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); }
+}
+
+/* ---------- Status bar of the installed iPhone app ---------- */
+/* The clock and battery are white and lie on the page. On the hub's dark background they read well; a panel, chat or
+   assistant over the whole screen gets a strip in the background colour behind them, and so does a light own
+   background (Darstellung). In the browser the strip is 0 px high. */
+body::before { content: ""; position: fixed; z-index: 90; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: color-mix(in srgb, var(--bg-base) var(--bg-shade, 100%), #000); pointer-events: none; opacity: 0; }
+:root:has(.am-panel, .chat[data-open], .assistant-dock) body::before { opacity: 1; }
+:root[data-on-background="dark"] body::before { opacity: 1; background: #1c1c1e; }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
-  ICS_FILE, calendarEvent, calendarLinks, calendarSignature, calendarTarget, googleCalendarUrl, icsCalendar, outlookCalendarUrl, validCalendarSignature,
+  ICS_FILE, calendarEvent, calendarLinks, calendarSignature, calendarTarget, googleCalendarUrl, icsCalendar, meetingName, outlookCalendarUrl, validCalendarSignature,
 } from "../lib/hub-calendar/links.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
@@ -42,11 +42,11 @@ test("the event carries title with oalab, UTC times, the Teams link and the way 
   assert.equal(event.start, "2026-11-06T10:00:00Z");
   assert.equal(event.end, "2026-11-06T11:00:00Z");
   assert.equal(event.location, "Microsoft Teams");
-  assert.equal(event.description, "Teams-Besprechung beitreten:\nhttps://teams.microsoft.com/l/meetup-join/19%3ameeting_x%40thread.v2/0\n\nAgenda: Texte, Bilder; Ablauf\n\nTermin im oalab Client Hub:\nhttps://hub.oalab.de/dashboard/calendar");
+  assert.equal(event.description, "Teams-Besprechung beitreten:\nhttps://teams.microsoft.com/l/meetup-join/19%3ameeting_x%40thread.v2/0\n\nAgenda: Texte, Bilder; Ablauf\n\nTermin im oalab Client Hub:\nhttps://hub.oalab.de/dashboard/projects/calendar");
   assert.equal(event.sequence, Math.floor(Date.parse("2026-10-30T13:12:05.123Z") / 1000));
   const bare = calendarEvent(appointment({ teams_url: null, description: "  ", updated_at: "kaputt" }), "https://hub.oalab.de", now);
   assert.equal(bare.location, "");
-  assert.equal(bare.description, "Termin im oalab Client Hub:\nhttps://hub.oalab.de/dashboard/calendar");
+  assert.equal(bare.description, "Termin im oalab Client Hub:\nhttps://hub.oalab.de/dashboard/projects/calendar");
   assert.equal(bare.sequence, 0);
   assert.ok(calendarEvent(appointment({ description: "x".repeat(2000) }), "https://hub.oalab.de", now).description.length < 1300);
 });
@@ -67,7 +67,7 @@ test("Google and Outlook open a filled-in new event", () => {
   assert.equal(outlook.searchParams.get("subject"), event.summary);
   assert.equal(outlook.searchParams.get("startdt"), "2026-11-06T10:00:00Z");
   assert.equal(outlook.searchParams.get("enddt"), "2026-11-06T11:00:00Z");
-  assert.match(outlook.searchParams.get("body"), /^Teams-Besprechung beitreten:<br>https:\/\/teams\.microsoft\.com\/.+<br><br>Agenda: Texte, Bilder; Ablauf<br><br>Termin im oalab Client Hub:<br>https:\/\/hub\.oalab\.de\/dashboard\/calendar$/);
+  assert.match(outlook.searchParams.get("body"), /^Teams-Besprechung beitreten:<br>https:\/\/teams\.microsoft\.com\/.+<br><br>Agenda: Texte, Bilder; Ablauf<br><br>Termin im oalab Client Hub:<br>https:\/\/hub\.oalab\.de\/dashboard\/projects\/calendar$/);
   const tricky = calendarEvent(appointment({ description: "<b>fett</b> & mehr" }), "https://hub.oalab.de", now);
   assert.match(new URL(outlookCalendarUrl(tricky)).searchParams.get("body"), /&lt;b&gt;fett&lt;\/b&gt; &amp; mehr/);
 });
@@ -81,9 +81,9 @@ test("the .ics file is valid: CRLF, folded lines, escaped text, a stable id and 
   const unfolded = ics.replace(/\r\n /g, "");
   for (const line of [
     "METHOD:PUBLISH", `UID:${id}@hub.oalab.de`, "DTSTART:20261106T100000Z", "DTEND:20261106T110000Z", "DTSTAMP:20261030T140000Z",
-    "SUMMARY:Abstimmung Website-Inhalte · oalab", "LOCATION:Microsoft Teams", "URL:https://hub.oalab.de/dashboard/calendar", "STATUS:CONFIRMED", "TRIGGER:-PT15M",
+    "SUMMARY:Abstimmung Website-Inhalte · oalab", "LOCATION:Microsoft Teams", "URL:https://hub.oalab.de/dashboard/projects/calendar", "STATUS:CONFIRMED", "TRIGGER:-PT15M",
   ]) assert.ok(unfolded.split("\r\n").includes(line), line);
-  assert.match(unfolded, /\r\nDESCRIPTION:Teams-Besprechung beitreten:\\nhttps:\/\/teams\.microsoft\.com\/\S+\\n\\nAgenda: Texte\\, Bilder\\; Ablauf\\n\\nTermin im oalab Client Hub:\\nhttps:\/\/hub\.oalab\.de\/dashboard\/calendar\r\n/);
+  assert.match(unfolded, /\r\nDESCRIPTION:Teams-Besprechung beitreten:\\nhttps:\/\/teams\.microsoft\.com\/\S+\\n\\nAgenda: Texte\\, Bilder\\; Ablauf\\n\\nTermin im oalab Client Hub:\\nhttps:\/\/hub\.oalab\.de\/dashboard\/projects\/calendar\r\n/);
   assert.doesNotMatch(unfolded, /ORGANIZER|ATTENDEE|METHOD:REQUEST/);
   const umlauts = icsCalendar(calendarEvent(appointment({ title: "Größere Überprüfung äöü ".repeat(6).trim() }), "https://hub.oalab.de", now));
   assert.ok(umlauts.split("\r\n").every((line) => Buffer.byteLength(line) <= 75));
@@ -98,4 +98,17 @@ test("the calendar route checks the signature, reads the appointment fresh and s
   assert.match(route, /"Content-Type": "text\/calendar; charset=utf-8"/);
   assert.match(route, /"Cache-Control": "no-store"/);
   assert.match(await source("lib/supabase/proxy.ts"), /\|\| pathname\.startsWith\("\/api\/calendar\/"\);/);
+});
+
+test("a Zoom or Google Meet link names its provider in the calendar entry (27.11.2026)", () => {
+  assert.deepEqual(meetingName("https://teams.microsoft.com/l/meetup-join/x"), { name: "Microsoft Teams", meeting: "Teams-Besprechung" });
+  assert.deepEqual(meetingName("https://us02web.zoom.us/j/1"), { name: "Zoom", meeting: "Zoom-Meeting" });
+  assert.deepEqual(meetingName("https://meet.google.com/abc-defg-hij"), { name: "Google Meet", meeting: "Google Meet" });
+  const now = new Date("2026-10-30T13:12:05Z");
+  const zoom = calendarEvent(appointment({ teams_url: "https://us02web.zoom.us/j/84122345567" }), "https://hub.oalab.de", now);
+  assert.equal(zoom.location, "Zoom");
+  assert.match(zoom.description, /^Zoom-Meeting beitreten:\nhttps:\/\/us02web\.zoom\.us\/j\/84122345567/);
+  const meet = calendarEvent(appointment({ teams_url: "https://meet.google.com/kpr-xnow-tzb" }), "https://hub.oalab.de", now);
+  assert.equal(meet.location, "Google Meet");
+  assert.match(meet.description, /^Google Meet beitreten:\nhttps:\/\/meet\.google\.com\/kpr-xnow-tzb/);
 });

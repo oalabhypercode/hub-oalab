@@ -16,6 +16,11 @@ export type OutgoingMail = {
   kind?: string;
   /** The pictures the HTML shows (cid:<id>@hub.oalab.de); lib/hub-mail/send.ts attaches them inline. */
   images?: string[];
+  /**
+   * Info mails only: the one-click address for the mail program's own „Abbestellen“ (List-Unsubscribe and
+   * List-Unsubscribe-Post, RFC 8058; lib/hub-mail/opt-out.ts).
+   */
+  unsubscribe?: string;
 };
 
 /** A picture inside the mail, shown by the HTML through its content ID. */
@@ -49,6 +54,11 @@ export function smtpTransport(settings: SmtpSettings) {
 
 /** The message: at most 50 recipients, HTML with a plain-text alternative and its pictures inline, the kind as header. */
 export function smtpMessage(from: string, mail: OutgoingMail, images: InlineImage[] = []) {
+  const unsubscribe = mail.unsubscribe && /^https:\/\/[^\s<>]+$/.test(mail.unsubscribe) ? mail.unsubscribe : "";
+  const headers: Record<string, string> = {
+    ...(mail.kind ? { "X-Hub-Mail": mail.kind.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 60) } : {}),
+    ...(unsubscribe ? { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : {}),
+  };
   return {
     from,
     to: mail.to.slice(0, 50),
@@ -56,7 +66,7 @@ export function smtpMessage(from: string, mail: OutgoingMail, images: InlineImag
     html: mail.html,
     text: mail.text,
     ...(mail.replyTo ? { replyTo: mail.replyTo } : {}),
-    ...(mail.kind ? { headers: { "X-Hub-Mail": mail.kind.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 60) } } : {}),
+    ...(Object.keys(headers).length ? { headers } : {}),
     ...(images.length ? { attachments: images } : {}),
   };
 }

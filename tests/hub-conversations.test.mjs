@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { clockTime, conversationState, dayLabel, listTime, messageSide, previewText, readMessage, requestReference, senderLabel, threadItems } from "../lib/hub-conversations/rules.ts";
+import { clockTime, conversationState, dayLabel, listTime, messageSide, previewText, readMessage, requestReference, senderLabel, stampLabel, threadItems } from "../lib/hub-conversations/rules.ts";
 import { chatListSender, chatMessageSide, chatSender, chatUnread, peopleLine, readByOtherSide } from "../lib/hub-private-chat/rules.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8").then((text) => text.replace(/\r\n/g, "\n"));
@@ -77,7 +77,7 @@ test("a chat message is text up to 5000 characters, never only spaces", () => {
   assert.equal(readMessage("x".repeat(5001)).ok, false);
 });
 
-test("only active admins read service conversations in the hub, client-visible ones, and nothing is written to them", async () => {
+test("only active admins read service conversations in the hub, client-visible ones, and write only through the team command", async () => {
   const server = await source("lib/hub-conversations/server.ts");
   assert.match(server, /export const conversationReader = cache\(async \(\): Promise<\{ readonly userId: string \} \| null> => verifyHubAdmin\(\)\);/);
   assert.match(server, /if \(!\(await conversationReader\(\)\)\) return failed\(unavailable\);/);
@@ -91,6 +91,10 @@ test("only active admins read service conversations in the hub, client-visible o
   assert.match(actions, /^"use server";/);
   assert.match(actions, /if \(!db \|\| !\(await conversationReader\(\)\)\) return unavailable;/);
   assert.doesNotMatch(actions, /fetch\(|api\/hub\/requests|sendConversationMessage|access_token/);
+  // Writing goes only through the database's team command, with the admin, a key per click and the request's version.
+  assert.doesNotMatch(actions, /from\("(?:request_messages|service_requests|business_automation_tasks)"\)/);
+  assert.match(actions, /db\.rpc\("hub_service_command", \{\s+actor: admin\.userId,\s+command_key: input\.key,/);
+  assert.match(actions, /expectedVersion: input\.version/);
 });
 
 test("service conversations carry the customer's logo from the Asset Management", async () => {
@@ -151,7 +155,10 @@ test("private chats are read and written with the person's own session; names an
   assert.match(server, /supabase\.from\("hub_customer_members"\)\.select\("customer_id"\)\.eq\("user_id", data\.claims\.sub\)/);
   assert.match(server, /if \(viewer\.side === "customer" && !viewer\.customerIds\.includes\(customerId\)\) return \{ ok: false, error: NOT_FOUND \};/);
   // Messages and read marks of the reader's chats come through the session (RLS), the server key only names people.
-  assert.match(server, /supabase\.from\("hub_private_messages"\)\.select\(MESSAGES\)\.eq\("customer_id", customerId\)/);
+  assert.match(server, /readMessages\(\(columns\) => supabase\.from\("hub_private_messages"\)\.select\(columns\)\.eq\("customer_id", customerId\)/);
+  // Cards come with the migration of 24.11.2026; until then the chat reads its rows without them.
+  assert.match(server, /const MESSAGES = "id, customer_id, author_id, side, body, created_at, event";/);
+  assert.match(server, /return missingEvents\(first\.error\) \? run\(MESSAGES_WITHOUT_EVENTS\) : first;/);
   assert.doesNotMatch(server.slice(0, server.indexOf("export async function markPrivateRead")), /db\.from\("hub_private/);
   // The read mark and the bell: for admins the whole team counts as having read the chat.
   const mark = server.slice(server.indexOf("export async function markPrivateRead"));
@@ -202,4 +209,127 @@ test("Nachrichten: customers get their private chat and the way to the service p
   // On phones an open chat fills the screen and the tab bar steps aside.
   assert.match(css, /\.chat\[data-open\] \.chat-pane \{ position: fixed; z-index: 60; inset: 0;/);
   assert.match(css, /:root:has\(\.chat\[data-open\]\) :is\(\.tab-bar-wrap, \.scroll-edge\) \{ display: none; \}/);
+});
+
+// ---------------------------------------------------------------- Testansicht (26.11.2026, after OA-14)
+
+test("testansicht: the bubble runs while oalab owes an answer, honest after two hours, never for a paused AI", async () => {
+  const { statusFromFacts, threadStatus, QUIPS, SLOW_AFTER_MS, SILENT_AFTER_MS } = await import("../lib/hub-conversations/work-status.ts");
+  const facts = { state: "running", lastClientAt: "2026-11-25T13:44:00Z", lastResultAt: "2026-11-24T19:15:00Z", siteAt: null, now: "2026-11-25T13:52:00Z" };
+  assert.deepEqual(statusFromFacts(facts), { working: { since: "2026-11-25T13:44:00Z", slow: false }, siteChangedAt: null, silentSince: null });
+  assert.equal(statusFromFacts({ ...facts, now: "2026-11-25T15:45:00Z" }).working.slow, true);
+  assert.equal(SLOW_AFTER_MS, 7_200_000);
+  assert.equal(SILENT_AFTER_MS, 1_800_000);
+  assert.equal(statusFromFacts({ ...facts, paused: true }).working, null);
+  assert.equal(statusFromFacts({ ...facts, state: "release_review" }).working, null);
+  assert.equal(statusFromFacts({ ...facts, lastClientAt: null }).working, null);
+  // The team's last note is newer than the customer's wish: the work runs since then.
+  assert.equal(statusFromFacts({ ...facts, lastResultAt: "2026-11-25T13:50:00Z" }).working.since, "2026-11-25T13:50:00Z");
+  assert.equal(QUIPS[0], "Wir arbeiten gerade an einer kleinen Weltverbesserung …");
+  assert.ok(QUIPS.length >= 6);
+  // A message written for the customer counts as theirs; assistant lines are no result.
+  const status = threadStatus({ state: "running", now: "2026-11-25T14:00:00Z", messages: [
+    { sender: "oalab", at: "2026-11-24T19:15:00Z" },
+    { sender: "client", at: "2026-11-25T13:44:00Z" },
+    { sender: "assistant", at: "2026-11-25T13:45:00Z" },
+  ] });
+  assert.equal(status.working.since, "2026-11-25T13:44:00Z");
+});
+
+test("testansicht: a test site that changed without a word from the AI shows, after half an hour as „Rückmeldung fehlt“", async () => {
+  const { statusFromFacts, teamSlowLines, silenceCopy, preparedReply } = await import("../lib/hub-conversations/work-status.ts");
+  // OA-14 on 25.11.2026: the message 14:44, the site rebuilt 15:20, no result since.
+  const facts = { state: "running", lastClientAt: "2026-11-25T13:44:00Z", lastResultAt: "2026-11-24T19:15:00Z", siteAt: "2026-11-25T14:20:00Z" };
+  assert.deepEqual(statusFromFacts({ ...facts, now: "2026-11-25T14:30:00Z" }), { working: { since: "2026-11-25T13:44:00Z", slow: false }, siteChangedAt: "2026-11-25T14:20:00Z", silentSince: null });
+  assert.equal(statusFromFacts({ ...facts, now: "2026-11-25T14:51:00Z" }).silentSince, "2026-11-25T14:20:00Z");
+  // A site older than the message, a result after the change or a paused AI: nothing to report.
+  assert.equal(statusFromFacts({ ...facts, siteAt: "2026-11-25T13:00:00Z", now: "2026-11-25T16:00:00Z" }).siteChangedAt, null);
+  assert.equal(statusFromFacts({ ...facts, lastResultAt: "2026-11-25T14:24:00Z", now: "2026-11-25T16:00:00Z" }).siteChangedAt, null);
+  assert.equal(statusFromFacts({ ...facts, paused: true, now: "2026-11-25T16:00:00Z" }).silentSince, null);
+  const clock = (iso) => iso.slice(11, 16);
+  assert.deepEqual(teamSlowLines({ since: "2026-11-25T13:44:00Z", siteChangedAt: "2026-11-25T14:20:00Z" }, clock), [
+    "Noch keine Rückmeldung der KI. Die Testseite ist seit 14:20 neu.",
+    "Die Arbeit läuft seit 13:44. Schau in NoteTree Business, ob der Lauf hängt.",
+  ]);
+  assert.deepEqual(silenceCopy("BS CarCare", "15:20"), {
+    title: "Testseite seit 15:20 neu, die KI meldet sich nicht",
+    text: "Schau kurz auf die Testseite und sag BS CarCare Bescheid, oder prüf den Lauf in NoteTree Business.",
+    action: "Antwort vorbereiten",
+  });
+  assert.equal(preparedReply("heute, 15:20"), "Deine Änderung ist auf der Testseite, Stand heute, 15:20. Schau gern drauf. Passt alles, drück im Chat „Gefällt mir“.");
+});
+
+test("testansicht: only the site's own date counts, never one that a reported result explains", async () => {
+  const { threadStatus, unreportedSiteAt } = await import("../lib/hub-conversations/work-status.ts");
+  // 26.11.2026: OA-3 and OA-4 (KalaClo, open since 12.10.) looked silent because OA-13 of the same project reported a
+  // result on 22.11.; the site itself sends no date.
+  const messages = [{ sender: "client", at: "2026-10-12T19:37:57Z" }];
+  const now = "2026-11-26T17:30:00Z";
+  const reported = threadStatus({ state: "running", messages, now, testSite: { url: "https://kunde-test.vercel.app/", updatedAt: "2026-11-22T01:04:57Z", source: "result" } });
+  assert.equal(reported.siteChangedAt, null);
+  assert.equal(reported.silentSince, null);
+  assert.equal(reported.working.slow, true);
+  // The site's own date, newer than every report: nobody said a word about it.
+  const own = threadStatus({ state: "running", messages, now, testSite: { url: "https://kunde-test.vercel.app/", updatedAt: "2026-11-25T14:20:27Z", source: "site" } });
+  assert.equal(own.silentSince, "2026-11-25T14:20:27Z");
+  assert.equal(unreportedSiteAt(null), null);
+  assert.equal(unreportedSiteAt({ url: "https://a.example/", updatedAt: null, source: null }), null);
+  // The list asks the same question.
+  assert.match(await source("components/hub/screens/conversations.tsx"), /siteAt: unreportedSiteAt\(site\), paused: item\.aiPaused/);
+});
+
+test("testansicht: the stamp always names the time, results name what landed and whether the e-mail went out", async () => {
+  const { freshViewLabel, mailNote, publicHttpsUrl } = await import("../lib/hub-conversations/work-status.ts");
+  const today = new Date("2026-11-26T16:00:00+01:00");
+  assert.equal(stampLabel("2026-11-26T15:20:00+01:00", today), "heute, 15:20");
+  assert.equal(stampLabel("2026-11-25T20:12:00+01:00", today), "gestern, 20:12");
+  assert.equal(stampLabel("2026-11-23T19:14:00+01:00", today), "23. Nov., 19:14");
+  assert.equal(stampLabel("2025-11-23T19:14:00+01:00", today), "23. Nov. 2025, 19:14");
+  assert.equal(freshViewLabel("preview"), "Neue Testansicht bereit");
+  assert.equal(freshViewLabel("work"), "Neuer Stand auf der Testseite");
+  assert.equal(freshViewLabel(undefined), null);
+  assert.equal(mailNote(undefined), null);
+  assert.equal(mailNote(1), "E-Mail verschickt");
+  assert.equal(mailNote(2), "E-Mail an 2 Personen verschickt");
+  // The hub only asks public https sites for their date.
+  assert.equal(publicHttpsUrl("https://kunde-test.vercel.app")?.hostname, "kunde-test.vercel.app");
+  for (const value of ["http://kunde.de", "https://localhost", "https://10.0.0.1", "https://user:pw@kunde.de", "https://kunde.de:8443", "https://intranet", "https://box.internal", "javascript:alert(1)", null]) {
+    assert.equal(publicHttpsUrl(value), null, String(value));
+  }
+});
+
+test("testansicht: Nachrichten › Service reads results, the site's own date and the e-mail, only for admins", async () => {
+  const server = await source("lib/hub-conversations/server.ts");
+  assert.match(server, /created_at, delivery_kind:delivery->>kind";/);
+  assert.match(server, /testSitesFor\(db, \[request\]\),\n    previewMails\(db, requestId\),/);
+  const site = await source("lib/hub-conversations/test-site.ts");
+  assert.match(site, /^import "server-only";/);
+  assert.match(site, /redirect: "manual",/);
+  assert.match(site, /signal: AbortSignal\.timeout\(TIMEOUT_MS\),/);
+  assert.match(site, /const TTL_MS = 60_000;/);
+  assert.match(site, /\.eq\("kind", "preview"\)\.eq\("state", "sent"\)/);
+  const actions = await source("lib/hub-conversations/actions.ts");
+  assert.match(actions, /export async function serviceSites\(input: \{ ids: string\[\] \}\)[\s\S]*?if \(!db \|\| !\(await conversationReader\(\)\)\) return unavailable;/);
+  const screen = await source("components/hub/screens/conversations.tsx");
+  assert.match(screen, /useSyncExternalStore\(subscribeClock, clockNow, \(\) => null\)/);
+  assert.match(screen, /Rückmeldung fehlt<\/span>/);
+  assert.match(screen, /<b>Testseite wurde neu gebaut<\/b> · \{short\(status\.siteChangedAt\)\}, noch ohne Nachricht der KI/);
+  assert.match(screen, /oalab-KI · arbeitet seit \{short\(working\.since\)\}/);
+  // „Antwort vorbereiten“ only fills the field as oalab; nothing goes out before the admin sends it.
+  assert.match(screen, /function prepare\(\) \{\n    if \(!silence \|\| busy\) return;\n    setKind\("reply"\);\n    setDraft\(silence\.draft\);/);
+  const css = await source("app/glass.css");
+  assert.match(css, /:root\[data-reduce-motion="true"\] \.chat-quip-dots i \{ animation: none; opacity: 0\.7; \}/);
+  assert.match(css, /:root\[data-reduce-motion="true"\] \.chat-quip-t \{ transition: none; \}/);
+});
+
+test("testansicht: customers switch the e-mail in their profile, the same value as on the service platform", async () => {
+  const actions = await source("lib/hub-notify/actions.ts");
+  assert.match(actions, /session\.supabase\.rpc\("hub_preview_email"\)/);
+  assert.match(actions, /session\.supabase\.rpc\("hub_set_preview_email", \{ enabled \}\)/);
+  const card = await source("components/hub/notification-settings-card.tsx");
+  assert.match(card, /\{customer && <PreviewMailRow fresh=\{Boolean\(asOf && asOf <= PREVIEW_MAIL_NEW_UNTIL\)\} \/>\}/);
+  assert.match(card, /<Switch id="preview-mail" checked=\{enabled\} onChange=\{change\} label="Neue Testansicht per E-Mail" \/>/);
+  assert.match(card, /if \(enabled === null\) return null;/);
+  const profile = await source("components/hub/screens/workspace.tsx");
+  assert.match(profile, /<NotificationSettingsCard admin=\{account\.admin\} customer=\{!account\.admin && !account\.freelancer\} asOf=\{asOf\} \/>/);
 });

@@ -252,7 +252,8 @@ async function categoryOf(admin: KeychainAdmin, id: unknown) {
 
 /**
  * Creates or changes a login: its customer (or oalab itself), category, name, address and user name; on creation also
- * its password and note. Mailboxes stay in „Vertrag & Domain“; here they only get a password and a note.
+ * its password and note. Every category is open to oalab and customers alike: a mailbox made here is a login of the
+ * category „Postfächer“. The mailboxes of „Vertrag & Domain“ stay there; here they only get a password and a note.
  */
 export async function saveKeychainEntry(input: { id?: unknown; ownerId?: unknown; categoryId?: unknown; label?: unknown; loginUrl?: unknown; username?: unknown; secret?: unknown; note?: unknown }): Promise<KeychainResult<{ id: string; until: string }>> {
   const open = await openKeychain();

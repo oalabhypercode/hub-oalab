@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE, type ColorScheme, type ListView } from "@/lib/appearance";
+import { backgroundPresets, GLASS_ALPHA_RANGE, GLASS_BLUR_RANGE, type ColorScheme, type ListView, type PageWidth } from "@/lib/appearance";
 import { hubHref } from "@/lib/hub-data";
 import { useAppearance } from "../appearance-provider";
-import { BackgroundSwatch, ListViewSwatch, SchemeSwatch, Slider, Switch } from "../controls";
+import { BackgroundSwatch, ListViewSwatch, SchemeSwatch, Slider, Switch, WidthSwatch } from "../controls";
 import { GlassCard, GlassLinkButton } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
+import { TextSizeTiles } from "./notes-settings";
 
 const schemes: { id: ColorScheme; label: string }[] = [{ id: "system", label: "Automatisch" }, { id: "light", label: "Hell" }, { id: "dark", label: "Dunkel" }];
-const listViews: { id: ListView; label: string }[] = [{ id: "minimal", label: "Minimalistisch" }, { id: "detail", label: "Detail" }];
+const listViews: { id: ListView; label: string }[] = [{ id: "minimal", label: "Minimalistisch" }, { id: "list", label: "Liste" }, { id: "tiles", label: "Kacheln" }, { id: "detail", label: "Detail" }];
+const widths: { id: PageWidth; label: string }[] = [{ id: "standard", label: "Standard" }, { id: "xl", label: "Breit (XL)" }];
 
 /** Profile › Appearance: every change applies live to the whole hub and is stored in this browser. */
-export function AppearanceScreen({ preview, admin = false }: { preview: boolean; admin?: boolean }) {
+export function AppearanceScreen({ preview, admin = false, freelancer = false }: { preview: boolean; admin?: boolean; freelancer?: boolean }) {
   const { appearance, update } = useAppearance();
   const profile = hubHref(preview, "settings");
   return (
@@ -34,16 +36,29 @@ export function AppearanceScreen({ preview, admin = false }: { preview: boolean;
           <p className="t-footnote t-secondary">Automatisch folgt dem hellen oder dunklen Modus deines Geräts und wechselt mit ihm.</p>
         </GlassCard>
 
-        {/* Only admins have a list with both views so far; customers get the card once their lists follow it. */}
-        {admin && (
-          <GlassCard aria-labelledby="appearance-lists">
-            <h2 className="t-headline" id="appearance-lists">Listen</h2>
-            <div className="swatch-grid list-swatches">
-              {listViews.map((view) => <ListViewSwatch key={view.id} view={view.id} label={view.label} selected={appearance.listView === view.id} onSelect={() => update({ listView: view.id })} />)}
-            </div>
-            <p className="t-footnote t-secondary">Minimalistisch zeigt je Zeile nur Symbol, Titel und Datum, Detail alle Spalten. Die Wahl gilt heute für das Asset Management und später für weitere Listen. Oben rechts in der Liste lässt sie sich jederzeit umschalten.</p>
-          </GlassCard>
-        )}
+        <GlassCard aria-labelledby="appearance-width">
+          <h2 className="t-headline" id="appearance-width">Breite</h2>
+          <div className="swatch-grid list-swatches">
+            {widths.map((width) => <WidthSwatch key={width.id} width={width.id} label={width.label} selected={appearance.pageWidth === width.id} onSelect={() => update({ pageWidth: width.id })} />)}
+          </div>
+          <p className="t-footnote t-secondary">Standard nutzt die ganze Fläche neben der Sidebar und wächst mit dem Bildschirm. Breit (XL) rückt wie ein Programm im Vollbild bis knapp an den Rand, auch nach unten. Auf Handy und Tablet bleibt alles gleich.</p>
+        </GlassCard>
+
+        {/* Notizen (22.11.2026): the same choice as „Aa“ on the notes page, per device. */}
+        <GlassCard aria-labelledby="appearance-notes-text">
+          <h2 className="t-headline" id="appearance-notes-text">Schriftgröße der Notizen</h2>
+          <TextSizeTiles value={appearance.notesTextSize} onChange={(notesTextSize) => update({ notesTextSize })} />
+          <p className="t-footnote t-secondary">Gilt nur auf diesem Gerät, für alle Notizen und in jeder Rolle; für andere ändert sich nichts. Titel, Abstände und Tabellen wachsen mit, und die Schreibfläche wird so breit, dass eine Zeile gleich viele Zeichen hat.</p>
+        </GlassCard>
+
+        {/* Every role has the files in these views since 27.11.2026 (customers under „Dateien“), so everyone gets the card. */}
+        <GlassCard aria-labelledby="appearance-lists">
+          <h2 className="t-headline" id="appearance-lists">Listen</h2>
+          <div className="swatch-grid list-swatches">
+            {listViews.map((view) => <ListViewSwatch key={view.id} view={view.id} label={view.label} selected={appearance.listView === view.id} onSelect={() => update({ listView: view.id })} />)}
+          </div>
+          <p className="t-footnote t-secondary">Minimalistisch zeigt je Zeile nur Symbol, Titel und Datum. Liste ordnet wie die Listenansicht im Finder: schmale Zeilen mit Name, Datum, Größe und Art, Ordner zum Aufklappen. Kacheln zeigt jede Datei als Karte, Logos und Bilder mit einem kleinen Vorschaubild; die Größe stellst du in der Liste unten rechts ein. Detail zeigt alle Spalten. Die Wahl gilt heute für {admin || freelancer ? "das Asset Management" : "die Dateien"} und später für weitere Listen. Oben rechts in der Liste lässt sie sich jederzeit umschalten.</p>
+        </GlassCard>
 
         <GlassCard aria-labelledby="appearance-background">
           <h2 className="t-headline" id="appearance-background">Hintergrund</h2>

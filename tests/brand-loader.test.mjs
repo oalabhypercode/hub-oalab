@@ -66,7 +66,8 @@ test("old notes and other pages stay without a greeting", () => {
 
 test("sign-ins note the greeting, and the hub shows it outside its load boundary", async () => {
   const form = await source("components/auth-form.tsx");
-  assert.match(form, /if \(\(mode === "login" \|\| mode === "mfa"\) && greetsAt\(result\.redirect\)\) noteGreeting\(result\.greeting \?\? ""\);/);
+  // A session that only confirms its code on purpose („Mit Code bestätigen“) goes back without a greeting.
+  assert.match(form, /if \(\(mode === "login" \|\| \(mode === "mfa" && !secondFactor\?\.back\)\) && greetsAt\(result\.redirect\)\) noteGreeting\(result\.greeting \?\? ""\);/);
   assert.match(form, /finally \{\s+if \(!leaving\) setLoading\(false\);/);
   const actions = await source("lib/hub-auth/actions.ts");
   assert.equal(actions.match(/greeting: await greetingFor\(/g)?.length, 3, "password sign-in, app code and e-mail code");
@@ -78,7 +79,7 @@ test("loading shows the turning logo: pages, auth fallbacks and every former spi
   const loading = await source("components/hub/loading.tsx");
   assert.match(loading, /<BrandLoader label="Dein Workspace wird geladen" className=\{section \? "section-first" : undefined\} \/>/);
   assert.match(await source("components/brand-loader.tsx"), /<div role="status" aria-label=\{label\} className=\{cn\("brand-loader", className\)\}>/);
-  for (const page of ["app/auth/mfa/page.tsx", "app/auth/pending/page.tsx"]) {
+  for (const page of ["app/auth/mfa/page.tsx", "app/auth/pending/page.tsx", "app/auth/update-password/page.tsx"]) {
     assert.match(await source(page), /fallback=\{<div className="auth-form auth-form-loading" role="status" aria-label="Wird geladen"><MiniLoader size=\{24\} \/><\/div>\}/, page);
   }
   const files = [];

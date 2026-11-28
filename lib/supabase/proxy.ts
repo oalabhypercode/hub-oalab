@@ -5,20 +5,38 @@ import { authCookieOptions, LEGACY_AUTH_COOKIE, requestHost } from "./cookies";
 import { SECOND_FACTOR_PAGE, secondFactorPageRedirect, secondFactorRedirect, serviceOrigin, signedInRedirect } from "../auth-redirect";
 import { hasConfirmedApp, secondFactorMethod, secondFactorPending } from "../hub-auth/second-factor";
 import { LEGAL_PATHS } from "../legal-links";
+import { OPT_OUT_PATHS } from "../hub-mail/opt-out";
+import { movedCalendarPath } from "../hub-calendar/paths";
+import { isConnectorPath } from "../hub-mcp/config";
+import { localAdminEmail } from "../local-admin";
+import { usesOwnPlatform } from "../platform/config";
+import type { OwnSessionAuth } from "../platform/auth";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  // The calendar moved under Projekte (16.11.2026): the old address forwards with its query, also for links in old mails.
+  const moved = movedCalendarPath(pathname);
+  if (moved) {
+    const url = request.nextUrl.clone();
+    url.pathname = moved;
+    return NextResponse.redirect(url, 308);
+  }
   const isPreview = pathname === "/preview" || pathname.startsWith("/preview/");
   // The WhatsApp webhook is called by Meta without a session; it checks Meta's signature itself. The notification
   // schedule is called by the database without a session; it checks its token itself. The calendar links of the
   // notification mails open on any phone without a session; each checks its own signature. Imprint and privacy policy
-  // are open to everyone, signed in or not (§ 5 DDG, Art. 13 DSGVO).
+  // are open to everyone, signed in or not (§ 5 DDG, Art. 13 DSGVO); so is „Infomails abbestellen“ with its one-click
+  // address, which check the signature of their link (lib/hub-mail/opt-out.ts).
   const isPublic = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || isPreview || pathname === LEGAL_PATHS.imprint || pathname === LEGAL_PATHS.privacy
+    || pathname === OPT_OUT_PATHS.page || pathname === OPT_OUT_PATHS.oneClick
     || pathname === "/api/whatsapp" || pathname === "/api/notifications/sweep" || pathname.startsWith("/api/calendar/");
   let supabaseResponse = NextResponse.next({ request });
 
   // The preview is an isolated, public UI with fictional fixtures only.
   if (isPreview) return supabaseResponse;
+  // The Claude connector (lib/hub-mcp): Claude's servers call it without a session and bring their own key, which
+  // each address checks itself; no session work, no sign-in redirect. Its consent page stays under /dashboard.
+  if (isConnectorPath(pathname)) return supabaseResponse;
 
   function withSessionCookies(response: NextResponse) {
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
@@ -57,7 +75,15 @@ export async function updateSession(request: NextRequest) {
 
   // Keep the claims check immediately after client creation for session refresh.
   const { data, error } = await supabase.auth.getClaims();
-  const claims = !error && data?.claims ? data.claims : null;
+  let claims = !error && data?.claims ? data.claims : null;
+  // „Lokal immer Admin“ (lib/local-admin.ts): only `npm run dev` with HUB_LOCAL_ADMIN_EMAIL on localhost, and only when the browser opens a
+  // page (not for prefetches, scripts or curl), so one visit makes one session. The new session cookie rides on this
+  // request and its response, so the page renders signed in at once.
+  const pageVisit = request.headers.get("sec-fetch-mode") === "navigate";
+  const localAdmin = claims === null && pageVisit && usesOwnPlatform() ? localAdminEmail(request.headers.get("host")) : null;
+  if (localAdmin && await (supabase.auth as unknown as OwnSessionAuth).signInLocalAdmin(localAdmin)) {
+    claims = (await supabase.auth.getClaims()).data?.claims ?? null;
+  }
   const signedIn = claims !== null;
   const next = request.nextUrl.searchParams.get("next");
   // The cookie's copy of the factors, no network call: an aal1 session whose next level is aal2 has a confirmed app.
@@ -80,7 +106,8 @@ export async function updateSession(request: NextRequest) {
   };
 
   // One login for Hub and Service: whoever arrives signed in (e.g. via „Zum Hub“) skips the login form.
-  const landing = pathname === SECOND_FACTOR_PAGE ? secondFactorPageRedirect(await codePageState(), next, serviceOrigin())
+  // `confirm=1`: the session asked for the code itself („Mit Code bestätigen“, lib/auth-redirect.ts).
+  const landing = pathname === SECOND_FACTOR_PAGE ? secondFactorPageRedirect(await codePageState(), next, serviceOrigin(), request.nextUrl.searchParams.get("confirm") === "1")
     : codePending ? secondFactorRedirect(pathname, request.nextUrl.search, next, isPublic)
     : signedIn ? signedInRedirect(pathname, next) : null;
   const response = landing

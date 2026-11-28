@@ -2,37 +2,30 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown, Bot, Building2, KeyRound, Layers, ListFilter, LogOut, MessageCircleQuestion, Palette, Rows3, Scale, ScrollText, ShieldCheck, Sparkles, UserCog, UserRound } from "lucide-react";
-import { categories, categoriesFor, categoryLabel, type CategoryId } from "@/lib/categories";
-import { appearanceHref, currentMilestone, deadlineHint, formatDeadline, hubHref, previewAccount, sectionLabels, type Project } from "@/lib/hub-data";
+import { Bot, Building2, KeyRound, LogOut, MessageCircleQuestion, NotebookPen, Palette, Scale, ScrollText, ShieldCheck, Sparkles, SquareKanban, UserCog, UserRound } from "lucide-react";
+import { categories, categoriesFor, categoryLabel, projectsHref, type CategoryId } from "@/lib/categories";
+import { appearanceHref, hubHref, previewAccount, sectionLabels } from "@/lib/hub-data";
 import { packageCatalog } from "@/lib/service-packages";
 import { LegalLinks } from "@/components/legal-links";
 import { LEGAL_PATHS } from "@/lib/legal-links";
 import { metricMeta, metricOrder } from "@/lib/hub-metrics";
-import { matchesSearch, sortRows, type SortState, type SortValue } from "@/lib/table-tools";
 import { HeaderActions } from "../app-shell";
-import { MetricCard } from "../cards";
-import { SearchField, SegmentedControl } from "../controls";
+import { SearchField } from "../controls";
 import { CategoryIcon, GlassCard, SectionHeader, TitleIcon } from "../glass";
 import { LargeTitleHeader } from "../large-title-header";
-import { InsetGroupedList, ListRow, MiniProgress } from "../list";
+import { InsetGroupedList, ListRow } from "../list";
 import { sectionIcons } from "../navigation";
 import { useHubShell } from "../shell-context";
-import { MenuChoices, SheetEmpty, SheetFooter, SheetToolbar, StatusGlyph, TableGroup, ToolbarMenu, useCollapsedGroups, type GlyphKind } from "../sheet";
-import { alphabetical, FilterSelect, SortControl, SortHeader, type SortOption } from "../table-tools";
 import { WhatsAppCard } from "../whatsapp-card";
 import { NotificationSettingsCard } from "../notification-settings-card";
 import { SecondFactorCard } from "../second-factor-card";
-import { EmptyState, LoadNotice } from "./overview";
+import { ConnectedAppsCard } from "../connected-apps-card";
+import { CalendarFeedCard } from "../calendar-feed-card";
+import { InstallRow } from "../web-app";
 import type { ScreenProps } from "./types";
 
 export function CategoryTitle({ category }: { category: CategoryId }) {
   return <span className="title-icon"><CategoryIcon category={category} size={24} /></span>;
-}
-
-export function CategoryMetrics({ model, category }: Pick<ScreenProps, "model"> & { category: CategoryId }) {
-  const metrics = metricOrder.filter((id) => metricMeta[id].category === category);
-  return <div className="metric-grid section-first">{metrics.map((id) => <MetricCard key={id} metric={model.metrics[id]} />)}</div>;
 }
 
 export function DiscoverScreen({ model, preview, populated, admin, freelancer }: ScreenProps) {
@@ -61,7 +54,18 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
       <SectionHeader title="Bereiche" />
       {shownCategories.length ? (
         <InsetGroupedList label="Bereiche" className="list-icons">
-          {shownCategories.map((id) => <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />)}
+          {shownCategories.flatMap((id) => [
+            // Freelancers' „Projekte“ is the task board of their projects (16.11.2026).
+            id === "projects" && freelancer
+              ? <ListRow key={id} compact href={projectsHref(hubHref(preview, "projects"), true)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, true)} subtitle="Aufgaben-Board deiner Projekte" />
+              : <ListRow key={id} compact href={hubHref(preview, categories[id].section)} icon={<CategoryIcon category={id} size={24} />} title={categoryLabel(id, admin || freelancer)} />,
+            // Phones reach the oalab team's task board under Projekte from here.
+            ...(id === "projects" && manageUsers ? [<ListRow key="tasks" compact href={`${hubHref(preview, "projects")}/tasks`} icon={<SquareKanban size={24} color={categories.projects.fill} aria-hidden="true" />} title="Aufgaben" subtitle="Board und Liste der Projekte" />] : []),
+            // Notizen (22.11.2026) for everybody, under Projekte as in the sidebar; the tab bar keeps its five entries.
+            ...(id === "projects" ? [<ListRow key="notes" compact href={`${hubHref(preview, "projects")}/notes`} icon={<NotebookPen size={24} color={categories.projects.fill} aria-hidden="true" />} title="Notizen" subtitle={admin || freelancer ? "Seiten je Kunde und Projekt" : "Was oalab mit dir teilt"} />] : []),
+            // Freelancers' „Kunden“ (18.11.2026), below the files as in the sidebar.
+            ...(id === "files" && freelancer ? [<ListRow key="customers" compact href={hubHref(preview, "customers")} icon={<Building2 size={24} color="var(--accent-text)" aria-hidden="true" />} title={sectionLabels.customers} subtitle="Deine Kunden mit Domains und Hosting" />] : []),
+          ])}
         </InsetGroupedList>
       ) : <GlassCard><p className="t-subheadline t-secondary">Keine Treffer für „{query}“.</p></GlassCard>}
       {/* The tab bar has no room for them, so phones reach the user management and the AI log from here. */}
@@ -85,153 +89,6 @@ export function DiscoverScreen({ model, preview, populated, admin, freelancer }:
         <ListRow compact href={LEGAL_PATHS.imprint} icon={<Scale size={24} color="var(--system-gray)" aria-hidden="true" />} title="Impressum" />
         <ListRow compact href={LEGAL_PATHS.privacy} icon={<ShieldCheck size={24} color="var(--system-gray)" aria-hidden="true" />} title="Datenschutz" />
       </InsetGroupedList>
-    </>
-  );
-}
-
-const filters = ["Alle Projekte", "Aktiv", "Abgeschlossen"] as const;
-const ALL = "all";
-
-type ProjectSortKey = "deadline" | "start" | "title" | "area" | "status" | "progress" | "customer";
-const projectSorts: Record<ProjectSortKey, SortOption<ProjectSortKey>> = {
-  deadline: { id: "deadline", label: "Nächster Termin", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
-  start: { id: "start", label: "Startzeitpunkt", dirLabels: { asc: "früheste zuerst", desc: "späteste zuerst" } },
-  title: { id: "title", label: "Titel", dirLabels: alphabetical },
-  area: { id: "area", label: "Bereich", dirLabels: alphabetical },
-  status: { id: "status", label: "Status" },
-  progress: { id: "progress", label: "Fortschritt", firstDir: "desc", dirLabels: { asc: "niedrigster zuerst", desc: "höchster zuerst" } },
-  customer: { id: "customer", label: "Kunde", dirLabels: alphabetical },
-};
-// "Dein Feedback" first: that is where the customer has to act.
-const statusRank: Record<Project["status"], number> = { "Dein Feedback": 0, "In Umsetzung": 1, Abgeschlossen: 2 };
-const projectSortValue: Record<ProjectSortKey, (project: Project) => SortValue> = {
-  // Projects without a date sort after every dated one.
-  deadline: (project) => project.dueOn ?? "9999-12-31",
-  start: (project) => project.startedOn ?? "9999-12-31",
-  title: (project) => project.name,
-  area: (project) => project.category,
-  status: (project) => statusRank[project.status],
-  progress: (project) => project.progress,
-  customer: (project) => project.company ?? "",
-};
-
-const projectGroups: Project["status"][] = ["Dein Feedback", "In Umsetzung", "Abgeschlossen"];
-const projectGlyph: Record<Project["status"], GlyphKind> = { "Dein Feedback": "feedback", "In Umsetzung": "progress", Abgeschlossen: "done" };
-type ProjectGrouping = "status" | "none";
-
-export function ProjectsScreen({ preview, populated, projects, admin, asOf, liveProjects }: ScreenProps) {
-  const [filter, setFilter] = useState<(typeof filters)[number]>("Alle Projekte");
-  const [companyFilter, setCompanyFilter] = useState(ALL);
-  const [areaFilter, setAreaFilter] = useState(ALL);
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortState<ProjectSortKey>>({ key: "deadline", dir: "asc" });
-  const [grouping, setGrouping] = useState<ProjectGrouping>("status");
-  const groups = useCollapsedGroups();
-  const matches = (item: (typeof filters)[number], status: string) => item === "Alle Projekte" || (item === "Aktiv" ? status !== "Abgeschlossen" : status === "Abgeschlossen");
-  const areas = Array.from(new Set(projects.flatMap((project) => project.category ? [project.category] : []))).sort();
-  // Studio projects have no area, so the column and its filter only appear for the fixtures.
-  const showArea = areas.length > 0;
-  const companies = Array.from(new Set(projects.flatMap((project) => project.company ? [project.company] : []))).sort();
-  // Search, area and customer narrow the list; the status filter counts within that result.
-  const found = projects.filter((project) => {
-    const milestone = currentMilestone(project, asOf);
-    return (areaFilter === ALL || project.category === areaFilter) && (companyFilter === ALL || project.company === companyFilter)
-      && matchesSearch(query, [project.category, project.name, admin ? project.company : null, milestone?.title, milestone?.description, project.status, formatDeadline(project.startedOn), formatDeadline(project.dueOn)]);
-  });
-  // Completed projects stay at the end whatever the sort, so running and completed work stay apart.
-  const shown = sortRows(found.filter((project) => matches(filter, project.status)), projectSortValue[sort.key], sort.dir, {
-    group: (project) => Number(project.status === "Abgeschlossen"),
-    tieBreak: (project) => project.name,
-  });
-  const sortOptions = Object.values(projectSorts).filter((option) => (admin || option.id !== "customer") && (showArea || option.id !== "area"));
-  const menuFilters = [areaFilter !== ALL, companyFilter !== ALL].filter(Boolean).length;
-  const narrowed = query.trim() !== "" || filter !== "Alle Projekte" || menuFilters > 0;
-  const reset = () => { setQuery(""); setAreaFilter(ALL); setCompanyFilter(ALL); setFilter("Alle Projekte"); };
-  const columns = 6 + (admin ? 1 : 0) + (showArea ? 1 : 0);
-
-  const row = (project: Project) => {
-    const milestone = currentMilestone(project, asOf);
-    const done = project.status === "Abgeschlossen";
-    const hint = deadlineHint(project.dueOn, done, asOf);
-    return (
-      <tr key={project.id} className={`project-row${done ? " is-done" : ""}`}>
-        {admin && <td className="cell-customer">{project.company ?? "–"}</td>}
-        <td className="cell-project">
-          <span className="cell-title"><StatusGlyph kind={projectGlyph[project.status]} /><Link href={`${hubHref(preview, "projects")}?project=${project.id}`} className="project-card">{project.name}</Link></span>
-        </td>
-        {showArea && <td className="cell-area col-area">{project.category}</td>}
-        {/* One fact per cell: the milestone's title; its description is in the project dialog and in the tooltip. */}
-        <td className="cell-milestone" data-tip={milestone?.description || undefined}>{milestone ? milestone.title : <span className="cell-none">Noch kein Meilenstein</span>}</td>
-        <td className="cell-status col-status">{project.status}</td>
-        <td className="cell-start col-start"><span className="cell-start-label">Start </span><span className="numeric">{formatDeadline(project.startedOn)}</span></td>
-        <td className="cell-deadline">
-          {project.dueOn ? (
-            <Link className="deadline-link" href={`${hubHref(preview, "calendar")}?day=${project.dueOn}`} title="Im Kalender anzeigen" aria-label={`Nächster Termin ${formatDeadline(project.dueOn)} im Kalender anzeigen`}>
-              <span className="numeric">{formatDeadline(project.dueOn)}</span>
-            </Link>
-          ) : <span className="numeric cell-none">–</span>}
-          {!done && <small className={hint.endsWith("überfällig") ? "is-overdue" : undefined}>{hint}</small>}
-        </td>
-        <td className="cell-progress">
-          <span className="progress-line"><MiniProgress value={project.progress} color={categories.projects.fill} /><span className="list-percent numeric">{project.progress} %</span></span>
-        </td>
-      </tr>
-    );
-  };
-
-  return (
-    <>
-      <LargeTitleHeader title="Projekte" icon={<CategoryTitle category="projects" />} actions={<HeaderActions />} />
-      {liveProjects?.error ? <LoadNotice text={liveProjects.error} />
-      : populated || projects.length ? (
-        <div className="sheet section-first">
-          <SheetToolbar query={query} onQuery={setQuery} placeholder="Projekte durchsuchen" label="Projekte durchsuchen"
-            trailing={<SegmentedControl label="Projekte filtern" value={filter} onChange={setFilter} options={filters.map((item) => {
-              const count = found.filter((project) => matches(item, project.status)).length;
-              return { id: item, label: item === "Alle Projekte" ? "Alle" : item, count, name: `${item}: ${count}` };
-            })} />}>
-            {(showArea || admin) && (
-              <ToolbarMenu icon={ListFilter} label="Filter" badge={menuFilters}>
-                {showArea && <FilterSelect icon={Layers} name="Nach Bereich filtern" value={areaFilter} onChange={setAreaFilter} options={[{ value: ALL, label: "Alle Bereiche" }, ...areas.map((area) => ({ value: area, label: area }))]} />}
-                {admin && <FilterSelect icon={Building2} name="Kunden filtern" value={companyFilter} onChange={setCompanyFilter} options={[{ value: ALL, label: "Alle Kunden" }, ...companies.map((company) => ({ value: company, label: company }))]} />}
-              </ToolbarMenu>
-            )}
-            <ToolbarMenu icon={ArrowUpDown} label="Sortierung" value={projectSorts[sort.key].label}><SortControl options={sortOptions} sort={sort} onChange={setSort} /></ToolbarMenu>
-            <ToolbarMenu icon={Rows3} label="Gruppe" value={grouping === "status" ? "Status" : "Keine"}>
-              <MenuChoices label="Gruppieren nach" value={grouping} onChange={setGrouping} options={[{ id: "status", label: "Status" }, { id: "none", label: "Keine Gruppen" }]} />
-            </ToolbarMenu>
-          </SheetToolbar>
-          {shown.length ? (
-            <div className="sheet-scroll">
-              <table className="project-table">
-                <caption className="visually-hidden">{admin ? "Projekte mit Kunde, " : "Projekte mit "}{showArea ? "Bereich, " : ""}aktuellem Meilenstein, Status, Startzeitpunkt, nächstem Termin und Fortschritt</caption>
-                <thead>
-                  <tr>
-                    {/* Admins see every customer's projects, so the customer leads the row. */}
-                    {admin && <SortHeader option={projectSorts.customer} sort={sort} onChange={setSort} />}
-                    <SortHeader option={projectSorts.title} label="Projekt" sort={sort} onChange={setSort} />
-                    {showArea && <SortHeader option={projectSorts.area} className="col-area" sort={sort} onChange={setSort} />}
-                    <th scope="col" className="col-milestone">Meilenstein</th>
-                    <SortHeader option={projectSorts.status} className="col-status" sort={sort} onChange={setSort} />
-                    <SortHeader option={projectSorts.start} label="Start" className="col-start" sort={sort} onChange={setSort} />
-                    <SortHeader option={projectSorts.deadline} sort={sort} onChange={setSort} />
-                    <SortHeader option={projectSorts.progress} className="col-progress" sort={sort} onChange={setSort} />
-                  </tr>
-                </thead>
-                {grouping === "status" ? projectGroups.map((status) => {
-                  const rows = shown.filter((project) => project.status === status);
-                  return rows.length ? (
-                    <TableGroup key={status} colSpan={columns} label={status} count={rows.length} glyph={<StatusGlyph kind={projectGlyph[status]} />} collapsed={groups.isCollapsed(status)} onToggle={() => groups.toggle(status)}>
-                      {rows.map(row)}
-                    </TableGroup>
-                  ) : null;
-                }) : <tbody>{shown.map(row)}</tbody>}
-              </table>
-            </div>
-          ) : <SheetEmpty text={query.trim() ? `Keine Projekte zu „${query.trim()}“.` : "Keine Projekte für diesen Filter."} onReset={narrowed ? reset : undefined} />}
-          <SheetFooter hint="Ein Klick auf eine Zeile öffnet das Projekt">{shown.length === 1 ? "1 Projekt" : `${shown.length} Projekte`}</SheetFooter>
-        </div>
-      ) : <EmptyState section="projects" />}
     </>
   );
 }
@@ -262,7 +119,7 @@ function AccountDetailsCard() {
   );
 }
 
-export function ProfileScreen({ preview, email }: ScreenProps & { email: string }) {
+export function ProfileScreen({ preview, email, asOf }: ScreenProps & { email: string }) {
   const { openPanel, signOut, signingOut, logoutError, account } = useHubShell();
   return (
     <>
@@ -281,12 +138,18 @@ export function ProfileScreen({ preview, email }: ScreenProps & { email: string 
           <p className="t-subheadline t-secondary">Die Vorschau verwendet ausschließlich Beispieldaten. Melde dich an, um deinen persönlichen Workspace zu öffnen.</p>
           <Link className="text-link" href="/auth/login">Zur Anmeldung</Link>
         </GlassCard>}
-        {!preview && <NotificationSettingsCard admin={account.admin} />}
+        {!preview && <NotificationSettingsCard admin={account.admin} customer={!account.admin && !account.freelancer} asOf={asOf} />}
         {!preview && <WhatsAppCard />}
+        {/* The calendar subscription for every role, next to „Verbundene Apps“ (22.11.2026); the preview with an example. */}
+        <CalendarFeedCard preview={preview} role={account.admin ? "admin" : account.freelancer ? "freelancer" : "customer"} />
+        {/* Freelancers only once an admin switched Claude on for them; the card hides itself otherwise. */}
+        {!preview && (account.admin || account.freelancer) && <ConnectedAppsCard freelancer={!account.admin} />}
       </div>
       <SectionHeader title="Einstellungen" />
       <InsetGroupedList label="Einstellungen" className="list-icons">
         <ListRow compact href={appearanceHref(preview)} icon={<Palette size={24} color="var(--system-gray)" aria-hidden="true" />} title="Darstellung" subtitle="Hell oder dunkel, Hintergrund, Glas und Bewegung" />
+        {/* Phones and tablets in the browser; gone in the installed app (components/hub/web-app.tsx). */}
+        <InstallRow />
         <ListRow compact onClick={() => openPanel("help")} icon={<MessageCircleQuestion size={24} color="var(--system-gray)" aria-hidden="true" />} title="Assistent & Hilfe" />
         <ListRow compact onClick={signOut} icon={<LogOut size={24} color="var(--system-gray)" aria-hidden="true" />} title={preview ? "Vorschau verlassen" : signingOut ? "Wird abgemeldet …" : "Abmelden"} chevron={false} />
       </InsetGroupedList>

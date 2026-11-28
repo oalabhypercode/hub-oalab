@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { headers } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,7 +9,13 @@ import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { chatHref } from "@/lib/hub-notify/rules";
-import { chatUnread, isChatSide, readByOtherSide, type ChatSide } from "./rules";
+import { loadArchive } from "@/lib/hub-archive/server";
+import { noArchive } from "@/lib/hub-archive/rules";
+import { siteOrigin } from "@/lib/site-origin";
+import { calendarLinks, calendarLinkSecret } from "@/lib/hub-calendar/links";
+import { readChatEvent } from "@/lib/hub-chat-events/rules";
+import { loadChatSubscriptions } from "@/lib/hub-chat-events/server";
+import { chatActivity, chatUnread, isChatSide, readByOtherSide, type ChatSide } from "./rules";
 import type { PrivateChatMessage, PrivateChatResult, PrivateChatState, PrivateChatSummary, PrivateChatThread } from "./types";
 
 // Private chats live in hub_private_messages (migration 202611040001_hub_private_chat in service-oalab). Reading and
@@ -16,7 +23,10 @@ import type { PrivateChatMessage, PrivateChatResult, PrivateChatState, PrivateCh
 // see their company's chat, admins all of them. Only names (from the profiles) and the read marks go through the
 // server key, after the session has shown that the person may read the chat.
 
-const MESSAGES = "id, customer_id, author_id, side, body, created_at";
+const MESSAGES = "id, customer_id, author_id, side, body, created_at, event";
+/** Before migration 202611240001 (cards) the rows have no `event`; the chat then reads them without it. */
+const MESSAGES_WITHOUT_EVENTS = "id, customer_id, author_id, side, body, created_at";
+const missingEvents = (error: { code?: string } | null) => error?.code === "42703";
 /** The newest messages over all chats, enough to find each chat's last message and whether it is new. */
 const LIST_LIMIT = 1000;
 const THREAD_LIMIT = 300;
@@ -24,9 +34,9 @@ export const CHAT_UNAVAILABLE = "Der Chat konnte gerade nicht geladen werden. Bi
 export const CHAT_NOT_SET_UP = "Der private Chat ist noch nicht eingerichtet: Die Datenbank-Migration steht noch aus.";
 const NOT_FOUND = "Diesen Chat gibt es nicht oder nicht für dich.";
 
-type MessageRow = { id: string; customer_id: string; author_id: string | null; side: string; body: string; created_at: string };
+type MessageRow = { id: string; customer_id: string; author_id: string | null; side: string; body: string; created_at: string; event?: unknown };
 type ReadRow = { user_id: string; side: string; read_at: string };
-type CustomerRow = { id: string; company: string; customer_number: string };
+type CustomerRow = { id: string; company: string; customer_number: string; kind?: string | null };
 type Profile = { name: string; active: boolean };
 
 export interface ChatViewer { readonly userId: string; readonly side: ChatSide; readonly customerIds: readonly string[] }
@@ -70,28 +80,37 @@ function toMessage(row: MessageRow, viewer: ChatViewer, people: Map<string, Prof
     body: row.body,
     at: row.created_at,
     read: row.side === viewer.side && readByOtherSide(row.created_at, otherReads),
+    event: readChatEvent(row.event),
   };
 }
 
-/** A chat in the list; `newest` comes newest first. */
+/**
+ * A chat in the list; `newest` comes newest first. Grey lines (subscriptions) stay out of it, a card from the other
+ * side makes the chat new, and only messages people wrote settle it for their side (lib/hub-private-chat/rules.ts).
+ */
 function summarize(customer: CustomerRow, newest: readonly MessageRow[], viewer: ChatViewer, people: Map<string, Profile>, readAt: string | null, logo: CustomerLogo | null): PrivateChatSummary {
-  const last = newest.find((row) => isChatSide(row.side)) ?? null;
-  const lastOther = newest.find((row) => row.side !== viewer.side);
-  const lastOwnSide = newest.find((row) => row.side === viewer.side);
+  const { last, lastOtherAt, lastOwnSideAt } = chatActivity(newest, viewer.side);
   return {
     customerId: customer.id,
     company: customer.company,
     customerNumber: customer.customer_number,
     logo,
     lastAt: last?.created_at ?? null,
-    last: last && isChatSide(last.side) ? { body: last.body, side: last.side, own: last.author_id === viewer.userId, name: nameOf(people, last.author_id) } : null,
-    unread: chatUnread({ lastOtherAt: lastOther?.created_at ?? null, lastOwnSideAt: lastOwnSide?.created_at ?? null, readAt }),
+    last: last && isChatSide(last.side) ? { body: last.body, side: last.side, own: last.author_id === viewer.userId, name: nameOf(people, last.author_id), event: readChatEvent(last.event) } : null,
+    unread: chatUnread({ lastOtherAt, lastOwnSideAt, readAt }),
   };
+}
+
+/** The messages query, once more without cards when the migration of 24.11.2026 is not applied yet. */
+async function readMessages(run: (columns: string) => PromiseLike<{ data: MessageRow[] | null; error: { code?: string; message?: string } | null }>) {
+  const first = await run(MESSAGES);
+  return missingEvents(first.error) ? run(MESSAGES_WITHOUT_EVENTS) : first;
 }
 
 async function readCustomers(supabase: SupabaseClient, viewer: ChatViewer) {
   if (viewer.side === "customer" && !viewer.customerIds.length) return { data: [] as CustomerRow[], error: null };
-  const query = supabase.from("hub_customers").select("id, company, customer_number");
+  // oalab's own entry (kind team) has no chat with itself (plan „oalab als Unternehmen“, decision 9).
+  const query = supabase.from("hub_customers").select("id, company, customer_number, kind").neq("kind", "team");
   return (viewer.side === "oalab" ? query : query.in("id", [...viewer.customerIds])).order("company").returns<CustomerRow[]>();
 }
 
@@ -106,14 +125,15 @@ export const loadPrivateChats = cache(async (): Promise<PrivateChatState> => {
   const viewer = await chatViewer();
   if (!viewer) return failed("customer", CHAT_UNAVAILABLE);
   const supabase = await createClient();
-  const customers = await readCustomers(supabase, viewer);
+  const [customers, archive] = await Promise.all([readCustomers(supabase, viewer), viewer.side === "oalab" ? loadArchive() : noArchive]);
   if (customers.error) return failed(viewer.side, CHAT_UNAVAILABLE);
-  const rows = customers.data ?? [];
+  // Archived customers' chats stay out of the admins' list (lib/hub-archive); their logins are blocked anyway.
+  const rows = (customers.data ?? []).filter((row) => !archive.customerIds.has(row.id));
   if (!rows.length) return { source: "live", viewer: viewer.side, chats: [], error: null };
-  const messageQuery = supabase.from("hub_private_messages").select(MESSAGES);
+  const messageQuery = (columns: string) => supabase.from("hub_private_messages").select(columns);
   const [messages, reads] = await Promise.all([
-    (viewer.side === "oalab" ? messageQuery : messageQuery.in("customer_id", rows.map((row) => row.id)))
-      .order("created_at", { ascending: false }).limit(LIST_LIMIT).returns<MessageRow[]>(),
+    readMessages((columns) => (viewer.side === "oalab" ? messageQuery(columns) : messageQuery(columns).in("customer_id", rows.map((row) => row.id)))
+      .order("created_at", { ascending: false }).limit(LIST_LIMIT).returns<MessageRow[]>()),
     supabase.from("hub_private_reads").select("customer_id, read_at").eq("user_id", viewer.userId).returns<{ customer_id: string; read_at: string }[]>(),
   ]);
   if (messages.error || reads.error) return failed(viewer.side, isMissingChat(messages.error ?? reads.error) ? CHAT_NOT_SET_UP : CHAT_UNAVAILABLE);
@@ -121,7 +141,7 @@ export const loadPrivateChats = cache(async (): Promise<PrivateChatState> => {
   const byCustomer = new Map<string, MessageRow[]>();
   for (const row of messages.data ?? []) byCustomer.set(row.customer_id, [...(byCustomer.get(row.customer_id) ?? []), row]);
   const readAt = new Map((reads.data ?? []).map((row) => [row.customer_id, row.read_at]));
-  const people = await profiles([...byCustomer.values()].flatMap((list) => list[0]?.author_id ? [list[0].author_id] : []));
+  const people = await profiles([...byCustomer.values()].flatMap((list) => { const author = chatActivity(list, viewer.side).last?.author_id; return author ? [author] : []; }));
   const chats = rows
     .map((customer) => summarize(customer, byCustomer.get(customer.id) ?? [], viewer, people, readAt.get(customer.id) ?? null, null))
     .sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? "") || a.company.localeCompare(b.company, "de"));
@@ -146,19 +166,23 @@ export async function countUnreadPrivateChats(): Promise<number | undefined> {
 export async function loadPrivateThread(viewer: ChatViewer, customerId: string): Promise<PrivateChatResult<PrivateChatThread>> {
   if (viewer.side === "customer" && !viewer.customerIds.includes(customerId)) return { ok: false, error: NOT_FOUND };
   const supabase = await createClient();
-  const customer = await supabase.from("hub_customers").select("id, company, customer_number").eq("id", customerId).maybeSingle<CustomerRow>();
+  const customer = await supabase.from("hub_customers").select("id, company, customer_number, kind").eq("id", customerId).neq("kind", "team").maybeSingle<CustomerRow>();
   if (customer.error || !customer.data) return { ok: false, error: NOT_FOUND };
   const admin = viewer.side === "oalab";
-  const [messages, reads, members, logos] = await Promise.all([
-    supabase.from("hub_private_messages").select(MESSAGES).eq("customer_id", customerId)
-      .order("created_at", { ascending: false }).limit(THREAD_LIMIT).returns<MessageRow[]>(),
+  // Cards and „Abos“ belong to customers' chats for now; freelancers' chats follow (decision 11).
+  const withCards = (customer.data.kind ?? "customer") === "customer";
+  const [messages, reads, members, logos, subscriptions] = await Promise.all([
+    readMessages((columns) => supabase.from("hub_private_messages").select(columns).eq("customer_id", customerId)
+      .order("created_at", { ascending: false }).limit(THREAD_LIMIT).returns<MessageRow[]>()),
     supabase.from("hub_private_reads").select("user_id, side, read_at").eq("customer_id", customerId).returns<ReadRow[]>(),
     admin ? supabase.from("hub_customer_members").select("user_id").eq("customer_id", customerId).returns<{ user_id: string }[]>() : null,
     admin ? loadCustomerLogos(supabase, [customerId]) : null,
+    withCards ? loadChatSubscriptions(supabase, customerId) : null,
   ]);
   if (messages.error || reads.error) return { ok: false, error: isMissingChat(messages.error ?? reads.error) ? CHAT_NOT_SET_UP : CHAT_UNAVAILABLE };
 
   const rows = messages.data ?? [];
+  const { appointments, links } = await cardAppointments(supabase, rows, viewer);
   const memberIds = (members?.data ?? []).map((row) => row.user_id);
   const people = await profiles([...rows.flatMap((row) => row.author_id ? [row.author_id] : []), ...memberIds]);
   const marks = reads.data ?? [];
@@ -170,8 +194,39 @@ export async function loadPrivateThread(viewer: ChatViewer, customerId: string):
       chat: summarize(customer.data, rows, viewer, people, ownRead, logos?.get(customerId) ?? null),
       messages: rows.map((row) => toMessage(row, viewer, people, otherReads)).filter((message) => message !== null).reverse(),
       people: memberIds.flatMap((id) => { const person = people.get(id); return person?.active && person.name ? [person.name] : []; }),
+      subscriptions,
+      appointments,
+      calendarLinks: links,
     },
   };
+}
+
+type AppointmentRow = { id: string; status: string; starts_at: string; ends_at: string };
+
+/**
+ * Today's state of the appointments the chat's cards name, read with the reader's own session (customers see their
+ * own): it gives older cards their badge („verschoben“, „bestätigt“) and the request card its „Bestätigen“. Customers
+ * also get the signed links into their calendar app for upcoming confirmed appointments, as in the mails.
+ */
+async function cardAppointments(supabase: SupabaseClient, rows: readonly MessageRow[], viewer: ChatViewer) {
+  const ids = [...new Set(rows.flatMap((row) => { const event = readChatEvent(row.event); return event && "appointment" in event ? [event.appointment.id] : []; }))];
+  const appointments: Record<string, { status: string; startsAt: string; endsAt: string } | null> = {};
+  const links: Record<string, { ics: string; google: string; outlook: string }> = {};
+  if (!ids.length) return { appointments, links };
+  const { data, error } = await supabase.from("hub_appointments").select("id, status, starts_at, ends_at").in("id", ids).returns<AppointmentRow[]>();
+  // Without a read the cards simply show no badge.
+  if (error) return { appointments, links };
+  const found = new Map((data ?? []).map((row) => [row.id, row]));
+  for (const id of ids) {
+    const row = found.get(id);
+    appointments[id] = row ? { status: row.status, startsAt: row.starts_at, endsAt: row.ends_at } : null;
+  }
+  const secret = viewer.side === "customer" ? calendarLinkSecret() : null;
+  if (secret) {
+    const origin = siteOrigin(await headers()) ?? "https://hub.oalab.de";
+    for (const row of data ?? []) if (row.status === "confirmed" && Date.parse(row.ends_at) > Date.now()) links[row.id] = calendarLinks(origin, row.id, secret);
+  }
+  return { appointments, links };
 }
 
 /**

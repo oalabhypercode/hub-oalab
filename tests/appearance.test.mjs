@@ -4,7 +4,8 @@ import test from "node:test";
 import vm from "node:vm";
 import { appearanceInlineScript, backgroundPresets, DARK_BACKGROUND_SHADE, defaultAppearance, normalizeAppearance, REDUCE_MOTION_COOKIE, reduceMotionCookie, resolveAppearance } from "../lib/appearance.ts";
 
-const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+// Windows checkouts with autocrlf hold CRLF; the patterns below are written with \n.
+const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 const rgb = (hex) => hex.replace("#", "").match(/../g).map((part) => parseInt(part, 16));
 const luminance = (color) => {
   const [r, g, b] = color.map((value) => value / 255).map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
@@ -131,6 +132,10 @@ test("the waterfall stylesheet is loaded everywhere and switches off with reduce
   assert.match(layout, /import "\.\/motion\.css";/);
   assert.match(layout, /<PageWaterfall \/>/);
   assert.match(motion, /:root\[data-reduce-motion="true"\] \{ --waterfall: none; \}/);
+  // The cascade waits for the loading logo only; a note that stays (role status) must not keep later panels fading in.
+  const waterfall = await source("components/page-waterfall.tsx");
+  assert.match(waterfall, /!document\.querySelector\("\.hub-content > \.brand-loader"\)/);
+  assert.doesNotMatch(waterfall, /\[role='status'\]/);
   // No rule follows the device's own setting any more, neither in the styles nor in the avatars.
   for (const path of ["app/motion.css", "app/globals.css", "app/hub.css", "app/glass.css", "app/loader.css", "app/welcome-host.css", "components/hub/welcome-stage.tsx", "components/hub/messages-host.tsx", "components/hub/appearance-provider.tsx", "lib/appearance.ts"]) {
     assert.doesNotMatch(await source(path), /prefers-reduced-motion/, path);
@@ -170,4 +175,121 @@ test("the pre-paint script applies the stored appearance without outside referen
   assert.equal(root.dataset.reduceMotion, "false", "a device that reduces motion still gets the animations");
   assert.equal(root.dataset.theme, "dark", "a dark device gets the dark theme before the first paint");
   assert.equal(root.style.colorScheme, "dark");
+});
+
+test("Breite: Standard unless XL is stored, set on <html> before the first paint", () => {
+  assert.equal(defaultAppearance.pageWidth, "standard");
+  assert.equal(normalizeAppearance(null).pageWidth, "standard");
+  assert.equal(normalizeAppearance({ pageWidth: "xl" }).pageWidth, "xl");
+  assert.equal(normalizeAppearance({ pageWidth: "huge" }).pageWidth, "standard");
+  assert.equal(resolveAppearance({ pageWidth: "xl" }, backgroundPresets, false).width, "xl");
+  assert.equal(resolveAppearance({ pageWidth: 1 }, backgroundPresets, false).width, "standard");
+  const root = { style: { setProperty: () => {} }, dataset: {} };
+  vm.runInNewContext(appearanceInlineScript(), {
+    localStorage: { getItem: () => JSON.stringify({ pageWidth: "xl" }) },
+    window: { matchMedia: () => ({ matches: false }) },
+    document: { documentElement: root },
+  });
+  assert.equal(root.dataset.width, "xl");
+});
+
+test("XL only narrows the gaps on desktops, Standard keeps its paddings beside the sidebar, and every table page has the panels' minimum height", async () => {
+  const css = await source("app/glass.css");
+  assert.match(css, /\n\.hub-main \{ min-height: 100dvh; padding: 20px 28px 64px calc\(var\(--sidebar-w\) \+ 12px \+ 28px\); \}/);
+  const xl = css.slice(css.indexOf("@media (min-width: 1024px) {\n  :root[data-width=\"xl\"]"));
+  assert.match(xl, /^@media \(min-width: 1024px\) \{\n {2}:root\[data-width="xl"\] \.hub-main \{ padding: 14px 12px 12px calc\(var\(--sidebar-w\) \+ 12px \+ 12px\); \}/);
+  assert.match(css, /\.hub-content:has\(> \.sheet-fill\) \{ display: flex; flex-direction: column; min-height: calc\(100dvh - 20px - 64px\); \}/);
+  assert.match(css, /\.sheet-fill \{ flex: 1 0 auto; \}/);
+  assert.match(css, /\n\.am \{ height: calc\(100dvh - 148px\);/);
+});
+
+test("Schriftgröße der Notizen: Mittel unless chosen, per device, set on <html> before the first paint (22.11.2026)", () => {
+  assert.equal(defaultAppearance.notesTextSize, "medium");
+  // An appearance stored before the notes existed means „Mittel“.
+  assert.equal(normalizeAppearance({ pageWidth: "xl" }).notesTextSize, "medium");
+  assert.equal(normalizeAppearance({ notesTextSize: "large" }).notesTextSize, "large");
+  assert.equal(normalizeAppearance({ notesTextSize: "huge" }).notesTextSize, "medium");
+  assert.equal(resolveAppearance({ notesTextSize: "small" }, backgroundPresets, false).notesText, "small");
+  assert.equal(resolveAppearance(null, backgroundPresets, false).notesText, "medium");
+  const root = { style: { setProperty() {} }, dataset: {} };
+  vm.runInNewContext(appearanceInlineScript(), {
+    localStorage: { getItem: () => JSON.stringify({ notesTextSize: "large" }) },
+    window: { matchMedia: () => ({ matches: false }) },
+    document: { documentElement: root },
+  });
+  assert.equal(root.dataset.notesText, "large");
+});
+
+test("the work area uses the whole width beside the sidebar: no page stops at 1040, 1240 or 1720 px (22.11.2026)", async () => {
+  const css = await source("app/glass.css");
+  assert.match(css, /\n\.hub-content \{ width: 100%; margin: 0 auto; \}/);
+  assert.doesNotMatch(css, /\.hub-content:has\(> \.sheet\) \{ max-width/);
+  assert.doesNotMatch(css, /:root\[data-width="xl"\] :is\(\.hub-content, \.hub-notice\) \{ max-width/);
+  assert.doesNotMatch(await source("app/tasks.css"), /\.hub-content:has\(\.kb-sheet\) \{ max-width/);
+  assert.doesNotMatch(await source("app/calendar.css"), /\.hub-content:has\(\.cal-sheet\) \{ max-width/);
+  assert.match(css, /\.compact-nav \{[^}]*left: calc\(var\(--sidebar-w\) \+ 24px \+ 28px\)/);
+});
+
+test("Sidebar: expanded unless collapsed is stored, set on <html> before the first paint, 72 px wide only from 1024 px", async () => {
+  assert.equal(defaultAppearance.sidebar, "expanded");
+  assert.equal(normalizeAppearance(null).sidebar, "expanded");
+  assert.equal(normalizeAppearance({ sidebar: "collapsed" }).sidebar, "collapsed");
+  assert.equal(normalizeAppearance({ sidebar: "tiny" }).sidebar, "expanded");
+  assert.equal(resolveAppearance({ sidebar: "collapsed" }, backgroundPresets, false).sidebar, "collapsed");
+  assert.equal(resolveAppearance({ sidebar: true }, backgroundPresets, false).sidebar, "expanded");
+  const root = { style: { setProperty: () => {} }, dataset: {} };
+  vm.runInNewContext(appearanceInlineScript(), {
+    localStorage: { getItem: () => JSON.stringify({ sidebar: "collapsed" }) },
+    window: { matchMedia: () => ({ matches: false }) },
+    document: { documentElement: root },
+  });
+  assert.equal(root.dataset.sidebar, "collapsed");
+  const css = await source("app/sidebar.css");
+  assert.match(css, /:root \{\n {2}--sidebar-w: 272px;/);
+  assert.match(css, /@media \(min-width: 1024px\) \{\n {2}:root\[data-sidebar="collapsed"\] \{ --sidebar-w: 72px; \}/);
+  // Collapsing and the droplet stay still with „Bewegung reduzieren“; the glass turns solid with „Transparenz reduzieren“.
+  assert.match(css, /:root\[data-reduce-motion="true"\] :is\(\.glass-sidebar, \.hub-main,[^)]*\) \{ transition: none !important; \}/);
+  assert.match(css, /:root\[data-reduce-transparency="true"\] \.lg-fx \{[^}]*filter: none;/);
+  assert.match(await source("app/layout.tsx"), /import "\.\/welcome-host\.css";\nimport "\.\/sidebar\.css";/);
+});
+
+test("Sidebar: a handle on its edge and ⌘ . fold it, collapsed entries name themselves in a hint to the right", async () => {
+  const sidebar = await source("components/hub/glass-sidebar.tsx");
+  assert.match(sidebar, /className="lg sidebar-toggle" onClick=\{toggle\} aria-controls="hub-sidebar" aria-expanded=\{!collapsed\}/);
+  assert.match(sidebar, /update\(\{ sidebar: collapsed \? "expanded" : "collapsed" \}\)/);
+  assert.match(sidebar, /event\.key !== "\."/);
+  assert.match(sidebar, /"data-tip-compact": label,\n {2}"data-tip-side": "right",/);
+  assert.equal((sidebar.match(/<span className="sidebar-line" aria-hidden="true" \/>/g) ?? []).length, 3, "Aufgaben, Kalender and Notizen hang on a line");
+  const tooltip = await source("components/hub/tooltip.tsx");
+  assert.match(tooltip, /element\.dataset\.tipSide === "right"/);
+  assert.match(tooltip, /element\.dataset\.tipAlways === undefined/);
+});
+
+test("Sidebar: collapsed, the profile sign wears the gear's teeth, reads „Einstellungen“ and opens the account menu (22.11.2026)", async () => {
+  const sidebar = await source("components/hub/glass-sidebar.tsx");
+  const ring = sidebar.match(/<svg className="sidebar-gear-ring" viewBox="0 0 48 48" aria-hidden="true"><circle className="sidebar-gear-teeth" cx="24" cy="24" r="([\d.]+)" \/><circle cx="24" cy="24" r="[\d.]+" \/><\/svg>\n\s*<LogoMark logo=\{logo\}/);
+  assert.ok(ring, "the ring sits in the account link, before the sign");
+  assert.match(sidebar, /data-tip-compact="Einstellungen" data-tip-sub=\{\[name, meta\]\.filter\(Boolean\)\.join\(" · "\) \|\| undefined\}/);
+  assert.match(sidebar, /aria-label=\{collapsed \? `Einstellungen: \$\{menuEntries\}` : undefined\} aria-haspopup=\{collapsed \? "menu" : undefined\} aria-expanded=\{collapsed \? menuOpen : undefined\} aria-controls=\{collapsed \? menuId : undefined\}/);
+  assert.match(sidebar, /\(collapsed \? accountLink\.current : gear\.current\)\?\.focus\(\)/);
+  const css = await source("app/sidebar.css");
+  assert.match(css, /\n\.sidebar-toggle, \.sidebar-drop, \.sidebar-gear-ring \{ display: none; \}/);
+  const [, dash, gap] = css.match(/\.sidebar-gear-teeth \{ stroke-width: 4; stroke-linecap: round; stroke-dasharray: ([\d.]+) ([\d.]+);/) ?? [];
+  assert.ok(Math.abs(8 * (Number(dash) + Number(gap)) - 2 * Math.PI * Number(ring[1])) < 0.05, "eight even teeth around the circle");
+  assert.match(css, /:root\[data-sidebar="collapsed"\] \.sidebar-account-link:is\(:hover, :focus-visible, \[aria-expanded="true"\]\) \.sidebar-gear-ring \{ rotate: 45deg; color: var\(--accent-text\); \}/, "one tooth further (360° / 8)");
+  assert.match(css, /:root\[data-sidebar="collapsed"\] \.sidebar-account-gear \{[^}]*visibility: hidden;/, "the hidden gear leaves the tab order");
+  assert.match(css, /:root\[data-sidebar="collapsed"\] \.sidebar-account-text \{ max-height: 0;/, "the sign stays a circle of 48 px");
+  assert.match(css, /:root\[data-reduce-motion="true"\] :is\(\.sidebar-gear-ring, /);
+});
+
+test("Alle Projekte as list or tiles: the list unless chosen, per device, apart from the Asset Management (27.11.2026)", () => {
+  assert.equal(defaultAppearance.projectView, "list");
+  assert.equal(defaultAppearance.projectTileSize, "medium");
+  // An appearance stored before the tiles existed keeps the table.
+  assert.equal(normalizeAppearance({ listView: "tiles", tileSize: "large" }).projectView, "list");
+  assert.equal(normalizeAppearance({ listView: "tiles", tileSize: "large" }).projectTileSize, "medium");
+  assert.equal(normalizeAppearance({ projectView: "tiles", projectTileSize: "small" }).projectView, "tiles");
+  assert.equal(normalizeAppearance({ projectView: "tiles", projectTileSize: "small" }).projectTileSize, "small");
+  assert.equal(normalizeAppearance({ projectView: "board", projectTileSize: "huge" }).projectView, "list");
+  assert.equal(normalizeAppearance({ projectView: "board", projectTileSize: "huge" }).projectTileSize, "medium");
 });

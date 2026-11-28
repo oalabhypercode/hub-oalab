@@ -51,6 +51,16 @@ const iso = (value: Date | string | null | undefined) => (value ? new Date(value
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const enrollIdentifier = (userId: string) => `hub-totp-enroll:${userId}`;
 const linkIdentifier = (kind: string, token: string) => `hub-link:${kind}:${sha256(token)}`;
+/** The kinds a link of `type` may be: a password link is a recovery, every other one a sign-up or magic link. */
+const linkKinds = (type: string | undefined) => (type === "recovery" ? ["recovery"] : ["signup", "magiclink"]);
+/** The login a one-time link belongs to, from its stored value; empty when unreadable. */
+function linkUserId(value: string) {
+  try {
+    return String((JSON.parse(value) as { userId?: unknown }).userId ?? "");
+  } catch {
+    return "";
+  }
+}
 
 /** Supabase's user object, built from the shared `auth.users` row. */
 export function supabaseUser(row: UserRow, factors?: Factor[]) {
@@ -149,7 +159,9 @@ async function setPassword(userId: string, password: string) {
   const hash = await hashPassword(password);
   const updated = await sql("update auth.accounts set password = $2, updated_at = now() where user_id = $1 and provider_id = 'credential'", [userId, hash]);
   if (!updated.rowCount) {
-    await sql("insert into auth.accounts (id, user_id, account_id, provider_id, password) values (gen_random_uuid(), $1, $1::text, 'credential', $2)", [userId, hash]);
+    // user_id (uuid) and account_id (text) each get their own parameter: one parameter for both gave Postgres two types
+    // for it, and it refused every first password.
+    await sql("insert into auth.accounts (id, user_id, account_id, provider_id, password) values (gen_random_uuid(), $1, $2, 'credential', $3)", [userId, userId, hash]);
   }
 }
 
@@ -160,6 +172,51 @@ async function userById(id: string) {
 
 async function userByEmail(email: string) {
   return (await sql<UserRow>(`select ${USER_COLUMNS} from auth.users u where u.email = lower(trim($1))`, [email])).rows[0] ?? null;
+}
+
+/**
+ * A login's new address (User Management › Zugang › Profil, since 23.11.2026; only `admin.updateUserById` calls it, the
+ * login itself cannot, see `updateUser`). One statement, so all of it happens or none: the address changes, every
+ * session of the login ends, on hub. and service.oalab.de alike, and what went to the old address stops working: the
+ * one-time links of `admin.generateLink` (a password link signs in and counts as the e-mail code), Service OALab's own
+ * password links (`reset-password:…`, an hour) and a sign-in there that waits for its code (`2fa-…`); all three keep
+ * only the login's id. Password, second factor, calendar subscription and everything else the login owns stay with its
+ * id. False when another login has the address, also when one takes it in the same moment (unique `users_email_key`).
+ */
+async function moveLogin(userId: string, email: string) {
+  const taken = await userByEmail(email);
+  if (taken && taken.id !== userId) return false;
+  try {
+    await sql(
+      `with moved as (update auth.users set email = $2, updated_at = now() where id = $1 returning id),
+       links as (
+         delete from auth.verifications where exists (select 1 from moved)
+           and ((identifier like 'hub-link:%' and value = $3) or ((identifier like 'reset-password:%' or identifier like '2fa-%') and value = $4))
+       ),
+       sessions as (delete from auth.sessions where user_id = $1 and exists (select 1 from moved))
+       select count(*)::int as moved from moved`,
+      [userId, email, JSON.stringify({ userId }), userId],
+    );
+    return true;
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code === "23505") return false;
+    throw error;
+  }
+}
+
+/**
+ * A one-time link of `admin.generateLink`, looked at without using it: the address of its login while the link still
+ * counts, null once it is unknown, used, expired or its login blocked. The page behind a password link asks on every
+ * visit, mail scanners included, so this only reads; `verifyOtp` alone redeems.
+ */
+export async function peekLink(type: string, tokenHash: string): Promise<{ email: string } | null> {
+  if (!tokenHash) return null;
+  const row = (await sql<{ value: string }>(
+    "select value from auth.verifications where identifier = any($1::text[]) and expires_at > now() limit 1",
+    [linkKinds(type).map((kind) => linkIdentifier(kind, tokenHash))],
+  )).rows[0];
+  const user = row ? await userById(linkUserId(row.value)) : null;
+  return user && !isBanned(user) ? { email: user.email } : null;
 }
 
 /** The claims PostgREST and the call sites see, the same fields Supabase's access token carried. */
@@ -181,6 +238,37 @@ function claimsOf(current: Current): Claims {
     iat: now,
     exp: now + REST_TOKEN_SECONDS,
   };
+}
+
+/**
+ * The Claude connector's claims (lib/hub-mcp/writes.ts): the admin who allowed the connection, as PostgREST sees a
+ * session of theirs that confirmed a code (aal2, which „Erlauben“ demanded), but without a session: no `session_id`, so
+ * what is bound to a session (the keychain) stays closed. The role comes from the login as it is now. Null when the
+ * login is gone or banned.
+ */
+export async function connectorClaims(userId: string): Promise<Claims | null> {
+  const user = await userById(userId);
+  if (!user || (user.banned_until && new Date(user.banned_until).getTime() > Date.now())) return null;
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    iss: "oalab-hub",
+    aud: "authenticated",
+    role: "authenticated",
+    sub: user.id,
+    email: user.email,
+    phone: "",
+    aal: "aal2",
+    amr: [{ method: "oauth", timestamp: now }],
+    app_metadata: { provider: "email", providers: ["email"], ...(user.raw_app_meta_data ?? {}) },
+    user_metadata: user.raw_user_meta_data ?? {},
+    is_anonymous: false,
+  };
+}
+
+/** A fresh PostgREST token for fixed claims (the connector's), valid as long as a session's. */
+export function claimsToken(claims: Claims) {
+  const now = Math.floor(Date.now() / 1000);
+  return signJwt({ ...claims, iat: now, exp: now + REST_TOKEN_SECONDS }, restJwtSecret());
 }
 
 /** Tokens for PostgREST: the person's claims, anon without a session, service_role for the admin client. */
@@ -325,6 +413,17 @@ export class OwnSessionAuth {
     return { data: { user: supabaseUser(current.user, factors), session: sessionOf(current, factors) }, error: null };
   }
 
+  /**
+   * „Lokal immer Admin“ (lib/local-admin.ts): a session for this admin without a password, already past the second
+   * factor. Only the proxy calls it, and only after localAdminEmail() allowed the request. Admins only.
+   */
+  async signInLocalAdmin(email: string) {
+    const user = await userByEmail(email);
+    if (!user?.email_confirmed_at || isBanned(user) || user.raw_app_meta_data?.app_role !== "oalab_admin") return false;
+    await this.#raise(await this.#createSession(user));
+    return true;
+  }
+
   /** `global` (Supabase's default) ends every session of the login, `local` this one, `others` all but this one. */
   async signOut(options: { scope?: "global" | "local" | "others" } = {}) {
     const current = await this.#current();
@@ -359,6 +458,7 @@ export class OwnSessionAuth {
   async updateUser(attributes: { password?: string; data?: Record<string, unknown>; email?: string }) {
     const current = await this.#current();
     if (!current) return { data: { user: null }, error: sessionMissing() };
+    // A login never changes its own address: an admin does, in the User Management (admin.updateUserById, moveLogin).
     if (attributes.email !== undefined) return { data: { user: null }, error: authError("email_change_not_supported", "Changing the e-mail address is not supported.", 422) };
     const factors = await factorsOf(current.user.id);
     if (attributes.password !== undefined) {
@@ -382,19 +482,14 @@ export class OwnSessionAuth {
   /** The links of `admin.generateLink`: one use, then a fresh `aal1` session like Supabase's verify endpoint. */
   async verifyOtp(input: { type?: string; token_hash?: string }) {
     const fail = () => ({ data: { user: null, session: null }, error: authError("otp_expired", "Email link is invalid or has expired", 403) });
-    const kinds = input?.type === "recovery" ? ["recovery"] : ["signup", "magiclink"];
     if (!input?.token_hash) return fail();
     const used = (await sql<{ value: string; expires_at: Date }>(
       "delete from auth.verifications where identifier = any($1::text[]) returning value, expires_at",
-      [kinds.map((kind) => linkIdentifier(kind, input.token_hash!))],
+      [linkKinds(input.type).map((kind) => linkIdentifier(kind, input.token_hash!))],
     )).rows[0];
     if (!used || new Date(used.expires_at).getTime() < Date.now()) return fail();
-    let userId = "";
-    try {
-      userId = String((JSON.parse(used.value) as { userId?: unknown }).userId ?? "");
-    } catch {
-      return fail();
-    }
+    const userId = linkUserId(used.value);
+    if (!userId) return fail();
     const user = (await sql<UserRow>(
       `update auth.users u set email_confirmed_at = coalesce(u.email_confirmed_at, now()), email_verified = true, updated_at = now()
        where u.id = $1 returning ${USER_COLUMNS}`,
@@ -516,11 +611,16 @@ export const ownAdminAuth = {
       return user ? { data: { user: supabaseUser(user) }, error: null } : { data: { user: null }, error: authError("user_not_found", "User not found", 404) };
     },
 
-    async updateUserById(id: string, attributes: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown>; ban_duration?: string; password?: string; email_confirm?: boolean }) {
+    async updateUserById(id: string, attributes: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown>; ban_duration?: string; password?: string; email_confirm?: boolean; email?: string }) {
       const user = await userById(String(id ?? ""));
       if (!user) return { data: { user: null }, error: authError("user_not_found", "User not found", 404) };
       const until = attributes.ban_duration === undefined ? undefined : banUntil(String(attributes.ban_duration));
       if (attributes.ban_duration !== undefined && until === undefined) return { data: { user: null }, error: authError("validation_failed", "Invalid ban duration", 400) };
+      if (attributes.email !== undefined) {
+        const email = String(attributes.email ?? "").trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+$/u.test(email)) return { data: { user: null }, error: authError("validation_failed", "Unable to validate email address: invalid format", 400) };
+        if (email !== user.email && !(await moveLogin(user.id, email))) return { data: { user: null }, error: authError("email_exists", "A user with this email address has already been registered", 422) };
+      }
       const appMetadata = attributes.app_metadata === undefined ? user.raw_app_meta_data : mergeMetadata(user.raw_app_meta_data, attributes.app_metadata);
       const userMetadata = attributes.user_metadata === undefined ? user.raw_user_meta_data : mergeMetadata(user.raw_user_meta_data, attributes.user_metadata);
       const updated = (await sql<UserRow>(

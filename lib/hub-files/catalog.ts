@@ -75,6 +75,25 @@ export function fileFormat(fileName: string) {
   return fileExtension(fileName).toUpperCase() || "Datei";
 }
 
+const typesByExtension: Record<string, string> = {
+  svg: "image/svg+xml", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", jfif: "image/jpeg", gif: "image/gif", webp: "image/webp",
+  avif: "image/avif", heic: "image/heic", heif: "image/heif", tif: "image/tiff", tiff: "image/tiff", pdf: "application/pdf",
+  zip: "application/zip", txt: "text/plain", csv: "text/csv", mp4: "video/mp4", mov: "video/quicktime", mp3: "audio/mpeg",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
+
+/**
+ * The type of an upload: the browser's, or the one of the file name where the browser gives none (some systems leave
+ * SVG or WebP empty; before 23.11.2026 such files were stored as "application/octet-stream" and showed no preview).
+ */
+export function uploadType(fileName: string, browserType: string) {
+  const given = browserType.trim().toLowerCase();
+  if (given && given !== "application/octet-stream") return given;
+  return typesByExtension[fileExtension(fileName)] ?? "application/octet-stream";
+}
+
 export type UploadCheck = { ok: true } | { ok: false; error: string };
 
 export function checkUpload(fileName: string, sizeBytes: number): UploadCheck {
@@ -133,6 +152,31 @@ export function formatFileDay(iso: string, today: string) {
 export function fileDayGroup(iso: string, today: string) {
   const days = daysBetween(fileDayKey(iso), today);
   return days <= 0 ? "Heute" : days === 1 ? "Gestern" : days < 7 ? "Diese Woche" : "Früher";
+}
+
+/** The date of the list view, as the Finder writes it: "Heute, 09:12", "Gestern, 16:40", else "17.11.2026, 11:05" (Berlin). */
+export function formatFileStamp(iso: string, today: string) {
+  const at = parseTimestamp(iso);
+  const time = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(at);
+  const days = daysBetween(fileDayKey(iso), today);
+  if (days === 0) return `Heute, ${time}`;
+  if (days === 1) return `Gestern, ${time}`;
+  return `${new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(at)}, ${time}`;
+}
+
+const fileKinds: Record<string, string> = {
+  PDF: "PDF-Dokument", DOC: "Word-Dokument", DOCX: "Word-Dokument", ODT: "Textdokument", RTF: "RTF-Dokument", TXT: "Textdokument", MD: "Textdokument",
+  XLS: "Excel-Tabelle", XLSX: "Excel-Tabelle", ODS: "Tabelle", CSV: "CSV-Tabelle", PPT: "PowerPoint", PPTX: "PowerPoint", KEY: "Keynote", PAGES: "Pages-Dokument", NUMBERS: "Numbers-Tabelle",
+  JPG: "JPEG-Bild", JPEG: "JPEG-Bild", PNG: "PNG-Bild", GIF: "GIF-Bild", WEBP: "WebP-Bild", HEIC: "HEIC-Bild", AVIF: "AVIF-Bild", TIF: "TIFF-Bild", TIFF: "TIFF-Bild", SVG: "SVG-Grafik", EPS: "EPS-Grafik",
+  PSD: "Photoshop-Datei", AI: "Illustrator-Datei", INDD: "InDesign-Datei", FIG: "Figma-Datei", SKETCH: "Sketch-Datei", XD: "Adobe-XD-Datei",
+  ZIP: "ZIP-Archiv", RAR: "RAR-Archiv", "7Z": "7-Zip-Archiv", MP4: "MP4-Video", MOV: "QuickTime-Film", WEBM: "WebM-Video", MP3: "MP3-Audio", WAV: "WAV-Audio", M4A: "MPEG-4-Audio",
+  TTF: "Schrift", OTF: "Schrift", WOFF: "Webschrift", WOFF2: "Webschrift", HTML: "HTML-Dokument", JSON: "JSON-Datei", XML: "XML-Datei",
+};
+
+/** The kind of a file in words, as the Finder's column „Art“ shows it: "PDF-Dokument", "JPEG-Bild", else "ABC-Datei". */
+export function fileKind(fileName: string) {
+  const format = fileFormat(fileName);
+  return fileKinds[format] ?? (format === "Datei" ? "Datei" : `${format}-Datei`);
 }
 
 export function formatFileDateTime(iso: string) {

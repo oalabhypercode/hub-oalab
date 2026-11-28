@@ -1,12 +1,14 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadLiveProjects } from "@/lib/hub-projects/server";
+import { loadLiveProjects, loadLiveProjectsForCheckedAdmin } from "@/lib/hub-projects/server";
 import { listAllUsers } from "@/lib/hub-users/server";
 import { packagesOf, readCustomerPackages } from "@/lib/hub-contracts/packages";
 import { heldPackages, packageCatalog } from "@/lib/service-packages";
 import { mailSettings } from "@/lib/hub-mail/send";
+import { readArchive } from "@/lib/hub-archive/server";
 import type { AssistantData } from "./tools";
 import type { CustomerContext } from "./customers";
+import { isTeamKind } from "@/lib/hub-team/rules";
 
 type CustomerRow = {
   id: string;
@@ -16,6 +18,7 @@ type CustomerRow = {
   city: string | null;
   website: string | null;
   contact_email: string | null;
+  kind?: string | null;
 };
 
 /**
@@ -24,17 +27,32 @@ type CustomerRow = {
  * cannot be loaded; the assistant then says so instead of answering without data.
  */
 export async function loadAssistantData(): Promise<AssistantData | null> {
+  return assistantData(loadLiveProjects);
+}
+
+/**
+ * The same data for the Claude connector, which has no browser session: its caller has checked the key and that its
+ * admin still is one (lib/hub-mcp/store.ts). Contact addresses stay out; the connector does not pass them on.
+ */
+export async function loadAssistantDataForCheckedAdmin(): Promise<AssistantData | null> {
+  const data = await assistantData(loadLiveProjectsForCheckedAdmin);
+  return data && { ...data, customers: data.customers.map((customer) => ({ ...customer, contactEmail: "" })) };
+}
+
+async function assistantData(projectsOf: typeof loadLiveProjects): Promise<AssistantData | null> {
   const db = createAdminClient();
   if (!db) return null;
-  const [projects, customers, packageRows] = await Promise.all([
-    loadLiveProjects(),
-    db.from("hub_customers").select("id, organization_id, company, customer_number, city, website, contact_email").order("company").returns<CustomerRow[]>(),
+  const [projects, customers, packageRows, archive] = await Promise.all([
+    projectsOf(),
+    db.from("hub_customers").select("id, organization_id, company, customer_number, city, website, contact_email, kind").order("company").returns<CustomerRow[]>(),
     readCustomerPackages(db),
+    // Archived customers stay out of the assistant and the Claude connector, as everywhere outside the user management.
+    readArchive(db),
   ]);
   if (projects.error || customers.error) return null;
   return {
     projects: projects.projects,
-    customers: (customers.data ?? []).map((row) => ({
+    customers: (customers.data ?? []).filter((row) => !archive.customerIds.has(row.id)).map((row) => ({
       id: row.id,
       organizationId: row.organization_id,
       company: row.company,
@@ -43,6 +61,8 @@ export async function loadAssistantData(): Promise<AssistantData | null> {
       city: row.city ?? "",
       website: row.website ?? "",
       contactEmail: row.contact_email ?? "",
+      // oalab's own entry (plan „oalab als Unternehmen“): internal projects, no packages, contract or chat.
+      ...(isTeamKind(row.kind) ? { internal: true } : {}),
     })),
   };
 }

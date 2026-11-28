@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3A0624">
+<meta name="robots" content="noindex">
+<title>Keine Verbindung · oalab</title>
+<!--
+  Offline page of the installed web app (public/sw.js keeps it). It stands alone: no fonts, scripts or styles from the
+  network. Colours and card follow the sign-in page; light or dark comes from Darstellung, as in the hub.
+-->
+<script>
+  (function () {
+    try {
+      var stored = JSON.parse(localStorage.getItem("oalab-hub-appearance") || "null");
+      var scheme = stored && stored.colorScheme;
+      var dark = scheme === "dark" || (scheme !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    } catch (error) { /* the light card */ }
+  })();
+</script>
+<style>
+  :root {
+    --bg: #3a0624; --orb-1: #7e004b; --orb-2: #8f1d21; --orb-3: #b4400f;
+    --card: rgba(255, 255, 255, 0.82); --card-line: rgba(255, 255, 255, 0.7); --ink: #1d1d1f; --body: rgba(60, 60, 67, 0.88);
+    --muted: rgba(60, 60, 67, 0.7); --accent: #7e004b; --tile: rgba(126, 0, 75, 0.12); --focus: #ffffff;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --card: rgba(36, 18, 28, 0.84); --card-line: rgba(255, 255, 255, 0.12); --ink: #ffffff; --body: rgba(235, 235, 245, 0.82);
+    --muted: rgba(235, 235, 245, 0.62); --accent: #ff8ac8; --tile: rgba(255, 138, 200, 0.14); --focus: #1d1d1f;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { background: var(--bg); }
+  body {
+    min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; gap: 20px;
+    padding: calc(16px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #fff;
+    background:
+      radial-gradient(60vmax 60vmax at 0% 0%, var(--orb-1), transparent 62%),
+      radial-gradient(55vmax 55vmax at 100% 45%, var(--orb-2), transparent 62%),
+      radial-gradient(60vmax 60vmax at 40% 110%, var(--orb-3), transparent 60%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  :root[data-theme="dark"] body { background-color: #24040f; }
+  :root[data-theme="dark"] body::after { content: ""; position: fixed; inset: 0; z-index: -1; background: rgba(0, 0, 0, 0.38); }
+  header { display: flex; align-items: center; gap: 10px; }
+  header img { width: 40px; height: 40px; border-radius: 10px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28), 0 6px 18px rgba(0, 0, 0, 0.18); }
+  header span { font-size: 24px; font-weight: 700; letter-spacing: -0.04em; }
+  main { display: grid; place-items: center; padding-bottom: 8vh; }
+  .card {
+    width: min(100%, 440px); padding: 28px 24px 24px; border-radius: 28px; background: var(--card); color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--card-line), 0 20px 60px rgba(20, 4, 14, 0.35);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4);
+  }
+  .icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 14px; border-radius: 16px; background: var(--tile); color: var(--accent); }
+  .eyebrow { display: block; margin-bottom: 6px; color: var(--accent); font-size: 15px; font-weight: 600; }
+  h1 { font-size: 30px; line-height: 1.12; font-weight: 800; letter-spacing: -0.02em; }
+  p { margin-top: 12px; color: var(--body); font-size: 17px; line-height: 1.45; }
+  button {
+    margin-top: 22px; width: 100%; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 0; border-radius: 999px; background: linear-gradient(120deg, #7e004b, #8f1d21); color: #fff; font: inherit; font-size: 17px; font-weight: 700;
+    box-shadow: 0 10px 24px rgba(126, 0, 75, 0.3); cursor: pointer;
+  }
+  button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus), 0 0 0 6px #7e004b; }
+  .note { margin-top: 14px; font-size: 14px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<header><img src="/app-icons/icon-192.png" alt=""><span>oalab</span></header>
+<main>
+  <section class="card" aria-labelledby="title">
+    <span class="icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/></svg>
+    </span>
+    <span class="eyebrow">Keine Verbindung</span>
+    <h1 id="title">Gerade bist du offline.</h1>
+    <p>Der Hub braucht Internet. Sobald dein Gerät wieder verbunden ist, geht es hier von selbst weiter.</p>
+    <button type="button" id="retry">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+      Erneut versuchen
+    </button>
+    <p class="note">Offline zeigt der Hub keine Inhalte an.</p>
+  </section>
+</main>
+<script>
+  // The address is still the page that was asked for: loading it again opens it as soon as the network is back.
+  var retry = function () { location.reload(); };
+  document.getElementById("retry").addEventListener("click", retry);
+  window.addEventListener("online", retry);
+  // The browser's "online" can be wrong both ways (Wi-Fi without internet): while the page is in front, a small request
+  // every few seconds asks the hub itself. The manifest passes the worker untouched and needs no login.
+  setInterval(function () {
+    if (document.visibilityState !== "visible") return;
+    fetch("/manifest.webmanifest", { cache: "no-store" }).then(function (response) { if (response.ok) retry(); }).catch(function () {});
+  }, 5000);
+</script>
+</body>
+</html>

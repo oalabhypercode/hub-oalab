@@ -10,7 +10,7 @@ import type { Milestone, Project, ProjectTask, StudioProjectStatus } from "../hu
 /** The label that marks a task the customer has to do. */
 export const CUSTOMER_LABEL = "Kunde";
 
-export type StudioProjectRow = { id: string; organization_id: string; display_name: string; status: string };
+export type StudioProjectRow = { id: string; organization_id: string; display_name: string; status: string; test_url?: string | null; live_url?: string | null };
 export type StudioDetailsRow = {
   project_id: string;
   description: string;
@@ -19,6 +19,8 @@ export type StudioDetailsRow = {
   due_date: string | null;
   milestones: unknown;
   version?: number;
+  /** Read for admins only: whether the customer sees the project. */
+  client_visible?: boolean;
 };
 export type StudioTaskRow = {
   id: string;
@@ -33,18 +35,22 @@ export type StudioTaskRow = {
 };
 export type RequestCounts = { open: number; done: number };
 
+/** A domain of the customer from „Vertrag & Domain“, as the project panel lists it (admins only). */
+export type ProjectDomain = { id: string; domain: string; display: string; status: string; renewsOn: string | null };
+
 /** Studio projects of a real login, or why they could not be loaded. */
 export type LiveProjectsState = { projects: Project[]; error: string | null };
 
 const taskStatuses = ["backlog", "todo", "progress", "review", "done"] as const;
 const isCustomerLabel = (label: string) => label.trim().toLowerCase() === CUSTOMER_LABEL.toLowerCase();
-/** Request states Studio counts as finished respectively still open. */
-const doneRequestStates = new Set(["released", "resolved"]);
-const closedRequestStates = new Set(["draft", "released", "resolved", "rejected", "cancelled", "superseded", "archived"]);
+/** Request states Studio counts as finished respectively no longer open (drafts are not open yet). */
+export const doneRequestStates: ReadonlySet<string> = new Set(["released", "resolved"]);
+export const closedRequestStates: readonly string[] = ["draft", "released", "resolved", "rejected", "cancelled", "superseded", "archived"];
+const closed: ReadonlySet<string> = new Set(closedRequestStates);
 
 export function countRequests(rows: readonly { state: string }[]): RequestCounts {
   return {
-    open: rows.filter((row) => !closedRequestStates.has(row.state)).length,
+    open: rows.filter((row) => !closed.has(row.state)).length,
     done: rows.filter((row) => doneRequestStates.has(row.state)).length,
   };
 }
@@ -80,15 +86,81 @@ function toMilestones(value: unknown): Milestone[] {
     .sort((a, b) => a.at.localeCompare(b.at));
 }
 
+/**
+ * The website as typed in the user management ("abc.de", "www.abc.de/", "https://abc.de/impressum") as the start page
+ * of the site ("https://abc.de/"), or null. Some entries point at a subpage; the shortcut opens the site itself.
+ */
+export function websiteUrl(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`);
+    return url.hostname.includes(".") ? `${url.origin}/` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A stored project address as a link: only https, as the database allows; anything else is no address. */
+export function projectUrl(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text || !/^https:\/\/\S+$/i.test(text)) return null;
+  try {
+    return new URL(text).hostname.includes(".") ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+/** "https://www.abc.de/" → "abc.de": the address the way people say it. */
+export function shortUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+    return `${parsed.hostname.replace(/^www\./, "")}${path}`;
+  } catch {
+    return url;
+  }
+}
+
+export type ProjectSite = { key: "live" | "website" | "test"; url: string; label: string; sub: string };
+
+/**
+ * The project's addresses as everyone reads them: the live address (or, without one, the website from the customer
+ * data) and the test address, where every change shows first.
+ */
+export function projectSites(project: Project): ProjectSite[] {
+  const sites: ProjectSite[] = [];
+  if (project.liveUrl) sites.push({ key: "live", url: project.liveUrl, label: "Live", sub: "Die fertige Website" });
+  else if (project.website) sites.push({ key: "website", url: project.website, label: "Website", sub: "Aus den Kundendaten" });
+  if (project.testUrl) sites.push({ key: "test", url: project.testUrl, label: "Test", sub: "Vorschau: Änderungen erscheinen zuerst hier" });
+  return sites;
+}
+
+/** "Website podologie-sassnitz.de" says nothing the address rows do not already show: such a description stays out. */
+export function restatesSite(description: string | undefined, urls: (string | null | undefined)[]): boolean {
+  const text = description?.trim().toLocaleLowerCase("de").replace(/^(die\s+)?(website|webseite|homepage)\s*:?\s*/, "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+  if (!text) return Boolean(description);
+  return urls.some((url) => {
+    if (!url) return false;
+    try {
+      return new URL(url).hostname.replace(/^www\./, "") === text;
+    } catch {
+      return false;
+    }
+  });
+}
+
 const targetDate = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", day: "2-digit", month: "long", year: "numeric" });
 
 /** One hub project from its Studio rows; `tasks` are the tasks the viewer may see. */
-export function toHubProject(input: { project: StudioProjectRow; details: StudioDetailsRow | null; tasks: ProjectTask[]; requests: RequestCounts; company: string | undefined }): Project {
+export function toHubProject(input: { project: StudioProjectRow; details: StudioDetailsRow | null; tasks: ProjectTask[]; requests: RequestCounts; company: string | undefined; customer?: { id: string; website: string | null; internal?: boolean } }): Project {
   const { project, details, tasks, requests } = input;
   // Without Studio details a project counts as running (Studio shows "paused" ones as on hold, the hub has no such status).
   const complete = details?.status === "complete";
   const waiting = tasks.some((task) => task.status !== "done" && task.customer && task.visible);
   const dueOn = details?.due_date ?? null;
+  const website = websiteUrl(input.customer?.website);
   return {
     id: project.id,
     name: project.display_name,
@@ -102,12 +174,22 @@ export function toHubProject(input: { project: StudioProjectRow; details: Studio
     artwork: "orange",
     company: input.company,
     organizationId: project.organization_id,
+    ...(input.customer ? { customerId: input.customer.id } : {}),
+    ...(input.customer?.internal ? { internal: true } : {}),
+    ...(website ? { website } : {}),
+    // Test and live address of the project itself (customer_projects, one source for customer, Studio and Business).
+    ...(projectUrl(project.live_url) ? { liveUrl: projectUrl(project.live_url)! } : {}),
+    ...(projectUrl(project.test_url) ? { testUrl: projectUrl(project.test_url)! } : {}),
     startedOn: details?.start_date ?? null,
     dueOn,
     milestones: toMilestones(details?.milestones),
     progressBasis: tasks.length ? "tasks" : requests.done + requests.open ? "requests" : "none",
     requests,
-    studio: { status: studioStatusOf(project, details), version: details?.version ? Number(details.version) : null },
+    studio: {
+      status: studioStatusOf(project, details),
+      version: details?.version ? Number(details.version) : null,
+      ...(typeof details?.client_visible === "boolean" ? { visible: details.client_visible } : {}),
+    },
     tasks: [...tasks].sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999") || a.number - b.number),
   };
 }

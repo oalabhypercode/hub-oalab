@@ -4,6 +4,7 @@ import {
   ICS_FILE, calendarEvent, calendarLinkSecret, calendarTarget, googleCalendarUrl, icsCalendar, outlookCalendarUrl, validCalendarSignature,
   type CalendarAppointment,
 } from "@/lib/hub-calendar/links";
+import { CALENDAR_PATH } from "@/lib/hub-calendar/paths";
 
 // "In deinen Kalender eintragen" from the notification mails. Works without a session: the signature in the link
 // stands for the appointment (lib/hub-calendar/links.ts). Every call reads the appointment again, so a moved one
@@ -19,7 +20,7 @@ function page(status: number, title: string, text: string, origin: string) {
     + `<main style="max-width:480px;margin:0 auto;padding:28px;border-radius:20px;background:#ffffff;">`
     + `<h1 style="margin:0 0 10px;font-size:22px;line-height:28px;">${title}</h1>`
     + `<p style="margin:0 0 22px;font-size:16px;line-height:24px;color:#6F626B;">${text}</p>`
-    + `<a href="${origin}/dashboard/calendar" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#7E004B;color:#ffffff;font-weight:600;text-decoration:none;">Zum Kalender im Client Hub</a>`
+    + `<a href="${origin}${CALENDAR_PATH}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#7E004B;color:#ffffff;font-weight:600;text-decoration:none;">Zum Kalender im Client Hub</a>`
     + `</main></body></html>`;
   return new Response(html, { status, headers: { ...plain, "Content-Type": "text/html; charset=utf-8" } });
 }

@@ -41,8 +41,11 @@ function place(card: HTMLElement, button: HTMLElement) {
  *   const info = useInfo("Vertragsvorlagen", { steps: [<><b>Blanko</b> zum Ausfüllen von Hand.</>], ask: "Wie funktionieren die Vertragsvorlagen?" });
  *   <h3>Vertragsvorlagen{info.button}</h3>
  *   {info.box}
+ *
+ * `trigger` swaps the ⓘ for a button of the caller's own (its class and content), where the card is the whole point,
+ * like „App installieren“ next to the bell (components/hub/web-app.tsx); `label` names a button that shows only a symbol.
  */
-export function useInfo(title: string, card: InfoCard) {
+export function useInfo(title: string, card: InfoCard, trigger?: { className: string; content: React.ReactNode; label?: string }) {
   const [open, setOpen] = useState(false);
   const floating = useSyncExternalStore(noSubscription, popoverSupported, () => false);
   const id = useId();
@@ -95,15 +98,16 @@ export function useInfo(title: string, card: InfoCard) {
     <button
       ref={buttonRef}
       type="button"
-      className="info-button"
+      className={trigger?.className ?? "info-button"}
       aria-expanded={open}
       aria-controls={id}
-      aria-label={`Kurz erklärt: ${title}`}
-      data-tip={`Kurz erklärt: ${title}`}
+      // A trigger of its own says what it does in its text, or in its label when it shows only a symbol.
+      aria-label={trigger ? trigger.label : `Kurz erklärt: ${title}`}
+      data-tip={trigger ? trigger.label : `Kurz erklärt: ${title}`}
       popoverTarget={floating ? id : undefined}
       onClick={floating ? undefined : () => setOpen((now) => !now)}
     >
-      <Info size={15} strokeWidth={2.4} aria-hidden="true" />
+      {trigger ? trigger.content : <Info size={15} strokeWidth={2.4} aria-hidden="true" />}
     </button>
   );
 

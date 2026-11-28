@@ -10,10 +10,12 @@ export const fileAudiences: readonly FileAudience[] = ["both", "customer", "free
 export const isFileAudience = (value: unknown): value is FileAudience => fileAudiences.includes(value as FileAudience);
 
 /**
- * The customers list carries each logo (admins and freelancers), its kind (a customer or a freelancer) and, for admins,
- * the freelancers who look after a customer; customers inside a file's assignments carry none of that.
+ * The customers list carries each logo (admins and freelancers), its kind (a customer, a freelancer or, for admins once
+ * the database knows it, oalab's own entry: stage 2 of the plan „oalab als Unternehmen“) and, for admins, the freelancers
+ * who look after a customer; customers inside a file's assignments carry none of that. `inactive` (admins): a freelancer
+ * whose every login is deactivated in the user management, no choice under „Betreut von“.
  */
-export type HubFileCustomer = { id: string; customerNumber: string; company: string; logo?: CustomerLogo; kind?: "customer" | "freelancer"; freelancerIds?: string[] };
+export type HubFileCustomer = { id: string; customerNumber: string; company: string; logo?: CustomerLogo; kind?: "customer" | "freelancer" | "team"; freelancerIds?: string[]; inactive?: boolean };
 
 /** One level of folders per customer; a file's folder is stored per customer assignment. */
 export type HubFolder = { id: string; customerId: string; name: string };

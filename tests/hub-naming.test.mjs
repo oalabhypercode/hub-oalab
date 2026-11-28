@@ -113,8 +113,12 @@ test("missing values drop out with a hint instead of leaving gaps", () => {
 
 test("renaming is for admins, keeps the extension and the stored file, and sends no notice", async () => {
   const actions = await source("lib/hub-files/actions.ts");
-  const rename = actions.slice(actions.indexOf("export async function renameFiles"), actions.indexOf("export async function deleteFiles"));
-  assert.match(rename, /const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;/);
+  const action = actions.slice(actions.indexOf("export async function renameFiles"), actions.indexOf("export async function deleteFiles"));
+  assert.match(action, /const supabase = await adminClient\(\);\n {2}if \(!supabase\) return denied;\n {2}const result = await renameFilesAs\(supabase, input\);/);
+  assert.doesNotMatch(action, /notifyFileShared|storage/);
+  // The shared core (lib/hub-files/write.ts) renames for the hub and the Claude connector alike (23.11.2026).
+  const core = await source("lib/hub-files/write.ts");
+  const rename = core.slice(core.indexOf("export async function renameFilesAs"));
   assert.match(rename, /nameExtension\(row\.file_name\) !== nameExtension\(wanted\.get\(row\.id\)\?\.fileName \?\? ""\)/);
   assert.match(rename, /\.update\(\{ title: change\.title, file_name: change\.fileName \}\)/);
   assert.doesNotMatch(rename, /notifyFileShared|storage/);
@@ -127,7 +131,8 @@ test("renaming is for admins, keeps the extension and the stored file, and sends
 
 test("the Asset Management selects all files, a folder's files, and renames the ticked ones", async () => {
   const screen = await source("components/hub/screens/asset-management.tsx");
-  assert.match(screen, /<label className=\{`am-select-all\$\{minimal \? "" : " is-detail"\}`\}>/);
+  // „Kacheln“ (23.11.2026) show it like Minimal: neither has a table head with a tick.
+  assert.match(screen, /<label className=\{`am-select-all\$\{minimal \|\| tiles \? "" : " is-detail"\}`\}>/);
   assert.match(screen, /<span className="am-min-section-check">\{group\.files\.length > 0 && <GroupCheck \{\.\.\.groupCheck\(group\.files, group\.label\)\} \/>\}<\/span>/);
   assert.match(screen, /actions=\{folderActions\(group\)\} select=\{groupCheck\(group\.files, group\.label\)\}/);
   assert.match(screen, /\{canRename && <button type="button" className="sheet-action" aria-pressed=\{renaming\}/);

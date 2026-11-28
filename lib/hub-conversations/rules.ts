@@ -31,6 +31,29 @@ export function conversationState(state: string): ConversationStateView {
   }
 }
 
+/**
+ * A report of the team („NoteTree-Verbesserung“, migration 202611270002) waits for nobody but the team: open or done.
+ * Closed in another way, it reads like every closed request.
+ */
+export function teamIssueState(state: string): ConversationStateView {
+  const view = conversationState(state);
+  if (view.tone === "off") return view;
+  return view.group === "done" ? { label: "Erledigt", tone: "ok", group: "done" } : { label: "Offen", tone: "todo", group: "active" };
+}
+
+/** The company of the team's own reports, as the list names it. */
+export const TEAM_COMPANY = "oalab-Team";
+/** What the database puts before the first line of a report; the list says it once above instead. */
+export const TEAM_ISSUE_PREFIX = "NoteTree-Verbesserung";
+export function teamIssueTitle(title: string): string {
+  return title.startsWith(`${TEAM_ISSUE_PREFIX}:`) ? title.slice(TEAM_ISSUE_PREFIX.length + 1).trim() || title : title;
+}
+/** A report's text without the first line where that line is the title, so the list does not say it twice. */
+export function reportRest(body: string, title: string): string {
+  const [first = "", ...rest] = body.split("\n");
+  return first.replace(/\s+/g, " ").trim() === title ? rest.join("\n").trim() : body;
+}
+
 /** "OA-12": how the service platform names a request, also in its addresses. */
 export function requestReference(requestNumber: number | string): string {
   return `OA-${requestNumber}`;
@@ -40,12 +63,96 @@ export function isSender(value: string): value is ConversationSender {
   return value === "client" || value === "oalab" || value === "assistant" || value === "system";
 }
 
-/** Who wrote, as the admins read it: the customer and the team by name, otherwise the team or its assistant. */
-export function senderLabel(sender: ConversationSender, name: string | null): string {
+/**
+ * Who wrote, as the admins read it: the customer and the team by name, otherwise the team or its assistant. A message
+ * the team wrote for the customer names both: „Lena Schneider für Atelier Brandt“.
+ */
+export function senderLabel(sender: ConversationSender, name: string | null, onBehalf = false, company: string | null = null): string {
   if (sender === "assistant") return "oalab-Assistent";
   if (sender === "oalab") return name || "oalab-Team";
   if (sender === "system") return "";
+  if (onBehalf) return `${name || "oalab"} für ${company || "den Kunden"}`;
   return name || "Kunde";
+}
+
+/**
+ * The filters of the request list: whose turn it is. „Bei uns“ = the team or its AI works on it, also when the AI waits
+ * for a person; „Beim Kunden“ = the customer answers or approves; „Erledigt“ = finished or closed.
+ */
+export type ConversationFilter = "all" | "team" | "customer" | "done";
+export const CONVERSATION_FILTERS: readonly { readonly id: ConversationFilter; readonly label: string }[] = [
+  { id: "all", label: "Alle" },
+  { id: "team", label: "Bei uns" },
+  { id: "customer", label: "Beim Kunden" },
+  { id: "done", label: "Erledigt" },
+];
+
+export function conversationFilter(item: { readonly group: ConversationGroup; readonly aiPaused: boolean }): Exclude<ConversationFilter, "all"> {
+  if (item.group === "done") return "done";
+  if (item.aiPaused || item.group === "active") return "team";
+  return "customer";
+}
+
+/** The banner above the field while the AI waits for a person, and its button. */
+export function handBackCopy(mode: "client" | "ai", company: string | null): { readonly title: string; readonly text: string; readonly action: string } {
+  const who = company || "dem Kunden";
+  return mode === "client"
+    ? {
+      title: "Liegt zur Nachbearbeitung in NoteTree",
+      text: `„Wieder freigeben“ gibt die Testseite zurück an ${company || "den Kunden"} zur Zustimmung. Neue Nachrichten von ${who} bearbeitet die KI dann wieder selbst.`,
+      action: "Wieder freigeben",
+    }
+    : {
+      title: "Die KI ist angehalten",
+      text: `„KI weitermachen lassen“ gibt die Anfrage zurück an die KI. Sie liest alle neuen Nachrichten von ${who} und arbeitet weiter.`,
+      action: "KI weitermachen lassen",
+    };
+}
+
+/**
+ * The line under the field: what happens with the message. For the customer it counts as their message and the AI takes
+ * it up, unless the AI waits for a person; as oalab it reaches the customer like a published answer.
+ */
+export function serviceWriteHint(kind: "on_behalf" | "reply", input: { readonly company: string | null; readonly aiState: string | null; readonly paused: boolean }): string {
+  const company = input.company || "der Kunde";
+  if (kind === "reply") return `${company} liest das als Antwort von oalab und bekommt eine Benachrichtigung.`;
+  if (input.paused) return `Zählt wie eine Nachricht von ${company}. Die KI ist angehalten: Nach dem Senden steht oben „KI weitermachen lassen“, erst dann liest sie die Nachricht.`;
+  return input.aiState
+    ? `Zählt wie eine Nachricht von ${company}: Die KI liest sie und arbeitet weiter. ${company} sieht „oalab für ${company}“.`
+    : `Zählt wie eine Nachricht von ${company}. ${company} sieht „oalab für ${company}“.`;
+}
+
+/** Read-only line for an admin who is not on the oalab team of the service platform: the database would refuse each step. */
+export function serviceTeamHint(paused: boolean): string {
+  return `Du liest mit. Eingreifen${paused ? " und Freigeben" : ""} geht erst, wenn dein Login auf der Serviceplattform zum oalab-Team gehört.`;
+}
+
+/** What the database answers when a team command cannot run, in words for the admins. */
+export function teamCommandError(message: string | undefined | null): string {
+  switch (message) {
+    case "BUSINESS_TICKET_CHANGED": return "Die Anfrage hat sich gerade geändert. Der neue Stand ist geladen, bitte schau ihn dir kurz an und versuch es noch einmal.";
+    case "BUSINESS_HANDBACK_NOT_PAUSED": return "Diese Anfrage ist schon freigegeben.";
+    case "BUSINESS_AUTOMATION_STOP_REQUIRED": return "Die KI arbeitet gerade noch an dieser Anfrage. Versuch es in einer Minute noch einmal.";
+    case "BUSINESS_TERMINAL_TICKET": return "Diese Anfrage ist abgeschlossen. Neue Wünsche kommen als neue Anfrage.";
+    case "BUSINESS_WRONG_TENANT_OR_TICKET": return "Diese Anfrage gibt es nicht mehr, sie liegt im Papierkorb oder die Firma ist gesperrt.";
+    case "BUSINESS_STAFF_REQUIRED": return "Dein Login gehört auf der Serviceplattform nicht zum oalab-Team. Ohne diesen Zugang kann der Hub hier nichts ändern.";
+    case "BUSINESS_COMMAND_CONFLICT": return "Dieser Schritt wurde gerade schon mit anderem Inhalt gesendet. Der neue Stand ist geladen, bitte versuch es noch einmal.";
+    case "BUSINESS_MESSAGE_INVALID": return `Schreib zuerst eine Nachricht, höchstens ${MAX_MESSAGE_LENGTH} Zeichen.`;
+    default: return "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
+  }
+}
+
+export type TeamIssueAction = "create" | "resolve" | "reopen";
+
+/** What the database answers when a step on a team report cannot run (`public.hub_team_issue`). */
+export function teamIssueError(message: string | undefined | null, action: TeamIssueAction): string {
+  switch (message) {
+    case "BUSINESS_TICKET_CHANGED": return "Die Meldung hat sich gerade geändert. Der neue Stand ist geladen, bitte schau ihn dir kurz an und versuch es noch einmal.";
+    case "BUSINESS_WRONG_TENANT_OR_TICKET": return action === "create" ? "Die Anfrage für den Bezug gibt es nicht mehr. Nimm den Haken weg und melde es noch einmal." : "Diese Meldung gibt es nicht mehr oder sie liegt im Papierkorb.";
+    case "BUSINESS_TERMINAL_TICKET": return "Diese Meldung ist abgeschlossen. Melde das Problem neu.";
+    case "BUSINESS_MESSAGE_INVALID": return action === "create" ? `Beschreib kurz, was nicht geht, höchstens ${MAX_MESSAGE_LENGTH} Zeichen.` : teamCommandError(message);
+    default: return teamCommandError(message);
+  }
 }
 
 /**
@@ -96,6 +203,19 @@ export function listTime(iso: string, now: Date): string {
 
 export function clockTime(iso: string): string {
   return new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+}
+
+/**
+ * When the test site last changed, always with the time (26.11.2026): „heute, 15:20“, „gestern, 20:12“, „23. Nov., 19:14“,
+ * in another year with the year. The same words as on the service platform.
+ */
+export function stampLabel(iso: string, now: Date): string {
+  const date = new Date(iso);
+  const days = daysBetween(dayKey(now), dayKey(date));
+  if (days === 0) return `heute, ${clockTime(iso)}`;
+  if (days === 1) return `gestern, ${clockTime(iso)}`;
+  const sameYear = dayKey(now).slice(0, 4) === dayKey(date).slice(0, 4);
+  return `${new Intl.DateTimeFormat("de-DE", { timeZone: ZONE, day: "numeric", month: "short", year: sameYear ? undefined : "numeric" }).format(date)}, ${clockTime(iso)}`;
 }
 
 export interface ThreadItem<M> {

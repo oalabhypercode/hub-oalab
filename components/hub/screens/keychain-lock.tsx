@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BadgeCheck, Check, Copy, Download, LifeBuoy, LockKeyhole, LockKeyholeOpen, Printer, QrCode, ShieldAlert, ShieldCheck, Smartphone, Timer } from "lucide-react";
+import { BadgeCheck, Check, Copy, Download, LifeBuoy, LockKeyhole, LockKeyholeOpen, Printer, ShieldAlert, ShieldCheck, Smartphone, Timer } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
 import { confirmKeychainApp, confirmKeychainSetupCode, keychainStatus, lockKeychain, sendKeychainSetupCode, unlockKeychain, unlockKeychainWithRecovery, type KeychainResult } from "@/lib/hub-keychain/actions";
 import { LOCK_MINUTES, MAX_OPEN_MINUTES, UNLOCK_MINUTES } from "@/lib/hub-keychain/rules";
@@ -9,9 +9,9 @@ import type { KeychainLock } from "@/lib/hub-keychain/types";
 import { REVEAL_SECONDS } from "@/lib/hub-domains/rules";
 import { Modal } from "../modal";
 
-// The lock of the „Schlüsselbund“ in the page: where it stands, the dialog for the app's code (or a recovery code) and
-// the setup in three steps. The server decides; the page only counts down the time it was told and asks again when it
-// runs out. Shared with the passwords under „Vertrag & Domain“.
+// The lock of the „Schlüsselbund“ in the page: the switch in the head, the question before it locks, the dialog for the
+// app's code (or a recovery code) and the setup in three steps. The server decides; the page only counts down the time
+// it was told and asks again when it runs out. Shared with the passwords under „Vertrag & Domain“.
 
 const tryAgain = "Das hat gerade nicht geklappt. Bitte versuche es erneut.";
 const clock = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
@@ -59,23 +59,53 @@ export function useKeychainLock(initial: KeychainLock) {
 
 export type KeychainLockApi = ReturnType<typeof useKeychainLock>;
 
-/** In the pane's head: the state as a chip and the one button that changes it. */
-export function LockControl({ lock, left, onUnlock, onLock, onSetup, busy }: { lock: KeychainLock; left: number; onUnlock: () => void; onLock: () => void; onSetup: () => void; busy: boolean }) {
-  if (lock.status === "setup") {
-    return <div className="kc-lock-ctl"><span className="kc-chip is-setup"><Smartphone size={14} aria-hidden="true" /><span>Noch nicht eingerichtet</span></span><button type="button" className="sheet-action is-primary" onClick={onSetup}><QrCode size={15} aria-hidden="true" />Einrichten</button></div>;
+/**
+ * In the pane's head: the lock as one switch (22.11.2026). Grey with the knob on the left while locked, green with the
+ * knob on the right while open. On the grey one a click asks for the app's code (or sets the app up first), so it only
+ * slides once the code fits; on the green one it asks before locking, so a stray click never shuts the keychain. The
+ * time left stands in the hint and in the bar above the table.
+ */
+export function LockSwitch({ lock, left, onUnlock, onSetup, onAskLock }: { lock: KeychainLock; left: number; onUnlock: () => void; onSetup: () => void; onAskLock: () => void }) {
+  const on = lock.status === "unlocked" && left > 0;
+  const [tip, sub] = lock.status === "setup" ? ["Noch nicht eingerichtet", "Klicken, um deine Authenticator-App zu verbinden"]
+    : lock.status === "blocked" ? [`Gesperrt bis ${clock.format(new Date(lock.until))} Uhr`, "Zu viele falsche Codes · ein Notfall-Code öffnet sofort"]
+      : on ? [`Entsperrt · noch ${mmss(left)}`, `Sperrt sich nach ${UNLOCK_MINUTES} Minuten ohne Aktion · Klicken zum Sperren`]
+        : ["Gesperrt", "Klicken und den Code aus deiner App eingeben"];
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label="Schlüsselbund entsperrt" className={`switch kc-lock-switch${lock.status === "blocked" ? " is-blocked" : ""}`}
+      data-tip={tip} data-tip-sub={sub} onClick={() => on ? onAskLock() : lock.status === "setup" ? onSetup() : onUnlock()}>
+      <span className="switch-knob">{on ? <LockKeyholeOpen size={13} aria-hidden="true" /> : <LockKeyhole size={13} aria-hidden="true" />}</span>
+    </button>
+  );
+}
+
+/** Before the switch locks: one question, so a stray click never shuts the keychain. */
+export function LockConfirmDialog({ onClose, onLocked }: { onClose: () => void; onLocked: (lock: KeychainLock) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function lock() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await lockKeychain();
+      if (result.ok) onLocked(result.data.lock);
+      else setError(result.error);
+    } catch {
+      setError(tryAgain);
+    } finally {
+      setBusy(false);
+    }
   }
-  if (lock.status === "unlocked" && left > 0) {
-    return (
-      <div className="kc-lock-ctl">
-        <span className="kc-chip is-open" data-tip={`Sperrt sich nach ${UNLOCK_MINUTES} Minuten ohne Aktion`}><LockKeyholeOpen size={14} aria-hidden="true" /><span>Entsperrt · <b className="numeric">{mmss(left)}</b></span></span>
-        <button type="button" className="sheet-action" onClick={onLock} disabled={busy}>{busy ? <MiniLoader size={15} /> : <LockKeyhole size={15} aria-hidden="true" />}Sperren</button>
+  return (
+    <Modal title="Schlüsselbund sperren?" onClose={onClose} className="kc-dialog">
+      <p className="modal-description">Angezeigte Passwörter und Notizen sind sofort wieder verdeckt. Zum Entsperren brauchst du danach wieder den Code aus deiner Authenticator-App.</p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="kc-confirm-acts">
+        <button type="button" className="sheet-button" onClick={onClose} disabled={busy}>Abbrechen</button>
+        <button type="button" className="sheet-button sheet-button-primary" onClick={lock} disabled={busy}>{busy ? <MiniLoader size={18} /> : <LockKeyhole size={18} aria-hidden="true" />}Sperren</button>
       </div>
-    );
-  }
-  if (lock.status === "blocked") {
-    return <div className="kc-lock-ctl"><span className="kc-chip is-blocked" data-tip="Zu viele falsche Codes"><ShieldAlert size={14} aria-hidden="true" /><span>Gesperrt bis {clock.format(new Date(lock.until))}</span></span><button type="button" className="sheet-action" onClick={onUnlock}><LifeBuoy size={15} aria-hidden="true" />Notfall-Code</button></div>;
-  }
-  return <div className="kc-lock-ctl"><span className="kc-chip is-locked"><LockKeyhole size={14} aria-hidden="true" /><span>Gesperrt</span></span><button type="button" className="sheet-action is-primary" onClick={onUnlock}><LockKeyholeOpen size={15} aria-hidden="true" />Entsperren</button></div>;
+    </Modal>
+  );
 }
 
 /** The bar above the table: what the lock allows right now. */
@@ -90,13 +120,7 @@ export function LockBar({ lock, open, onRelink }: { lock: KeychainLock; open: bo
   if (lock.status === "blocked") {
     return <div className="cdm-lock is-todo" role="status"><ShieldAlert size={18} aria-hidden="true" /><p><strong>Zu viele falsche Codes.</strong> Der Schlüsselbund bleibt bis {clock.format(new Date(lock.until))} Uhr zu. Mit einem Notfall-Code geht es sofort weiter; das Team bekommt in Telegram Bescheid.</p></div>;
   }
-  return <div className="cdm-lock" role="status"><LockKeyhole size={18} aria-hidden="true" /><p><strong>Gesperrt.</strong> Zugänge und Benutzernamen siehst du immer. Für ein Passwort tippst du aufs Auge oder auf „Entsperren“ und gibst den Code aus deiner Authenticator-App ein.</p></div>;
-}
-
-/** Locks in this sign-in. */
-export async function lockNow(api: KeychainLockApi) {
-  const result = await lockKeychain().catch(() => null);
-  if (result?.ok) api.setLock(result.data.lock);
+  return <div className="cdm-lock" role="status"><LockKeyhole size={18} aria-hidden="true" /><p><strong>Gesperrt.</strong> Zugänge und Benutzernamen siehst du immer. Für ein Passwort tippst du aufs Auge oder auf den Schalter oben und gibst den Code aus deiner Authenticator-App ein.</p></div>;
 }
 
 /** Six digits (or a recovery code) as typed or pasted. */
@@ -264,7 +288,7 @@ export function SetupDialog({ email, relink = false, onClose, onDone }: { email:
                 <div className="kc-step-body">
                   {sent ? (
                     <div className="kc-step-row">
-                      <input className="kc-code" value={mailCode} onChange={(event) => { const next = digits(event.target.value); setMailCode(next); setError(""); if (next.length === 6) checkMail(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der E-Mail" disabled={busy} autoFocus />
+                      <input className="kc-code" value={mailCode} onChange={(event) => { const next = digits(event.target.value); setMailCode(next); setError(""); if (next.length === 6) checkMail(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der E-Mail" disabled={busy} autoFocus data-autofocus />
                       <button type="button" className="sheet-action is-primary" onClick={() => checkMail(mailCode)} disabled={busy || mailCode.length !== 6}>{busy ? <MiniLoader size={15} /> : <Check size={15} aria-hidden="true" />}Weiter</button>
                     </div>
                   ) : (
@@ -293,7 +317,7 @@ export function SetupDialog({ email, relink = false, onClose, onDone }: { email:
                     <button type="button" className="row-action" onClick={async () => { try { await navigator.clipboard.writeText(qr.key.replace(/\s/g, "")); setCopied(true); window.setTimeout(() => setCopied(false), 1500); } catch { /* blocked: the key stays readable */ } }} aria-label="Schlüssel kopieren" data-tip={copied ? "Kopiert" : "Schlüssel kopieren"}>{copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}</button>
                   </div>
                   <div className="kc-step-row">
-                    <input className="kc-code" value={appCode} onChange={(event) => { const next = digits(event.target.value); setAppCode(next); setError(""); if (next.length === 6) checkApp(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der App" disabled={busy} autoFocus />
+                    <input className="kc-code" value={appCode} onChange={(event) => { const next = digits(event.target.value); setAppCode(next); setError(""); if (next.length === 6) checkApp(next); }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="______" aria-label="Code aus der App" disabled={busy} autoFocus data-autofocus />
                     <button type="button" className="sheet-action is-primary" onClick={() => checkApp(appCode)} disabled={busy || appCode.length !== 6}>{busy ? <MiniLoader size={15} /> : <Check size={15} aria-hidden="true" />}Verbinden</button>
                   </div>
                 </div>

@@ -67,13 +67,15 @@ export function ToolbarMenu({ icon: Icon, label, value, badge = 0, align = "star
   );
 }
 
-export type SheetAction = { icon: LucideIcon; label: string; hint?: string; badge?: number; onSelect: () => void };
+export type SheetAction = { icon: LucideIcon; label: string; hint?: string; badge?: number; shortcut?: string; onSelect: () => void };
+/** A choice below the actions, such as the view of the task board: it applies and closes the menu. */
+export type SheetMenuChoices = { label: string; value: string; options: { id: string; label: string; icon: LucideIcon }[]; onChange: (value: string) => void };
 
 /**
  * A tab's actions behind one gear in the accent colour (user 9.11.2026): a click opens them as a menu in the look of the
  * toolbar's panels. ↑/↓ move through the actions, Escape closes and gives the focus back to the gear.
  */
-export function SheetActionMenu({ label, actions }: { label: string; actions: SheetAction[] }) {
+export function SheetActionMenu({ label, actions, choices }: { label: string; actions: SheetAction[]; choices?: SheetMenuChoices }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -95,24 +97,35 @@ export function SheetActionMenu({ label, actions }: { label: string; actions: Sh
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const items = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const items = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? [])];
     const at = items.indexOf(document.activeElement as HTMLElement);
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   };
-  const names = actions.map((action) => action.label).join(", ");
+  const names = [...actions.map((action) => action.label), ...(choices ? [choices.label] : [])].join(", ");
   return (
     <div className="sheet-menu sheet-action-menu" ref={box} onKeyDown={onKeyDown}>
       <button ref={trigger} type="button" className="sheet-gear" aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} aria-label={`${label}: ${names}`} data-tip={names} onClick={() => setOpen((now) => !now)}>
         <Settings size={17} aria-hidden="true" />
       </button>
       <div id={menuId} className="sheet-pop is-end sheet-action-pop" role="menu" aria-label={label} hidden={!open}>
-        {actions.map(({ icon: Icon, label: name, hint, badge, onSelect }) => (
-          <button key={name} type="button" role="menuitem" className="sheet-action-item" onClick={() => { setOpen(false); onSelect(); }}>
+        {actions.map(({ icon: Icon, label: name, hint, badge, shortcut, onSelect }) => (
+          <button key={name} type="button" role="menuitem" className="sheet-action-item" aria-keyshortcuts={shortcut} onClick={() => { setOpen(false); onSelect(); }}>
             <span className="sheet-action-icon"><Icon size={16} aria-hidden="true" /></span>
             <span className="sheet-action-text"><strong>{name}</strong>{hint && <small>{hint}</small>}</span>
-            {badge ? <span className="sheet-menu-badge numeric" aria-label={`${badge} offen`}>{badge}</span> : null}
+            {badge ? <span className="sheet-menu-badge numeric" aria-label={`${badge} offen`}>{badge}</span> : shortcut ? <kbd className="sheet-action-key" aria-hidden="true">{shortcut}</kbd> : null}
           </button>
         ))}
+        {choices && <>
+          {actions.length > 0 && <hr className="sheet-action-sep" />}
+          <div className="sheet-action-caption">{choices.label}</div>
+          <div className="sheet-choices" role="group" aria-label={choices.label}>
+            {choices.options.map(({ id, label: name, icon: Icon }) => (
+              <button key={id} type="button" role="menuitemradio" aria-checked={choices.value === id} className="sheet-choice" onClick={() => { setOpen(false); choices.onChange(id); }}>
+                <Icon size={16} className="sheet-choice-icon" aria-hidden="true" />{name}<Check className="hub-option-check" size={15} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </>}
       </div>
     </div>
   );
@@ -146,17 +159,21 @@ export const groupTicks = (ids: string[], selected: readonly string[]) => {
 };
 
 /**
- * A group of rows with its heading: chevron to fold it, symbol, name and count, optional actions on the right.
- * Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title). With `select` the
- * heading starts with a tick for all of its rows, in the column of the rows' ticks.
+ * A group of rows with its heading: chevron to fold it, symbol, name and count, optional details after them and actions
+ * on the right. Each table lines the heading up with its rows in glass.css (symbol over symbol, name over title). With
+ * `select` the heading starts with a tick for all of its rows, in the column of the rows' ticks. With `cells` the
+ * heading is a row of the table's own columns (user 22.11.2026): chevron, symbol and name in the first cell, then these
+ * cells, which carry the count, details and actions; a click anywhere on the row folds the group.
  */
-export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, actions, select, empty, className, dropKey, children }: {
+export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, sub, actions, select, empty, className, dropKey, cells, children }: {
   colSpan: number;
   label: string;
   count: number;
   glyph?: React.ReactNode;
   collapsed: boolean;
   onToggle: () => void;
+  /** Quiet details after the count, outside the fold button: a company's number and kind, say. */
+  sub?: React.ReactNode;
   actions?: React.ReactNode;
   select?: { checked: boolean; mixed: boolean; onChange: () => void; label: string; disabled?: boolean };
   /** Shown instead of rows when the group is empty (an empty folder). */
@@ -164,8 +181,30 @@ export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, 
   className?: string;
   /** Files dragged onto this group land in it (the Asset Management's folders). */
   dropKey?: string;
+  /** The heading's other cells, one per column after the first (`<td>`s); replaces the count, `sub` and `actions`. */
+  cells?: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  if (cells) {
+    return (
+      <tbody className={`table-group-body is-columns${collapsed ? "" : " is-open"}${className ? ` ${className}` : ""}`}>
+        <tr className="table-group" onClick={(event) => { if (!(event.target instanceof Element && event.target.closest("button, a, input"))) onToggle(); }}>
+          <th scope="rowgroup">
+            <span className="table-group-in">
+              <button type="button" className="table-group-toggle" aria-expanded={!collapsed} onClick={onToggle}>
+                <ChevronDown size={14} className="table-group-chevron" aria-hidden="true" />
+                {glyph && <span className="table-group-glyph">{glyph}</span>}
+                <span className="table-group-label" data-tip={label}>{label}</span>
+                <span className="visually-hidden">, {count}</span>
+              </button>
+            </span>
+          </th>
+          {cells}
+        </tr>
+        {!collapsed && (count === 0 && empty ? <tr className="table-empty-row"><td colSpan={colSpan}>{empty}</td></tr> : children)}
+      </tbody>
+    );
+  }
   return (
     <tbody className={`table-group-body${className ? ` ${className}` : ""}`} data-drop-folder={dropKey}>
       <tr className="table-group">
@@ -178,6 +217,7 @@ export function TableGroup({ colSpan, label, count, glyph, collapsed, onToggle, 
               <span className="table-group-label">{label}</span>
               <span className="table-group-count numeric">{count}</span>
             </button>
+            {sub && <span className="table-group-sub">{sub}</span>}
             {actions && <span className="table-group-actions">{actions}</span>}
           </span>
         </th>
@@ -209,13 +249,15 @@ export function TableAddRow({ colSpan, label, onClick }: { colSpan: number; labe
   );
 }
 
-export type GlyphKind = "feedback" | "progress" | "done" | "pending" | "invited" | "active" | "disabled" | "rejected";
+export type GlyphKind = "feedback" | "progress" | "done" | "pending" | "invited" | "active" | "disabled" | "rejected" | "alert";
 
 /** Small status symbols in the Studio manner: they lead a row or a group, the colour comes from the tones. */
 export function StatusGlyph({ kind }: { kind: GlyphKind }) {
-  const tone = kind === "feedback" || kind === "pending" ? "todo" : kind === "progress" || kind === "active" ? "ok" : kind === "invited" ? "info" : kind === "disabled" ? "bad" : "off";
+  const tone = kind === "feedback" || kind === "pending" ? "todo" : kind === "progress" || kind === "active" ? "ok" : kind === "invited" ? "info" : kind === "disabled" || kind === "alert" ? "bad" : "off";
   return (
     <svg className={`status-glyph tone-${tone}`} viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      {/* Overdue, at risk, full: a filled circle with an exclamation mark (Insights, 18.11.2026). */}
+      {kind === "alert" && <><circle cx="7" cy="7" r="6.3" fill="currentColor" /><path d="M7 3.9v3.6" stroke="#ffffff" strokeWidth="1.7" strokeLinecap="round" /><circle cx="7" cy="10" r="1" fill="#ffffff" /></>}
       {(kind === "feedback" || kind === "pending") && <><circle cx="7" cy="7" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.5" /><circle cx="7" cy="7" r="2.3" fill="currentColor" /></>}
       {kind === "progress" && <><circle cx="7" cy="7" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7 3.4a3.6 3.6 0 0 1 0 7.2z" fill="currentColor" /></>}
       {(kind === "done" || kind === "active" || kind === "rejected") && <><circle cx="7" cy="7" r="6.3" fill="currentColor" /><path d={kind === "rejected" ? "m4.9 4.9 4.2 4.2M9.1 4.9 4.9 9.1" : "m4.5 7.2 1.7 1.7 3.3-3.5"} fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></>}
@@ -226,8 +268,10 @@ export function StatusGlyph({ kind }: { kind: GlyphKind }) {
 }
 
 /** Line under a sheet: counts on the left, a hint on the right. */
-export function SheetFooter({ children, hint }: { children: React.ReactNode; hint?: React.ReactNode }) {
-  return <div className="sheet-footer"><span>{children}</span>{hint && <span>{hint}</span>}</div>;
+/** The sheet's last line: counts on the left, a hint on the right; `trailing` (a small switch, say) after the hint. */
+export function SheetFooter({ children, hint, trailing }: { children: React.ReactNode; hint?: React.ReactNode; trailing?: React.ReactNode }) {
+  if (!trailing) return <div className="sheet-footer"><span>{children}</span>{hint && <span>{hint}</span>}</div>;
+  return <div className="sheet-footer"><span>{children}</span><span className="sheet-footer-end">{hint && <span className="sheet-footer-hint">{hint}</span>}{trailing}</span></div>;
 }
 
 /** No rows for the current search or filters, inside the sheet, with the way back. */

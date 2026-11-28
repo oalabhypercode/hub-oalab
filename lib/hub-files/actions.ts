@@ -3,13 +3,14 @@
 import { refreshWorkspace } from "@/lib/refresh-workspace";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName } from "./catalog";
-import { cleanName, MAX_FILE_NAME, MAX_NAME, nameBase, nameExtension } from "./naming";
+import { checkUpload, cleanFolderName, HUB_FILES_BUCKET, isFileCategory, MAX_UPLOAD_BATCH, storageSafeName, uploadType } from "./catalog";
+import { cleanName, MAX_FILE_NAME, nameBase, nameExtension } from "./naming";
 import { isFileAudience, type FileAudience } from "./types";
 import { secondFactorMissing } from "@/lib/hub-auth/second-factor";
 import { fileNotice } from "@/lib/hub-notify/rules";
 import { notifyFileShared } from "@/lib/hub-notify/server";
 import { verifyHubAdmin } from "@/lib/hub-users/server";
+import { assignFilesAs, renameFilesAs, setFileAudienceAs, type FileRename } from "./write";
 
 // Every action is a public POST endpoint: authenticate and authorise inside each one.
 // Row Level Security in Supabase enforces the same rules a second time.
@@ -78,7 +79,8 @@ export async function finalizeUpload(input: FinalizeInput): Promise<ActionResult
   const description = String(input?.description ?? "").trim().slice(0, 2000);
   // The download name may be a new one ("Namen nach Muster"); its extension stays the one of the stored file.
   const fileName = cleanName(input?.fileName, MAX_FILE_NAME);
-  const mimeType = /^[\w.+-]+\/[\w.+-]+$/.test(String(input?.mimeType ?? "")) ? String(input.mimeType) : "application/octet-stream";
+  // The browser's type, else the one of the stored file's name (the same rule as the upload in the browser).
+  const mimeType = uploadType(path, /^[\w.+-]+\/[\w.+-]+$/.test(String(input?.mimeType ?? "")) ? String(input.mimeType) : "");
   const sha256 = typeof input?.sha256 === "string" && /^[0-9a-f]{64}$/.test(input.sha256) ? input.sha256 : null;
   if (!uploadPath.test(path) || !title || !nameBase(fileName) || !isFileCategory(input?.category)) return { ok: false, error: "Bitte Titel, Kategorie und Datei angeben." };
   if (nameExtension(fileName) !== nameExtension(path)) {
@@ -143,6 +145,21 @@ export async function setFileAssignments(fileId: string, customerIds: string[]):
 }
 
 /**
+ * Admin: several files to one customer at once (Zuordnen and drag & drop, user 19.11.2026). The files keep their other
+ * customers; with `from` and `move` they leave that customer. A chosen folder applies to every file; without one, files
+ * already there keep theirs and the others land in „Ohne Ordner“. Coming from another customer, „Sichtbar für“ moves
+ * along, so a working file only for freelancers stays hidden from the new customer. Whoever newly sees files gets one
+ * line in the bell for all of them.
+ */
+export async function assignFiles(input: { fileIds: string[]; customerId: string; folderId: string | null; from?: string | null; move?: boolean }): Promise<ActionResult<{ added: number; moved: number }>> {
+  const supabase = await adminClient();
+  if (!supabase) return denied;
+  const result = await assignFilesAs(supabase, input);
+  refreshWorkspace();
+  return result;
+}
+
+/**
  * Admin: who sees a file at one customer: the customer and their freelancers, only the customer or only the
  * freelancers. Browsers may not write this column, so the server does it with the service role after checking the
  * admin. Whoever newly sees the file gets a notice.
@@ -151,18 +168,9 @@ export async function setFileAudience(fileId: string, customerId: string, audien
   if (!uuid.test(String(fileId ?? "")) || !uuid.test(String(customerId ?? "")) || !isFileAudience(audience)) return { ok: false, error: "Unbekannte Datei oder Auswahl." };
   const db = await verifyHubAdmin() ? createAdminClient() : null;
   if (!db) return denied;
-  const current = await db.from("hub_file_assignments").select("audience").eq("file_id", fileId).eq("customer_id", customerId).maybeSingle<{ audience: string }>();
-  if (current.error || !current.data) return { ok: false, error: current.error?.code === "42703" ? "„Sichtbar für“ ist in der Datenbank noch nicht eingerichtet." : "Die Datei liegt nicht mehr bei diesem Kunden." };
-  const { error } = await db.from("hub_file_assignments").update({ audience }).eq("file_id", fileId).eq("customer_id", customerId);
-  if (error) return { ok: false, error: "Die Sichtbarkeit konnte nicht gespeichert werden." };
-  const before = current.data.audience;
-  const newly = { customer: before === "freelancer" && audience !== "freelancer", freelancer: before === "customer" && audience !== "customer" };
-  if (newly.customer || newly.freelancer) {
-    const file = await db.from("hub_files").select("title").eq("id", fileId).maybeSingle<{ title: string }>();
-    if (file.data) await notifyFileShared(fileId, [customerId], fileNotice(file.data.title, fileId), newly);
-  }
-  refreshWorkspace();
-  return { ok: true, data: null };
+  const result = await setFileAudienceAs(db, fileId, customerId, audience);
+  if (result.ok) refreshWorkspace();
+  return result;
 }
 
 /** Admin: a file's title, category and description. Customers get no notice for this. */
@@ -179,7 +187,7 @@ export async function updateFileDetails(fileId: string, input: { title: string; 
   return { ok: true, data: { title: data.title } };
 }
 
-export type FileRename = { id: string; title: string; fileName: string };
+export type { FileRename } from "./write";
 
 /**
  * Admin: new titles and download names for several files at once ("Umbenennen" in the selection, user 13.11.2026).
@@ -188,32 +196,9 @@ export type FileRename = { id: string; title: string; fileName: string };
 export async function renameFiles(input: FileRename[]): Promise<ActionResult<{ count: number }>> {
   const supabase = await adminClient();
   if (!supabase) return denied;
-  const wanted = new Map<string, { title: string; fileName: string }>();
-  for (const item of Array.isArray(input) ? input.slice(0, MAX_UPLOAD_BATCH * 10) : []) {
-    const id = String(item?.id ?? "");
-    const title = cleanName(item?.title, MAX_NAME);
-    const fileName = cleanName(item?.fileName, MAX_FILE_NAME);
-    if (!uuid.test(id) || !title || !nameBase(fileName)) return { ok: false, error: "Bitte jeder Datei einen Namen geben." };
-    wanted.set(id, { title, fileName });
-  }
-  if (!wanted.size) return { ok: false, error: "Bitte Dateien auswählen." };
-  const current = await supabase.from("hub_files").select("id, file_name").in("id", [...wanted.keys()]).returns<{ id: string; file_name: string }[]>();
-  if (current.error) return { ok: false, error: "Die Dateien konnten nicht gelesen werden." };
-  if ((current.data ?? []).length < wanted.size) return { ok: false, error: "Mindestens eine Datei gibt es nicht mehr. Bitte die Auswahl prüfen." };
-  if ((current.data ?? []).some((row) => nameExtension(row.file_name) !== nameExtension(wanted.get(row.id)?.fileName ?? ""))) {
-    return { ok: false, error: "Die Dateiendung darf sich beim Umbenennen nicht ändern." };
-  }
-  // A few at a time: each file has its own new name, and one failure must not stop the others unseen.
-  const changes = [...wanted.entries()];
-  let count = 0;
-  for (let index = 0; index < changes.length; index += 8) {
-    const results = await Promise.all(changes.slice(index, index + 8).map(([id, change]) =>
-      supabase.from("hub_files").update({ title: change.title, file_name: change.fileName }).eq("id", id).select("id").maybeSingle()));
-    count += results.filter((result) => !result.error && result.data).length;
-  }
+  const result = await renameFilesAs(supabase, input);
   refreshWorkspace();
-  if (count < wanted.size) return { ok: false, error: `${count} von ${wanted.size} Dateien umbenannt. Die übrigen ließen sich nicht ändern.` };
-  return { ok: true, data: { count } };
+  return result;
 }
 
 /** Admin: deletes files for good. The records go first, their assignments with them, then the stored bytes. */

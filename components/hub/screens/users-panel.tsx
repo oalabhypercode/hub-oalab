@@ -31,8 +31,8 @@ export function Field({ label, note, wide = false, children }: { label: string; 
   return <label className={`um-field${wide ? " is-wide" : ""}`}><span className="am-label">{label}{note && <small>{note}</small>}</span>{children}</label>;
 }
 
-/** A value that is shown but not changed here, such as the e-mail address a login signs in with. */
-export function ReadonlyField({ label, note, value, copyLabel }: { label: string; note?: string; value: string; copyLabel: string }) {
+/** A value that is shown but not typed into here, such as the e-mail address a login signs in with; `action` sits after „Kopieren“. */
+export function ReadonlyField({ label, note, value, copyLabel, action }: { label: string; note?: string; value: string; copyLabel: string; action?: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -47,6 +47,7 @@ export function ReadonlyField({ label, note, value, copyLabel }: { label: string
       <span className="am-label">{label}{note && <small>{note}</small>}</span>
       <span className="um-readonly"><Lock size={14} aria-hidden="true" /><span data-tip={value}>{value}</span>
         <button type="button" onClick={copy} aria-label={copyLabel} data-tip={copied ? "Kopiert" : "Kopieren"}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</button>
+        {action}
       </span>
     </div>
   );

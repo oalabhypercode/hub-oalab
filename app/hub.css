@@ -96,6 +96,8 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 .auth-field input::placeholder { color: var(--label-secondary); opacity: 1; }
 .auth-field input:hover:not(:disabled) { background: var(--auth-control-hover); }
 .auth-field input:focus { background: var(--surface); border-color: var(--accent-text); }
+/* The login's address on the new-password page: shown for password managers, not to type in. */
+.auth-field input[readonly], .auth-field input[readonly]:hover { background: transparent; color: var(--label-secondary); }
 .auth-label-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .auth-label-row > a { display: inline-flex; align-items: center; min-height: 44px; margin-block: -12px; font-size: 15px; line-height: 20px; font-weight: 500; color: var(--accent-text); }
 .auth-label-row > a:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -148,6 +150,12 @@ body:has(.auth-page) { background: transparent; color: var(--on-bg); -webkit-fon
 .legal-sheet strong { font-weight: 650; color: var(--label); }
 .legal-card { margin-top: 10px; padding: 14px 18px; border: 1px solid var(--sheet-line); border-radius: 14px; background: var(--sheet-sunken); font-size: 15px; line-height: 23px; }
 .legal-highlight { margin-top: 12px; padding: 14px 18px; border-radius: 12px; background: var(--sheet-select); box-shadow: inset 3px 0 0 var(--accent-text); }
+.legal-highlight p + p { margin-top: 8px; }
+/* „Infomails abbestellen“ (app/abmelden): the choice on the same sheet as the legal pages. */
+.legal-sheet .optout { margin-top: 24px; }
+.legal-sheet .optout > * + * { margin-top: 14px; }
+.legal-sheet .optout-form { display: flex; }
+.legal-sheet .optout-form button { cursor: pointer; }
 @media (max-width: 767px) {
   .legal-sheet { padding: 16px 20px 28px; border-radius: var(--radius-feature); font-size: 16px; line-height: 25px; }
   .legal-sheet h1 { font-size: 28px; line-height: 34px; }

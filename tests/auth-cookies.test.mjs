@@ -66,8 +66,10 @@ test("auth actions are server actions with rate limits, no public sign-up and no
 });
 
 test("a password link counts as the e-mail code only for logins without an app, and only for recovery", async () => {
-  const route = await source("app/auth/confirm/route.ts");
-  assert.match(route, /if \(type === "recovery" && await confirmRecoveryByMail\(data\.user, data\.session\)\) await supabase\.auth\.refreshSession\(\);/);
+  // Since 18.11.2026 „Passwort speichern“ redeems the password link (the page opened it unused), so the code counts there.
+  const actions = await source("lib/hub-auth/actions.ts");
+  assert.match(actions, /const \{ data, error \} = await supabase\.auth\.verifyOtp\(\{ type: "recovery", token_hash: token \}\);\n[^\n]*\n\s+if \(await confirmRecoveryByMail\(data\.user, data\.session\)\) await supabase\.auth\.refreshSession\(\);/);
+  assert.doesNotMatch(await source("app/auth/confirm/route.ts"), /confirmRecoveryByMail/);
   const recovery = await source("lib/hub-auth/recovery.ts");
   assert.match(recovery, /^import "server-only";/);
   assert.match(recovery, /if \(hasApp \|\| secondFactorMethod\(user\.app_metadata, hasApp\) !== "email"\) return false;/);

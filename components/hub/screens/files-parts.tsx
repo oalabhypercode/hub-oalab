@@ -4,11 +4,14 @@ import { useState } from "react";
 import { File, FileArchive, FileImage, FileText, Search } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { fileCategories, fileFormat, type FileCategory } from "@/lib/hub-files/catalog";
+import { previewKind } from "@/lib/hub-files/preview";
 import type { HubFileCustomer, HubStoredFile } from "@/lib/hub-files/types";
 
 export function FileIcon({ file, size = 22, color = categories.files.fill }: { file: Pick<HubStoredFile, "mimeType" | "fileName">; size?: number; color?: string }) {
   const format = fileFormat(file.fileName);
-  const Icon = file.mimeType.startsWith("image/") ? FileImage : ["ZIP", "RAR", "7Z"].includes(format) ? FileArchive : ["PDF", "DOC", "DOCX", "TXT", "XLSX", "PPTX"].includes(format) ? FileText : File;
+  // An image by its type or, where the browser reported none at the upload, by its name (an SVG logo, say).
+  const image = file.mimeType.startsWith("image/") || previewKind(file.fileName, file.mimeType) !== null;
+  const Icon = image ? FileImage : ["ZIP", "RAR", "7Z"].includes(format) ? FileArchive : ["PDF", "DOC", "DOCX", "TXT", "XLSX", "PPTX"].includes(format) ? FileText : File;
   return <Icon size={size} color={color} strokeWidth={1.9} aria-hidden="true" />;
 }
 

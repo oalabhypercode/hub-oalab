@@ -1,0 +1,233 @@
+/**
+ * The admins' project page (Projekte V2, user 15.11.2026): every customer on the left, on the right the chosen one with
+ * all projects, their domains and links and the Service. Pure rules for the screen and the tests, type imports only.
+ * The status is Studio's own (studio_project_details.status), so hub, Studio and the customer always agree; the
+ * customer keeps seeing less of it: In Umsetzung, Dein Feedback or Abgeschlossen.
+ */
+import type { Project, StudioProjectStatus } from "../hub-data";
+import type { CustomerPackage } from "../service-packages";
+import type { ProjectDomain } from "./map";
+import type { CustomerLogo } from "../hub-logos/rules";
+
+export type StatusTone = "info" | "ok" | "bad" | "todo" | "off";
+
+/** Studio's five statuses in Studio's order, with the names Studio gives them. */
+export const studioStatusOrder: readonly StudioProjectStatus[] = ["planning", "active", "risk", "hold", "complete"];
+export const studioStatuses: Record<StudioProjectStatus, { label: string; tone: StatusTone; hint: string }> = {
+  planning: { label: "Planung", tone: "info", hint: "noch nicht begonnen" },
+  active: { label: "In Arbeit", tone: "ok", hint: "läuft nach Plan" },
+  risk: { label: "Gefährdet", tone: "bad", hint: "Termin oder Umfang wackelt" },
+  hold: { label: "Pausiert", tone: "todo", hint: "ruht gerade" },
+  complete: { label: "Fertig", tone: "off", hint: "abgeschlossen" },
+};
+export const isStudioStatus = (value: unknown): value is StudioProjectStatus => typeof value === "string" && (studioStatusOrder as readonly string[]).includes(value);
+
+/** The overview groups what needs attention first: at risk, in work, planned, paused, finished. */
+export const studioGroupOrder: readonly StudioProjectStatus[] = ["risk", "active", "planning", "hold", "complete"];
+
+/** A project runs while it is planned, in work or at risk; paused and finished ones do not. */
+export const isRunning = (status: StudioProjectStatus) => status === "planning" || status === "active" || status === "risk";
+
+/** The Studio status of a hub project; without one (no Studio row) a finished project counts as complete, else active. */
+export const statusOf = (project: Pick<Project, "studio" | "status">): StudioProjectStatus =>
+  project.studio?.status ?? (project.status === "Abgeschlossen" ? "complete" : "active");
+
+/** A released customer task is open: the customer is at turn, whatever the status says (map.ts: „Dein Feedback“). */
+export const isWaiting = (project: Pick<Project, "status" | "tasks">) => project.tasks
+  ? project.tasks.some((task) => task.status !== "done" && task.customer && task.visible)
+  : project.status === "Dein Feedback";
+
+/** What this page saved in Studio: the new version and, when they changed, the status and whether the customer sees it. */
+export type StudioSaved = { version: number; status?: StudioProjectStatus; visible?: boolean };
+
+/** The project with what this page saved, until the page's data carries that version (or a newer one) itself. */
+export function withStudio<P extends Project>(project: P, saved: StudioSaved | undefined): P {
+  if (!saved || (project.studio?.version ?? 0) > saved.version) return project;
+  return {
+    ...project,
+    ...(saved.status ? { status: customerSees(saved.status, isWaiting(project)) } : {}),
+    studio: { ...project.studio, status: saved.status ?? statusOf(project), version: saved.version, ...(saved.visible === undefined ? {} : { visible: saved.visible }) },
+  };
+}
+
+/** What the customer reads in the hub for a Studio status (the hub's rule in map.ts: only "complete" finishes). */
+export function customerSees(status: StudioProjectStatus, waiting: boolean): Project["status"] {
+  if (status === "complete") return "Abgeschlossen";
+  return waiting ? "Dein Feedback" : "In Umsetzung";
+}
+
+/**
+ * The row veil (user 15.11.2026, like the User Management's Zugänge since 9.11.2026): the status colours the whole row,
+ * full on the left half and fading out to the right, with a rounded bar on the left. Finished projects stay plain.
+ */
+export type VeilStatus = Exclude<StudioProjectStatus, "complete">;
+export const veils: Record<VeilStatus, { dot: string; label: string }> = {
+  risk: { dot: "is-none", label: "gefährdet" },
+  hold: { dot: "is-open", label: "pausiert" },
+  active: { dot: "is-ok", label: "in Arbeit" },
+  planning: { dot: "is-info", label: "in Planung" },
+};
+const veilOrder: readonly VeilStatus[] = ["risk", "hold", "active", "planning"];
+export const veilOf = (status: StudioProjectStatus): VeilStatus | null => status === "complete" ? null : status;
+
+/** The legend under a table: how many rows wear which colour, most urgent first; colours without rows stay out. */
+export function veilCounts(statuses: readonly StudioProjectStatus[]) {
+  return veilOrder.flatMap((status) => {
+    const count = statuses.filter((item) => item === status).length;
+    return count ? [{ status, count, ...veils[status] }] : [];
+  });
+}
+
+/** One open request of the customer on the service platform, as the Service group lists it. */
+export type DeskRequest = {
+  id: string;
+  /** "OA-12", how the service platform names it. */
+  reference: string;
+  title: string;
+  /** The service platform's label for its state ("Deine Freigabe"), as the customer reads it there. */
+  label: string;
+  tone: "todo" | "info" | "ok" | "off";
+  /** On the test domain, waiting for the customer's approval. */
+  approval: boolean;
+  projectId: string | null;
+  /** Last change, ISO. */
+  at: string;
+};
+
+/** A hub customer (kind customer) with everything the project page shows next to the projects. */
+export type DeskCustomer = {
+  id: string;
+  /**
+   * oalab's own entry (kind team, plan „oalab als Unternehmen“): first in the list, with internal projects only; no
+   * packages, quota, requests, domains or visibility for a customer.
+   */
+  team?: boolean;
+  /** The team entry's logo (customers take theirs from the asset management). */
+  logo?: CustomerLogo | null;
+  company: string;
+  customerNumber: string;
+  /** The website from the customer data, as its start page. */
+  website: string | null;
+  /** The customer's organization on the service platform; without one there are no projects or requests. */
+  organizationId: string | null;
+  /** The domains of „Vertrag & Domain“. */
+  domains: ProjectDomain[];
+  /** Both package groups, a group without a package as packageId null. */
+  packages: CustomerPackage[];
+  /** New requests this month and the package's limit, while the service platform counts them. */
+  quota: { used: number; limit: number } | null;
+  /** Open requests, newest first. */
+  requests: DeskRequest[];
+  /** Requests finished this month, with the latest one. */
+  done: { count: number; last: { reference: string; title: string; at: string } | null };
+};
+
+export type ProjectDesk = {
+  customers: DeskCustomer[];
+  /** The counted month in German time, „November“, while the service platform counts. */
+  month: string | null;
+  /** Why the customers could not be loaded; the requests or the quota may fail on their own (`partial`). */
+  error: string | null;
+  partial: string | null;
+  /**
+   * Whether this session confirmed a code (aal2). An admin whose second factor is off signs in with the password alone;
+   * Studio refuses every change from such a session, so the page stays read-only and offers „Mit Code bestätigen“.
+   */
+  confirmed: boolean;
+};
+
+/** The customer's projects in one word for the list: whether one runs, is at risk or waits for the customer. */
+export function customerState(projects: readonly Pick<Project, "studio" | "status" | "tasks">[]): { running: boolean; tone: StatusTone; pill: "risk" | "feedback" | null; sub: string } {
+  const statuses = projects.map(statusOf);
+  const runningCount = statuses.filter(isRunning).length;
+  const runs = runningCount === 1 ? "1 Projekt läuft" : `${runningCount} Projekte laufen`;
+  if (statuses.includes("risk")) return { running: true, tone: "bad", pill: "risk", sub: runs };
+  if (runningCount) return { running: true, tone: "ok", pill: projects.some((project) => isRunning(statusOf(project)) && isWaiting(project)) ? "feedback" : null, sub: runs };
+  if (statuses.includes("hold")) return { running: false, tone: "todo", pill: null, sub: "Projekt pausiert" };
+  return { running: false, tone: "off", pill: null, sub: projects.length ? "Kein laufendes Projekt" : "Noch kein Projekt" };
+}
+
+/** The two domains of the customer's head: the live website and its test domain, running projects first. */
+export function mainLinks(projects: readonly Pick<Project, "studio" | "status" | "liveUrl" | "testUrl">[]): { live: string | null; test: string | null } {
+  const ordered = [...projects].sort((a, b) => Number(!isRunning(statusOf(a))) - Number(!isRunning(statusOf(b))));
+  const live = ordered.find((project) => project.liveUrl);
+  const test = live?.testUrl ? live : ordered.find((project) => project.testUrl);
+  return { live: live?.liveUrl ?? null, test: test?.testUrl ?? null };
+}
+
+/** The next milestone on or after `asOf` (milestones come sorted by day); null once all are reached or none exists. */
+export const nextMilestone = (project: Pick<Project, "milestones">, asOf: string) => project.milestones.find((item) => item.at.slice(0, 10) >= asOf) ?? null;
+
+/** Open projects by urgency (at risk first, then by target day); finished ones are listed apart. */
+export function byUrgency<P extends Pick<Project, "studio" | "status" | "dueOn" | "name">>(projects: readonly P[]): P[] {
+  return [...projects].sort((a, b) => studioGroupOrder.indexOf(statusOf(a)) - studioGroupOrder.indexOf(statusOf(b))
+    || (a.dueOn ?? "9999-12-31").localeCompare(b.dueOn ?? "9999-12-31") || a.name.localeCompare(b.name, "de"));
+}
+
+/** One entry of the page's customer list: a hub customer (or, for a project without one, its organization) with its projects. */
+export type DeskEntry = { key: string; company: string; customer: DeskCustomer | null; projects: Project[] };
+
+/**
+ * „Kacheln“ under Alle Projekte (user 27.11.2026): every customer a tile with its projects as cards, for a quick look
+ * over everything. „Gruppe: Status“ sorts the tiles into four sections by their most urgent project, at risk first.
+ */
+export type TileSection = "risk" | "running" | "hold" | "idle";
+export const tileSections: readonly { id: TileSection; label: string; glyph: StudioProjectStatus; hint: string }[] = [
+  { id: "risk", label: "Gefährdet", glyph: "risk", hint: "mindestens ein Projekt gefährdet" },
+  { id: "running", label: "Laufend", glyph: "active", hint: "alles im Plan" },
+  { id: "hold", label: "Pausiert", glyph: "hold", hint: "nur pausierte Projekte" },
+  { id: "idle", label: "Ohne laufendes Projekt", glyph: "complete", hint: "fertig oder noch keins" },
+];
+
+/** A customer's tile: its open projects (most urgent first) and the finished ones (latest first), as search and filter leave them. */
+export type ProjectTile = { entry: DeskEntry; open: Project[]; done: Project[]; section: TileSection; firstDue: string | null };
+
+/**
+ * The tiles of the board. `shown` is the search and the filter; a customer without a project that passes it stays out,
+ * except a customer without any project at all under `withEmpty` (Alle, no search), so its tile can start the first one.
+ * By target day the tile with the earliest open project leads, tiles without one come last; by customer oalab's own
+ * entry leads and the customers follow A–Z, like the list on the left.
+ */
+export function projectTiles(entries: readonly DeskEntry[], shown: (project: Project) => boolean, options: { withEmpty: boolean; sort: "due" | "customer"; dir: "asc" | "desc" }): ProjectTile[] {
+  const tiles: ProjectTile[] = [];
+  for (const entry of entries) {
+    const projects = entry.projects.filter(shown);
+    if (!projects.length && !(options.withEmpty && !entry.projects.length)) continue;
+    const statuses = projects.map(statusOf);
+    const open = byUrgency(projects.filter((project) => statusOf(project) !== "complete"));
+    const done = projects.filter((project) => statusOf(project) === "complete").sort((a, b) => (b.dueOn ?? "").localeCompare(a.dueOn ?? ""));
+    const section: TileSection = statuses.includes("risk") ? "risk" : statuses.some(isRunning) ? "running" : statuses.includes("hold") ? "hold" : "idle";
+    const firstDue = open.flatMap((project) => project.dueOn ? [project.dueOn] : []).sort()[0] ?? null;
+    tiles.push({ entry, open, done, section, firstDue });
+  }
+  const flip = options.dir === "asc" ? 1 : -1;
+  return tiles.sort((a, b) => {
+    if (options.sort === "customer") return Number(Boolean(b.entry.customer?.team)) - Number(Boolean(a.entry.customer?.team)) || flip * a.entry.company.localeCompare(b.entry.company, "de");
+    if (Boolean(a.firstDue) !== Boolean(b.firstDue)) return a.firstDue ? -1 : 1;
+    return flip * (a.firstDue ?? "").localeCompare(b.firstDue ?? "") || a.entry.company.localeCompare(b.entry.company, "de");
+  });
+}
+
+export type TimeMark = { title: string; day: string; /** Place on the line, 0–100. */ at: number; past: boolean; next: boolean; feedback: boolean };
+export type ProjectTimeline = { start: string; due: string; /** Share of the time that has passed, 0–100; 100 once finished. */ share: number; /** Days past the target day. */ over: number; marks: TimeMark[] };
+
+/**
+ * The time line of a large card (user 27.11.2026): from the start (or, without one, the first milestone) to the target
+ * day, how much of that time has passed on `asOf`, the days past the target day and the milestones on the way. Null
+ * without a start or a target day after it.
+ */
+export function projectTimeline(project: Pick<Project, "startedOn" | "dueOn" | "milestones" | "studio" | "status">, asOf: string): ProjectTimeline | null {
+  const start = project.startedOn ?? project.milestones[0]?.at.slice(0, 10) ?? null;
+  const due = project.dueOn;
+  if (!start || !due || start >= due) return null;
+  const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000;
+  const total = day(due) - day(start);
+  const share = (iso: string) => Math.round(Math.min(100, Math.max(0, ((day(iso) - day(start)) / total) * 100)) * 10) / 10;
+  const done = statusOf(project) === "complete";
+  const next = nextMilestone(project, asOf);
+  const marks = project.milestones.flatMap((milestone) => {
+    const at = milestone.at.slice(0, 10);
+    return at < start || at > due ? [] : [{ title: milestone.title, day: at, at: share(at), past: at < asOf, next: milestone === next, feedback: milestone.kind === "feedback" }];
+  });
+  return { start, due, share: done ? 100 : share(asOf), over: done ? 0 : Math.max(0, Math.round(day(asOf) - day(due))), marks };
+}

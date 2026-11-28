@@ -1,6 +1,6 @@
 import { DEMO_AS_OF } from "../hub-data";
 import type { HubFileCustomer } from "../hub-files/types";
-import { wallTimeToUtc, type AppointmentStatus } from "./rules";
+import { wallTimeToUtc, type AppointmentStatus, type Availability } from "./rules";
 import type { HubAppointment, HubCalendarState } from "./types";
 
 // Fictional appointments for the preview and the public demo, around the fixtures' reference day.
@@ -10,7 +10,14 @@ const customers: Record<string, HubFileCustomer> = {
   horizont: { id: "KD-24031", customerNumber: "KD-24031", company: "Studio Horizont" },
 };
 
+// Sample links of all three providers, so the preview shows the marks of Teams, Zoom and Google Meet (27.11.2026).
 const SAMPLE_TEAMS_URL = "https://teams.microsoft.com/l/meetup-join/beispiel-oalab";
+const SAMPLE_LINKS: Record<string, string> = {
+  "Feedback Brand Direction": "https://us02web.zoom.us/j/84122345567?pwd=beispiel",
+  "Statusrunde Oktober": "https://meet.google.com/kpr-xnow-tzb",
+  "Kickoff Social-Kampagne": "https://meet.google.com/kpr-xnow-tzb",
+  "Content-Planung Q1": "https://us02web.zoom.us/j/84122345567?pwd=beispiel",
+};
 
 type Fixture = [day: string, start: string, end: string, customer: keyof typeof customers | null, title: string, status: AppointmentStatus, description?: string, note?: string];
 
@@ -37,11 +44,22 @@ const appointments: HubAppointment[] = fixtures.map(([day, start, end, customer,
   start: wallTimeToUtc(day, start),
   end: wallTimeToUtc(day, end),
   status,
-  teamsUrl: status === "confirmed" && customer ? SAMPLE_TEAMS_URL : null,
+  teamsUrl: status === "confirmed" && customer ? SAMPLE_LINKS[title] ?? SAMPLE_TEAMS_URL : null,
   responseNote: note,
   customer: customer ? customers[customer] : null,
   sample: true,
 }));
+
+/** A fictional availability like the approved preview: lunch break, a short Friday, a fair, a day off, an extra Saturday. */
+const availability: Availability = {
+  week: [[[540, 720], [780, 1020]], [[540, 720], [780, 1020]], [[540, 720], [780, 1020]], [[540, 720], [780, 1020]], [[540, 780]], [], []],
+  exceptions: [
+    { id: "sample-x1", day: "2026-10-22", kind: "off", from: 540, to: 720, note: "Messe, nur nachmittags da" },
+    { id: "sample-x2", day: "2026-10-24", kind: "extra", from: 600, to: 780, note: "Samstag für den Livegang" },
+    { id: "sample-x3", day: "2026-10-30", kind: "off", from: null, to: null, note: "Urlaubstag" },
+  ],
+  rules: { notice: 1440, buffer: 15, horizon: 8, durations: [30, 45, 60, 90] },
+};
 
 /** Admins see every fixture appointment; customers their own and the anonymous busy times of all others. */
 export function calendarFixtures({ admin, customerNumber }: { admin: boolean; customerNumber: string | null }): HubCalendarState {
@@ -52,6 +70,11 @@ export function calendarFixtures({ admin, customerNumber }: { admin: boolean; cu
     busy: appointments.filter((item) => item.status === "confirmed").map(({ start, end }) => ({ start, end })),
     customers: Object.values(customers).filter((customer) => admin || customer.customerNumber === customerNumber),
     canManage: admin,
+    // The preview's changes never leave the browser, so its tasks move without a code.
+    confirmed: admin,
+    // Customers never see the team's notes.
+    availability: admin ? availability : { ...availability, exceptions: availability.exceptions.map((item) => ({ ...item, note: "" })) },
+    availabilityReady: true,
     today: DEMO_AS_OF,
     now: wallTimeToUtc(DEMO_AS_OF, "08:00"),
   };

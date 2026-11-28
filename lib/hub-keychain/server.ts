@@ -5,6 +5,7 @@ import { readCustomerPackages } from "@/lib/hub-contracts/packages";
 import type { CustomerLogo } from "@/lib/hub-logos/rules";
 import { loadCustomerLogos } from "@/lib/hub-logos/server";
 import { vaultKeyId } from "@/lib/hub-vault/key";
+import { readArchive } from "@/lib/hub-archive/server";
 import { keychainAdmin, lockOf } from "./gate";
 import { MAILBOX_CATEGORY } from "./rules";
 import type { KeychainCategory, KeychainEntry, KeychainGate, KeychainOwner, KeychainState } from "./types";
@@ -41,7 +42,7 @@ export async function loadKeychain(): Promise<KeychainState> {
   const admin = await keychainAdmin();
   if (!admin) return empty("Der Schlüsselbund ist nur für Admins verfügbar.");
   const { db } = admin;
-  const [categories, customers, logins, mailboxes, secrets, logos, packages, lock] = await Promise.all([
+  const [categories, customers, logins, mailboxes, secrets, logos, packages, lock, archive] = await Promise.all([
     db.from("hub_keychain_categories").select("id, name, icon, position, fixed").order("position").order("name").returns<CategoryRow[]>(),
     db.from("hub_customers").select("id, company, customer_number, kind").order("company").returns<CustomerRow[]>(),
     db.from("hub_customer_logins").select("id, customer_id, kind, label, login_url, username, updated_at").returns<LoginRow[]>(),
@@ -50,6 +51,7 @@ export async function loadKeychain(): Promise<KeychainState> {
     loadCustomerLogos(db).catch(() => new Map<string, CustomerLogo>()),
     readCustomerPackages(db).catch(() => ({ ready: false, byCustomer: new Map() })),
     lockOf(admin).catch(() => ({ status: "locked", attemptsLeft: 0, recoveryLeft: 0 }) as const),
+    readArchive(db),
   ]);
   const error = categories.error ?? secrets.error ?? logins.error;
   if (error && isMissingKeychain(error)) return empty("Der Schlüsselbund ist in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus.");
@@ -63,12 +65,14 @@ export async function loadKeychain(): Promise<KeychainState> {
     if (row.purpose === "note") notes.add(owner);
     else passwords.set(owner, row.updated_at);
   }
+  // The accesses of archived customers stay stored and out of sight until the customer is restored (lib/hub-archive).
+  const inSight = (row: { customer_id: string | null }) => !row.customer_id || !archive.customerIds.has(row.customer_id);
   const entries: KeychainEntry[] = [
-    ...(mailboxes.data ?? []).map((row): KeychainEntry => ({
+    ...(mailboxes.data ?? []).filter(inSight).map((row): KeychainEntry => ({
       id: row.id, kind: "mailbox", categoryId: MAILBOX_CATEGORY, ownerId: row.customer_id, title: readableAddress(row.address), person: row.person,
       loginUrl: "", username: readableAddress(row.address), hasPassword: passwords.has(row.id), hasNote: notes.has(row.id), changedAt: passwords.get(row.id) ?? row.updated_at,
     })),
-    ...(logins.data ?? []).map((row): KeychainEntry => ({
+    ...(logins.data ?? []).filter(inSight).map((row): KeychainEntry => ({
       id: row.id, kind: "login", categoryId: row.kind, ownerId: row.customer_id, title: row.label, person: "",
       loginUrl: row.login_url, username: row.username, hasPassword: passwords.has(row.id), hasNote: notes.has(row.id), changedAt: passwords.get(row.id) ?? row.updated_at,
     })),
@@ -78,7 +82,7 @@ export async function loadKeychain(): Promise<KeychainState> {
   const owners: KeychainOwner[] = [
     OWN_OWNER,
     // Freelancers hold no accesses: only entries of the kind customer.
-    ...(customers.data ?? []).filter((row) => (row.kind ?? "customer") === "customer").map((row): KeychainOwner => ({
+    ...(customers.data ?? []).filter((row) => (row.kind ?? "customer") === "customer" && !archive.customerIds.has(row.id)).map((row): KeychainOwner => ({
       id: row.id, company: row.company, customerNumber: row.customer_number, logo: logos.get(row.id) ?? null,
       cancelled: (packages.byCustomer.get(row.id) ?? []).some((item: { packageId: string | null; until: string | null }) => Boolean(item.packageId && item.until)),
     })),

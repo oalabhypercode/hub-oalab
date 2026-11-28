@@ -28,8 +28,14 @@ export const categories: Record<CategoryId, Category> = {
 
 export const categoryOrder: CategoryId[] = ["projects", "files", "contracts", "messages", "calendar"];
 
-/** The areas a login sees: freelancers have neither projects nor contracts (both stay with the oalab team and the customer). */
-export const categoriesFor = (freelancer: boolean) => categoryOrder.filter((id) => !(freelancer && (id === "projects" || id === "contracts")));
+/**
+ * The areas a login sees. Freelancers have no contracts (they stay with the oalab team and the customer); since
+ * 16.11.2026 they have „Projekte“, which leads them straight to the task board of their projects (see projectsHref).
+ */
+export const categoriesFor = (freelancer: boolean) => categoryOrder.filter((id) => !(freelancer && id === "contracts"));
+
+/** Where „Projekte“ leads: freelancers have no projects page of their own, only the board of the projects they work on. */
+export const projectsHref = (base: string, freelancer: boolean) => (freelancer ? `${base}/tasks` : base);
 
 /** The category's name as this person sees it: admins call the files their "Asset Management". */
 export const categoryLabel = (id: CategoryId, admin: boolean) => (admin && adminSectionLabels[categories[id].section]) || categories[id].name;

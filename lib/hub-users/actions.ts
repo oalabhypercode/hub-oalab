@@ -6,16 +6,28 @@ import { headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteOrigin } from "@/lib/site-origin";
-import { mailAnnouncement, mailApproval, mailPasswordLink, mailRejection } from "@/lib/hub-mail/notify";
+import { mailAnnouncement, mailApproval, mailLaunchReminder, mailLoginEmailChanged, mailPasswordLink, mailRejection, mailStartSeries } from "@/lib/hub-mail/notify";
+import { infoMailSecret, infoMailsWanted } from "@/lib/hub-mail/opt-out";
+import { hasConfirmedApp, secondFactorMethod } from "@/lib/hub-auth/second-factor";
 import { hasMailbox } from "@/lib/hub-auth/mail-code";
 import type { MailStatus } from "@/lib/hub-mail/send";
 import { defaultPlan } from "@/lib/hub-assistant/customers";
 import { fillsFor, IMPORT_BATCH } from "@/lib/hub-customer-import/rules";
-import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, LOGIN_BATCH, readAnnounceDay } from "@/lib/hub-invitations/rules";
+import { ANNOUNCE_DAYS_AHEAD, INVITE_BATCH, isStartMailKind, LOGIN_BATCH, readAnnounceDay, readLaunchDay, START_MAILS, startMailAction, type StartMailKind } from "@/lib/hub-invitations/rules";
 import { mailSettings } from "@/lib/hub-mail/send";
 import { ACTIVATION_LINK_HOURS, LINK_HOURS, usesOwnPlatform } from "@/lib/platform/config";
-import { cleanEmail, cleanText, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type PersonInput } from "./rules";
+import { HUB_FILES_BUCKET } from "@/lib/hub-files/catalog";
+import { LOGO_BUCKET } from "@/lib/hub-logos/rules";
+import { readArchive } from "@/lib/hub-archive/server";
+import { customerDetails, customerRow, writeCustomerAs } from "./customer-write";
+import { cleanEmail, cleanText, emailChangeMailNote, freelancerNumberRefusal, isCustomerKind, isHubRole, kindForRole, readCustomer, readNewLoginEmail, readPerson, roleLabels, serviceCustomerRefusal, type CustomerInput, type CustomerKind, type HubRole, type InfoMailOutcome, type PersonInput } from "./rules";
 import { listAllUsers, roleOf, verifyHubAdmin } from "./server";
+import { CLAUDE_SWITCH, FREELANCER_CONNECTION_DAYS } from "@/lib/hub-mcp/config";
+import { connectorReady, disconnect, disconnectAll, listConnections, type ConnectionView } from "@/lib/hub-mcp/store";
+import { readEntriesWithoutActiveLogin } from "./deactivated";
+import { endFeedsOf, feedReady } from "@/lib/hub-calendar/feed-store";
+import { isTeamKind } from "@/lib/hub-team/rules";
+import { changeTeamRole, type TeamRoleChange } from "@/lib/hub-team/server";
 
 // Every action is a public POST endpoint: each one checks with the caller's own session that the database
 // considers them an active admin before the service role touches anything. Inputs are validated here again,
@@ -40,6 +52,17 @@ async function context(): Promise<Context | null> {
 
 async function log(ctx: Context, action: string, summary: string, target: { userId?: string | null; customerId?: string | null } = {}) {
   await ctx.db.from("hub_admin_events").insert({ actor_id: ctx.actorId, action, summary: summary.slice(0, 300), target_user_id: target.userId ?? null, target_customer_id: target.customerId ?? null });
+}
+
+/**
+ * The login's calendar subscription ends with the change that took its ground (Kalender-Abo, 22.11.2026): a second
+ * factor reset by an admin, a deactivation, another role. Its link stops at once instead of with the next fetch, and
+ * the history says so. A failure leaves it to the fetch, which checks the same again (lib/hub-calendar/feed-store.ts).
+ */
+async function endCalendarFeed(ctx: Context, userId: string, why: string) {
+  if (!feedReady()) return;
+  const ended = await endFeedsOf(userId).catch(() => 0);
+  if (ended) await log(ctx, "calendar.feed_ended", `Kalender-Abo beendet: ${why}`, { userId });
 }
 
 async function loadUser(ctx: Context, userId: unknown): Promise<User | null> {
@@ -102,26 +125,32 @@ function readChoice(value: unknown): CustomerChoice | null {
   return null;
 }
 
-const customerRow = (input: CustomerInput) => ({ company: input.company, customer_number: input.customerNumber, ...customerDetails(input) });
-
-/** What the Hub keeps itself; company and number of a customer in Service belong to its organization. */
-const customerDetails = (input: CustomerInput) => ({
-  contact_email: input.contactEmail,
-  phone: input.phone,
-  website: input.website,
-  street: input.street,
-  postal_code: input.postalCode,
-  city: input.city,
-  country: input.country,
-});
-
 type ResolvedCustomer = { customerId: string | null; customerNumber: string | null; company: string | null; organizationId: string | null; created: boolean };
 
-/** The kind of an entry; "customer" while the freelancer migration is missing (the column is not there yet). */
+/**
+ * The kind of an entry; "customer" while the freelancer migration is missing (the column is not there yet). Null for
+ * oalab's own entry (kind "team"): it is neither, so no action for customers or freelancers applies to it.
+ */
 async function kindOf(ctx: Context, customerId: string): Promise<CustomerKind | null> {
   const { data, error } = await ctx.db.from("hub_customers").select("kind").eq("id", customerId).maybeSingle<{ kind: string }>();
   if (error) return error.code === "42703" ? "customer" : null;
-  return data ? (isCustomerKind(data.kind) ? data.kind : "customer") : null;
+  if (!data || isTeamKind(data.kind)) return null;
+  return isCustomerKind(data.kind) ? data.kind : "customer";
+}
+
+/**
+ * The team role in Studio („Darf Projekte und Aufgaben bearbeiten“, plan „oalab als Unternehmen“, decision 4): given,
+ * taken, paused and resumed with the login (lib/hub-team/server.ts) and logged. Higher roles stay the service platform's.
+ * Returns the error text of a failed change, null otherwise.
+ */
+async function teamRole(ctx: Context, userId: string, change: TeamRoleChange): Promise<string | null> {
+  const result = await changeTeamRole(ctx.db, userId, change, ctx.actorId).catch(() => ({ ok: false as const, error: "Die Team-Rolle konnte gerade nicht geändert werden." }));
+  if (!result.ok) return result.error;
+  if (result.changed) {
+    const summary = { grant: "Team-Rolle im Studio vergeben (Projekte und Aufgaben)", revoke: "Team-Rolle im Studio entzogen", pause: "Team-Rolle im Studio ruht", resume: "Team-Rolle im Studio gilt wieder" }[change];
+    await log(ctx, `user.team_role_${change}`, summary, { userId });
+  }
+  return null;
 }
 
 const pickMessage = (kind: CustomerKind) => kind === "freelancer" ? "Bitte einen Freelancer auswählen oder neu anlegen." : "Bitte einen Kunden auswählen oder neu anlegen.";
@@ -173,17 +202,25 @@ type LinkSide = { customerId: string; freelancerIds: string[] } | { freelancerId
 /**
  * Who looks after whom, as the admin ticked it: the freelancers of one customer or the customers of one freelancer.
  * Only differences are written. The database checks the kind of both sides (a wrong id fails, nothing else changes).
+ * Archived entries are not offered in the form, so their links stay as they are and none is added to them.
+ * `activeOnly` (outside the user management): no new link to a freelancer whose every login is deactivated.
  */
-async function replaceLinks(ctx: Context, side: LinkSide): Promise<ActionResult<{ added: number; removed: number }>> {
+async function replaceLinks(ctx: Context, side: LinkSide, activeOnly = false): Promise<ActionResult<{ added: number; removed: number }>> {
   const byCustomer = "customerId" in side;
   const fixed = byCustomer ? side.customerId : side.freelancerId;
-  const wanted = Array.from(new Set((byCustomer ? side.freelancerIds : side.customerIds).filter((id) => typeof id === "string" && uuid.test(id)))).slice(0, 500);
+  const archive = await readArchive(ctx.db);
+  const wanted = Array.from(new Set((byCustomer ? side.freelancerIds : side.customerIds).filter((id) => typeof id === "string" && uuid.test(id) && !archive.customerIds.has(id)))).slice(0, 500);
   const [own, other] = byCustomer ? ["customer_id", "freelancer_id"] as const : ["freelancer_id", "customer_id"] as const;
   const current = await ctx.db.from("hub_freelancer_customers").select("freelancer_id, customer_id").eq(own, fixed).returns<{ freelancer_id: string; customer_id: string }[]>();
   if (current.error) return failed("Die Zuordnung der Freelancer konnte nicht gelesen werden.");
   const existing = new Set((current.data ?? []).map((row) => row[other]));
-  const removed = [...existing].filter((id) => !wanted.includes(id));
+  const removed = [...existing].filter((id) => !wanted.includes(id) && !archive.customerIds.has(id));
   const added = wanted.filter((id) => !existing.has(id));
+  if (activeOnly && added.length) {
+    const inactive = await readEntriesWithoutActiveLogin(ctx.db, byCustomer ? added : [fixed]);
+    if (!inactive) return failed("Die Zuordnung der Freelancer konnte nicht geprüft werden.");
+    if (inactive.size) return failed("Ein Freelancer ohne aktiven Zugang kann keinen Kunden betreuen. Im User Management lässt sich sein Zugang wieder aktivieren.");
+  }
   if (removed.length) {
     const { error } = await ctx.db.from("hub_freelancer_customers").delete().eq(own, fixed).in(other, removed);
     if (error) return failed("Die Zuordnung der Freelancer konnte nicht geändert werden.");
@@ -260,16 +297,7 @@ async function noteServiceCustomer(ctx: Context, customer: { organizationId: str
  * number go through its organization (Service's sync passes them on) and the contact data through the Hub's own row.
  */
 async function writeCustomer(ctx: Context, id: string, organizationId: string | null, value: CustomerInput): Promise<ActionResult<{ id: string }>> {
-  if (organizationId) {
-    const refused = serviceCustomerRefusal(value);
-    if (refused) return failed(refused);
-    const organization = await ctx.db.from("organizations").update({ name: value.company, customer_number: value.customerNumber }).eq("id", organizationId);
-    if (organization.error) return failed(organization.error.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
-  }
-  const row = organizationId ? customerDetails(value) : customerRow(value);
-  const { data, error } = await ctx.db.from("hub_customers").update({ ...row, updated_by: ctx.actorId }).eq("id", id).select("id").single<{ id: string }>();
-  if (error || !data) return failed(error?.code === "23505" ? "Diese Kundennummer ist schon vergeben." : "Der Kunde konnte nicht gespeichert werden.");
-  return { ok: true, data };
+  return writeCustomerAs(ctx.db, ctx.actorId, id, organizationId, value);
 }
 
 async function firstNameOf(ctx: Context, userId: string) {
@@ -362,7 +390,7 @@ export async function rejectRegistration(input: { userId: string; note: string }
 // Logins -------------------------------------------------------------------------------------------------------------
 
 /** Creates a login with role and customer; returns the activation link and, if asked for, mails it to the login. */
-export async function createHubUser(input: { email: string; firstName: string; lastName: string; phone: string; position: string; role: string; customer: unknown; mailLink?: boolean }): Promise<ActionResult<{ userId: string; link: string; mail: MailStatus | null }>> {
+export async function createHubUser(input: { email: string; firstName: string; lastName: string; phone: string; position: string; role: string; customer: unknown; mailLink?: boolean; teamRole?: boolean }): Promise<ActionResult<{ userId: string; link: string; mail: MailStatus | null; teamRole: string | null }>> {
   const ctx = await context();
   if (!ctx) return denied;
   const email = cleanEmail(input?.email);
@@ -379,9 +407,11 @@ export async function createHubUser(input: { email: string; firstName: string; l
   const { user, link, customerId } = added.data;
   if (!link) return failed("Der Zugang konnte nicht vollständig angelegt werden. Es wurde nichts gespeichert.");
   await log(ctx, "user.created", `Zugang angelegt als ${roleLabels[role]}`, { userId: user.id, customerId });
+  // A new admin who may work on projects and tasks gets Studio's team role right away; a failure leaves the login as it is.
+  const teamRoleError = role === "oalab_admin" && input.teamRole === true ? await teamRole(ctx, user.id, "grant") : null;
   const mail = input.mailLink === true ? await mailPasswordLink(ctx.db, user, { firstName: person.value.firstName, link, activation: true, validUntil: activationUntil() }) : null;
   refreshWorkspace();
-  return { ok: true, data: { userId: user.id, link, mail } };
+  return { ok: true, data: { userId: user.id, link, mail, teamRole: teamRoleError } };
 }
 
 /**
@@ -542,6 +572,120 @@ export async function sendAnnouncementTest(input: { day?: unknown }): Promise<Ac
   return mail === "sent" ? { ok: true, data: { to: admin.email } } : failed(mailStatusMessage(mail));
 }
 
+/** What the reminder needs besides the login: the day of the start and where to sign in. */
+async function reminderInput(day: unknown) {
+  const date = readLaunchDay(day, new Date());
+  return date ? { day: date, hubUrl: (await requestOrigin()) ?? "" } : null;
+}
+
+const launchDayRefusal = `Bitte einen Tag von morgen bis in ${ANNOUNCE_DAYS_AHEAD} Tagen wählen.`;
+
+/**
+ * „Erinnerung senden“ (23.11.2026): before the start of hub and service platform, a mail to every customer login that is
+ * active, signed in already or not yet (launchReminderMail): the day of the start, the login's address with the question
+ * whether it should be another one, what both offer and, without a first sign-in, the way in. At most INVITE_BATCH per
+ * call. Each mail lands in the admin log (user.launch_reminder), which shows who has it already.
+ */
+export async function sendLaunchReminders(input: { userIds?: unknown; day?: unknown }): Promise<ActionResult<InvitationResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Erinnerung raus.");
+  const reminder = await reminderInput(input?.day);
+  if (!reminder) return failed(launchDayRefusal);
+  const ids = Array.isArray(input?.userIds) ? [...new Set(input.userIds.filter((id): id is string => typeof id === "string" && uuid.test(id)))] : [];
+  if (!ids.length || ids.length > INVITE_BATCH) return failed(`Bitte 1 bis ${INVITE_BATCH} Erinnerungen auf einmal senden.`);
+  const results: InvitationResult[] = [];
+  for (const userId of ids) {
+    const user = await loadUser(ctx, userId);
+    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Diesen Zugang gibt es nicht mehr." }); continue; }
+    if (roleOf(user) !== "oalab_customer") { results.push({ userId, outcome: "skipped", error: "Die Erinnerung ist nur für Kunden-Zugänge." }); continue; }
+    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "skipped", error: "Der Zugang ist nicht aktiv." }); continue; }
+    const mail = await mailLaunchReminder(user.email, { ...reminder, active: Boolean(user.last_sign_in_at) });
+    await log(ctx, mail === "sent" ? "user.launch_reminder" : "user.launch_reminder_failed", mail === "sent" ? "Erinnerung zum Start per E-Mail verschickt" : "Erinnerung zum Start ging nicht raus", { userId: user.id });
+    results.push(mail === "sent" ? { userId, outcome: "sent" } : { userId, outcome: "failed", error: mailStatusMessage(mail) });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
+}
+
+/** The reminder to the admin's own address in both versions, the version in the subject, to check them in a real inbox. */
+export async function sendLaunchReminderTest(input: { day?: unknown }): Promise<ActionResult<{ to: string }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet.");
+  const reminder = await reminderInput(input?.day);
+  if (!reminder) return failed(launchDayRefusal);
+  const admin = await loadUser(ctx, ctx.actorId);
+  if (!admin?.email) return failed("Dein Zugang hat keine E-Mail-Adresse.");
+  for (const active of [true, false]) {
+    const mail = await mailLaunchReminder(admin.email, { ...reminder, active, test: true });
+    if (mail !== "sent") return failed(mailStatusMessage(mail));
+  }
+  return { ok: true, data: { to: admin.email } };
+}
+
+/**
+ * What every mail of the start series needs before it goes out: the mail of the series, the hub's origin for the links
+ * and the key that signs each login's link to stop the info mails. Without the key no mail goes out, as none could
+ * carry its way to object (§ 7 Abs. 3 UWG).
+ */
+async function startMailInput(kind: unknown): Promise<ActionResult<{ kind: StartMailKind; hubUrl: string; secret: string }>> {
+  if (!isStartMailKind(kind)) return failed("Bitte eine der vier Startmails wählen.");
+  const hubUrl = await requestOrigin();
+  if (!hubUrl) return failed("Die Adresse des Hubs fehlt. Bitte lade die Seite neu.");
+  const secret = infoMailSecret();
+  if (!secret) return failed("Der Schlüssel für die Abmelde-Links fehlt auf dem Server (HUB_NOTIFY_TOKEN). Ohne ihn geht keine Infomail raus.");
+  return { ok: true, data: { kind, hubUrl, secret } };
+}
+
+const startMailLabel = (kind: StartMailKind) => START_MAILS.find((mail) => mail.kind === kind)?.label ?? kind;
+
+/**
+ * „Startmails senden“ (26.11.2026): one mail of the start series (the launch mail or one of the three info mails) to
+ * customer logins that are active, signed in already or not yet (startSeriesMail). Logins that stopped the info mails
+ * get none. At most INVITE_BATCH per call; each mail lands in the admin log (user.start_mail.<kind>), which shows who
+ * has which already.
+ */
+export async function sendStartMails(input: { userIds?: unknown; kind?: unknown }): Promise<ActionResult<InvitationResult[]>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet. Ohne ihn geht keine Startmail raus.");
+  const setup = await startMailInput(input?.kind);
+  if (!setup.ok) return setup;
+  const ids = Array.isArray(input?.userIds) ? [...new Set(input.userIds.filter((id): id is string => typeof id === "string" && uuid.test(id)))] : [];
+  if (!ids.length || ids.length > INVITE_BATCH) return failed(`Bitte 1 bis ${INVITE_BATCH} Startmails auf einmal senden.`);
+  const { kind } = setup.data;
+  const results: InvitationResult[] = [];
+  for (const userId of ids) {
+    const user = await loadUser(ctx, userId);
+    if (!user?.email) { results.push({ userId, outcome: "failed", error: "Diesen Zugang gibt es nicht mehr." }); continue; }
+    if (roleOf(user) !== "oalab_customer") { results.push({ userId, outcome: "skipped", error: "Die Startmails sind nur für Kunden-Zugänge." }); continue; }
+    if (await profileStatus(ctx, user.id) !== "active") { results.push({ userId, outcome: "skipped", error: "Der Zugang ist nicht aktiv." }); continue; }
+    if (!infoMailsWanted(user.user_metadata)) { results.push({ userId, outcome: "skipped", error: "Hat die Infomails abbestellt." }); continue; }
+    const mail = await mailStartSeries(user.email, { ...setup.data, userId: user.id, active: Boolean(user.last_sign_in_at) });
+    await log(ctx, mail === "sent" ? startMailAction(kind) : "user.start_mail_failed", mail === "sent" ? `Startmail „${startMailLabel(kind)}“ per E-Mail verschickt` : `Startmail „${startMailLabel(kind)}“ ging nicht raus`, { userId: user.id });
+    results.push(mail === "sent" ? { userId, outcome: "sent" } : { userId, outcome: "failed", error: mailStatusMessage(mail) });
+  }
+  refreshWorkspace();
+  return { ok: true, data: results };
+}
+
+/** One mail of the series to the admin's own address in both versions, the version in the subject. */
+export async function sendStartMailTest(input: { kind?: unknown }): Promise<ActionResult<{ to: string }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  if (!mailSettings().configured) return failed("Der Mailversand ist noch nicht eingerichtet.");
+  const setup = await startMailInput(input?.kind);
+  if (!setup.ok) return setup;
+  const admin = await loadUser(ctx, ctx.actorId);
+  if (!admin?.email) return failed("Dein Zugang hat keine E-Mail-Adresse.");
+  for (const active of [true, false]) {
+    const mail = await mailStartSeries(admin.email, { ...setup.data, userId: admin.id, active, test: true });
+    if (mail !== "sent") return failed(mailStatusMessage(mail));
+  }
+  return { ok: true, data: { to: admin.email } };
+}
+
 /**
  * A fresh link to set the password: the activation for new logins, a reset for everyone else. Older links expire.
  * "copy" hands the link to the admin; "mail" sends it to the login's own address and keeps it from the admin.
@@ -591,8 +735,44 @@ export async function updateHubUser(input: { userId: string; firstName: string; 
     && await assignCustomer(ctx, user.id, customer.data.customerId);
   if (!done) return failed("Die Änderungen konnten nicht vollständig gespeichert werden. Bitte prüfe den Zugang.");
   await log(ctx, "user.updated", roleChanged ? `Zugang bearbeitet, Rolle jetzt ${roleLabels[role]}` : "Zugang bearbeitet", { userId: user.id, customerId: customer.data.customerId });
+  if (roleChanged) await endCalendarFeed(ctx, user.id, "Rolle geändert");
+  // No longer an admin: the team role the hub gave goes too (a role from the service platform stays there).
+  if (roleChanged && role !== "oalab_admin") await teamRole(ctx, user.id, "revoke");
   refreshWorkspace();
   return { ok: true, data: null };
+}
+
+/**
+ * A new e-mail address for an existing login (User Management › Zugang › Profil, since 23.11.2026), e.g. when a customer
+ * answers the launch reminder with another one. The login stays the same, with its id and everything on it: customer,
+ * chats, notifications, calendar subscription, second factor and password. It signs in with the new address only, in
+ * the hub and on the service platform, which reads the same login table. In one step the own platform changes the
+ * address, ends every session of the login and drops the one-time links sent before (lib/platform/auth.ts): they went
+ * to the old address, and a password link counts as the e-mail code too. With `notify` an active login gets an info mail
+ * at both addresses. The log names neither address.
+ */
+export async function changeHubUserEmail(input: { userId: string; email: string; notify?: boolean }): Promise<ActionResult<{ email: string; activated: boolean; mail: { toNew: InfoMailOutcome; toOld: InfoMailOutcome } }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  // Supabase Auth would keep sessions and links of the old address, so only the own platform changes it.
+  if (!usesOwnPlatform()) return failed("Die E-Mail-Adresse lässt sich nur auf der eigenen Plattform ändern.");
+  const user = await loadUser(ctx, input?.userId);
+  if (!user?.email) return failed("Diesen Zugang gibt es nicht mehr.");
+  const status = await profileStatus(ctx, user.id);
+  const role = roleOf(user);
+  const method = secondFactorMethod(user.app_metadata, hasConfirmedApp(user.factors));
+  const email = readNewLoginEmail({ next: input?.email, current: user.email, self: user.id === ctx.actorId, status, needsMailbox: role !== "oalab_customer" || method === "email", mailbox: hasMailbox });
+  if (!email.ok) return email;
+  const { error } = await ctx.db.auth.admin.updateUserById(user.id, { email: email.value });
+  if (error) return failed(error.code === "email_exists" ? "Für diese E-Mail-Adresse besteht bereits ein Zugang." : "Die E-Mail-Adresse konnte nicht geändert werden. Bitte versuche es erneut.");
+  const activated = Boolean(user.last_sign_in_at);
+  // Deactivated and rejected logins cannot sign in, so a mail on how to sign in now would mislead.
+  const mail = input?.notify === true && status === "active"
+    ? await mailLoginEmailChanged({ firstName: await firstNameOf(ctx, user.id), email: email.value, previous: user.email, activated, serviceToo: role !== "oalab_freelancer", hubUrl: (await requestOrigin()) ?? "" })
+    : { toNew: null, toOld: null };
+  await log(ctx, "user.email_changed", `E-Mail-Adresse geändert; überall abgemeldet, ältere Passwort- und Aktivierungslinks ungültig; ${emailChangeMailNote(mail) || "ohne Info-Mail"}`, { userId: user.id });
+  refreshWorkspace();
+  return { ok: true, data: { email: email.value, activated, mail } };
 }
 
 /** Deactivates (blocks the login and all data at once) or reactivates a login. */
@@ -614,6 +794,9 @@ export async function setHubUserActive(input: { userId: string; active: boolean 
   const banned = saved && !(await ctx.db.auth.admin.updateUserById(user.id, { ban_duration: active ? "none" : BLOCKED })).error;
   if (!banned) return failed(active ? "Der Zugang konnte nicht aktiviert werden." : "Der Zugang konnte nicht vollständig deaktiviert werden. Bitte erneut versuchen.");
   await log(ctx, active ? "user.reactivated" : "user.deactivated", active ? "Zugang wieder aktiviert" : "Zugang deaktiviert", { userId: user.id });
+  if (!active) await endCalendarFeed(ctx, user.id, "Zugang deaktiviert");
+  // The team role the hub gave rests with the login and comes back with it.
+  await teamRole(ctx, user.id, active ? "resume" : "pause");
   refreshWorkspace();
   return { ok: true, data: null };
 }
@@ -642,8 +825,85 @@ export async function setHubUserSecondFactor(input: { userId: string; choice: "o
   if (error) return failed("Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.");
   const summary = choice === "email" ? "Zwei-Faktor-Schutz: Code per E-Mail" : "Zwei-Faktor-Schutz ausgeschaltet";
   await log(ctx, choice === "email" ? "user.second_factor_email" : "user.second_factor_off", apps.length ? `${summary}, Authenticator-App entfernt` : summary, { userId: user.id });
+  await endCalendarFeed(ctx, user.id, "zweiter Faktor zurückgesetzt");
   refreshWorkspace();
   return { ok: true, data: null };
+}
+
+/**
+ * „Projekte und Aufgaben“ at an admin's login (plan „oalab als Unternehmen“, decision 4): on gives Studio's smallest team
+ * role, Operator, in the oalab organization, so the admin writes projects and tasks; with it they also work on requests
+ * on the service platform. Off takes it. Roles given on the service platform are changed there only. An admin cannot
+ * take their own, so nobody locks themself out of the board.
+ */
+export async function setHubUserTeamRole(input: { userId: string; on: boolean }): Promise<ActionResult<null>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (roleOf(user) !== "oalab_admin") return failed("Projekte und Aufgaben bearbeitet das oalab-Team: Das gibt es nur für Admins.");
+  if (typeof input?.on !== "boolean") return failed("Bitte an oder aus wählen.");
+  if (!input.on && user.id === ctx.actorId) return failed("Deine eigene Team-Rolle kannst du nicht abschalten.");
+  if (input.on && await profileStatus(ctx, user.id) !== "active") return failed("Erst den Zugang wieder aktivieren; dann gilt die Team-Rolle.");
+  const error = await teamRole(ctx, user.id, input.on ? "grant" : "revoke");
+  if (error) return failed(error);
+  refreshWorkspace();
+  return { ok: true, data: null };
+}
+
+/**
+ * Claude for a freelancer login (19.11.2026). On: the freelancer may connect Claude in their profile, and Claude then
+ * works with their rights only (lib/hub-mcp/freelancer.ts), each connection for 30 days. Off: every connection of the
+ * login ends at once. Admins connect Claude themselves; customers never. Kept in app_metadata like the second factor
+ * (Supabase merges app_metadata, null removes the key); the connector reads it fresh on every request.
+ */
+export async function setHubUserClaude(input: { userId: string; allowed: boolean }): Promise<ActionResult<{ ended: number }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user) return failed("Diesen Zugang gibt es nicht mehr.");
+  if (roleOf(user) !== "oalab_freelancer") return failed("Claude schaltest du hier nur für Freelancer frei. Admins verbinden Claude selbst im Profil.");
+  if (typeof input?.allowed !== "boolean") return failed("Bitte an oder aus wählen.");
+  const allowed = input.allowed;
+  const { error } = await ctx.db.auth.admin.updateUserById(user.id, { app_metadata: { [CLAUDE_SWITCH]: allowed ? true : null } });
+  if (error) return failed("Die Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.");
+  // Off ends the connections now; the connector refuses them from the next request on anyway (lib/hub-mcp/store.ts).
+  const ended = allowed ? 0 : await disconnectAll(user.id).catch(() => 0);
+  const summary = allowed ? `Claude freigeschaltet, jede Verbindung gilt ${FREELANCER_CONNECTION_DAYS} Tage`
+    : ended ? `Claude ausgeschaltet, ${ended === 1 ? "eine Verbindung" : `${ended} Verbindungen`} getrennt` : "Claude ausgeschaltet";
+  await log(ctx, allowed ? "user.claude_on" : "user.claude_off", summary, { userId: user.id });
+  refreshWorkspace();
+  return { ok: true, data: { ended } };
+}
+
+/** The Claude connections of a freelancer login for the admin's panel; `enabled`: the connector itself is switched on. */
+export async function loadHubUserClaude(input: { userId: string }): Promise<ActionResult<{ enabled: boolean; connections: ConnectionView[] }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user || roleOf(user) !== "oalab_freelancer") return failed("Diesen Freelancer-Zugang gibt es nicht mehr.");
+  if (!connectorReady()) return { ok: true, data: { enabled: false, connections: [] } };
+  try {
+    return { ok: true, data: { enabled: true, connections: await listConnections(user.id) } };
+  } catch {
+    return failed("Die Verbindungen konnten gerade nicht geladen werden.");
+  }
+}
+
+/** „Trennen“ for one connection of a freelancer login: Claude's keys stop at once; the switch stays as it is. */
+export async function disconnectHubUserClaude(input: { userId: string; connectionId: string }): Promise<ActionResult<null>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const user = await loadUser(ctx, input?.userId);
+  if (!user || roleOf(user) !== "oalab_freelancer") return failed("Diesen Freelancer-Zugang gibt es nicht mehr.");
+  try {
+    const name = await disconnect(user.id, String(input?.connectionId ?? ""));
+    if (!name) return failed("Diese Verbindung gibt es nicht mehr.");
+    await log(ctx, "user.claude_disconnected", `${name} beim Freelancer getrennt`, { userId: user.id });
+    return { ok: true, data: null };
+  } catch {
+    return failed("Das hat gerade nicht geklappt. Bitte versuche es erneut.");
+  }
 }
 
 /** Deletes a login for good. The e-mail address has to be typed again as confirmation. */
@@ -694,7 +954,9 @@ export async function saveCustomer(input: { id?: string; freelancerIds?: unknown
 
   const current = await ctx.db.from("hub_customers").select("organization_id").eq("id", id).maybeSingle<{ organization_id: string | null }>();
   if (current.error || !current.data) return failed("Diesen Kunden gibt es nicht mehr.");
-  if (await kindOf(ctx, id) === "freelancer") return failed("Das ist ein Freelancer. Bitte über „Freelancer“ bearbeiten.");
+  const kind = await kindOf(ctx, id);
+  if (!kind) return failed("Diesen Kunden gibt es nicht mehr.");
+  if (kind === "freelancer") return failed("Das ist ein Freelancer. Bitte über „Freelancer“ bearbeiten.");
   const written = await writeCustomer(ctx, id, current.data.organization_id, customer.value);
   if (!written.ok) return written;
   const data = written.data;
@@ -803,8 +1065,216 @@ export async function setCustomerFreelancers(input: { customerId: string; freela
   const customerId = typeof input?.customerId === "string" && uuid.test(input.customerId) ? input.customerId : null;
   if (!customerId || await kindOf(ctx, customerId) !== "customer") return failed("Diesen Kunden gibt es nicht mehr.");
   const freelancerIds = Array.isArray(input?.freelancerIds) ? input.freelancerIds.filter((value): value is string => typeof value === "string") : [];
-  const linked = await replaceLinks(ctx, { customerId, freelancerIds });
+  const linked = await replaceLinks(ctx, { customerId, freelancerIds }, true);
   if (!linked.ok) return linked;
   refreshWorkspace();
   return { ok: true, data: { count: freelancerIds.length } };
+}
+
+// Archive, restore and delete (17.11.2026) ----------------------------------------------------------------------------
+// The database does the work in one transaction each (migration 202611170001 in service-oalab, on top of 202611160003):
+// it blocks or frees the profiles, archives or reactivates the Service organization and deletes what hangs on the
+// entry. Here come the steps it cannot take: signing logins in or out (Auth), the stored bytes (Storage) and the log.
+
+type ArchiveOutcome = { status: "archived" | "restored" | "unchanged" | "missing"; logins?: string[] };
+type DeleteOutcome = { status: "deleted" | "missing" | "mismatch"; files?: string[]; logo?: string | null; removed?: number; detached?: number; blocked?: string[] };
+
+/** The database functions of the archive are missing (migration not applied yet). */
+const missingArchive = (error: { code?: string; message?: string } | null) => Boolean(error && (error.code === "PGRST202" || error.code === "42883" || error.code === "42703" || /hub_(archive|restore|delete)_customer|archived_/i.test(error.message ?? "")));
+const archiveNotReady = "Archivieren und Löschen sind in der Datenbank noch nicht eingerichtet. Die Migration steht noch aus.";
+
+type Entry = { id: string; kind: CustomerKind; customerNumber: string; organizationId: string | null };
+
+async function loadEntry(ctx: Context, customerId: unknown): Promise<Entry | null> {
+  if (typeof customerId !== "string" || !uuid.test(customerId)) return null;
+  const { data } = await ctx.db.from("hub_customers").select("id, customer_number, organization_id").eq("id", customerId).maybeSingle<{ id: string; customer_number: string; organization_id: string | null }>();
+  // oalab's own entry is never archived or deleted (the database refuses it too: it would archive the oalab organization).
+  const kind = data ? await kindOf(ctx, data.id) : null;
+  if (!data || !kind) return null;
+  return { id: data.id, kind, customerNumber: data.customer_number, organizationId: data.organization_id };
+}
+
+const entryWord = (entry: Entry) => entry.kind === "freelancer" ? "Freelancer" : "Kunde";
+const loginCount = (count: number) => count === 1 ? "1 Zugang" : `${count} Zugänge`;
+const gone = "Diesen Eintrag gibt es nicht mehr.";
+
+/** Blocks (or frees) the sign-in of logins whose profile the database just blocked (or freed). Returns the misses. */
+async function setSignIn(ctx: Context, userIds: string[], blocked: boolean) {
+  let missed = 0;
+  for (const id of userIds) {
+    if (typeof id !== "string" || !uuid.test(id)) continue;
+    const { error } = await ctx.db.auth.admin.updateUserById(id, { ban_duration: blocked ? BLOCKED : "none" });
+    if (error) missed += 1;
+  }
+  return missed;
+}
+
+/**
+ * Archives a customer or a freelancer: it disappears from every screen of the hub but the user management, its active
+ * logins are blocked and its Service organization is archived. Nothing is deleted; restoring brings it all back.
+ */
+export async function archiveCustomer(input: { customerId: string }): Promise<ActionResult<{ blocked: number; incomplete: number }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const { data, error } = await ctx.db.rpc("hub_archive_customer", { target: entry.id, actor: ctx.actorId });
+  if (error) return failed(missingArchive(error) ? archiveNotReady : "Das Archivieren ist nicht gelungen. Es wurde nichts geändert.");
+  const result = data as ArchiveOutcome;
+  if (result.status === "missing") return failed(gone);
+  if (result.status !== "archived") return failed(`Dieser ${entryWord(entry)} ist schon archiviert.`);
+  const logins = result.logins ?? [];
+  // Their profiles are blocked already, so they see nothing any more; this also ends the sign-in.
+  const incomplete = await setSignIn(ctx, logins, true);
+  await log(ctx, entry.kind === "freelancer" ? "freelancer.archived" : "customer.archived", `${entryWord(entry)} archiviert${logins.length ? `, ${loginCount(logins.length)} gesperrt` : ""}`, { customerId: entry.id });
+  refreshWorkspace();
+  return { ok: true, data: { blocked: logins.length, incomplete } };
+}
+
+/** Brings an archived customer or freelancer back: the logins the archive blocked, its organization in Service, everything. */
+export async function restoreCustomer(input: { customerId: string }): Promise<ActionResult<{ freed: number; incomplete: number }>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const { data, error } = await ctx.db.rpc("hub_restore_customer", { target: entry.id, actor: ctx.actorId });
+  if (error) return failed(missingArchive(error) ? archiveNotReady : "Das Wiederherstellen ist nicht gelungen. Es wurde nichts geändert.");
+  const result = data as ArchiveOutcome;
+  if (result.status === "missing") return failed(gone);
+  if (result.status !== "restored") return failed(`Dieser ${entryWord(entry)} ist nicht archiviert.`);
+  const logins = result.logins ?? [];
+  const incomplete = await setSignIn(ctx, logins, false);
+  await log(ctx, entry.kind === "freelancer" ? "freelancer.restored" : "customer.restored", `${entryWord(entry)} wiederhergestellt${logins.length ? `, ${loginCount(logins.length)} wieder aktiv` : ""}`, { customerId: entry.id });
+  refreshWorkspace();
+  return { ok: true, data: { freed: logins.length, incomplete } };
+}
+
+export type CustomerRemovalPreview = {
+  logins: number;
+  /** Files only this entry holds (they are deleted) and files shared with others (they stay there). */
+  files: number;
+  sharedFiles: number;
+  folders: number;
+  appointments: number;
+  upcoming: number;
+  packages: number;
+  domains: number;
+  /** Accesses and mailboxes of the Schlüsselbund. */
+  accesses: number;
+  messages: number;
+  /** Pages of the notes, the trash included. */
+  notes: number;
+  /** What Service keeps, archived with the organization; null for entries that live only in the hub. */
+  service: { requests: number; projects: number } | null;
+};
+
+const HEAD = { count: "exact" as const, head: true };
+const counted = (query: PromiseLike<{ count: number | null; error: unknown }>) => Promise.resolve(query).then(({ count, error }) => error ? 0 : count ?? 0);
+
+/** What deleting an entry takes with it, for the confirmation in the panel. Counts only, no names. */
+export async function previewCustomerRemoval(input: { customerId: string }): Promise<ActionResult<CustomerRemovalPreview>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const id = entry.id;
+  const organization = entry.organizationId;
+  const [assignments, members, blocked, clients, folders, appointments, upcoming, packages, domains, logins, mailboxes, messages, notes, requests, projects] = await Promise.all([
+    ctx.db.from("hub_file_assignments").select("file_id").eq("customer_id", id).returns<{ file_id: string }[]>(),
+    ctx.db.from("hub_customer_members").select("user_id").eq("customer_id", id).returns<{ user_id: string }[]>(),
+    ctx.db.from("hub_customers").select("archived_logins").eq("id", id).maybeSingle<{ archived_logins: string[] | null }>(),
+    organization ? ctx.db.from("memberships").select("user_id").eq("organization_id", organization).in("role", ["client_owner", "client_member"]).neq("status", "revoked").returns<{ user_id: string }[]>() : null,
+    counted(ctx.db.from("hub_folders").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_appointments").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_appointments").select("id", HEAD).eq("customer_id", id).gt("starts_at", new Date().toISOString()).in("status", ["requested", "confirmed"])),
+    counted(ctx.db.from("hub_customer_packages").select("customer_id", HEAD).eq("customer_id", id).not("package_id", "is", null)),
+    counted(ctx.db.from("hub_customer_domains").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_customer_logins").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_customer_mailboxes").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_private_messages").select("id", HEAD).eq("customer_id", id)),
+    counted(ctx.db.from("hub_note_pages").select("id", HEAD).eq("customer_id", id)),
+    organization ? counted(ctx.db.from("service_requests").select("id", HEAD).eq("organization_id", organization)) : 0,
+    organization ? counted(ctx.db.from("customer_projects").select("id", HEAD).eq("organization_id", organization)) : 0,
+  ]);
+  if (assignments.error || members.error) return failed("Was zu diesem Eintrag gehört, konnte gerade nicht gelesen werden. Bitte versuche es erneut.");
+  const fileIds = [...new Set((assignments.data ?? []).map((row) => row.file_id))];
+  const elsewhere = fileIds.length ? await ctx.db.from("hub_file_assignments").select("file_id").in("file_id", fileIds).neq("customer_id", id).returns<{ file_id: string }[]>() : null;
+  if (elsewhere?.error) return failed("Was zu diesem Eintrag gehört, konnte gerade nicht gelesen werden. Bitte versuche es erneut.");
+  const shared = new Set((elsewhere?.data ?? []).map((row) => row.file_id));
+  const people = new Set([
+    ...(members.data ?? []).map((row) => row.user_id),
+    ...(blocked.error ? [] : blocked.data?.archived_logins ?? []),
+    ...(clients && !clients.error ? clients.data ?? [] : []).map((row) => row.user_id),
+  ]);
+  return {
+    ok: true,
+    data: {
+      logins: people.size,
+      files: fileIds.filter((fileId) => !shared.has(fileId)).length,
+      sharedFiles: shared.size,
+      folders, appointments, upcoming, packages, domains, accesses: logins + mailboxes, messages, notes,
+      service: organization ? { requests, projects } : null,
+    },
+  };
+}
+
+/** The pictures the notes of an entry stored: uploaded covers under notes/<id>/, link pictures under notes/<id>/links/. */
+async function noteImages(db: SupabaseClient, customerId: string) {
+  const root = `notes/${customerId.toLowerCase()}`;
+  const paths: string[] = [];
+  for (const folder of [root, `${root}/links`]) {
+    for (let offset = 0; offset < 20_000; offset += 1000) {
+      const { data, error } = await db.storage.from(HUB_FILES_BUCKET).list(folder, { limit: 1000, offset });
+      if (error || !data?.length) break;
+      paths.push(...data.filter((item) => /^[0-9a-f-]{36}\.webp$/.test(item.name)).map((item) => `${folder}/${item.name}`));
+      if (data.length < 1000) break;
+    }
+  }
+  return paths;
+}
+
+export type CustomerDeletion = { removed: number; blocked: number; detached: number; files: number; storageFailed: boolean };
+
+/**
+ * Deletes a customer or a freelancer for good, with everything the hub holds for it; the number has to be typed again
+ * as confirmation. Its logins go too (one Service still needs is blocked instead, one at home elsewhere only leaves);
+ * the Service organization stays, archived with its requests, since Service keeps an unchangeable audit trail.
+ */
+export async function deleteCustomer(input: { customerId: string; confirmNumber: string }): Promise<ActionResult<CustomerDeletion>> {
+  const ctx = await context();
+  if (!ctx) return denied;
+  const entry = await loadEntry(ctx, input?.customerId);
+  if (!entry) return failed(gone);
+  const typed = typeof input?.confirmNumber === "string" ? input.confirmNumber.trim().toUpperCase() : "";
+  const mismatch = `Zur Bestätigung bitte die Nummer ${entry.customerNumber} genau eintragen.`;
+  if (typed !== entry.customerNumber.toUpperCase()) return failed(mismatch);
+  const { data, error } = await ctx.db.rpc("hub_delete_customer", { target: entry.id, actor: ctx.actorId, confirm_number: entry.customerNumber });
+  if (error) return failed(missingArchive(error) ? archiveNotReady : "Das Löschen ist nicht gelungen. Es wurde nichts gelöscht.");
+  const result = data as DeleteOutcome;
+  if (result.status === "missing") return failed(gone);
+  if (result.status !== "deleted") return failed(mismatch);
+  // The records are gone, so nobody reaches these bytes any more; removing them frees the space.
+  const files = (result.files ?? []).filter((path) => typeof path === "string");
+  let storageFailed = false;
+  for (let start = 0; start < files.length; start += 100) {
+    const removed = await ctx.db.storage.from(HUB_FILES_BUCKET).remove(files.slice(start, start + 100));
+    if (removed.error) storageFailed = true;
+  }
+  if (result.logo) {
+    const removed = await ctx.db.storage.from(LOGO_BUCKET).remove([result.logo]);
+    if (removed.error) storageFailed = true;
+  }
+  // The notes went with the entry (the database cascades); their uploaded covers and link pictures stay in the storage.
+  const images = await noteImages(ctx.db, entry.id);
+  for (let start = 0; start < images.length; start += 100) {
+    const removed = await ctx.db.storage.from(HUB_FILES_BUCKET).remove(images.slice(start, start + 100));
+    if (removed.error) storageFailed = true;
+  }
+  const blocked = result.blocked ?? [];
+  await setSignIn(ctx, blocked, true);
+  const parts = [result.removed ? `${loginCount(result.removed)} gelöscht` : "", blocked.length ? `${loginCount(blocked.length)} gesperrt` : ""].filter(Boolean);
+  // The entry is gone, so the log names its number instead of pointing at it.
+  await log(ctx, entry.kind === "freelancer" ? "freelancer.deleted" : "customer.deleted", `${entryWord(entry)} ${entry.customerNumber} endgültig gelöscht${parts.length ? ` (${parts.join(", ")})` : ""}`);
+  refreshWorkspace();
+  return { ok: true, data: { removed: result.removed ?? 0, blocked: blocked.length, detached: result.detached ?? 0, files: files.length, storageFailed } };
 }

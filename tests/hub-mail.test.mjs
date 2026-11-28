@@ -5,8 +5,11 @@ import { safeAuthRedirect } from "../lib/auth-redirect.ts";
 import { MAIL_IMAGES } from "../lib/hub-mail/images.ts";
 import { readSmtpResult, readSmtpSettings, smtpError, smtpMessage, smtpTransport } from "../lib/hub-mail/smtp.ts";
 import {
-  accessAnnouncementMail, accessApprovedMail, cleanSubject, escapeHtml, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
+  accessAnnouncementMail, accessApprovedMail, cleanSubject, escapeHtml, launchReminderMail, loginCodeMail, passwordLinkMail, registrationReceivedMail, registrationRejectedMail, safeUrl, teamRegistrationMail,
+  OPT_OUT_NOTICE, START_INFO_MAILS, startSeriesMail,
 } from "../lib/hub-mail/templates.ts";
+import { INFO_MAILS_KEY, infoMailOptOut, infoMailSecret, infoMailSignature, infoMailsWanted, OPT_OUT_PATHS, validInfoMailLink } from "../lib/hub-mail/opt-out.ts";
+import { START_MAILS } from "../lib/hub-invitations/rules.ts";
 
 // Windows checkouts may carry CRLF line endings; the source checks below compare LF text.
 const source = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
@@ -139,7 +142,9 @@ test("the sign-in code mail shows the six digits large in the body and keeps the
 test("the announcement names the day by its weekday, guides through the first sign-in and greets without a name", () => {
   const day = new Date("2026-11-11T12:00:00Z");
   const mail = accessAnnouncementMail({ day, sender: "hub@oalab.de", days: 7, hubUrl: "https://hub.oalab.de" }, legal);
-  assert.equal(mail.subject, "Ab Mittwoch: dein Zugang zum oalab Client Hub");
+  // The subject adds the date: the mail comes days before and stays in the inbox (17.11.2026).
+  assert.equal(mail.subject, "Ab Mittwoch, 11. November: dein Zugang zum oalab Client Hub");
+  assert.equal(accessAnnouncementMail({ day: new Date("2026-11-25T12:00:00Z"), sender: "hub@oalab.de", days: 7, hubUrl: "https://hub.oalab.de" }).subject, "Ab Mittwoch, 25. November: dein Zugang zum oalab Client Hub");
   assert.match(mail.html, />Dein Zugang kommt am Mittwoch<\/h1>/);
   assert.match(mail.html, />Mittwoch, 11\. November 2026<\/div>/);
   assert.match(mail.html, /<div style="display:none[^>]*>Am Mittwoch, 11\. November 2026 kommt dein persönlicher Aktivierungslink von hub@oalab\.de\./);
@@ -163,6 +168,164 @@ test("the announcement names the day by its weekday, guides through the first si
   assert.match(short.text, /Der Link ist einen Tag gültig\./);
   assert.match(short.text, /Später meldest du dich mit deiner E-Mail-Adresse und deinem Passwort an\./);
   assert.doesNotMatch(short.html, /javascript:/);
+});
+
+test("the launch reminder names the start, asks whether the login's address fits and guides only logins nobody has used yet", () => {
+  const input = { day: new Date("2026-11-25T12:00:00Z"), email: "info@musterfirma.de", sender: "hub@oalab.de", hubUrl: "https://hub.oalab.de", serviceUrl: "https://service.oalab.de" };
+  const active = launchReminderMail({ ...input, active: true }, legal);
+  const waiting = launchReminderMail({ ...input, active: false }, legal);
+  for (const mail of [active, waiting]) {
+    assert.equal(mail.subject, "Start am Mittwoch, 25. November: Client Hub und Serviceplattform");
+    assert.match(mail.html, />Am Mittwoch geht’s los<\/h1>/);
+    assert.match(mail.html, /<div style="display:none[^>]*>Was dich erwartet und eine kurze Bitte: Prüf, ob dein Zugang auf die richtige E-Mail-Adresse läuft\./);
+    // The address the login uses, for both platforms, and the question whether it should be another one (by reply).
+    assert.match(mail.text, /\nAnmeldung mit: info@musterfirma\.de\nGilt für: Client Hub und Serviceplattform\n/);
+    assert.match(mail.text, /\nPasst diese E-Mail-Adresse\?\nSoll dein Zugang über eine andere Adresse laufen, etwa deine persönliche statt einer Sammeladresse\? Dann antworte einfach auf diese E-Mail und nenn uns die neue Adresse, am besten noch vor Mittwoch\./);
+    // Hub messages are no service requests (they never mix), and the service platform has its own link.
+    assert.match(mail.text, /Das zählt nicht als Service-Anfrage\./);
+    assert.match(mail.html, /<a class="link" href="https:\/\/service\.oalab\.de\/"[^>]*>Zur Serviceplattform&nbsp;&rarr;<\/a>/);
+    assert.match(mail.html, /Hallo, lieber <span style="white-space:nowrap;">oalab-Kunde!<\/span>/);
+    for (const id of ["host-ali", "host-omed", "area-news", "area-contracts", "logo"]) assert.ok(mail.images.includes(id), id);
+    for (const id of mail.images) assert.ok(Object.hasOwn(MAIL_IMAGES, id), id);
+    assert.ok(mail.html.length < 100_000, String(mail.html.length));
+  }
+  // Signed in already: no guide, the button leads to the hub.
+  assert.match(active.text, /\nStatus: Aktiv\n/);
+  assert.match(active.text, /Wir stellen deinen Zugang dann um\./);
+  assert.doesNotMatch(active.html, /Dein Zugang wartet auf dich|Link anfordern/);
+  assert.match(active.text, /\nZum Client Hub: https:\/\/hub\.oalab\.de\/\n/);
+  assert.ok(!active.images.includes("mail-tile"));
+  // Nobody signed in yet: after the question the way in through „Passwort vergessen?“, which works without a password.
+  assert.match(waiting.text, /\nStatus: Noch nicht aktiviert\n/);
+  assert.match(waiting.text, /\n1\. Link anfordern\nAuf der Anmeldeseite unter „Passwort vergessen\?“ gibst du info@musterfirma\.de ein\. Das klappt auch, wenn du noch nie ein Passwort hattest\. Kurz darauf kommt eine E-Mail von hub@oalab\.de\.\nhttps:\/\/hub\.oalab\.de\/auth\/forgot-password\n/);
+  assert.match(waiting.text, /\n2\. Passwort festlegen\nTippe in der E-Mail auf „Neues Passwort festlegen“/);
+  assert.match(waiting.text, /\nZugang aktivieren: https:\/\/hub\.oalab\.de\/auth\/forgot-password\n/);
+  assert.ok(waiting.html.indexOf("Passt diese E-Mail-Adresse?") < waiting.html.indexOf("Dein Zugang wartet auf dich"));
+  assert.ok(waiting.images.includes("mail-tile"));
+  // The address is escaped, and unusable links leave out links and button instead of passing them on.
+  const odd = launchReminderMail({ ...input, email: "o'neil<b>@example.com", hubUrl: "javascript:alert(1)", serviceUrl: "data:text/html,hi", active: false });
+  assert.match(odd.html, /o&#39;neil&lt;b&gt;@example\.com/);
+  assert.doesNotMatch(odd.html, /javascript:|data:text|<b>@|Zugang aktivieren/);
+  assert.match(odd.text, /\nAuf der Serviceplattform beschreibst du, was wir/);
+});
+
+test("the launch reminder comes only dark, the other mails follow the reader's light or dark mode", () => {
+  const input = { day: new Date("2026-11-26T12:00:00Z"), email: "info@musterfirma.de", sender: "hub@oalab.de", hubUrl: "https://hub.oalab.de", serviceUrl: "https://service.oalab.de" };
+  for (const active of [true, false]) {
+    const { html } = launchReminderMail({ ...input, active }, legal);
+    assert.match(html, /<meta name="color-scheme" content="dark">\n<meta name="supported-color-schemes" content="dark">/);
+    assert.match(html, /:root\{color-scheme:dark;supported-color-schemes:dark\}/);
+    // The dark card without a media query, hidden from classic Outlook for Windows, which keeps the light card.
+    assert.doesNotMatch(html, /prefers-color-scheme/);
+    assert.match(html, /<!--\[if !mso\]><!--><style>\n\.canvas\{background-color:#3A0624 !important\}\n\.card\{background:#1C181B !important;border-color:#2E262B !important\}/);
+    // Outlook on the web in its own dark mode: text and backgrounds it recoloured go back to the dark design.
+    assert.match(html, /\[data-ogsc\] \.ink\{color:#F6F0F3 !important\}/);
+    assert.match(html, /\[data-ogsb\] \.card\{background:#1C181B !important/);
+    assert.match(html, /class="canvas" style="background-color:#3A0624;/);
+  }
+  const announcement = accessAnnouncementMail({ day: input.day, sender: "hub@oalab.de", days: 7, hubUrl: "https://hub.oalab.de" }, legal).html;
+  assert.match(announcement, /<meta name="color-scheme" content="light dark">/);
+  assert.match(announcement, /@media \(prefers-color-scheme:dark\)\{\n\.canvas\{/);
+  assert.doesNotMatch(announcement, /\[if !mso\]|\[data-ogsb\]/);
+});
+
+test("the start series: four dark mails, each with the login's own way to stop them and no phone number", () => {
+  const optOut = { page: "https://hub.oalab.de/abmelden?u=1&sig=a", oneClick: "https://hub.oalab.de/api/mail/abmelden?u=1&sig=a" };
+  const input = { email: "info@musterfirma.de", sender: "hub@oalab.de", hubUrl: "https://hub.oalab.de", serviceUrl: "https://service.oalab.de", optOut };
+  for (const { kind, subject } of START_MAILS) {
+    for (const active of [true, false]) {
+      const mail = startSeriesMail(kind, { ...input, active }, legal);
+      const label = `${kind} ${active ? "aktiv" : "wartet"}`;
+      assert.equal(mail.subject, subject, label);
+      assert.match(mail.html, /<meta name="color-scheme" content="dark">/, label);
+      // § 7 Abs. 3 UWG: the link and the notice at the foot of every one, the one-click address for the header.
+      assert.ok(mail.html.includes(`<a href="https://hub.oalab.de/abmelden?u=1&amp;sig=a" style="color:#FFFFFF;font-weight:600;text-decoration:underline;">Infomails abbestellen</a>`), label);
+      assert.ok(mail.html.includes(OPT_OUT_NOTICE), label);
+      assert.ok(mail.text.includes(`\nInfomails abbestellen: ${optOut.page}\n${OPT_OUT_NOTICE}\n`), label);
+      assert.equal(mail.unsubscribe, optOut.oneClick, label);
+      assert.doesNotMatch(mail.html + mail.text, /\+49|Telefon:|ruf uns an/, label);
+      for (const id of mail.images) assert.ok(Object.hasOwn(MAIL_IMAGES, id), `${label} ${id}`);
+      assert.ok(mail.html.length < 100_000, label);
+      // Logins nobody has signed in with get the way in instead of the button.
+      if (active) assert.doesNotMatch(mail.text, /Zugang aktivieren/, label);
+      else assert.match(mail.text, /\nZugang aktivieren: https:\/\/hub\.oalab\.de\/auth\/forgot-password\n\nDein Zugang wartet noch auf dich: Auf der Anmeldeseite unter „Passwort vergessen\?“ gibst du info@musterfirma\.de ein/, label);
+    }
+  }
+  assert.equal(OPT_OUT_NOTICE, "Du kannst der Nutzung deiner E-Mail-Adresse für diese Infomails jederzeit widersprechen, ohne dass dir dafür andere als die Übermittlungskosten nach den Basistarifen entstehen.");
+  // The days of the info mails are the same in the mails and in the window that sends them.
+  assert.deepEqual(START_INFO_MAILS.map((mail) => [mail.kind, mail.day]), START_MAILS.slice(1).map((mail) => [mail.kind, mail.day]));
+
+  // The launch mail: what hub and service are for, then the three Fridays; questions through the hub, the rest in the imprint.
+  const launch = startSeriesMail("launch", { ...input, active: true }, legal);
+  assert.ok(launch.text.indexOf("Wofür Client Hub und Serviceplattform da sind:") < launch.text.indexOf("Deine nächsten drei Wochen"));
+  assert.match(launch.text, /\n1\. Freitag, 4\. Dezember: Die Serviceplattform\n/);
+  assert.match(launch.text, /\n2\. Freitag, 11\. Dezember: Der Client Hub\n/);
+  assert.match(launch.text, /\n3\. Freitag, 18\. Dezember: Ein Blick nach vorn\n/);
+  assert.match(launch.text, /Bis Ende Mai 2027 gilt auf der Serviceplattform für dich keine monatliche Grenze/);
+  assert.match(launch.text, /Alle weiteren Kontaktwege findest du in unserem Impressum\.\nZum Impressum: https:\/\/oalab\.de\/impressum\n/);
+  assert.match(startSeriesMail("outlook", { ...input, active: true }, legal).text, /Alle weiteren Kontaktwege findest du in unserem Impressum\.\nZum Impressum: https:\/\/oalab\.de\/impressum\n/);
+  // Each info mail names the next one; the last one none.
+  assert.match(startSeriesMail("service", { ...input, active: true }, legal).text, /\nNächste Infomail am Freitag, 11\. Dezember: Der Client Hub\.\n/);
+  assert.match(startSeriesMail("hub", { ...input, active: true }, legal).text, /\nNächste Infomail am Freitag, 18\. Dezember: Ein Blick nach vorn\.\n/);
+  assert.doesNotMatch(startSeriesMail("outlook", { ...input, active: true }, legal).text, /Nächste Infomail/);
+  // The service mail says what the platform really does: the test site first, live only after „Gefällt mir“.
+  const service = startSeriesMail("service", { ...input, active: true }, legal).text;
+  assert.match(service, /\n1\. Neues Gespräch starten\nÖffne service\.oalab\.de und tippe auf „Neues Gespräch“\./);
+  assert.match(service, /Erst wenn dir die Änderung gefällt, schaltet das oalab-Team sie auf deiner Website live; ohne deine Zustimmung geht nichts online\./);
+  assert.match(service, /Als Anhang nimmt sie Bilder \(PNG, JPG oder WebP bis 25 MB\), keine anderen Dateien\./);
+  // An unusable opt-out address leaves out link and header rather than passing it on.
+  const odd = startSeriesMail("launch", { ...input, active: true, optOut: { page: "javascript:alert(1)", oneClick: optOut.oneClick } }, legal);
+  assert.doesNotMatch(odd.html, /Infomails abbestellen|javascript:/);
+  assert.equal(odd.unsubscribe, undefined);
+  // Other mails keep reading as before: no opt-out at their foot.
+  assert.doesNotMatch(launchReminderMail({ day: new Date("2026-11-26T12:00:00Z"), email: "a@b.de", active: true, sender: "hub@oalab.de", hubUrl: "https://hub.oalab.de", serviceUrl: "https://service.oalab.de" }, legal).html, /Infomails abbestellen/);
+});
+
+test("the opt-out link is signed per login, needs the server key and leads to the page or the one-click address", () => {
+  const id = "0b4f1c2e-1111-4a2b-9c3d-123456789abc";
+  const signature = infoMailSignature(id, "geheim");
+  assert.deepEqual(OPT_OUT_PATHS, { page: "/abmelden", oneClick: "/api/mail/abmelden" });
+  assert.deepEqual(infoMailOptOut("https://hub.oalab.de/", id, "geheim"), { page: `https://hub.oalab.de/abmelden?u=${id}&sig=${signature}`, oneClick: `https://hub.oalab.de/api/mail/abmelden?u=${id}&sig=${signature}` });
+  assert.ok(validInfoMailLink(id, signature, "geheim"));
+  assert.ok(validInfoMailLink(id.toUpperCase(), signature, "geheim"), "the same login in capitals");
+  assert.ok(!validInfoMailLink(id, signature, "anders"), "another key");
+  assert.ok(!validInfoMailLink("0b4f1c2e-1111-4a2b-9c3d-123456789abd", signature, "geheim"), "another login");
+  assert.ok(!validInfoMailLink(id, signature, null), "without the key no link opens");
+  for (const bad of ["", signature.slice(1), `${signature}x`, null, 1, "x".repeat(200)]) assert.ok(!validInfoMailLink(id, bad, "geheim"), String(bad));
+  for (const bad of ["", "abc", null, `${id}x`]) assert.ok(!validInfoMailLink(bad, signature, "geheim"), String(bad));
+  assert.equal(INFO_MAILS_KEY, "hub_info_mails");
+  for (const metadata of [undefined, null, {}, { hub_info_mails: true }, { hub_info_mails: "no" }]) assert.ok(infoMailsWanted(metadata), JSON.stringify(metadata));
+  assert.ok(!infoMailsWanted({ hub_info_mails: false }));
+  assert.equal(infoMailSecret({ HUB_NOTIFY_TOKEN: "  geheim " }), "geheim");
+  for (const env of [{}, { HUB_NOTIFY_TOKEN: "  " }]) assert.equal(infoMailSecret(env), null);
+});
+
+test("info mails carry List-Unsubscribe with one click, other mails none", () => {
+  const base = { to: ["a@example.com"], subject: "s", html: "h", text: "t", kind: "user.start_mail.launch" };
+  const url = "https://hub.oalab.de/api/mail/abmelden?u=1&sig=a";
+  assert.deepEqual(smtpMessage("hub@oalab.de", { ...base, unsubscribe: url }).headers, { "X-Hub-Mail": "user.start_mail.launch", "List-Unsubscribe": `<${url}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" });
+  assert.deepEqual(smtpMessage("hub@oalab.de", base).headers, { "X-Hub-Mail": "user.start_mail.launch" });
+  for (const bad of ["http://hub.oalab.de/x", "javascript:alert(1)", "https://hub.oalab.de/a b", "https://x>y", ""]) {
+    assert.deepEqual(smtpMessage("hub@oalab.de", { ...base, unsubscribe: bad }).headers, { "X-Hub-Mail": "user.start_mail.launch" }, bad);
+  }
+});
+
+test("the page behind the link asks first, works without a session and keeps notifications apart", async () => {
+  const page = await source("app/abmelden/page.tsx");
+  assert.match(page, /await connection\(\);/);
+  assert.match(page, /const link = await readInfoMailsLink\(userId, signature\);/);
+  assert.match(page, /<form action=\{switchInfoMails\} className="optout-form">/, "only the button changes anything");
+  assert.match(page, /Benachrichtigungen zu Terminen, Dateien und Nachrichten sowie E-Mails zu deinem Zugang bekommst du weiter\./);
+  assert.match(await source("app/abmelden/actions.ts"), /const saved = await setInfoMails\(userId, signature, formData\.get\("wanted"\) === "1"\);/);
+  const route = await source("app/api/mail/abmelden/route.ts");
+  assert.match(route, /export async function POST\(request: NextRequest\) \{\s*const query = request\.nextUrl\.searchParams;\s*const saved = await setInfoMails\(query\.get\("u"\), query\.get\("sig"\), false\);/);
+  assert.match(route, /export function GET\(request: NextRequest\) \{[^}]*OPT_OUT_PATHS\.page/, "a browser lands on the page, which asks first");
+  const server = await source("lib/hub-mail/opt-out-server.ts");
+  assert.match(server, /if \(!validInfoMailLink\(userId, signature, infoMailSecret\(\)\)\) return false;/);
+  assert.match(server, /updateUserById\(userId, \{ user_metadata: \{ \[INFO_MAILS_KEY\]: wanted \} \}\)/);
+  assert.match(server, /action: wanted \? "user\.info_mails_on" : "user\.info_mails_off"/);
+  assert.match(await source("lib/supabase/proxy.ts"), /\|\| pathname === OPT_OUT_PATHS\.page \|\| pathname === OPT_OUT_PATHS\.oneClick\n/, "open without a session");
+  assert.match(await source("lib/hub-mail/notify.ts"), /optOut: infoMailOptOut\(input\.hubUrl, input\.userId, input\.secret\),/);
 });
 
 test("SMTP access needs host, mailbox and password, and the connection is always encrypted", () => {

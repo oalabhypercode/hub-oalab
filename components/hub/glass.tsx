@@ -18,11 +18,23 @@ export function TitleIcon({ icon: Icon }: { icon: LucideIcon }) {
   return <span className="title-icon"><Icon size={24} color="var(--accent-text)" aria-hidden="true" /></span>;
 }
 
-/** Round (icon) or capsule (text) glass button. Icon-only buttons need a label. */
-export function GlassButton({ icon: Icon, label, children, badge = false, className = "", ...rest }: { icon?: LucideIcon; label?: string; badge?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+/**
+ * The layers of a round button made of liquid glass (app/sidebar.css, 22.11.2026): the glass with the refraction at its
+ * edge, a soft light from within that follows the pointer, and the fine light rim.
+ */
+export function GlassLayers() {
+  return <span className="lg-clip" aria-hidden="true"><span className="lg-fx" /><span className="lg-shine" /><span className="lg-rim" /></span>;
+}
+
+/** Round (icon) or capsule (text) glass button. Icon-only buttons need a label. Round ones are clear liquid glass (22.11.2026). */
+/** `badge`: a dot, or a number (more than 9 reads „9+“; none at 0). */
+export function GlassButton({ icon: Icon, label, children, badge = false, className = "", ...rest }: { icon?: LucideIcon; label?: string; badge?: boolean | number } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const count = typeof badge === "number" ? badge : 0;
   return (
-    <button type="button" className={`glass glass-float glass-button${children ? " glass-button-text" : ""} ${className}`} aria-label={children ? undefined : label} data-tip={children ? undefined : label} {...rest}>
-      {Icon && <Icon size={20} strokeWidth={2} aria-hidden="true" />}{children}{badge && <span className="glass-button-badge" aria-hidden="true" />}
+    <button type="button" className={`${children ? "glass glass-float glass-button glass-button-text" : "lg glass-button"} ${className}`} aria-label={children ? undefined : label} data-tip={children ? undefined : label} {...rest}>
+      {!children && <GlassLayers />}
+      {Icon && <Icon size={20} strokeWidth={2} aria-hidden="true" />}{children}
+      {count > 0 ? <span className="glass-button-badge has-count" aria-hidden="true">{count > 9 ? "9+" : count}</span> : badge === true && <span className="glass-button-badge" aria-hidden="true" />}
     </button>
   );
 }

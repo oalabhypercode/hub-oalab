@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check, ChevronDown, ChevronRight, Ellipsis, Eye, Folder, Inbox, Link2, Pencil, Trash2, UserPlus } from "lucide-react";
 import { MiniLoader } from "@/components/brand-loader";
-import { createDownloadUrls, setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
+import { setFileAssignments, updateFileDetails, type ActionResult } from "@/lib/hub-files/actions";
 import { fileFormat, formatBytes, formatFileDateTime, isFileCategory, type FileCategory } from "@/lib/hub-files/catalog";
+import { mayBeClear, parseImageSize, previewKind, previewRatio, previewUrl } from "@/lib/hub-files/preview";
 import { fileAudiences, isFileAudience, type FileAudience, type HubFileCustomer, type HubFolder, type HubStoredFile } from "@/lib/hub-files/types";
 import { audienceLabels } from "./asset-freelancers";
+import { fileAudienceOfTeamSight, TEAM_SIGHT_LABELS, TEAM_SIGHTS, teamSightOfFile } from "@/lib/hub-team/rules";
 import { saveCustomerLogo } from "@/lib/hub-logos/actions";
-import { canBeLogo } from "@/lib/hub-logos/rules";
+import { detectLogoGround } from "@/lib/hub-logos/ground";
+import { canBeLogo, type LogoBackground } from "@/lib/hub-logos/rules";
 import { useInfo } from "../info-box";
 import { Select } from "../select";
 import { categoryOptions } from "../select-options";
@@ -16,11 +19,6 @@ import { AssetPanel } from "./asset-panel";
 import { CustomerSign } from "./customer-sign";
 import { DownloadButton } from "./files-dialogs";
 import { CategoryPill, CustomerPicker, FileIcon } from "./files-parts";
-
-// Images up to this size show themselves in the details; bigger ones keep their symbol.
-const PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
-const previewFormats = ["PNG", "JPG", "JPEG", "GIF", "WEBP", "AVIF", "SVG"];
-const previewable = (file: HubStoredFile) => file.mimeType.startsWith("image/") && previewFormats.includes(fileFormat(file.fileName)) && file.sizeBytes <= PREVIEW_MAX_BYTES;
 
 type DetailProps = {
   file: HubStoredFile;
@@ -37,6 +35,8 @@ type DetailProps = {
   canFile: (customerId: string) => boolean;
   /** A freelancer's view: only the customers they see, with "Nur für dich" at working files. */
   freelancerView?: boolean;
+  /** A customer's view (27.11.2026): the file lies at their own company; the link is their own. */
+  customerView?: boolean;
   /** Admins with freelancers in the database: who sees the file at a customer that has freelancers. */
   onAudience?: (customerId: string, audience: FileAudience) => Promise<ActionResult<null>>;
   startAssigning: boolean;
@@ -67,12 +67,14 @@ export function FilePanel({ onClose, ...props }: DetailProps & { onClose: () => 
   );
 }
 
-function FileDetails({ file, customers, folders, here, live, canAssign, canFile, freelancerView = false, onAudience, startAssigning, onMove, onDelete, onNotice, editingDetails, onEditDetails }: DetailProps & { editingDetails: boolean; onEditDetails: (on: boolean) => void }) {
+function FileDetails({ file, customers, folders, here, live, canAssign, canFile, freelancerView = false, customerView = false, onAudience, startAssigning, onMove, onDelete, onNotice, editingDetails, onEditDetails }: DetailProps & { editingDetails: boolean; onEditDetails: (on: boolean) => void }) {
   const [editing, setEditing] = useState(startAssigning && canAssign);
   const [selected, setSelected] = useState(file.customers.map((customer) => customer.id));
   const [busy, setBusy] = useState<"assign" | "move" | "logo" | "audience" | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  // The original's width and height, as the preview reports them.
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const signOf = (customer: HubFileCustomer) => customers.find((item) => item.id === customer.id) ?? customer;
   // An image of the customer whose files are open can become that customer's logo in one click.
   const logoFor = here && canAssign && canBeLogo(file) && file.customers.some((customer) => customer.id === here.id) ? here : null;
@@ -80,7 +82,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
     steps: [
       <><b>Zuordnung ändern:</b> Kunden dazunehmen oder entfernen.</>,
       <><b>Den Ordner</b> wählst du je Kunde.</>,
-      <><b>Sichtbar für</b> gilt bei Kunden mit Freelancer.</>,
+      <><b>Sichtbar für</b> gilt bei Kunden mit Freelancer und bei oalab.</>,
     ],
     ask: "Wie funktionieren Freigabe, Ordner und „Sichtbar für“ einer Datei?",
   });
@@ -139,10 +141,10 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
   }
 
   return <>
-    <FilePreview file={file} live={live} />
+    <FilePreview file={file} live={live} onSize={setImageSize} />
     <div className="am-panel-actions">
       <DownloadButton file={file} onError={setError} label className="sheet-action is-primary" />
-      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" data-tip={copied ? "Link kopiert" : freelancerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
+      {live && <button type="button" className="am-icon-btn" onClick={copyLink} aria-label="Link kopieren" data-tip={copied ? "Link kopiert" : freelancerView || customerView ? "Link kopieren" : "Link für den Kunden kopieren"}>{copied ? <Check size={17} aria-hidden="true" /> : <Link2 size={17} aria-hidden="true" />}</button>}
       {canAssign && <MoreMenu onDelete={onDelete} disabled={busy !== null} />}
     </div>
     {copied && <p className="am-help" role="status">Link kopiert. Wer ihn öffnet, sieht die Datei, wenn sein Login sie sehen darf.</p>}
@@ -158,7 +160,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
     )}
 
     <div className="am-field">
-      <span className="am-label">{freelancerView ? "Liegt bei" : "Freigegeben für"}
+      <span className="am-label">{freelancerView || customerView ? "Liegt bei" : "Freigegeben für"}
         {canAssign && shareInfo.button}
         {canAssign && !editing && <button type="button" className="am-label-action" onClick={() => setEditing(true)} disabled={busy !== null}><UserPlus size={13} aria-hidden="true" />Zuordnung ändern</button>}
       </span>
@@ -179,19 +181,22 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
             const own = folders.filter((folder) => folder.customerId === customer.id);
             const folderId = file.folderIds[customer.id] ?? "";
             const audience = file.audiences?.[customer.id] ?? "both";
-            // "Sichtbar für" matters only at customers that freelancers look after.
-            const served = Boolean(onAudience && sign.kind !== "freelancer" && sign.freelancerIds?.length);
+            // "Sichtbar für" matters only at customers that freelancers look after, and at oalab („Nur Team“ or „Team und
+            // Freelancer“, stage 2 of „oalab als Unternehmen“).
+            const team = sign.kind === "team";
+            const served = Boolean(onAudience && sign.kind !== "freelancer" && (team || sign.freelancerIds?.length));
             const folderName = own.find((folder) => folder.id === folderId)?.name ?? "Ohne Ordner";
             return (
               <div key={customer.id} className="am-share-row">
                 <CustomerSign customer={sign} logo={sign.logo} />
                 <span className="am-share-name">
                   <strong>{customer.company}</strong>
-                  <span>{customer.customerNumber}{customer.id === here?.id ? " · hier geöffnet" : ""}{freelancerView && audience === "freelancer" ? " · nur für dich" : ""}</span>
+                  <span>{customer.customerNumber}{customer.id === here?.id && !customerView ? " · hier geöffnet" : ""}{freelancerView && audience === "freelancer" ? " · nur für dich" : ""}</span>
                   {served && (
                     <span className="am-mini am-audience">
                       <Eye size={14} aria-hidden="true" />
-                      <Select variant="bare" label={`Bei ${customer.company} sichtbar für`} value={audience} onChange={(value) => changeAudience(customer, value)} disabled={busy !== null} options={fileAudiences.map((value) => ({ value, label: audienceLabels[value] }))} />
+                      <Select variant="bare" label={`Bei ${customer.company} sichtbar für`} value={team ? fileAudienceOfTeamSight(teamSightOfFile(audience)) : audience} onChange={(value) => changeAudience(customer, value)} disabled={busy !== null}
+                        options={team ? TEAM_SIGHTS.map((sight) => ({ value: fileAudienceOfTeamSight(sight), label: TEAM_SIGHT_LABELS[sight] })) : fileAudiences.map((value) => ({ value, label: audienceLabels[value] }))} />
                       <ChevronDown size={14} aria-hidden="true" />
                     </span>
                   )}
@@ -204,7 +209,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
                       options={[{ value: "", label: "Ohne Ordner", lead: <Inbox size={15} aria-hidden="true" /> }, ...own.map((folder) => ({ value: folder.id, label: folder.name, lead: <Folder size={15} aria-hidden="true" /> }))]} />
                     <ChevronDown size={14} aria-hidden="true" />
                   </span>
-                ) : <span className="am-mini is-static" data-tip="Dieser Kunde hat noch keine Ordner"><Folder size={14} aria-hidden="true" />Ohne Ordner</span>}
+                ) : <span className="am-mini is-static" data-tip={customerView ? "Noch keine Ordner" : "Dieser Kunde hat noch keine Ordner"}><Folder size={14} aria-hidden="true" />Ohne Ordner</span>}
               </div>
             );
           }) : (
@@ -223,6 +228,7 @@ function FileDetails({ file, customers, folders, here, live, canAssign, canFile,
       <dt>Bereitgestellt</dt><dd>{formatFileDateTime(file.createdAt)}</dd>
       <dt>Originaldatei</dt><dd>{file.fileName}</dd>
       <dt>Format</dt><dd>{fileFormat(file.fileName)} ({file.mimeType})</dd>
+      {imageSize && <><dt>Abmessungen</dt><dd>{new Intl.NumberFormat("de-DE").format(imageSize.width)} × {new Intl.NumberFormat("de-DE").format(imageSize.height)} px</dd></>}
       <dt>Größe</dt><dd>{formatBytes(file.sizeBytes)} ({new Intl.NumberFormat("de-DE").format(file.sizeBytes)} Bytes)</dd>
       {file.sha256 && <><dt>Prüfsumme</dt><dd className="am-hash">SHA-256 · {file.sha256}</dd></>}
     </dl>
@@ -305,26 +311,73 @@ function MoreMenu({ onDelete, disabled }: { onDelete: () => void; disabled: bool
   );
 }
 
-/** Images show themselves through a 60-second link, every other file its symbol and format. */
-function FilePreview({ file, live }: { file: HubStoredFile; live: boolean }) {
-  const image = previewable(file);
-  const [url, setUrl] = useState<string | null>(image && file.sampleHref ? file.sampleHref : null);
+/**
+ * Every image shows itself (user 23.11.2026): a preview the server makes (lib/hub-files/preview.ts), whatever the
+ * image's size and whatever type the browser reported at the upload, in the image's own shape. See-through formats
+ * stand on a chequered ground, a light logo on a dark one, in both themes. While it loads the box shimmers; an iPhone
+ * photo (HEIC) or an image the server cannot read says why there is none. Every other file shows its symbol.
+ */
+function FilePreview({ file, live, onSize }: { file: HubStoredFile; live: boolean; onSize: (size: { width: number; height: number } | null) => void }) {
+  const kind = previewKind(file.fileName, file.mimeType);
+  const source = kind !== "image" ? null : file.sampleHref ?? (live ? previewUrl(file, "l") : null);
+  const clear = mayBeClear(file.fileName);
+  const [shown, setShown] = useState<{ src: string; ratio: number } | null>(null);
+  const [ground, setGround] = useState<LogoBackground | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!image || !live || file.sampleHref) return;
+    if (!source) return;
     let active = true;
-    createDownloadUrls([file.id])
-      .then((result) => { if (active && result.ok) setUrl(result.data[0]?.url ?? null); })
-      .catch(() => { /* the symbol stays */ });
-    return () => { active = false; };
-  }, [file.id, file.sampleHref, image, live]);
+    let objectUrl = "";
+    let retryTimer = 0;
+    const show = (src: string, width: number, height: number) => {
+      if (!active) return;
+      setShown({ src, ratio: previewRatio(width, height) });
+      if (clear) detectLogoGround(src).then((value) => { if (active) setGround(value); });
+    };
+    if (file.sampleHref) {
+      // The preview's example files are small and lie next to the page.
+      const image = new Image();
+      image.onload = () => show(source, image.naturalWidth, image.naturalHeight);
+      image.onerror = () => { if (active) setFailed(true); };
+      image.src = source;
+    } else {
+      // A server busy with many previews at once answers 503; the panel asks once more a moment later.
+      const load = (attempt: number) => fetch(attempt ? `${source}&retry=1` : source)
+        .then(async (response) => {
+          if (response.status === 503 && attempt === 0) { retryTimer = window.setTimeout(() => { if (active) load(1); }, 2000); return; }
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const size = parseImageSize(response.headers.get("x-image-size"));
+          objectUrl = URL.createObjectURL(await response.blob());
+          if (active) onSize(size);
+          show(objectUrl, size?.width ?? 4, size?.height ?? 3);
+        })
+        .catch(() => { if (active) setFailed(true); });
+      load(0);
+    }
+    return () => {
+      active = false;
+      window.clearTimeout(retryTimer);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [source, clear, file.sampleHref, onSize]);
 
-  const shown = url !== null && !failed;
+  if (source && !failed) {
+    const groundClass = clear ? (ground === "dark" ? " is-dark" : " is-clear") : " is-photo";
+    return (
+      <div className={`am-preview is-image${groundClass}${shown ? "" : " is-loading"}`} aria-busy={shown ? undefined : true}>
+        <div className="am-preview-frame" style={{ "--ar": (shown?.ratio ?? 4 / 3).toFixed(3) } as CSSProperties}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a preview the hub made itself, nothing to optimise */}
+          {shown && <img src={shown.src} alt={`Vorschau von ${file.title}`} />}
+        </div>
+      </div>
+    );
+  }
+  const note = kind === "heic" ? "iPhone-Fotos im HEIC-Format kann der Browser nicht zeigen. Herunterladen öffnet das Original."
+    : kind === "image" && failed ? "Für dieses Bild gibt es gerade keine Vorschau. Herunterladen öffnet das Original." : "";
   return (
-    <div className={`am-preview${shown ? " is-image" : ""}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- a 60-second preview link, nothing to optimise */}
-      {shown ? <img src={url} alt="" onError={() => setFailed(true)} /> : <span className="am-preview-doc"><FileIcon file={file} size={44} color="currentColor" /><b>{fileFormat(file.fileName)}</b></span>}
+    <div className="am-preview">
+      <span className="am-preview-doc"><FileIcon file={file} size={44} color="currentColor" /><b>{fileFormat(file.fileName)}</b>{note && <small>{note}</small>}</span>
     </div>
   );
 }
