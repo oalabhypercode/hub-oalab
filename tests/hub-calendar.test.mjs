@@ -176,7 +176,7 @@ test("availability: loaded per role, checked on the server and by the database, 
   assert.ok(!(await readdir(new URL("../supabase/migrations", import.meta.url))).some((name) => name.includes("availability")));
   const screen = await source("components/hub/screens/calendar.tsx");
   assert.match(screen, /customerFree\(availability, date, store\.busy, store\.own, now, today\)/, "the green times of customers");
-  assert.match(screen, /useAvailabilityPaint\(root, admin && editing && \(view === "week" \|\| view === "day"\), onPaint\);/, "painting only for admins in week and day");
+  assert.match(screen, /useAvailabilityPaint\(root, admin && editing && !phone && \(view === "week" \|\| view === "day"\), onPaint\);/, "painting only for admins in week and day, not on phones");
 });
 
 test("meeting links of Microsoft Teams, Zoom and Google Meet are accepted, with their provider (27.11.2026)", () => {
@@ -331,4 +331,32 @@ test("appointments find their place in the time grid, side by side where they ov
   const placed = layoutLanes([item("d", "12:00", "13:00"), item("b", "09:30", "11:00"), item("a", "09:00", "10:00"), item("c", "10:00", "10:30")]);
   assert.deepEqual(placed.map(({ id, lane, lanes }) => [id, lane, lanes]), [["a", 0, 2], ["b", 1, 2], ["c", 0, 2], ["d", 0, 1]]);
   assert.deepEqual(layoutLanes([]), []);
+});
+
+test("phones get the calendar's own views: Tag as a day card, rows like the Patch Notes (27.11.2026)", async () => {
+  const screen = await source("components/hub/screens/calendar.tsx");
+  const phone = await source("components/hub/screens/calendar-phone.tsx");
+  const panels = await source("components/hub/screens/calendar-panels.tsx");
+  const css = await source("app/calendar.css");
+  // Below 768 px the pane switches to the phone's views, which remember their own view and start with the day.
+  assert.match(screen, /const phoneQuery = "\(max-width: 767px\)";/);
+  assert.match(screen, /useStoredValue\("oalab-calendar-view-phone", "day"\)/);
+  assert.match(screen, /\{phone \? \(\s*<>\s*\{strip\}\s*<PhoneCalendar \{\.\.\.viewProps\}/);
+  // The server renders the desktop's parts; CSS hides them on phones until the browser switches.
+  assert.match(css, /@media \(max-width: 767px\) \{\s*\/\*[^*]*\*\/\s*\.cal-desk \{ display: none !important; \}/);
+  for (const part of ["sheet-toolbar cal-toolbar cal-desk", "am-scroll cal-scroll cal-desk", "sheet-footer cal-footer cal-desk"]) assert.ok(screen.includes(part), part);
+  // Painting the availability needs the time grid; on phones the button opens the weekly plan.
+  assert.match(screen, /useAvailabilityPaint\(root, admin && editing && !phone &&/);
+  assert.match(screen, /onClick=\{phone \? \(\) => setPanel\(\{ kind: "avail" \}\) : toggleEditing\}/);
+  // Four views; rows with time, entry, a status dot and the join button; a day card with a small month.
+  for (const label of ['label: "Monat"', 'label: "Woche"', 'label: "Tag"', 'label: "Liste"']) assert.ok(phone.includes(label), label);
+  assert.match(phone, /<span className=\{`fl-cell cal-pr-time numeric/);
+  assert.match(phone, /<span className="fl-cell cal-pr-dot" aria-hidden="true">/);
+  assert.match(phone, /<span className="cal-pr-join"><JoinButton url=\{meeting\} variant="icon"/);
+  assert.match(phone, /function MiniMonth\(/);
+  // A customer's appointment is a sheet from below; the admin's form keeps Abbrechen and Speichern at the thumb.
+  assert.match(panels, /className="um-panel cal-panel cal-bsheet"/);
+  assert.match(panels, /\{more\(" cal-desk-only"\)\}/);
+  assert.match(panels, /<div className="cal-fs-more">\{more\(""\)\}<\/div>/);
+  assert.match(css, /\.am-panel\.um-panel\.cal-bsheet \{ top: auto; bottom: 0;/);
 });

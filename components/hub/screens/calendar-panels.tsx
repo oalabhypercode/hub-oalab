@@ -125,11 +125,16 @@ export function AppointmentPanel({ store, appointment, initial, extra, onClose, 
     !appointment ? `„${title.trim()}“ steht am ${formatDayShort(day)} um ${start} im Kalender.${customer ? ` ${customer.company} bekommt eine Meldung.` : ""}`
       : `„${title.trim()}“ gespeichert.${customer && (slot?.day !== day || slot?.start !== start) ? ` ${customer.company} bekommt eine Meldung zur neuen Zeit.` : ""}`);
 
-  const footer = closing ? null : appointment ? <>
-    {status === "confirmed" && upcoming && <button type="button" className="sheet-action" onClick={() => setClosing(true)} disabled={busy}><CalendarX size={15} aria-hidden="true" />Absagen</button>}
-    <button type="button" className={`sheet-action${confirmDelete ? " is-danger" : ""}`} onClick={() => confirmDelete ? run(() => store.remove(appointment.id), `„${appointment.title}“ gelöscht.`) : setConfirmDelete(true)} disabled={busy}>
+  // Absagen and Löschen: in the footer on the desktop; on phones they move into the form's end, so the footer holds only
+  // Abbrechen and Speichern at the thumb (preview „Version 2“, 27.11.2026).
+  const more = (place: string) => appointment && <>
+    {status === "confirmed" && upcoming && <button type="button" className={`sheet-action${place}`} onClick={() => setClosing(true)} disabled={busy}><CalendarX size={15} aria-hidden="true" />Absagen</button>}
+    <button type="button" className={`sheet-action${confirmDelete ? " is-danger" : ""}${place}`} onClick={() => confirmDelete ? run(() => store.remove(appointment.id), `„${appointment.title}“ gelöscht.`) : setConfirmDelete(true)} disabled={busy}>
       {busy && confirmDelete ? <MiniLoader size={15} /> : <Trash2 size={15} aria-hidden="true" />}{confirmDelete ? "Endgültig löschen" : "Löschen"}
     </button>
+  </>;
+  const footer = closing ? null : appointment ? <>
+    {more(" cal-desk-only")}
     <span className="pj-spacer" />
     <button type="button" className="sheet-action" onClick={onClose} disabled={busy}>Abbrechen</button>
     <button type="button" className="sheet-action is-primary" onClick={save} disabled={busy || !title.trim()}>{busy && !confirmDelete ? <MiniLoader size={15} /> : <Check size={15} aria-hidden="true" />}{status === "confirmed" ? "Speichern" : "Neu planen"}</button>
@@ -179,6 +184,7 @@ export function AppointmentPanel({ store, appointment, initial, extra, onClose, 
         </div>
       )}
       {extra}
+      {appointment && !closing && <div className="cal-fs-more">{more("")}</div>}
       {error && <p className="form-error" role="alert">{error}</p>}
     </AssetPanel>
   );
@@ -305,7 +311,7 @@ export function CustomerAppointmentPanel({ store, appointment, canWithdraw, extr
     <button type="button" className="sheet-action is-primary" onClick={onClose}>Fertig</button>
   </>;
   return (
-    <AssetPanel className="um-panel cal-panel" label={appointment.title} onClose={onClose} icon={<Glyph tone={statusTone[status]}><Icon size={19} aria-hidden="true" /></Glyph>}
+    <AssetPanel className="um-panel cal-panel cal-bsheet" label={appointment.title} onClose={onClose} icon={<Glyph tone={statusTone[status]}><Icon size={19} aria-hidden="true" /></Glyph>}
       title={appointment.title} subtitle={`${appointmentStatuses[status]} · ${formatDayShort(dayOf(appointment.start))}, ${timeOf(appointment.start)}`} footer={footer}>
       <div className="cal-summary"><span className="cal-summary-day"><CalendarCheck size={16} aria-hidden="true" /><b>{formatDayLong(dayOf(appointment.start))}</b></span><span className="cal-summary-time numeric">{formatTimeRange(appointment)}</span></div>
       {status === "confirmed" && upcoming && (meetingProvider(appointment.teamsUrl)

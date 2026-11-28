@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -32,6 +32,7 @@ import { CustomerSign } from "./customer-sign";
 import { AvailabilityPanel, type ExceptionPreset } from "./calendar-availability";
 import { CalendarFeedPanel } from "./calendar-feed";
 import { AppointmentPanel, AskPanel, CustomerAppointmentPanel, GoalPanel, NewTaskPanel, RequestPanel, TaskPanel, type TaskProjectOption } from "./calendar-panels";
+import { PhoneCalendar } from "./calendar-phone";
 import { boardTasks, projectGoals, projectTasks, useCalendarStore, type CalendarTask } from "./calendar-store";
 import { HOUR_PX, ListView, MonthView, WeekView, type AvailBlock, type CalendarViewProps, type DayLabel, type OpenTarget, type ViewAppointment } from "./calendar-views";
 import { MeetingNote } from "./notes-links";
@@ -72,6 +73,11 @@ const VIEW_NAMES: Record<CalendarView, string> = { month: "Monat", week: "Woche"
 const MINUTE = 60_000;
 const byStart = (a: HubAppointment, b: HubAppointment) => a.start - b.start;
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+/** Phones get views of their own (calendar-phone.tsx). The server renders the desktop's, which CSS hides there until then. */
+const phoneQuery = "(max-width: 767px)";
+const subscribePhone = (listener: () => void) => { const list = window.matchMedia(phoneQuery); list.addEventListener("change", listener); return () => list.removeEventListener("change", listener); };
+const usePhone = () => useSyncExternalStore(subscribePhone, () => window.matchMedia(phoneQuery).matches, () => false);
 
 /** Dragging tasks to another day and appointments to another time, with the mouse or a finger. */
 function useCalendarDrag(root: React.RefObject<HTMLElement | null>, enabled: boolean, onTask: (id: string, day: string) => void, onAppointment: (id: string, day: string, minute: number) => void) {
@@ -262,10 +268,15 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   // Where the page opens: a notice's appointment (?appointment=), a day (?day=, from the projects page), a customer.
   const params = useSearchParams();
   const linked = store.appointments.find((item) => item.id === params.get("appointment"));
-  // The view: from the address, else the last one in this browser, else the week.
+  // The view: from the address, else the last one in this browser, else the week; phones keep their own and start
+  // with the day (preview „Version 3“, 27.11.2026).
+  const phone = usePhone();
   const [storedView, setStoredView] = useStoredValue("oalab-calendar-view", "week");
+  const [storedPhoneView, setStoredPhoneView] = useStoredValue("oalab-calendar-view-phone", "day");
   const [chosenView, setChosenView] = useState<CalendarView | null>(() => isCalendarView(params.get("view")) ? params.get("view") as CalendarView : null);
-  const view: CalendarView = chosenView ?? (isCalendarView(storedView) ? storedView : "week");
+  const shownView: CalendarView = chosenView ?? (phone ? (isCalendarView(storedPhoneView) ? storedPhoneView : "day") : isCalendarView(storedView) ? storedView : "week");
+  // Customers have no day view on the desktop; a day chosen on a narrow window shows as its week there.
+  const view: CalendarView = !phone && !admin && shownView === "day" ? "week" : shownView;
   const startDay = linked ? dayOf(linked.start) : params.get("day");
   const [day, setDay] = useState(() => isDay(startDay) ? startDay : today);
   const [selected, setSelected] = useState<string | null>(() => admin && store.customers.some((customer) => customer.id === params.get("customer")) ? params.get("customer") : null);
@@ -290,7 +301,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
-  const setView = (next: CalendarView) => { setChosenView(next); setStoredView(next); };
+  const setView = (next: CalendarView) => { setChosenView(next); if (phone) setStoredPhoneView(next); else setStoredView(next); };
   // The choice stays in the address (shareable, survives a reload) without asking the server again.
   useEffect(() => {
     const query = new URLSearchParams();
@@ -409,7 +420,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
     if (off) void store.removeException(off.id).then((result) => report(result, `${formatDayShort(date)} ist wieder verfügbar.`));
     else void store.addException({ kind: "off", from: date, allDay: true }).then((result) => report(result, `${formatDayShort(date)}: den ganzen Tag nicht verfügbar.`));
   };
-  useAvailabilityPaint(root, admin && editing && (view === "week" || view === "day"), onPaint);
+  // Painting needs the desktop's time grid; on phones „Verfügbarkeit“ opens the weekly plan instead.
+  useAvailabilityPaint(root, admin && editing && !phone && (view === "week" || view === "day"), onPaint);
 
   /* ---------- Opening things ---------- */
   const open = (target: OpenTarget) => {
@@ -526,7 +538,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
   const toggleLayer = (layer: Layer) => { const next = new Set(layers); if (next.has(layer)) next.delete(layer); else next.add(layer); setStoredLayers([...next].join(",")); };
 
   const toolbar = (
-    <div className="sheet-toolbar cal-toolbar">
+    <div className="sheet-toolbar cal-toolbar cal-desk">
       <div className="cal-nav" role="group" aria-label="Zeitraum">
         <button type="button" className="cal-nav-btn" onClick={() => step(-1)} aria-label="Zurück" data-tip="Zurück" data-tip-kbd="←"><ChevronLeft size={18} aria-hidden="true" /></button>
         <button type="button" className={`cal-today${days.includes(today) ? " is-current" : ""}`} onClick={goToday} data-tip={formatDayLong(today)} data-tip-kbd="T">Heute</button>
@@ -556,7 +568,7 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       ]} />}
     </div>
   );
-  const strip = admin && editing && (view === "week" || view === "day")
+  const strip = admin && editing && !phone && (view === "week" || view === "day")
     ? (
       <div className="cal-strip is-edit" role="status">
         <span className="cal-strip-icon"><Paintbrush size={15} aria-hidden="true" /></span>
@@ -584,8 +596,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
         </span>
       </div>
     )
-    : view !== "list" && (
-      <div className="cal-strip is-free">
+    : view !== "list" && !phone && (
+      <div className="cal-strip is-free cal-desk">
         <span className="cal-strip-icon"><MousePointerClick size={15} aria-hidden="true" /></span>
         <span className="cal-strip-text"><b>Grün heißt frei.</b> Klick auf eine freie Zeit, um dort einen Termin anzufragen. oalab bestätigt ihn dann.</span>
       </div>
@@ -598,9 +610,10 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       ).map(([cls, label]) => <span key={cls} className="cal-key"><span className={`cal-key-swatch ${cls}`} aria-hidden="true" />{label}</span>)}
     </span>
   );
+  const summary = `${plural(counts.confirmed, "Termin", "Termine")}${admin ? ` · ${plural(counts.requested, "Anfrage", "Anfragen")}` : ""} · ${plural(counts.due, "Aufgabe", "Aufgaben")}`;
   const footer = (
-    <div className="sheet-footer cal-footer">
-      <span>{plural(counts.confirmed, "Termin", "Termine")}{admin ? ` · ${plural(counts.requested, "Anfrage", "Anfragen")}` : ""} · {plural(counts.due, "Aufgabe", "Aufgaben")}</span>
+    <div className="sheet-footer cal-footer cal-desk">
+      <span>{summary}</span>
       {legend}
     </div>
   );
@@ -625,8 +638,9 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
               : `${titleSub || title}: ${plural(counts.confirmed, "Termin", "Termine")} · ${plural(counts.requested, "Anfrage", "Anfragen")} · ${plural(counts.due, "Aufgabe", "Aufgaben")} fällig`}</span>
           </div>
           <Link className="sheet-action" href={`${hubHref(preview, "projects")}/tasks`} data-tip="Zum Aufgaben-Board"><SquareKanban size={15} aria-hidden="true" /><span className="cal-head-label">Aufgaben</span></Link>
-          <button type="button" className={`sheet-action cal-avail-action${editing ? " is-on" : ""}`} aria-pressed={editing} onClick={toggleEditing}
-            data-tip={editing ? "Bearbeiten beenden" : "Verfügbarkeit im Kalender bearbeiten"} data-tip-sub={weekSummary(availability.week)} data-tip-kbd="V">
+          <button type="button" className={`sheet-action cal-avail-action${editing && !phone ? " is-on" : ""}`} aria-pressed={phone ? panel?.kind === "avail" : editing}
+            onClick={phone ? () => setPanel({ kind: "avail" }) : toggleEditing}
+            data-tip={phone ? "Wochenplan & Regeln" : editing ? "Bearbeiten beenden" : "Verfügbarkeit im Kalender bearbeiten"} data-tip-sub={weekSummary(availability.week)} data-tip-kbd="V">
             <Clock size={15} aria-hidden="true" /><span className="cal-head-label">Verfügbarkeit</span>
           </button>
           {feedButton}
@@ -643,11 +657,22 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
           {own && <button type="button" className="sheet-action is-primary" onClick={() => setPanel({ kind: "ask", day: day < today ? today : day })}><CalendarPlus size={15} aria-hidden="true" /><span className="cal-head-label">Termin anfragen</span></button>}
         </header>
       )}
-      {toolbar}
-      {strip}
-      {tasksInfo.box}
-      <div className={`am-scroll cal-scroll is-${view}`} ref={scroller} onClick={onEmptyClick}>{content}</div>
-      {footer}
+      {phone ? (
+        <>
+          {strip}
+          <PhoneCalendar {...viewProps} view={view} day={day} summary={summary} onView={setView} onStep={step} onToday={goToday}
+            onPick={(date) => { if (monthOf(date) >= range.firstMonth && monthOf(date) <= range.lastMonth) setDay(date); }}
+            onDay={(date) => { setDay(date); setView("day"); }} />
+        </>
+      ) : (
+        <>
+          {toolbar}
+          {strip}
+          {tasksInfo.box}
+          <div className={`am-scroll cal-scroll cal-desk is-${view}`} ref={scroller} onClick={onEmptyClick}>{content}</div>
+          {footer}
+        </>
+      )}
     </section>
   );
 
@@ -760,6 +785,8 @@ export function CalendarScreen({ calendar, projects, preview, freelancer, fileSt
       <div ref={root} className={`sheet section-first cal-sheet${admin ? " am" : " is-customer"}`} data-open={admin ? (paneOpen ? "" : undefined) : ""}>
         {admin ? <div className="am-grid">{list}{pane}</div> : pane}
       </div>
+      {/* On phones a customer's own appointment is a sheet from below over the dimmed calendar. */}
+      {phone && !admin && panelAppointment && <button type="button" className="cal-scrim" aria-label="Schließen" tabIndex={-1} onClick={close} />}
       {panelNode}
       {float && (
         <div className="sheet-pop cal-float" role="menu" aria-label={float.title} style={{ left: Math.min(float.x - 12, (typeof window === "undefined" ? 1200 : window.innerWidth) - 290), top: float.y + 8 }}>

@@ -75,6 +75,9 @@ export const patchDays: PatchDay[] = [
     patch: "1.1",
     date: "2026-11-28",
     changes: [
+      { kind: "new", area: "projects", place: "Kalender › Tag", customers: true, freelancers: true, title: "Kalender fürs Handy", text: "Auf dem Handy hat der Kalender eigene Ansichten. „Tag“ zeigt den Tag als Karte mit großem Datum und kleinem Monat zum Wechseln, darunter deine Termine und freien Zeiten. Woche, Monat und Liste stehen als schmale Zeilen mit Uhrzeit, Titel, Statuspunkt und Beitreten-Knopf; ein laufendes Meeting oder eine Anfrage färbt die ganze Zeile." },
+      { kind: "improved", area: "projects", place: "Kalender › Termin", customers: true, freelancers: true, title: "Termin als Blatt von unten", text: "Tippst du am Handy auf einen deiner Termine, öffnet er sich als Blatt von unten über dem Kalender, mit dem großen Beitreten-Knopf. Ein Tipp daneben oder auf das Kreuz schließt es wieder." },
+      { kind: "improved", area: "projects", place: "Kalender › Termin bearbeiten", title: "Termine am Handy bearbeiten", text: "Am Handy füllt das Termin-Fenster den Bildschirm: Datum, Beginn, Dauer und Ende stehen in zwei Spalten, Abbrechen und Speichern unten am Daumen, Absagen und Löschen am Ende des Formulars. „Verfügbarkeit“ öffnet am Handy den Wochenplan, und die Kopfzeile zeigt den Kundennamen ohne Kachel." },
       { kind: "new", area: "projects", place: "Projekte › Alle Projekte › Kacheln", title: "Alle Projekte als Kacheln", text: "Oben rechts schaltest du zwischen Liste und Kacheln um. Jeder Kunde ist eine Kachel mit seinen Projekten als Karten; die Farbe zeigt den Status, gefährdete Kunden stehen oben, und die Pille ändert den Status sofort. Ein Klick auf eine Karte öffnet rechts alle Angaben, unten rechts wählst du klein, mittel oder groß mit Zeitleiste." },
     ],
   },
